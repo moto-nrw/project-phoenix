@@ -53,6 +53,10 @@ func (f *fakeInstanceRepo) Create(context.Context, *scheduleModel.ActivityInstan
 	panic("unused")
 }
 
+func (f *fakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Context, *scheduleModel.ActivityInstance) (bool, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceRepo) FindByID(context.Context, interface{}) (*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }

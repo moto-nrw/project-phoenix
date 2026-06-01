@@ -28,8 +28,8 @@
 //     aborts the tenant's run; the scheduler will retry on the next matching
 //     weekday.
 //
-//   - UniqueViolation on Create is absorbed (race with a concurrent run) and
-//     counted as raced, not fatal.
+//   - Duplicate template-slot races are absorbed via INSERT ... ON CONFLICT DO
+//     NOTHING and counted as raced, not fatal.
 package schedule
 
 import (
@@ -40,14 +40,11 @@ import (
 	"sort"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // MaxMaterializationWindowDays caps how many civil days a single call may
@@ -424,20 +421,21 @@ func (s *materializationService) materializeTemplate(
 				IsSpontaneous:    false,
 			}
 
-			if err := s.instanceRepo.Create(ctx, instance); err != nil {
-				if isUniqueViolation(err) {
-					result.CandidatesRaced++
-					s.getLogger().Warn("materialization race: instance already present",
-						slog.Int64("template_id", tmpl.ID),
-						slog.String("date", date.Format("2006-01-02")),
-						slog.String("start_time", effective.StartTime.Format("15:04:05")),
-					)
-					// Mark it in the index so a second schedule row on the same
-					// (date, start_time) doesn't race again.
-					existingIdx[key] = struct{}{}
-					continue
-				}
+			inserted, err := s.instanceRepo.CreateTemplateBackedIfAbsent(ctx, instance)
+			if err != nil {
 				return &ScheduleError{Op: "materialize template: create instance", Err: err}
+			}
+			if !inserted {
+				result.CandidatesRaced++
+				s.getLogger().Warn("materialization race: instance already present",
+					slog.Int64("template_id", tmpl.ID),
+					slog.String("date", date.Format("2006-01-02")),
+					slog.String("start_time", effective.StartTime.Format("15:04:05")),
+				)
+				// Mark it in the index so a second schedule row on the same
+				// (date, start_time) doesn't race again.
+				existingIdx[key] = struct{}{}
+				continue
 			}
 			existingIdx[key] = struct{}{}
 			result.InstancesCreated++
@@ -818,22 +816,4 @@ func formatTimeOfDay(t time.Time) string {
 // full rationale on why TIMESTAMPTZ → TIME round-trips need this.
 func extractTimeOfDay(t time.Time) time.Time {
 	return timezone.WallClock(t)
-}
-
-// isUniqueViolation returns true when err (or a wrapped modelBase.DatabaseError)
-// carries PostgreSQL error code 23505. Mirrors services/platform/db_helpers.go
-// without cross-package-importing it (keeps the dependency graph acyclic).
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
-	}
-	return false
 }
