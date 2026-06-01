@@ -7,6 +7,7 @@ import { SimpleAlert } from "~/components/simple/SimpleAlert";
 import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { sessionFetch } from "~/lib/session-cache";
+import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
@@ -269,6 +270,9 @@ function OperatorSettingsContent() {
             Passwort ändern
           </button>
         </div>
+
+        {/* Trusted Devices Section */}
+        <TrustedDevicesSection scope="operator" />
       </div>
 
       {showAlert && (

@@ -20,17 +20,18 @@ import (
 // are formatted YYYY-MM-DD; timestamps RFC3339. The frontend reverses
 // the formatting when binding the edit form.
 type PhaseResponse struct {
-	ID                       string  `json:"id"`
-	Name                     string  `json:"name"`
-	Kind                     string  `json:"kind"`
-	ServiceStartDate         string  `json:"service_start_date"`
-	ServiceEndDate           string  `json:"service_end_date"`
-	EnrollmentOpenAt         *string `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt        *string `json:"enrollment_close_at,omitempty"`
-	FormSchemaID             *string `json:"form_schema_id,omitempty"`
-	ShowStatusReasonToParent bool    `json:"show_status_reason_to_parent"`
-	CareOverflowMode         string  `json:"care_overflow_mode"`
-	IsActive                 bool    `json:"is_active"`
+	ID                        string  `json:"id"`
+	Name                      string  `json:"name"`
+	Kind                      string  `json:"kind"`
+	ServiceStartDate          string  `json:"service_start_date"`
+	ServiceEndDate            string  `json:"service_end_date"`
+	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string  `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
+	IsActive                  bool    `json:"is_active"`
 	// Rollover columns (migration 1.15.61) — emitted so the admin UI
 	// can distinguish rollover phases from fresh ones and surface the
 	// review-queue link only for rolled-forward phases.
@@ -45,16 +46,17 @@ type PhaseResponse struct {
 
 func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 	resp := PhaseResponse{
-		ID:                       strconv.FormatInt(p.ID, 10),
-		Name:                     p.Name,
-		Kind:                     p.Kind,
-		ServiceStartDate:         p.ServiceStartDate.Format("2006-01-02"),
-		ServiceEndDate:           p.ServiceEndDate.Format("2006-01-02"),
-		ShowStatusReasonToParent: p.ShowStatusReasonToParent,
-		CareOverflowMode:         p.CareOverflowMode,
-		IsActive:                 p.IsActive,
-		CreatedAt:                p.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:                p.UpdatedAt.Format(time.RFC3339),
+		ID:                        strconv.FormatInt(p.ID, 10),
+		Name:                      p.Name,
+		Kind:                      p.Kind,
+		ServiceStartDate:          p.ServiceStartDate.Format("2006-01-02"),
+		ServiceEndDate:            p.ServiceEndDate.Format("2006-01-02"),
+		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
+		CareOverflowMode:          p.CareOverflowMode,
+		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
+		IsActive:                  p.IsActive,
+		CreatedAt:                 p.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:                 p.UpdatedAt.Format(time.RFC3339),
 	}
 	if p.EnrollmentOpenAt != nil {
 		s := p.EnrollmentOpenAt.Format(time.RFC3339)
@@ -91,16 +93,17 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 // row, or omitted/empty for "no custom fields" (the parent form
 // renders core fields only).
 type PhaseRequest struct {
-	Name                     string  `json:"name"`
-	Kind                     string  `json:"kind"`
-	ServiceStartDate         string  `json:"service_start_date"`
-	ServiceEndDate           string  `json:"service_end_date"`
-	EnrollmentOpenAt         *string `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt        *string `json:"enrollment_close_at,omitempty"`
-	FormSchemaID             *string `json:"form_schema_id,omitempty"`
-	ShowStatusReasonToParent bool    `json:"show_status_reason_to_parent"`
-	CareOverflowMode         string  `json:"care_overflow_mode"`
-	IsActive                 bool    `json:"is_active"`
+	Name                      string  `json:"name"`
+	Kind                      string  `json:"kind"`
+	ServiceStartDate          string  `json:"service_start_date"`
+	ServiceEndDate            string  `json:"service_end_date"`
+	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string  `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
+	IsActive                  bool    `json:"is_active"`
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
@@ -119,13 +122,14 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	}
 
 	p := &enrollmentModels.Phase{
-		Name:                     req.Name,
-		Kind:                     req.Kind,
-		ServiceStartDate:         startDate,
-		ServiceEndDate:           endDate,
-		ShowStatusReasonToParent: req.ShowStatusReasonToParent,
-		CareOverflowMode:         req.CareOverflowMode,
-		IsActive:                 req.IsActive,
+		Name:                      req.Name,
+		Kind:                      req.Kind,
+		ServiceStartDate:          startDate,
+		ServiceEndDate:            endDate,
+		ShowStatusReasonToParent:  req.ShowStatusReasonToParent,
+		CareOverflowMode:          req.CareOverflowMode,
+		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
+		IsActive:                  req.IsActive,
 	}
 	if req.EnrollmentOpenAt != nil && *req.EnrollmentOpenAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentOpenAt)

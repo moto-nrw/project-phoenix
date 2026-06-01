@@ -139,6 +139,10 @@ func (m *mockGroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64)
 	return 0, nil
 }
 
+func (m *mockGroupRepository) AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*active.RoomSessionAggregate, error) {
+	return nil, nil
+}
+
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
 	findByActiveGroupIDFunc           func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)

@@ -4,11 +4,13 @@ import "@testing-library/jest-dom/vitest";
 
 const {
   mockFetchPublicActiveSchema,
+  mockFetchPublicCaptchaConfig,
   mockFetchPublicCareOfferings,
   mockFetchMyEnrollmentProfile,
   mockSubmitEnrollment,
 } = vi.hoisted(() => ({
   mockFetchPublicActiveSchema: vi.fn(),
+  mockFetchPublicCaptchaConfig: vi.fn(),
   mockFetchPublicCareOfferings: vi.fn(),
   mockFetchMyEnrollmentProfile: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
@@ -19,6 +21,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
   return {
     ...actual,
     fetchPublicActiveSchema: mockFetchPublicActiveSchema,
+    fetchPublicCaptchaConfig: mockFetchPublicCaptchaConfig,
   };
 });
 
@@ -109,6 +112,7 @@ function offerings(): PublicCareOffering[] {
       includes_holiday_care: true,
       includes_lunch: true,
       is_active: true,
+      is_required: false,
       capacity: null,
     },
     {
@@ -121,6 +125,7 @@ function offerings(): PublicCareOffering[] {
       includes_holiday_care: false,
       includes_lunch: false,
       is_active: true,
+      is_required: false,
       capacity: 20,
     },
   ];
@@ -193,12 +198,18 @@ function fillRequiredFields() {
 describe("EnrollmentForm", () => {
   beforeEach(() => {
     mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
     mockFetchPublicCareOfferings.mockReset();
     mockFetchMyEnrollmentProfile.mockReset();
     mockSubmitEnrollment.mockReset();
     mockFetchPublicActiveSchema.mockResolvedValue(schema());
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
     mockFetchMyEnrollmentProfile.mockResolvedValue(null);
@@ -359,6 +370,69 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("treats exactly-one care selection as a single-choice group", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: offerings(),
+      careOfferingSelectionMode: "exactly_one",
+      careRequired: true,
+    });
+    renderForm();
+    await waitForLoaded();
+
+    const flexible = screen.getByRole("checkbox", {
+      name: /Flexible Betreuung/,
+    }) as HTMLInputElement;
+    const fixed = screen.getByRole("checkbox", {
+      name: /Fixe Betreuung/,
+    }) as HTMLInputElement;
+
+    fireEvent.click(fixed);
+    expect(fixed).toBeChecked();
+    expect(flexible).not.toBeChecked();
+
+    fireEvent.click(flexible);
+    expect(flexible).toBeChecked();
+    expect(fixed).not.toBeChecked();
+  });
+
+  it("enforces configurable core required fields", async () => {
+    mockFetchPublicActiveSchema.mockResolvedValueOnce({
+      ...schema(),
+      core_requirements: {
+        guardian_phone: true,
+      },
+    });
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte Telefonnummer angeben."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByRole("textbox", { name: /Telefon/ }), {
+      target: { value: "+49 221 1234567" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags?.photo).toBe(false);
+  });
+
   it("adds and removes children without submitting in preview mode", async () => {
     renderForm({ previewMode: true, previewSchema: schema() });
     await waitForLoaded();
@@ -398,5 +472,123 @@ describe("EnrollmentForm", () => {
     expect(payload.captcha_token).toBeUndefined();
     expect(payload.children[0]?.offering_ids).toEqual([12]);
     expect(onSubmitted).toHaveBeenCalledWith("/parents/status/1");
+  });
+
+  it("pre-selects and locks a mandatory offering and submits it for every child", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "20",
+          phase_id: "5",
+          name: "Mittagessen",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: true,
+          is_active: true,
+          is_required: true,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm({ submitter, skipCaptcha: true });
+    await waitForLoaded();
+
+    // The mandatory offering is checked and cannot be toggled off.
+    const checkbox = screen.getByRole("checkbox", {
+      name: /Mittagessen/,
+    }) as HTMLInputElement;
+    expect(checkbox).toBeChecked();
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText("Pflicht")).toBeInTheDocument();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual([20]);
+  });
+
+  it("counts only choosable offerings for exactly_one when a required offering is present", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "20",
+          phase_id: "5",
+          name: "Mittagessen",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: true,
+          is_active: true,
+          is_required: true,
+          capacity: null,
+        },
+        {
+          id: "12",
+          phase_id: "5",
+          name: "Fixe Betreuung",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["tue", "thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: 20,
+        },
+      ],
+      careOfferingSelectionMode: "exactly_one",
+      careRequired: true,
+    });
+    renderForm();
+    await waitForLoaded();
+
+    // The required offering renders in its own locked "Pflichtangebote" block,
+    // checked and disabled - it is not the parent's pick.
+    expect(screen.getByText("Pflichtangebote")).toBeInTheDocument();
+    const required = screen.getByRole("checkbox", {
+      name: /Mittagessen/,
+    }) as HTMLInputElement;
+    expect(required).toBeChecked();
+    expect(required).toBeDisabled();
+
+    fillRequiredFields();
+
+    // Submitting with ONLY the required offering must be rejected: exactly_one
+    // counts the choosable offerings, and none is chosen yet. The required
+    // offering must not satisfy the limit on its own.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      await screen.findByText(
+        "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    // Picking exactly one choosable offering satisfies the mode; the required
+    // offering rides along without counting toward the limit.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.offering_ids).toHaveLength(2);
+    expect(payload.children[0]?.offering_ids).toEqual(
+      expect.arrayContaining([20, 12]),
+    );
   });
 });

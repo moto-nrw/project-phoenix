@@ -186,6 +186,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/students/photo_error_mappers_test.go",               // Table-driven mapper tests with httptest.NewRecorder; no DB
 		"api/students/photo_unlinker_test.go",                    // Pure file-system unit test for the unlinker; uses a temp dir, no DB
 		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
+		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
 	}
 
