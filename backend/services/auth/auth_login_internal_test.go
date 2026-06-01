@@ -79,6 +79,9 @@ type stubAuthLoginAccountTenantRepo struct {
 func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
 	panic("unexpected Create")
 }
+func (s stubAuthLoginAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
+	panic("unexpected EnsureActive")
+}
 func (s stubAuthLoginAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
 	return s.findActiveFn(ctx, accountID)
 }
@@ -128,7 +131,7 @@ func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturns
 }
 
 // DB errors from FindBySubdomain must propagate as-is, not collapse into ErrTenantNotFound.
-// A connection timeout is not "tenant not found" — hiding it makes debugging impossible.
+// A connection timeout is not "tenant not found", hiding it makes debugging impossible.
 func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
 	dbErr := errors.New("connection timed out")
 	service := &Service{
@@ -267,7 +270,7 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 }
 
 // resolveAccountTenantBySlug must treat a soft-deleted school the same as "not found".
-// A school with a non-nil DeletedAt must never be resolved as a valid tenant — even if
+// A school with a non-nil DeletedAt must never be resolved as a valid tenant, even if
 // the account has an active mapping to it. This prevents login into decommissioned tenants.
 func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testing.T) {
 	now := time.Now()
@@ -362,7 +365,7 @@ func TestLoadAccountMetadataForTenant_WithValidTenant(t *testing.T) {
 }
 
 // TestLoadAccountMetadataForTenant_WithDeletedTenant verifies that a soft-deleted
-// school is treated as not found — the refresh flow must reject it with ErrTenantNotFound.
+// school is treated as not found, the refresh flow must reject it with ErrTenantNotFound.
 func TestLoadAccountMetadataForTenant_WithDeletedTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -419,7 +422,7 @@ func TestLoadAccountMetadataForTenant_WithNonExistentTenant(t *testing.T) {
 }
 
 // TestLoadAccountMetadataForTenant_WithZeroTenant verifies that tenantID=0 is a valid
-// edge case (e.g. platform-scoped accounts) — the function should succeed and return
+// edge case (e.g. platform-scoped accounts), the function should succeed and return
 // orgID=0 without attempting a school lookup.
 func TestLoadAccountMetadataForTenant_WithZeroTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
@@ -626,7 +629,7 @@ func TestValidateTenantAccess_SchoolLookupDBError(t *testing.T) {
 }
 
 // TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound verifies that when
-// FindByID returns (nil, nil) — a defensive edge case — the function treats it
+// FindByID returns (nil, nil), a defensive edge case, the function treats it
 // the same as a deleted school and returns ErrTenantNotFound.
 func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
 	service := &Service{

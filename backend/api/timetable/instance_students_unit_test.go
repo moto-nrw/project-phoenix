@@ -79,6 +79,9 @@ func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*sched
 func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
+	panic("unused")
+}
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
 func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
 	panic("unused")

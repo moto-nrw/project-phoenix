@@ -1,0 +1,28 @@
+{
+	metrics
+}
+
+(phoenix_access_log) {
+	log {
+		output file /var/log/caddy/phoenix-access.log {
+			roll_size 100MiB
+			roll_keep 10
+			roll_keep_for 168h
+		}
+		format filter {
+			request>headers>Authorization delete
+			request>headers>Cookie delete
+			request>headers>X-Device-Key delete
+			request>headers>X-Staff-PIN delete
+			request>uri regexp "\\?.*$" ""
+			request>remote_ip ip_mask 24 56
+			request>client_ip ip_mask 24 56
+			wrap json
+		}
+	}
+	log_append upstream {http.reverse_proxy.upstream.address}
+	log_append upstream_latency_ms {http.reverse_proxy.upstream.duration_ms}
+}
+
+# Import this snippet into each Phoenix site block:
+# import phoenix_access_log

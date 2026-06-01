@@ -139,6 +139,10 @@ func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) DeleteByInstanceID(context.Context, int64) error {
 	panic("unused")
 }

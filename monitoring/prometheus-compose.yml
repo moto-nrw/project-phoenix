@@ -1,0 +1,86 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+    command:
+      - -c
+      - |
+        : "$${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}"
+        escaped_token="$$(printf '%s' "$${METRICS_BEARER_TOKEN}" | sed 's/[\/&]/\\&/g')"
+        sed "s/__METRICS_BEARER_TOKEN__/$${escaped_token}/g" /etc/prometheus/prometheus.yml.template > /tmp/prometheus.yml
+        exec /bin/prometheus \
+          --config.file=/tmp/prometheus.yml \
+          --storage.tsdb.path=/prometheus \
+          --storage.tsdb.retention.time=30d \
+          --web.listen-address=0.0.0.0:9090 \
+          --web.enable-lifecycle
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - 127.0.0.1:9090:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+      - production
+      - staging
+    logging:
+      driver: journald
+      options:
+        tag: monitoring-prometheus
+
+  node-exporter:
+    image: prom/node-exporter:v1.10.2
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($$|/)
+    pid: host
+    ports:
+      - 127.0.0.1:9100:9100
+    volumes:
+      - /:/host:ro,rslave
+    logging:
+      driver: journald
+      options:
+        tag: monitoring-node-exporter
+    networks:
+      - monitoring
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    ports:
+      - 127.0.0.1:8082:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    logging:
+      driver: journald
+      options:
+        tag: monitoring-cadvisor
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    name: phoenix-monitoring
+  production:
+    external: true
+    name: production_production
+  staging:
+    external: true
+    name: staging_staging
+
+volumes:
+  prometheus-data:

@@ -179,17 +179,41 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 			Exec(context.Background())
 	})
 
-	t.Run("bad_request_empty_schedules", func(t *testing.T) {
+	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupEmpty", "Test", "PE1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "PickupTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+		schedule := &scheduleModel.StudentPickupSchedule{
+			StudentID:  student.ID,
+			Weekday:    1,
+			PickupTime: pickupTime,
+			CreatedBy:  createStudentsAPITestStaffID(t, tc),
+		}
+		schedule.SetTenantID(1)
+		_, err := tc.db.NewInsert().Model(schedule).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
 
 		body := map[string]any{
 			"schedules": []map[string]any{},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		count, err := tc.db.NewSelect().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", student.ID).
+			Count(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
 	})
 
 	t.Run("bad_request_invalid_weekday", func(t *testing.T) {
@@ -403,7 +427,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 	})
 
 	t.Run("valid_request_without_reason", func(t *testing.T) {
-		// Reason is now optional — omitting it should not cause a bad request.
+		// Reason is now optional, omitting it should not cause a bad request.
 		// Full creation still requires a valid account+person setup, so we only
 		// verify the bind step doesn't reject the payload.
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoReason", "Test", "ENR1")

@@ -9,6 +9,10 @@ import {
   getStudentAbsence,
   getStudentTimeStatus,
 } from "~/lib/student-time-status";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
@@ -316,10 +320,18 @@ export function StudentDetailHeader({
   // Spread the student so any field LocationBadge consumes (current_room_color,
   // future room-derived attributes, etc.) propagates without maintaining a
   // parallel whitelist here. Only the not_arrival_* fields are computed locally.
+  const badgePlanning = getStudentPresenceBadgePlanning({
+    ...student,
+    arrival_is_exception: isArrivalException,
+    arrival_time: todayArrivalPlannedTime,
+    arrival_notes: todayArrivalNote,
+  });
   const badgeStudent = {
     ...student,
-    not_arrival_today: isArrivalAbsent ?? false,
-    not_arrival_reason: todayArrivalNote ?? null,
+    not_arrival_today:
+      badgePlanning.notArrivalToday || (isArrivalAbsent ?? false),
+    not_arrival_reason:
+      badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
   };
 
   const fullName =
@@ -366,7 +378,11 @@ export function StudentDetailHeader({
                 sick: student.sick,
                 excused: student.excused,
               });
-              if (absence && !todayPickupActualTime) {
+              const dayPlanningNotComingLabel =
+                getDayPlanningNotComingLabel(student);
+              const notComingLabel =
+                absence?.label ?? dayPlanningNotComingLabel;
+              if (notComingLabel && !todayPickupActualTime) {
                 return (
                   <div
                     data-testid="today-absence-row"
@@ -374,7 +390,7 @@ export function StudentDetailHeader({
                   >
                     <ClockIcon className="h-4 w-4 text-gray-400" />
                     <span className="font-medium text-gray-900">
-                      {`Kommt heute nicht (${absence.label})`}
+                      {`Kommt heute nicht (${notComingLabel})`}
                     </span>
                   </div>
                 );

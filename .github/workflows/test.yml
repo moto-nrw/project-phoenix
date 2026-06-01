@@ -51,6 +51,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
@@ -90,14 +92,36 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          IS_PR: ${{ inputs.is-pr }}
+          BASE_REF: ${{ inputs.base_ref }}
         run: |
           echo "Regenerating full coverage for SonarCloud"
           cp coverage.out coverage.gotestsum.out
-          if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
+          if ! go test -p 1 ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
             echo "Coverage regeneration failed; retrying once"
-            if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
+            if ! go test -p 1 ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
               echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
               mv coverage.gotestsum.out coverage.out
+              if [ "${IS_PR}" = "true" ] && [ -n "${BASE_REF}" ]; then
+                echo "Regenerating coverage for changed backend packages"
+                mapfile -t changed_packages < <(
+                  git -C .. diff --name-only "origin/${BASE_REF}"...HEAD -- 'backend/**/*.go' |
+                    grep -v '_test\.go$' |
+                    xargs -r -n1 dirname |
+                    sed 's|^backend/|./|' |
+                    sort -u
+                )
+
+                for package in "${changed_packages[@]}"; do
+                  safe_name=$(printf '%s' "${package}" | tr '/.' '__')
+                  package_profile="/tmp/${safe_name}.coverage.out"
+                  if go test "${package}" -coverpkg=./... -covermode=atomic -coverprofile="${package_profile}"; then
+                    tail -n +2 "${package_profile}" >> coverage.out
+                  else
+                    echo "Changed package coverage failed for ${package}"
+                  fi
+                done
+              fi
             fi
           fi
           rm -f coverage.gotestsum.out
@@ -133,6 +157,38 @@ jobs:
             -coverprofile=coverage.roomhistory.out
           tail -n +2 coverage.roomhistory.out >> coverage.out
           rm -f coverage.roomhistory.out
+
+      - name: Add observability coverage
+        working-directory: backend
+        run: |
+          go test ./observability \
+            -coverpkg=./observability \
+            -covermode=atomic \
+            -coverprofile=coverage.observability.out
+          tail -n +2 coverage.observability.out >> coverage.out
+          rm -f coverage.observability.out
+
+      - name: Add tenant middleware coverage
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: |
+          go test ./tenant \
+            -coverpkg=./tenant \
+            -covermode=atomic \
+            -coverprofile=coverage.tenant.out
+          tail -n +2 coverage.tenant.out >> coverage.out
+          rm -f coverage.tenant.out
+
+      - name: Add realtime hub coverage
+        working-directory: backend
+        run: |
+          go test ./realtime \
+            -coverpkg=./realtime \
+            -covermode=atomic \
+            -coverprofile=coverage.realtime.out
+          tail -n +2 coverage.realtime.out >> coverage.out
+          rm -f coverage.realtime.out
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend

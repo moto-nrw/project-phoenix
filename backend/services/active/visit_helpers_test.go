@@ -282,6 +282,78 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	assert.NotNil(t, reloaded.ExcusedSince)
 }
 
+func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
+	room := testpkg.CreateTestRoom(t, db, "Planned Clear Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Planned", "Clear", "4d")
+	staff := testpkg.CreateTestStaff(t, db, "Planned", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PCS-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	trueVal := true
+	now := time.Now()
+	student.Sick = &trueVal
+	student.SickSince = &now
+	student.Excused = &trueVal
+	student.ExcusedSince = &now
+	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since", "excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	today := timezone.DateOfUTC(now)
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       today,
+		Status:     activeModels.StudentStatusDaySick,
+		ReportedAt: now,
+		Source:     activeModels.StudentStatusSourcePlanned,
+	}))
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       today,
+		Status:     activeModels.StudentStatusDayExcused,
+		ReportedAt: now,
+		Source:     activeModels.StudentStatusSourcePlanned,
+	}))
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     now,
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	activeRows, err := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, today, today)
+	require.NoError(t, err)
+	assert.Empty(t, activeRows)
+
+	var reloaded struct {
+		Sick         bool       `bun:"sick"`
+		SickSince    *time.Time `bun:"sick_since"`
+		Excused      bool       `bun:"excused"`
+		ExcusedSince *time.Time `bun:"excused_since"`
+	}
+	err = db.NewSelect().
+		Table("users.students").
+		Column("sick", "sick_since", "excused", "excused_since").
+		Where("id = ?", student.ID).
+		Scan(ctx, &reloaded)
+	require.NoError(t, err)
+	assert.False(t, reloaded.Sick)
+	assert.Nil(t, reloaded.SickSince)
+	assert.False(t, reloaded.Excused)
+	assert.Nil(t, reloaded.ExcusedSince)
+}
+
 // =============================================================================
 // WebManualDeviceCode Constant Test
 // =============================================================================

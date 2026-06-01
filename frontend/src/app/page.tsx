@@ -118,7 +118,7 @@ export default function RootPage() {
               onClick={handleNavigate}
               className={authPrimaryButtonClassName}
             >
-              {isNavigating ? "Portal wird geöffnet..." : "Weiter"}
+              {isNavigating ? "OGS wird geladen..." : "Weiter"}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </>
