@@ -75,6 +75,11 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          # Dummy 32+ char secret so services.NewFactory can init the MFA
+          # service in tests. NewFactory hard-fails without it (the secret
+          # is the HMAC key for trusted-device cookies). Production and
+          # staging supply this via SOPS; CI tests get a fixed test value.
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
         run: |
           gotestsum \
             --format pkgname-and-test-fails \
@@ -92,6 +97,7 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
           IS_PR: ${{ inputs.is-pr }}
           BASE_REF: ${{ inputs.base_ref }}
         run: |
@@ -155,6 +161,18 @@ jobs:
             -coverprofile=coverage.import.out
           tail -n +2 coverage.import.out >> coverage.out
           rm -f coverage.import.out
+          
+      - name: Add room history coverage
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: |
+          go test ./database/repositories/active ./services/facilities \
+            -coverpkg=./database/repositories/active,./services/facilities \
+            -covermode=atomic \
+            -coverprofile=coverage.roomhistory.out
+          tail -n +2 coverage.roomhistory.out >> coverage.out
+          rm -f coverage.roomhistory.out
 
       - name: Add observability coverage
         working-directory: backend

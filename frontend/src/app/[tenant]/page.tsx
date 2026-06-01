@@ -13,16 +13,41 @@ import {
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  login as loginApi,
+  germanMFAErrorMessage,
+  MFAApiError,
+  type MFATokenResponse,
+} from "~/lib/mfa-api";
 
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
+
+interface MFAStep {
+  challengeToken: string;
+  maskedEmail: string;
+  trustedDeviceEnabled: boolean;
+  trustedDeviceDays: number;
+}
+
+interface MFAEnrollmentStep {
+  // enrollmentToken is the narrow-scope JWT issued by login when MFA is
+  // required and the user has no credential yet. It only authorizes
+  // /auth/mfa/enroll/* — a full session pair is minted by the confirm
+  // endpoint and seeded via seedSessionWithTokens once enrollment succeeds.
+  enrollmentToken: string;
+  email: string;
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +57,9 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [enrollmentStep, setEnrollmentStep] =
+    useState<MFAEnrollmentStep | null>(null);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
@@ -145,31 +173,77 @@ function LoginForm() {
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;
 
+  // seedSessionWithTokens hands an already-minted access/refresh pair to
+  // NextAuth via the internalRefresh credential path. Used after a
+  // successful MFA verify/enroll OR a non-MFA login — in all cases the
+  // backend has already authenticated the account, so we only seed the
+  // session.
+  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    const result = await signIn("credentials", {
+      redirect: false,
+      internalRefresh: "true",
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+    if (result?.error) {
+      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
+      logger.error("session_seed_failed", { error: result.error });
+      return;
+    }
+    setAwaitingRedirect(true);
+    router.refresh();
+  };
+
+  const handleMFASuccess = async (tokens: MFATokenResponse) => {
+    await seedSessionWithTokens(tokens);
+    setMfaStep(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
     try {
-      const result = await signIn("credentials", {
+      const response = await loginApi("tenant", {
         email,
         password,
         tenantSlug,
-        redirect: false,
       });
 
-      if (result?.error) {
+      if (response.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: response.challenge_token,
+          maskedEmail: response.masked_email,
+          trustedDeviceEnabled: response.trusted_device_enabled ?? true,
+          trustedDeviceDays: response.trusted_device_days ?? 90,
+        });
+        return;
+      }
+
+      if (response.status === "mfa_enrollment_required") {
+        // Post-#1430: the response carries an enrollment-scoped JWT in
+        // access_token (no refresh_token). It only authorizes
+        // /auth/mfa/enroll/* — the real session is minted by confirm.
+        setEnrollmentStep({
+          enrollmentToken: response.access_token,
+          email,
+        });
+        return;
+      }
+
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
       } else {
-        // Set flag to indicate we're awaiting redirect
-        setAwaitingRedirect(true);
-        // Refresh the router to update session state
-        router.refresh();
+        setError(germanMFAErrorMessage(err));
       }
-    } catch (error) {
-      setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
       logger.error("login failed", {
-        error: error instanceof Error ? error.message : String(error),
+        error: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsLoading(false);
@@ -210,83 +284,117 @@ function LoginForm() {
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            {error && <Alert type="error" message={error} />}
+          {mfaStep ? (
+            <MFAChallengeForm
+              scope="tenant"
+              challengeToken={mfaStep.challengeToken}
+              maskedEmail={mfaStep.maskedEmail}
+              trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+              trustedDeviceDays={mfaStep.trustedDeviceDays}
+              onSuccess={handleMFASuccess}
+              onCancel={() => {
+                setMfaStep(null);
+                setError("");
+                setPassword("");
+              }}
+            />
+          ) : enrollmentStep ? (
+            <MFAEnrollmentScreen
+              scope="tenant"
+              bearerToken={enrollmentStep.enrollmentToken}
+              userEmail={enrollmentStep.email}
+              onExit={() => {
+                setEnrollmentStep(null);
+                setError("");
+                setPassword("");
+              }}
+              onComplete={async (tokens) => {
+                setEnrollmentStep(null);
+                await seedSessionWithTokens({
+                  access_token: tokens.access_token,
+                  refresh_token: tokens.refresh_token,
+                });
+              }}
+            />
+          ) : (
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              {error && <Alert type="error" message={error} />}
 
-            <div className="space-y-4">
-              <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  data-testid="input-email"
-                  autoComplete="username"
-                  required
-                  disabled={isSubmitting}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={authInputClassName}
-                />
-              </div>
-
-              <div className="text-left">
-                <label
-                  htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Passwort
-                </label>
-                <div className="relative">
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label
+                    htmlFor="email"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    E-Mail-Adresse
+                  </label>
                   <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    data-testid="input-password"
-                    autoComplete="current-password"
+                    id="email"
+                    name="email"
+                    type="email"
+                    data-testid="input-email"
+                    autoComplete="username"
                     required
                     disabled={isSubmitting}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`${authInputClassName} pr-10`}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={authInputClassName}
                   />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
+                </div>
+
+                <div className="text-left">
+                  <label
+                    htmlFor="password"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Passwort
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      autoComplete="current-password"
+                      required
+                      disabled={isSubmitting}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`${authInputClassName} pr-10`}
+                    />
+                    <PasswordToggleButton
+                      showPassword={showPassword}
+                      onToggle={() => setShowPassword(!showPassword)}
+                    />
+                  </div>
+                </div>
+
+                {/* Forgot Password Link */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => setIsResetModalOpen(true)}
+                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  >
+                    Passwort vergessen?
+                  </button>
                 </div>
               </div>
 
-              {/* Forgot Password Link */}
-              <div className="text-center">
+              <div className="mt-2">
                 <button
-                  type="button"
+                  type="submit"
                   disabled={isSubmitting}
-                  onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  className={authPrimaryButtonClassName}
                 >
-                  Passwort vergessen?
+                  <span className="relative z-10">
+                    {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
+                  </span>
                 </button>
               </div>
-            </div>
-
-            <div className="mt-2">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className={authPrimaryButtonClassName}
-              >
-                <span className="relative z-10">
-                  {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
-                </span>
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
 
         {/* Smart redirect for authenticated users */}

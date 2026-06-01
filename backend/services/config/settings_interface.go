@@ -34,8 +34,20 @@ type SettingsService interface {
 	// ResolveBool resolves a setting as a bool.
 	ResolveBool(ctx context.Context, key string) (bool, error)
 
+	// ResolveBoolForTenant resolves a setting as a bool for an explicitly
+	// provided tenant — required from call sites that run outside the
+	// TenantTxMiddleware (e.g. /auth/mfa/verify, which runs between the
+	// challenge handshake and the session being established).
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+
 	// ResolveInt resolves a setting as an int.
 	ResolveInt(ctx context.Context, key string) (int, error)
+
+	// ResolveIntForTenant resolves a setting as an int for an explicitly
+	// provided tenant — mirrors ResolveBoolForTenant for callers that run
+	// outside the TenantTxMiddleware (e.g. login flow needs to expose the
+	// tenant's trusted-device-days value in the MFA challenge response).
+	ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error)
 
 	// HasTenantOverride checks if a tenant has an explicit DB override for a setting.
 	HasTenantOverride(ctx context.Context, key string) (bool, error)

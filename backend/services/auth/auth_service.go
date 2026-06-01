@@ -74,7 +74,13 @@ type Service struct {
 	txHandler           *base.TxHandler
 	db                  *bun.DB
 	logger              *slog.Logger
-	refreshSF           singleflight.Group // deduplicates concurrent token refresh calls
+	// mfaService is optional. When non-nil and an account requires MFA the
+	// login flow returns a challenge token instead of an access/refresh
+	// pair; when nil the gate is bypassed and login behaves as before.
+	// Wired post-construction via SetMFAService to break the
+	// AuthService ↔ MFAService construction-order dependency.
+	mfaService MFAService
+	refreshSF  singleflight.Group // deduplicates concurrent token refresh calls
 }
 
 // NewService creates a new auth service with reduced parameter count
@@ -138,7 +144,14 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		txHandler:           s.txHandler.WithTx(tx),
 		db:                  s.db,
 		logger:              s.logger,
+		mfaService:          s.mfaService,
 	}
+}
+
+// SetMFAService wires the optional MFA service post-construction. Idempotent
+// — calling with nil clears the gate.
+func (s *Service) SetMFAService(svc MFAService) {
+	s.mfaService = svc
 }
 
 func (s *Service) runInTx(

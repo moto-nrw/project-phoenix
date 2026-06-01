@@ -41,6 +41,46 @@ export interface ApiErrorResponse {
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
+ * Typed error thrown by serverFetchWithRetry / clientAxiosRequest for non-OK
+ * backend responses. Carries the HTTP status and the raw body so callers can
+ * branch on either without re-parsing `.message` strings. The `message`
+ * intentionally keeps the legacy `"API error (<status>): <body>"` shape so
+ * existing string-based parsers (handleApiError, handleDomainApiError) and
+ * any caller catching it as a plain Error continue to work unchanged.
+ */
+export class ApiResponseError extends Error {
+  readonly status: number;
+  readonly bodyText: string;
+  // Memoized parse result — `null` means "not JSON". Lazy so callers that
+  // only check status never pay the JSON.parse cost.
+  private parsedBody: unknown | undefined;
+  private parseAttempted = false;
+
+  constructor(status: number, bodyText: string, options?: ErrorOptions) {
+    super(`API error (${status}): ${bodyText}`, options);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.bodyText = bodyText;
+  }
+
+  /**
+   * Returns the parsed JSON body, or `null` if the body isn't valid JSON.
+   * Use this instead of grepping `error.message` for backend error codes.
+   */
+  body<T = unknown>(): T | null {
+    if (!this.parseAttempted) {
+      this.parseAttempted = true;
+      try {
+        this.parsedBody = JSON.parse(this.bodyText);
+      } catch {
+        this.parsedBody = null;
+      }
+    }
+    return (this.parsedBody ?? null) as T | null;
+  }
+}
+
+/**
  * Options for server-side fetch requests
  */
 interface ServerFetchOptions {
@@ -124,7 +164,7 @@ async function serverFetchWithRetry<T>(
     if (!response.ok) {
       outcome = "backend_error";
       const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
+      throw new ApiResponseError(response.status, errorText);
     }
 
     if (response.status === 204) {
@@ -285,7 +325,7 @@ async function clientAxiosRequest<T>(
       const errorText = error.response?.data
         ? JSON.stringify(error.response.data)
         : error.message;
-      throw new Error(`API error (${status}): ${errorText}`, { cause: error });
+      throw new ApiResponseError(status, errorText, { cause: error });
     }
     throw error;
   }

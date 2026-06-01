@@ -1,0 +1,35 @@
+{{define "mfa-email-code.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <div class="brand">
+        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
+    </div>
+    <h1>Ihr Anmeldecode</h1>
+    <p>Hallo,</p>
+    <p>jemand hat sich gerade mit Ihrer E-Mail-Adresse bei moto angemeldet und einen Bestätigungscode angefordert. Bitte geben Sie den folgenden Code in der moto-Anmeldemaske ein, um den Login abzuschließen:</p>
+
+    <!-- The code itself: large, monospace, copy-friendly. No surrounding link
+         on purpose — phishing defense per Yannick. -->
+    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px 16px; margin: 32px 0; text-align: center;">
+        <p style="margin: 0 0 8px 0; color: #6b7280; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase;">Ihr Code</p>
+        <p style="margin: 0; color: #111827; font-family: 'Monaco', 'Courier New', monospace; font-size: 32px; font-weight: 700; letter-spacing: 0.4em;">{{.Code}}</p>
+    </div>
+
+    <div class="highlight-box">
+        <p>Dieser Code ist {{.ExpiryMinutes}} Minuten gültig und kann nur einmal verwendet werden.</p>
+    </div>
+
+    {{if .RequestIP}}
+    <p style="font-size: 14px; color: #6b7280; margin-top: 24px;">Anfrage von IP-Adresse <span style="font-family: 'Monaco','Courier New',monospace;">{{.RequestIP}}</span>.</p>
+    {{end}}
+
+    {{if .TrustedDeviceEnabled}}
+    <p style="font-size: 14px; color: #6b7280;">Tipp: Wenn Sie häufig auf demselben Gerät arbeiten, können Sie es bei der Anmeldung als <em>vertrauenswürdiges Gerät</em> markieren — dann bleibt es {{.TrustedDeviceDays}} Tage ohne erneuten Code zugänglich.</p>
+    {{end}}
+
+    <p class="security-note">Wenn Sie diese Anmeldung nicht angefordert haben, ignorieren Sie diese E-Mail. Es wird nichts an Ihrem Konto verändert. moto fragt Sie niemals per E-Mail-Antwort, Anruf oder Messenger nach diesem Code — geben Sie ihn ausschließlich auf der moto-Anmeldemaske ein.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

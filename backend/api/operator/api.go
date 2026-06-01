@@ -7,8 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -18,6 +20,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource            *AuthResource
+	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
 	suggestionsResource     *SuggestionsResource
@@ -33,6 +36,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService                platformSvc.OperatorAuthService
+	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
@@ -47,8 +51,14 @@ type ResourceConfig struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolRepo platformModels.SchoolRepository
-	TokenAuth  *jwt.TokenAuth
-	DB         *bun.DB
+	// TenantMFAService is the tenant-side MFA service (auth package).
+	// The operator dashboard reuses it to read + write per-account MFA
+	// state on behalf of school staff. Distinct from MFAService above,
+	// which is the operator's own MFA service (operator login flow).
+	TenantMFAService        authSvc.MFAService
+	AccountTenantRepository authModels.AccountTenantRepository
+	TokenAuth               *jwt.TokenAuth
+	DB                      *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -95,6 +105,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	resource := &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
@@ -107,6 +118,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
+	resource.provisioningResource.TenantMFAService = cfg.TenantMFAService
+	resource.provisioningResource.AccountTenantRepository = cfg.AccountTenantRepository
 	return resource
 }
 
@@ -124,6 +137,14 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(rs.authRateLimiter)
 			}
 			r.Post("/login", rs.authResource.Login)
+
+			// MFA challenge → token-pair exchange (issue #1308). Mirror of
+			// the tenant-side endpoints — they take the short-lived
+			// challenge JWT in the request body, NOT in the Authorization
+			// header, because the operator is mid-login and has no access
+			// token yet.
+			r.Post("/mfa/verify", rs.mfaResource.Verify)
+			r.Post("/mfa/resend", rs.mfaResource.Resend)
 		})
 		r.Group(func(r chi.Router) {
 			limiter := rs.emailConfirmRateLimiter
@@ -153,6 +174,19 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.AuthenticateRefreshJWT)
 		r.Post("/auth/refresh", rs.authResource.RefreshToken)
+	})
+
+	// Enrollment-only routes (issue #1308): operator-side mirror of the
+	// tenant /auth/mfa/enroll/* group. Accepts the narrow enrollment JWT
+	// that operator login mints when no MFA credential is on file. The
+	// enrollment authenticator guarantees mfa_enrollment_pending=true so
+	// these routes are reachable only from a pre-enrollment session, never
+	// from a full operator access token.
+	r.Group(func(r chi.Router) {
+		r.Use(rs.tokenAuth.Verifier())
+		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Post("/auth/mfa/enroll/start", rs.mfaResource.EnrollStart)
+		r.Post("/auth/mfa/enroll/confirm", rs.mfaResource.EnrollConfirm)
 	})
 
 	// Protected routes (require operator auth)
@@ -199,6 +233,14 @@ func (rs *Resource) Router() chi.Router {
 				r.Post("/", rs.provisioningResource.EnableSchoolAccountCaregiverCapability)
 				r.Delete("/", rs.provisioningResource.DisableSchoolAccountCaregiverCapability)
 			})
+			// MFA admin actions for school staff. Operator-side mirror of the
+			// tenant-admin MFA endpoints — same write semantics, separate
+			// audit metadata (actor_type=operator).
+			r.Route("/{id}/accounts/{accountId}/mfa", func(r chi.Router) {
+				r.Get("/", rs.provisioningResource.GetSchoolAccountMFAState)
+				r.Delete("/", rs.provisioningResource.ResetSchoolAccountMFA)
+				r.Put("/override", rs.provisioningResource.SetSchoolAccountMFAOverride)
+			})
 			r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 			r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
 			if rs.settingsResource != nil {
@@ -213,6 +255,15 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/persons", func(r chi.Router) {
 			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
+		})
+
+		// Account-wide MFA override surface ("mailbox lockout emergency
+		// switch"). Deliberately decoupled from /schools/{id}/accounts/{}
+		// because the platform-wide override row applies regardless of
+		// which school an account belongs to — see #1430 review round 2.
+		r.Route("/accounts/{accountId}/mfa", func(r chi.Router) {
+			r.Get("/global-override", rs.provisioningResource.GetAccountMFAGlobalOverride)
+			r.Put("/global-override", rs.provisioningResource.SetAccountMFAGlobalOverride)
 		})
 
 		// Suggestions management
@@ -237,6 +288,12 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/password", rs.profileResource.ChangePassword)
 			r.Post("/email-change", rs.profileResource.InitiateEmailChange)
 		})
+
+		// MFA enrollment lives in its own group above (uses the dedicated
+		// MFAEnrollmentAuthenticator). Self-service trusted-device
+		// management stays here — ownership is enforced in the service.
+		r.Get("/auth/mfa/trusted-devices", rs.mfaResource.ListTrustedDevices)
+		r.Delete("/auth/mfa/trusted-devices/{deviceId}", rs.mfaResource.RevokeTrustedDevice)
 
 		// Operator invitations
 		r.Route("/invitations", func(r chi.Router) {

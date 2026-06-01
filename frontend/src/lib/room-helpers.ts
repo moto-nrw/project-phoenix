@@ -19,6 +19,14 @@ const ROOM_CATEGORY_COLORS: Record<string, string> = {
 
 const ROOM_CATEGORY_FALLBACK_COLOR = "#6B7280";
 
+// Status sentinel the /api/rooms/[id]/history proxy emits when the backend
+// has gated the endpoint off via gdpr.attendance_log_enabled (issue #1425).
+// The drawer reads this to hide the "Belegungshistorie" section deliberately
+// rather than letting it collapse incidentally on an empty history array.
+// Shared so the proxy route and the drawer can't drift; both sides import
+// from here.
+export const ROOM_HISTORY_STATUS_FEATURE_DISABLED = "feature_disabled";
+
 export function getRoomCategoryColor(
   category: string | null | undefined,
 ): string {

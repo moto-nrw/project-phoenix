@@ -14,6 +14,7 @@ import {
   apiPost,
   apiPut,
   apiDelete,
+  ApiResponseError,
   checkAuth,
 } from "./api-helpers";
 import { suppressConsole } from "~/test/helpers/console";
@@ -97,6 +98,30 @@ describe("extractParams", () => {
     expect(result.id).toBe("123");
     expect(result.count).toBeUndefined();
     expect(result.nested).toBeUndefined();
+  });
+});
+
+describe("ApiResponseError", () => {
+  it("parses JSON response bodies lazily and memoizes the result", () => {
+    const error = new ApiResponseError(
+      403,
+      JSON.stringify({ error: "feature_disabled" }),
+    );
+
+    expect(error.status).toBe(403);
+    expect(error.body<{ error: string }>()).toEqual({
+      error: "feature_disabled",
+    });
+    expect(error.body<{ error: string }>()).toEqual({
+      error: "feature_disabled",
+    });
+  });
+
+  it("returns null for non-JSON response bodies", () => {
+    const error = new ApiResponseError(500, "plain backend failure");
+
+    expect(error.body()).toBeNull();
+    expect(error.body()).toBeNull();
   });
 });
 

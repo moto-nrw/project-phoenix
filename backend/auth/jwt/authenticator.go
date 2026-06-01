@@ -16,7 +16,8 @@ type CtxKey int
 const (
 	CtxClaims CtxKey = iota
 	CtxRefreshToken
-	CtxPermissions // Context key for permissions
+	CtxPermissions      // Context key for permissions
+	CtxEnrollmentClaims // Context key for MFAEnrollmentClaims (enrollment-only token)
 )
 
 // ClaimsFromCtx retrieves the parsed AppClaims from request context.
@@ -46,6 +47,19 @@ func RefreshTokenFromCtx(ctx context.Context) string {
 		return ""
 	}
 	return token
+}
+
+// EnrollmentClaimsFromCtx retrieves the parsed MFAEnrollmentClaims from
+// request context. Returns the zero value plus false when the request
+// did not flow through MFAEnrollmentAuthenticator. Handlers for the
+// /auth/mfa/enroll/* endpoints use this instead of ClaimsFromCtx because
+// the enrollment token deliberately omits id/sub/roles.
+func EnrollmentClaimsFromCtx(ctx context.Context) (MFAEnrollmentClaims, bool) {
+	claims, ok := ctx.Value(CtxEnrollmentClaims).(MFAEnrollmentClaims)
+	if !ok {
+		return MFAEnrollmentClaims{}, false
+	}
+	return claims, true
 }
 
 // Authenticator is a default authentication middleware to enforce access from the
@@ -87,6 +101,46 @@ func Authenticator(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), CtxClaims, c)
 		ctx = context.WithValue(ctx, CtxPermissions, c.Permissions)
 
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// MFAEnrollmentAuthenticator authenticates requests that present an
+// MFA-enrollment-scoped JWT. It is the inverse of the regular Authenticator:
+// while Authenticator REJECTS tokens that carry `mfa_enrollment_pending=true`,
+// this middleware REQUIRES the flag and rejects anything else. Used to
+// protect the narrow /auth/mfa/enroll/* surface that a freshly-logged-in
+// account must traverse before getting a full session.
+//
+// On success the parsed MFAEnrollmentClaims are placed on the request
+// context under CtxEnrollmentClaims; handlers retrieve them with
+// EnrollmentClaimsFromCtx.
+func MFAEnrollmentAuthenticator(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, claims, err := jwtauth.FromContext(r.Context())
+		if err != nil {
+			slog.Warn("MFA enrollment JWT error", slog.String("error", err.Error()))
+			renderUnauthorized(w, r, ErrTokenUnauthorized)
+			return
+		}
+		if token == nil {
+			renderUnauthorized(w, r, ErrTokenUnauthorized)
+			return
+		}
+		if err := jwt.Validate(token); err != nil {
+			slog.Warn("enrollment token validation failed", slog.String("error", err.Error()))
+			renderUnauthorized(w, r, ErrTokenExpired)
+			return
+		}
+
+		var ec MFAEnrollmentClaims
+		if err := ec.ParseClaims(claims); err != nil {
+			slog.Warn("enrollment token claims rejected", slog.String("error", err.Error()))
+			renderUnauthorized(w, r, ErrInvalidAccessToken)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), CtxEnrollmentClaims, ec)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -90,6 +90,10 @@ interface AccountsTableProps {
     account: AccountRow,
     schoolContext: { id: string; name: string } | null,
   ) => void;
+  onManageMFA?: (
+    account: AccountRow,
+    schoolContext: { id: string; name: string } | null,
+  ) => void;
 }
 
 export function AccountsTable({
@@ -97,6 +101,7 @@ export function AccountsTable({
   showSchool = false,
   selectedSchool,
   onManageCaregiver,
+  onManageMFA,
 }: Readonly<AccountsTableProps>) {
   const columns = useMemo<DataTableColumn<AccountRow>[]>(() => {
     const cols: DataTableColumn<AccountRow>[] = [];
@@ -186,29 +191,43 @@ export function AccountsTable({
             : selectedSchool
               ? { id: selectedSchool.id, name: selectedSchool.name }
               : null;
-          const canManageCaregiver =
+          const isActionable =
             row.accountId !== "0" &&
             row.status !== "invited" &&
-            onManageCaregiver != null &&
             schoolContext != null;
-          if (!canManageCaregiver) {
+          const canManageCaregiver = isActionable && onManageCaregiver != null;
+          const canManageMFA = isActionable && onManageMFA != null;
+          if (!canManageCaregiver && !canManageMFA) {
             return <span className="text-xs text-gray-400">—</span>;
           }
           return (
-            <button
-              type="button"
-              onClick={() => onManageCaregiver?.(row, schoolContext)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Betreuung verwalten
-            </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {canManageCaregiver && (
+                <button
+                  type="button"
+                  onClick={() => onManageCaregiver?.(row, schoolContext)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  Betreuung verwalten
+                </button>
+              )}
+              {canManageMFA && (
+                <button
+                  type="button"
+                  onClick={() => onManageMFA?.(row, schoolContext)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  2FA verwalten
+                </button>
+              )}
+            </div>
           );
         },
       },
     );
 
     return cols;
-  }, [showSchool, selectedSchool, onManageCaregiver]);
+  }, [showSchool, selectedSchool, onManageCaregiver, onManageMFA]);
 
   return (
     <DataTable

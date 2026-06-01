@@ -21,6 +21,7 @@ import {
   StaffMasterDetail,
 } from "@/components/teachers";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
+import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -51,6 +52,22 @@ function parseStaffGrouping(value: string | null): StaffGroupingMode {
   return STAFF_GROUPING_DEFAULT;
 }
 
+// Search-match helper extracted so the page-level useMemo stays under
+// the cognitive-complexity cap. Checks all teacher-display fields
+// against a lowercased needle.
+function matchesTeacherSearch(teacher: Teacher, searchLower: string): boolean {
+  const haystacks = [
+    teacher.first_name,
+    teacher.last_name,
+    teacher.name,
+    teacher.role,
+    teacher.account_role,
+    teacher.specialization,
+    teacher.email,
+  ];
+  return haystacks.some((h) => h?.toLowerCase().includes(searchLower) ?? false);
+}
+
 export default function TeachersPage() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
@@ -67,6 +84,7 @@ export default function TeachersPage() {
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
+  const [mfaModalOpen, setMfaModalOpen] = useState(false);
   const [savingTeacher, setSavingTeacher] = useState(false);
 
   const {
@@ -78,12 +96,13 @@ export default function TeachersPage() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: sessionData, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+  const accessToken = sessionData?.user?.token ?? "";
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
@@ -116,17 +135,8 @@ export default function TeachersPage() {
 
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (teacher) =>
-          (teacher.first_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (teacher.last_name?.toLowerCase().includes(searchLower) ?? false) ||
-          (teacher.name?.toLowerCase().includes(searchLower) ?? false) ||
-          (teacher.role?.toLowerCase().includes(searchLower) ?? false) ||
-          (teacher.account_role?.toLowerCase().includes(searchLower) ??
-            false) ||
-          (teacher.specialization?.toLowerCase().includes(searchLower) ??
-            false) ||
-          (teacher.email?.toLowerCase().includes(searchLower) ?? false),
+      filtered = filtered.filter((teacher) =>
+        matchesTeacherSearch(teacher, searchLower),
       );
     }
 
@@ -206,6 +216,7 @@ export default function TeachersPage() {
     () => setCaregiverModalOpen(true),
     [],
   );
+  const handleManageMFAClick = useCallback(() => setMfaModalOpen(true), []);
 
   const handleEditTeacher = useCallback(
     async (data: Partial<Teacher> & { password?: string }) => {
@@ -361,6 +372,9 @@ export default function TeachersPage() {
                 ? handleManageCaregiverClick
                 : undefined
             }
+            onManageMFA={
+              selectedTeacher?.account_id ? handleManageMFAClick : undefined
+            }
           />
         </div>
       ) : !loading ? (
@@ -446,6 +460,16 @@ export default function TeachersPage() {
           onUpdated={async () => {
             await tenantMutate("database-teachers-list");
           }}
+        />
+      )}
+
+      {selectedTeacher?.account_id && accessToken && (
+        <MFAAdminOverrideModal
+          isOpen={mfaModalOpen}
+          onClose={() => setMfaModalOpen(false)}
+          bearerToken={accessToken}
+          accountId={selectedTeacher.account_id.toString()}
+          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
         />
       )}
     </DatabasePageLayout>
