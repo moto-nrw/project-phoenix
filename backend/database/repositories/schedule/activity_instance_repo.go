@@ -49,6 +49,49 @@ func (r *ActivityInstanceRepository) Create(ctx context.Context, i *schedule.Act
 	return r.Repository.Create(ctx, i)
 }
 
+// CreateTemplateBackedIfAbsent inserts a template-backed activity instance,
+// absorbing the duplicate-template-slot race at the database layer. Catching a
+// 23505 after a plain INSERT would leave the surrounding PostgreSQL
+// transaction aborted, so materialization must use ON CONFLICT DO NOTHING.
+func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Context, i *schedule.ActivityInstance) (bool, error) {
+	if i == nil {
+		return false, errActivityInstanceNil
+	}
+	if i.ActivityGroupID == nil {
+		return false, fmt.Errorf("activity_group_id is required for template-backed insert")
+	}
+	if err := i.Validate(); err != nil {
+		return false, err
+	}
+
+	if i.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			i.SetTenantID(tid)
+		}
+	}
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(i).
+		ModelTableExpr(tableActivityInstances).
+		On("CONFLICT (tenant_id, date, activity_group_id, start_time) WHERE activity_group_id IS NOT NULL DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "create template-backed if absent",
+			Err: err,
+		}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "create template-backed if absent rows affected",
+			Err: err,
+		}
+	}
+	return affected > 0, nil
+}
+
 // Update writes the given activity instance back to the database.
 func (r *ActivityInstanceRepository) Update(ctx context.Context, i *schedule.ActivityInstance) error {
 	if i == nil {
