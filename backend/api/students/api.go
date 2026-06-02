@@ -826,8 +826,21 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
 
+	guardians := toNewStudentGuardians(req.Guardians)
+
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Validate guardians BEFORE writing the student. This route runs inside
+		// TenantTxMiddleware, which only rolls back on 5xx; a guardian
+		// ValidationError renders 400, so the middleware would otherwise commit
+		// an already-created student. Validating first means a 400 commits an
+		// empty transaction — no orphaned student/person rows.
+		if len(guardians) > 0 {
+			if err := rs.GuardianService.ValidateNewGuardians(ctx, guardians); err != nil {
+				return err
+			}
+		}
+
 		// Create person - validation occurs at the model layer
 		if err := rs.PersonService.Create(ctx, person); err != nil {
 			return err
@@ -843,8 +856,8 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		// Create any guardians supplied with the request inside the same
 		// transaction so the student and its guardians are persisted
 		// atomically — a guardian failure rolls back the whole student.
-		if len(req.Guardians) > 0 {
-			if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, toNewStudentGuardians(req.Guardians)); err != nil {
+		if len(guardians) > 0 {
+			if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
 				return err
 			}
 		}
