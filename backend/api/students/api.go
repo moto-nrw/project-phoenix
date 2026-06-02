@@ -411,6 +411,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
+	// Administrative filters (#1492): bus / photo consent / pickup rule.
+	// Applied here, before in-memory pagination, so server-side counts and
+	// page boundaries reflect the filtered set (no client-side full-page
+	// fetch needed).
+	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus)
 
 	// Apply in-memory pagination if response-derived filters were used.
 	if params.hasInMemoryFilters() {

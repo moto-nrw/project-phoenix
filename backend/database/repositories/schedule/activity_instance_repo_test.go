@@ -1,12 +1,14 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -152,6 +154,95 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		b := buildInstance(1, fx.roomID, &fx.activityID, date, start, end, "Lernzeit B")
 		err := repo.Create(ctx, b)
 		require.Error(t, err, "partial UNIQUE must block same (tenant,date,group,start)")
+	})
+}
+
+func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNotAbortTransaction(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	fx := newActivityInstanceFixtures(t, db, "create-if-absent")
+	defer fx.cleanup()
+
+	date := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
+	var createdIDs []int64
+
+	err := tenant.WithTenantTx(ctx, db, 1, func(ctx context.Context, _ bun.Tx) error {
+		first := buildInstance(0, fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
+		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, first)
+		require.NoError(t, err)
+		require.True(t, inserted)
+		require.Greater(t, first.ID, int64(0), "inserted instance must keep its generated ID for materialization children")
+
+		duplicate := buildInstance(0, fx.roomID, &fx.activityID, date, start, end, "Lernzeit B")
+		inserted, err = repo.CreateTemplateBackedIfAbsent(ctx, duplicate)
+		require.NoError(t, err)
+		require.False(t, inserted)
+
+		rows, err := repo.FindByActivityGroupAndDate(ctx, fx.activityID, date)
+		require.NoError(t, err, "duplicate DO NOTHING must leave the transaction usable")
+		require.Len(t, rows, 1)
+		createdIDs = append(createdIDs, rows[0].ID)
+		return nil
+	})
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", createdIDs...)
+}
+
+func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranches(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	fx := newActivityInstanceFixtures(t, db, "create-if-absent-invalid")
+	defer fx.cleanup()
+
+	date := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
+
+	t.Run("rejects nil", func(t *testing.T) {
+		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, nil)
+		require.Error(t, err)
+		assert.False(t, inserted)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("rejects spontaneous row", func(t *testing.T) {
+		inst := buildInstance(1, fx.roomID, nil, date, start, end, "Spontan")
+
+		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, inst)
+		require.Error(t, err)
+		assert.False(t, inserted)
+		assert.Contains(t, err.Error(), "activity_group_id is required")
+	})
+
+	t.Run("rejects model validation failure", func(t *testing.T) {
+		inst := buildInstance(
+			1, fx.roomID, &fx.activityID, date,
+			start, time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
+			"Broken",
+		)
+
+		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, inst)
+		require.Error(t, err)
+		assert.False(t, inserted)
+		assert.Contains(t, err.Error(), "end_time must be after start_time")
+	})
+
+	t.Run("wraps database insert failure", func(t *testing.T) {
+		missingRoomID := int64(987654321)
+		inst := buildInstance(1, missingRoomID, &fx.activityID, date, start, end, "Missing Room")
+
+		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, inst)
+		require.Error(t, err)
+		assert.False(t, inserted)
+		assert.Contains(t, err.Error(), "create template-backed if absent")
 	})
 }
 

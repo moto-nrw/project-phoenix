@@ -1147,7 +1147,7 @@ func (s *decisionService) applyTargetedFields(
 	// enrollment.requests if a more precise audit is ever needed.
 	if request.ConsentFlags != nil {
 		now := time.Now()
-		if photo, ok := request.ConsentFlags["photo"].(bool); ok && photo {
+		if photo, ok := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); ok && photo {
 			student.PhotoConsentGivenAt = &now
 			if reviewedBy > 0 {
 				rb := reviewedBy
@@ -1155,15 +1155,15 @@ func (s *decisionService) applyTargetedFields(
 			}
 			studentDirty = true
 		}
-		if agb, ok := request.ConsentFlags["agb"].(bool); ok && agb {
+		if agb, ok := request.ConsentFlags[enrollmentModels.ConsentKeyAGB].(bool); ok && agb {
 			student.AGBAcceptedAt = &now
 			studentDirty = true
 		}
-		if dp, ok := request.ConsentFlags["data_processing"].(bool); ok && dp {
+		if dp, ok := request.ConsentFlags[enrollmentModels.ConsentKeyDataProcessing].(bool); ok && dp {
 			student.DataProcessingAcceptedAt = &now
 			studentDirty = true
 		}
-		if email, ok := request.ConsentFlags["email_contact"].(bool); ok && email {
+		if email, ok := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); ok && email {
 			student.EmailContactAcceptedAt = &now
 			studentDirty = true
 		}

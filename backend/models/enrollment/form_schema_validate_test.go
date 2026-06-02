@@ -72,6 +72,14 @@ func TestFormSchema_Validate_EmptyFieldsOK(t *testing.T) {
 	assert.NoError(t, s.Validate())
 }
 
+func TestFormSchema_Validate_RejectsUnknownCoreRequirement(t *testing.T) {
+	s := validSchema()
+	s.CoreRequirements = CoreRequirements{"guardian_fax": true}
+	err := s.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown core requirement")
+}
+
 func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
 	s := validSchema()
 	s.Fields = []FormField{

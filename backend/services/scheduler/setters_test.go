@@ -154,6 +154,9 @@ type fakeInstanceRepo struct {
 func (f *fakeInstanceRepo) Create(_ context.Context, _ *scheduleModel.ActivityInstance) error {
 	return nil
 }
+func (f *fakeInstanceRepo) CreateTemplateBackedIfAbsent(_ context.Context, _ *scheduleModel.ActivityInstance) (bool, error) {
+	return false, nil
+}
 func (f *fakeInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

@@ -15,10 +15,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64) {
+func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repoFactory.FormSchema,
@@ -40,12 +41,12 @@ func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService
 		_ = db.Close()
 	})
 
-	return db, svc, account.ID
+	return db, svc, account.ID, tenantID
 }
 
 func TestFormSchemaService_PublishVersion_CreatesActive(t *testing.T) {
-	_, svc, creatorID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	fields := []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldTextarea, SortOrder: 0},
@@ -69,8 +70,8 @@ func TestFormSchemaService_PublishVersion_KeepsAllVersionsActive(t *testing.T) {
 	// stay valid until the row is hard-deleted. The (tenant_id, name,
 	// version) unique index from migration 1.15.74 lets multiple
 	// versions coexist with is_active=true.
-	_, svc, creatorID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	v1, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -93,8 +94,8 @@ func TestFormSchemaService_PublishVersion_KeepsAllVersionsActive(t *testing.T) {
 }
 
 func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
-	_, svc, _ := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	_, err := svc.GetActive(ctx)
 	require.Error(t, err)
@@ -103,8 +104,8 @@ func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
 }
 
 func TestFormSchemaService_PublishVersion_RejectsCoreFieldKey(t *testing.T) {
-	_, svc, creatorID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
 		{Key: "guardian_email", Label: "Email", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -113,8 +114,8 @@ func TestFormSchemaService_PublishVersion_RejectsCoreFieldKey(t *testing.T) {
 }
 
 func TestFormSchemaService_PublishVersion_RejectsDuplicateKey(t *testing.T) {
-	_, svc, creatorID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -124,8 +125,8 @@ func TestFormSchemaService_PublishVersion_RejectsDuplicateKey(t *testing.T) {
 }
 
 func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
-	_, svc, creatorID := setupSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
 
 	for i := 0; i < 3; i++ {
 		_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
