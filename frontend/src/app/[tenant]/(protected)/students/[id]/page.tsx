@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
@@ -61,6 +67,77 @@ type TodayArrival = {
 };
 
 const logger = createLogger({ component: "StudentDetailPage" });
+
+// Tabbed navigation for the student detail page (issue #1501). The cross-cutting
+// action bar (check-in/out, Krank/Entschuldigt) and the attendance header stay
+// ABOVE the tabs — only the data sections are grouped into tabs. The active tab
+// lives in the `?tab=` query param so sections are deep-linkable (acceptance
+// criterion: "navigate directly to the relevant section").
+type StudentTabId =
+  | "stammdaten"
+  | "erziehungsberechtigte"
+  | "betreuungszeiten"
+  | "historie";
+
+const TAB_LABELS: Record<StudentTabId, string> = {
+  stammdaten: "Stammdaten",
+  erziehungsberechtigte: "Erziehungsberechtigte",
+  betreuungszeiten: "Betreuungszeiten",
+  historie: "Historie",
+};
+
+// Limited access has no care-schedule data access, so it skips Betreuungszeiten.
+const FULL_ACCESS_TABS: StudentTabId[] = [
+  "stammdaten",
+  "erziehungsberechtigte",
+  "betreuungszeiten",
+  "historie",
+];
+const LIMITED_ACCESS_TABS: StudentTabId[] = [
+  "stammdaten",
+  "erziehungsberechtigte",
+  "historie",
+];
+
+const DEFAULT_TAB: StudentTabId = "stammdaten";
+
+function resolveActiveTab(
+  param: string | null,
+  allowed: StudentTabId[],
+): StudentTabId {
+  return allowed.find((tab) => tab === param) ?? DEFAULT_TAB;
+}
+
+// Shared classes for every tab panel. forceMount (below) keeps inactive panels
+// mounted. This is deliberate, not just pre-tabs parity: the panel children
+// (CareScheduleManager, StudentGuardianManager) fetch on mount and do NOT cache,
+// so the lazy alternative — letting Radix unmount inactive panels — would
+// re-fire those network calls on every tab revisit. forceMount loads each once
+// and keeps every section reachable for deep links. Tradeoff, accepted on
+// purpose: every section fetches up front on page open (no lazy-per-tab win),
+// but that matches the pre-tabs behaviour where all sections rendered together,
+// so it is not a regression. It disables Radix's own
+// `hidden` attribute, so `data-[state=inactive]:hidden` does the hiding via CSS
+// (display:none — also removes inactive panels from the a11y tree).
+const TAB_CONTENT_CLASS =
+  "mt-4 focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden sm:mt-6";
+
+function StudentTabsList({ tabs }: Readonly<{ tabs: StudentTabId[] }>) {
+  return (
+    <div className="overflow-x-auto border-b border-gray-200">
+      {/* border-b-0 here: the wrapper above already draws the full-width rail,
+          so the line variant's own border-b would stack a second 1px line under
+          the labels. Matches the detail-panel precedent (database/detail-panel.tsx). */}
+      <TabsList variant="line" className="w-max justify-start border-b-0">
+        {tabs.map((tab) => (
+          <TabsTrigger key={tab} value={tab}>
+            {TAB_LABELS[tab]}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </div>
+  );
+}
 
 function formatLocalDate(date: Date): string {
   const year = date.getFullYear();
@@ -122,9 +199,34 @@ export default function StudentDetailPage() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const navRouter = useRouter();
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
   const toast = useToast();
+
+  // Switch tabs by updating the `?tab=` query param in place (preserves the
+  // `from` referrer). We echo the current `usePathname` back verbatim and only
+  // swap the query string, so no manual slug prefixing is needed: in subdomain
+  // mode `usePathname` is already slug-free (`/students/1`) and in path mode it
+  // already carries the slug (`/school-a/students/1`). This is the same
+  // browser-visible-path behaviour that `sidebar.tsx` relies on (it strips
+  // `/${tenantSlug}/` only when present) — verified against that precedent, so
+  // there is no double-slug risk in either mode. scroll:false keeps the
+  // viewport steady when switching sections.
+  const handleTabChange = useCallback(
+    (next: string) => {
+      const query = new URLSearchParams(searchParams.toString());
+      if (next === DEFAULT_TAB) {
+        query.delete("tab");
+      } else {
+        query.set("tab", next);
+      }
+      const qs = query.toString();
+      navRouter.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [navRouter, pathname, searchParams],
+  );
 
   // Start at the top instead of inheriting the search list's scroll position
   // (Next App Router maintains scroll when the new page is already in view).
@@ -333,6 +435,32 @@ export default function StudentDetailPage() {
     }
     return {};
   }, [arrivalData, hasFullAccess, student?.excused, student?.sick]);
+
+  // Clamp the URL tab to the set the current access level actually exposes, so a
+  // stale deep-link (e.g. ?tab=betreuungszeiten without full access) falls back
+  // to the default tab instead of showing an empty panel. Computed BEFORE the
+  // loading/error early returns below so the self-heal effect is called on every
+  // render (Rules of Hooks) — see the load gate inside the effect.
+  const activeTab = resolveActiveTab(
+    searchParams.get("tab"),
+    hasFullAccess ? FULL_ACCESS_TABS : LIMITED_ACCESS_TABS,
+  );
+
+  // If the URL pins a tab we can't honour — an inaccessible deep-link or an
+  // unknown value — resolveActiveTab clamps it but the address bar would keep
+  // advertising the bogus tab. Rewrite it to match the tab actually shown.
+  // handleTabChange drops the param entirely when we land back on the default,
+  // so a clamped link self-heals to a clean URL. Guard on a non-null param so
+  // we never touch already-clean URLs, which keeps this from looping. Skip
+  // while data is still loading: hasFullAccess defaults to false then, so acting
+  // early would wrongly strip a valid full-access deep-link before it resolves.
+  const urlTab = searchParams.get("tab");
+  useEffect(() => {
+    if (loading || !student) return;
+    if (urlTab !== null && urlTab !== activeTab) {
+      handleTabChange(activeTab);
+    }
+  }, [loading, student, urlTab, activeTab, handleTabChange]);
 
   // Show loading state
   if (loading) {
@@ -707,6 +835,8 @@ export default function StudentDetailPage() {
             feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
             onVisibleDateRangeChange={ensureStatusDayRange}
@@ -731,6 +861,8 @@ export default function StudentDetailPage() {
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
           />
@@ -895,6 +1027,8 @@ interface LimitedAccessViewProps {
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
+  activeTab: StudentTabId;
+  onTabChange: (tab: string) => void;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
 }
@@ -907,14 +1041,16 @@ function LimitedAccessView({
   supervisors,
   showCheckout,
   showCheckin,
+  activeTab,
+  onTabChange,
   onCheckoutClick,
   onCheckinClick,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <>
       {(showCheckout || showCheckin) && (
-        <div className="flex gap-3 sm:gap-4">
+        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
           {showCheckout && (
             <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
           )}
@@ -924,20 +1060,40 @@ function LimitedAccessView({
         </div>
       )}
 
-      <SupervisorsCard supervisors={supervisors} studentName={student.name} />
+      <Tabs value={activeTab} onValueChange={onTabChange}>
+        <StudentTabsList tabs={LIMITED_ACCESS_TABS} />
 
-      <PersonalInfoReadOnly student={student} />
+        <TabsContent
+          value="stammdaten"
+          forceMount
+          className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
+        >
+          <SupervisorsCard
+            supervisors={supervisors}
+            studentName={student.name}
+          />
+          <PersonalInfoReadOnly student={student} />
+        </TabsContent>
 
-      <StudentGuardianManager studentId={student.id} readOnly={true} />
+        <TabsContent
+          value="erziehungsberechtigte"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager studentId={student.id} readOnly={true} />
+        </TabsContent>
 
-      <StudentHistorySection
-        studentId={studentId}
-        attendanceLogEnabled={attendanceLogEnabled}
-        feedbackEnabled={feedbackEnabled}
-        readOnly={true}
-        onNavigate={(path) => historyRouter.push(path)}
-      />
-    </div>
+        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
+          <StudentHistorySection
+            studentId={studentId}
+            attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
+            readOnly={true}
+            onNavigate={(path) => historyRouter.push(path)}
+          />
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }
 
@@ -953,6 +1109,8 @@ interface FullAccessViewProps {
   feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
+  activeTab: StudentTabId;
+  onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
   onVisibleDateRangeChange: (from: string, to: string) => void;
@@ -977,6 +1135,8 @@ function FullAccessView({
   feedbackEnabled,
   showCheckout,
   showCheckin,
+  activeTab,
+  onTabChange,
   statusDays,
   onDeleteStatusDay,
   onVisibleDateRangeChange,
@@ -1022,37 +1182,59 @@ function FullAccessView({
         </div>
       )}
 
-      <div className="space-y-4 sm:space-y-6">
-        <CareScheduleManager
-          studentId={studentId}
-          readOnly={!hasWriteAccess}
-          onUpdate={hasWriteAccess ? onRefreshData : undefined}
-          isSick={student.sick}
-          isExcused={student.excused}
-          statusDays={statusDays}
-          onDeleteStatusDay={onDeleteStatusDay}
-          onVisibleDateRangeChange={onVisibleDateRangeChange}
-        />
+      <Tabs value={activeTab} onValueChange={onTabChange}>
+        <StudentTabsList tabs={FULL_ACCESS_TABS} />
 
-        <PersonalInfoReadOnly
-          student={student}
-          showEditButton={hasWriteAccess}
-          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
-        />
+        <TabsContent
+          value="stammdaten"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <PersonalInfoReadOnly
+            student={student}
+            showEditButton={hasWriteAccess}
+            onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
+          />
+        </TabsContent>
 
-        <StudentGuardianManager
-          studentId={studentId}
-          readOnly={!hasWriteAccess}
-          onUpdate={hasWriteAccess ? onRefreshData : undefined}
-        />
+        <TabsContent
+          value="erziehungsberechtigte"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentGuardianManager
+            studentId={studentId}
+            readOnly={!hasWriteAccess}
+            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+          />
+        </TabsContent>
 
-        <StudentHistorySection
-          studentId={studentId}
-          attendanceLogEnabled={attendanceLogEnabled}
-          feedbackEnabled={feedbackEnabled}
-          onNavigate={(path) => historyRouter.push(path)}
-        />
-      </div>
+        <TabsContent
+          value="betreuungszeiten"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <CareScheduleManager
+            studentId={studentId}
+            readOnly={!hasWriteAccess}
+            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+            isSick={student.sick}
+            isExcused={student.excused}
+            statusDays={statusDays}
+            onDeleteStatusDay={onDeleteStatusDay}
+            onVisibleDateRangeChange={onVisibleDateRangeChange}
+          />
+        </TabsContent>
+
+        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
+          <StudentHistorySection
+            studentId={studentId}
+            attendanceLogEnabled={attendanceLogEnabled}
+            feedbackEnabled={feedbackEnabled}
+            onNavigate={(path) => historyRouter.push(path)}
+          />
+        </TabsContent>
+      </Tabs>
 
       {hasWriteAccess && (
         <PersonalInfoFormModal
