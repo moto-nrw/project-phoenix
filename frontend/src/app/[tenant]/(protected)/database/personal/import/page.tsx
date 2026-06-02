@@ -1,18 +1,21 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
+import { UploadSection, StatsCards } from "~/components/import";
 import { useToast } from "~/contexts/ToastContext";
+import { createCrudService } from "~/lib/database/service-factory";
+import { rolesConfig } from "~/lib/database/configs/roles.config";
+import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "StudentImportPage" });
+const logger = createLogger({ component: "StaffImportPage" });
 
-// Types matching backend API response
+// Types matching the backend API response
 interface ImportError {
   field: string;
   message: string;
@@ -25,23 +28,9 @@ interface ImportRowResult {
   Data: {
     first_name: string;
     last_name: string;
-    school_class: string;
-    group_name: string;
-    birthday: string;
-    guardians: Array<{
-      first_name: string;
-      last_name: string;
-      email: string;
-      phone: string;
-      relationship_type: string;
-      is_primary: boolean;
-    }>;
-    health_info?: string;
-    supervisor_notes?: string;
-    extra_info?: string;
-    privacy_accepted: boolean;
-    data_retention_days: number;
-    bus_permission: boolean;
+    email: string;
+    role_name: string;
+    position?: string;
   };
   Errors: ImportError[];
   Timestamp: string;
@@ -61,24 +50,72 @@ interface ImportResult {
   DryRun: boolean;
 }
 
-// Status types for display
 type RowStatus = "new" | "existing" | "error" | "warning";
 
-interface DisplayStudent {
+interface DisplayStaff {
   row: number;
   status: RowStatus;
   errors: string[];
   first_name: string;
   last_name: string;
-  school_class: string;
-  group_name: string;
-  guardian_info: string;
-  health_info: string;
+  email: string;
+  role_name: string;
+  position: string;
 }
 
-export default function StudentImportPage() {
+function statusBadge(status: RowStatus) {
+  switch (status) {
+    case "new":
+      return (
+        <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+          Neu
+        </span>
+      );
+    case "existing":
+      return (
+        <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+          Vorhanden
+        </span>
+      );
+    case "error":
+      return (
+        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+          Fehler
+        </span>
+      );
+    case "warning":
+      return (
+        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+          Warnung
+        </span>
+      );
+  }
+}
+
+function rowStatusFor(errors: ImportError[]): RowStatus {
+  const isExisting = errors.some((e) => e.code === "already_exists");
+  if (isExisting) return "existing";
+  if (errors.some((e) => e.severity === "error")) return "error";
+  if (errors.some((e) => e.severity === "warning")) return "warning";
+  return "new";
+}
+
+function toDisplayStaff(row: ImportRowResult): DisplayStaff {
+  return {
+    row: row.RowNumber,
+    status: rowStatusFor(row.Errors),
+    errors: row.Errors.map((e) => e.message),
+    first_name: row.Data.first_name,
+    last_name: row.Data.last_name,
+    email: row.Data.email,
+    role_name: row.Data.role_name,
+    position: row.Data.position ?? "",
+  };
+}
+
+export default function StaffImportPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [previewData, setPreviewData] = useState<DisplayStudent[]>([]);
+  const [previewData, setPreviewData] = useState<DisplayStaff[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -96,7 +133,29 @@ export default function StudentImportPage() {
 
   const toast = useToast();
 
-  // Reset form to initial state
+  // Load the tenant's role names so the user knows what to put in the
+  // "Rolle" column (the import matches role names exactly, case-insensitive).
+  const rolesService = useMemo(() => createCrudService(rolesConfig), []);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+
+  useEffect(() => {
+    rolesService
+      .getList({ page: 1, pageSize: 500 })
+      .then((data) => {
+        const list: Role[] = Array.isArray(data.data) ? data.data : [];
+        setAvailableRoles(
+          list
+            .map((r) => getRoleDisplayName(r.name))
+            .filter((name) => name !== ""),
+        );
+      })
+      .catch((err: unknown) => {
+        logger.warn("roles_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, [rolesService]);
+
   const resetForm = useCallback(() => {
     setUploadedFile(null);
     setPreviewData([]);
@@ -108,7 +167,6 @@ export default function StudentImportPage() {
     setError(null);
   }, []);
 
-  // Handle template download from backend
   const handleDownloadTemplate = async () => {
     try {
       const token = session?.user?.token;
@@ -118,7 +176,7 @@ export default function StudentImportPage() {
       }
 
       const response = await fetch(
-        `/api/import/students/template?format=${templateFormat}`,
+        `/api/import/teachers/template?format=${templateFormat}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -136,8 +194,8 @@ export default function StudentImportPage() {
       link.href = url;
       link.download =
         templateFormat === "xlsx"
-          ? "schueler-import-vorlage.xlsx"
-          : "schueler-import-vorlage.csv";
+          ? "mitarbeiter-import-vorlage.xlsx"
+          : "mitarbeiter-import-vorlage.csv";
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -151,7 +209,6 @@ export default function StudentImportPage() {
     }
   };
 
-  // Handle file upload and preview via backend API
   const handleFileUpload = useCallback(
     async (file: File) => {
       setUploadedFile(file);
@@ -169,7 +226,7 @@ export default function StudentImportPage() {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch("/api/import/students/preview", {
+        const response = await fetch("/api/import/teachers/preview", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -185,75 +242,30 @@ export default function StudentImportPage() {
           );
         }
 
-        // Transform backend response to display format
         const importData = result.data as ImportResult;
-        const displayData: DisplayStudent[] = [];
+        const displayData: DisplayStaff[] = (importData.Errors ?? []).map(
+          toDisplayStaff,
+        );
 
-        // Process errors (rows with issues)
-        if (importData.Errors) {
-          for (const row of importData.Errors) {
-            const hasErrors = row.Errors.some((e) => e.severity === "error");
-            const hasWarnings = row.Errors.some(
-              (e) => e.severity === "warning",
-            );
-            const isExisting = row.Errors.some(
-              (e) => e.code === "already_exists",
-            );
-
-            // Determine row status based on error conditions
-            // Check isExisting first because already_exists has severity "error"
-            const getRowStatus = ():
-              | "error"
-              | "existing"
-              | "warning"
-              | "new" => {
-              if (isExisting) return "existing";
-              if (hasErrors) return "error";
-              if (hasWarnings) return "warning";
-              return "new";
-            };
-
-            displayData.push({
-              row: row.RowNumber,
-              status: getRowStatus(),
-              errors: row.Errors.map((e) => e.message),
-              first_name: row.Data.first_name,
-              last_name: row.Data.last_name,
-              school_class: row.Data.school_class,
-              group_name: row.Data.group_name ?? "",
-              guardian_info:
-                row.Data.guardians && row.Data.guardians.length > 0
-                  ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                  : "",
-              health_info: row.Data.health_info ?? "",
-            });
-          }
-        }
-
-        // Calculate how many are new (total - errors)
+        // Rows without issues are not in the Errors array — summarise them.
         const newCount = importData.TotalRows - displayData.length;
-
-        // Add placeholder entries for successful rows (they're not in Errors array)
-        // Note: In a real implementation, we'd want the backend to return all rows
         if (newCount > 0 && displayData.length === 0) {
-          // If no errors, create a summary
           displayData.push({
             row: 0,
             status: "new",
             errors: [],
-            first_name: `${importData.TotalRows} Schüler`,
+            first_name: `${importData.TotalRows} Mitarbeiter`,
             last_name: "bereit zum Import",
-            school_class: "",
-            group_name: "",
-            guardian_info: "",
-            health_info: "",
+            email: "",
+            role_name: "",
+            position: "",
           });
         }
 
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
-        logger.error("student_preview_failed", {
+        logger.error("staff_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -265,7 +277,6 @@ export default function StudentImportPage() {
     [session],
   );
 
-  // Handle actual import
   const handleImport = async () => {
     if (!uploadedFile) return;
 
@@ -281,7 +292,7 @@ export default function StudentImportPage() {
       const formData = new FormData();
       formData.append("file", uploadedFile);
 
-      const response = await fetch("/api/import/students/import", {
+      const response = await fetch("/api/import/teachers/import", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -300,41 +311,19 @@ export default function StudentImportPage() {
       const importData = result.data as ImportResult;
       setImportResult(importData);
 
-      // Handle partial failures vs full success
       if (importData.ErrorCount > 0) {
-        // Partial success: Show warning and keep form to display error details
-        // Don't set importComplete - keep preview visible so user sees which rows failed
-        // Update previewData with error details from import result
-        const errorDisplayData: DisplayStudent[] = importData.Errors.map(
-          (row) => ({
-            row: row.RowNumber,
-            status: "error" as const,
-            errors: row.Errors.map((e) => e.message),
-            first_name: row.Data.first_name,
-            last_name: row.Data.last_name,
-            school_class: row.Data.school_class,
-            group_name: row.Data.group_name ?? "",
-            guardian_info:
-              row.Data.guardians && row.Data.guardians.length > 0
-                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                : "",
-            health_info: row.Data.health_info ?? "",
-          }),
-        );
-        setPreviewData(errorDisplayData);
+        // Partial success: keep preview visible so the user sees which rows failed.
+        setPreviewData(importData.Errors.map(toDisplayStaff));
         toast.warning(
-          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
+          `${importData.CreatedCount} eingeladen, ${importData.ErrorCount} übersprungen`,
         );
       } else {
-        // Full success: Mark complete, show success toast and reset form for next import
         setImportComplete(true);
-        toast.success(
-          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
-        );
+        toast.success(`${importData.CreatedCount} Mitarbeiter eingeladen`);
         resetForm();
       }
     } catch (err) {
-      logger.error("student_import_failed", {
+      logger.error("staff_import_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
@@ -343,7 +332,6 @@ export default function StudentImportPage() {
     }
   };
 
-  // Drag and drop handlers
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -384,7 +372,6 @@ export default function StudentImportPage() {
     }
   };
 
-  // Stats - use backend counts directly
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
@@ -422,12 +409,28 @@ export default function StudentImportPage() {
             </h3>
             <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
               <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Schülerdaten aus</li>
+              <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>
               <li>
-                Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
-                TT.MM.JJJJ oder TT.MM.JJ
+                Die Spalte „Rolle" muss exakt einer vorhandenen Rolle
+                entsprechen
+                {availableRoles.length > 0 && (
+                  <>
+                    :{" "}
+                    {availableRoles.map((role, i) => (
+                      <span key={role}>
+                        {i > 0 && ", "}
+                        <span className="font-medium text-gray-900">
+                          {role}
+                        </span>
+                      </span>
+                    ))}
+                  </>
+                )}
               </li>
-              <li>Speichern Sie die ausgefüllte Datei</li>
+              <li>
+                Der Import verschickt Einladungen — Mitarbeitende setzen ihr
+                Passwort selbst über den Link in der E-Mail
+              </li>
               <li>
                 Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
               </li>
@@ -463,7 +466,7 @@ export default function StudentImportPage() {
         </div>
       )}
 
-      {/* Download Template Button */}
+      {/* Download Template */}
       <div className="rounded-xl border border-gray-100 bg-white p-6">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
           <svg
@@ -518,18 +521,16 @@ export default function StudentImportPage() {
               </div>
             </div>
             <p className="mt-2 text-sm text-gray-500">
-              Beispiel Geburtstag:{" "}
-              <span className="font-medium">2015-08-15</span>,{" "}
-              <span className="font-medium">15.08.2015</span> oder{" "}
-              <span className="font-medium">15.08.15</span>
+              Spalten: <span className="font-medium">Vorname</span>,{" "}
+              <span className="font-medium">Nachname</span>,{" "}
+              <span className="font-medium">Email</span>,{" "}
+              <span className="font-medium">Rolle</span>,{" "}
+              <span className="font-medium">Position</span> (optional)
             </p>
           </div>
           <div className="flex-1">
             {/* Spacer matches the format-select label height so the button
                 aligns with the dropdown on the sm+ row layout. */}
-            {/* Non-breaking space keeps a reliable label-height line box
-                (a normal space would collapse) without duplicating the
-                "Format wählen" label text. */}
             <span
               aria-hidden="true"
               className="mb-2 hidden text-sm font-medium text-gray-700 sm:block"
@@ -577,7 +578,6 @@ export default function StudentImportPage() {
       {/* Preview Section */}
       {previewData.length > 0 && !importComplete && (
         <>
-          {/* Statistics */}
           <StatsCards
             total={stats.total}
             newCount={stats.new}
@@ -585,7 +585,6 @@ export default function StudentImportPage() {
             errors={stats.errors}
           />
 
-          {/* Data List */}
           <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
             <div className="border-b border-gray-100 p-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -607,12 +606,45 @@ export default function StudentImportPage() {
             </div>
 
             <div className="space-y-2 p-3">
-              {previewData.map((student, idx) => (
-                <StudentRowCard
-                  key={`${student.row}-${idx}`}
-                  student={student}
-                  index={idx}
-                />
+              {previewData.map((staff, idx) => (
+                <div
+                  key={`${staff.row}-${idx}`}
+                  className="rounded-xl border border-gray-100 bg-white p-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+                      {staff.row || idx + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-gray-900">
+                          {staff.first_name} {staff.last_name}
+                        </h4>
+                        {statusBadge(staff.status)}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                        {staff.email && <span>{staff.email}</span>}
+                        {staff.role_name && (
+                          <>
+                            <span>•</span>
+                            <span>{staff.role_name}</span>
+                          </>
+                        )}
+                        {staff.position && (
+                          <>
+                            <span>•</span>
+                            <span>{staff.position}</span>
+                          </>
+                        )}
+                      </div>
+                      {staff.errors.length > 0 && (
+                        <p className="mt-1 text-xs text-red-600">
+                          {staff.errors.join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -637,7 +669,7 @@ export default function StudentImportPage() {
             >
               {isImporting
                 ? "Importiere..."
-                : `${stats.new} Schüler importieren`}
+                : `${stats.new} Mitarbeiter einladen`}
             </button>
           </div>
         </>

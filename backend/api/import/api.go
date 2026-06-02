@@ -40,6 +40,7 @@ const (
 // Resource defines the import resource
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
+	staffImportService   *importService.ImportService[importModels.StaffImportRow]
 	auditRepo            audit.DataImportRepository
 	personService        userSvc.PersonService
 	db                   *bun.DB
@@ -48,12 +49,14 @@ type Resource struct {
 // NewResource creates a new import resource
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
+	staffImportService *importService.ImportService[importModels.StaffImportRow],
 	auditRepo audit.DataImportRepository,
 	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
+		staffImportService:   staffImportService,
 		auditRepo:            auditRepo,
 		personService:        personService,
 		db:                   db,
@@ -89,12 +92,19 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.importStudents)
 		})
 
-		// Future: Teacher import endpoints
-		// r.Route("/teachers", func(r chi.Router) {
-		//     r.Get("/template", rs.downloadTeacherTemplate)
-		//     r.Post("/preview", rs.previewTeacherImport)
-		//     r.Post("/import", rs.importTeachers)
-		// })
+		// Staff (Mitarbeiter) import endpoints
+		r.Route("/teachers", func(r chi.Router) {
+			// Template download - requires UsersRead
+			r.With(authorize.RequiresPermission("users:read"), withTx).Get("/template", rs.DownloadStaffTemplate)
+
+			// Preview - requires UsersCreate
+			r.With(authorize.RequiresPermission("users:create"), withTx).Post("/preview", rs.PreviewStaffImport)
+
+			// Actual import - requires UsersCreate
+			// Note: no withTx here — the handler manages its own WithTenantTx
+			// to control commit/rollback based on import results.
+			r.With(authorize.RequiresPermission("users:create")).Post("/import", rs.ImportStaff)
+		})
 	})
 
 	return r
@@ -195,7 +205,7 @@ func getStudentImportHeaders() []string {
 		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
 		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
 		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
 		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
 }
@@ -213,7 +223,7 @@ func getStudentImportExamples() [][]any {
 			// Guardian 2: address, notes, language
 			testAddressMusterstr, "Köln", "50667", "", "de",
 			// Additional info
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein",
+			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
 			// Pickup schedule (Mon-Fri)
 			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss"},
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "22.03.14",
@@ -226,7 +236,7 @@ func getStudentImportExamples() [][]any {
 			// Guardian 2: empty profile fields
 			"", "", "", "", "",
 			// Additional info
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja",
+			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
 			// Pickup schedule (partial)
 			"15:00", "", "15:00", "", "15:00", "", "15:00", "", "", ""},
 	}
@@ -276,8 +286,8 @@ func writeHinweiseSheet(f *excelize.File) {
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
 		23: "Schüler-Zusatzinfos",
-		31: "Abholzeiten (Montag bis Freitag)",
-		35: "Allgemeine Hinweise",
+		37: "Abholzeiten (Montag bis Freitag)",
+		41: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -314,7 +324,13 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
 		{"Bus", "Nein", hintYesNo, "Fährt das Kind mit dem Bus"},
-		// row 31: section header "Abholzeiten" (injected)
+		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
+		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
+		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
+		{"Datenverarbeitung akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur Datenverarbeitung. Leer = keine Einwilligung."},
+		{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
+		{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
+		// row 37: section header "Abholzeiten" (injected)
 		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
 		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
 		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
@@ -537,8 +553,14 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 	return staff.ID, nil
 }
 
-// logImportAudit creates an audit record for import operations (GDPR compliance)
+// logImportAudit creates an audit record for student import operations (GDPR compliance)
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
+	recordImportAudit(rs.auditRepo, "student", filename, result, userID, dryRun, tenantID)
+}
+
+// recordImportAudit asynchronously writes a GDPR audit record for any import
+// operation. entityType identifies the imported entity (e.g. "student", "staff").
+func recordImportAudit[T any](auditRepo audit.DataImportRepository, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -550,7 +572,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 		}()
 		auditCtx := context.Background()
 		auditRecord := &audit.DataImport{
-			EntityType:   "student",
+			EntityType:   entityType,
 			Filename:     filename,
 			TotalRows:    result.TotalRows,
 			CreatedCount: result.CreatedCount,
@@ -565,7 +587,7 @@ func (rs *Resource) logImportAudit(filename string, result *importModels.ImportR
 			Metadata:     audit.JSONBMap{},
 		}
 		auditRecord.SetTenantID(tenantID)
-		if err := rs.auditRepo.Create(auditCtx, auditRecord); err != nil {
+		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
 			if dryRun {
 				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
 			} else {
