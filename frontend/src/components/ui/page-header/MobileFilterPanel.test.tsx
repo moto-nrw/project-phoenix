@@ -165,7 +165,7 @@ describe("MobileFilterPanel", () => {
     ];
 
     it("renders grid options in 2 columns", () => {
-      const { container } = render(
+      render(
         <MobileFilterPanel
           isOpen={true}
           onClose={mockOnClose}
@@ -173,7 +173,9 @@ describe("MobileFilterPanel", () => {
         />,
       );
 
-      const gridContainer = container.querySelector(".grid-cols-2");
+      // Panel is portaled to document.body, so query the document rather than
+      // the local render container.
+      const gridContainer = document.querySelector(".grid-cols-2");
       expect(gridContainer).toBeInTheDocument();
     });
 
