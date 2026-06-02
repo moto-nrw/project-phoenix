@@ -241,6 +241,61 @@ describe("buildBackendStudentRequest", () => {
     });
   });
 
+  it("passes guardians through for atomic creation", () => {
+    const validated = {
+      firstName: "Max",
+      lastName: "Mustermann",
+      schoolClass: "1a",
+    };
+    const guardians = [
+      {
+        first_name: "Erika",
+        last_name: "Muster",
+        relationship_type: "parent",
+        is_primary: true,
+        is_emergency_contact: false,
+        can_pickup: true,
+        emergency_priority: 1,
+        phone_numbers: [
+          {
+            phone_number: "0151 2345678",
+            phone_type: "mobile" as const,
+            is_primary: true,
+          },
+        ],
+      },
+    ];
+    const body = {
+      first_name: "Max",
+      second_name: "Mustermann",
+      school_class: "1a",
+      guardians,
+    };
+    const guardianContact = { email: undefined, phone: undefined };
+
+    const result = buildBackendStudentRequest(validated, body, guardianContact);
+
+    expect(result.guardians).toEqual(guardians);
+  });
+
+  it("omits guardians when none are provided", () => {
+    const validated = {
+      firstName: "Max",
+      lastName: "Mustermann",
+      schoolClass: "1a",
+    };
+    const body = {
+      first_name: "Max",
+      second_name: "Mustermann",
+      school_class: "1a",
+    };
+    const guardianContact = { email: undefined, phone: undefined };
+
+    const result = buildBackendStudentRequest(validated, body, guardianContact);
+
+    expect(result.guardians).toBeUndefined();
+  });
+
   it("includes tag_id when provided", () => {
     const validated = {
       firstName: "Max",

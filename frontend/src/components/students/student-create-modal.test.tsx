@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
+import { handleStudentFormSubmit } from "~/lib/student-form-validation";
 
 // Mock Modal component
 vi.mock("~/components/ui/modal", () => ({
@@ -522,5 +523,85 @@ describe("StudentCreateModal", () => {
 
     expect(screen.queryByText(/Erika Muster/)).not.toBeInTheDocument();
     expect(screen.getByText("Optional")).toBeInTheDocument();
+  });
+
+  it("forwards collected guardians (snake_case mapped) to onCreate on submit", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // handleSubmit must hand the form payload (arg index 1) a snake_case-mapped
+    // guardians array, nested exactly as the create endpoint expects.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      guardians: [
+        {
+          first_name: "Erika",
+          last_name: "Muster",
+          email: "erika@example.com",
+          language_preference: "de",
+          relationship_type: "parent",
+          is_primary: true,
+          is_emergency_contact: false,
+          can_pickup: true,
+          emergency_priority: 1,
+          phone_numbers: [
+            {
+              phone_number: "0151 2345678",
+              phone_type: "mobile",
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("does not attach a guardians field when none were added", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).not.toHaveProperty("guardians");
   });
 });
