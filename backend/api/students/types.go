@@ -147,6 +147,45 @@ type StudentRequest struct {
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+
+	// Guardians created together with the student in one atomic transaction
+	// (guardian_profiles system). Optional and independent of the legacy
+	// scalar guardian_* fields above.
+	Guardians []GuardianInput `json:"guardians,omitempty"`
+}
+
+// GuardianPhoneInput is one phone number for a guardian created alongside a student.
+type GuardianPhoneInput struct {
+	PhoneNumber string `json:"phone_number"`
+	PhoneType   string `json:"phone_type,omitempty"` // mobile, home, work, other
+	Label       string `json:"label,omitempty"`
+	IsPrimary   bool   `json:"is_primary,omitempty"`
+}
+
+// GuardianInput is one guardian (profile + relationship + phone numbers) to be
+// created together with a new student. Mirrors the fields managed on the
+// student detail page's guardian form.
+type GuardianInput struct {
+	// Profile
+	FirstName              string `json:"first_name"`
+	LastName               string `json:"last_name"`
+	Email                  string `json:"email,omitempty"`
+	AddressStreet          string `json:"address_street,omitempty"`
+	AddressCity            string `json:"address_city,omitempty"`
+	AddressPostalCode      string `json:"address_postal_code,omitempty"`
+	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
+	LanguagePreference     string `json:"language_preference,omitempty"`
+	Notes                  string `json:"notes,omitempty"`
+
+	// Relationship to the student
+	RelationshipType   string `json:"relationship_type"` // parent, guardian, relative, other
+	IsPrimary          bool   `json:"is_primary,omitempty"`
+	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
+	CanPickup          bool   `json:"can_pickup,omitempty"`
+	PickupNotes        string `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int    `json:"emergency_priority,omitempty"`
+
+	PhoneNumbers []GuardianPhoneInput `json:"phone_numbers,omitempty"`
 }
 
 // UpdateStudentRequest represents a student update request
@@ -237,6 +276,16 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 
 	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
 	// No validation required for guardian fields
+
+	// Validate guardians created alongside the student. Email/phone format and
+	// other field-level rules are enforced at the model layer on insert (which
+	// rolls back the whole transaction on failure); here we only guard the
+	// relationship type, which has no default and is required to link.
+	for i := range req.Guardians {
+		if strings.TrimSpace(req.Guardians[i].RelationshipType) == "" {
+			return errors.New("guardian relationship_type is required")
+		}
+	}
 
 	return nil
 }

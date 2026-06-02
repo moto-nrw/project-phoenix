@@ -83,6 +83,27 @@ type PhoneNumberUpdateRequest struct {
 	Priority    *int
 }
 
+// StudentGuardianRelationship holds the relationship flags for linking a
+// guardian to a student, without the student/guardian IDs which are set
+// internally by AddGuardiansToStudent.
+type StudentGuardianRelationship struct {
+	RelationshipType   string // parent, guardian, relative, other
+	IsPrimary          bool
+	IsEmergencyContact bool
+	CanPickup          bool
+	PickupNotes        *string
+	EmergencyPriority  int
+}
+
+// NewStudentGuardian bundles a guardian profile, its relationship to a
+// student, and its phone numbers so a guardian can be created and linked
+// atomically alongside a new student.
+type NewStudentGuardian struct {
+	Profile      GuardianCreateRequest
+	Relationship StudentGuardianRelationship
+	PhoneNumbers []PhoneNumberCreateRequest
+}
+
 // GuardianWithStudents represents a guardian with their associated students
 type GuardianWithStudents struct {
 	Profile  *users.GuardianProfile
@@ -138,6 +159,22 @@ type GuardianService interface {
 
 	// LinkGuardianToStudent creates a relationship between guardian and student
 	LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error)
+
+	// ValidateNewGuardians checks guardian input (profile, relationship type,
+	// emergency priority, phone numbers, and duplicate email) WITHOUT writing
+	// anything. Callers that persist a student and its guardians in one
+	// transaction MUST call this before the first write so a ValidationError
+	// rolls back an empty transaction instead of committing an orphaned
+	// student (TenantTxMiddleware only rolls back on 5xx). Returns a
+	// *ValidationError for bad client input.
+	ValidateNewGuardians(ctx context.Context, guardians []NewStudentGuardian) error
+
+	// AddGuardiansToStudent creates each guardian profile, links it to the
+	// student, and adds its phone numbers. Designed to run inside an ambient
+	// tenant transaction so the whole set is atomic with student creation;
+	// any failure aborts the surrounding transaction. Re-runs
+	// ValidateNewGuardians internally as defense-in-depth.
+	AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error
 
 	// GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
 	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error)

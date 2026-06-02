@@ -103,6 +103,34 @@ export interface GuardianFormData {
   notes?: string;
 }
 
+// Snake-case guardian payload sent together with a new student to
+// POST /api/students (backend `GuardianInput`). Used when creating a child and
+// its guardians in one atomic request, mirroring the guardian fields managed on
+// the student detail page.
+export interface StudentGuardianPayload {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
+  preferred_contact_method?: string;
+  language_preference?: string;
+  notes?: string;
+  relationship_type: string;
+  is_primary: boolean;
+  is_emergency_contact: boolean;
+  can_pickup: boolean;
+  pickup_notes?: string;
+  emergency_priority: number;
+  phone_numbers: Array<{
+    phone_number: string;
+    phone_type: PhoneType;
+    label?: string;
+    is_primary: boolean;
+  }>;
+}
+
 // Backend Guardian Create Request
 // preferred_contact_method and language_preference are optional — the backend
 // applies its own defaults ("phone" and "de") when omitted.

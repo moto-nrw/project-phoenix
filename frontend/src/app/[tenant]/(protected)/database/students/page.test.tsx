@@ -217,6 +217,7 @@ vi.mock("@/components/students/student-create-modal", () => ({
     onCreate: (data: {
       first_name: string;
       second_name: string;
+      guardians?: Array<Record<string, unknown>>;
     }) => Promise<void>;
   }) =>
     isOpen ? (
@@ -228,6 +229,18 @@ vi.mock("@/components/students/student-create-modal", () => ({
           }
         >
           Submit
+        </button>
+        <button
+          data-testid="submit-create-with-guardians"
+          onClick={() =>
+            void onCreate({
+              first_name: "New",
+              second_name: "Student",
+              guardians: [{ first_name: "Erika", relationship_type: "parent" }],
+            })
+          }
+        >
+          Submit with guardians
         </button>
         <button data-testid="close-create-modal" onClick={onClose}>
           Close
@@ -625,6 +638,34 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalled();
     });
+  });
+
+  it("forwards guardians to the create service when present", async () => {
+    mockCreate.mockResolvedValueOnce({
+      id: "4",
+      first_name: "New",
+      second_name: "Student",
+    });
+
+    render(<StudentsPage />);
+
+    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
+    fireEvent.click(createButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("submit-create-with-guardians"));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalled();
+    });
+    // The guardians must survive transformBeforeSubmit and reach service.create.
+    const payload = mockCreate.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(payload.guardians).toEqual([
+      { first_name: "Erika", relationship_type: "parent" },
+    ]);
   });
 
   it("calls update service when the detail panel saves Stammdaten", async () => {

@@ -61,15 +61,8 @@ func (sg *StudentGuardian) Validate() error {
 	// Convert relationship type to lowercase for consistency
 	sg.RelationshipType = strings.ToLower(sg.RelationshipType)
 
-	// Validate against known types
-	validTypes := map[string]bool{
-		"parent":   true,
-		"guardian": true,
-		"relative": true,
-		"other":    true,
-	}
-
-	if !validTypes[sg.RelationshipType] {
+	// Validate against the shared allowed set (single source of truth)
+	if !IsValidRelationshipType(sg.RelationshipType) {
 		return errors.New("invalid relationship type")
 	}
 
