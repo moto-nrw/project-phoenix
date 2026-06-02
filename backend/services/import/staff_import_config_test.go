@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -104,6 +105,12 @@ func (r stubStaffAccountRepo) FindEmailsByAccountIDs(context.Context, []int64) (
 	panic("not implemented")
 }
 func (r stubStaffAccountRepo) FindAvatarsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) IncrementMFAAttempts(context.Context, int64, int, time.Duration) (authModels.MFAAttemptResult, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ResetMFAAttempts(context.Context, int64) error {
 	panic("not implemented")
 }
 
