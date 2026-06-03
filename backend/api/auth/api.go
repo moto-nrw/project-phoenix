@@ -333,6 +333,10 @@ type TenantResolveResponse struct {
 	// decide whether to render avatars on student cards. Defaults to false
 	// when the setting is missing or unresolvable.
 	StudentPhotosEnabled bool `json:"student_photos_enabled"`
+	// NFCEnabled is the tenant's resolved attendance.nfc_enabled setting.
+	// It is public tenant-shell metadata because non-admin staff also need to
+	// know whether NFC-only areas like classic activities should appear.
+	NFCEnabled bool `json:"nfc_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -380,10 +384,14 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	// and parse the boolean string. Failures fall back to false so a
 	// settings outage never auto-enables the avatar UI for opt-out schools.
 	studentPhotosEnabled := false
+	nfcEnabled := false
 	if rs.SettingsService != nil {
 		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
 		if err == nil {
 			studentPhotosEnabled = val == "true"
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
+			nfcEnabled = val
 		}
 	}
 
@@ -398,6 +406,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		Settings:             settings,
 		PresenceMode:         presenceMode,
 		StudentPhotosEnabled: studentPhotosEnabled,
+		NFCEnabled:           nfcEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

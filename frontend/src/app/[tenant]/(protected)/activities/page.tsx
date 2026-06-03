@@ -22,6 +22,7 @@ import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -40,9 +41,11 @@ interface ActivitiesPageData {
 // page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
   return (
-    <BinaryModeGuard>
-      <ActivitiesPageContent />
-    </BinaryModeGuard>
+    <NfcModeGuard>
+      <BinaryModeGuard>
+        <ActivitiesPageContent />
+      </BinaryModeGuard>
+    </NfcModeGuard>
   );
 }
 
@@ -360,7 +363,7 @@ function ActivitiesPageContent() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",

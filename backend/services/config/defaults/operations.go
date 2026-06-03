@@ -75,6 +75,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       1,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	config.Register(config.Definition{
@@ -88,6 +93,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       2,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	minDelta := float64(0)
@@ -258,6 +268,74 @@ func init() {
 			Static: []config.SelectOption{
 				{Label: "Detailliert (Räume & Aktivitäten)", Value: config.PresenceModeDetailed},
 				{Label: "Binär (nur An-/Abwesend)", Value: config.PresenceModeBinary},
+			},
+		},
+	})
+
+	// --- Anwesenheitserfassung (setup-level decisions) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyAttendanceWebEnabled,
+		Label:           "Anwesenheit über Web-App erfassen",
+		Description:     "Mitarbeitende können Kinder über die Web-App an- und abmelden oder in Aktivitäten eintragen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       43,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyAttendanceNFCEnabled,
+		Label:           "Anwesenheit über NFC-Geräte erfassen",
+		Description:     "Die OGS nutzt NFC-Armbänder oder Karten an Geräten, zum Beispiel für Räume, Schulhof oder Abmeldung.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       44,
+	})
+
+	// --- Organisationsmodell (setup-level decisions) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyGroupMode,
+		Label:           "Arbeit mit festen Gruppen",
+		Description:     "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten.",
+		Type:            config.FieldSelect,
+		Default:         config.GroupModeFixedGroups,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       1,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Feste Gruppen", Value: config.GroupModeFixedGroups},
+				{Label: "Offene Betreuung ohne feste Gruppen", Value: config.GroupModeOpenCare},
+			},
+		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyCareConcept,
+		Label:           "Betreuungskonzept",
+		Description:     "Legt fest, ob die OGS mit einem festen Betriebsplan arbeitet oder Kinder sich frei zwischen offenen Räumen bewegen.",
+		Type:            config.FieldSelect,
+		Default:         config.CareConceptFixedSchedule,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       2,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Fester Betriebsplan", Value: config.CareConceptFixedSchedule},
+				{Label: "Offenes Raumkonzept", Value: config.CareConceptOpenRooms},
 			},
 		},
 	})

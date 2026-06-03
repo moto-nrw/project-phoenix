@@ -327,6 +327,27 @@ describe("applyOptimisticSchemaUpdate", () => {
     expect(next.tabs[0]!.categories[0]!.items[1]!.visible).toBe(false);
   });
 
+  it("hides nested children when their direct parent is hidden", () => {
+    const schema = makeSchema([
+      makeItem("root", { type: "boolean", value: false }),
+      makeItem("child", {
+        type: "boolean",
+        value: true,
+        depends_on: { key: "root", condition: "eq", value: true },
+      }),
+      makeItem("grandchild", {
+        type: "number",
+        value: 15,
+        depends_on: { key: "child", condition: "eq", value: true },
+      }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "root", false);
+
+    expect(next.tabs[0]!.categories[0]!.items[1]!.visible).toBe(false);
+    expect(next.tabs[0]!.categories[0]!.items[2]!.visible).toBe(false);
+  });
+
   it("supports the `neq` depends_on condition", () => {
     const schema = makeSchema([
       makeItem("parent", { type: "boolean", value: true }),

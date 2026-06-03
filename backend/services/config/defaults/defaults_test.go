@@ -61,8 +61,12 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.day_end_time",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
+		"attendance.web_enabled",
+		"attendance.nfc_enabled",
 		"attendance.web_checkin_access",
 		"attendance.web_spontaneous_activities_enabled",
+		"operations.group_mode",
+		"operations.care_concept",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -145,6 +149,54 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
+func TestAttendanceSetupSettings(t *testing.T) {
+	webDef := config.GetDefinition(config.KeyAttendanceWebEnabled)
+	require.NotNil(t, webDef, "attendance.web_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, webDef.Type)
+	assert.Equal(t, true, webDef.Default, "web attendance should default on")
+	assert.Equal(t, config.AccessShared, webDef.AccessPolicy)
+	assert.Equal(t, "operations", webDef.Tab)
+	assert.Equal(t, "anwesenheit", webDef.Category)
+	assert.Equal(t, "config:update", webDef.WritePermission)
+
+	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
+	require.NotNil(t, nfcDef, "attendance.nfc_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, nfcDef.Type)
+	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
+	assert.Equal(t, config.AccessShared, nfcDef.AccessPolicy)
+	assert.Equal(t, "operations", nfcDef.Tab)
+	assert.Equal(t, "anwesenheit", nfcDef.Category)
+	assert.Equal(t, "config:update", nfcDef.WritePermission)
+}
+
+func TestOrganizationSetupSettings(t *testing.T) {
+	groupDef := config.GetDefinition(config.KeyGroupMode)
+	require.NotNil(t, groupDef, "operations.group_mode should be registered")
+	assert.Equal(t, config.FieldSelect, groupDef.Type)
+	assert.Equal(t, config.GroupModeFixedGroups, groupDef.Default)
+	assert.Equal(t, config.AccessShared, groupDef.AccessPolicy)
+	assert.Equal(t, "operations", groupDef.Tab)
+	assert.Equal(t, "organisation", groupDef.Category)
+	assert.Equal(t, "config:update", groupDef.WritePermission)
+	require.NotNil(t, groupDef.Options)
+	groupValues := []any{groupDef.Options.Static[0].Value, groupDef.Options.Static[1].Value}
+	assert.Contains(t, groupValues, config.GroupModeFixedGroups)
+	assert.Contains(t, groupValues, config.GroupModeOpenCare)
+
+	careDef := config.GetDefinition(config.KeyCareConcept)
+	require.NotNil(t, careDef, "operations.care_concept should be registered")
+	assert.Equal(t, config.FieldSelect, careDef.Type)
+	assert.Equal(t, config.CareConceptFixedSchedule, careDef.Default)
+	assert.Equal(t, config.AccessShared, careDef.AccessPolicy)
+	assert.Equal(t, "operations", careDef.Tab)
+	assert.Equal(t, "organisation", careDef.Category)
+	assert.Equal(t, "config:update", careDef.WritePermission)
+	require.NotNil(t, careDef.Options)
+	careValues := []any{careDef.Options.Static[0].Value, careDef.Options.Static[1].Value}
+	assert.Contains(t, careValues, config.CareConceptFixedSchedule)
+	assert.Contains(t, careValues, config.CareConceptOpenRooms)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {
@@ -583,6 +635,10 @@ func TestSecuritySettings(t *testing.T) {
 	assert.Equal(t, "devices", def.Tab)
 	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 // TestMFASettings_TypesAndDefaults locks down the field types, registry
@@ -696,17 +752,26 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 }
 
 func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
+	dailyCheckoutDef := config.GetDefinition("operations.student_daily_checkout_time")
+	require.NotNil(t, dailyCheckoutDef)
+	require.NotNil(t, dailyCheckoutDef.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, dailyCheckoutDef.DependsOn.Key)
+	assert.Equal(t, "eq", dailyCheckoutDef.DependsOn.Condition)
+	assert.Equal(t, true, dailyCheckoutDef.DependsOn.Value)
+
+	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
+	require.NotNil(t, toggleDef)
+	require.NotNil(t, toggleDef.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, toggleDef.DependsOn.Key)
+	assert.Equal(t, "eq", toggleDef.DependsOn.Condition)
+	assert.Equal(t, true, toggleDef.DependsOn.Value)
+
 	deltaDef := config.GetDefinition("operations.per_student_checkout_delta_minutes")
 	require.NotNil(t, deltaDef)
 	require.NotNil(t, deltaDef.DependsOn)
 	assert.Equal(t, "operations.per_student_checkout_enabled", deltaDef.DependsOn.Key)
 	assert.Equal(t, "eq", deltaDef.DependsOn.Condition)
 	assert.Equal(t, true, deltaDef.DependsOn.Value)
-
-	// The toggle itself has no DependsOn
-	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
-	require.NotNil(t, toggleDef)
-	assert.Nil(t, toggleDef.DependsOn)
 }
 
 func TestDependsOn_AttendanceLogGroup(t *testing.T) {
@@ -784,6 +849,10 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
 		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
+		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
 	// Raumwechsel defaults to true (no system room required)

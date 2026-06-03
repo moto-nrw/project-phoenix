@@ -22,6 +22,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // null tenant keeps the photo feature off in this test (matching the
   // pre-feature shape the skeleton assertions were written against).
   useTenantSafe: () => ({ tenantSlug: "test-tenant", tenant: null }),
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 // The global test setup mocks `swr` to always return isLoading=true. To

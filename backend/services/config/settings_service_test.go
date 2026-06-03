@@ -488,6 +488,60 @@ func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
 	}
 }
 
+func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:      "root.enabled",
+		Label:    "Root",
+		Type:     config.FieldBoolean,
+		Default:  false,
+		Tab:      "test",
+		Category: "deps",
+	})
+	config.Register(config.Definition{
+		Key:      "child.enabled",
+		Label:    "Child",
+		Type:     config.FieldBoolean,
+		Default:  true,
+		Tab:      "test",
+		Category: "deps",
+		DependsOn: &config.Dependency{
+			Key:       "root.enabled",
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+	config.Register(config.Definition{
+		Key:      "grandchild.minutes",
+		Label:    "Grandchild",
+		Type:     config.FieldNumber,
+		Default:  15,
+		Tab:      "test",
+		Category: "deps",
+		DependsOn: &config.Dependency{
+			Key:       "child.enabled",
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), []string{})
+	require.NoError(t, err)
+
+	items := schema.Tabs[0].Categories[0].Items
+	visibility := make(map[string]bool, len(items))
+	for _, item := range items {
+		visibility[item.Key] = item.Visible
+	}
+
+	assert.True(t, visibility["root.enabled"], "root should stay visible")
+	assert.False(t, visibility["child.enabled"], "child should hide when root is false")
+	assert.False(t, visibility["grandchild.minutes"], "grandchild should hide when its parent is hidden")
+}
+
 func TestSettingsError_Unwrap(t *testing.T) {
 	inner := &configSvc.DefinitionNotFoundError{Key: "test"}
 	err := &configSvc.SettingsError{Op: "resolve", Err: inner}
