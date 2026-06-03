@@ -21,6 +21,8 @@ import {
   handleStudentCreationError,
 } from "~/lib/student-request-helpers";
 import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
+import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
+import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
 
 /**
  * Type definition for student response from backend
@@ -189,6 +191,8 @@ export const POST = createPostHandler<
     privacy_consent_accepted?: boolean;
     data_retention_days?: number;
     guardians?: StudentGuardianPayload[];
+    arrival_schedules?: ArrivalScheduleFormEntry[];
+    pickup_schedules?: BackendPickupScheduleRequest[];
   }
 >(
   async (
@@ -199,6 +203,8 @@ export const POST = createPostHandler<
       privacy_consent_accepted?: boolean;
       data_retention_days?: number;
       guardians?: StudentGuardianPayload[];
+      arrival_schedules?: ArrivalScheduleFormEntry[];
+      pickup_schedules?: BackendPickupScheduleRequest[];
     },
     token: string,
   ) => {

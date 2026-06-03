@@ -101,6 +101,35 @@ describe("CareWeeklyPlanModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("uses the overridden successMessage when provided", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={onClose}
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={initialPickupSchedules}
+        onSubmit={onSubmit}
+        successMessage="Betreuungszeiten übernommen"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith("Betreuungszeiten übernommen");
+    });
+    // The default wording must not appear when overridden.
+    expect(toastSuccess).not.toHaveBeenCalledWith(
+      "Wochenplan wurde gespeichert",
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("shows validation errors for invalid times", async () => {
     render(
       <CareWeeklyPlanModal

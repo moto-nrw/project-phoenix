@@ -296,6 +296,55 @@ describe("buildBackendStudentRequest", () => {
     expect(result.guardians).toBeUndefined();
   });
 
+  it("passes weekly arrival and pickup schedules through for atomic creation", () => {
+    const validated = {
+      firstName: "Max",
+      lastName: "Mustermann",
+      schoolClass: "1a",
+    };
+    const arrival_schedules = [
+      { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
+      { weekday: 3, expected_arrival: "08:00", notes: null },
+    ];
+    const pickup_schedules = [
+      { weekday: 1, pickup_time: "15:00", notes: undefined },
+    ];
+    const body = {
+      first_name: "Max",
+      second_name: "Mustermann",
+      school_class: "1a",
+      arrival_schedules,
+      pickup_schedules,
+    };
+    const guardianContact = { email: undefined, phone: undefined };
+
+    const result = buildBackendStudentRequest(validated, body, guardianContact);
+
+    expect(result.arrival_schedules).toEqual(arrival_schedules);
+    expect(result.pickup_schedules).toEqual(pickup_schedules);
+  });
+
+  it("omits schedules when none are provided or arrays are empty", () => {
+    const validated = {
+      firstName: "Max",
+      lastName: "Mustermann",
+      schoolClass: "1a",
+    };
+    const body = {
+      first_name: "Max",
+      second_name: "Mustermann",
+      school_class: "1a",
+      arrival_schedules: [],
+      pickup_schedules: [],
+    };
+    const guardianContact = { email: undefined, phone: undefined };
+
+    const result = buildBackendStudentRequest(validated, body, guardianContact);
+
+    expect(result.arrival_schedules).toBeUndefined();
+    expect(result.pickup_schedules).toBeUndefined();
+  });
+
   it("includes tag_id when provided", () => {
     const validated = {
       firstName: "Max",
@@ -694,6 +743,70 @@ describe("handleStudentCreationError", () => {
       "permission denied when creating student",
       { error: String(error) },
     );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("throws schedule permission error when Betreuungszeiten creation lacks users:update", () => {
+    const error = new Error(
+      'API error: 403 {"error":"users:update permission required to create student schedules"}',
+    );
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    expect(() => handleStudentCreationError(error)).toThrow(
+      "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "permission denied when creating student",
+      { error: String(error) },
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("preserves 403 status for mapped schedule permission errors", () => {
+    const error = new Error(
+      'API error (403): {"error":"users:update permission required to create student schedules"}',
+    );
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      handleStudentCreationError(error);
+      throw new Error("Expected handleStudentCreationError to throw");
+    } catch (caught) {
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toContain("API error (403):");
+      expect((caught as { status?: number }).status).toBe(403);
+      expect((caught as Error).message).toContain(
+        "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
+      );
+    }
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("preserves 403 status for mapped student create permission errors", () => {
+    const error = new Error("API error (403): Forbidden");
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      handleStudentCreationError(error);
+      throw new Error("Expected handleStudentCreationError to throw");
+    } catch (caught) {
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toContain("API error (403):");
+      expect((caught as { status?: number }).status).toBe(403);
+      expect((caught as Error).message).toContain(
+        "Permission denied: You need the 'users:create' permission to create students.",
+      );
+    }
 
     consoleErrorSpy.mockRestore();
   });

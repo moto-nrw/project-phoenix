@@ -17,7 +17,10 @@ import type {
 import { useIsMobile } from "~/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useToast } from "~/contexts/ToastContext";
-import { StudentCreateModal } from "@/components/students/student-create-modal";
+import {
+  StudentCreateModal,
+  type CreateStudentSchedules,
+} from "@/components/students/student-create-modal";
 import {
   StudentsMasterDetail,
   type GroupingMode,
@@ -224,19 +227,40 @@ export default function StudentsPage() {
 
   const handleCreateStudent = useCallback(
     async (
-      studentData: Partial<Student> & { guardians?: StudentGuardianPayload[] },
+      studentData: Partial<Student> & {
+        guardians?: StudentGuardianPayload[];
+      } & CreateStudentSchedules,
     ) => {
-      // Run the config transform, then re-attach guardians from the original
-      // input. transformBeforeSubmit is typed Partial<Student> and drops the
-      // extra guardians field from the static type; re-attaching here makes the
-      // contract explicit so a future transform change can't silently strip the
-      // guardians (see issue #1500 atomic create flow).
-      let payload: Partial<Student> & { guardians?: StudentGuardianPayload[] } =
-        studentsConfig.form.transformBeforeSubmit
-          ? studentsConfig.form.transformBeforeSubmit(studentData)
-          : studentData;
+      // Run the config transform, then re-attach guardians and weekly schedules
+      // from the original input. transformBeforeSubmit is typed Partial<Student>
+      // and drops these extra fields from the static type; re-attaching here
+      // makes the contract explicit so a future transform change can't silently
+      // strip them (see issue #1500 atomic create flow, #1502 schedules).
+      let payload: Partial<Student> & {
+        guardians?: StudentGuardianPayload[];
+      } & CreateStudentSchedules = studentsConfig.form.transformBeforeSubmit
+        ? studentsConfig.form.transformBeforeSubmit(studentData)
+        : studentData;
       if (studentData.guardians && studentData.guardians.length > 0) {
         payload = { ...payload, guardians: studentData.guardians };
+      }
+      if (
+        studentData.arrival_schedules &&
+        studentData.arrival_schedules.length > 0
+      ) {
+        payload = {
+          ...payload,
+          arrival_schedules: studentData.arrival_schedules,
+        };
+      }
+      if (
+        studentData.pickup_schedules &&
+        studentData.pickup_schedules.length > 0
+      ) {
+        payload = {
+          ...payload,
+          pickup_schedules: studentData.pickup_schedules,
+        };
       }
       const newStudent = await service.create(payload);
       const displayName = studentsConfig.list.item.title(newStudent);

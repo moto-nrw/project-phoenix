@@ -829,6 +829,28 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	guardians := toNewStudentGuardians(req.Guardians)
 
+	// Resolve the acting staff once — weekly schedules are stamped with
+	// CreatedBy. Only required when schedules are supplied so plain student
+	// creation (no schedules) is unaffected.
+	//
+	// Creating a student is governed by users:create, but attached weekly
+	// schedules are writes to the same Betreuungszeiten records edited by the
+	// standalone PUT endpoints. Keep that schedule write contract aligned:
+	// callers need users:update and must resolve to a staff record so schedule
+	// rows always carry a valid author.
+	var staffID int64
+	if len(req.ArrivalSchedules) > 0 || len(req.PickupSchedules) > 0 {
+		if !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
+			renderError(w, r, ErrorForbidden(errors.New("users:update permission required to create student schedules")))
+			return
+		}
+		staffID, err = rs.getStaffIDFromJWT(r)
+		if err != nil {
+			renderError(w, r, ErrorForbidden(err))
+			return
+		}
+	}
+
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Validate guardians BEFORE writing the student. This route runs inside
@@ -859,6 +881,23 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		// atomically — a guardian failure rolls back the whole student.
 		if len(guardians) > 0 {
 			if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
+				return err
+			}
+		}
+
+		// Persist weekly arrival/pickup schedules in the same transaction so the
+		// student and its recurring care times are created atomically (mirrors
+		// the guardian handling above). The schedule tables FK to the student,
+		// which now exists within this transaction.
+		if len(req.ArrivalSchedules) > 0 {
+			arrivals := toArrivalScheduleModels(req.ArrivalSchedules, student.ID, staffID)
+			if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, arrivals); err != nil {
+				return err
+			}
+		}
+		if len(req.PickupSchedules) > 0 {
+			pickups := toPickupScheduleModels(req.PickupSchedules, student.ID, staffID)
+			if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, pickups); err != nil {
 				return err
 			}
 		}
