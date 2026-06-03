@@ -102,6 +102,8 @@ export function validateStudentForm(
  * @param onSubmit - Submit handler
  * @param setLoading - Loading state setter
  * @param setErrors - Error state setter
+ * @param onError - Optional; fired after errors are set (client validation
+ *   failure or server rejection) so callers can scroll to the first error.
  */
 export async function handleStudentFormSubmit(
   e: React.FormEvent,
@@ -110,10 +112,12 @@ export async function handleStudentFormSubmit(
   onSubmit: (data: Partial<Student>) => Promise<void>,
   setLoading: (loading: boolean) => void,
   setErrors: (errors: Record<string, string>) => void,
+  onError?: () => void,
 ): Promise<void> {
   e.preventDefault();
 
   if (!validateForm()) {
+    onError?.();
     return;
   }
 
@@ -123,6 +127,7 @@ export async function handleStudentFormSubmit(
   } catch (error) {
     logger.error("error saving student", { error: String(error) });
     setErrors({ submit: toSubmitErrorMessage(error) });
+    onError?.();
   } finally {
     setLoading(false);
   }

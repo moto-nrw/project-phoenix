@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Plus, Search, Trash2, Clock } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
+import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
 import {
   PersonalInfoSection,
@@ -177,6 +178,10 @@ export function StudentCreateModal({
   // result (the added guardian) instead of jumping past it.
   const guardianSectionRef = useRef<HTMLElement>(null);
   const pendingGuardianScrollRef = useRef(false);
+  // Scroll the form to the first invalid field on a failed submit — the modal
+  // body scrolls and the submit button sits at the bottom, so an error above
+  // is otherwise easy to miss. Same behaviour as the parents' enrollment form.
+  const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -292,6 +297,7 @@ export function StudentCreateModal({
       onCreate,
       setSaveLoading,
       setErrors,
+      scrollToError,
     );
   };
 
@@ -325,13 +331,17 @@ export function StudentCreateModal({
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="Neuer Schüler">
         <form
+          ref={formRef}
           onSubmit={handleSubmit}
           noValidate
           className="space-y-4 md:space-y-6"
         >
           {/* Submit Error */}
           {errors.submit && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
+            <div
+              ref={errorRef}
+              className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3"
+            >
               <p className="text-xs text-red-800 md:text-sm">{errors.submit}</p>
             </div>
           )}

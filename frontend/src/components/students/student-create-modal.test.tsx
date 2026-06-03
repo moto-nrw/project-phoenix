@@ -456,6 +456,31 @@ describe("StudentCreateModal", () => {
     });
   });
 
+  it("passes a scroll-to-error callback to the submit helper", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    // 7th arg drives scroll-to-first-error on a failed submit (shared with the
+    // parents' enrollment form via useScrollToFirstError).
+    const onError = vi.mocked(handleStudentFormSubmit).mock.calls[0]?.[6];
+    expect(onError).toBeTypeOf("function");
+  });
+
   it("updates form data when input changes", async () => {
     render(
       <StudentCreateModal
