@@ -263,18 +263,26 @@ export interface PublicLegalTexts {
   photo: string;
 }
 
+/**
+ * Fetches the per-tenant legal documents. Unconfigured texts come back
+ * as empty strings (a 200 response) and are fine — the form drops the
+ * link. A non-OK response (settings/DB/JSON failure) THROWS rather than
+ * returning null: these texts sit behind legally relevant consents, so
+ * the caller must fail closed instead of silently showing plain consent
+ * labels without the configured documents.
+ */
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
-): Promise<PublicLegalTexts | null> {
+): Promise<PublicLegalTexts> {
   const response = await fetch(
     `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
   if (!response.ok) {
-    logger.warn("public_legal_texts_failed", {
+    logger.error("public_legal_texts_failed", {
       status: response.status,
     });
-    return null;
+    throw new Error(`legal texts request failed: ${response.status}`);
   }
   return readJSON<PublicLegalTexts>(response);
 }

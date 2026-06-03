@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -41,6 +42,11 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := PublicLegalTextsResponse{}
+	// legalErr captures a genuine settings/DB/JSON resolve failure so we
+	// can return a 500 instead of the 404 path. These texts sit behind
+	// legally relevant consents — on a real failure the endpoint must
+	// fail rather than let the form fall back to plain consent labels.
+	var legalErr error
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
@@ -48,7 +54,11 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			texts := rs.RequestService.LegalTexts(txCtx)
+			texts, err := rs.RequestService.LegalTexts(txCtx)
+			if err != nil {
+				legalErr = err
+				return err
+			}
 			out.AGB = texts.AGB
 			out.DSGVO = texts.DSGVO
 			out.EmailContact = texts.EmailContact
@@ -57,6 +67,10 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 		})
 	})
 	if resolveErr != nil {
+		if legalErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", legalErr)))
+			return
+		}
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
 	}
