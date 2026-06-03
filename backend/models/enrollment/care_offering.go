@@ -65,6 +65,7 @@ type CareOffering struct {
 	Capacity            *int     `bun:"capacity" json:"capacity,omitempty"`
 	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
 	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
+	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
 	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
 	// SelectionGroup groups offerings that share a selection rule (empty
 	// = ungrouped). SelectionRule constrains how many of the group a
@@ -107,7 +108,6 @@ func (c *CareOffering) Validate() error {
 	if c.PriceCents != nil && *c.PriceCents < 0 {
 		return errors.New("price_cents must be non-negative")
 	}
-
 	c.SelectionGroup = strings.TrimSpace(c.SelectionGroup)
 	if c.SelectionRule == "" {
 		c.SelectionRule = SelectionRuleOptional
@@ -119,6 +119,13 @@ func (c *CareOffering) Validate() error {
 	// constrains the count across the group's members.
 	if c.SelectionRule != SelectionRuleOptional && c.SelectionGroup == "" {
 		return errors.New("a selection rule requires a selection_group name")
+	}
+	// A required offering must be available to every child, so it cannot
+	// carry a hard capacity limit - otherwise a full offering would block
+	// every new enrollment in the phase. The admin editor prevents the
+	// combination; this is the backstop.
+	if c.IsRequired && c.Capacity != nil {
+		return errors.New("a required care offering must not have a capacity limit")
 	}
 	return nil
 }

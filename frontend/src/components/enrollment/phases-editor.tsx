@@ -78,6 +78,7 @@ function blankInput(): PhaseInput {
     form_schema_id: null,
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
+    care_offering_selection_mode: "optional",
     is_active: true,
   };
 }
@@ -93,6 +94,7 @@ function phaseToInput(p: Phase): PhaseInput {
     form_schema_id: p.form_schema_id ?? null,
     show_status_reason_to_parent: p.show_status_reason_to_parent,
     care_overflow_mode: p.care_overflow_mode,
+    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
     is_active: p.is_active,
   };
 }
@@ -1155,6 +1157,11 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        {/* Care-offering selection is governed per offering via
+            selection_group + selection_rule on the offerings editor, so the
+            phase-level selection mode is intentionally not exposed here. The
+            phase still persists care_offering_selection_mode = "optional"
+            (the dormant default) so the backend constraint stays inert. */}
         <label className="block">
           <span className="text-xs font-medium text-gray-700">
             Verhalten bei voller Betreuung

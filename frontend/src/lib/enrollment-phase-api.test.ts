@@ -50,6 +50,7 @@ function mkPhase(id: string, name: string): Phase {
     form_schema_id: "7",
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
+    care_offering_selection_mode: "optional",
     is_active: true,
     created_at: "2026-04-01T12:00:00Z",
     updated_at: "2026-04-01T12:00:00Z",
@@ -63,6 +64,7 @@ const validInput: PhaseInput = {
   service_end_date: "2027-07-31",
   show_status_reason_to_parent: false,
   care_overflow_mode: "waitlist",
+  care_offering_selection_mode: "optional",
   is_active: true,
 };
 

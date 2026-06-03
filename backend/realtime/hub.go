@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/moto-nrw/project-phoenix/observability"
 )
 
 // Client represents a single SSE client connection
@@ -65,6 +67,7 @@ func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) 
 		slog.Any("subscribed_groups", activeGroupIDs),
 		slog.Int("total_clients", len(h.clients)),
 	)
+	observability.RecordSSEConnection(tenantID, "connected")
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -99,8 +102,10 @@ func (h *Hub) Unregister(client *Client) {
 
 	h.getLogger().Info("SSE client disconnected",
 		slog.Int64("user_id", client.UserID),
+		slog.Int64("tenant_id", client.TenantID),
 		slog.Int("total_clients", len(h.clients)),
 	)
+	observability.RecordSSEConnection(client.TenantID, "disconnected")
 }
 
 // BroadcastToGroup sends an event to all clients subscribed to the specified active group
@@ -123,11 +128,13 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 
 	// Send event to all subscribed clients
 	successCount := 0
+	droppedCount := 0
 	for _, client := range clients {
 		select {
 		case client.Channel <- event:
 			successCount++
 		default:
+			droppedCount++
 			// Client's channel is full - skip this client
 			h.getLogger().Warn("SSE client channel full, skipping event",
 				slog.Int64("user_id", client.UserID),
@@ -145,6 +152,7 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 		slog.Int("recipient_count", len(clients)),
 		slog.Int("successful", successCount),
 	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "group", droppedCount)
 
 	return nil
 }
@@ -162,6 +170,7 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 	defer h.mu.RUnlock()
 
 	recipients := 0
+	droppedCount := 0
 	for client := range h.clients {
 		if client.TenantID != tenantID {
 			continue
@@ -170,6 +179,7 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		select {
 		case client.Channel <- event:
 		default:
+			droppedCount++
 			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-tenant",
 				slog.Int64("user_id", client.UserID),
 				slog.Int64("tenant_id", tenantID),
@@ -182,6 +192,7 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.String("event_type", string(event.Type)),
 		slog.Int("recipient_count", recipients),
 	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant", droppedCount)
 	return nil
 }
 
@@ -190,16 +201,19 @@ func (h *Hub) BroadcastToAll(event Event) error {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
+	droppedCount := 0
 	for client := range h.clients {
 		select {
 		case client.Channel <- event:
 		default:
+			droppedCount++
 			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-all",
 				slog.Int64("user_id", client.UserID),
 				slog.String("event_type", string(event.Type)),
 			)
 		}
 	}
+	observability.RecordSSEBroadcast(0, string(event.Type), "all", droppedCount)
 	return nil
 }
 
@@ -215,4 +229,15 @@ func (h *Hub) GetGroupSubscriberCount(tenantID int64, activeGroupID string) int 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.groupClients[tenantGroupKey(tenantID, activeGroupID)])
+}
+
+func (h *Hub) SnapshotStats() observability.SSEStats {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	stats := observability.SSEStats{ClientsByTenant: make(map[int64]int)}
+	for client := range h.clients {
+		stats.ClientsByTenant[client.TenantID]++
+	}
+	return stats
 }

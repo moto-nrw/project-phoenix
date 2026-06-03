@@ -299,6 +299,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		}
 		s.autoClearStudentSickness(ctx, studentID)
 		s.autoClearStudentExcused(ctx, studentID)
+		s.autoClearPlannedStudentStatuses(ctx, studentID)
 		return &AttendanceResult{
 			Action:       "checked_in",
 			AttendanceID: existing.ID,
@@ -309,6 +310,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 
 	s.autoClearStudentSickness(ctx, studentID)
 	s.autoClearStudentExcused(ctx, studentID)
+	s.autoClearPlannedStudentStatuses(ctx, studentID)
 
 	return &AttendanceResult{
 		Action:       "checked_in",

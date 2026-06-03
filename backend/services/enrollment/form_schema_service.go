@@ -1,6 +1,5 @@
-// Package enrollment holds the parent-enrollment service layer. PR 5
-// ships the form schema service; PR 6 will add care offerings; PR 7 the
-// public submission service; PR 8 the per-child decision service.
+// Package enrollment holds the parent-enrollment service layer: form schemas,
+// care offerings, public submissions, and per-child decisions.
 package enrollment
 
 import (
@@ -13,8 +12,8 @@ import (
 )
 
 // ErrNoActiveSchema is returned by GetActive when no active form schema
-// exists for the tenant. Callers (e.g., the public form renderer in
-// PR 7) should treat this as "feature not configured yet".
+// exists for the tenant. Callers should treat this as "feature not configured
+// yet".
 var ErrNoActiveSchema = errors.New("no active form schema for tenant")
 
 var (
@@ -23,11 +22,9 @@ var (
 	ErrFormSchemaHasRequests = errors.New("form schema has enrollment requests")
 )
 
-// FormSchemaService manages form-schema versioning. The two key
-// operations are GetActive (consumed by PR 7's public form renderer
-// + admin editor pre-fill) and PublishVersion (called by the admin
-// editor on save - creates a new version and atomically marks it
-// active, deactivating the previous one).
+// FormSchemaService manages form-schema versioning. GetActive feeds the public
+// form renderer and admin pre-fill; PublishVersion creates a new active version
+// for the default schema.
 type FormSchemaService interface {
 	// GetActive returns the currently-active form schema for the
 	// tenant in context, or ErrNoActiveSchema if none exists.
@@ -48,35 +45,36 @@ type FormSchemaService interface {
 	//
 	// Deprecated: prefer CreateSchema (new schema) or UpdateSchema
 	// (new version of an existing schema). PublishVersion is kept for
-	// backward compatibility with the original single-schema flow —
+	// backward compatibility with the original single-schema flow.
 	// it now writes the row with name="Standardformular" and does NOT
 	// deactivate other names' rows, only siblings of the same name.
-	PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error)
+	PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 
 	// CreateSchema creates a new logical schema (version 1) under the
 	// given name. Use this when the admin clicks "Neues Formular" on
 	// the schema list page. Names are unique per tenant by convention
-	// but not by DB constraint — the service rejects an attempt to
+	// but not by DB constraint. The service rejects an attempt to
 	// create a new schema with a name that already exists; callers
 	// must use UpdateSchema to add another version to an existing
 	// schema instead.
-	CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error)
+	CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 
 	// UpdateSchema publishes a new version of an existing schema,
 	// looked up by id. The new row inherits the source row's name,
-	// uses max(version)+1 for that name, and is marked active. Older
-	// versions stay around so previously-submitted requests keep
-	// their schema reference intact.
-	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error)
+	// uses max(version)+1 for that name, and is marked active. Phases
+	// using an older version of the same logical schema are repointed
+	// to the new row, while previously-submitted requests keep their
+	// schema reference intact.
+	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 
 	// DeleteSchema removes every version of the logical schema selected
 	// by id. It refuses deletion when any version is used by a phase or
 	// historical request.
 	DeleteSchema(ctx context.Context, id int64) error
 
-	// ValidateSubmission checks a parent's submission payload against
-	// a pinned schema version. PR 7's submit handler calls this. PR 5
-	// ships the helper; PR 7 wires it.
+	// ValidateSubmission checks guardian-level custom data against a pinned
+	// schema version. The parent submit flow performs the full request/child
+	// validation before creating enrollment rows.
 	ValidateSubmission(ctx context.Context, schemaID int64, data enrollmentModels.SubmissionData) error
 }
 
@@ -137,15 +135,15 @@ func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentMode
 // schema.
 const defaultSchemaName = "Standardformular"
 
-func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
-	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy)
+func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
+	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy, firstCoreRequirements(coreRequirements))
 }
 
-func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if name == "" {
 		return nil, fmt.Errorf("schema name is required")
 	}
-	// Refuse to overload an existing name — the admin should use
+	// Refuse to overload an existing name. The admin should use
 	// UpdateSchema to add a new version instead. The
 	// "next version > 1" check is the lightweight uniqueness signal.
 	existing, err := s.repo.NextVersionForName(ctx, name)
@@ -155,10 +153,10 @@ func (s *formSchemaService) CreateSchema(ctx context.Context, name string, field
 	if existing > 1 {
 		return nil, fmt.Errorf("schema with name %q already exists; use UpdateSchema to add a new version", name)
 	}
-	return s.createOrVersion(ctx, name, fields, createdBy)
+	return s.createOrVersion(ctx, name, fields, createdBy, firstCoreRequirements(coreRequirements))
 }
 
-func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64) (*enrollmentModels.FormSchema, error) {
+func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("schema id must be positive")
 	}
@@ -166,7 +164,11 @@ func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields [
 	if err != nil {
 		return nil, fmt.Errorf("load source schema: %w", err)
 	}
-	return s.createOrVersion(ctx, source.Name, fields, updatedBy)
+	nextCoreRequirements := source.CoreRequirements
+	if len(coreRequirements) > 0 {
+		nextCoreRequirements = firstCoreRequirements(coreRequirements)
+	}
+	return s.createOrVersion(ctx, source.Name, fields, updatedBy, nextCoreRequirements)
 }
 
 func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
@@ -223,10 +225,10 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 }
 
 // createOrVersion is the shared internal: pick max(version)+1 for the
-// name, insert a new active row. Sibling rows with the same name stay
-// in place — admins can revert to an older version by binding the
-// phase to that row's id.
-func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64) (*enrollmentModels.FormSchema, error) {
+// name and insert a new active row. Sibling rows with the same name
+// stay in place for historical submissions, but phases using any prior
+// sibling version are advanced to the newly published row.
+func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if createdBy <= 0 {
 		return nil, fmt.Errorf("createdBy is required")
 	}
@@ -235,7 +237,7 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 	}
 
 	// Validate fields up front so we don't write a half-correct row.
-	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields}
+	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields, CoreRequirements: coreRequirements}
 	if err := tmp.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid schema: %w", err)
 	}
@@ -246,14 +248,25 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 	}
 
 	schema := &enrollmentModels.FormSchema{
-		Name:      name,
-		Version:   nextVersion,
-		Fields:    fields,
-		IsActive:  true,
-		CreatedBy: createdBy,
+		Name:             name,
+		Version:          nextVersion,
+		Fields:           fields,
+		CoreRequirements: tmp.CoreRequirements,
+		IsActive:         true,
+		CreatedBy:        createdBy,
 	}
 	if err := s.repo.Create(ctx, schema); err != nil {
 		return nil, fmt.Errorf("create schema: %w", err)
+	}
+
+	// Advance any phase still bound to a prior version of this schema name
+	// onto the freshly published version, so admin edits (new required
+	// fields, core requirements, ...) reach the public form without a
+	// manual re-bind. A brand-new name has no prior versions, so this is a
+	// no-op for CreateSchema. Failing here rolls back the publish rather
+	// than silently leaving the edit invisible.
+	if err := s.repointPhasesToVersion(ctx, schema); err != nil {
+		return nil, err
 	}
 
 	s.logger.Info("form schema published",
@@ -266,10 +279,50 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 	return schema, nil
 }
 
-// ValidateSubmission resolves the schema by ID and runs the per-field
-// validators against the supplied data. PR 5 ships a basic "every
-// required field has a value" check; PR 7 will extend with type
-// coercion and pattern enforcement.
+// repointPhasesToVersion moves every phase bound to an older version of
+// newSchema's name onto newSchema.ID. No-op when the phase repo isn't
+// wired (some unit setups) or when no sibling versions exist.
+func (s *formSchemaService) repointPhasesToVersion(ctx context.Context, newSchema *enrollmentModels.FormSchema) error {
+	if s.phaseRepo == nil {
+		return nil
+	}
+	versions, err := s.repo.ListByTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("list schema versions for repoint: %w", err)
+	}
+	oldIDs := make([]int64, 0, len(versions))
+	for _, v := range versions {
+		if v.Name == newSchema.Name && v.ID != newSchema.ID {
+			oldIDs = append(oldIDs, v.ID)
+		}
+	}
+	if len(oldIDs) == 0 {
+		return nil
+	}
+	updated, err := s.phaseRepo.RepointFormSchema(ctx, oldIDs, newSchema.ID)
+	if err != nil {
+		return fmt.Errorf("repoint phases to schema %d: %w", newSchema.ID, err)
+	}
+	if updated > 0 {
+		s.logger.Info("repointed phases to new schema version",
+			slog.String("name", newSchema.Name),
+			slog.Int64("new_schema_id", newSchema.ID),
+			slog.Int64("phases_updated", updated))
+	}
+	return nil
+}
+
+func firstCoreRequirements(values []enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+	if len(values) == 0 || values[0] == nil {
+		return enrollmentModels.CoreRequirements{}
+	}
+	return values[0]
+}
+
+// ValidateSubmission resolves the schema by ID and runs the legacy
+// guardian-level required-field check against the supplied data. Full public
+// submission validation, including child fields and structured field types,
+// lives in request_service.go.
 func (s *formSchemaService) ValidateSubmission(ctx context.Context, schemaID int64, data enrollmentModels.SubmissionData) error {
 	schema, err := s.repo.FindByID(ctx, schemaID)
 	if err != nil {
@@ -285,10 +338,9 @@ func (s *formSchemaService) ValidateSubmission(ctx context.Context, schemaID int
 		var value any
 		var present bool
 		if field.AppliesToCh {
-			// Per-child fields validated by PR 7 (when child slot
-			// indexing is wired); PR 5 only checks guardian-level
-			// required fields. Skip until then to avoid false
-			// positives during admin form preview.
+			// Per-child fields are validated in the parent submit flow where
+			// child rows are available. This helper only receives
+			// guardian-level data.
 			continue
 		}
 		// A field hidden by its visibility condition is not shown to the

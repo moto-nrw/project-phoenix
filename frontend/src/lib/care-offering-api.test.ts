@@ -44,6 +44,7 @@ function mkOffering(id: string): CareOffering {
     includes_holiday_care: false,
     includes_lunch: false,
     is_active: true,
+    is_required: false,
     sort_order: 0,
     created_at: "2026-04-01T12:00:00Z",
     updated_at: "2026-04-01T12:00:00Z",
@@ -58,6 +59,7 @@ const validInput: CareOfferingInput = {
   includes_holiday_care: false,
   includes_lunch: false,
   is_active: true,
+  is_required: false,
   sort_order: 0,
 };
 

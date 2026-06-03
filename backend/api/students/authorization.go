@@ -12,15 +12,6 @@ import (
 
 // HTTP-side wrappers around auth/authorize/student_access.go.
 
-func hasAdminPermissions(permissions []string) bool {
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
-	}
-	return false
-}
-
 // getPermissionsFromRequest extracts permissions from request context.
 func getPermissionsFromRequest(r *http.Request) []string {
 	return jwt.PermissionsFromCtx(r.Context())

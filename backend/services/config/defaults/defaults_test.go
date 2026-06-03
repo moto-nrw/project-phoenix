@@ -65,18 +65,21 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
+		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
+		"security.mfa_mode",
+		"security.mfa_trusted_device_enabled",
+		"security.mfa_trusted_device_days",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.
 		"invitations.guardian_token_expiry_hours",
 		// Parent-enrollment registry plumbing. open_window_*,
-		// show_status_reason_to_parent, and care_overflow_mode moved
-		// to per-phase columns on enrollment.phases - they're no
-		// longer tenant-wide settings.
+		// show_status_reason_to_parent, care_overflow_mode, and
+		// care_offerings_required moved to per-phase columns on
+		// enrollment.phases - they're no longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
 		"enrollment.care_offerings_enabled",
-		"enrollment.care_offerings_required",
 		"enrollment.default_activation_mode",
 		"enrollment.notification_emails",
 		"enrollment.auto_invite_guardian_on_approval",
@@ -323,7 +326,6 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
 		config.KeyEnrollmentCareOfferingsEnabled,
-		config.KeyEnrollmentCareOfferingsRequired,
 		config.KeyEnrollmentDefaultActivationMode,
 		config.KeyEnrollmentNotificationEmails,
 		config.KeyEnrollmentAutoInviteGuardianOnApprove,
@@ -389,12 +391,6 @@ func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
-
-	// Care-offerings-required hangs off care_offerings_enabled (nested gate),
-	// not the master toggle.
-	careRequired := config.GetDefinition(config.KeyEnrollmentCareOfferingsRequired)
-	require.NotNil(t, careRequired.DependsOn)
-	assert.Equal(t, config.KeyEnrollmentCareOfferingsEnabled, careRequired.DependsOn.Key)
 }
 
 // TestEnrollmentSelectOptions_AreCanonical guards the static option lists
@@ -588,6 +584,76 @@ func TestSecuritySettings(t *testing.T) {
 	assert.Equal(t, "devices", def.Tab)
 	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
+// TestMFASettings_TypesAndDefaults locks down the field types, registry
+// defaults, and select-options for the 4 MFA settings introduced in issue
+// #1308. The trusted-device default is intentionally `true` so tenants on
+// stock config opt into the cookie skip — flipping it would silently
+// disable the feature for every existing school.
+func TestMFASettings_TypesAndDefaults(t *testing.T) {
+	t.Run("mfa_mode", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFAMode)
+		require.NotNil(t, def)
+		assert.Equal(t, config.FieldSelect, def.Type)
+		assert.Equal(t, config.MFAModeOff, def.Default, "default must be off so existing tenants aren't surprise-locked into 2FA")
+		assert.Equal(t, "security", def.Tab)
+		assert.Equal(t, "mfa", def.Category)
+		assert.Equal(t, "config:manage", def.WritePermission)
+		require.NotNil(t, def.Options)
+		require.Len(t, def.Options.Static, 3, "expected three options: off, required_admins, required_all")
+	})
+
+	t.Run("mfa_trusted_device_enabled", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
+		require.NotNil(t, def)
+		assert.Equal(t, config.FieldBoolean, def.Type)
+		assert.Equal(t, true, def.Default, "default must be true — Yannick's #1308 review feedback explicitly asked for this")
+		assert.Equal(t, "security", def.Tab)
+		assert.Equal(t, "mfa", def.Category)
+	})
+
+	t.Run("mfa_trusted_device_days", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFATrustedDeviceDays)
+		require.NotNil(t, def)
+		assert.Equal(t, config.FieldNumber, def.Type)
+		assert.Equal(t, 90, def.Default)
+		require.NotNil(t, def.Validation)
+		require.NotNil(t, def.Validation.Min)
+		require.NotNil(t, def.Validation.Max)
+		assert.Equal(t, float64(1), *def.Validation.Min)
+		assert.Equal(t, float64(180), *def.Validation.Max)
+	})
+
+}
+
+// TestMFASettings_DependsOnGraph locks the conditional-visibility rules so
+// the settings UI hides irrelevant knobs when MFA is off or trusted devices
+// are disabled.
+func TestMFASettings_DependsOnGraph(t *testing.T) {
+	t.Run("trusted_device_enabled hidden when mfa_mode is off", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
+		require.NotNil(t, def)
+		require.NotNil(t, def.DependsOn)
+		assert.Equal(t, config.KeyMFAMode, def.DependsOn.Key)
+		assert.Equal(t, "neq", def.DependsOn.Condition)
+		assert.Equal(t, config.MFAModeOff, def.DependsOn.Value)
+	})
+
+	t.Run("trusted_device_days hidden when trusted_device_enabled is false", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFATrustedDeviceDays)
+		require.NotNil(t, def)
+		require.NotNil(t, def.DependsOn)
+		assert.Equal(t, config.KeyMFATrustedDeviceEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	})
+
+	t.Run("mfa_mode itself has no DependsOn", func(t *testing.T) {
+		def := config.GetDefinition(config.KeyMFAMode)
+		require.NotNil(t, def)
+		assert.Nil(t, def.DependsOn, "mfa_mode is the root toggle and must not be hidden by another setting")
+	})
 }
 
 func TestDependsOn_SessionEndGroup(t *testing.T) {

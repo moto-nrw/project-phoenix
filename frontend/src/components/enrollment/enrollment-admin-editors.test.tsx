@@ -129,6 +129,7 @@ function phase(overrides: Partial<Phase> = {}): Phase {
     form_schema_id: "schema-1",
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
+    care_offering_selection_mode: "optional",
     is_active: true,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
@@ -173,6 +174,7 @@ function offering(overrides: Partial<CareOffering> = {}): CareOffering {
     capacity: 20,
     price_cents: 12500,
     is_active: true,
+    is_required: false,
     sort_order: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
@@ -269,6 +271,45 @@ describe("CareOfferingsEditor", () => {
     await waitFor(() => {
       expect(mocks.listCareOfferings.mock.calls.length).toBeGreaterThanOrEqual(
         2,
+      );
+    });
+  });
+
+  it("locks and clears capacity when an offering is marked required", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({
+        id: "req",
+        name: "Mittagessen",
+        is_required: true,
+        capacity: null,
+      }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "Mittagessen" },
+    });
+    fireEvent.change(inputByName("capacity"), { target: { value: "30" } });
+
+    // Marking the offering as required clears any capacity and locks the field.
+    fireEvent.click(screen.getByText("Pflicht"));
+    expect(inputByName("capacity")).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Mittagessen",
+          is_required: true,
+          capacity: null,
+        }),
       );
     });
   });
@@ -414,6 +455,7 @@ describe("EnrollmentFormEditor", () => {
             ],
           }),
         ]),
+        {},
       );
     });
 
@@ -437,6 +479,7 @@ describe("EnrollmentFormEditor", () => {
       expect(mocks.updateSchema).toHaveBeenCalledWith(
         "schema-1",
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
+        {},
       );
     });
 

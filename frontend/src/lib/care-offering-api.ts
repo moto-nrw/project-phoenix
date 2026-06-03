@@ -35,6 +35,7 @@ export interface CareOffering {
   capacity?: number | null;
   price_cents?: number | null;
   is_active: boolean;
+  is_required: boolean;
   sort_order: number;
   selection_group?: string | null;
   // Optional in the type (older rows + existing fixtures may omit it);
@@ -56,6 +57,7 @@ export interface CareOfferingInput {
   capacity?: number | null;
   price_cents?: number | null;
   is_active: boolean;
+  is_required: boolean;
   sort_order: number;
   selection_group?: string | null;
   // Optional in the type (older rows + existing fixtures may omit it);

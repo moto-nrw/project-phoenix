@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
@@ -124,6 +124,12 @@ export function EnrollmentForm({
   const [schema, setSchema] = useState<PublicFormSchema | null>(null);
   const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
   const [careRequired, setCareRequired] = useState(false);
+  // Mandatory offerings are force-included on every child and rendered as
+  // locked cards; they never count toward the choosable selection rules.
+  const requiredOfferingIDs = useMemo(
+    () => offerings.filter((o) => o.is_required).map((o) => o.id),
+    [offerings],
+  );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,6 +217,15 @@ export function EnrollmentForm({
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareRequired(offeringsResult.careRequired);
+        // Back-fill the initial blank child (created before this fetch
+        // resolved) with every mandatory offering so required offerings are
+        // always part of the submission. The backend re-checks the same.
+        const requiredIDs = offeringsResult.offerings
+          .filter((o) => o.is_required)
+          .map((o) => o.id);
+        if (requiredIDs.length > 0) {
+          setChildren((prev) => seedRequiredOfferings(prev, requiredIDs));
+        }
         setCaptchaConfig(captchaResult);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
@@ -251,6 +266,8 @@ export function EnrollmentForm({
   };
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
+    // Mandatory offerings are locked — they can never be unselected.
+    if (requiredOfferingIDs.includes(offeringID)) return;
     const offering = offerings.find((o) => o.id === offeringID);
     const group = offering?.selection_group?.trim() ?? "";
     const rule = offering?.selection_rule ?? "optional";
@@ -326,7 +343,8 @@ export function EnrollmentForm({
     );
   };
 
-  const addChild = () => setChildren((prev) => [...prev, blankChild()]);
+  const addChild = () =>
+    setChildren((prev) => [...prev, blankChild(requiredOfferingIDs)]);
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
 
@@ -718,7 +736,7 @@ export function EnrollmentForm({
             existing={profile.children}
             usedIDs={usedExistingChildIDs}
             onAdopt={(child) => {
-              const newSlot: ChildDraft = blankChild();
+              const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
               newSlot.first_name = child.first_name;
               newSlot.last_name = child.last_name;
               newSlot.target_grade_level =
@@ -802,79 +820,123 @@ export function EnrollmentForm({
             </div>
 
             {offerings.length > 0 && (
-              <div>
-                <div className="mb-2">
-                  <p className="text-sm font-semibold text-gray-700">
-                    Betreuungsangebote
-                    {careRequired && (
-                      <span className="ml-1 text-[#FF3130]">*</span>
+              <div className="space-y-4">
+                {/* Required offerings are part of the enrollment regardless
+                    of the parent's choice. They render as locked "always
+                    included" cards so they never read as something the
+                    parent picked; the choosable block below carries the
+                    selection-group rules. */}
+                {offerings.some((o) => o.is_required) && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700">
+                      Pflichtangebote
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Diese Angebote sind fester Bestandteil der Anmeldung.
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {offerings
+                        .filter((o) => o.is_required)
+                        .map((o) => (
+                          <OfferingOption
+                            key={o.id}
+                            offering={o}
+                            checked
+                            locked
+                            onToggle={() => undefined}
+                            selectedDays={child.offering_days[o.id]}
+                            onToggleDay={(day) =>
+                              toggleOfferingDay(i, o.id, day)
+                            }
+                            inputName={`children_${i}_offering_${o.id}`}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+                {offerings.some((o) => !o.is_required) && (
+                  <div>
+                    <div className="mb-2">
+                      <p className="text-sm font-semibold text-gray-700">
+                        {offerings.some((o) => o.is_required)
+                          ? "Zusätzlich wählen"
+                          : "Betreuungsangebote"}
+                        {careRequired && (
+                          <span className="ml-1 text-[#FF3130]">*</span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        Wählen Sie die Angebote aus, die für dieses Kind
+                        gewünscht sind. Die OGS prüft freie Plätze nach dem
+                        Absenden.
+                      </p>
+                    </div>
+                    <div
+                      className={`space-y-2 ${
+                        childOfferingErrors[i]
+                          ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
+                          : ""
+                      }`}
+                    >
+                      {groupOfferings(
+                        offerings.filter((o) => !o.is_required),
+                      ).map((bucket) =>
+                        bucket.kind === "single" ? (
+                          <OfferingOption
+                            key={bucket.offering.id}
+                            offering={bucket.offering}
+                            checked={child.offering_ids.has(bucket.offering.id)}
+                            onToggle={() =>
+                              handleToggleOffering(i, bucket.offering.id)
+                            }
+                            selectedDays={
+                              child.offering_days[bucket.offering.id]
+                            }
+                            onToggleDay={(day) =>
+                              toggleOfferingDay(i, bucket.offering.id, day)
+                            }
+                            inputName={`children_${i}_offering_${bucket.offering.id}`}
+                          />
+                        ) : (
+                          <div
+                            key={`group-${bucket.group}`}
+                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                          >
+                            <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                              <span className="text-xs font-semibold text-gray-800">
+                                {bucket.group}
+                              </span>
+                              {OFFERING_RULE_HINT[bucket.rule] && (
+                                <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                  {OFFERING_RULE_HINT[bucket.rule]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {bucket.offerings.map((o) => (
+                                <OfferingOption
+                                  key={o.id}
+                                  offering={o}
+                                  checked={child.offering_ids.has(o.id)}
+                                  onToggle={() => handleToggleOffering(i, o.id)}
+                                  selectedDays={child.offering_days[o.id]}
+                                  onToggleDay={(day) =>
+                                    toggleOfferingDay(i, o.id, day)
+                                  }
+                                  inputName={`children_${i}_offering_${o.id}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    {childOfferingErrors[i] && (
+                      <p className="mt-1 text-xs text-[#FF3130]">
+                        Bitte mindestens ein Betreuungsangebot auswählen.
+                      </p>
                     )}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    Wählen Sie die Angebote aus, die für dieses Kind gewünscht
-                    sind. Die OGS prüft freie Plätze nach dem Absenden.
-                  </p>
-                </div>
-                <div
-                  className={`space-y-2 ${
-                    childOfferingErrors[i]
-                      ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
-                      : ""
-                  }`}
-                >
-                  {groupOfferings(offerings).map((bucket) =>
-                    bucket.kind === "single" ? (
-                      <OfferingOption
-                        key={bucket.offering.id}
-                        offering={bucket.offering}
-                        checked={child.offering_ids.has(bucket.offering.id)}
-                        onToggle={() =>
-                          handleToggleOffering(i, bucket.offering.id)
-                        }
-                        selectedDays={child.offering_days[bucket.offering.id]}
-                        onToggleDay={(day) =>
-                          toggleOfferingDay(i, bucket.offering.id, day)
-                        }
-                        inputName={`children_${i}_offering_${bucket.offering.id}`}
-                      />
-                    ) : (
-                      <div
-                        key={`group-${bucket.group}`}
-                        className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
-                      >
-                        <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-                          <span className="text-xs font-semibold text-gray-800">
-                            {bucket.group}
-                          </span>
-                          {OFFERING_RULE_HINT[bucket.rule] && (
-                            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
-                              {OFFERING_RULE_HINT[bucket.rule]}
-                            </span>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          {bucket.offerings.map((o) => (
-                            <OfferingOption
-                              key={o.id}
-                              offering={o}
-                              checked={child.offering_ids.has(o.id)}
-                              onToggle={() => handleToggleOffering(i, o.id)}
-                              selectedDays={child.offering_days[o.id]}
-                              onToggleDay={(day) =>
-                                toggleOfferingDay(i, o.id, day)
-                              }
-                              inputName={`children_${i}_offering_${o.id}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ),
-                  )}
-                </div>
-                {childOfferingErrors[i] && (
-                  <p className="mt-1 text-xs text-[#FF3130]">
-                    Bitte mindestens ein Betreuungsangebot auswählen.
-                  </p>
+                  </div>
                 )}
               </div>
             )}
@@ -999,16 +1061,31 @@ export function EnrollmentForm({
   );
 }
 
-function blankChild(): ChildDraft {
+function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   return {
     first_name: "",
     last_name: "",
     date_of_birth: "",
     target_grade_level: "",
-    offering_ids: new Set(),
+    // Mandatory offerings are force-included from the start.
+    offering_ids: new Set(requiredOfferingIDs),
     offering_days: {},
     custom: {},
   };
+}
+
+// seedRequiredOfferings adds every mandatory offering id to each existing
+// child slot, leaving the rest of the draft untouched. Used after offerings
+// load to back-fill the initial blank child created before the fetch resolved.
+function seedRequiredOfferings(
+  children: ChildDraft[],
+  requiredIDs: readonly string[],
+): ChildDraft[] {
+  return children.map((c) => {
+    const nextIDs = new Set(c.offering_ids);
+    requiredIDs.forEach((id) => nextIDs.add(id));
+    return { ...c, offering_ids: nextIDs };
+  });
 }
 
 // ---- Care-offering selection groups + rules -----------------------------
@@ -1105,10 +1182,14 @@ interface OfferingOptionProps {
   readonly selectedDays: Set<string> | undefined;
   readonly onToggleDay: (day: string) => void;
   readonly inputName: string;
+  // locked = mandatory offering: always checked, not toggleable, shown with
+  // a lock indicator + "Pflicht" badge instead of the green check.
+  readonly locked?: boolean;
 }
 
 // One selectable care offering (checkbox + description + optional
-// per-day picker for parent_choice offerings).
+// per-day picker for parent_choice offerings). When locked, the offering
+// is force-included: the checkbox is disabled and a lock replaces the check.
 function OfferingOption({
   offering: o,
   checked,
@@ -1116,31 +1197,55 @@ function OfferingOption({
   selectedDays,
   onToggleDay,
   inputName,
+  locked = false,
 }: OfferingOptionProps) {
+  const effectiveChecked = locked || checked;
+  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  if (locked) {
+    stateClass = "border-gray-200 bg-gray-50";
+  } else if (checked) {
+    stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
+  }
   return (
     <label
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-        checked
-          ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
-          : "border-gray-200 bg-white hover:border-gray-300"
-      }`}
+      className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+        locked ? "cursor-default" : "cursor-pointer"
+      } ${stateClass}`}
     >
       <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
         <input
           name={inputName}
           type="checkbox"
-          checked={checked}
+          checked={effectiveChecked}
+          disabled={locked}
           onChange={onToggle}
-          className="absolute inset-0 cursor-pointer opacity-0"
+          className={`absolute inset-0 opacity-0 ${
+            locked ? "cursor-default" : "cursor-pointer"
+          }`}
         />
-        {checked && (
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-            <Check className="h-3.5 w-3.5" />
+        {locked ? (
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
+            <Lock className="h-3 w-3" />
           </span>
+        ) : (
+          checked && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+              <Check className="h-3.5 w-3.5" />
+            </span>
+          )
         )}
       </span>
       <div className="min-w-0">
-        <div className="font-medium break-words text-gray-900">{o.name}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium break-words text-gray-900">
+            {o.name}
+          </span>
+          {locked && (
+            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+              Pflicht
+            </span>
+          )}
+        </div>
         {o.description && (
           <div className="text-xs break-words text-gray-600">
             {o.description}
@@ -1154,7 +1259,7 @@ function OfferingOption({
           {o.includes_holiday_care && " · inkl. Ferienbetreuung"}
           {o.includes_lunch && " · inkl. Mittagessen"}
         </div>
-        {checked && o.days_of_week_mode === "parent_choice" && (
+        {effectiveChecked && o.days_of_week_mode === "parent_choice" && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {o.available_days.map((day) => {
               const picked = selectedDays?.has(day) ?? false;

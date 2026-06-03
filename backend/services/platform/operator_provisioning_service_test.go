@@ -343,6 +343,17 @@ func (m *mockAuthService) Login(context.Context, string, string) (string, string
 func (m *mockAuthService) LoginWithAudit(context.Context, string, string, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+
+// No-op stubs for the MFA-related additions (issue #1308 phases 5 + 7a).
+// The provisioning tests don't exercise these paths; the methods exist
+// solely so *mockAuthService still satisfies the AuthService interface.
+func (m *mockAuthService) IssueTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LoginWithMFAGate(context.Context, string, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
+func (m *mockAuthService) SetMFAService(authSvc.MFAService) {}
 func (m *mockAuthService) LoginParent(context.Context, string, string) (string, string, error) {
 	return "", "", nil
 }

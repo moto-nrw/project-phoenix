@@ -575,8 +575,7 @@ describe("PickupScheduleManager", () => {
         expect(screen.getByText(COMPONENT_TITLE)).toBeInTheDocument();
       });
 
-      // Days without schedules should show "—"
-      expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     });
   });
 });

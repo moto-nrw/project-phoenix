@@ -45,6 +45,10 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // (src/test/setup.ts defaults to "detailed") so the button renders.
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
+  useTenantSafe: vi.fn(() => ({
+    tenantSlug: "test-tenant",
+    tenant: { studentPhotosEnabled: true },
+  })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   usePresenceMode: vi.fn(() => "binary"),
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,

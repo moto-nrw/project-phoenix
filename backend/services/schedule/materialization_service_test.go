@@ -1,13 +1,16 @@
 package schedule
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -421,20 +424,208 @@ func TestIsoWeekday(t *testing.T) {
 	assert.Equal(t, 7, isoWeekday(mon.AddDate(0, 0, 6)))
 }
 
-// -----------------------------------------------------------------------------
-// TestIsUniqueViolation — asserts the race-branch classifier matches real
-// PostgreSQL 23505 errors (wrapped or unwrapped) and rejects everything else.
-// Exercised as a unit test because simulating a real concurrent-insert race
-// end-to-end would require contrived synchronisation the real scheduler never
-// depends on.
-// -----------------------------------------------------------------------------
+type materializationFakeGroupRepo struct {
+	activities.GroupRepository
+	templates []*activities.Group
+}
 
-func TestIsUniqueViolation(t *testing.T) {
-	modelBase := errors.New("unrelated error")
-	assert.False(t, isUniqueViolation(nil))
-	assert.False(t, isUniqueViolation(modelBase))
-	assert.False(t, isUniqueViolation(errors.New("not a unique violation")))
-	// pgdriver.Error is unexported in many of its constructors, so we
-	// assert the nil + generic paths here and rely on the isUniqueViolation
-	// in services/platform (same helper) which has pg-driver coverage.
+func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activities.Group, error) {
+	return r.templates, nil
+}
+
+type materializationFakeScheduleRepo struct {
+	activities.ScheduleRepository
+	schedules []*activities.Schedule
+}
+
+func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) ([]*activities.Schedule, error) {
+	return r.schedules, nil
+}
+
+type materializationFakeEnrollmentRepo struct {
+	activities.StudentEnrollmentRepository
+}
+
+func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activities.StudentEnrollment, error) {
+	return nil, nil
+}
+
+type materializationFakeSupervisorRepo struct {
+	activities.SupervisorPlannedRepository
+}
+
+func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activities.SupervisorPlanned, error) {
+	return nil, nil
+}
+
+type materializationFakePeriodRepo struct {
+	schedule.CalendarPeriodRepository
+	periods []*schedule.CalendarPeriod
+}
+
+func (r materializationFakePeriodRepo) FindActiveByTenantID(context.Context) ([]*schedule.CalendarPeriod, error) {
+	return r.periods, nil
+}
+
+type materializationFakeInstanceRepo struct {
+	schedule.ActivityInstanceRepository
+	inserted bool
+	err      error
+}
+
+func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, time.Time, time.Time) ([]*schedule.ActivityInstance, error) {
+	return nil, nil
+}
+
+func (r materializationFakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Context, *schedule.ActivityInstance) (bool, error) {
+	return r.inserted, r.err
+}
+
+type materializationFakeStaffRepo struct {
+	schedule.InstanceStaffRepository
+}
+
+func (r materializationFakeStaffRepo) Create(context.Context, *schedule.InstanceStaff) error {
+	panic("staff copy must not run when instance insert loses the race")
+}
+
+type materializationFakeStudentRepo struct {
+	schedule.InstanceStudentRepository
+}
+
+func (r materializationFakeStudentRepo) Create(context.Context, *schedule.InstanceStudent) error {
+	panic("student copy must not run when instance insert loses the race")
+}
+
+type materializationFakeExceptionRepo struct {
+	schedule.ActivityExceptionRepository
+}
+
+func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, time.Time, time.Time) ([]*schedule.ActivityException, error) {
+	return nil, nil
+}
+
+type materializationFakeTimeframeRepo struct {
+	schedule.TimeframeRepository
+	timeframes []*schedule.Timeframe
+}
+
+func (r materializationFakeTimeframeRepo) List(context.Context, *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
+	return r.timeframes, nil
+}
+
+type materializationAllowCalendarService struct{}
+
+func (materializationAllowCalendarService) GetAllPeriods(context.Context) ([]*schedule.CalendarPeriod, error) {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) GetActivePeriods(context.Context) ([]*schedule.CalendarPeriod, error) {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) GetPeriodByID(context.Context, int64) (*schedule.CalendarPeriod, error) {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) CreatePeriod(context.Context, *schedule.CalendarPeriod) error {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) UpdatePeriod(context.Context, *schedule.CalendarPeriod) error {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) DeletePeriod(context.Context, int64) error {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) ShouldMaterialize(int, time.Time, *schedule.CalendarPeriod) bool {
+	return true
+}
+
+func TestMaterializeForTenant_DuplicateInsertRaceDoesNotCopyChildren(t *testing.T) {
+	svc, date := newMaterializationBranchService(materializationFakeInstanceRepo{inserted: false})
+
+	result, err := svc.MaterializeForTenant(
+		tenant.WithTenantID(context.Background(), 300),
+		date,
+		date,
+		MaterializationSourceManual,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Zero(t, result.InstancesCreated)
+	assert.Equal(t, 1, result.CandidatesRaced)
+	assert.Zero(t, result.InstanceStudentsCreated)
+	assert.Zero(t, result.InstanceStaffCreated)
+}
+
+func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
+	svc, date := newMaterializationBranchService(materializationFakeInstanceRepo{
+		inserted: false,
+		err:      errors.New("database unavailable"),
+	})
+
+	result, err := svc.MaterializeForTenant(
+		tenant.WithTenantID(context.Background(), 300),
+		date,
+		date,
+		MaterializationSourceManual,
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, err.Error(), "materialize template: create instance")
+	assert.Zero(t, result.InstancesCreated)
+	assert.Zero(t, result.CandidatesRaced)
+}
+
+func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (MaterializationService, time.Time) {
+	date := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
+	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
+	roomID := int64(700)
+	templateID := int64(500)
+	timeframeID := int64(600)
+
+	svc := NewMaterializationService(
+		materializationFakeGroupRepo{templates: []*activities.Group{{
+			Name:          "Lernzeit",
+			PlannedRoomID: &roomID,
+			IsTemplate:    true,
+			Model:         modelBase.Model{ID: templateID},
+		}}},
+		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
+			ActivityGroupID: templateID,
+			Weekday:         activities.WeekdayMonday,
+			TimeframeID:     &timeframeID,
+		}}},
+		materializationFakeEnrollmentRepo{},
+		materializationFakeSupervisorRepo{},
+		materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
+			Name:            "Schuljahr",
+			PeriodType:      schedule.PeriodTypeSchoolYear,
+			StartDate:       date.AddDate(0, -1, 0),
+			EndDate:         date.AddDate(0, 1, 0),
+			WeekCycleLength: 1,
+			IsActive:        true,
+			Model:           modelBase.Model{ID: 400},
+		}}},
+		instanceRepo,
+		materializationFakeStaffRepo{},
+		materializationFakeStudentRepo{},
+		materializationFakeExceptionRepo{},
+		materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{{
+			StartTime: start,
+			EndTime:   &end,
+			Model:     modelBase.Model{ID: timeframeID},
+		}}},
+		materializationAllowCalendarService{},
+		nil,
+		slog.Default(),
+	)
+
+	return svc, date
 }

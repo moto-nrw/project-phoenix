@@ -1,12 +1,8 @@
 // Package enrollment holds domain entities for the parent-enrollment
 // feature. The schema is split across several tables - form_schemas
 // (versioned form definitions), requests (parent submissions),
-// request_children (per-child decisions), and (PR 6) care_offerings +
+// request_children (per-child decisions), and care_offerings +
 // request_child_offerings.
-//
-// PR 5 ships form_schemas, requests, request_children, plus the
-// platform.email_outbox table which lives outside this package because
-// it's shared across features.
 package enrollment
 
 import (
@@ -190,6 +186,36 @@ type FormField struct {
 	AppliesToCh bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
 	Target      string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
 	VisibleWhen *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
+}
+
+const CoreRequirementGuardianPhone = "guardian_phone"
+
+var validCoreRequirements = map[string]bool{
+	CoreRequirementGuardianPhone: true,
+}
+
+// CoreRequirements stores per-template required-state for core fields
+// that are rendered from dedicated request/request_child columns rather
+// than from FormSchema.Fields. A missing or false value means optional.
+type CoreRequirements map[string]bool
+
+// Validate rejects unknown core requirement keys so typos in the admin API
+// do not silently create requirements the public form cannot enforce.
+func (c CoreRequirements) Validate() error {
+	for key := range c {
+		if !validCoreRequirements[key] {
+			return fmt.Errorf("unknown core requirement %q", key)
+		}
+	}
+	return nil
+}
+
+// Required reports whether the given core field must be answered.
+func (c CoreRequirements) Required(key string) bool {
+	if c == nil {
+		return false
+	}
+	return c[key]
 }
 
 // ReservedTargets maps each known target to the FormFieldType it requires
@@ -493,11 +519,12 @@ func (c *ContactEntry) Validate() error {
 type FormSchema struct {
 	base.Model `bun:"schema:enrollment,table:form_schemas"`
 	base.TenantModel
-	Name      string      `bun:"name,notnull,default:''" json:"name"`
-	Version   int         `bun:"version,notnull" json:"version"`
-	Fields    []FormField `bun:"fields,type:jsonb,notnull,default:'[]'" json:"fields"`
-	IsActive  bool        `bun:"is_active,notnull,default:false" json:"is_active"`
-	CreatedBy int64       `bun:"created_by,notnull" json:"created_by"`
+	Name             string           `bun:"name,notnull,default:''" json:"name"`
+	Version          int              `bun:"version,notnull" json:"version"`
+	Fields           []FormField      `bun:"fields,type:jsonb,notnull,default:'[]'" json:"fields"`
+	CoreRequirements CoreRequirements `bun:"core_requirements,type:jsonb,notnull,default:'{}'" json:"core_requirements"`
+	IsActive         bool             `bun:"is_active,notnull,default:false" json:"is_active"`
+	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
 }
 
 // TableName returns the schema-qualified table name.
@@ -515,6 +542,12 @@ func (s *FormSchema) Validate() error {
 	}
 	if s.CreatedBy <= 0 {
 		return errors.New("form schema created_by is required")
+	}
+	if s.CoreRequirements == nil {
+		s.CoreRequirements = CoreRequirements{}
+	}
+	if err := s.CoreRequirements.Validate(); err != nil {
+		return err
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
 	for i := range s.Fields {
@@ -577,12 +610,12 @@ type FormSchemaRepository interface {
 	DeleteByName(ctx context.Context, name string) error
 }
 
-// SubmissionData is the shape submitted by parents. PR 7 will validate
-// this against the schema's fields. Defined here so PR 5's schema-service
-// validation helper can stay strongly typed.
+// SubmissionData is the reduced shape used by the legacy schema-service
+// validation helper. The full public submit flow validates the request model
+// directly.
 type SubmissionData struct {
 	GuardianFields map[string]any `json:"guardian_fields"`
-	ChildFields    map[string]any `json:"child_fields"` // keyed by child index → field map; PR 7 fills in
+	ChildFields    map[string]any `json:"child_fields"` // keyed by child index -> field map
 }
 
 // _ keeps `time` imported even when the model doesn't reference time.Time

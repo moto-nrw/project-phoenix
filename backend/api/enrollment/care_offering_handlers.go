@@ -32,6 +32,7 @@ type CareOfferingResponse struct {
 	Capacity            *int      `json:"capacity,omitempty"`
 	PriceCents          *int      `json:"price_cents,omitempty"`
 	IsActive            bool      `json:"is_active"`
+	IsRequired          bool      `json:"is_required"`
 	SortOrder           int       `json:"sort_order"`
 	SelectionGroup      string    `json:"selection_group,omitempty"`
 	SelectionRule       string    `json:"selection_rule"`
@@ -52,6 +53,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		Capacity:            o.Capacity,
 		PriceCents:          o.PriceCents,
 		IsActive:            o.IsActive,
+		IsRequired:          o.IsRequired,
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
 		SelectionRule:       o.SelectionRule,
@@ -78,6 +80,7 @@ type CareOfferingRequest struct {
 	Capacity            *int     `json:"capacity,omitempty"`
 	PriceCents          *int     `json:"price_cents,omitempty"`
 	IsActive            bool     `json:"is_active"`
+	IsRequired          bool     `json:"is_required"`
 	SortOrder           int      `json:"sort_order"`
 	SelectionGroup      string   `json:"selection_group,omitempty"`
 	SelectionRule       string   `json:"selection_rule,omitempty"`
@@ -105,6 +108,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 		Capacity:            req.Capacity,
 		PriceCents:          req.PriceCents,
 		IsActive:            req.IsActive,
+		IsRequired:          req.IsRequired,
 		SortOrder:           req.SortOrder,
 		SelectionGroup:      req.SelectionGroup,
 		SelectionRule:       req.SelectionRule,
@@ -301,7 +305,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	if rs.SchoolRepo == nil || rs.db == nil {
+	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public endpoint not wired")))
 		return
 	}
@@ -318,8 +322,8 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		offerings    []*enrollmentModels.CareOffering
-		careRequired bool
+		offerings     []*enrollmentModels.CareOffering
+		selectionMode = enrollmentModels.PhaseCareOfferingSelectionOptional
 	)
 	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
@@ -331,11 +335,13 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
+			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			if phaseErr != nil {
+				return errors.New("phase not found")
+			}
+			selectionMode = phase.CareOfferingSelectionMode
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
-			if listErr == nil && rs.RequestService != nil {
-				careRequired = rs.RequestService.IsCareOfferingsRequired(txCtx)
-			}
 			return listErr
 		})
 	})
@@ -349,8 +355,9 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		items = append(items, toCareOfferingResponse(o))
 	}
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
-		Offerings:    items,
-		CareRequired: careRequired,
+		Offerings:                 items,
+		CareOfferingSelectionMode: selectionMode,
+		CareRequired:              selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 	}, "Public care offerings retrieved")
 }
 
@@ -378,12 +385,14 @@ func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err err
 }
 
 // PublicCareOfferingsResponse wraps the public care-offering catalog with
-// the tenant's "verpflichtend" flag so the parent form can render the
-// hint and validate before submit. The flag is server-authoritative — the
-// submission service re-checks it in defense-in-depth.
+// the phase's selection mode so the parent form can render the hint and
+// validate before submit. The mode is server-authoritative - the
+// submission service re-checks it in defense-in-depth. CareRequired is
+// kept as a legacy boolean for older frontend builds.
 type PublicCareOfferingsResponse struct {
-	Offerings    []CareOfferingResponse `json:"offerings"`
-	CareRequired bool                   `json:"care_required"`
+	Offerings                 []CareOfferingResponse `json:"offerings"`
+	CareOfferingSelectionMode string                 `json:"care_offering_selection_mode"`
+	CareRequired              bool                   `json:"care_required"`
 }
 
 // We deliberately don't expose enrollmentService here — it is already
@@ -393,14 +402,15 @@ var _ = enrollmentService.ErrCareOfferingNotFound
 // PublicPhase is the parent-safe shape returned by the public phases
 // endpoint. Intentionally slim — no created_by, no audit metadata.
 type PublicPhase struct {
-	ID                       string `json:"id"`
-	Name                     string `json:"name"`
-	Kind                     string `json:"kind"`
-	ServiceStartDate         string `json:"service_start_date"`
-	ServiceEndDate           string `json:"service_end_date"`
-	EnrollmentOpenAt         string `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt        string `json:"enrollment_close_at,omitempty"`
-	ShowStatusReasonToParent bool   `json:"show_status_reason_to_parent"`
+	ID                        string `json:"id"`
+	Name                      string `json:"name"`
+	Kind                      string `json:"kind"`
+	ServiceStartDate          string `json:"service_start_date"`
+	ServiceEndDate            string `json:"service_end_date"`
+	EnrollmentOpenAt          string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         string `json:"enrollment_close_at,omitempty"`
+	ShowStatusReasonToParent  bool   `json:"show_status_reason_to_parent"`
+	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
 }
 
 // listPublicPhases returns the currently-open phases for the given
@@ -442,12 +452,13 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 	out := make([]PublicPhase, 0, len(phases))
 	for _, p := range phases {
 		entry := PublicPhase{
-			ID:                       strconv.FormatInt(p.ID, 10),
-			Name:                     p.Name,
-			Kind:                     p.Kind,
-			ServiceStartDate:         p.ServiceStartDate.Format("2006-01-02"),
-			ServiceEndDate:           p.ServiceEndDate.Format("2006-01-02"),
-			ShowStatusReasonToParent: p.ShowStatusReasonToParent,
+			ID:                        strconv.FormatInt(p.ID, 10),
+			Name:                      p.Name,
+			Kind:                      p.Kind,
+			ServiceStartDate:          p.ServiceStartDate.Format("2006-01-02"),
+			ServiceEndDate:            p.ServiceEndDate.Format("2006-01-02"),
+			ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
+			CareOfferingSelectionMode: p.CareOfferingSelectionMode,
 		}
 		if p.EnrollmentOpenAt != nil {
 			entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)

@@ -39,6 +39,30 @@ func (r *Request) TableName() string {
 	return "enrollment.requests"
 }
 
+// Consent-flag keys stored in Request.ConsentFlags. These are the
+// canonical string keys shared across the submit validation, the
+// decision service (which stamps the matching student consent
+// timestamps), and the public form.
+//
+// KEEP IN SYNC with the consent_flags object built in
+// frontend/src/components/enrollment/enrollment-form.tsx.
+const (
+	ConsentKeyAGB            = "agb"
+	ConsentKeyDataProcessing = "data_processing"
+	ConsentKeyEmailContact   = "email_contact"
+	ConsentKeyPhoto          = "photo"
+)
+
+// RequiredConsentKeys lists the consents a parent must accept for any
+// submission to be valid. Photo consent is intentionally excluded - it
+// is optional. Enforced server-side in the submit flow as
+// defense-in-depth on top of the public form's client-side validation.
+var RequiredConsentKeys = []string{
+	ConsentKeyAGB,
+	ConsentKeyDataProcessing,
+	ConsentKeyEmailContact,
+}
+
 // RequestStatus values - derived, not stored. Documented here as the
 // canonical source for the derivation logic the request service applies.
 const (

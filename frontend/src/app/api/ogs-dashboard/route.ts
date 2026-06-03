@@ -38,6 +38,9 @@ interface BackendStudent {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
 }

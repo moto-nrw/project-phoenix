@@ -6,6 +6,18 @@ package config
 // Security settings.
 const (
 	KeyOGSDevicePIN = "security.ogs_device_pin"
+
+	// MFA settings (issue #1308 — Phase 3).
+	KeyMFAMode                 = "security.mfa_mode"
+	KeyMFATrustedDeviceEnabled = "security.mfa_trusted_device_enabled"
+	KeyMFATrustedDeviceDays    = "security.mfa_trusted_device_days"
+)
+
+// MFAMode option values for KeyMFAMode.
+const (
+	MFAModeOff            = "off"
+	MFAModeRequiredAdmins = "required_admins"
+	MFAModeRequiredAll    = "required_all"
 )
 
 // GDPR / data cleanup settings.
@@ -108,13 +120,13 @@ const (
 )
 
 // Parent-enrollment settings. Tenant-wide behavioural toggles only -
-// per-phase overrides (open window, form schema, overflow mode, status-
-// reason visibility) live on enrollment.phases columns.
+// per-phase overrides (open window, form schema, care offering selection,
+// overflow mode, status-reason visibility) live on enrollment.phases
+// columns.
 const (
 	KeyEnrollmentEnabled                     = "enrollment.enabled"
 	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
 	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
-	KeyEnrollmentCareOfferingsRequired       = "enrollment.care_offerings_required"
 	KeyEnrollmentDefaultActivationMode       = "enrollment.default_activation_mode"
 	KeyEnrollmentNotificationEmails          = "enrollment.notification_emails"
 	KeyEnrollmentAutoInviteGuardianOnApprove = "enrollment.auto_invite_guardian_on_approval"

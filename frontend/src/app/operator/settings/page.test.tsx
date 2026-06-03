@@ -35,6 +35,13 @@ vi.mock("~/components/ui", () => ({
   PasswordChangeModal: () => null,
 }));
 
+// TrustedDevicesSection pulls in useToast/useTrustedDevices and is exercised
+// by its own component tests — stub it out here to keep this page-level test
+// focused on profile editing and avoid wiring ToastProvider/Tanstack Query.
+vi.mock("~/components/settings/trusted-devices-section", () => ({
+  TrustedDevicesSection: () => null,
+}));
+
 import OperatorSettingsPage from "./page";
 
 describe("OperatorSettingsPage", () => {

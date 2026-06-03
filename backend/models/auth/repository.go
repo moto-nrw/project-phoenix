@@ -22,6 +22,26 @@ type AccountRepository interface {
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
+	// mfa_locked_until = now() + lockoutDuration when the post-increment
+	// value reaches threshold. The CAS-style UPDATE means N concurrent
+	// failed verifies count as N, not 1, closing the lockout-bypass race
+	// from #1430 review item #6. Returns the post-update counter so the
+	// caller can detect "this attempt triggered the lockout" via
+	// `result.Attempts == threshold`.
+	IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (MFAAttemptResult, error)
+	// ResetMFAAttempts atomically clears mfa_attempts + mfa_locked_until
+	// after a successful verify so a single Account.Update can't
+	// inadvertently overwrite a concurrent increment.
+	ResetMFAAttempts(ctx context.Context, id int64) error
+}
+
+// MFAAttemptResult is the post-update snapshot returned by
+// AccountRepository.IncrementMFAAttempts. Used by callers to decide
+// whether the increment triggered the lockout transition.
+type MFAAttemptResult struct {
+	Attempts    int
+	LockedUntil *time.Time
 }
 
 // RoleRepository defines operations for managing roles
@@ -189,6 +209,99 @@ type InvitationTokenRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
 
+// MFACredentialRepository persists per-account MFA enrollment records.
+type MFACredentialRepository interface {
+	Create(ctx context.Context, credential *MFACredential) error
+	FindByID(ctx context.Context, id interface{}) (*MFACredential, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*MFACredential, error)
+	Update(ctx context.Context, credential *MFACredential) error
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Delete(ctx context.Context, id interface{}) error
+	DeleteByAccountID(ctx context.Context, accountID int64) error
+	List(ctx context.Context, filters map[string]interface{}) ([]*MFACredential, error)
+}
+
+// MFAEmailChallengeRepository persists time-limited 6-digit email codes.
+type MFAEmailChallengeRepository interface {
+	Create(ctx context.Context, challenge *MFAEmailChallenge) error
+	FindByID(ctx context.Context, id interface{}) (*MFAEmailChallenge, error)
+	// FindActiveByAccountID returns the most recent unconsumed, unexpired challenge for an account.
+	FindActiveByAccountID(ctx context.Context, accountID int64) (*MFAEmailChallenge, error)
+	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
+	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
+	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
+// MFATrustedDeviceRepository persists HMAC-signed trusted-device records.
+// Every read/list/revoke that touches per-cookie state is scoped by
+// (account_id, tenant_id) so a cookie issued in one tenant can never
+// bypass MFA in another — see #1430 review item #9.
+type MFATrustedDeviceRepository interface {
+	Create(ctx context.Context, device *MFATrustedDevice) error
+	// FindActiveByAccountTenantAndTokenHash is the lookup behind
+	// VerifyTrustedDevice. The tenant_id filter is the security boundary:
+	// the same raw cookie hash MUST NOT match across tenants.
+	FindActiveByAccountTenantAndTokenHash(ctx context.Context, accountID, tenantID int64, tokenHash string) (*MFATrustedDevice, error)
+	// ListActiveByAccountTenant returns the devices the user can see in
+	// the currently-active tenant's settings page. Settings are per-
+	// tenant so the list is too; users with cross-tenant access see
+	// their devices for the tenant they're in.
+	ListActiveByAccountTenant(ctx context.Context, accountID, tenantID int64) ([]*MFATrustedDevice, error)
+	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
+	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
+	// RevokeAllByAccountID stays account-scoped (no tenant filter) because
+	// it is only used by the Disable cascade — disabling MFA on one tenant
+	// removes the account-wide credential, so every cross-tenant trusted
+	// device must go with it.
+	RevokeAllByAccountID(ctx context.Context, accountID int64, revokedAt time.Time) error
+	// RevokeAllByAccountTenant revokes every active device for the
+	// (account, tenant) pair. Used by tenant-scoped admin override
+	// writes that flip MFA to force_off — the operation must NOT touch
+	// devices the same account trusted in other tenants.
+	RevokeAllByAccountTenant(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error
+	DeleteExpired(ctx context.Context) (int, error)
+}
+
+// MFAOverrideRepository persists the per-(account, tenant) admin
+// overrides plus the optional platform-wide ("operator account-wide")
+// row keyed on TenantID IS NULL. Reads return nil instead of an error
+// on a missing row — "no override" is a valid state for the resolver.
+//
+// Schema invariants enforced by partial unique indexes (migration
+// 1.15.72):
+//   - At most one row with tenant_id IS NULL per account.
+//   - At most one row with tenant_id = X per (account, X).
+type MFAOverrideRepository interface {
+	// FindGlobal returns the platform-wide row (tenant_id IS NULL) for
+	// the given account, or (nil, nil) when no operator override has
+	// been set. Used by IsRequired as the first step of the resolution
+	// chain.
+	FindGlobal(ctx context.Context, accountID int64) (*MFAOverride, error)
+	// FindByAccountAndTenant returns the tenant-scoped row, or (nil,
+	// nil) when none exists. Step 2 of the resolver.
+	FindByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (*MFAOverride, error)
+	// UpsertGlobal writes or replaces the platform-wide row for an
+	// account. Used only by the operator account-wide endpoint.
+	UpsertGlobal(ctx context.Context, override *MFAOverride) error
+	// UpsertTenant writes or replaces the tenant-scoped row.
+	UpsertTenant(ctx context.Context, override *MFAOverride) error
+	// DeleteGlobal removes the platform-wide row if it exists.
+	// Operator-only.
+	DeleteGlobal(ctx context.Context, accountID int64) error
+	// DeleteTenant removes the (account, tenant) row if it exists.
+	DeleteTenant(ctx context.Context, accountID, tenantID int64) error
+	// ListByAccount returns every override row that targets the given
+	// account. Used by the operator UI and by the audit/diagnostic
+	// surface so a single account's override picture across tenants is
+	// inspectable.
+	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
+	// DeleteAllByAccount wipes every override row when the account is
+	// reset or destroyed. Returns the number of rows removed for the
+	// audit log.
+	DeleteAllByAccount(ctx context.Context, accountID int64) (int64, error)
+}
+
 // TenantAccountInfo holds flattened account data for a given tenant, used by operator dashboard.
 type TenantAccountInfo struct {
 	AccountID           int64  `bun:"account_id" json:"account_id"`
@@ -215,6 +328,7 @@ type OrgAccountInfo struct {
 // AccountTenantRepository defines operations for querying account-tenant mappings.
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
+	EnsureActive(ctx context.Context, mapping *AccountTenant) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)

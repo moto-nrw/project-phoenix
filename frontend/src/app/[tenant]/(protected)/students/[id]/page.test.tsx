@@ -11,6 +11,7 @@ import StudentDetailPage from "./page";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
+  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
   useSession: vi.fn(() => ({
     data: { user: { token: "test-token" } },
     status: "authenticated",
@@ -192,6 +193,33 @@ vi.mock("~/components/students/personal-info-form-modal", () => ({
   },
 }));
 
+vi.mock("~/components/students/planned-status-days-modal", () => ({
+  PlannedStatusDaysModal: ({
+    isOpen,
+    status,
+    onClose,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    status: "sick" | "excused";
+    onClose: () => void;
+    onSubmit: (dates: string[]) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid={`planned-status-modal-${status}`}>
+        <button
+          data-testid="planned-status-submit"
+          onClick={() => void onSubmit(["2026-05-25"])}
+        >
+          Speichern
+        </button>
+        <button data-testid="planned-status-cancel" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
+    ) : null,
+}));
+
 // Track which action type getStudentActionType returns
 let mockActionType: "checkout" | "checkin" | "none" = "none";
 
@@ -279,18 +307,17 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
   ),
 }));
 
-// Mock pickup schedule manager
-vi.mock("~/components/students/pickup-schedule-manager", () => ({
-  default: ({
+vi.mock("~/components/students/care-schedule-manager", () => ({
+  CareScheduleManager: ({
     studentId,
     onUpdate,
   }: {
     studentId: string;
     onUpdate?: () => void;
   }) => (
-    <div data-testid="pickup-schedule-manager" data-student-id={studentId}>
-      <button data-testid="update-pickup-schedule" onClick={() => onUpdate?.()}>
-        Update Pickup
+    <div data-testid="care-schedule-manager" data-student-id={studentId}>
+      <button data-testid="update-care-schedule" onClick={() => onUpdate?.()}>
+        Update Care
       </button>
     </div>
   ),
@@ -392,6 +419,18 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
+const mockCreateStudentStatusDays = vi.fn();
+const mockFetchStudentStatusDays = vi.fn();
+vi.mock("~/lib/student-status-days-api", () => ({
+  createStudentStatusDays: (
+    studentId: string,
+    status: "sick" | "excused",
+    dates: string[],
+  ) => mockCreateStudentStatusDays(studentId, status, dates),
+  fetchStudentStatusDays: (studentId: string, from: string, to: string) =>
+    mockFetchStudentStatusDays(studentId, from, to),
+}));
+
 // Mock useToast hook
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
@@ -457,6 +496,8 @@ describe("StudentDetailPage", () => {
         actualGroup: { name: "Gruppe A" },
       },
     ]);
+    mockCreateStudentStatusDays.mockResolvedValue([]);
+    mockFetchStudentStatusDays.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -984,7 +1025,7 @@ describe("StudentDetailPage", () => {
       );
     });
 
-    it("shows sick confirmation modal when sick button is clicked", async () => {
+    it("shows sick date picker modal when sick button is clicked", async () => {
       render(<StudentDetailPage />);
 
       const sickButton = screen.getByTestId("sick-toggle-button");
@@ -992,13 +1033,13 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
     });
 
-    it("performs sick toggle successfully", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("creates sick status days successfully", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
 
       render(<StudentDetailPage />);
 
@@ -1007,26 +1048,26 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          sick: true,
-        });
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith("1", "sick", [
+          "2026-05-25",
+        ]);
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("does not send bus on sick toggle so the persisted flag is preserved", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("does not send bus through the sick date picker flow", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
 
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, buskind: true },
@@ -1048,25 +1089,25 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          sick: true,
-        });
-        expect(mockUpdateStudent.mock.calls[0]?.[1]).not.toHaveProperty("bus");
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith("1", "sick", [
+          "2026-05-25",
+        ]);
+        expect(mockUpdateStudent).not.toHaveBeenCalled();
       });
     });
 
     it("shows error toast when sick toggle fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("Toggle failed"));
+      mockCreateStudentStatusDays.mockRejectedValue(new Error("Toggle failed"));
 
       render(<StudentDetailPage />);
 
@@ -1075,11 +1116,11 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
@@ -1116,7 +1157,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("closes sick modal when cancel is clicked", async () => {
+    it("closes sick date picker modal when cancel is clicked", async () => {
       render(<StudentDetailPage />);
 
       const sickButton = screen.getByTestId("sick-toggle-button");
@@ -1124,16 +1165,16 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const cancelButton = screen.getByTestId("modal-cancel");
+      const cancelButton = screen.getByTestId("planned-status-cancel");
       fireEvent.click(cancelButton);
 
       await waitFor(() => {
         expect(
-          screen.queryByTestId("modal-kind-krankmelden"),
+          screen.queryByTestId("planned-status-modal-sick"),
         ).not.toBeInTheDocument();
       });
     });
@@ -1169,48 +1210,50 @@ describe("StudentDetailPage", () => {
       );
     });
 
-    it("shows excused confirmation modal when excused button is clicked", async () => {
+    it("shows excused date picker modal when excused button is clicked", async () => {
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
     });
 
-    it("performs excused toggle successfully", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("creates excused status days successfully", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
       await act(async () => {
-        fireEvent.click(screen.getByTestId("modal-confirm"));
+        fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          excused: true,
-        });
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith(
+          "1",
+          "excused",
+          ["2026-05-25"],
+        );
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
     it("shows error toast when excused toggle fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("fail"));
+      mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
       await act(async () => {
-        fireEvent.click(screen.getByTestId("modal-confirm"));
+        fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalled();

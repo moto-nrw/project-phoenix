@@ -134,6 +134,10 @@ func (i *ActivityInstance) IsLive() bool {
 type ActivityInstanceRepository interface {
 	base.Repository[*ActivityInstance]
 
+	// CreateTemplateBackedIfAbsent inserts a template-backed instance and
+	// returns inserted=false when the unique template slot already exists.
+	CreateTemplateBackedIfAbsent(ctx context.Context, instance *ActivityInstance) (inserted bool, err error)
+
 	// FindByTenantAndDate returns all instances for the current tenant on the given date.
 	FindByTenantAndDate(ctx context.Context, date time.Time) ([]*ActivityInstance, error)
 

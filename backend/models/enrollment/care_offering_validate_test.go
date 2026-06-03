@@ -133,6 +133,33 @@ func TestCareOffering_Validate_AcceptsZeroPrice(t *testing.T) {
 	assert.NoError(t, c.Validate())
 }
 
+func TestCareOffering_Validate_AcceptsRequiredWithoutCapacity(t *testing.T) {
+	c := validCareOffering()
+	c.IsRequired = true
+	c.Capacity = nil
+	assert.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_RejectsRequiredWithCapacity(t *testing.T) {
+	// A required offering must be available to every child, so a hard
+	// capacity limit (which could fill up and block enrollments) is illegal.
+	c := validCareOffering()
+	c.IsRequired = true
+	cap := 20
+	c.Capacity = &cap
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "capacity")
+}
+
+func TestCareOffering_Validate_AcceptsCapacityWhenNotRequired(t *testing.T) {
+	c := validCareOffering()
+	c.IsRequired = false
+	cap := 20
+	c.Capacity = &cap
+	assert.NoError(t, c.Validate())
+}
+
 func TestCareOffering_HasUnlimitedCapacity_NilIsUnlimited(t *testing.T) {
 	c := validCareOffering()
 	c.Capacity = nil

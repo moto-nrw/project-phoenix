@@ -245,11 +245,17 @@ vi.mock("@/components/ui/student-presence-badge", () => ({
   StudentPresenceBadge: ({
     student,
   }: {
-    student?: { current_room_color?: string | null };
+    student?: {
+      current_room_color?: string | null;
+      not_arrival_today?: boolean;
+      not_arrival_reason?: string | null;
+    };
   }) => (
     <div
       data-testid="location-badge"
       data-room-color={student?.current_room_color ?? ""}
+      data-not-arrival={String(student?.not_arrival_today ?? false)}
+      data-not-arrival-reason={student?.not_arrival_reason ?? ""}
     >
       Presence
     </div>
@@ -2783,6 +2789,32 @@ describe("OGSGroupPage rendered pickup urgency", () => {
         .getAllByTestId("pickup-time-row")
         .some((el) => el.dataset.pickupTime === "13:00"),
     ).toBe(false);
+  });
+
+  it("uses day planning status for OGS group card absence and badge state", async () => {
+    setupWithStudentsAndPickupTimes(new Map(), undefined, undefined, {
+      "1": {
+        current_location: "Zuhause",
+        day_planning_status: "not_coming_today",
+        day_planning_label: "kein Plan für heute",
+      },
+    });
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("student-card")).toHaveLength(3);
+    });
+
+    expect(
+      screen.getByText("Kommt heute nicht (kein Plan für heute)"),
+    ).toBeInTheDocument();
+    const firstBadge = screen.getAllByTestId("location-badge")[0];
+    expect(firstBadge).toHaveAttribute("data-not-arrival", "true");
+    expect(firstBadge).toHaveAttribute(
+      "data-not-arrival-reason",
+      "kein Plan für heute",
+    );
   });
 
   it("shows the resolved pickup time, not the absence row, when a sick student is already picked up", async () => {

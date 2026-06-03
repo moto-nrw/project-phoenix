@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 )
@@ -81,6 +82,17 @@ func ErrInternal(message string) render.Renderer {
 	}
 }
 
+// ErrServiceUnavailable creates a 503 response. Used when a transient
+// dependency makes a security decision impossible and the safe behaviour
+// is to refuse this caller without globally locking everyone out.
+func ErrServiceUnavailable(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusServiceUnavailable,
+		StatusText:     "Service Unavailable",
+		ErrorText:      message,
+	}
+}
+
 // AuthErrorRenderer maps auth service errors to HTTP responses
 func AuthErrorRenderer(err error) render.Renderer {
 	var invalidCreds *platformSvc.InvalidCredentialsError
@@ -94,6 +106,15 @@ func AuthErrorRenderer(err error) render.Renderer {
 		return ErrForbidden("Operator account is inactive")
 	case errors.As(err, &operatorNotFound):
 		return ErrInvalidCredentials()
+	case errors.Is(err, authService.ErrMFARateLimited):
+		return ErrTooManyRequests("Too many code requests, please wait")
+	case errors.Is(err, authService.ErrMFALocked):
+		return ErrTooManyRequests("MFA account temporarily locked")
+	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
+		errors.Is(err, authService.ErrMFACodeInvalid):
+		return ErrInvalidCredentials()
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		return ErrServiceUnavailable("MFA status temporarily unavailable, please retry")
 	default:
 		return ErrInternal("Authentication failed")
 	}

@@ -58,6 +58,11 @@ type Resource struct {
 	// response with tenant-scoped presence_mode so the frontend can decide
 	// between PresenceBadge and LocationBadge without a second fetch.
 	SettingsService configSvc.SettingsService
+	// MFAService is optional during the rollout window — handlers gate on
+	// nil and return 503 so deployments without the service wired in don't
+	// crash. Once Phase 7 lands the login-flow integration this will become
+	// effectively mandatory.
+	MFAService      authService.MFAService
 	db              *bun.DB
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -65,6 +70,13 @@ type Resource struct {
 // SetAuthRateLimiter sets the rate limiter middleware for auth endpoints (login, register, password-reset).
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
+}
+
+// SetMFAService wires the optional MFA service. Setter pattern matches
+// SetSettingsService — keeps the NewResource constructor signature
+// backward-compatible while phases roll in.
+func (rs *Resource) SetMFAService(svc authService.MFAService) {
+	rs.MFAService = svc
 }
 
 // SetGuardianInvitationService injects the guardian invitation service.
@@ -101,6 +113,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/login", rs.login)
 		r.Post("/password-reset", rs.initiatePasswordReset)
 		r.Post("/password-reset/confirm", rs.resetPassword)
+
+		// MFA challenge → token-pair exchange (issue #1308). These endpoints
+		// take the short-lived challenge JWT in the request body, NOT in the
+		// Authorization header — the user is mid-login and has no access
+		// token yet.
+		r.Post("/mfa/verify", rs.mfaVerify)
+		r.Post("/mfa/resend", rs.mfaResend)
 	})
 
 	// Public routes (no rate limiting — these are read-only lookups)
@@ -119,6 +138,21 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/logout", rs.logout)
 	})
 
+	// Enrollment-only routes (issue #1308): accept the narrow enrollment
+	// JWT that login mints for accounts on an mfa-required tenant that
+	// have no credential yet. Lives in its own group with a dedicated
+	// authenticator so the enrollment token NEVER reaches a fully
+	// authenticated handler. The full session is minted by
+	// mfaEnrollConfirm after successful enrollment.
+	r.Group(func(r chi.Router) {
+		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
+		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Route("/mfa/enroll", func(r chi.Router) {
+			r.Post("/start", rs.mfaEnrollStart)
+			r.Post("/confirm", rs.mfaEnrollConfirm)
+		})
+	})
+
 	// Protected routes that require access token
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
@@ -134,6 +168,15 @@ func (rs *Resource) Router() chi.Router {
 
 		// Password change - users can change their own password without special permissions
 		r.Post("/password", rs.changePassword)
+
+		// Self-service trusted-device management — every authenticated
+		// account can see and revoke its own remembered devices from
+		// the admin Sicherheit tab. Ownership is enforced in the
+		// service so this stays a plain authenticated route.
+		r.Route("/mfa", func(r chi.Router) {
+			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
+			r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
+		})
 
 		// Admin routes - require admin role or specific permissions
 		// TenantTxMiddleware wraps each request in a DB transaction as phoenix_tenant
@@ -206,6 +249,15 @@ func (rs *Resource) Router() chi.Router {
 					r.Route("/tokens", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
 						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
+					})
+
+					// MFA admin override ("Godmode") — issue #1308 Phase 6.
+					// users:manage at the route layer; the service does its own
+					// defense-in-depth permission re-check.
+					r.Route("/mfa", func(r chi.Router) {
+						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.mfaAdminGetState)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.mfaAdminDisable)
+						r.With(authorize.RequiresPermission(permUsersManage)).Put("/override", rs.mfaAdminSetOverride)
 					})
 				})
 			})
@@ -504,7 +556,48 @@ type TokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// login handles user login
+// LoginResponse is the discriminated response shape /auth/login returns now
+// that MFA can short-circuit the token pair. The `status` field tells the
+// client which fields to read:
+//
+//   - status == "authenticated"           → access_token + refresh_token
+//     populated; the frontend stores them as before.
+//   - status == "mfa_required"             → challenge_token + masked_email
+//     populated; the frontend renders the code-entry UI and POSTs to
+//     /auth/mfa/verify.
+//   - status == "mfa_enrollment_required"  → access_token carries a
+//     short-lived enrollment-scoped JWT (no refresh_token). The frontend
+//     uses it as the Authorization header for /auth/mfa/enroll/* and
+//     replaces it with the real token pair returned by
+//     /auth/mfa/enroll/confirm. The token is REJECTED by the regular
+//     Authenticator middleware, so it cannot be used to bypass MFA.
+//
+// mfa_enrollment_required is retained as a legacy hint for clients that key
+// off the boolean rather than the status discriminator; new code should
+// branch on `status`.
+type LoginResponse struct {
+	Status                string `json:"status"`
+	AccessToken           string `json:"access_token,omitempty"`
+	RefreshToken          string `json:"refresh_token,omitempty"`
+	ChallengeToken        string `json:"challenge_token,omitempty"`
+	MaskedEmail           string `json:"masked_email,omitempty"`
+	MFAEnrollmentRequired bool   `json:"mfa_enrollment_required,omitempty"`
+	// TrustedDeviceEnabled is sent on the mfa_required branch so the
+	// frontend can hide the "remember this device" checkbox when the
+	// tenant admin has disabled the feature. A missing field defaults to
+	// "enabled" on the client for backwards compatibility.
+	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
+	// TrustedDeviceDays mirrors security.mfa_trusted_device_days for the
+	// tenant. The frontend uses it to render the dynamic "Auf diesem
+	// Gerät N Tage merken" label so the checkbox always reflects the
+	// cookie lifetime the backend will actually issue.
+	TrustedDeviceDays *int `json:"trusted_device_days,omitempty"`
+}
+
+// login handles user login. The handler is a thin orchestrator: it pulls
+// the trusted-device cookie off the request, calls LoginWithMFAGate, and
+// translates the discriminated LoginResult into a JSON shape the frontend
+// can branch on.
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -512,39 +605,93 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get IP address and user agent for audit logging
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.LoginWithAudit(r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug)
+	// Pull the trusted-device cookie if the browser sent one. The MFA gate
+	// uses it to skip the second factor for users on a previously-marked
+	// device. Empty / missing cookie is fine — the service is nil-tolerant.
+	var trustedDeviceCookie string
+	if c, err := r.Cookie(trustedDeviceCookieName); err == nil {
+		trustedDeviceCookie = c.Value
+	}
+
+	result, err := rs.AuthService.LoginWithMFAGate(
+		r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug, trustedDeviceCookie,
+	)
 	if err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials)) // Mask the specific error
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		rs.handleLoginError(w, r, err)
 		return
 	}
 
-	// Special case for login endpoint - frontend expects direct token response
-	render.JSON(w, r, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+	switch result.Status {
+	case authService.LoginStatusMFARequired:
+		tde := result.TrustedDeviceEnabled
+		tdd := result.TrustedDeviceDays
+		render.JSON(w, r, LoginResponse{
+			Status:               string(authService.LoginStatusMFARequired),
+			ChallengeToken:       result.ChallengeToken,
+			MaskedEmail:          result.MaskedEmail,
+			TrustedDeviceEnabled: &tde,
+			TrustedDeviceDays:    &tdd,
+		})
+		return
+	case authService.LoginStatusMFAEnrollmentRequired:
+		render.JSON(w, r, LoginResponse{
+			Status:                string(authService.LoginStatusMFAEnrollmentRequired),
+			AccessToken:           result.AccessToken,
+			MaskedEmail:           result.MaskedEmail,
+			MFAEnrollmentRequired: true,
+		})
+		return
+	}
+
+	render.JSON(w, r, LoginResponse{
+		Status:       string(authService.LoginStatusAuthenticated),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
 	})
+}
+
+// handleLoginError centralises the error-to-HTTP mapping for /auth/login so
+// both the legacy and the MFA-aware paths agree on what comes back.
+func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
+	var authErr *authService.AuthError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+			// Mask the specific error so attackers can't enumerate accounts.
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+		case errors.Is(authErr.Err, authService.ErrAccountInactive):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
+			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
+			// MFA challenge initiation tripped the 3/15min sliding-window
+			// cap. Surface as 429 so the frontend shows the dedicated "too
+			// many code requests" message instead of a generic 5xx.
+			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+		case errors.Is(authErr.Err, authService.ErrMFALocked):
+			// Account hit the failed-attempt lockout threshold while we were
+			// preparing the next challenge. Same HTTP status as rate limit,
+			// distinct message body — handled separately on the frontend.
+			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
+		case errors.Is(authErr.Err, authService.ErrMFAStatusUnavailable):
+			// MFA gate couldn't determine required/enrolled status (settings
+			// or credentials lookup failed with a non-not-found error).
+			// Refuse this login rather than fail-open. 503 lets the client
+			// retry — the frontend renders it as "Bitte versuche es erneut".
+			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
+		default:
+			common.RenderError(w, r, ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, ErrorInternalServer(err))
 }
 
 // RegisterRequest represents the register request payload

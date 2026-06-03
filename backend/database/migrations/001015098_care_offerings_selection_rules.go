@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	careOfferingsSelectionRulesVersion     = "1.15.78"
+	careOfferingsSelectionRulesVersion     = "1.15.98"
 	careOfferingsSelectionRulesDescription = "Add selection_group + selection_rule to enrollment.care_offerings so admins can group offerings and require a choice (exactly_one / at_least_one / at_most_one)."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.78: Adding selection_group + selection_rule to enrollment.care_offerings...")
+			fmt.Println("Migration 1.15.98: Adding selection_group + selection_rule to enrollment.care_offerings...")
 			// selection_group is a free-text group name (NULL = ungrouped).
 			// selection_rule constrains how many offerings in the group a
 			// parent must pick. Existing rows default to 'optional' (today's
@@ -37,7 +37,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.78: dropping selection columns on enrollment.care_offerings...")
+			fmt.Println("Rolling back migration 1.15.98: dropping selection columns on enrollment.care_offerings...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.care_offerings
 					DROP COLUMN IF EXISTS selection_rule,

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   blankField,
   blankInfoField,
@@ -46,6 +47,8 @@ import {
   type FormFieldTarget,
   type FormFieldType,
   type FormSchema,
+  type CoreRequirementKey,
+  type CoreRequirements,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
@@ -144,7 +147,10 @@ interface CoreField {
   readonly label: string;
   readonly type: FormFieldType;
   readonly required: boolean;
-  readonly appliesToChild: boolean;
+  readonly group: "guardian" | "child";
+  readonly requirementKey?: CoreRequirementKey;
+  readonly requirementLabel?: string;
+  readonly requirementHint?: string;
 }
 
 const CORE_FIELDS: ReadonlyArray<CoreField> = [
@@ -153,56 +159,59 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
     label: "Vorname (Elternteil)",
     type: "text",
     required: true,
-    appliesToChild: false,
+    group: "guardian",
   },
   {
     key: "guardian_last_name",
     label: "Nachname (Elternteil)",
     type: "text",
     required: true,
-    appliesToChild: false,
+    group: "guardian",
   },
   {
     key: "guardian_email",
     label: "E-Mail (Elternteil)",
     type: "text",
     required: true,
-    appliesToChild: false,
+    group: "guardian",
   },
   {
     key: "guardian_phone",
     label: "Telefonnummer (Elternteil)",
     type: "text",
     required: false,
-    appliesToChild: false,
+    group: "guardian",
+    requirementKey: "guardian_phone",
+    requirementLabel: "Telefonnummer verpflichtend",
+    requirementHint: "Eltern müssen eine gültige Telefonnummer angeben.",
   },
   {
     key: "first_name",
     label: "Vorname (Kind)",
     type: "text",
     required: true,
-    appliesToChild: true,
+    group: "child",
   },
   {
     key: "last_name",
     label: "Nachname (Kind)",
     type: "text",
     required: true,
-    appliesToChild: true,
+    group: "child",
   },
   {
     key: "date_of_birth",
     label: "Geburtsdatum (Kind)",
     type: "date",
     required: true,
-    appliesToChild: true,
+    group: "child",
   },
   {
     key: "target_grade_level",
     label: "Klassenstufe (Kind)",
     type: "number",
     required: true,
-    appliesToChild: true,
+    group: "child",
   },
 ];
 
@@ -213,6 +222,9 @@ export function EnrollmentFormEditor() {
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
   const [name, setName] = useState("");
   const [fields, setFields] = useState<FormField[]>([]);
+  const [coreRequirements, setCoreRequirements] = useState<CoreRequirements>(
+    {},
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +268,7 @@ export function EnrollmentFormEditor() {
     setSelectedKey(schema.id);
     setName(schema.name);
     setFields(schema.fields);
+    setCoreRequirements(schema.core_requirements ?? {});
     setError(null);
     setMode(nextMode);
   };
@@ -295,6 +308,7 @@ export function EnrollmentFormEditor() {
     setSelectedKey(NEW_SCHEMA_VALUE);
     setName("");
     setFields([]);
+    setCoreRequirements({});
     setError(null);
     setMode("builder");
   };
@@ -308,6 +322,13 @@ export function EnrollmentFormEditor() {
     setFields((prev) =>
       prev.map((f, i) => (i === index ? { ...f, ...patch } : f)),
     );
+  };
+
+  const updateCoreRequirement = (
+    key: CoreRequirementKey,
+    required: boolean,
+  ) => {
+    setCoreRequirements((prev) => ({ ...prev, [key]: required }));
   };
 
   const addField = () => {
@@ -354,11 +375,22 @@ export function EnrollmentFormEditor() {
     [currentSchema?.fields],
   );
   const currentFieldSignature = useMemo(() => JSON.stringify(fields), [fields]);
+  const savedCoreRequirementSignature = useMemo(
+    () => coreRequirementsSignature(currentSchema?.core_requirements ?? {}),
+    [currentSchema?.core_requirements],
+  );
+  const currentCoreRequirementSignature = useMemo(
+    () => coreRequirementsSignature(coreRequirements),
+    [coreRequirements],
+  );
   const hasUnsavedChanges =
     mode === "builder" &&
     (isCreating
-      ? name.trim() !== "" || fields.length > 0
-      : currentFieldSignature !== savedFieldSignature);
+      ? name.trim() !== "" ||
+        fields.length > 0 ||
+        currentCoreRequirementSignature !== "{}"
+      : currentFieldSignature !== savedFieldSignature ||
+        savedCoreRequirementSignature !== currentCoreRequirementSignature);
   const saveBlockedMessage = getSchemaDraftValidationMessage({
     fields,
     isCreating,
@@ -385,9 +417,17 @@ export function EnrollmentFormEditor() {
       const fieldsForSave = prepareFieldsForSave(fields);
       let result: FormSchema;
       if (isCreating) {
-        result = await createSchema(name.trim(), fieldsForSave);
+        result = await createSchema(
+          name.trim(),
+          fieldsForSave,
+          coreRequirements,
+        );
       } else {
-        result = await updateSchema(selectedKey, fieldsForSave);
+        result = await updateSchema(
+          selectedKey,
+          fieldsForSave,
+          coreRequirements,
+        );
       }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
@@ -558,7 +598,11 @@ export function EnrollmentFormEditor() {
               fields={fields}
             />
 
-            <CoreFieldsSection />
+            <CoreFieldsSection
+              coreRequirements={coreRequirements}
+              onRequirementChange={updateCoreRequirement}
+              disabled={saving}
+            />
 
             <section className="space-y-4">
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
@@ -656,6 +700,7 @@ export function EnrollmentFormEditor() {
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <FormPreview
               fields={fields}
+              coreRequirements={coreRequirements}
               templateName={name}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
@@ -724,7 +769,8 @@ function EnrollmentFormsOverview({
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
                   Das Basisformular ist immer vorhanden. Eigene Vorlagen nutzt
-                  du nur, wenn eine Anmeldephase zusätzliche Fragen braucht.
+                  du, wenn eine Anmeldephase abweichende Pflichtangaben oder
+                  Zusatzfragen braucht.
                 </p>
               </div>
               <button
@@ -751,7 +797,8 @@ function EnrollmentFormsOverview({
                   </h3>
                   <p className="mt-1 text-sm text-gray-600">
                     Jede Anmeldephase nutzt entweder das Basisformular oder eine
-                    eigene Vorlage mit Zusatzfragen.
+                    eigene Vorlage mit angepassten Pflichtangaben und
+                    Zusatzfragen.
                   </p>
                 </div>
               </div>
@@ -833,7 +880,7 @@ function BaseTemplateOverviewRow() {
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
           <UsageLine title="Standard" status="base" />
           <span>Systemformular</span>
-          <span>Keine Zusatzfragen</span>
+          <span>Keine Anpassungen</span>
         </div>
       </div>
       <div className="flex justify-start gap-2 md:justify-end">
@@ -884,7 +931,7 @@ function TemplateOverviewRow({
           </h4>
         </div>
         <p className="mt-1 text-xs leading-5 text-gray-500">
-          Eigene Vorlage für zusätzliche Fragen.
+          Eigene Vorlage für Pflichtangaben und Zusatzfragen.
         </p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
           <UsageLine title={usageTitle} status={usageStatus} />
@@ -1143,7 +1190,7 @@ function OverviewGuide({
           />
           <GuideStep
             icon={<ListPlus className="h-4 w-4" aria-hidden="true" />}
-            title="Zusatzfragen nur bei Bedarf"
+            title="Vorlage nur bei Bedarf"
             done={templateCount > 0}
           />
           <GuideStep
@@ -1207,7 +1254,8 @@ function FormTemplateDetail({
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
                     Prüfe die Formularvorschau und ordne diese Vorlage einer
-                    Anmeldephase zu, wenn Eltern die Zusatzfragen sehen sollen.
+                    Anmeldephase zu, wenn Eltern die angepassten Pflichtangaben
+                    oder Zusatzfragen sehen sollen.
                   </p>
                 </div>
                 <button
@@ -1234,7 +1282,7 @@ function FormTemplateDetail({
                 <FormMetric
                   icon={<Check className="h-4 w-4" aria-hidden="true" />}
                   value={requiredCount.toString()}
-                  label="Pflichtfragen"
+                  label="Pflicht-Zusatzfragen"
                 />
                 <FormMetric
                   icon={<FileText className="h-4 w-4" aria-hidden="true" />}
@@ -1245,6 +1293,7 @@ function FormTemplateDetail({
 
               <FormPreview
                 fields={schema.fields}
+                coreRequirements={schema.core_requirements ?? {}}
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
@@ -1512,12 +1561,12 @@ function FormBuilderIntro() {
         Formular-Konfigurator
       </p>
       <h2 className="mt-1 text-xl font-semibold text-gray-900">
-        Zusatzfragen bearbeiten
+        Formularvorlage bearbeiten
       </h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-        Ergänze hier nur Fragen, die über das Basisformular hinausgehen. Die
-        Auswahl der Vorlage passiert in der Übersicht, dieser Bereich ist nur
-        zum Bearbeiten da.
+        Lege fest, welche optionalen Basisfelder verpflichtend sind, und ergänze
+        bei Bedarf Zusatzfragen. Die Vorlage wird später in einer Anmeldephase
+        ausgewählt.
       </p>
     </header>
   );
@@ -1583,7 +1632,7 @@ function BuilderTemplateSummary({
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
-              ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Zusatzfragen anlegen."
+              ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Pflichtangaben und Zusatzfragen festlegen."
               : "Beim Speichern bleiben bestehende Anmeldungen nachvollziehbar."}
           </p>
         </div>
@@ -1608,7 +1657,7 @@ function BuilderTemplateSummary({
               {fields.length} Zusatzfragen
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {requiredCount} Pflichtfragen
+              {requiredCount} Pflicht-Zusatzfragen
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
               {childFieldCount} pro Kind
@@ -1628,27 +1677,54 @@ function BuilderTemplateSummary({
   );
 }
 
-function CoreFieldsSection() {
-  const guardian = CORE_FIELDS.filter((f) => !f.appliesToChild);
-  const child = CORE_FIELDS.filter((f) => f.appliesToChild);
+function CoreFieldsSection({
+  coreRequirements,
+  onRequirementChange,
+  disabled,
+}: Readonly<{
+  coreRequirements: CoreRequirements;
+  onRequirementChange: (key: CoreRequirementKey, required: boolean) => void;
+  disabled: boolean;
+}>) {
+  const guardian = CORE_FIELDS.filter((f) => f.group === "guardian");
+  const child = CORE_FIELDS.filter((f) => f.group === "child");
+  const groups = [
+    { title: "Eltern", fields: guardian },
+    { title: "Kind", fields: child },
+  ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
+
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <Lock className="h-4 w-4" aria-hidden="true" />
-        </span>
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Basisformular</h2>
-          <p className="mt-0.5 text-xs leading-5 text-gray-600">
-            Diese Angaben sind immer Teil der Online-Anmeldung und werden hier
-            nur als Orientierung angezeigt.
+          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            Basisformular
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            Pflichtstatus der Basisfelder
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+            Fest gesetzte Felder bleiben immer Pflicht. Optionale Basisfelder
+            kannst du hier verpflichtend machen.
           </p>
         </div>
+        <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+          <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+          Basisfelder
+        </span>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <CoreFieldGroup title="Eltern" fields={guardian} />
-        <CoreFieldGroup title="Kind" fields={child} />
+      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
+        {groups.map((group) => (
+          <CoreFieldGroup
+            key={group.title}
+            title={group.title}
+            fields={group.fields}
+            coreRequirements={coreRequirements}
+            onRequirementChange={onRequirementChange}
+            disabled={disabled}
+          />
+        ))}
       </div>
     </section>
   );
@@ -1657,28 +1733,92 @@ function CoreFieldsSection() {
 function CoreFieldGroup({
   title,
   fields,
-}: Readonly<{ title: string; fields: CoreField[] }>) {
+  coreRequirements,
+  onRequirementChange,
+  disabled,
+}: Readonly<{
+  title: string;
+  fields: CoreField[];
+  coreRequirements: CoreRequirements;
+  onRequirementChange: (key: CoreRequirementKey, required: boolean) => void;
+  disabled: boolean;
+}>) {
   return (
-    <div>
-      <h3 className="text-xs font-semibold text-gray-700">{title}</h3>
-      <ul className="mt-2 space-y-1.5">
+    <div className="border-b border-gray-100 last:border-b-0">
+      <div className="bg-gray-50/80 px-4 py-2">
+        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {title}
+        </h3>
+      </div>
+      <ul className="divide-y divide-gray-100">
         {fields.map((field) => (
-          <CoreFieldRow key={field.key} field={field} />
+          <CoreFieldRow
+            key={field.key}
+            field={field}
+            required={Boolean(
+              field.requirementKey
+                ? coreRequirements[field.requirementKey]
+                : field.required,
+            )}
+            onRequirementChange={onRequirementChange}
+            disabled={disabled}
+          />
         ))}
       </ul>
     </div>
   );
 }
 
-function CoreFieldRow({ field }: { readonly field: CoreField }) {
+function CoreFieldRow({
+  field,
+  required,
+  onRequirementChange,
+  disabled,
+}: {
+  readonly field: CoreField;
+  readonly required: boolean;
+  readonly onRequirementChange: (
+    key: CoreRequirementKey,
+    required: boolean,
+  ) => void;
+  readonly disabled: boolean;
+}) {
   return (
-    <li className="moto-content-surface flex items-center gap-2 rounded-lg border px-3 py-2 text-xs shadow-sm">
-      <span className="flex-1 font-medium text-gray-900">{field.label}</span>
-      <span className="text-gray-500">{fieldTypeLabels[field.type]}</span>
-      {field.required && (
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-          Pflicht
-        </span>
+    <li className="grid gap-3 bg-white px-4 py-3 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium text-gray-900">{field.label}</p>
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+            {fieldTypeLabels[field.type]}
+          </span>
+        </div>
+        <p className="mt-0.5 text-xs leading-5 text-gray-500">
+          {field.requirementKey
+            ? (field.requirementHint ?? "Kann verpflichtend gemacht werden.")
+            : "Immer erforderlich und deshalb nicht änderbar."}
+        </p>
+      </div>
+      {field.requirementKey ? (
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <span className="text-xs font-medium text-gray-600">
+            {required ? "Pflicht" : "Optional"}
+          </span>
+          <BooleanField
+            value={required}
+            onChange={(checked) =>
+              onRequirementChange(field.requirementKey!, checked)
+            }
+            disabled={disabled}
+            ariaLabel={field.requirementLabel ?? `${field.label} Pflichtfeld`}
+          />
+        </div>
+      ) : (
+        <div className="flex justify-start sm:justify-end">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            Immer Pflicht
+          </span>
+        </div>
       )}
     </li>
   );
@@ -1703,16 +1843,16 @@ function TargetSuggestions({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">
-            Feste Vorschläge
+            Stammdaten-Vorschläge
           </h3>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
             Diese Fragen sind mit vorhandenen Stammdaten verbunden. Du kannst
-            sie hinzufügen oder entfernen, der Inhalt ist fest vorgegeben.
+            sie hinzufügen oder entfernen; Label und Typ sind fest vorgegeben.
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-sm">
           <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Gesperrt
+          Stammdaten
         </span>
       </div>
 
@@ -2059,7 +2199,7 @@ function FieldEditorRow({
                   checked={Boolean(field.required)}
                   onChange={(checked) => onChange({ required: checked })}
                   label="Pflichtfrage"
-                  hint="Eltern müssen diese Frage beantworten."
+                  hint={getRequiredHint(field)}
                   disabled={disabled}
                 />
                 <FormChoice
@@ -2486,6 +2626,7 @@ function ConditionOfferingControls({
 
 function FormPreview({
   fields,
+  coreRequirements,
   templateName,
   isActive,
   isSaved,
@@ -2495,6 +2636,7 @@ function FormPreview({
   sticky = true,
 }: Readonly<{
   fields: FormField[];
+  coreRequirements: CoreRequirements;
   templateName: string;
   isActive: boolean;
   isSaved: boolean;
@@ -2508,6 +2650,12 @@ function FormPreview({
     isActive,
     isSaved,
   });
+  const guardianFields = [
+    "Vorname *",
+    "Nachname *",
+    "E-Mail *",
+    coreRequirements.guardian_phone ? "Telefonnummer *" : "Telefonnummer",
+  ];
 
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
@@ -2606,13 +2754,15 @@ function FormPreview({
         </div>
 
         <div className="space-y-5 p-4">
-          <PreviewSection
-            title="Elternteil"
-            fields={["Vorname", "Nachname", "E-Mail", "Telefonnummer"]}
-          />
+          <PreviewSection title="Elternteil" fields={guardianFields} />
           <PreviewSection
             title="Kind"
-            fields={["Vorname", "Nachname", "Geburtsdatum", "Klassenstufe"]}
+            fields={[
+              "Vorname *",
+              "Nachname *",
+              "Geburtsdatum *",
+              "Klassenstufe *",
+            ]}
           />
           <PreviewSection
             title="Betreuungsangebot"
@@ -2635,7 +2785,8 @@ function FormPreview({
                   Keine Zusatzfragen
                 </p>
                 <p className="mt-1 text-xs leading-5 text-gray-500">
-                  Eltern sehen nur das Basisformular.
+                  Eltern sehen nur das Basisformular mit den gewählten
+                  Pflichtangaben.
                 </p>
               </div>
             ) : (
@@ -2872,13 +3023,14 @@ function normalizeFieldKey(value: string): string {
 function createTargetField(
   target: Exclude<FormFieldTarget, "">,
   sortOrder: number,
+  existing?: FormField,
 ): FormField {
   const spec = RESERVED_TARGETS[target];
   return {
     key: target.replace(/\./g, "_"),
     label: spec.label,
     type: spec.type,
-    required: false,
+    required: Boolean(existing?.required),
     help_text: "",
     options: getTargetOptions(target),
     sort_order: sortOrder,
@@ -2903,7 +3055,7 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
       // Suggested field: type/options/scope are fixed by the spec, but
       // the admin-edited label + help text + required flag + visibility
       // ride along.
-      const base = createTargetField(field.target, index);
+      const base = createTargetField(field.target, index, field);
       return {
         ...base,
         label: field.label.trim() || base.label,
@@ -2935,6 +3087,30 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
       visible_when: field.visible_when ?? undefined,
     };
   });
+}
+
+function coreRequirementsSignature(value: CoreRequirements): string {
+  const enabled = Object.entries(value)
+    .filter(([, required]) => required)
+    .map(([key]) => key)
+    .sort((a, b) => a.localeCompare(b));
+  return JSON.stringify(Object.fromEntries(enabled.map((key) => [key, true])));
+}
+
+function getRequiredHint(field: FormField): string {
+  if (field.type === "boolean") {
+    return "Eltern müssen Ja oder Nein auswählen.";
+  }
+  if (field.type === "weekday_schedule") {
+    return "Eltern müssen mindestens eine Uhrzeit angeben.";
+  }
+  if (field.type === "contact_list") {
+    return "Eltern müssen mindestens einen vollständigen Kontakt angeben.";
+  }
+  if (field.type === "phone_list") {
+    return "Eltern müssen mindestens eine Telefonnummer angeben.";
+  }
+  return "Eltern müssen diese Frage beantworten.";
 }
 
 function getSchemaDraftValidationMessage({
