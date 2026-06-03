@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { apiPost } from "~/lib/api-helpers";
+import { apiPost } from "~/lib/api-helpers.server";
 import { isAxiosError } from "axios";
 import { createLogger } from "~/lib/logger";
 

@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { createPostHandler } from "@/lib/route-wrapper";
+import { createPostHandler } from "@/lib/route-wrapper.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 

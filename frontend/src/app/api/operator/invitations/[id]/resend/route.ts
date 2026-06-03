@@ -1,4 +1,4 @@
-import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper";
+import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper.server";
 
 /**
  * POST /api/operator/invitations/[id]/resend

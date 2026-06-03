@@ -1,7 +1,7 @@
 // app/api/activities/timespans/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 // Define the backend timeframe interface based on what we see in backend/api/activities/api.go:TimespanResponse
 interface BackendTimespan {

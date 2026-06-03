@@ -8,7 +8,7 @@ import {
   operatorApiGet,
   operatorApiPut,
   operatorApiDelete,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 
 const logger = createLogger({

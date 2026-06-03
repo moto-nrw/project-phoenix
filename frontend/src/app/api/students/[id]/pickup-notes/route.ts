@@ -1,5 +1,5 @@
-import { createPostHandler } from "@/lib/route-wrapper";
-import { apiPost } from "@/lib/api-helpers";
+import { createPostHandler } from "@/lib/route-wrapper.server";
+import { apiPost } from "@/lib/api-helpers.server";
 
 // POST /api/students/[id]/pickup-notes - Create a pickup note
 export const POST = createPostHandler(async (_request, body, token, params) => {

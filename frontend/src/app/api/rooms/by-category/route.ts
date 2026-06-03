@@ -1,7 +1,7 @@
 // app/api/rooms/by-category/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { BackendRoom } from "~/lib/room-helpers";
 
 /**

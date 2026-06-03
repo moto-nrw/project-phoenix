@@ -3,9 +3,9 @@
 // Consolidates 5 API calls into 1 to eliminate redundant auth() overhead
 // and prevent sequential loading "flash" on student cards
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 const logger = createLogger({ component: "OGSDashboardRoute" });
 

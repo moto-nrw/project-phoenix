@@ -13,7 +13,7 @@ const { mockAuth, mockApiDelete } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/server/auth", () => ({ auth: mockAuth }));
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiDelete: mockApiDelete,
   handleApiError: vi.fn((error: unknown) => {
     const message =

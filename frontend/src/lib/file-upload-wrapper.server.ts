@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "../server/auth";
-import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
-import { handleApiError } from "./api-helpers";
+import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
+import { handleApiError } from "./api-helpers.server";
 
 interface FileUploadOptions {
   maxSizeInMB?: number;

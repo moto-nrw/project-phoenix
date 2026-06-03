@@ -27,7 +27,7 @@ vi.mock("~/server/auth", () => ({
 // Mock global fetch
 global.fetch = mockFetch as unknown as typeof fetch;
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: vi.fn(),

@@ -4,7 +4,7 @@ import {
   recordBackendProxyMetric,
   resetBackendProxyMetricsForTest,
 } from "./backend-proxy-metrics";
-import { metricsResponse } from "./server-metrics";
+import { metricsResponse } from "./server-metrics.server";
 import { getMetricsBearerToken } from "./server-runtime-env";
 
 function metricsRequest(token?: string): NextRequest {

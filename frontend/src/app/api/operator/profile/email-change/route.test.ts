@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { RouteContext } from "~/lib/route-wrapper-utils";
+import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
 const {
   mockFetch,
@@ -27,7 +27,7 @@ vi.mock("~/server/auth/operator", () => ({
   uncachedOperatorAuth: mockAuth,
 }));
 
-vi.mock("~/lib/client-headers", () => ({
+vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 

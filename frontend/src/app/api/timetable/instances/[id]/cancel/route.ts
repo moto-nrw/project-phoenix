@@ -2,8 +2,8 @@
 // instance; from active, ends the bridge cleanly via
 // active.EndActivitySession.
 import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers";
-import { createPostHandler, isStringParam } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 export const POST = createPostHandler(
   async (

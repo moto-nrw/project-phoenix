@@ -3,7 +3,7 @@ import {
   createProxyDeleteHandler,
   createProxyGetByIdHandler,
   createProxyPutHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 /**
  * Type definition for visit update request

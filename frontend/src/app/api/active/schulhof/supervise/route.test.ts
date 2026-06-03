@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { POST } from "./route";
 
 // Mock the api-helpers module
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiPost: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ interface MockResponse {
 }
 
 // Mock the route-wrapper module
-vi.mock("~/lib/route-wrapper", () => ({
+vi.mock("~/lib/route-wrapper.server", () => ({
   createPostHandler: vi.fn((handler: PostHandler) => {
     return async (request: NextRequest, _context: MockRouteContext) => {
       // Simulate the wrapper behavior - extract token and body, call handler
@@ -46,7 +46,7 @@ vi.mock("~/lib/route-wrapper", () => ({
   }),
 }));
 
-import { apiPost } from "~/lib/api-helpers";
+import { apiPost } from "~/lib/api-helpers.server";
 
 const mockedApiPost = vi.mocked(apiPost);
 

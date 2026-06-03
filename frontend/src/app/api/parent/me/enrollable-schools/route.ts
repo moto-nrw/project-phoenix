@@ -1,7 +1,7 @@
 import {
   createParentGetHandler,
   parentApiGet,
-} from "~/lib/parent/route-wrapper";
+} from "~/lib/parent/route-wrapper.server";
 
 interface BackendEnrollablePhase {
   school_id: string;
