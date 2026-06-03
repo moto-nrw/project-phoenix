@@ -26,13 +26,13 @@ export function ConflictWarningsBanner({
   return (
     <div
       role="status"
-      className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2"
+      className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-white px-3 py-2"
     >
-      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-50">
-        <TriangleAlert className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EAB308]/10">
+        <TriangleAlert className="h-3.5 w-3.5 text-[#EAB308]" aria-hidden />
       </span>
-      <p className="min-w-0 flex-1 text-[12px] text-slate-600">
-        <span className="font-semibold text-slate-900">
+      <p className="min-w-0 flex-1 text-xs text-gray-600">
+        <span className="font-semibold text-gray-900">
           {conflictCount} {conflictCount === 1 ? "Konflikt" : "Konflikte"}
         </span>{" "}
         diese Woche · doppelt belegte Räume, Personal oder Kinder. Klicke einen

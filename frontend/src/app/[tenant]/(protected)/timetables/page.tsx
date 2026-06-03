@@ -1106,7 +1106,7 @@ function TimetablesContent() {
   return (
     <div className="flex flex-col gap-4 p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">Stundenplan</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Stundenplan</h1>
         <div className="flex flex-wrap items-center gap-2">
           <PeriodSwitcherDropdown
             periods={calendarPeriods}
@@ -1160,7 +1160,7 @@ function TimetablesContent() {
 
       {view === "month" &&
         (isInstanceDataLoading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8">
+          <div className="moto-content-surface rounded-2xl border p-8">
             <Loading />
           </div>
         ) : (
@@ -1175,7 +1175,7 @@ function TimetablesContent() {
 
       {view === "year" &&
         (isInstanceDataLoading ? (
-          <div className="rounded-xl border border-slate-200 bg-white p-8">
+          <div className="moto-content-surface rounded-2xl border p-8">
             <Loading />
           </div>
         ) : (
@@ -1191,7 +1191,7 @@ function TimetablesContent() {
       {view === "week" && (
         <>
           {isInstanceDataLoading ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-8">
+            <div className="rounded-xl border border-gray-200 bg-white p-8">
               <Loading />
             </div>
           ) : (
@@ -1365,14 +1365,13 @@ function TimetablesContent() {
         confirmText="Archivieren"
         cancelText="Abbrechen"
         isConfirmLoading={archiveLoading}
-        confirmButtonClass="bg-slate-900 hover:bg-slate-700"
       >
-        <p className="text-sm leading-relaxed text-slate-600">
+        <p className="text-sm leading-relaxed text-gray-600">
           Die Serie
           {archivingTemplate ? (
             <>
               {" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold text-gray-900">
                 „{archivingTemplate.name}“
               </span>
             </>
