@@ -782,7 +782,8 @@ func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuard
 				PickupNotes:        optionalString(in.PickupNotes),
 				EmergencyPriority:  in.EmergencyPriority,
 			},
-			PhoneNumbers: toPhoneRequests(in.PhoneNumbers),
+			PhoneNumbers:      toPhoneRequests(in.PhoneNumbers),
+			ExistingProfileID: in.GuardianProfileID,
 		})
 	}
 	return out

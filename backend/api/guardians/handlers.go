@@ -57,6 +57,23 @@ type GuardianResponse struct {
 	AccountID              *int64                 `json:"account_id,omitempty"`
 }
 
+// GuardianPickerResponse is the MINIMAL, GDPR-safe projection returned by the
+// guardian picker search (GET /guardians/search). Unlike the admin guardian list
+// (full profiles) the projection here is deliberately the smallest thing that
+// still lets someone recognise a contact they already know — and nothing they
+// could use to profile a family they have no relationship to (#1513):
+//   - Only a COUNT of other linked children is returned, never their names —
+//     a guardian's other children belong to other families the searcher may
+//     not supervise. Full child names stay on the guardian detail view.
+//     Address, notes, language, contact method, account_id are all omitted.
+type GuardianPickerResponse struct {
+	ID                  int64   `json:"id"`
+	FirstName           string  `json:"first_name"`
+	LastName            string  `json:"last_name"`
+	Email               *string `json:"email,omitempty"`
+	LinkedChildrenCount int     `json:"linked_children_count"`
+}
+
 // GuardianCreateRequest represents a request to create a new guardian
 // Note: Phone numbers should be added separately via POST /guardians/{id}/phone-numbers
 type GuardianCreateRequest struct {
@@ -357,23 +374,21 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 	return false, fmt.Errorf("you can only modify guardians for students in groups you supervise")
 }
 
-// listGuardians handles listing all guardians with pagination
+// listGuardians handles listing all guardians with pagination. This is the
+// admin (users:read) full-profile list. The picker search lives in its own
+// handler (searchGuardiansForPicker) with a lower gate + minimal projection.
 func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
-	// Create query options
-	queryOptions := base.NewQueryOptions()
-
-	// Add pagination
 	page, pageSize := common.ParsePagination(r)
+
+	queryOptions := base.NewQueryOptions()
 	queryOptions.WithPagination(page, pageSize)
 
-	// Get guardians
 	guardians, err := rs.GuardianService.ListGuardians(r.Context(), queryOptions)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	// Convert to response format
 	responses := make([]*GuardianResponse, 0, len(guardians))
 	for _, guardian := range guardians {
 		responses = append(responses, newGuardianResponse(guardian))
@@ -381,6 +396,71 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 
 	// For now, return without total count (would need separate count query)
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: len(responses)}, "Guardians retrieved successfully")
+}
+
+// minGuardianPickerQueryLength is the server-side floor for picker searches. It
+// mirrors the client minimum so a non-admin can't enumerate the guardian pool
+// one character at a time. It is a fixed data-protection guardrail, not a
+// per-school business rule, so it lives here rather than in the settings system.
+const minGuardianPickerQueryLength = 3
+
+// maxGuardianPickerResults caps how many matches a single picker search can
+// return. common.ParsePagination enforces NO upper bound on page_size, so
+// without this clamp a caller could pass ?q=ann&page_size=100000 and pull most
+// of the tenant's guardian pool (name + email + linked-children count) in one
+// request — defeating the minimal, enumeration-resistant projection. The picker
+// is a type-to-narrow lookup; a staff member never needs more than a screenful
+// of candidates, so 50 is the hard ceiling regardless of the requested
+// page_size. There is no OFFSET: the endpoint deliberately returns only this
+// first capped slice, not real pages.
+const maxGuardianPickerResults = 50
+
+// searchGuardiansForPicker backs the existing-guardian picker (#1513). It shares
+// the users:read gate with the other guardian reads, so anyone who can reach the
+// student create/detail flows can link a sibling's already-existing guardian
+// instead of creating a duplicate. The projection is deliberately minimal and
+// enumeration-resistant — name, email, and only a COUNT of other linked children
+// (see GuardianPickerResponse). A query shorter than minGuardianPickerQueryLength
+// returns an empty page rather than 400, so the client's "type at least N
+// characters" hint stays the single source of truth.
+func (rs *Resource) searchGuardiansForPicker(w http.ResponseWriter, r *http.Request) {
+	page, pageSize := common.ParsePagination(r)
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	if len([]rune(search)) < minGuardianPickerQueryLength {
+		common.RespondPaginated(w, r, http.StatusOK, []*GuardianPickerResponse{}, common.PaginationParams{Page: page, PageSize: pageSize, Total: 0}, "Guardians retrieved successfully")
+		return
+	}
+
+	// Clamp the caller-supplied page_size to a hard ceiling — ParsePagination
+	// itself imposes no maximum.
+	limit := pageSize
+	if limit > maxGuardianPickerResults {
+		limit = maxGuardianPickerResults
+	}
+
+	matches, err := rs.GuardianService.SearchGuardiansForPicker(r.Context(), search, limit)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]*GuardianPickerResponse, 0, len(matches))
+	for _, m := range matches {
+		responses = append(responses, &GuardianPickerResponse{
+			ID:                  m.Profile.ID,
+			FirstName:           m.Profile.FirstName,
+			LastName:            m.Profile.LastName,
+			Email:               m.Profile.Email,
+			LinkedChildrenCount: len(m.Children),
+		})
+	}
+
+	// Report the clamped limit as the page size so the envelope reflects what
+	// was actually applied, not the (possibly larger) requested page_size. The
+	// endpoint returns a single capped slice with no OFFSET — there are no
+	// further pages to fetch — so Total is the size of this slice.
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: limit, Total: len(responses)}, "Guardians retrieved successfully")
 }
 
 // getGuardian handles getting a guardian by ID
@@ -454,6 +534,16 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 		guardian, txErr = rs.GuardianService.CreateGuardian(ctx, createReq)
 		return txErr
 	}); err != nil {
+		// A duplicate email (or other bad input) comes back as a ValidationError
+		// carrying a user-facing German message — render it as a 400 so the
+		// frontend surfaces "bereits vergeben – über die Suche auswählen"
+		// instead of the generic 500 catch-all. The tenant tx already rolled
+		// back, so no partial guardian survives.
+		var validationErr *guardianSvc.ValidationError
+		if errors.As(err, &validationErr) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(validationErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1010,6 +1100,11 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 
 // ListGuardiansHandler returns the list guardians handler
 func (rs *Resource) ListGuardiansHandler() http.HandlerFunc { return rs.listGuardians }
+
+// SearchGuardiansForPickerHandler returns the guardian picker search handler.
+func (rs *Resource) SearchGuardiansForPickerHandler() http.HandlerFunc {
+	return rs.searchGuardiansForPicker
+}
 
 // GetGuardianHandler returns the get guardian handler
 func (rs *Resource) GetGuardianHandler() http.HandlerFunc { return rs.getGuardian }

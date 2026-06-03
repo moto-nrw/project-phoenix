@@ -166,6 +166,13 @@ type GuardianPhoneInput struct {
 // created together with a new student. Mirrors the fields managed on the
 // student detail page's guardian form.
 type GuardianInput struct {
+	// GuardianProfileID, when set, links an EXISTING guardian profile to the
+	// new student instead of creating a new one (sibling case, issue #1513).
+	// When present the profile fields below (name, email, address, phone
+	// numbers) are ignored and the existing profile is never mutated — only the
+	// relationship flags apply to the new link.
+	GuardianProfileID *int64 `json:"guardian_profile_id,omitempty"`
+
 	// Profile
 	FirstName              string `json:"first_name"`
 	LastName               string `json:"last_name"`

@@ -126,6 +126,22 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 	}
 
 	profile.SetTenantID(tenant.FromContext(ctx))
+
+	// Reject a duplicate email up front. The tenant-scoped UNIQUE(tenant_id,
+	// email) index forbids two guardians sharing an email, so without this
+	// pre-check the INSERT fails with a raw 23505 that surfaces to the user as a
+	// generic 500. Detect it as bad input instead and steer the caller to the
+	// existing-guardian picker (#1513) — the same German message and 400
+	// semantics as the batch student-create path (ValidateNewGuardians).
+	// FindByEmail matches case-insensitively (LOWER(email)), so it is at least
+	// as strict as the index and never lets a colliding email slip through.
+	if profile.Email != nil && strings.TrimSpace(*profile.Email) != "" {
+		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
+			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+			return nil, &ValidationError{Err: fmt.Errorf("E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen", strings.TrimSpace(*profile.Email))}
+		}
+	}
+
 	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
 	}
@@ -664,7 +680,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		return nil, fmt.Errorf("student not found: %w", err)
 	}
 
-	// Create relationship
+	// Build the new relationship.
 	relationship := &users.StudentGuardian{
 		StudentID:          req.StudentID,
 		GuardianProfileID:  req.GuardianProfileID,
@@ -677,11 +693,38 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	}
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
-	if err := s.studentGuardianRepo.Create(ctx, relationship); err != nil {
+	// Idempotent on an existing link: re-linking a guardian already attached to
+	// this student is a pure NO-OP, never an error. LinkIfNotExists inserts via
+	// ON CONFLICT DO NOTHING, so a duplicate — whether sequential, concurrent, or
+	// retried — neither raises a 500 nor aborts the surrounding tenant
+	// transaction (a raw duplicate INSERT would do both in PostgreSQL). This is
+	// the same "re-selecting is not an error" semantics as the batch create path
+	// in AddGuardiansToStudent.
+	inserted, err := s.studentGuardianRepo.LinkIfNotExists(ctx, relationship)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
+	if inserted {
+		return relationship, nil
+	}
 
-	return relationship, nil
+	// The link already existed. Return it UNCHANGED — linking is a create, not an
+	// edit. Changing an existing relationship's flags goes through the dedicated
+	// update path (UpdateStudentGuardianRelationship, the detail page's "edit"
+	// action). Never upserting the flags on a re-link keeps safety-relevant fields
+	// (who can pick up the child, who the emergency contact is) mutable only via
+	// that explicit endpoint, with no silent overwrite from a stray re-link.
+	existingLinks, err := s.studentGuardianRepo.FindByStudentID(ctx, req.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load existing guardian link: %w", err)
+	}
+	for _, link := range existingLinks {
+		if link.GuardianProfileID == req.GuardianProfileID {
+			return link, nil
+		}
+	}
+
+	return nil, fmt.Errorf("guardian link reported as existing but not found for student %d", req.StudentID)
 }
 
 // germanGuardianValidationMessage translates the English validation messages
@@ -716,6 +759,28 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 	seenEmails := make(map[string]struct{}, len(guardians))
 
 	for i := range guardians {
+		// Select-existing path (#1513): the entry links an already-existing
+		// profile instead of creating one. There is no profile/email/phone
+		// input to validate — only that the profile exists (FindByID is
+		// tenant-scoped via RLS, so a cross-tenant or stale id surfaces as a
+		// clean 400, not a 500) and that the relationship fields are valid,
+		// matching the new-guardian path below and the detail-page link route.
+		if id := guardians[i].ExistingProfileID; id != nil {
+			if _, err := s.guardianProfileRepo.FindByID(ctx, *id); err != nil {
+				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ausgewählte Person nicht gefunden", i+1)}
+			}
+			if !users.IsValidRelationshipType(guardians[i].Relationship.RelationshipType) {
+				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ungültiger Beziehungstyp", i+1)}
+			}
+			if guardians[i].Relationship.EmergencyPriority < 1 {
+				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: Notfall-Priorität muss mindestens 1 sein", i+1)}
+			}
+			continue
+		}
+
 		// Profile rules (email format, contact method) via the shared model
 		// Validate() — the same checks the repository runs on insert.
 		probe := &users.GuardianProfile{
@@ -758,7 +823,7 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 			}
 			if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist bereits vergeben", i+1, email)}
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen", i+1, email)}
 			}
 			seenEmails[email] = struct{}{}
 		}
@@ -802,12 +867,30 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 		return err
 	}
 
+	// Track profile ids already linked to this student within this request so a
+	// guardian selected (or typed) twice doesn't collide on the
+	// UNIQUE(student_id, guardian_profile_id) index. Re-selecting the same
+	// person is not an error — the duplicate link is skipped silently (#1513).
+	linked := make(map[int64]struct{}, len(guardians))
+
 	for i := range guardians {
 		g := guardians[i]
 
-		profile, err := s.CreateGuardian(ctx, g.Profile)
-		if err != nil {
-			return fmt.Errorf("failed to create guardian at index %d: %w", i, err)
+		var profileID int64
+		if g.ExistingProfileID != nil {
+			// Select-existing path: link the existing profile as-is. Never
+			// create it and never touch its phone numbers — the existing
+			// profile's own data stays untouched.
+			profileID = *g.ExistingProfileID
+			if _, dup := linked[profileID]; dup {
+				continue
+			}
+		} else {
+			profile, err := s.CreateGuardian(ctx, g.Profile)
+			if err != nil {
+				return fmt.Errorf("failed to create guardian at index %d: %w", i, err)
+			}
+			profileID = profile.ID
 		}
 
 		// RelationshipType and EmergencyPriority were already checked by
@@ -815,7 +898,7 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 		// detail-page link path (LinkGuardianToStudent).
 		if _, err := s.LinkGuardianToStudent(ctx, StudentGuardianCreateRequest{
 			StudentID:          studentID,
-			GuardianProfileID:  profile.ID,
+			GuardianProfileID:  profileID,
 			RelationshipType:   g.Relationship.RelationshipType,
 			IsPrimary:          g.Relationship.IsPrimary,
 			IsEmergencyContact: g.Relationship.IsEmergencyContact,
@@ -825,10 +908,15 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 		}); err != nil {
 			return fmt.Errorf("failed to link guardian at index %d: %w", i, err)
 		}
+		linked[profileID] = struct{}{}
 
-		for j := range g.PhoneNumbers {
-			if _, err := s.AddPhoneNumber(ctx, profile.ID, g.PhoneNumbers[j]); err != nil {
-				return fmt.Errorf("failed to add phone number %d for guardian at index %d: %w", j, i, err)
+		// Phone numbers only apply to newly created profiles. An existing
+		// profile keeps its own phone numbers untouched.
+		if g.ExistingProfileID == nil {
+			for j := range g.PhoneNumbers {
+				if _, err := s.AddPhoneNumber(ctx, profileID, g.PhoneNumbers[j]); err != nil {
+					return fmt.Errorf("failed to add phone number %d for guardian at index %d: %w", j, i, err)
+				}
 			}
 		}
 	}
@@ -908,6 +996,45 @@ func (s *guardianService) ListGuardians(ctx context.Context, options *base.Query
 	}
 
 	return profiles, nil
+}
+
+// SearchGuardiansForPicker retrieves guardians matching the search text and
+// enriches each with its linked children. It backs the guardian picker (link an
+// existing guardian to a student). Tenant isolation is enforced by RLS on the
+// ambient tenant transaction. Phone numbers are intentionally not loaded — the
+// picker identifies people by name, email, and linked children.
+//
+// The linked children are fetched in ONE batch query for all matched guardians
+// and grouped in memory, so the picker never falls into a per-guardian N+1.
+func (s *guardianService) SearchGuardiansForPicker(ctx context.Context, searchText string, limit int) ([]*GuardianPickerMatch, error) {
+	profiles, err := s.guardianProfileRepo.SearchByText(ctx, searchText, limit)
+	if err != nil {
+		return nil, err
+	}
+	if len(profiles) == 0 {
+		return []*GuardianPickerMatch{}, nil
+	}
+
+	ids := make([]int64, len(profiles))
+	for i, p := range profiles {
+		ids[i] = p.ID
+	}
+
+	children, err := s.studentGuardianRepo.ListLinkedChildrenForGuardians(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	byGuardian := make(map[int64][]*users.GuardianLinkedChild, len(profiles))
+	for _, c := range children {
+		byGuardian[c.GuardianProfileID] = append(byGuardian[c.GuardianProfileID], c)
+	}
+
+	matches := make([]*GuardianPickerMatch, len(profiles))
+	for i, p := range profiles {
+		matches[i] = &GuardianPickerMatch{Profile: p, Children: byGuardian[p.ID]}
+	}
+	return matches, nil
 }
 
 // GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts

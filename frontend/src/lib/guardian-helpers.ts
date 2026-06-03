@@ -44,6 +44,11 @@ export interface Guardian {
   notes?: string;
   hasAccount: boolean;
   accountId?: string;
+  // Populated only by the guardian picker search (GET /guardians/search). The
+  // picker is open to all staff, so it never carries the linked children's
+  // names — only how many other children the guardian is linked to, for
+  // disambiguation (#1513 GDPR minimization).
+  linkedChildrenCount?: number;
 }
 
 // Backend Guardian Profile Response
@@ -61,6 +66,21 @@ export interface BackendGuardianProfile {
   notes?: string;
   has_account: boolean;
   account_id?: number;
+}
+
+// Backend Guardian Picker Response (GET /guardians/search). This is the
+// deliberately minimal, enumeration-resistant projection the picker endpoint
+// emits — NOT a full profile. Address, notes, language, contact method,
+// account, and phone numbers are all withheld server-side; and only a COUNT of
+// other linked children is exposed, never their names (#1513 GDPR
+// minimization). Kept separate from BackendGuardianProfile so callers can't
+// accidentally read fields the picker never sends.
+export interface BackendGuardianPickerResponse {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  linked_children_count: number;
 }
 
 // Student-Guardian Relationship
@@ -108,6 +128,11 @@ export interface GuardianFormData {
 // its guardians in one atomic request, mirroring the guardian fields managed on
 // the student detail page.
 export interface StudentGuardianPayload {
+  // When set, links an EXISTING guardian profile to the new student instead of
+  // creating one (sibling case, #1513). The profile fields below are then
+  // carried only for local display in the create modal's summary list — the
+  // backend ignores them and never mutates the existing profile.
+  guardian_profile_id?: number;
   first_name: string;
   last_name: string;
   email?: string;
@@ -197,6 +222,29 @@ export function mapGuardianResponse(data: BackendGuardianProfile): Guardian {
     notes: data.notes,
     hasAccount: data.has_account,
     accountId: data.account_id?.toString(),
+  };
+}
+
+// Maps the minimal guardian picker projection (GET /guardians/search) onto the
+// Guardian shape used by the picker UI. The picker withholds most profile fields
+// server-side, so the absent ones are filled with safe, explicit defaults rather
+// than left undefined: phoneNumbers is empty (the picker never loads them) and
+// hasAccount is false. Only id, name, email, and the linked-children COUNT carry
+// real data. Use this — never mapGuardianResponse — for picker results, so
+// nothing downstream trusts a field the picker never sent.
+export function mapGuardianPickerResponse(
+  data: BackendGuardianPickerResponse,
+): Guardian {
+  return {
+    id: data.id.toString(),
+    firstName: data.first_name,
+    lastName: data.last_name,
+    email: data.email,
+    phoneNumbers: [],
+    preferredContactMethod: "",
+    languagePreference: "",
+    hasAccount: false,
+    linkedChildrenCount: data.linked_children_count,
   };
 }
 

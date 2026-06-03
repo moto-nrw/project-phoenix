@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -176,6 +177,83 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list guardian profiles: %w", err)
+	}
+
+	return profiles, nil
+}
+
+// escapeLikePattern escapes the LIKE metacharacters (\, %, _) in user-supplied
+// search text so they match literally instead of acting as wildcards. Without
+// this a caller could pass "%" or "___" to defeat the picker's minimum-query-
+// length guard and match the whole guardian pool (the picker is open to all
+// staff, not just admins — see searchGuardiansForPicker). The query pairs this
+// with an explicit ESCAPE '\' clause. Backslash is escaped first so the escapes
+// added for % and _ are not themselves re-escaped.
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "%", `\%`)
+	s = strings.ReplaceAll(s, "_", `\_`)
+	return s
+}
+
+// maxSearchTokens bounds how many whitespace-separated terms a single picker
+// search expands into, so a pathological query ("a b c d e …") can't build an
+// unbounded WHERE clause. A real name search never needs more than a handful.
+const maxSearchTokens = 10
+
+// SearchByText retrieves guardian profiles matching the search text
+// (case-insensitive substring across first name, last name, and email). Tenant
+// isolation is enforced by RLS on the ambient tenant transaction (the endpoint
+// runs under TenantTxMiddleware), mirroring the other read methods on this
+// repository. Results are capped by limit so the guardian picker payload stays
+// small.
+//
+// The search text is split into whitespace-separated tokens; EACH token must
+// match at least one column, and ALL tokens must match (AND). This is what makes
+// a full-name query like "Andrea Bauer" work even though "Andrea" lives in
+// first_name and "Bauer" in last_name — a single full-string LIKE would match
+// neither column and return nothing. Token order is irrelevant, so "Bauer
+// Andrea" matches the same person.
+//
+// LIKE metacharacters in each token are escaped (see escapeLikePattern) so they
+// match literally — the picker's enumeration guard relies on a real minimum
+// query length, which raw "%"/"_" input would otherwise bypass.
+func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText string, limit int) ([]*users.GuardianProfile, error) {
+	// strings.Fields splits on any run of whitespace and drops empties, so a
+	// query that is only spaces yields no tokens → empty result.
+	tokens := strings.Fields(strings.ToLower(searchText))
+	if len(tokens) == 0 {
+		return []*users.GuardianProfile{}, nil
+	}
+	if len(tokens) > maxSearchTokens {
+		tokens = tokens[:maxSearchTokens]
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var profiles []*users.GuardianProfile
+
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
+
+	// One AND-ed WHERE group per token; within a group the token may match any of
+	// the three columns. The explicit parentheses keep each token's OR set
+	// isolated so the groups combine as (t1col OR …) AND (t2col OR …).
+	for _, tok := range tokens {
+		pattern := "%" + escapeLikePattern(tok) + "%"
+		query = query.Where(
+			`(LOWER("guardian_profile".first_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".last_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			pattern, pattern, pattern,
+		)
+	}
+
+	if err := query.
+		Order(`last_name ASC`, `first_name ASC`).
+		Limit(limit).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to search guardian profiles: %w", err)
 	}
 
 	return profiles, nil

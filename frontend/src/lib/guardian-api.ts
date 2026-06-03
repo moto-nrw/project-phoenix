@@ -8,6 +8,7 @@ import type {
   GuardianFormData,
   StudentGuardianLinkRequest,
   BackendGuardianProfile,
+  BackendGuardianPickerResponse,
   BackendGuardianWithRelationship,
   PhoneNumber,
   PhoneNumberCreateRequest,
@@ -16,6 +17,7 @@ import type {
 } from "./guardian-helpers";
 import {
   mapGuardianResponse,
+  mapGuardianPickerResponse,
   mapGuardianWithRelationshipResponse,
   mapGuardianFormDataToBackend,
   mapStudentGuardianLinkToBackend,
@@ -67,6 +69,12 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 export const errorTranslations: Record<string, string> = {
   "invalid email format": "Ungültiges E-Mail-Format",
   "bereits registriert": "Diese E-Mail-Adresse wird bereits verwendet",
+  // Duplicate-email on guardian create (#1513): the backend already sends a
+  // German message, but translateApiError replaces any unrecognised string with
+  // the generic catch-all — so this pattern is required for the helpful
+  // "use the search" guidance to reach the user.
+  "bereits vergeben":
+    "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
   "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
   "student not found": "Schüler/in nicht gefunden",
   "relationship already exists": "Diese Verknüpfung existiert bereits",
@@ -515,12 +523,20 @@ export async function removeGuardianFromStudent(
   }
 }
 
+// Hard ceiling on guardian picker results, requested explicitly so the picker
+// doesn't silently ride on whatever the backend's default page size happens to
+// be. The backend clamps to the same value (maxGuardianPickerResults); keep the
+// two in sync. The picker uses it to detect "the list was capped" — when a
+// search returns exactly this many rows, more may exist and the user should
+// narrow their query rather than assume the person isn't there (#1513).
+export const GUARDIAN_PICKER_RESULT_LIMIT = 50;
+
 /**
  * Search for existing guardians (for linking)
  */
 export async function searchGuardians(query: string): Promise<Guardian[]> {
   const response = await fetch(
-    `/api/guardians?search=${encodeURIComponent(query)}`,
+    `/api/guardians/search?q=${encodeURIComponent(query)}&page_size=${GUARDIAN_PICKER_RESULT_LIMIT}`,
   );
 
   if (!response.ok) {
@@ -539,13 +555,13 @@ export async function searchGuardians(query: string): Promise<Guardian[]> {
   }
 
   const result =
-    (await response.json()) as PaginatedResponse<BackendGuardianProfile>;
+    (await response.json()) as PaginatedResponse<BackendGuardianPickerResponse>;
 
   if (result.status === "error") {
     throw new Error(result.error ?? "Failed to search guardians");
   }
 
-  return (result.data ?? []).map(mapGuardianResponse);
+  return (result.data ?? []).map(mapGuardianPickerResponse);
 }
 
 // =============================================================================
