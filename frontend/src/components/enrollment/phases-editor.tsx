@@ -155,7 +155,15 @@ export function PhasesEditor() {
     null,
   );
   const [impactLoading, setImpactLoading] = useState(false);
+  // Preview-load failure (hard-blocks confirmation) vs. delete-call failure
+  // (retryable) are tracked separately so a failed delete doesn't permanently
+  // gate a retry, and a failed preview never lets the delete through.
+  const [impactError, setImpactError] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  // Monotonic id of the in-flight delete-impact request. Stale responses
+  // (admin opened phase A, then phase B before A resolved) are ignored by
+  // comparing against the latest id.
+  const impactRequestRef = useRef(0);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
@@ -303,27 +311,44 @@ export function PhasesEditor() {
   const requestDelete = useCallback((phase: Phase) => {
     setDeleteTarget(phase);
     setDeleteImpact(null);
+    setImpactError("");
     setDeleteError("");
     setImpactLoading(true);
+    const requestId = ++impactRequestRef.current;
     getPhaseDeleteImpact(phase.id)
-      .then((impact) => setDeleteImpact(impact))
+      .then((impact) => {
+        if (impactRequestRef.current !== requestId) return;
+        setDeleteImpact(impact);
+      })
       .catch((err) => {
+        if (impactRequestRef.current !== requestId) return;
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("phase_delete_impact_failed", { error: message });
-        setDeleteError(message);
+        setImpactError(message);
       })
-      .finally(() => setImpactLoading(false));
+      .finally(() => {
+        if (impactRequestRef.current !== requestId) return;
+        setImpactLoading(false);
+      });
   }, []);
 
   const closeDelete = useCallback(() => {
+    // Invalidate any in-flight preview so a late response can't populate the
+    // next modal we open.
+    impactRequestRef.current++;
     setDeleteTarget(null);
     setDeleteImpact(null);
+    setImpactError("");
     setDeleteError("");
+    setImpactLoading(false);
   }, []);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
+    // Hard guard mirroring the modal's confirmDisabled gate: never delete
+    // until the blast-radius preview has loaded successfully.
+    if (impactLoading || !deleteImpact || impactError) return;
     const phase = deleteTarget;
     setDeletingId(phase.id);
     setDeleteError("");
@@ -340,7 +365,15 @@ export function PhasesEditor() {
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, closeDelete, loadAll, toast]);
+  }, [
+    deleteTarget,
+    deleteImpact,
+    impactLoading,
+    impactError,
+    closeDelete,
+    loadAll,
+    toast,
+  ]);
 
   const startRollover = (phase: Phase) => {
     setRolloverSource(phase);
@@ -596,6 +629,12 @@ export function PhasesEditor() {
                 </p>
                 {impactLoading ? (
                   <p className="mt-1 text-xs">Löschvorschau wird geladen…</p>
+                ) : impactError ? (
+                  <p className="mt-1 text-xs">
+                    Die Löschvorschau konnte nicht geladen werden. Das Löschen
+                    ist erst möglich, sobald die Vorschau vorliegt. Bitte
+                    schließe den Dialog und versuche es erneut.
+                  </p>
                 ) : deleteImpact ? (
                   <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
                     <li>
@@ -613,12 +652,7 @@ export function PhasesEditor() {
                       werden endgültig gelöscht
                     </li>
                   </ul>
-                ) : (
-                  <p className="mt-1 text-xs">
-                    Alle Anmeldungen und Betreuungsangebote dieser Phase werden
-                    endgültig gelöscht.
-                  </p>
-                )}
+                ) : null}
               </div>
               {!impactLoading && deleteImpact && (
                 <div className="rounded-lg bg-[#83CD2D]/10 px-3 py-2 text-sm text-[#4a7a15]">
@@ -630,10 +664,13 @@ export function PhasesEditor() {
             </div>
           }
           gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+          confirmDisabled={
+            impactLoading || !deleteImpact || Boolean(impactError)
+          }
           onConfirm={confirmDelete}
           onClose={closeDelete}
           loading={deletingId === deleteTarget.id}
-          error={deleteError}
+          error={impactError || deleteError}
         />
       )}
     </div>
