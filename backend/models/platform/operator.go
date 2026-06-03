@@ -20,6 +20,35 @@ type Operator struct {
 	PasswordHash string     `bun:"password_hash,notnull" json:"-"`
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
+
+	// MFA-Lockout fields (operator MFA is hardcoded mandatory; lockout mirrors auth.accounts)
+	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
+	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
+}
+
+// IsMFALocked reports whether the operator is currently in the MFA-failure
+// cooldown window.
+func (o *Operator) IsMFALocked() bool {
+	if o.MFALockedUntil == nil {
+		return false
+	}
+	return time.Now().Before(*o.MFALockedUntil)
+}
+
+// IncrementMFAAttempts records a failed MFA verification and applies the
+// 15-minute lockout once the threshold of 5 failures is hit.
+func (o *Operator) IncrementMFAAttempts() {
+	o.MFAAttempts++
+	if o.MFAAttempts >= 5 {
+		lockUntil := time.Now().Add(15 * time.Minute)
+		o.MFALockedUntil = &lockUntil
+	}
+}
+
+// ResetMFAAttempts clears any in-flight MFA-failure counter and lockout.
+func (o *Operator) ResetMFAAttempts() {
+	o.MFAAttempts = 0
+	o.MFALockedUntil = nil
 }
 
 func (o *Operator) BeforeAppendModel(query any) error {

@@ -90,6 +90,7 @@ describe("api.ts helper functions", () => {
           inHouse: true,
           groupId: "123",
           locationState: "transit",
+          dayStatus: "comes_today",
           page: 2,
           pageSize: 25,
           token: "test-token",
@@ -101,6 +102,7 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("in_house=true");
         expect(callUrl).toContain("group_id=123");
         expect(callUrl).toContain("location_state=transit");
+        expect(callUrl).toContain("day_status=comes_today");
         expect(callUrl).toContain("page=2");
         expect(callUrl).toContain("page_size=25");
       } finally {
@@ -937,6 +939,58 @@ describe("api.ts helper functions", () => {
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
         expect(callUrl).toContain("include_arrival_times=true");
+      } finally {
+        restore();
+      }
+    });
+
+    it("appends the administrative filters (bus, photo consent, pickup rule)", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          bus: "yes",
+          photoConsent: "no",
+          pickupStatus: "pickedUp",
+          token: "test-token",
+        });
+
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).toContain("bus=yes");
+        expect(callUrl).toContain("photo_consent=no");
+        expect(callUrl).toContain("pickup_status=pickedUp");
+      } finally {
+        restore();
+      }
+    });
+
+    it("omits the administrative filters when they are not set", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: [],
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await studentService.getStudents({
+          search: "Test",
+          token: "test-token",
+        });
+
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).not.toContain("bus=");
+        expect(callUrl).not.toContain("photo_consent=");
+        expect(callUrl).not.toContain("pickup_status=");
       } finally {
         restore();
       }

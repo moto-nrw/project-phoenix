@@ -246,6 +246,14 @@ func (noopAccountRepository) FindEmailsByAccountIDs(context.Context, []int64) (m
 	panic("FindEmailsByAccountIDs not implemented")
 }
 
+func (noopAccountRepository) IncrementMFAAttempts(context.Context, int64, int, time.Duration) (authModel.MFAAttemptResult, error) {
+	panic("IncrementMFAAttempts not implemented")
+}
+
+func (noopAccountRepository) ResetMFAAttempts(context.Context, int64) error {
+	panic("ResetMFAAttempts not implemented")
+}
+
 func (noopAccountRepository) FindAvatarsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
 	panic("FindAvatarsByAccountIDs not implemented")
 }
@@ -363,6 +371,19 @@ func (r *stubAccountRepository) SetActive(_ context.Context, id int64, active bo
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+// IncrementMFAAttempts / ResetMFAAttempts are part of the
+// AccountRepository interface as of #1430 review item #6 (atomic MFA
+// lockout counter). This stub doesn't exercise the MFA flow, so the
+// methods panic if any test in this package ever reaches them — that's
+// a signal to wire a richer fake rather than silently no-op.
+func (r *stubAccountRepository) IncrementMFAAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (authModel.MFAAttemptResult, error) {
+	panic("IncrementMFAAttempts not implemented in stubAccountRepository")
+}
+
+func (r *stubAccountRepository) ResetMFAAttempts(_ context.Context, _ int64) error {
+	panic("ResetMFAAttempts not implemented in stubAccountRepository")
 }
 
 // noopPasswordResetTokenRepository provides default panic implementations.
@@ -860,6 +881,17 @@ func (r *stubAccountRoleRepository) Create(_ context.Context, ar *authModel.Acco
 	return nil
 }
 
+func (r *stubAccountRoleRepository) FindByAccountAndRole(_ context.Context, accountID, roleID int64) (*authModel.AccountRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, assignment := range r.assignments {
+		if assignment.AccountID == accountID && assignment.RoleID == roleID {
+			return assignment, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1089,6 +1121,26 @@ func (r *stubAccountTenantRepository) Create(_ context.Context, accountTenant *a
 		r.nextID++
 		accountTenant.ID = r.nextID
 	}
+	r.mappings[accountTenant.ID] = accountTenant
+	return nil
+}
+
+func (r *stubAccountTenantRepository) EnsureActive(_ context.Context, accountTenant *authModel.AccountTenant) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountTenant.AccountID && mapping.TenantID == accountTenant.TenantID {
+			mapping.Status = authModel.AccountTenantStatusActive
+			mapping.ActivatedAt = accountTenant.ActivatedAt
+			mapping.DeactivatedAt = nil
+			return nil
+		}
+	}
+	if accountTenant.ID == 0 {
+		r.nextID++
+		accountTenant.ID = r.nextID
+	}
+	accountTenant.Status = authModel.AccountTenantStatusActive
 	r.mappings[accountTenant.ID] = accountTenant
 	return nil
 }

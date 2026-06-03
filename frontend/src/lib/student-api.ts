@@ -1,6 +1,7 @@
 // lib/student-api.ts
 import { getCachedSession, sessionFetch } from "./session-cache";
 import { createLogger } from "~/lib/logger";
+import { isAxiosError } from "axios";
 
 const logger = createLogger({ component: "StudentAPI" });
 import { env } from "~/env";
@@ -529,11 +530,14 @@ export async function fetchStudentPrivacyConsent(
     const response = await api.get<ApiResponse<BackendPrivacyConsent>>(url);
     return mapPrivacyConsentResponse(response.data.data);
   } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
     logger.error("failed to fetch privacy consent", {
       student_id: studentId,
       error: String(error),
     });
-    return null;
+    throw error;
   }
 }
 

@@ -219,7 +219,12 @@ export default function StudentFeedbackHistoryPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <BackButton referrer={`/students/${studentId}?from=${referrer}`} />
+      {/* tab=historie returns to the originating tab on the detail page
+          (this sub-page lives under Historie, issue #1501); from= still drives
+          the detail page's own back button to the list. */}
+      <BackButton
+        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
+      />
 
       {/* Header */}
       <div className="mb-6 ml-6">

@@ -47,6 +47,7 @@ describe("enrollment-submission-api", () => {
               is_active: true,
             },
           ],
+          care_offering_selection_mode: "at_least_one",
           care_required: true,
         },
       }),
@@ -55,6 +56,7 @@ describe("enrollment-submission-api", () => {
     await expect(
       fetchPublicCareOfferings("test tenant", "phase/5"),
     ).resolves.toMatchObject({
+      careOfferingSelectionMode: "at_least_one",
       careRequired: true,
       offerings: [{ id: "11", name: "Flexible Betreuung" }],
     });
@@ -71,6 +73,7 @@ describe("enrollment-submission-api", () => {
 
     await expect(fetchPublicCareOfferings("tenant", "5")).resolves.toEqual({
       offerings: [],
+      careOfferingSelectionMode: "optional",
       careRequired: false,
     });
   });
@@ -103,6 +106,7 @@ describe("enrollment-submission-api", () => {
             service_start_date: "2026-08-01",
             service_end_date: "2027-07-31",
             show_status_reason_to_parent: true,
+            care_offering_selection_mode: "at_least_one",
           },
         ],
       }),

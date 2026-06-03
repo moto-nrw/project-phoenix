@@ -75,6 +75,19 @@ func (m *mockOperatorRepo) UpdateLastLogin(ctx context.Context, id int64) error 
 	return nil
 }
 
+// IncrementMFAAttempts / ResetMFAAttempts (added for #1430 review item #6
+// atomic MFA lockout counter) — default to a no-op zero-value result so
+// tests that don't exercise the MFA failure path continue to compile and
+// run. Tests that DO exercise it (e.g. handleFailedAttempt under race)
+// should swap in a fake that records calls.
+func (m *mockOperatorRepo) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (platform.OperatorMFAAttemptResult, error) {
+	return platform.OperatorMFAAttemptResult{}, nil
+}
+
+func (m *mockOperatorRepo) ResetMFAAttempts(ctx context.Context, id int64) error {
+	return nil
+}
+
 // Shared mock for audit log repository
 type mockAuditLogRepoShared struct {
 	createFn func(ctx context.Context, entry *platform.OperatorAuditLog) error
@@ -102,6 +115,7 @@ func (m *mockAuditLogRepoShared) FindByDateRange(ctx context.Context, start, end
 // Shared mock for account tenant repository
 type mockAccountTenantRepo struct {
 	createFn                     func(ctx context.Context, mapping *auth.AccountTenant) error
+	ensureActiveFn               func(ctx context.Context, mapping *auth.AccountTenant) error
 	findActiveByAccountIDFn      func(ctx context.Context, accountID int64) ([]auth.AccountTenant, error)
 	existsByAccountAndTenantFn   func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	listAccountsByTenantIDFn     func(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error)
@@ -112,6 +126,13 @@ type mockAccountTenantRepo struct {
 func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.AccountTenant) error {
 	if m.createFn != nil {
 		return m.createFn(ctx, mapping)
+	}
+	return nil
+}
+
+func (m *mockAccountTenantRepo) EnsureActive(ctx context.Context, mapping *auth.AccountTenant) error {
+	if m.ensureActiveFn != nil {
+		return m.ensureActiveFn(ctx, mapping)
 	}
 	return nil
 }

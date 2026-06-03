@@ -41,7 +41,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   try {
-    const body = (await request.json()) as { name?: unknown; fields?: unknown };
+    const body = (await request.json()) as {
+      name?: unknown;
+      fields?: unknown;
+      core_requirements?: unknown;
+    };
     const response = await fetch(`${getServerApiUrl()}/api/enrollment/schema`, {
       method: "POST",
       headers: {
@@ -51,6 +55,12 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         name: typeof body.name === "string" ? body.name : "",
         fields: body.fields ?? [],
+        // Forward core_requirements so per-template required-state for
+        // built-in fields (e.g. guardian_phone) is persisted. Omitting it
+        // here silently dropped the admin toggle.
+        ...(body.core_requirements === undefined
+          ? {}
+          : { core_requirements: body.core_requirements }),
       }),
     });
     const payload = await response.json().catch(() => ({}));

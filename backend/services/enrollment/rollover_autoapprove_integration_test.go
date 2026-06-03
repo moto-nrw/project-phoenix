@@ -93,6 +93,12 @@ func seedApprovedChildWithStudent(
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
 		GuardianEmail:     guardianEmail,
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           false,
+		},
 		Children: []enrollmentService.SubmitChild{
 			{
 				FirstName:        childFirst,

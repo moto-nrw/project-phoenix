@@ -169,6 +169,7 @@ func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardi
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
 		GuardianEmail:     guardianEmail,
+		ConsentFlags:      rolloverConsentFlags(),
 		Children: []enrollmentService.SubmitChild{
 			{
 				FirstName:        childFirst,
@@ -191,6 +192,15 @@ func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardi
 	updated, err := env.repos.RequestChild.FindByID(ctx, child.ID)
 	require.NoError(t, err)
 	return updated
+}
+
+func rolloverConsentFlags() map[string]any {
+	return map[string]any{
+		"agb":             true,
+		"data_processing": true,
+		"email_contact":   true,
+		"photo":           false,
+	}
 }
 
 // validRolloverRequest is a request-body builder. Caller passes mode +
@@ -309,6 +319,7 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.com",
+		ConsentFlags:      rolloverConsentFlags(),
 		Children: []enrollmentService.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -372,6 +383,7 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 		GuardianFirstName: "Beata",
 		GuardianLastName:  "Withdrawn",
 		GuardianEmail:     "withdrawn@example.com",
+		ConsentFlags:      rolloverConsentFlags(),
 		Children: []enrollmentService.SubmitChild{
 			{FirstName: "Max", LastName: "Withdrawn", DateOfBirth: time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC), TargetGradeLevel: &one},
 		},

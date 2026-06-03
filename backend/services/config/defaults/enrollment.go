@@ -96,12 +96,6 @@ func registerEnrollmentCareOfferings() {
 		Condition: "eq",
 		Value:     true,
 	}
-	dependsOnCareEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentCareOfferingsEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
-
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCareOfferingsEnabled,
 		Label:           "Betreuungsangebote anbieten",
@@ -116,19 +110,9 @@ func registerEnrollmentCareOfferings() {
 		DependsOn:       dependsOnEnabled,
 	})
 
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentCareOfferingsRequired,
-		Label:           "Betreuungsauswahl verpflichtend",
-		Description:     "Eltern müssen mindestens ein Betreuungsangebot auswählen, bevor sie die Anmeldung absenden können.",
-		Type:            config.FieldBoolean,
-		Default:         false,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "enrollment",
-		Category:        "betreuungsangebote",
-		SortOrder:       31,
-		DependsOn:       dependsOnCareEnabled,
-	})
+	// enrollment.care_offerings_required moved to per-phase
+	// care_offering_selection_mode. Migration 1.15.97 backfills existing
+	// phases from the old setting and then removes stored overrides.
 }
 
 func registerEnrollmentNotifications() {

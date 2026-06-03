@@ -184,6 +184,10 @@ function buildStudentQueryParams(filters?: {
   groupId?: string;
   roomId?: string;
   locationState?: "transit";
+  dayStatus?: "comes_today" | "not_coming_today";
+  bus?: "yes" | "no";
+  photoConsent?: "yes" | "no";
+  pickupStatus?: "self" | "pickedUp" | "none";
   page?: number;
   pageSize?: number;
   includePickupTimes?: boolean;
@@ -200,6 +204,14 @@ function buildStudentQueryParams(filters?: {
   if (filters?.roomId) params.append("room_id", filters.roomId);
   if (filters?.locationState)
     params.append("location_state", filters.locationState);
+  if (filters?.dayStatus) params.append("day_status", filters.dayStatus);
+  // Administrative filters (#1492). The backend applies these in-memory in the
+  // same pass as day_status, so pagination and counts stay correct server-side.
+  if (filters?.bus) params.append("bus", filters.bus);
+  if (filters?.photoConsent)
+    params.append("photo_consent", filters.photoConsent);
+  if (filters?.pickupStatus)
+    params.append("pickup_status", filters.pickupStatus);
   if (filters?.page) params.append("page", filters.page.toString());
   if (filters?.pageSize)
     params.append("page_size", filters.pageSize.toString());
@@ -780,6 +792,10 @@ export const studentService = {
     groupId?: string;
     roomId?: string;
     locationState?: "transit";
+    dayStatus?: "comes_today" | "not_coming_today";
+    bus?: "yes" | "no";
+    photoConsent?: "yes" | "no";
+    pickupStatus?: "self" | "pickedUp" | "none";
     page?: number;
     pageSize?: number;
     includePickupTimes?: boolean;

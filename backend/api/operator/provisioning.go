@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -28,6 +29,8 @@ const seedTokenHeader = "X-Phoenix-Seed-Token"
 type ProvisioningResource struct {
 	service                    platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
+	TenantMFAService           authSvc.MFAService
+	AccountTenantRepository    authModels.AccountTenantRepository
 	db                         *bun.DB
 }
 

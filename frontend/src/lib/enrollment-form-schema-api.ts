@@ -120,12 +120,17 @@ export interface FormField {
   target?: FormFieldTarget;
 }
 
+export type CoreRequirementKey = "guardian_phone";
+
+export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
+
 export interface FormSchema {
   id: string;
   name: string;
   version: number;
   is_active: boolean;
   fields: FormField[];
+  core_requirements?: CoreRequirements;
   created_by: string;
   created_at: string;
 }
@@ -211,7 +216,7 @@ export function latestSchemasByName(schemas: FormSchema[]): FormSchema[] {
 
 /**
  * Public variant of fetchActiveSchema for the parent enrollment form.
- * Slug-gated, no JWT — backend resolves the tenant from the URL param
+ * Slug-gated, no JWT. Backend resolves the tenant from the URL param
  * and returns only the active schema's fields. Returns null when no
  * schema has been published yet (404), letting the form fall back to
  * core fields only without erroring out.
@@ -220,13 +225,14 @@ export interface PublicFormSchema {
   id: string;
   version: number;
   fields: FormField[];
+  core_requirements?: CoreRequirements;
 }
 
 /**
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the
  * public Turnstile site key (safe to render in the widget). When
- * site_key is empty the widget is hidden and submit falls through —
+ * site_key is empty the widget is hidden and submit falls through;
  * the backend's IsEnabled check still gates verification.
  */
 export interface PublicCaptchaConfig {
@@ -315,17 +321,18 @@ export async function fetchPublicActiveSchema(
 
 /**
  * Creates a new named schema (version 1). Backend rejects when a
- * schema with the same name already exists — use updateSchema in
+ * schema with the same name already exists. Use updateSchema in
  * that case.
  */
 export async function createSchema(
   name: string,
   fields: FormField[],
+  coreRequirements: CoreRequirements = {},
 ): Promise<FormSchema> {
   const response = await fetch(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, fields }),
+    body: JSON.stringify({ name, fields, core_requirements: coreRequirements }),
   });
   if (!response.ok) {
     const payload = (await response
@@ -345,17 +352,23 @@ export async function createSchema(
 /**
  * Publishes a new version of an existing named schema. The new row
  * inherits the source schema's name and uses max(version)+1 for that
- * name. Older versions stay in place — already-bound phases keep
- * their pinned schema_id.
+ * name. Older versions stay in place for historical submissions, and
+ * phases using an older version of this template are moved to the new
+ * schema_id.
  */
 export async function updateSchema(
   id: string,
   fields: FormField[],
+  coreRequirements?: CoreRequirements,
 ): Promise<FormSchema> {
+  const body =
+    coreRequirements === undefined
+      ? { fields }
+      : { fields, core_requirements: coreRequirements };
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const payload = (await response

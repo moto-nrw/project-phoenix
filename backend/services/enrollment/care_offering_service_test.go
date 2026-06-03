@@ -30,7 +30,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	})
 
 	phase := &enrollmentModels.Phase{
-		Name:             "phase-" + t.Name(),
+		Name:             uniqueSchemaName("phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
 		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
@@ -176,7 +176,7 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	// Build a second phase as the clone target.
 	repoFactory := repositories.NewFactory(db)
 	target := &enrollmentModels.Phase{
-		Name:             "phase-clone-target-" + t.Name(),
+		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
 		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
 		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),

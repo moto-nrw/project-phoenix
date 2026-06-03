@@ -62,6 +62,7 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters,
     onClearAllFilters,
     search,
+    overflowMenu,
   }: {
     filters: Array<{
       id: string;
@@ -72,6 +73,7 @@ vi.mock("~/components/ui/page-header", () => ({
     activeFilters: Array<{ id: string; label: string }>;
     onClearAllFilters: () => void;
     search: { value: string; onChange: (v: string) => void };
+    overflowMenu?: Array<{ label: string; onClick: () => void }>;
   }) => (
     <div data-testid="page-header">
       <input
@@ -119,11 +121,35 @@ vi.mock("~/components/ui/page-header", () => ({
       <button data-testid="clear-filters" onClick={onClearAllFilters}>
         Clear
       </button>
+      {(overflowMenu ?? []).map((item) => (
+        <button
+          key={item.label}
+          data-testid={`overflow-${item.label}`}
+          onClick={item.onClick}
+        >
+          {item.label}
+        </button>
+      ))}
     </div>
   ),
 }));
 
-// Mock StudentPresenceBadge — wrapper the page now renders instead of
+// Mock the export modal so a test can capture the filters prop it receives
+// and confirm no active filter is dropped on the way to the export payload.
+vi.mock("~/components/students/student-export-modal", () => ({
+  StudentExportModal: ({
+    isOpen,
+    filters,
+  }: {
+    isOpen: boolean;
+    filters: Record<string, string>;
+  }) =>
+    isOpen ? (
+      <div data-testid="export-modal" data-filters={JSON.stringify(filters)} />
+    ) : null,
+}));
+
+// Mock StudentPresenceBadge: wrapper the page now renders instead of
 // the bare LocationBadge, so binary-mode tenants can hide detailed labels.
 vi.mock("@/components/ui/student-presence-badge", () => ({
   StudentPresenceBadge: ({
@@ -140,7 +166,7 @@ vi.mock("@/components/ui/location-badge", () => ({
   ),
 }));
 
-// Mock location helpers — LOCATION_COLORS is consumed by student-card.tsx
+// Mock location helpers: LOCATION_COLORS is consumed by student-card.tsx
 // (check-in mode tint), so the mock must expose the brand palette even if
 // individual tests don't assert on colors.
 vi.mock("~/lib/location-helper", () => ({
@@ -174,7 +200,7 @@ vi.mock("~/lib/location-helper", () => ({
 }));
 
 // Mock school-checkin FAB + hook so existing search tests aren't
-// responsible for the new floating mode trigger —
+// responsible for the new floating mode trigger;
 // page.school-checkin.test.tsx covers it dedicatedly.
 vi.mock("~/components/students/school-checkin-fab", () => ({
   SchoolCheckinFab: () => <div data-testid="school-checkin-fab" />,
@@ -235,6 +261,10 @@ const mockStudents = [
     current_location: "Raum 101",
     arrival_time: "08:00",
     pickup_time: "15:30",
+    pickup_status: "Geht alleine nach Hause",
+    bus: true,
+    photo_consent_given: true,
+    photo_consent_given_at: "2026-01-01T10:00:00Z",
     has_full_access: true,
   },
   {
@@ -245,6 +275,9 @@ const mockStudents = [
     group_name: "Gruppe B",
     current_location: "Zuhause",
     arrival_time: "08:30",
+    pickup_status: "Wird abgeholt",
+    bus: false,
+    photo_consent_given: false,
     has_full_access: true,
   },
   {
@@ -256,6 +289,9 @@ const mockStudents = [
     current_location: "Unterwegs",
     arrival_time: "08:15",
     pickup_time: "16:00",
+    pickup_status: "Geht alleine nach Hause",
+    bus: true,
+    photo_consent_given: false,
     has_full_access: true,
   },
   {
@@ -266,6 +302,10 @@ const mockStudents = [
     group_name: "Gruppe C",
     current_location: "Schulhof",
     arrival_time: "09:00",
+    pickup_status: "Wird abgeholt",
+    bus: false,
+    photo_consent_given: true,
+    photo_consent_given_at: "2026-01-02T10:00:00Z",
     has_full_access: true,
   },
 ];
@@ -332,6 +372,45 @@ function mockUseSWRAuthWithStudents(
   });
 }
 
+// Mocks useSWRAuth so the students SWR fetcher is captured (not auto-run) and
+// returns it. Lets a test execute the fetcher itself and assert which filters
+// the page forwards to studentService.getStudents, the real backend contract
+// for the #1492 administrative filters.
+function captureStudentsFetcher(swrModule: typeof import("~/lib/swr")) {
+  const captured: { current: (() => Promise<unknown>) | null } = {
+    current: null,
+  };
+  vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+    if (
+      typeof key === "string" &&
+      key.startsWith("search-students-") &&
+      fetcher
+    ) {
+      captured.current = fetcher as () => Promise<unknown>;
+    }
+    if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+      return {
+        data: undefined,
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+    if (key === "search-rooms-list") {
+      return {
+        data: [],
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>;
+    }
+    return {
+      data: { students: mockStudents },
+      isLoading: false,
+      error: null,
+    } as ReturnType<typeof swrModule.useSWRAuth>;
+  });
+  return captured;
+}
+
 describe("StudentSearchPage", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -340,8 +419,12 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("group_id");
     mockSearchParams.delete("room_id");
     mockSearchParams.delete("room_name");
+    mockSearchParams.delete("bus");
+    mockSearchParams.delete("photo_consent");
+    mockSearchParams.delete("pickup_status");
     mockSearchParams.delete("pickup_time");
     mockSearchParams.delete("arrival_time");
+    mockSearchParams.delete("day_status");
     mockSearchParams.delete("tracking");
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
@@ -358,6 +441,12 @@ describe("StudentSearchPage", () => {
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof sessionModule.useSession>);
+
+    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: { studentPhotosEnabled: true },
+    } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
 
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
@@ -399,6 +488,18 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         const attendanceFilter = screen.getByTestId("filter-attendance");
         expect(attendanceFilter).toHaveValue("all");
+      });
+    });
+
+    it("reads day_status from URL params", async () => {
+      mockSearchParams.set("day_status", "comes_today");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-dayStatus")).toHaveValue(
+          "comes_today",
+        );
       });
     });
 
@@ -473,11 +574,14 @@ describe("StudentSearchPage", () => {
       mockSearchParams.set("group_id", "1");
       mockSearchParams.set("room_id", "101");
       mockSearchParams.set("room_name", "Raum 101");
+      mockSearchParams.set("bus", "yes");
+      mockSearchParams.set("photo_consent", "no");
+      mockSearchParams.set("pickup_status", "pickedUp");
       mockSearchParams.set("pickup_time", "15:30");
       mockSearchParams.set("arrival_time", "08:00");
       mockSearchParams.set("status", "anwesend");
       mockSearchParams.set("sort", "pickup");
-      mockSearchParams.set("view", "room");
+      mockSearchParams.set("view", "pickup-status");
 
       render(<StudentSearchPage />);
 
@@ -485,11 +589,18 @@ describe("StudentSearchPage", () => {
         expect(screen.getByTestId("filter-year")).toHaveValue("1");
         expect(screen.getByTestId("filter-group")).toHaveValue("1");
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
+        expect(screen.getByTestId("filter-bus")).toHaveValue("yes");
+        expect(screen.getByTestId("filter-photoConsent")).toHaveValue("no");
+        expect(screen.getByTestId("filter-pickupStatus")).toHaveValue(
+          "pickedUp",
+        );
         expect(screen.getByTestId("filter-pickupTime")).toHaveValue("15:30");
         expect(screen.getByTestId("filter-arrivalTime")).toHaveValue("08:00");
         expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
         expect(screen.getByTestId("filter-sort")).toHaveValue("pickup");
-        expect(screen.getByTestId("filter-groupMode")).toHaveValue("room");
+        expect(screen.getByTestId("filter-groupMode")).toHaveValue(
+          "pickup-status",
+        );
       });
     });
 
@@ -511,29 +622,44 @@ describe("StudentSearchPage", () => {
       fireEvent.change(screen.getByTestId("filter-attendance"), {
         target: { value: "unterwegs" },
       });
+      fireEvent.change(screen.getByTestId("filter-bus"), {
+        target: { value: "yes" },
+      });
+      fireEvent.change(screen.getByTestId("filter-photoConsent"), {
+        target: { value: "no" },
+      });
+      fireEvent.change(screen.getByTestId("filter-pickupStatus"), {
+        target: { value: "self" },
+      });
       fireEvent.change(screen.getByTestId("filter-sort"), {
         target: { value: "pickup" },
       });
       fireEvent.change(screen.getByTestId("filter-groupMode"), {
-        target: { value: "status" },
+        target: { value: "pickup-status" },
       });
 
       let url = new URL(window.location.href);
       expect(url.searchParams.get("year")).toBe("2");
       expect(url.searchParams.get("group_id")).toBe("2");
       expect(url.searchParams.get("status")).toBe("unterwegs");
+      expect(url.searchParams.get("bus")).toBe("yes");
+      expect(url.searchParams.get("photo_consent")).toBe("no");
+      expect(url.searchParams.get("pickup_status")).toBe("self");
       expect(url.searchParams.get("sort")).toBe("pickup");
-      expect(url.searchParams.get("view")).toBe("status");
+      expect(url.searchParams.get("view")).toBe("pickup-status");
       expect(window.history.state).toEqual({ preserved: true });
       expect(
         JSON.parse(
           localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY) ?? "{}",
         ),
       ).toEqual({
+        bus: "yes",
         group_id: "2",
+        photo_consent: "no",
+        pickup_status: "self",
         sort: "pickup",
         status: "unterwegs",
-        view: "status",
+        view: "pickup-status",
         year: "2",
       });
 
@@ -547,6 +673,66 @@ describe("StudentSearchPage", () => {
       ).toBeNull();
     });
 
+    it("keeps day_status and administrative filters together across URL, localStorage and export", async () => {
+      window.history.replaceState({ preserved: true }, "", "/students/search");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-dayStatus")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-dayStatus"), {
+        target: { value: "comes_today" },
+      });
+      fireEvent.change(screen.getByTestId("filter-bus"), {
+        target: { value: "yes" },
+      });
+      fireEvent.change(screen.getByTestId("filter-photoConsent"), {
+        target: { value: "no" },
+      });
+      fireEvent.change(screen.getByTestId("filter-pickupStatus"), {
+        target: { value: "self" },
+      });
+
+      // Day-planning filter and the administrative filters must all survive in
+      // the URL, not just one group or the other.
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get("day_status")).toBe("comes_today");
+      expect(url.searchParams.get("bus")).toBe("yes");
+      expect(url.searchParams.get("photo_consent")).toBe("no");
+      expect(url.searchParams.get("pickup_status")).toBe("self");
+
+      // ...and in localStorage.
+      expect(
+        JSON.parse(
+          localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY) ?? "{}",
+        ),
+      ).toMatchObject({
+        day_status: "comes_today",
+        bus: "yes",
+        photo_consent: "no",
+        pickup_status: "self",
+      });
+
+      // ...and in the payload handed to the export modal.
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({
+        day_status: "comes_today",
+        bus: "yes",
+        photo_consent: "no",
+        pickup_status: "self",
+      });
+    });
+
     it("restores filters from localStorage when opening without URL params", async () => {
       localStorage.setItem(
         STUDENT_SEARCH_FILTER_STORAGE_KEY,
@@ -555,9 +741,12 @@ describe("StudentSearchPage", () => {
           group_id: "2",
           room_id: "101",
           room_name: "Raum 101",
+          bus: "no",
+          photo_consent: "yes",
+          pickup_status: "none",
           status: "schulhof",
           sort: "arrival",
-          view: "room",
+          view: "pickup-status",
         }),
       );
 
@@ -567,9 +756,14 @@ describe("StudentSearchPage", () => {
         expect(screen.getByTestId("filter-year")).toHaveValue("2");
         expect(screen.getByTestId("filter-group")).toHaveValue("2");
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
+        expect(screen.getByTestId("filter-bus")).toHaveValue("no");
+        expect(screen.getByTestId("filter-photoConsent")).toHaveValue("yes");
+        expect(screen.getByTestId("filter-pickupStatus")).toHaveValue("none");
         expect(screen.getByTestId("filter-attendance")).toHaveValue("schulhof");
         expect(screen.getByTestId("filter-sort")).toHaveValue("arrival");
-        expect(screen.getByTestId("filter-groupMode")).toHaveValue("room");
+        expect(screen.getByTestId("filter-groupMode")).toHaveValue(
+          "pickup-status",
+        );
       });
 
       const url = new URL(window.location.href);
@@ -577,6 +771,9 @@ describe("StudentSearchPage", () => {
       expect(url.searchParams.get("group_id")).toBe("2");
       expect(url.searchParams.get("room_id")).toBe("101");
       expect(url.searchParams.get("room_name")).toBe("Raum 101");
+      expect(url.searchParams.get("bus")).toBe("no");
+      expect(url.searchParams.get("photo_consent")).toBe("yes");
+      expect(url.searchParams.get("pickup_status")).toBe("none");
       expect(url.searchParams.get("status")).toBe("schulhof");
     });
 
@@ -763,7 +960,7 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      // The two time rows are replaced by the single absence line — no red
+      // The two time rows are replaced by the single absence line, no red
       // "overdue" arrival/pickup for a child who isn't coming today.
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
@@ -1206,6 +1403,7 @@ describe("StudentSearchPage", () => {
     });
 
     it("executes the students SWR fetcher", async () => {
+      mockSearchParams.set("day_status", "not_coming_today");
       const studentService = await import("~/lib/api");
       const mockGetStudents = vi.fn().mockResolvedValue({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
@@ -1263,7 +1461,9 @@ describe("StudentSearchPage", () => {
       expect(result).toEqual({
         students: [{ id: "1", first_name: "Test", second_name: "Student" }],
       });
-      expect(mockGetStudents).toHaveBeenCalled();
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ dayStatus: "not_coming_today" }),
+      );
     });
   });
 
@@ -1550,6 +1750,323 @@ describe("StudentSearchPage", () => {
     });
   });
 
+  describe("Administrative Student Filters", () => {
+    it("separates student caches when the photo feature flag changes", async () => {
+      const swrModule = await import("~/lib/swr");
+      const tenantProvider =
+        await import("~/components/tenant/tenant-provider");
+      const studentKeys: string[] = [];
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        if (typeof key === "string" && key.startsWith("search-students-")) {
+          studentKeys.push(key);
+        }
+
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: { studentPhotosEnabled: false },
+      } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
+
+      const { rerender } = render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(studentKeys.some((key) => key.includes("photos-disabled"))).toBe(
+          true,
+        );
+      });
+
+      vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: { studentPhotosEnabled: true },
+      } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
+
+      rerender(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(studentKeys.some((key) => key.includes("photos-enabled"))).toBe(
+          true,
+        );
+      });
+    });
+
+    it("keys tracking indicators by the fetched student ids", async () => {
+      mockSearchParams.set("bus", "yes");
+
+      const swrModule = await import("~/lib/swr");
+      const trackingKeys: string[] = [];
+      const completeStudents = [
+        { ...mockStudents[0]!, id: "first-page-student" },
+        { ...mockStudents[2]!, id: "later-page-student" },
+      ];
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        if (typeof key === "string" && key.startsWith("tracking-indicators-")) {
+          trackingKeys.push(key);
+          return {
+            data: undefined,
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        return {
+          data: { students: completeStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(trackingKeys).toContain(
+          "tracking-indicators-first-page-student,later-page-student",
+        );
+      });
+    });
+
+    it("includes pickup status filters in the students SWR cache key", async () => {
+      const swrModule = await import("~/lib/swr");
+      const studentKeys: string[] = [];
+
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        if (typeof key === "string" && key.startsWith("search-students-")) {
+          studentKeys.push(key);
+        }
+
+        return {
+          data: { students: mockStudents },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-pickupStatus")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-pickupStatus"), {
+        target: { value: "self" },
+      });
+
+      await waitFor(() => {
+        // pickup_status is the last segment of the students cache key, so a
+        // change to it must produce a key ending in the new value (forces SWR
+        // to refetch the now server-filtered page).
+        expect(studentKeys.some((key) => key.endsWith("-self"))).toBe(true);
+      });
+    });
+
+    it("delegates Buskind filtering to a single backend request (#1492)", async () => {
+      // Previously the page fetched every page client-side and filtered locally.
+      // The backend now filters + paginates server-side, so the fetcher makes a
+      // single getStudents call carrying bus and must NOT loop over pages.
+      mockSearchParams.set("bus", "yes");
+
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn().mockResolvedValue({
+        students: [{ ...mockStudents[0]!, id: "101", first_name: "OnlyPage" }],
+        pagination: {
+          current_page: 1,
+          page_size: 50,
+          total_pages: 1,
+          total_records: 1,
+        },
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
+      const swrModule = await import("~/lib/swr");
+      vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
+        if (key === "search-rooms-list") {
+          return {
+            data: [],
+            isLoading: false,
+            error: null,
+          } as ReturnType<typeof swrModule.useSWRAuth>;
+        }
+
+        if (
+          typeof key === "string" &&
+          key.includes("search-students") &&
+          fetcher
+        ) {
+          capturedStudentsFetcher = fetcher as () => Promise<unknown>;
+        }
+
+        return {
+          data: { students: [] },
+          isLoading: false,
+          error: null,
+        } as ReturnType<typeof swrModule.useSWRAuth>;
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(capturedStudentsFetcher).not.toBeNull();
+      });
+
+      await (capturedStudentsFetcher as unknown as () => Promise<unknown>)();
+
+      // Exactly one backend call, carrying bus, and no page-2 follow-up.
+      expect(mockGetStudents).toHaveBeenCalledTimes(1);
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ bus: "yes" }),
+      );
+      expect(mockGetStudents).not.toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+
+    it("uses consistent default labels for administrative filters", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-bus")).toBeInTheDocument();
+      });
+
+      expect(
+        (screen.getByTestId("filter-bus") as HTMLSelectElement)
+          .selectedOptions[0]?.textContent,
+      ).toBe("Buskind: Beliebig");
+      expect(
+        (screen.getByTestId("filter-photoConsent") as HTMLSelectElement)
+          .selectedOptions[0]?.textContent,
+      ).toBe("Fotoerlaubnis: Beliebig");
+      expect(
+        (screen.getByTestId("filter-pickupStatus") as HTMLSelectElement)
+          .selectedOptions[0]?.textContent,
+      ).toBe("Abholregelung: Beliebig");
+    });
+
+    it("forwards the Buskind filter to the backend (#1492)", async () => {
+      // Buskind is now a server-side filter, so the page must hand it to
+      // getStudents rather than re-filter the fetched page client-side. The
+      // actual exclusion (incl. GDPR redaction) is covered by the backend
+      // applyAdministrativeFilters tests.
+      mockSearchParams.set("bus", "yes");
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      await fetcher.current!();
+
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ bus: "yes" }),
+      );
+      expect(screen.getByTestId("active-filter-bus")).toHaveTextContent(
+        "Buskind",
+      );
+    });
+
+    it("forwards the photo consent filter to the backend (#1492)", async () => {
+      mockSearchParams.set("photo_consent", "no");
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      await fetcher.current!();
+
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ photoConsent: "no" }),
+      );
+    });
+
+    it("hides the photo consent filter when the tenant photo feature is disabled", async () => {
+      const tenantProvider =
+        await import("~/components/tenant/tenant-provider");
+      vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: { studentPhotosEnabled: false },
+      } as unknown as ReturnType<typeof tenantProvider.useTenantSafe>);
+      mockSearchParams.set("photo_consent", "no");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("filter-photoConsent"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("active-filter-photoConsent"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByText("Max")).toBeInTheDocument();
+        expect(screen.getByText("Lisa")).toBeInTheDocument();
+      });
+    });
+
+    it("hides the photo consent filter when the API omits consent state", async () => {
+      const redactedConsentStudents = mockStudents.map((student) => {
+        const copy: Partial<(typeof mockStudents)[number]> = { ...student };
+        delete copy.photo_consent_given;
+        delete copy.photo_consent_given_at;
+        return copy;
+      });
+
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: redactedConsentStudents },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("filter-photoConsent"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    // GDPR exclusion of redacted students from administrative filters is now
+    // enforced server-side (api/students applyAdministrativeFilters) and
+    // covered by its backend tests, so it no longer has a client-side
+    // equivalent here.
+  });
+
   describe("Pickup Time Filtering", () => {
     it("filters students by specific pickup time", async () => {
       render(<StudentSearchPage />);
@@ -1558,7 +2075,7 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("Max")).toBeInTheDocument();
       });
 
-      // Filter by 15:30 — only Max has this pickup time
+      // Filter by 15:30, only Max has this pickup time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
       fireEvent.change(pickupFilter, { target: { value: "15:30" } });
 
@@ -1577,7 +2094,7 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("Max")).toBeInTheDocument();
       });
 
-      // Filter by "none" — Anna and Lisa have no pickup_time
+      // Filter by "none": Anna and Lisa have no pickup_time
       const pickupFilter = screen.getByTestId("filter-pickupTime");
       fireEvent.change(pickupFilter, { target: { value: "none" } });
 
@@ -1629,13 +2146,13 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("Redacted")).toBeInTheDocument();
       });
 
-      // Apply "none" pickup time filter — redacted student should be excluded (GDPR)
+      // Apply "none" pickup time filter: redacted student should be excluded (GDPR)
       const pickupFilter = screen.getByTestId("filter-pickupTime");
       fireEvent.change(pickupFilter, { target: { value: "none" } });
 
       await waitFor(() => {
         expect(screen.getByText("Visible")).toBeInTheDocument();
-        // Redacted student must NOT appear — has_full_access=false means we
+        // Redacted student must NOT appear: has_full_access=false means we
         // can't know their pickup status, so they're excluded from filtering
         expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
       });
@@ -1658,7 +2175,7 @@ describe("StudentSearchPage", () => {
         ).toHaveTextContent("Keine Abholzeit");
       });
 
-      // Switch to specific time — verify chip label and clear-all
+      // Switch to specific time: verify chip label and clear-all
       fireEvent.change(pickupFilter, { target: { value: "15:30" } });
       await waitFor(() => {
         expect(
@@ -1718,7 +2235,7 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("NoPickup")).toBeInTheDocument();
       });
 
-      // Should show "Abholzeit: —" fallback for students with full access but no pickup time
+      // Should show the "Abholzeit:" em-dash fallback for students with full access but no pickup time
       expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
     });
   });
@@ -1822,6 +2339,69 @@ describe("StudentSearchPage", () => {
         .getAllByText(/^(Max|Tom|Lisa|Anna)$/)
         .map((node) => node.textContent);
       expect(renderedNames).toEqual(["Max", "Tom", "Lisa", "Anna"]);
+    });
+
+    it("forwards the pickup status filter to the backend (#1492)", async () => {
+      mockSearchParams.set("pickup_status", "self");
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      await fetcher.current!();
+
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ pickupStatus: "self" }),
+      );
+      expect(
+        screen.getByTestId("active-filter-pickupStatus"),
+      ).toHaveTextContent("Geht alleine nach Hause");
+    });
+
+    it("forwards the 'no pickup rule' filter to the backend (#1492)", async () => {
+      mockSearchParams.set("pickup_status", "none");
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      await fetcher.current!();
+
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ pickupStatus: "none" }),
+      );
+      expect(
+        screen.getByTestId("active-filter-pickupStatus"),
+      ).toHaveTextContent("Keine Abholregelung");
+    });
+
+    // GDPR exclusion of redacted students from the pickup-status filter is
+    // enforced and tested server-side now (see backend applyAdministrativeFilters).
+
+    it("groups students by permanent pickup status", async () => {
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-groupMode"), {
+        target: { value: "pickup-status" },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("active-filter-groupMode")).toHaveTextContent(
+          "Ansicht: Nach Abholregelung",
+        );
+      });
+
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
+      ).toEqual(["Geht alleine nach Hause", "Wird abgeholt"]);
     });
 
     it("groups students by status in operational order", async () => {
@@ -2159,7 +2739,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         // Felix missing HA → shown.
         expect(screen.getByText("Felix")).toBeInTheDocument();
-        // Redacted kid hidden — no tracking data AND has_full_access false.
+        // Redacted kid hidden: no tracking data AND has_full_access false.
         expect(screen.queryByText("Redacted")).not.toBeInTheDocument();
       });
     });
@@ -2171,7 +2751,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => expect(screen.getByText("Max")).toBeInTheDocument());
 
-      // Flip to arrival sort mode — component should re-render without error.
+      // Flip to arrival sort mode: component should re-render without error.
       fireEvent.change(screen.getByTestId("filter-sort"), {
         target: { value: "arrival" },
       });

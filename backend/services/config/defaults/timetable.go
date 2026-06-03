@@ -8,10 +8,10 @@ import (
 // template → instance materialization pipeline, the staff-facing auto-start
 // behaviour, and the GDPR retention window for completed/cancelled instances.
 //
-// Default values follow the RFC's §5.6 recommendations. In particular,
-// `materialization_enabled` and `auto_start_planned` both default to FALSE
-// so that WP-B7 is a pure no-op until the consuming services (WP-B8 / B9)
-// are shipped and a tenant explicitly opts in via the settings UI.
+// The top-level timetable feature is opt-out, so tenants see the navigation
+// entry and related settings unless they explicitly disable it. The automated
+// behaviours remain opt-in: `materialization_enabled` and `auto_start_planned`
+// both default to FALSE.
 //
 // The weekday option values match ISO 8601 numbering (1 = Monday … 7 = Sunday)
 // so they slot directly into time.Weekday comparisons after the usual +1 shift.
@@ -29,7 +29,7 @@ func init() {
 		Label:           "Stundenplan aktivieren",
 		Description:     "Zeigt den Stundenplan in der Navigation an und schaltet die passenden Einstellungen frei.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

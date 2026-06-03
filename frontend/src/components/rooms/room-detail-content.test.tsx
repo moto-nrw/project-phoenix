@@ -127,14 +127,18 @@ vi.mock("~/lib/date-helpers", () => ({
   formatDuration: (m: number) => `${m}m`,
 }));
 
-vi.mock("~/lib/room-helpers", () => ({
-  formatFloor: (n: number) => `Etage ${n}`,
-  // RoomDetailContent reads category accents through this helper after
-  // the categoryColors map was lifted into room-helpers.ts. Keep the stub
-  // deterministic so the timeline cards render without hitting the real
-  // module's imports.
-  getRoomCategoryColor: () => "#6B7280",
-}));
+// Pull ROOM_HISTORY_STATUS_FEATURE_DISABLED (and any other future exports)
+// from the real module so a backend/frontend constant rename can't silently
+// desync the test. Only the formatting helpers need stubbing — keep them
+// deterministic so timeline cards render without hitting transitive imports.
+vi.mock("~/lib/room-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/room-helpers")>();
+  return {
+    ...actual,
+    formatFloor: (n: number) => `Etage ${n}`,
+    getRoomCategoryColor: () => "#6B7280",
+  };
+});
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -175,7 +179,7 @@ const notOk = (): FetchResponse => ({
 // ----------------------------------------------------------------------------
 
 describe("useRoomDetail (via RoomDetailLoader)", () => {
-  it("maps a room with the bare-array history shape (legacy backend)", async () => {
+  it("maps a room with the bare-array history shape (aggregated sessions)", async () => {
     mockFetch
       .mockResolvedValueOnce(
         okJson({
@@ -193,22 +197,13 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
       .mockResolvedValueOnce(
         okJson([
           {
-            id: "h1",
-            room_id: 1001,
-            timestamp: "2026-04-30T08:00:00Z",
-            entry_type: "entry",
-            group_name: "Schildkröten",
+            session_id: 7001,
+            started_at: "2026-04-30T08:00:00Z",
+            ended_at: "2026-04-30T09:00:00Z",
+            duration_minutes: 60,
             activity_name: "Freispiel",
-            category: "Sport",
+            supervisor_name: "Birgit Braun",
             student_count: 4,
-          },
-          {
-            id: "h2",
-            room_id: 1001,
-            timestamp: "2026-04-30T09:00:00Z",
-            entry_type: "exit",
-            group_name: "Schildkröten",
-            activity_name: "Freispiel",
           },
         ]),
       );
@@ -223,11 +218,11 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
       expect(screen.getAllByText("Schmetterlingsraum")[0]).toBeInTheDocument(),
     );
     expect(screen.getAllByText(/Hauptgebäude/).length).toBeGreaterThan(0);
-    // The activity-name shows up inside the rendered history card, proving
-    // the fetcher mapped + grouped + rendered the entry/exit pair.
+    // The activity name renders inside the aggregated history card.
     expect(screen.getByText("Freispiel")).toBeInTheDocument();
-    // supervisor_names took precedence over supervisor_name.
-    expect(screen.getByText(/Birgit Braun/)).toBeInTheDocument();
+    // Both the room header (supervisor_names) and the session row
+    // (supervisor_name) carry "Birgit Braun".
+    expect(screen.getAllByText(/Birgit Braun/).length).toBeGreaterThan(0);
   });
 
   it("maps a room with the wrapped history shape ({ data: [...] })", async () => {
@@ -240,12 +235,13 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
           status: "success",
           data: [
             {
-              id: 9,
-              room_id: 2002,
-              timestamp: "2026-04-29T10:00:00Z",
-              entry_type: "entry",
-              group_name: "Igel",
+              session_id: 9,
+              started_at: "2026-04-29T10:00:00Z",
+              ended_at: null,
+              duration_minutes: null,
               activity_name: "Lesen",
+              supervisor_name: "",
+              student_count: 0,
             },
           ],
         }),
@@ -260,7 +256,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Saal")[0]).toBeInTheDocument(),
     );
-    // Open entry without a matching exit shows the "Laufend" marker.
+    // A session without ended_at renders the "Laufend" marker.
     expect(screen.getByText("Laufend")).toBeInTheDocument();
     expect(screen.getByText("Lesen")).toBeInTheDocument();
   });
@@ -286,6 +282,35 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 
     await waitFor(() =>
       expect(screen.getAllByText("Kleiner Raum")[0]).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
+  });
+
+  it("hides history deliberately when the tenant has gdpr.attendance_log_enabled = false", async () => {
+    // Issue #1425 follow-up: the proxy route translates the backend's 403
+    // into { status: "feature_disabled", data: [] }. The hook must surface
+    // historyDisabled so the section is hidden EXPLICITLY (not just
+    // because `data` happens to be empty). A future placeholder for the
+    // empty-history case must not accidentally render here.
+    mockFetch
+      .mockResolvedValueOnce(
+        okJson({ id: 5005, name: "GDPR-Off Raum", is_occupied: false }),
+      )
+      .mockResolvedValueOnce(
+        okJson({
+          status: "feature_disabled",
+          data: [],
+        }),
+      );
+
+    render(
+      <Wrapper>
+        <RoomDetailLoader roomId="feature-disabled" />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByText("GDPR-Off Raum")[0]).toBeInTheDocument(),
     );
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
@@ -508,54 +533,47 @@ describe("RoomDetailContent", () => {
     expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
-  it("groups entry+exit pairs into a single activity card with the formatted duration", () => {
+  it("renders an aggregated session as a single card with the formatted duration", () => {
     render(
       <Wrapper>
         <RoomDetailContent
           room={{ ...baseRoom }}
           history={[
             {
-              id: "a",
-              timestamp: "2026-04-30T08:00:00Z",
-              entry_type: "entry",
-              groupName: "G",
+              sessionId: "a",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: "2026-04-30T08:45:00Z",
+              durationMinutes: 45,
               activityName: "Mathe",
-              category: "Themenraum",
               supervisorName: "Frau A",
               studentCount: 12,
-              duration_minutes: 45,
-            },
-            {
-              id: "b",
-              timestamp: "2026-04-30T08:45:00Z",
-              entry_type: "exit",
-              groupName: "G",
-              activityName: "Mathe",
             },
           ]}
         />
       </Wrapper>,
     );
     expect(screen.getByText("Mathe")).toBeInTheDocument();
-    // duration_minutes from the entry takes precedence over calculateDuration().
+    // duration_minutes from the session takes precedence over calculateDuration().
     expect(screen.getByText("45m")).toBeInTheDocument();
     expect(screen.getByText(/Frau A/)).toBeInTheDocument();
     expect(screen.getByText(/Teilnehmer: 12/)).toBeInTheDocument();
     expect(screen.queryByText("Laufend")).not.toBeInTheDocument();
   });
 
-  it("marks an entry without a matching exit as 'Laufend'", () => {
+  it("marks a session without ended_at as 'Laufend'", () => {
     render(
       <Wrapper>
         <RoomDetailContent
           room={{ ...baseRoom }}
           history={[
             {
-              id: "a",
-              timestamp: "2026-04-30T08:00:00Z",
-              entry_type: "entry",
-              groupName: "G",
+              sessionId: "a",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
               activityName: "Sport",
+              supervisorName: "",
+              studentCount: 0,
             },
           ]}
         />
@@ -580,32 +598,38 @@ describe("RoomDetailContent", () => {
     });
   });
 
-  it("sorts history days newest first and entries within a day by start time", () => {
+  it("sorts history days newest first and sessions within a day by start time DESC", () => {
     render(
       <Wrapper>
         <RoomDetailContent
           room={{ ...baseRoom }}
           history={[
             {
-              id: "a",
-              timestamp: "2026-04-29T09:30:00Z",
-              entry_type: "entry",
-              groupName: "A",
-              activityName: "Früher",
+              sessionId: "a",
+              startedAt: "2026-04-29T09:30:00Z",
+              endedAt: null,
+              durationMinutes: null,
+              activityName: "Mittag",
+              supervisorName: "",
+              studentCount: 0,
             },
             {
-              id: "b",
-              timestamp: "2026-04-30T08:00:00Z",
-              entry_type: "entry",
-              groupName: "B",
+              sessionId: "b",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
               activityName: "Neuer Tag",
+              supervisorName: "",
+              studentCount: 0,
             },
             {
-              id: "c",
-              timestamp: "2026-04-29T08:00:00Z",
-              entry_type: "entry",
-              groupName: "C",
-              activityName: "Noch früher",
+              sessionId: "c",
+              startedAt: "2026-04-29T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
+              activityName: "Morgens",
+              supervisorName: "",
+              studentCount: 0,
             },
           ]}
         />
@@ -615,7 +639,8 @@ describe("RoomDetailContent", () => {
     const activityNames = screen
       .getAllByRole("heading", { level: 4 })
       .map((heading) => heading.textContent);
-    expect(activityNames).toEqual(["Neuer Tag", "Noch früher", "Früher"]);
+    // Newest day first, within a day newest session first.
+    expect(activityNames).toEqual(["Neuer Tag", "Mittag", "Morgens"]);
   });
 });
 

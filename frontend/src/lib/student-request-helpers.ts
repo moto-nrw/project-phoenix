@@ -4,11 +4,19 @@
  */
 
 import type { Student } from "~/lib/student-helpers";
+import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
+import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
+import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
+import { ApiResponseError } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentRequestHelpers" });
 import { prepareStudentForBackend } from "~/lib/student-helpers";
 import { LOCATION_STATUSES } from "~/lib/location-helper";
+
+function createPermissionError(message: string): ApiResponseError {
+  return new ApiResponseError(403, JSON.stringify({ error: message }));
+}
 
 /**
  * Backend student request structure
@@ -31,6 +39,13 @@ interface BackendStudentRequest {
   guardian_contact?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  // Guardians created atomically with the student (guardian_profiles system).
+  guardians?: StudentGuardianPayload[];
+  // Weekly recurring schedules created atomically with the student. Arrival
+  // entries are already backend-shaped; pickup entries are snake_case via
+  // BackendPickupScheduleRequest.
+  arrival_schedules?: ArrivalScheduleFormEntry[];
+  pickup_schedules?: BackendPickupScheduleRequest[];
 }
 
 /**
@@ -134,6 +149,9 @@ export function buildBackendStudentRequest(
   body: Partial<Student> & {
     guardian_email?: string;
     guardian_phone?: string;
+    guardians?: StudentGuardianPayload[];
+    arrival_schedules?: ArrivalScheduleFormEntry[];
+    pickup_schedules?: BackendPickupScheduleRequest[];
   },
   guardianContact: GuardianContact,
 ): BackendStudentRequest {
@@ -171,6 +189,19 @@ export function buildBackendStudentRequest(
   if (guardianContact.phone || backendData.guardian_phone) {
     request.guardian_phone =
       guardianContact.phone ?? backendData.guardian_phone;
+  }
+
+  // Pass through guardians (guardian_profiles system) for atomic creation.
+  if (body.guardians && body.guardians.length > 0) {
+    request.guardians = body.guardians;
+  }
+
+  // Pass through weekly schedules for atomic creation.
+  if (body.arrival_schedules && body.arrival_schedules.length > 0) {
+    request.arrival_schedules = body.arrival_schedules;
+  }
+  if (body.pickup_schedules && body.pickup_schedules.length > 0) {
+    request.pickup_schedules = body.pickup_schedules;
   }
 
   return request;
@@ -286,7 +317,16 @@ export function handleStudentCreationError(error: unknown): never {
     logger.error("permission denied when creating student", {
       error: String(error),
     });
-    throw new Error(
+    if (
+      error.message.includes(
+        "users:update permission required to create student schedules",
+      )
+    ) {
+      throw createPermissionError(
+        "Permission denied: You need the 'users:update' permission to create student Betreuungszeiten.",
+      );
+    }
+    throw createPermissionError(
       "Permission denied: You need the 'users:create' permission to create students.",
     );
   }

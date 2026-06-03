@@ -5,18 +5,23 @@
 package importapi_test
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -41,7 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create import resource
-	resource := importAPI.NewResource(svc.Import, repos.DataImport, svc.Users, db)
+	resource := importAPI.NewResource(svc.Import, svc.StaffImport, repos.DataImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,
@@ -384,6 +389,135 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 	t.Logf("Duplicate import response: %d - %s", rr.Code, rr.Body.String())
 }
 
+// TestImportStudents_PersistsBusPermission is a regression test for issue #1460:
+// the "Bus" column was parsed and validated but never written to the student
+// record, silently dropping the bus permission on import.
+func TestImportStudents_PersistsBusPermission(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "BusTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	// CSV with Bus=Ja — the imported student must end up with bus = true.
+	csvContent := "Vorname,Nachname,Klasse,Bus\nBuskind,Phase1Regression,1a,Ja"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "bus.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	// Read the imported student back and assert the bus permission was persisted.
+	var student users.Student
+	err := tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Buskind").
+		Where(`"person".last_name = ?`, "Phase1Regression").
+		Scan(context.Background())
+	require.NoError(t, err, "imported student should exist in the database")
+	require.NotNil(t, student.Bus, "Bus must be persisted, not left nil")
+	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
+}
+
+// TestImportStudents_PersistsEnrollmentDatesAndStatus verifies that the
+// enrollment date range is imported and that a future enrollment start marks
+// the student as pending (so the activate-students scheduler activates them
+// later), while a past/current start stays active (issue #1460, phase 2a).
+func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "EnrollTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse,Einschreibung von,Einschreibung bis\n" +
+		"Zukunft,EnrollRegression,1a,01.08.2099,31.07.2100\n" +
+		"Aktiv,EnrollRegression,1a,01.08.2020,01.08.2099"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "enroll.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	read := func(firstName string) users.Student {
+		var s users.Student
+		err := tc.db.NewSelect().
+			Model(&s).
+			ModelTableExpr(`users.students AS "student"`).
+			Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+			Where(`"person".first_name = ?`, firstName).
+			Where(`"person".last_name = ?`, "EnrollRegression").
+			Scan(context.Background())
+		require.NoError(t, err, "imported student %q should exist", firstName)
+		return s
+	}
+
+	future := read("Zukunft")
+	require.NotNil(t, future.EnrolledFrom, "enrolled_from must be persisted")
+	assert.Equal(t, "2099-08-01", future.EnrolledFrom.Format("2006-01-02"))
+	require.NotNil(t, future.EnrolledUntil, "enrolled_until must be persisted")
+	assert.Equal(t, "2100-07-31", future.EnrolledUntil.Format("2006-01-02"))
+	assert.Equal(t, users.StudentStatusPending, future.Status,
+		"a future enrollment start must be imported as pending")
+
+	active := read("Aktiv")
+	require.NotNil(t, active.EnrolledFrom, "enrolled_from must be persisted")
+	assert.Equal(t, "2020-08-01", active.EnrolledFrom.Format("2006-01-02"))
+	assert.Equal(t, users.StudentStatusActive, active.Status,
+		"a past/current enrollment start must stay active")
+}
+
+// TestImportStudents_PersistsConsentDates verifies that the explicit consent
+// date columns (AGB, data processing, email contact, photo) are imported and
+// that photo_consent_given_by is left NULL on import (issue #1460, phase 2b).
+func TestImportStudents_PersistsConsentDates(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "ConsentTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse,AGB akzeptiert am,Datenverarbeitung akzeptiert am,E-Mail-Kontakt akzeptiert am,Foto-Einwilligung am\n" +
+		"Consent,Phase2bRegression,1a,01.08.2024,02.08.2024,03.08.2024,04.08.2024"
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "consent.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	var student users.Student
+	err := tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Consent").
+		Where(`"person".last_name = ?`, "Phase2bRegression").
+		Scan(context.Background())
+	require.NoError(t, err, "imported student should exist")
+
+	require.NotNil(t, student.AGBAcceptedAt, "AGB consent date must be persisted")
+	assert.Equal(t, "2024-08-01", student.AGBAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.DataProcessingAcceptedAt)
+	assert.Equal(t, "2024-08-02", student.DataProcessingAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.EmailContactAcceptedAt)
+	assert.Equal(t, "2024-08-03", student.EmailContactAcceptedAt.Format("2006-01-02"))
+	require.NotNil(t, student.PhotoConsentGivenAt)
+	assert.Equal(t, "2024-08-04", student.PhotoConsentGivenAt.Format("2006-01-02"))
+	assert.Nil(t, student.PhotoConsentGivenBy, "photo_consent_given_by must be left NULL on import")
+}
+
 // =============================================================================
 // STAFF ID RESOLUTION TESTS
 // =============================================================================
@@ -506,4 +640,211 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should return a valid chi.Router")
+}
+
+// =============================================================================
+// STAFF (MITARBEITER) IMPORT TESTS (issue #1460, phase 3)
+// =============================================================================
+
+func TestDownloadStaffTemplate_CSV(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/template", tc.resource.DownloadStaffTemplate)
+
+	req, _ := http.NewRequest("GET", "/template?format=csv", nil)
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	body := rr.Body.String()
+	for _, col := range []string{"Vorname", "Nachname", "Email", "Rolle"} {
+		assert.Contains(t, body, col, "staff CSV template must advertise the %q column", col)
+	}
+	assert.Contains(t, body, "Betreuer", "staff CSV template should use a default role that exists")
+	assert.NotContains(t, body, "Lehrer", "staff CSV template must not suggest a non-default role")
+}
+
+func TestDownloadStaffTemplate_XLSX(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/template", tc.resource.DownloadStaffTemplate)
+
+	req, _ := http.NewRequest("GET", "/template?format=xlsx", nil)
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		rr.Header().Get("Content-Type"))
+}
+
+// TestImportStaff_CreatesInvitationForValidRole verifies that a staff row with a
+// valid role creates an invitation, while a row with an unknown role is rejected
+// (and never produces an invitation).
+func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	// Role visible to tenant 1 (AdminTestClaims defaults to tenant 1).
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportRolle", 1)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "Admin")
+
+	unique := time.Now().UnixNano()
+	validEmail := fmt.Sprintf("valid.staff.%d@example.com", unique)
+	invalidEmail := fmt.Sprintf("invalid.staff.%d@example.com", unique)
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStaff)
+
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Valide,Person,%s,%s,Lehrkraft\n", validEmail, role.Name) +
+		fmt.Sprintf("Falsche,Rolle,%s,GibtEsNicht,", invalidEmail)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	// The valid row created exactly one invitation with the resolved role.
+	validCount, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", validEmail).
+		Where("role_id = ?", role.ID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, validCount, "valid staff row must create an invitation with the resolved role")
+
+	// The unknown-role row must NOT create an invitation.
+	invalidCount, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", invalidEmail).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, invalidCount, "row with an unknown role must not create an invitation")
+}
+
+// TestImportStaff_AcceptsRoleDisplayName verifies that the German display name
+// shown on the roles page (e.g. "Betreuer") is accepted in the CSV and resolves
+// to the underlying system role ("user").
+func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "DisplayRole")
+
+	email := fmt.Sprintf("display.role.%d@example.com", time.Now().UnixNano())
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStaff)
+
+	// "Betreuer" is the German display name of the system role "user".
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Bea,Betreuerin,%s,Betreuer,", email)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	var userRoleID int64
+	err := tc.db.NewSelect().
+		Table("auth.roles").
+		Column("id").
+		Where("LOWER(name) = 'user'").
+		Where("tenant_id IS NULL").
+		Limit(1).
+		Scan(context.Background(), &userRoleID)
+	require.NoError(t, err, "system 'user' role must exist")
+
+	count, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) = LOWER(?)", email).
+		Where("role_id = ?", userRoleID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "display name 'Betreuer' must resolve to the system 'user' role")
+}
+
+// TestPreviewStaffImport_ValidatesRows exercises the staff preview (dry-run)
+// handler: a valid row, an unknown-role row (suggestions path) and a row with
+// a missing name (required-field path). The preview persists nothing.
+func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", 1)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffPreview", "Admin")
+
+	router := chi.NewRouter()
+	router.Post("/preview", tc.resource.PreviewStaffImport)
+
+	unique := time.Now().UnixNano()
+	csvContent := "Vorname,Nachname,Email,Rolle,Position\n" +
+		fmt.Sprintf("Gut,Person,preview.valid.%d@example.com,%s,Lehrkraft\n", unique, role.Name) +
+		fmt.Sprintf("Schlecht,Rolle,preview.badrole.%d@example.com,GibtEsNicht,\n", unique) +
+		fmt.Sprintf(",Ohne,preview.noname.%d@example.com,%s,", unique, role.Name)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "staff.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "preview should succeed: %s", rr.Body.String())
+
+	// Dry-run must not create any invitations.
+	count, err := tc.db.NewSelect().
+		Table("auth.invitation_tokens").
+		Where("LOWER(email) LIKE ?", fmt.Sprintf("preview.%%.%d@example.com", unique)).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "preview (dry-run) must not create invitations")
+}
+
+// TestStaffImport_UploadValidation covers the shared upload-validation error
+// paths (missing file, wrong file type, unparseable content) on the staff
+// endpoints.
+func TestStaffImport_UploadValidation(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffUpload", "Admin")
+	claims := testutil.WithClaims(testutil.AdminTestClaims(int(account.ID)))
+
+	t.Run("missing file is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/preview", nil, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("invalid file type is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "evil.png", "\x89PNG\r\n\x1a\n", claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("missing required columns is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/preview", tc.resource.PreviewStaffImport)
+		// Valid CSV file, but the "Rolle" column is missing.
+		csv := "Vorname,Nachname,Email\nAnna,Lehmann,anna@example.com"
+		req := testutil.NewMultipartRequest(t, "POST", "/preview", "file", "staff.csv", csv, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
+
+	t.Run("missing file on import is rejected", func(t *testing.T) {
+		router := chi.NewRouter()
+		router.Post("/import", tc.resource.ImportStaff)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/import", nil, claims)
+		rr := testutil.ExecuteRequest(router, req)
+		assert.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+	})
 }

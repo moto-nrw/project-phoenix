@@ -261,14 +261,20 @@ func TestMapStudentRow(t *testing.T) {
 
 	t.Run("maps optional fields", func(t *testing.T) {
 		mapping := map[string]int{
-			"vorname":            0,
-			"nachname":           1,
-			"gesundheitsinfo":    2,
-			"betreuernotizen":    3,
-			"zusatzinfo":         4,
-			"abholstatus":        5,
-			"bus":                6,
-			"aufbewahrung(tage)": 7,
+			"vorname":                         0,
+			"nachname":                        1,
+			"gesundheitsinfo":                 2,
+			"betreuernotizen":                 3,
+			"zusatzinfo":                      4,
+			"abholstatus":                     5,
+			"bus":                             6,
+			"aufbewahrung(tage)":              7,
+			"einschreibung von":               8,
+			"einschreibung bis":               9,
+			"agb akzeptiert am":               10,
+			"datenverarbeitung akzeptiert am": 11,
+			"e-mail-kontakt akzeptiert am":    12,
+			"foto-einwilligung am":            13,
 		}
 		values := []string{
 			"Anna",
@@ -279,6 +285,12 @@ func TestMapStudentRow(t *testing.T) {
 			"Authorized",
 			"ja",
 			"7",
+			"2026-08-01",
+			"2027-07-31",
+			"2026-05-10",
+			"2026-05-11",
+			"2026-05-12",
+			"2026-05-13",
 		}
 		mapper := NewColumnMapper(mapping, values)
 
@@ -291,6 +303,12 @@ func TestMapStudentRow(t *testing.T) {
 		assert.Equal(t, "Authorized", row.PickupStatus)
 		assert.True(t, row.BusPermission)
 		assert.Equal(t, 7, row.DataRetentionDays)
+		assert.Equal(t, "2026-08-01", row.EnrolledFrom)
+		assert.Equal(t, "2027-07-31", row.EnrolledUntil)
+		assert.Equal(t, "2026-05-10", row.AGBAcceptedAt)
+		assert.Equal(t, "2026-05-11", row.DataProcessingAcceptedAt)
+		assert.Equal(t, "2026-05-12", row.EmailContactAcceptedAt)
+		assert.Equal(t, "2026-05-13", row.PhotoConsentGivenAt)
 	})
 
 	t.Run("returns error for invalid retention days", func(t *testing.T) {

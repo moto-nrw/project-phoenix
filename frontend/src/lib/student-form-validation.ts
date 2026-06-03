@@ -8,6 +8,39 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentFormValidation" });
 
+const GENERIC_SUBMIT_ERROR =
+  "Fehler beim Speichern. Bitte versuchen Sie es erneut.";
+
+/**
+ * Picks the message to show in the form's submit-error box.
+ *
+ * Backend validation failures (HTTP 4xx) carry a user-facing German message —
+ * e.g. a guardian's email already exists or an invalid relationship type from
+ * the atomic student+guardian create flow (#1500). Those must reach the user,
+ * because a retry won't fix them. Network/server errors (5xx) and untyped
+ * errors stay generic: surfacing "Network error" or "API error: 500" is noise.
+ *
+ * The HTTP status is attached by the CRUD service's fetch layer
+ * (`createCrudService`); an error without a numeric `status` is treated as
+ * technical and gets the generic message.
+ */
+function toSubmitErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    const status = (error as { status?: number }).status;
+    const message = error.message.trim();
+    if (
+      typeof status === "number" &&
+      status >= 400 &&
+      status < 500 &&
+      message !== "" &&
+      !message.startsWith("API error")
+    ) {
+      return message;
+    }
+  }
+  return GENERIC_SUBMIT_ERROR;
+}
+
 /**
  * Validates data retention days field
  * @param retentionDays - The retention days value to validate
@@ -89,9 +122,7 @@ export async function handleStudentFormSubmit(
     await onSubmit(formData);
   } catch (error) {
     logger.error("error saving student", { error: String(error) });
-    setErrors({
-      submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
-    });
+    setErrors({ submit: toSubmitErrorMessage(error) });
   } finally {
     setLoading(false);
   }
