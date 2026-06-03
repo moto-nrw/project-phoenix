@@ -9,7 +9,7 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
 }));
 
-vi.mock("./auth-api", () => ({
+vi.mock("./auth-failure", () => ({
   handleAuthFailure: vi.fn(() => Promise.resolve(true)),
 }));
 

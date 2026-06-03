@@ -832,7 +832,7 @@ describe("checkAuth", () => {
 // ===== API FUNCTION TESTS (CLIENT-SIDE) =====
 
 // Mock api module
-vi.mock("./api", () => ({
+vi.mock("./api-transport", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),

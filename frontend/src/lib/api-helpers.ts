@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { isAxiosError } from "axios";
-import api from "./api";
+import api from "./api-transport";
 import { isBrowserContext } from "./api-url";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { createLogger } from "~/lib/logger";
