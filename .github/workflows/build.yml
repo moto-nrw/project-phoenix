@@ -266,7 +266,14 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        # --ignore-scripts: this install only feeds the guide-PDF render
+        # (next build + playwright). pnpm 10 already gates dependency lifecycle
+        # scripts to the onlyBuiltDependencies allowlist (esbuild/sharp/unrs-
+        # resolver), and of those only sharp matters here — it loads its
+        # prebuilt @img/sharp-* binary at runtime, no install script needed.
+        # Verified: install + full next build (incl. /help pages) pass without
+        # scripts. Satisfies sonar githubactions:S6505.
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       # Cache the downloaded browser binary (~150 MB) keyed on the lockfile, so
       # a Playwright version bump invalidates it automatically. The runner is
