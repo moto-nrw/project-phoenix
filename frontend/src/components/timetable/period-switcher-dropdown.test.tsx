@@ -101,7 +101,7 @@ describe("PeriodSwitcherDropdown", () => {
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it("uses selected period in series view and hides loading state", () => {
+  it("uses selected period in series view and shows a loading skeleton", () => {
     const { container } = render(
       <PeriodSwitcherDropdown
         periods={basePeriods}
@@ -115,7 +115,9 @@ describe("PeriodSwitcherDropdown", () => {
       />,
     );
 
-    expect(container).toBeEmptyDOMElement();
+    // Loading now renders a skeleton placeholder (sized like the trigger
+    // pill) instead of nothing, so the header keeps its place.
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
 
     render(
       <PeriodSwitcherDropdown
