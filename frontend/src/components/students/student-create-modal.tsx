@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Users, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Users, Plus, Search, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 import {
@@ -17,8 +17,10 @@ import {
 import GuardianFormModal, {
   type RelationshipFormData,
 } from "~/components/guardians/guardian-form-modal";
+import GuardianPickerPanel from "~/components/guardians/guardian-picker-panel";
 import {
   RELATIONSHIP_TYPES,
+  type Guardian,
   type GuardianFormData,
   type PhoneType,
   type StudentGuardianPayload,
@@ -74,6 +76,29 @@ function toGuardianPayloads(
   }));
 }
 
+// Maps a guardian chosen from the picker (an EXISTING profile) plus the
+// relationship flags onto the create-student payload. guardian_profile_id tells
+// the backend to link the existing profile instead of creating a new one; the
+// name rides along only for the summary list and is ignored server-side. The
+// email is deliberately NOT carried — the backend ignores profile fields for an
+// existing link anyway, so there's no reason to round-trip it.
+function toExistingGuardianPayload(
+  guardian: Guardian,
+  relationship: RelationshipFormData,
+): StudentGuardianPayload {
+  return {
+    guardian_profile_id: Number(guardian.id),
+    first_name: guardian.firstName,
+    last_name: guardian.lastName,
+    relationship_type: relationship.relationshipType,
+    is_primary: relationship.isPrimary,
+    is_emergency_contact: relationship.isEmergencyContact,
+    can_pickup: relationship.canPickup,
+    emergency_priority: relationship.emergencyPriority,
+    phone_numbers: [],
+  };
+}
+
 // Human-readable relationship label for the summary list.
 function relationshipLabel(value: string): string {
   return RELATIONSHIP_TYPES.find((t) => t.value === value)?.label ?? value;
@@ -114,6 +139,13 @@ export function StudentCreateModal({
   const [saveLoading, setSaveLoading] = useState(false);
   const [guardians, setGuardians] = useState<StudentGuardianPayload[]>([]);
   const [guardianModalOpen, setGuardianModalOpen] = useState(false);
+  const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
+  // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
+  // the modal so the kept scroll position lands further down the form. Re-anchor
+  // to the guardian section so the user stays where they acted and sees the
+  // result (the added guardian) instead of jumping past it.
+  const guardianSectionRef = useRef<HTMLDivElement>(null);
+  const pendingGuardianScrollRef = useRef(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -135,8 +167,22 @@ export function StudentCreateModal({
       setErrors({});
       setGuardians([]);
       setGuardianModalOpen(false);
+      setGuardianPickerOpen(false);
+      pendingGuardianScrollRef.current = false;
     }
   }, [isOpen]);
+
+  // After the inline picker collapses (add or cancel), re-anchor to the guardian
+  // section so the shrinking modal doesn't leave the user scrolled past it.
+  useEffect(() => {
+    if (pendingGuardianScrollRef.current) {
+      pendingGuardianScrollRef.current = false;
+      guardianSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [guardians, guardianPickerOpen]);
 
   // Collect guardians from the reused GuardianFormModal into local state. The
   // guardians are persisted together with the student in one request — no API
@@ -146,9 +192,39 @@ export function StudentCreateModal({
     setGuardianModalOpen(false);
   };
 
+  // Link an existing guardian chosen from the picker. Dedup defensively: if the
+  // same profile is already in the list, skip it (the picker also greys out
+  // already-added profiles, so this only guards a race).
+  const handleGuardianPick = (
+    guardian: Guardian,
+    relationship: RelationshipFormData,
+  ) => {
+    const profileId = Number(guardian.id);
+    setGuardians((prev) =>
+      prev.some((g) => g.guardian_profile_id === profileId)
+        ? prev
+        : [...prev, toExistingGuardianPayload(guardian, relationship)],
+    );
+    pendingGuardianScrollRef.current = true;
+    setGuardianPickerOpen(false);
+  };
+
+  // Collapse the inline picker without selecting; re-anchor like the add path.
+  const handlePickerCancel = () => {
+    pendingGuardianScrollRef.current = true;
+    setGuardianPickerOpen(false);
+  };
+
   const removeGuardian = (index: number) => {
     setGuardians((prev) => prev.filter((_, i) => i !== index));
   };
+
+  // Profile ids already added — passed to the picker so it greys out
+  // guardians that are already on this child.
+  const addedProfileIds = guardians
+    .map((g) => g.guardian_profile_id)
+    .filter((id): id is number => id !== undefined)
+    .map((id) => id.toString());
 
   const validateForm = (): boolean => {
     const newErrors = validateStudentForm(formData, {
@@ -215,7 +291,10 @@ export function StudentCreateModal({
               matches the other modal sections (border-gray-100 + blue tint,
               blue heading icon) and reuses the guardian modal's own dashed
               add-button and red remove patterns. */}
-          <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+          <div
+            ref={guardianSectionRef}
+            className="scroll-mt-4 rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4"
+          >
             <div className="mb-3 flex items-center justify-between md:mb-4">
               <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
                 <Users className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
@@ -270,15 +349,37 @@ export function StudentCreateModal({
               </ul>
             )}
 
-            <button
-              type="button"
-              onClick={() => setGuardianModalOpen(true)}
-              disabled={saveLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-            >
-              <Plus className="h-4 w-4" />
-              Erziehungsberechtigte hinzufügen
-            </button>
+            {guardianPickerOpen ? (
+              // Existing-guardian path is inline (not a second modal): a search
+              // is a light lookup, so it expands here in place. "Neu anlegen"
+              // stays a full modal because the new-guardian form is heavy.
+              <GuardianPickerPanel
+                onSelect={handleGuardianPick}
+                onCancel={handlePickerCancel}
+                excludeProfileIds={addedProfileIds}
+              />
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setGuardianModalOpen(true)}
+                  disabled={saveLoading}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Neu anlegen
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGuardianPickerOpen(true)}
+                  disabled={saveLoading}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                >
+                  <Search className="h-4 w-4" />
+                  Vorhandene/n suchen
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Common Form Sections */}

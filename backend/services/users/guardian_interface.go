@@ -102,12 +102,29 @@ type NewStudentGuardian struct {
 	Profile      GuardianCreateRequest
 	Relationship StudentGuardianRelationship
 	PhoneNumbers []PhoneNumberCreateRequest
+
+	// ExistingProfileID, when non-nil, links an already-existing guardian
+	// profile to the student instead of creating a new one (sibling case,
+	// issue #1513). In that case Profile and PhoneNumbers are ignored and the
+	// existing profile is never mutated — only the Relationship flags apply to
+	// the new link.
+	ExistingProfileID *int64
 }
 
 // GuardianWithStudents represents a guardian with their associated students
 type GuardianWithStudents struct {
 	Profile  *users.GuardianProfile
 	Students []*StudentWithRelationship
+}
+
+// GuardianPickerMatch is one result from the guardian picker search: a guardian
+// profile plus the children currently linked to it. Backs GET /guardians/search
+// (sibling case, #1513). The handler projects only id/name/email + a COUNT of
+// children onto the wire — address, notes, language, and contact method never
+// leave the server, and child names are never exposed (only the count).
+type GuardianPickerMatch struct {
+	Profile  *users.GuardianProfile
+	Children []*users.GuardianLinkedChild
 }
 
 // StudentWithRelationship represents a student with guardian relationship details
@@ -187,6 +204,12 @@ type GuardianService interface {
 
 	// ListGuardians retrieves guardians with pagination and filters
 	ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error)
+
+	// SearchGuardiansForPicker retrieves guardians whose name or email matches
+	// the search text (case-insensitive), each enriched with its linked children
+	// in a single batch query (no N+1). Backs the guardian picker used to link an
+	// existing guardian to a student (sibling case). Tenant-scoped via RLS.
+	SearchGuardiansForPicker(ctx context.Context, searchText string, limit int) ([]*GuardianPickerMatch, error)
 
 	// GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
 	GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)

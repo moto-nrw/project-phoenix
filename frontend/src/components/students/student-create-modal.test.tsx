@@ -162,6 +162,49 @@ vi.mock("~/components/guardians/guardian-form-modal", () => ({
     ) : null,
 }));
 
+// Mock the inline existing-guardian picker panel: it's mounted only while
+// active, so it always renders here and exposes a button that calls onSelect
+// with one canned EXISTING guardian + relationship (the shape the real panel
+// emits). Lets us exercise StudentCreateModal's link-existing collection without
+// driving the real search UI.
+vi.mock("~/components/guardians/guardian-picker-panel", () => ({
+  default: ({
+    onSelect,
+  }: {
+    onSelect: (guardian: unknown, relationship: unknown) => void;
+    onCancel: () => void;
+  }) => (
+    <div data-testid="guardian-picker-panel">
+      <button
+        type="button"
+        onClick={() =>
+          onSelect(
+            {
+              id: "777",
+              firstName: "Hans",
+              lastName: "Schmidt",
+              email: "hans@example.com",
+              phoneNumbers: [],
+              preferredContactMethod: "email",
+              languagePreference: "de",
+              hasAccount: false,
+            },
+            {
+              relationshipType: "parent",
+              isPrimary: false,
+              isEmergencyContact: false,
+              canPickup: true,
+              emergencyPriority: 1,
+            },
+          )
+        }
+      >
+        MockPickExisting
+      </button>
+    </div>
+  ),
+}));
+
 // Mock validation utilities
 vi.mock("~/lib/student-form-validation", () => ({
   validateStudentForm: vi.fn(() => ({})),
@@ -462,7 +505,7 @@ describe("StudentCreateModal", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+      fireEvent.click(screen.getByText("Neu anlegen"));
     });
 
     expect(screen.getByTestId("guardian-form-modal")).toBeInTheDocument();
@@ -478,7 +521,7 @@ describe("StudentCreateModal", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+      fireEvent.click(screen.getByText("Neu anlegen"));
     });
     await act(async () => {
       fireEvent.click(screen.getByText("MockSubmitGuardian"));
@@ -505,7 +548,7 @@ describe("StudentCreateModal", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+      fireEvent.click(screen.getByText("Neu anlegen"));
     });
     await act(async () => {
       fireEvent.click(screen.getByText("MockSubmitGuardian"));
@@ -537,7 +580,7 @@ describe("StudentCreateModal", () => {
     );
 
     await act(async () => {
-      fireEvent.click(screen.getByText("Erziehungsberechtigte hinzufügen"));
+      fireEvent.click(screen.getByText("Neu anlegen"));
     });
     await act(async () => {
       fireEvent.click(screen.getByText("MockSubmitGuardian"));
@@ -603,5 +646,93 @@ describe("StudentCreateModal", () => {
     const submitted = vi.mocked(handleStudentFormSubmit).mock
       .calls[0]?.[1] as Record<string, unknown>;
     expect(submitted).not.toHaveProperty("guardians");
+  });
+
+  it("opens the existing-guardian picker when the search button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+
+    expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
+  });
+
+  it("adds a picked existing guardian to the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockPickExisting"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hans Schmidt/)).toBeInTheDocument();
+    });
+    expect(screen.getByText("1 hinzugefügt")).toBeInTheDocument();
+    // Picker closes after a selection.
+    expect(
+      screen.queryByTestId("guardian-picker-panel"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("forwards a picked existing guardian with guardian_profile_id to onCreate", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockPickExisting"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Hans Schmidt/)).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // The existing selection must carry guardian_profile_id (link, not create)
+    // and the relationship flags, with no phone numbers.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      guardians: [
+        {
+          guardian_profile_id: 777,
+          relationship_type: "parent",
+          can_pickup: true,
+          phone_numbers: [],
+        },
+      ],
+    });
   });
 });
