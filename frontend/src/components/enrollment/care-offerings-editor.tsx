@@ -66,6 +66,7 @@ function blankInput(phaseId: number): CareOfferingInput {
     capacity: null,
     price_cents: null,
     is_active: true,
+    is_required: false,
     sort_order: 0,
   };
 }
@@ -85,6 +86,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     capacity: offering.capacity ?? null,
     price_cents: offering.price_cents ?? null,
     is_active: offering.is_active,
+    is_required: offering.is_required,
     sort_order: offering.sort_order,
   };
 }
@@ -288,13 +290,16 @@ export function CareOfferingsEditor() {
         header: "Details",
         render: (offering) => (
           <div className="flex flex-wrap gap-1.5">
+            {offering.is_required ? <FeaturePill label="Pflicht" /> : null}
             {offering.includes_lunch ? (
               <FeaturePill label="Mittagessen" />
             ) : null}
             {offering.includes_holiday_care ? (
               <FeaturePill label="Ferienbetreuung" />
             ) : null}
-            {!offering.includes_lunch && !offering.includes_holiday_care ? (
+            {!offering.is_required &&
+            !offering.includes_lunch &&
+            !offering.includes_holiday_care ? (
               <span className="text-sm text-gray-400">Keine Extras</span>
             ) : null}
           </div>
@@ -921,16 +926,24 @@ function CareOfferingForm({
             type="number"
             name="capacity"
             min={0}
-            value={draft.capacity ?? ""}
+            value={draft.is_required ? "" : (draft.capacity ?? "")}
+            disabled={draft.is_required}
             onChange={(event) =>
               update({
                 capacity:
                   event.target.value === "" ? null : Number(event.target.value),
               })
             }
-            placeholder="Unbegrenzt"
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            placeholder={
+              draft.is_required ? "Unbegrenzt (Pflicht)" : "Unbegrenzt"
+            }
+            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
           />
+          {draft.is_required && (
+            <span className="mt-1 block text-xs text-gray-500">
+              Pflichtangebote haben keine Platzbegrenzung.
+            </span>
+          )}
         </label>
         <label className="block">
           <span className="text-xs font-medium text-gray-700">
@@ -990,6 +1003,18 @@ function CareOfferingForm({
             onChange={(checked) => update({ is_active: checked })}
             label="Aktiv"
             hint="Nur aktive Angebote sind auswählbar"
+          />
+          <CareOfferingCheckbox
+            checked={draft.is_required}
+            onChange={(checked) =>
+              update(
+                checked
+                  ? { is_required: true, capacity: null }
+                  : { is_required: false },
+              )
+            }
+            label="Pflicht"
+            hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
           />
         </div>
       </fieldset>

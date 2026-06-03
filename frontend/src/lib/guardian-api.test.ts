@@ -49,6 +49,16 @@ describe("translateApiError", () => {
     ).toBe("Diese E-Mail-Adresse wird bereits verwendet");
   });
 
+  it("surfaces the 'use the search' guidance for a duplicate email on create (#1513)", () => {
+    expect(
+      translateApiError(
+        'E-Mail-Adresse "peter.berger@email.de" ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen',
+      ),
+    ).toBe(
+      "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
+    );
+  });
+
   it("translates 'guardian not found' to German", () => {
     expect(translateApiError("guardian not found")).toBe(
       "Erziehungsberechtigte/r nicht gefunden",
@@ -168,8 +178,8 @@ describe("errorTranslations", () => {
     }
   });
 
-  it("has exactly 11 error translations", () => {
-    expect(Object.keys(errorTranslations).length).toBe(11);
+  it("has exactly 12 error translations", () => {
+    expect(Object.keys(errorTranslations).length).toBe(12);
   });
 });
 
@@ -872,7 +882,9 @@ describe("guardian-api functions", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]!.firstName).toBe("John");
-      expect(global.fetch).toHaveBeenCalledWith("/api/guardians?search=john");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/search?q=john&page_size=50",
+      );
     });
 
     it("encodes search query properly", async () => {
@@ -888,7 +900,7 @@ describe("guardian-api functions", () => {
       await searchGuardians("john doe & sons");
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/guardians?search=john%20doe%20%26%20sons",
+        "/api/guardians/search?q=john%20doe%20%26%20sons&page_size=50",
       );
     });
 

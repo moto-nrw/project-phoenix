@@ -111,21 +111,22 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 			CreatedAt: time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 4, 2, 12, 0, 0, 0, time.UTC),
 		},
-		Name:                     "Schuljahr 2026/27",
-		Kind:                     enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:         time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:           time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
-		EnrollmentOpenAt:         &openAt,
-		EnrollmentCloseAt:        &closeAt,
-		FormSchemaID:             &schemaID,
-		ShowStatusReasonToParent: true,
-		CareOverflowMode:         enrollmentModels.PhaseCareOverflowWaitlist,
-		IsActive:                 true,
-		RolloverSourcePhaseID:    &srcPhase,
-		RolloverMode:             &mode,
-		RolloverAutoApprove:      true,
-		RolloverDeadline:         &deadline,
-		RolloverBumpsGrade:       true,
+		Name:                      "Schuljahr 2026/27",
+		Kind:                      enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate:          time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		ServiceEndDate:            time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		EnrollmentOpenAt:          &openAt,
+		EnrollmentCloseAt:         &closeAt,
+		FormSchemaID:              &schemaID,
+		ShowStatusReasonToParent:  true,
+		CareOverflowMode:          enrollmentModels.PhaseCareOverflowWaitlist,
+		CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
+		IsActive:                  true,
+		RolloverSourcePhaseID:     &srcPhase,
+		RolloverMode:              &mode,
+		RolloverAutoApprove:       true,
+		RolloverDeadline:          &deadline,
+		RolloverBumpsGrade:        true,
 	}
 	out := toPhaseResponse(p)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
@@ -148,6 +149,7 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 	assert.True(t, out.RolloverBumpsGrade)
 	assert.True(t, out.ShowStatusReasonToParent)
 	assert.Equal(t, enrollmentModels.PhaseCareOverflowWaitlist, out.CareOverflowMode)
+	assert.Equal(t, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne, out.CareOfferingSelectionMode)
 	assert.Equal(t, "2026-04-01T12:00:00Z", out.CreatedAt)
 	assert.Equal(t, "2026-04-02T12:00:00Z", out.UpdatedAt)
 }

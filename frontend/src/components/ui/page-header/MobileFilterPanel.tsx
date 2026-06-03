@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   normalizeFilterValues,
   type MobileFilterPanelProps,
@@ -181,7 +182,7 @@ export function MobileFilterPanel({
     }
   };
 
-  return (
+  const panel = (
     <>
       {/* Click-outside backdrop. Transparent so the page content stays
           visible behind it — Stripe / Linear pattern. The panel itself
@@ -203,7 +204,7 @@ export function MobileFilterPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Filter"
-        className="fixed inset-x-3 bottom-3 z-50 max-h-[85vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-xl md:inset-x-auto md:top-[6rem] md:right-4 md:bottom-auto md:max-h-[80vh] md:w-96"
+        className="fixed inset-x-3 bottom-24 z-50 max-h-[80vh] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-4 shadow-xl md:inset-x-auto md:top-[6rem] md:right-4 md:bottom-auto md:max-h-[80vh] md:w-96"
       >
         <div className="space-y-4">
           {filters.map((filter) => (
@@ -247,4 +248,14 @@ export function MobileFilterPanel({
       </div>
     </>
   );
+
+  // Portal to <body> so the panel escapes the page's `relative z-10` content
+  // stacking context (app-shell.tsx). Without this, the mobile bottom nav
+  // (fixed z-30 at the root) paints over the panel's z-50 and blocks the
+  // "Anwenden" button — z-index can't cross out of a nested stacking context.
+  if (typeof document !== "undefined") {
+    return createPortal(panel, document.body);
+  }
+
+  return panel;
 }

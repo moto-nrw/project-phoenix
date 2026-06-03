@@ -43,6 +43,10 @@ vi.mock("~/lib/tenant-router", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: () => ({ tenantSlug: "t", tenant: null }),
+  useTenantSafe: () => ({
+    tenantSlug: "t",
+    tenant: { studentPhotosEnabled: true },
+  }),
   useTenantSlugSafe: () => "t",
   usePresenceMode: () => "detailed",
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,

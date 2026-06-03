@@ -143,6 +143,31 @@ func TestImportService_Import(t *testing.T) {
 		assert.Equal(t, 1, result.UpdatedCount)
 	})
 
+	t.Run("dry run create mode reports existing entities as errors", func(t *testing.T) {
+		// ARRANGE
+		existingID := int64(123)
+		config := &mockImportConfig{
+			findExistingID: &existingID,
+		}
+		service := NewImportService[testRow](config, nil)
+		request := importModels.ImportRequest[testRow]{
+			Rows:   []testRow{{Name: "test1", Value: "value1"}},
+			DryRun: true,
+			Mode:   importModels.ImportModeCreate,
+		}
+
+		// ACT
+		result, err := service.Import(ctx, request)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, 0, result.UpdatedCount)
+		assert.Equal(t, 1, result.ErrorCount)
+		require.Len(t, result.Errors, 1)
+		assert.Equal(t, "already_exists", result.Errors[0].Errors[0].Code)
+	})
+
 	t.Run("creates new entities in upsert mode", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{

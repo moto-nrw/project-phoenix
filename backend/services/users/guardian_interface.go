@@ -83,10 +83,48 @@ type PhoneNumberUpdateRequest struct {
 	Priority    *int
 }
 
+// StudentGuardianRelationship holds the relationship flags for linking a
+// guardian to a student, without the student/guardian IDs which are set
+// internally by AddGuardiansToStudent.
+type StudentGuardianRelationship struct {
+	RelationshipType   string // parent, guardian, relative, other
+	IsPrimary          bool
+	IsEmergencyContact bool
+	CanPickup          bool
+	PickupNotes        *string
+	EmergencyPriority  int
+}
+
+// NewStudentGuardian bundles a guardian profile, its relationship to a
+// student, and its phone numbers so a guardian can be created and linked
+// atomically alongside a new student.
+type NewStudentGuardian struct {
+	Profile      GuardianCreateRequest
+	Relationship StudentGuardianRelationship
+	PhoneNumbers []PhoneNumberCreateRequest
+
+	// ExistingProfileID, when non-nil, links an already-existing guardian
+	// profile to the student instead of creating a new one (sibling case,
+	// issue #1513). In that case Profile and PhoneNumbers are ignored and the
+	// existing profile is never mutated — only the Relationship flags apply to
+	// the new link.
+	ExistingProfileID *int64
+}
+
 // GuardianWithStudents represents a guardian with their associated students
 type GuardianWithStudents struct {
 	Profile  *users.GuardianProfile
 	Students []*StudentWithRelationship
+}
+
+// GuardianPickerMatch is one result from the guardian picker search: a guardian
+// profile plus the children currently linked to it. Backs GET /guardians/search
+// (sibling case, #1513). The handler projects only id/name/email + a COUNT of
+// children onto the wire — address, notes, language, and contact method never
+// leave the server, and child names are never exposed (only the count).
+type GuardianPickerMatch struct {
+	Profile  *users.GuardianProfile
+	Children []*users.GuardianLinkedChild
 }
 
 // StudentWithRelationship represents a student with guardian relationship details
@@ -139,6 +177,22 @@ type GuardianService interface {
 	// LinkGuardianToStudent creates a relationship between guardian and student
 	LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error)
 
+	// ValidateNewGuardians checks guardian input (profile, relationship type,
+	// emergency priority, phone numbers, and duplicate email) WITHOUT writing
+	// anything. Callers that persist a student and its guardians in one
+	// transaction MUST call this before the first write so a ValidationError
+	// rolls back an empty transaction instead of committing an orphaned
+	// student (TenantTxMiddleware only rolls back on 5xx). Returns a
+	// *ValidationError for bad client input.
+	ValidateNewGuardians(ctx context.Context, guardians []NewStudentGuardian) error
+
+	// AddGuardiansToStudent creates each guardian profile, links it to the
+	// student, and adds its phone numbers. Designed to run inside an ambient
+	// tenant transaction so the whole set is atomic with student creation;
+	// any failure aborts the surrounding transaction. Re-runs
+	// ValidateNewGuardians internally as defense-in-depth.
+	AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error
+
 	// GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
 	GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error)
 
@@ -150,6 +204,12 @@ type GuardianService interface {
 
 	// ListGuardians retrieves guardians with pagination and filters
 	ListGuardians(ctx context.Context, options *base.QueryOptions) ([]*users.GuardianProfile, error)
+
+	// SearchGuardiansForPicker retrieves guardians whose name or email matches
+	// the search text (case-insensitive), each enriched with its linked children
+	// in a single batch query (no N+1). Backs the guardian picker used to link an
+	// existing guardian to a student (sibling case). Tenant-scoped via RLS.
+	SearchGuardiansForPicker(ctx context.Context, searchText string, limit int) ([]*GuardianPickerMatch, error)
 
 	// GetGuardiansWithoutAccount retrieves guardians who don't have portal accounts
 	GetGuardiansWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error)

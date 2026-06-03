@@ -737,6 +737,18 @@ func (m *mockOperatorRepoInternal) UpdateLastLogin(ctx context.Context, id int64
 	return nil
 }
 
+// IncrementMFAAttempts / ResetMFAAttempts are part of OperatorRepository as
+// of #1430 review item #6 (atomic MFA lockout counter). Email-change tests
+// don't exercise the MFA flow, so the mock panics if any test reaches
+// them — that's a wiring red flag, not a no-op.
+func (m *mockOperatorRepoInternal) IncrementMFAAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (platform.OperatorMFAAttemptResult, error) {
+	panic("IncrementMFAAttempts not implemented in mockOperatorRepoInternal")
+}
+
+func (m *mockOperatorRepoInternal) ResetMFAAttempts(_ context.Context, _ int64) error {
+	panic("ResetMFAAttempts not implemented in mockOperatorRepoInternal")
+}
+
 // mockAuditLogRepoInternal implements platform.OperatorAuditLogRepository for
 // internal tests.
 type mockAuditLogRepoInternal struct {

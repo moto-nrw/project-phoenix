@@ -117,9 +117,14 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 	var loginResp struct {
 		Status string `json:"status"`
 		Data   struct {
-			AccessToken string `json:"access_token"`
+			Status                string `json:"status"`
+			AccessToken           string `json:"access_token"`
+			ChallengeToken        string `json:"challenge_token"`
+			MFAEnrollmentRequired bool   `json:"mfa_enrollment_required"`
 		} `json:"data"`
-		AccessToken string `json:"access_token"`
+		AccessToken           string `json:"access_token"`
+		ChallengeToken        string `json:"challenge_token"`
+		MFAEnrollmentRequired bool   `json:"mfa_enrollment_required"`
 	}
 	if err := json.Unmarshal(respBody, &loginResp); err != nil {
 		return AuthRef{}, fmt.Errorf("parse operator login response: %w", err)
@@ -129,7 +134,31 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 	if token == "" {
 		token = loginResp.AccessToken
 	}
-	if token == "" {
+	innerStatus := loginResp.Data.Status
+	if innerStatus == "" {
+		innerStatus = loginResp.Status
+	}
+	challengeToken := loginResp.Data.ChallengeToken
+	if challengeToken == "" {
+		challengeToken = loginResp.ChallengeToken
+	}
+	enrollmentRequired := loginResp.Data.MFAEnrollmentRequired ||
+		loginResp.MFAEnrollmentRequired ||
+		innerStatus == "mfa_enrollment_required"
+	verifyRequired := challengeToken != "" || innerStatus == "mfa_required"
+
+	switch {
+	case enrollmentRequired:
+		token, err = a.completeOperatorMFAEnrollment(ctx, token, email)
+		if err != nil {
+			return AuthRef{}, fmt.Errorf("complete operator mfa enrollment: %w", err)
+		}
+	case verifyRequired:
+		token, err = a.completeOperatorMFAVerify(ctx, challengeToken, email)
+		if err != nil {
+			return AuthRef{}, fmt.Errorf("complete operator mfa verify: %w", err)
+		}
+	case token == "":
 		return AuthRef{}, fmt.Errorf("no access token in operator login response")
 	}
 
@@ -138,6 +167,81 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 		Label: "operator",
 		Token: token,
 	}, nil
+}
+
+// completeOperatorMFAVerify drives the dev-only mailpit-backed verify
+// loop for an already-enrolled operator. The login itself triggers the
+// challenge email, so we only need to poll for the code and POST it
+// alongside the challenge_token.
+func (a *Adapter) completeOperatorMFAVerify(ctx context.Context, challengeToken, recipient string) (string, error) {
+	watermark := time.Now().Add(-5 * time.Second)
+	code, err := FetchLatestMFACode(ctx, recipient, watermark)
+	if err != nil {
+		return "", err
+	}
+	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/mfa/verify",
+		map[string]any{"challenge_token": challengeToken, "code": code}, nil)
+	if err != nil {
+		return "", fmt.Errorf("mfa verify: %w", err)
+	}
+	var verifyResp struct {
+		Data struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(respBody, &verifyResp); err != nil {
+		return "", fmt.Errorf("decode mfa verify: %w", err)
+	}
+	token := verifyResp.Data.AccessToken
+	if token == "" {
+		token = verifyResp.AccessToken
+	}
+	if token == "" {
+		return "", fmt.Errorf("mfa verify returned no access token")
+	}
+	return token, nil
+}
+
+// completeOperatorMFAEnrollment drives the dev-only mailpit-backed
+// enrollment loop introduced by branch feat/1308-2fa-email. The operator
+// login returns a pending-enrollment token; the seeder cannot proceed
+// until enrollment is confirmed. Triggers the email, polls mailpit for
+// the 6-digit code, and exchanges it for a real access token.
+func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentToken, recipient string) (string, error) {
+	enrollAuth := AuthRef{Kind: AuthBearer, Label: "operator-enroll", Token: enrollmentToken}
+
+	watermark := time.Now()
+	if _, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/start", nil, nil); err != nil {
+		return "", fmt.Errorf("enroll start: %w", err)
+	}
+
+	code, err := FetchLatestMFACode(ctx, recipient, watermark)
+	if err != nil {
+		return "", err
+	}
+
+	respBody, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/confirm", map[string]string{"code": code}, nil)
+	if err != nil {
+		return "", fmt.Errorf("enroll confirm: %w", err)
+	}
+	var confirmResp struct {
+		Data struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(respBody, &confirmResp); err != nil {
+		return "", fmt.Errorf("decode enroll confirm: %w", err)
+	}
+	token := confirmResp.Data.AccessToken
+	if token == "" {
+		token = confirmResp.AccessToken
+	}
+	if token == "" {
+		return "", fmt.Errorf("enroll confirm returned no access token")
+	}
+	return token, nil
 }
 
 func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug string) (AuthRef, error) {

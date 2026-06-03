@@ -169,6 +169,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
 		IsActive:         true,
+		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	phase.SetTenantID(1)
@@ -226,6 +227,12 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           false,
+		},
 		Children: []enrollmentService.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -325,6 +332,24 @@ func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 		"invalid guardian phone must return ErrInvalidGuardianPhone; got %v", err)
 }
 
+func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, err := env.db.ExecContext(ctx, `
+		UPDATE enrollment.form_schemas
+		SET core_requirements = '{"guardian_phone": true}'::jsonb
+		WHERE id = ?
+	`, env.schemaID)
+	require.NoError(t, err)
+
+	_, err = env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"missing required guardian phone must return ErrInvalidSubmission; got %v", err)
+}
+
 // Regression: submit used to accept guardian emails that net/mail.ParseAddress
 // allows but the canonical student-email rule rejects at approval (e.g.
 // "test@localhost" or "a@b" — no dot in the domain). Such a request passed
@@ -402,6 +427,144 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		"inactive offering selection must return ErrCareOfferingClosed, got %v", err)
+}
+
+func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingMissing),
+		"at_least_one mode must reject children without an offering; got %v", err)
+}
+
+func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	first := setupCareOfferingForCapacity(t, env, 0)
+	second := setupCareOfferingForCapacity(t, env, 0)
+	req := validSubmission(env.phaseID)
+	req.Children[0].OfferingIDs = []int64{first.ID, second.ID}
+
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired),
+		"exactly_one mode must reject multiple selected offerings; got %v", err)
+}
+
+// TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings verifies
+// that a required (always-on) offering is orthogonal to the selection mode:
+// it must NOT count toward "exactly one". A mandatory base offering plus
+// exactly one choosable offering submits successfully, while the lone
+// required offering (zero choosable) and required-plus-two-choosable are
+// both rejected. This guards the contradiction where a required base
+// offering would otherwise make exactly_one unsatisfiable.
+func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionExactlyOne
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	// Mandatory base offering: always-on, no capacity limit.
+	required := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Mandatory base care",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+		IsRequired:     true,
+	}
+	required.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
+
+	// Two choosable time-slot offerings the parent picks exactly one of.
+	slotA := setupCareOfferingForCapacity(t, env, 5)
+	slotB := setupCareOfferingForCapacity(t, env, 5)
+
+	// required + exactly one choosable → valid.
+	ok := validSubmission(env.phaseID)
+	ok.GuardianEmail = "valid@example.com"
+	ok.Children[0].OfferingIDs = []int64{required.ID, slotA.ID}
+	_, err := env.svc.Submit(ctx, ok)
+	require.NoError(t, err,
+		"required base offering plus exactly one choosable must submit; got %v", err)
+
+	// required + two choosable → rejected (choosable count is 2).
+	tooMany := validSubmission(env.phaseID)
+	tooMany.GuardianEmail = "toomany@example.com"
+	tooMany.Children[0].OfferingIDs = []int64{required.ID, slotA.ID, slotB.ID}
+	_, err = env.svc.Submit(ctx, tooMany)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired),
+		"two choosable offerings must be rejected under exactly_one; got %v", err)
+
+	// required only, zero choosable → rejected (choosable count is 0).
+	none := validSubmission(env.phaseID)
+	none.GuardianEmail = "none@example.com"
+	none.Children[0].OfferingIDs = []int64{required.ID}
+	_, err = env.svc.Submit(ctx, none)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired),
+		"a lone required offering does not satisfy exactly_one; got %v", err)
+}
+
+// TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings is the
+// at_least_one counterpart: a required base offering does not satisfy "at
+// least one" on its own; the parent must additionally pick a choosable
+// offering.
+func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	env.phase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	required := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Mandatory base care",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+		IsRequired:     true,
+	}
+	required.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, required))
+
+	choosable := setupCareOfferingForCapacity(t, env, 5)
+
+	// required only → rejected (zero choosable selected).
+	none := validSubmission(env.phaseID)
+	none.GuardianEmail = "none@example.com"
+	none.Children[0].OfferingIDs = []int64{required.ID}
+	_, err := env.svc.Submit(ctx, none)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingMissing),
+		"a lone required offering does not satisfy at_least_one; got %v", err)
+
+	// required + one choosable → valid.
+	ok := validSubmission(env.phaseID)
+	ok.GuardianEmail = "valid@example.com"
+	ok.Children[0].OfferingIDs = []int64{required.ID, choosable.ID}
+	_, err = env.svc.Submit(ctx, ok)
+	require.NoError(t, err,
+		"required base offering plus one choosable must submit under at_least_one; got %v", err)
 }
 
 // --- GetByStatusToken ---
@@ -723,19 +886,20 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	// platform.schools to satisfy the FK; EnsureTestTenant is idempotent.
 	testpkg.EnsureTestTenant(t, env.db, 2)
 	repoFactory := repositories.NewFactory(env.db)
-	state, err := repoFactory.SubmissionRateLimit.IncrementAttempts(
-		ctx, 2, enrollmentModels.SubmissionRateLimitKeyTypeEmail, "anna@example.com", 24*time.Hour,
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 1, state.Attempts,
-		"a different tenant's bucket must start fresh, got %d", state.Attempts)
-	// Cleanup the bucket row we just inserted for tenant 2.
+	tenantTwoEmail := "anna+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
 	t.Cleanup(func() {
 		_, _ = env.db.NewDelete().
 			TableExpr("enrollment.submission_rate_limits").
 			Where("tenant_id = ?", 2).
+			Where("key_value = ?", tenantTwoEmail).
 			Exec(context.Background())
 	})
+	state, err := repoFactory.SubmissionRateLimit.IncrementAttempts(
+		ctx, 2, enrollmentModels.SubmissionRateLimitKeyTypeEmail, tenantTwoEmail, 24*time.Hour,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 1, state.Attempts,
+		"a different tenant's bucket must start fresh, got %d", state.Attempts)
 }
 
 // --- Capacity overflow ---

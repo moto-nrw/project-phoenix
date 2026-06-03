@@ -29,7 +29,11 @@ import {
   calculateDuration,
   formatDuration,
 } from "~/lib/date-helpers";
-import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
+import {
+  formatFloor,
+  getRoomCategoryColor,
+  ROOM_HISTORY_STATUS_FEATURE_DISABLED,
+} from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentsInRoomSection } from "./students-in-room-section";
@@ -54,35 +58,23 @@ interface Room {
   color?: string;
 }
 
+// One row in the room occupancy history. Issue #1425 moved this from
+// per-student-visit rows to one row per active.groups session — no student
+// IDs or names by design. Per-child detail lives behind
+// /students/{id}/attendance-history under its own GDPR gates.
 interface RoomHistoryEntry {
-  id: string;
-  timestamp: string;
-  groupName?: string;
-  activityName?: string;
-  category?: string;
-  supervisorName?: string;
-  studentCount?: number;
-  duration_minutes?: number;
-  entry_type: "entry" | "exit";
-  reason?: string;
-}
-
-interface Activity {
-  id: string;
-  entryTimestamp: string;
-  exitTimestamp: string | null;
-  groupName?: string;
-  activityName?: string;
-  category?: string;
-  supervisorName?: string;
-  studentCount?: number;
-  duration_minutes?: number;
-  reason?: string;
+  sessionId: string;
+  startedAt: string; // RFC3339
+  endedAt: string | null; // RFC3339 or null while session is open
+  durationMinutes: number | null;
+  activityName: string;
+  supervisorName: string;
+  studentCount: number;
 }
 
 interface DateGroup {
   date: string;
-  entries: Activity[];
+  entries: RoomHistoryEntry[];
 }
 
 interface BackendRoom {
@@ -106,17 +98,13 @@ interface BackendRoom {
 }
 
 interface BackendRoomHistoryEntry {
-  id: number | string;
-  room_id: number | string;
-  timestamp: string;
-  group_name?: string;
-  activity_name?: string;
-  category?: string;
-  supervisor_name?: string;
-  student_count?: number;
-  duration_minutes?: number;
-  entry_type: "entry" | "exit";
-  reason?: string;
+  session_id: number;
+  started_at: string;
+  ended_at?: string | null;
+  duration_minutes?: number | null;
+  activity_name: string;
+  supervisor_name: string;
+  student_count: number;
 }
 
 function mapBackendToFrontendRoom(backendRoom: BackendRoom): Room {
@@ -141,16 +129,13 @@ function mapBackendToFrontendHistoryEntry(
   backendEntry: BackendRoomHistoryEntry,
 ): RoomHistoryEntry {
   return {
-    id: String(backendEntry.id),
-    timestamp: backendEntry.timestamp,
-    groupName: backendEntry.group_name,
+    sessionId: String(backendEntry.session_id),
+    startedAt: backendEntry.started_at,
+    endedAt: backendEntry.ended_at ?? null,
+    durationMinutes: backendEntry.duration_minutes ?? null,
     activityName: backendEntry.activity_name,
-    category: backendEntry.category,
     supervisorName: backendEntry.supervisor_name,
     studentCount: backendEntry.student_count,
-    duration_minutes: backendEntry.duration_minutes,
-    entry_type: backendEntry.entry_type,
-    reason: backendEntry.reason,
   };
 }
 
@@ -173,75 +158,18 @@ function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
   );
 }
 
-function groupHistoryByActivity(history: RoomHistoryEntry[]): Activity[] {
-  const grouped: Activity[] = [];
-  const entriesMap: Record<string, RoomHistoryEntry> = {};
+function groupByDate(entries: readonly RoomHistoryEntry[]): DateGroup[] {
+  const groups: Record<string, RoomHistoryEntry[]> = {};
 
-  const sortedHistory = [...history].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-  );
-
-  sortedHistory.forEach((entry) => {
-    if (entry.entry_type === "entry") {
-      const key = `${entry.groupName}-${entry.activityName}`;
-      entriesMap[key] = entry;
-    }
-  });
-
-  sortedHistory.forEach((exit) => {
-    if (exit.entry_type === "exit") {
-      const key = `${exit.groupName}-${exit.activityName}`;
-      const entry = entriesMap[key];
-
-      if (entry) {
-        grouped.push({
-          id: entry.id,
-          entryTimestamp: entry.timestamp,
-          exitTimestamp: exit.timestamp,
-          groupName: entry.groupName,
-          activityName: entry.activityName,
-          category: entry.category,
-          supervisorName: entry.supervisorName,
-          studentCount: entry.studentCount,
-          duration_minutes: entry.duration_minutes,
-          reason: entry.reason,
-        });
-
-        delete entriesMap[key];
-      }
-    }
-  });
-
-  Object.values(entriesMap).forEach((entry) => {
-    grouped.push({
-      id: entry.id,
-      entryTimestamp: entry.timestamp,
-      exitTimestamp: null,
-      groupName: entry.groupName,
-      activityName: entry.activityName,
-      category: entry.category,
-      supervisorName: entry.supervisorName,
-      studentCount: entry.studentCount,
-      duration_minutes: entry.duration_minutes,
-      reason: entry.reason,
-    });
-  });
-
-  return grouped;
-}
-
-function groupByDate(activities: Activity[]): DateGroup[] {
-  const groups: Record<string, Activity[]> = {};
-
-  activities.forEach((activity) => {
-    const timestamp = new Date(activity.entryTimestamp);
+  entries.forEach((entry) => {
+    const started = new Date(entry.startedAt);
     const date = [
-      timestamp.getFullYear(),
-      String(timestamp.getMonth() + 1).padStart(2, "0"),
-      String(timestamp.getDate()).padStart(2, "0"),
+      started.getFullYear(),
+      String(started.getMonth() + 1).padStart(2, "0"),
+      String(started.getDate()).padStart(2, "0"),
     ].join("-");
     groups[date] ??= [];
-    groups[date].push(activity);
+    groups[date].push(entry);
   });
 
   return Object.keys(groups)
@@ -250,8 +178,7 @@ function groupByDate(activities: Activity[]): DateGroup[] {
       date,
       entries: (groups[date] ?? []).sort(
         (a, b) =>
-          new Date(a.entryTimestamp).getTime() -
-          new Date(b.entryTimestamp).getTime(),
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
       ),
     }));
 }
@@ -261,6 +188,12 @@ interface UseRoomDetailResult {
   history: RoomHistoryEntry[];
   loading: boolean;
   error: string | null;
+  // True when the tenant has gdpr.attendance_log_enabled = false. The proxy
+  // route (`/api/rooms/[id]/history`) translates the backend's 403 into
+  // `status: "feature_disabled"` so the drawer can hide the
+  // "Belegungshistorie" section deliberately (issue #1425) rather than
+  // letting it collapse incidentally on an empty history array.
+  historyDisabled: boolean;
 }
 
 function useRoomDetail(roomId: string): UseRoomDetailResult {
@@ -271,9 +204,16 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
   // checkin/checkout/activity events , see use-global-sse.ts. The cache
   // key shape is "room-detail-{id}" (the slug-prefix is added by
   // useSWRAuth); SSE matches via key.includes("room-detail-").
+  //
+  // NOTE: the cache key intentionally does NOT include start/end range
+  // params because today the drawer always fetches the server-side default
+  // window. If a future caller starts passing range params, fold them into
+  // the cache key (e.g. `room-detail-${roomId}-${start}-${end}`) so
+  // distinct windows don't share a cache slot.
   const { data, error, isLoading } = useSWRAuth<{
     room: Room;
     history: RoomHistoryEntry[];
+    historyDisabled: boolean;
   }>(`room-detail-${roomId}`, async () => {
     const authHeaders = token
       ? { Authorization: `Bearer ${token}` }
@@ -293,21 +233,48 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
     const room = mapBackendToFrontendRoom(roomData);
 
     let history: RoomHistoryEntry[] = [];
+    let historyDisabled = false;
     const historyResponse = await fetch(`/api/rooms/${roomId}/history`, {
       credentials: "include",
       headers: { "Content-Type": "application/json", ...authHeaders },
     });
-    if (historyResponse.ok) {
+    if (!historyResponse.ok) {
+      // A non-OK response is NOT the same as "no history". The proxy
+      // maps the GDPR feature-disabled path to 200 + status:"feature_disabled"
+      // (handled in the OK branch below), so anything reaching here is a
+      // genuine failure — proxy crash, backend 500, network timeout. Log
+      // it so the empty drawer section isn't indistinguishable from a real
+      // outage. We deliberately leave historyDisabled=false: hiding the
+      // section on real errors would mask the failure further.
+      logger.warn("room_history_fetch_failed", {
+        room_id: roomId,
+        status: historyResponse.status,
+      });
+    } else {
       const historyResponseData = (await historyResponse.json()) as
         | BackendRoomHistoryEntry[]
-        | { data?: BackendRoomHistoryEntry[] | null }
+        | { status?: string; data?: BackendRoomHistoryEntry[] | null }
         | null;
-      // Three observed response shapes:
+      // Four observed response shapes:
       //   - bare array (legacy)
       //   - { data: [...] } wrapped
       //   - { status: "success", data: null, message: "..." } when no history
+      //   - { status: "feature_disabled", data: [] } when the tenant has
+      //     gdpr.attendance_log_enabled = false (issue #1425). In that
+      //     case set historyDisabled so the drawer hides the section
+      //     deliberately — distinguishing "off" from "no data" matters for
+      //     debugging and for surviving any future UX change that would
+      //     otherwise render a placeholder for empty history.
       // Anything that isn't a real array must collapse to []; otherwise
       // .map on the next line throws (#1374 regression).
+      if (
+        historyResponseData &&
+        typeof historyResponseData === "object" &&
+        !Array.isArray(historyResponseData) &&
+        historyResponseData.status === ROOM_HISTORY_STATUS_FEATURE_DISABLED
+      ) {
+        historyDisabled = true;
+      }
       const backendHistoryEntries: BackendRoomHistoryEntry[] = (() => {
         if (Array.isArray(historyResponseData)) return historyResponseData;
         if (
@@ -323,7 +290,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
       history = backendHistoryEntries.map(mapBackendToFrontendHistoryEntry);
     }
 
-    return { room, history };
+    return { room, history, historyDisabled };
   });
 
   if (error) {
@@ -337,6 +304,7 @@ function useRoomDetail(roomId: string): UseRoomDetailResult {
     history: data?.history ?? [],
     loading: isLoading,
     error: error ? "Fehler beim Laden der Raumdaten." : null,
+    historyDisabled: data?.historyDisabled ?? false,
   };
 }
 
@@ -379,6 +347,13 @@ interface RoomDetailContentProps {
   readonly history: readonly RoomHistoryEntry[];
   readonly headerAction?: React.ReactNode;
   readonly onSelectionActiveChange?: (active: boolean) => void;
+  // When true, the tenant has gdpr.attendance_log_enabled = false and the
+  // "Belegungshistorie" section must be hidden deliberately (issue #1425).
+  // Without this flag the section already collapses when `history` is
+  // empty, but that's incidental — the explicit flag prevents a future
+  // empty-state placeholder from accidentally surfacing the section on a
+  // tenant that has opted out.
+  readonly historyDisabled?: boolean;
 }
 
 export function RoomDetailContent({
@@ -386,10 +361,10 @@ export function RoomDetailContent({
   history,
   headerAction,
   onSelectionActiveChange,
+  historyDisabled = false,
 }: RoomDetailContentProps) {
-  const activities = groupHistoryByActivity([...history]);
-  const groupedActivities = groupByDate(activities);
-  const hasHistory = groupedActivities.length > 0;
+  const groupedSessions = groupByDate(history);
+  const hasHistory = !historyDisabled && groupedSessions.length > 0;
   const isModalContext = Boolean(headerAction);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -524,71 +499,57 @@ export function RoomDetailContent({
               Belegungshistorie
             </h2>
             <div className="space-y-6">
-              {groupedActivities.map((dateGroup) => (
+              {groupedSessions.map((dateGroup) => (
                 <div key={dateGroup.date}>
                   <h3 className="mb-3 text-sm font-semibold text-gray-700">
-                    {dateGroup.entries[0]?.entryTimestamp
-                      ? formatDate(dateGroup.entries[0].entryTimestamp, true)
+                    {dateGroup.entries[0]?.startedAt
+                      ? formatDate(dateGroup.entries[0].startedAt, true)
                       : ""}
                   </h3>
 
                   <div className="space-y-3">
-                    {dateGroup.entries.map((activity) => {
-                      const actualDuration = calculateDuration(
-                        activity.entryTimestamp,
-                        activity.exitTimestamp,
-                      );
-                      const duration =
-                        activity.duration_minutes ?? actualDuration;
-                      const categoryColor = getRoomCategoryColor(
-                        activity.category,
-                      );
+                    {dateGroup.entries.map((session) => {
+                      // Running sessions get a "Laufend" marker in the
+                      // footer row below; suppress the top-right duration
+                      // slot for them so the same state isn't labelled
+                      // twice (formatDuration would otherwise render
+                      // "Aktiv" next to a "Laufend" pill).
+                      const isRunning = session.endedAt === null;
+                      const duration = isRunning
+                        ? null
+                        : (session.durationMinutes ??
+                          calculateDuration(
+                            session.startedAt,
+                            session.endedAt,
+                          ));
 
                       return (
                         <div
-                          key={activity.id}
+                          key={session.sessionId}
                           className="rounded-2xl border border-gray-100 bg-white p-4 transition-shadow hover:shadow-md"
                         >
-                          <div
-                            className="-mx-4 -mt-4 mb-3 h-1 rounded-full"
-                            style={{ backgroundColor: categoryColor }}
-                          ></div>
-
-                          <div className="mb-2 flex items-start justify-between">
+                          <div className="mb-2 flex items-start justify-between gap-2">
                             <h4 className="font-medium text-gray-900">
-                              {activity.activityName}
+                              {session.activityName || "Aktivität"}
                             </h4>
-                            <span className="text-xs text-gray-500">
-                              {formatDuration(duration)}
-                            </span>
+                            {duration !== null && (
+                              <span className="text-xs text-gray-500">
+                                {formatDuration(duration)}
+                              </span>
+                            )}
                           </div>
 
                           <div className="space-y-1 text-sm text-gray-600">
-                            {activity.supervisorName && (
-                              <div>Aufsicht: {activity.supervisorName}</div>
+                            {session.supervisorName && (
+                              <div>Aufsicht: {session.supervisorName}</div>
                             )}
-                            {activity.category && (
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="inline-block h-2 w-2 rounded-full"
-                                  style={{ backgroundColor: categoryColor }}
-                                ></span>
-                                {activity.category}
-                              </div>
-                            )}
-                            {activity.studentCount !== undefined && (
-                              <div>Teilnehmer: {activity.studentCount}</div>
-                            )}
+                            <div>Teilnehmer: {session.studentCount}</div>
                           </div>
 
                           <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
-                            <span>
-                              Beginn: {formatTime(activity.entryTimestamp)}
-                            </span>
-                            {activity.exitTimestamp ? (
-                              <span>
-                                Ende: {formatTime(activity.exitTimestamp)}
-                              </span>
+                            <span>Beginn: {formatTime(session.startedAt)}</span>
+                            {session.endedAt ? (
+                              <span>Ende: {formatTime(session.endedAt)}</span>
                             ) : (
                               <span className="font-medium text-gray-700">
                                 Laufend
@@ -745,7 +706,8 @@ export function RoomDetailLoader({
   headerAction,
   onSelectionActiveChange,
 }: RoomDetailLoaderProps) {
-  const { room, history, loading, error } = useRoomDetail(roomId);
+  const { room, history, loading, error, historyDisabled } =
+    useRoomDetail(roomId);
 
   if (loading) {
     return <RoomDetailSkeleton />;
@@ -766,6 +728,7 @@ export function RoomDetailLoader({
     <RoomDetailContent
       room={room}
       history={history}
+      historyDisabled={historyDisabled}
       headerAction={headerAction}
       onSelectionActiveChange={onSelectionActiveChange}
     />

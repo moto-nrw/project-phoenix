@@ -154,6 +154,58 @@ func (r *OperatorRepository) List(ctx context.Context) ([]*platform.Operator, er
 	return operators, nil
 }
 
+// IncrementMFAAttempts atomically bumps mfa_attempts and applies the
+// lockout window once threshold is reached. Mirror of the tenant-side
+// AccountRepository.IncrementMFAAttempts — see that doc-comment for the
+// race-condition the SQL-level CAS closes. (#1430 review item #6)
+func (r *OperatorRepository) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (platform.OperatorMFAAttemptResult, error) {
+	type incrementRow struct {
+		MFAAttempts    int        `bun:"mfa_attempts"`
+		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+	}
+	row := new(incrementRow)
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.Operator)(nil)).
+		ModelTableExpr(tablePlatformOperators).
+		Set("mfa_attempts = mfa_attempts + 1").
+		Set(
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
+			threshold, int64(lockoutDuration.Seconds()),
+		).
+		Where("id = ?", id).
+		Returning("mfa_attempts, mfa_locked_until").
+		Exec(ctx, row)
+	if err != nil {
+		return platform.OperatorMFAAttemptResult{}, &modelBase.DatabaseError{
+			Op:  "increment operator mfa attempts",
+			Err: err,
+		}
+	}
+	return platform.OperatorMFAAttemptResult{
+		Attempts:    row.MFAAttempts,
+		LockedUntil: row.MFALockedUntil,
+	}, nil
+}
+
+// ResetMFAAttempts atomically clears mfa_attempts and mfa_locked_until
+// after a successful operator verify.
+func (r *OperatorRepository) ResetMFAAttempts(ctx context.Context, id int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.Operator)(nil)).
+		ModelTableExpr(tablePlatformOperators).
+		Set("mfa_attempts = 0").
+		Set("mfa_locked_until = NULL").
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "reset operator mfa attempts",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // UpdateLastLogin updates the last login timestamp
 func (r *OperatorRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	now := time.Now()

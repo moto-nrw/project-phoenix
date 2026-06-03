@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -45,6 +46,7 @@ import (
 // Factory provides access to all services
 type Factory struct {
 	Auth                     auth.AuthService
+	MFA                      auth.MFAService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
@@ -76,6 +78,7 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               listexport.Service
 	Emergency                emergency.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
@@ -91,6 +94,7 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
+	OperatorMFA          platform.OperatorMFAService
 
 	// Email outbox (parent-enrollment PR 5) - shared across features.
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
@@ -234,7 +238,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianInvitationRepo:  repos.GuardianInvitation,
+		AccountRepo:             repos.Account,
 		AccountParentRepo:       repos.AccountParent,
+		AccountTenantRepo:       repos.AccountTenant,
+		AccountRoleRepo:         repos.AccountRole,
+		RoleRepo:                repos.Role,
 		StudentRepo:             repos.Student,
 		PersonRepo:              repos.Person,
 		Mailer:                  mailer,
@@ -493,6 +501,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, err
 	}
 
+	mfaTokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init mfa token auth: %w", err)
+	}
+	mfaService, err := auth.NewMFAService(auth.MFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   mfaTokenAuth,
+		Settings:    settingsService,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      authLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init mfa service: %w", err)
+	}
+	// Wire the MFA gate into the auth service so /auth/login knows to issue
+	// challenge tokens instead of token pairs when MFA is required. Done
+	// post-construction so we don't introduce a constructor cycle.
+	authService.SetMFAService(mfaService)
+
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -684,6 +715,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
 
+	// Staff import bulk-creates invitations (reuses the invitation service);
+	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	staffImportConfig := importService.NewStaffImportConfig(
+		importService.StaffImportDeps{
+			InvitationService: invitationService,
+			AccountRepo:       repos.Account,
+			AccountTenantRepo: repos.AccountTenant,
+			RoleRepo:          repos.Role,
+			SchoolRepo:        repos.School,
+		},
+	)
+	staffImportService := importService.NewImportService(staffImportConfig, db)
+
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
 	// delivery constraints and security profile). If the two ever need to diverge,
@@ -731,6 +775,32 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
 	}
+
+	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
+	// the operator auth service so the login-flow integration in 7b-3 can
+	// inject it via SetMFAService.
+	operatorMFATokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
+	}
+	operatorMFAService, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   operatorMFATokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      platformLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa service: %w", err)
+	}
+	// Wire the MFA gate into the operator auth service so /operator/auth/login
+	// returns challenge tokens when MFA is required (= always, hardcoded for
+	// platform scope). Done post-construction to break the
+	// OperatorAuthService ↔ OperatorMFAService cycle.
+	operatorAuthService.SetMFAService(operatorMFAService)
 
 	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
 		AnnouncementRepo:     repos.Announcement,
@@ -874,6 +944,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory := &Factory{
 		Auth:                     authService,
+		MFA:                      mfaService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
@@ -903,6 +974,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
+		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
@@ -924,6 +996,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
+		OperatorMFA:          operatorMFAService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

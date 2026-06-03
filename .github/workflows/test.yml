@@ -51,6 +51,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
@@ -73,6 +75,11 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          # Dummy 32+ char secret so services.NewFactory can init the MFA
+          # service in tests. NewFactory hard-fails without it (the secret
+          # is the HMAC key for trusted-device cookies). Production and
+          # staging supply this via SOPS; CI tests get a fixed test value.
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
         run: |
           gotestsum \
             --format pkgname-and-test-fails \
@@ -80,47 +87,14 @@ jobs:
             --rerun-fails \
             --rerun-fails-max-failures=5 \
             --rerun-fails-report rerun-fails.json \
-            --packages="./..." \
-            -- \
-            -coverpkg=./... \
-            -covermode=atomic \
-            -coverprofile=coverage.out
+            --packages="./..."
 
-      - name: Regenerate full Go coverage
+      - name: Collect Go coverage
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-        run: |
-          echo "Regenerating full coverage for SonarCloud"
-          cp coverage.out coverage.gotestsum.out
-          if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
-            echo "Coverage regeneration failed; retrying once"
-            if ! go test ./... -coverpkg=./... -covermode=atomic -coverprofile=coverage.out; then
-              echo "Coverage regeneration failed after retry; keeping gotestsum coverage.out"
-              mv coverage.gotestsum.out coverage.out
-            fi
-          fi
-          rm -f coverage.gotestsum.out
-
-      - name: Add list export coverage
-        working-directory: backend
-        run: |
-          go test ./services/listexport \
-            -coverpkg=./services/listexport \
-            -covermode=atomic \
-            -coverprofile=coverage.listexport.out
-          tail -n +2 coverage.listexport.out >> coverage.out
-          rm -f coverage.listexport.out
-
-      - name: Add emergency coverage
-        working-directory: backend
-        run: |
-          go test ./services/emergency \
-            -coverpkg=./services/emergency \
-            -covermode=atomic \
-            -coverprofile=coverage.emergency.out
-          tail -n +2 coverage.emergency.out >> coverage.out
-          rm -f coverage.emergency.out
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+        run: ../.github/scripts/collect-go-coverage.sh coverage.out
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend

@@ -9,6 +9,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// GuardianLinkedChild is a minimal projection of a child currently linked to a
+// guardian, used by the guardian picker search to show which children a guardian
+// belongs to (sibling case, #1513). It is NOT a persisted entity — it is scanned
+// from a join across students_guardians → students → persons.
+type GuardianLinkedChild struct {
+	GuardianProfileID int64  `bun:"guardian_profile_id"`
+	StudentID         int64  `bun:"student_id"`
+	FirstName         string `bun:"first_name"`
+	LastName          string `bun:"last_name"`
+}
+
 // StudentGuardian represents the relationship between a student and their guardian
 type StudentGuardian struct {
 	base.Model `bun:"schema:users,table:students_guardians"`
@@ -61,15 +72,8 @@ func (sg *StudentGuardian) Validate() error {
 	// Convert relationship type to lowercase for consistency
 	sg.RelationshipType = strings.ToLower(sg.RelationshipType)
 
-	// Validate against known types
-	validTypes := map[string]bool{
-		"parent":   true,
-		"guardian": true,
-		"relative": true,
-		"other":    true,
-	}
-
-	if !validTypes[sg.RelationshipType] {
+	// Validate against the shared allowed set (single source of truth)
+	if !IsValidRelationshipType(sg.RelationshipType) {
 		return errors.New("invalid relationship type")
 	}
 

@@ -11,6 +11,7 @@ import StudentDetailPage from "./page";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
+  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
   useSession: vi.fn(() => ({
     data: { user: { token: "test-token" } },
     status: "authenticated",
@@ -19,14 +20,16 @@ vi.mock("next-auth/react", () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
     push: mockPush,
-    replace: vi.fn(),
+    replace: mockReplace,
     back: vi.fn(),
   })),
   useParams: vi.fn(() => ({ id: "1" })),
+  usePathname: vi.fn(() => "/students/1"),
   useSearchParams: vi.fn(() => mockSearchParams),
 }));
 
@@ -192,6 +195,33 @@ vi.mock("~/components/students/personal-info-form-modal", () => ({
   },
 }));
 
+vi.mock("~/components/students/planned-status-days-modal", () => ({
+  PlannedStatusDaysModal: ({
+    isOpen,
+    status,
+    onClose,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    status: "sick" | "excused";
+    onClose: () => void;
+    onSubmit: (dates: string[]) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid={`planned-status-modal-${status}`}>
+        <button
+          data-testid="planned-status-submit"
+          onClick={() => void onSubmit(["2026-05-25"])}
+        >
+          Speichern
+        </button>
+        <button data-testid="planned-status-cancel" onClick={onClose}>
+          Abbrechen
+        </button>
+      </div>
+    ) : null,
+}));
+
 // Track which action type getStudentActionType returns
 let mockActionType: "checkout" | "checkin" | "none" = "none";
 
@@ -279,18 +309,17 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
   ),
 }));
 
-// Mock pickup schedule manager
-vi.mock("~/components/students/pickup-schedule-manager", () => ({
-  default: ({
+vi.mock("~/components/students/care-schedule-manager", () => ({
+  CareScheduleManager: ({
     studentId,
     onUpdate,
   }: {
     studentId: string;
     onUpdate?: () => void;
   }) => (
-    <div data-testid="pickup-schedule-manager" data-student-id={studentId}>
-      <button data-testid="update-pickup-schedule" onClick={() => onUpdate?.()}>
-        Update Pickup
+    <div data-testid="care-schedule-manager" data-student-id={studentId}>
+      <button data-testid="update-care-schedule" onClick={() => onUpdate?.()}>
+        Update Care
       </button>
     </div>
   ),
@@ -392,6 +421,18 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
+const mockCreateStudentStatusDays = vi.fn();
+const mockFetchStudentStatusDays = vi.fn();
+vi.mock("~/lib/student-status-days-api", () => ({
+  createStudentStatusDays: (
+    studentId: string,
+    status: "sick" | "excused",
+    dates: string[],
+  ) => mockCreateStudentStatusDays(studentId, status, dates),
+  fetchStudentStatusDays: (studentId: string, from: string, to: string) =>
+    mockFetchStudentStatusDays(studentId, from, to),
+}));
+
 // Mock useToast hook
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
@@ -434,6 +475,7 @@ describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("from");
+    mockSearchParams.delete("tab");
     mockActionType = "none";
 
     // Default mock implementations
@@ -457,6 +499,8 @@ describe("StudentDetailPage", () => {
         actualGroup: { name: "Gruppe A" },
       },
     ]);
+    mockCreateStudentStatusDays.mockResolvedValue([]);
+    mockFetchStudentStatusDays.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -984,7 +1028,7 @@ describe("StudentDetailPage", () => {
       );
     });
 
-    it("shows sick confirmation modal when sick button is clicked", async () => {
+    it("shows sick date picker modal when sick button is clicked", async () => {
       render(<StudentDetailPage />);
 
       const sickButton = screen.getByTestId("sick-toggle-button");
@@ -992,13 +1036,13 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
     });
 
-    it("performs sick toggle successfully", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("creates sick status days successfully", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
 
       render(<StudentDetailPage />);
 
@@ -1007,26 +1051,26 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          sick: true,
-        });
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith("1", "sick", [
+          "2026-05-25",
+        ]);
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
-    it("does not send bus on sick toggle so the persisted flag is preserved", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("does not send bus through the sick date picker flow", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
 
       mockUseStudentData.mockReturnValue({
         student: { ...mockStudent, buskind: true },
@@ -1048,25 +1092,25 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          sick: true,
-        });
-        expect(mockUpdateStudent.mock.calls[0]?.[1]).not.toHaveProperty("bus");
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith("1", "sick", [
+          "2026-05-25",
+        ]);
+        expect(mockUpdateStudent).not.toHaveBeenCalled();
       });
     });
 
     it("shows error toast when sick toggle fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("Toggle failed"));
+      mockCreateStudentStatusDays.mockRejectedValue(new Error("Toggle failed"));
 
       render(<StudentDetailPage />);
 
@@ -1075,11 +1119,11 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const confirmButton = screen.getByTestId("modal-confirm");
+      const confirmButton = screen.getByTestId("planned-status-submit");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
@@ -1116,7 +1160,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("closes sick modal when cancel is clicked", async () => {
+    it("closes sick date picker modal when cancel is clicked", async () => {
       render(<StudentDetailPage />);
 
       const sickButton = screen.getByTestId("sick-toggle-button");
@@ -1124,16 +1168,16 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-krankmelden"),
+          screen.getByTestId("planned-status-modal-sick"),
         ).toBeInTheDocument();
       });
 
-      const cancelButton = screen.getByTestId("modal-cancel");
+      const cancelButton = screen.getByTestId("planned-status-cancel");
       fireEvent.click(cancelButton);
 
       await waitFor(() => {
         expect(
-          screen.queryByTestId("modal-kind-krankmelden"),
+          screen.queryByTestId("planned-status-modal-sick"),
         ).not.toBeInTheDocument();
       });
     });
@@ -1169,48 +1213,50 @@ describe("StudentDetailPage", () => {
       );
     });
 
-    it("shows excused confirmation modal when excused button is clicked", async () => {
+    it("shows excused date picker modal when excused button is clicked", async () => {
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
     });
 
-    it("performs excused toggle successfully", async () => {
-      mockUpdateStudent.mockResolvedValue({});
+    it("creates excused status days successfully", async () => {
+      mockCreateStudentStatusDays.mockResolvedValue([]);
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
       await act(async () => {
-        fireEvent.click(screen.getByTestId("modal-confirm"));
+        fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", {
-          excused: true,
-        });
+        expect(mockCreateStudentStatusDays).toHaveBeenCalledWith(
+          "1",
+          "excused",
+          ["2026-05-25"],
+        );
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
     it("shows error toast when excused toggle fails", async () => {
-      mockUpdateStudent.mockRejectedValue(new Error("fail"));
+      mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));
       render(<StudentDetailPage />);
       fireEvent.click(screen.getByTestId("excused-toggle-button"));
       await waitFor(() => {
         expect(
-          screen.getByTestId("modal-kind-entschuldigen"),
+          screen.getByTestId("planned-status-modal-excused"),
         ).toBeInTheDocument();
       });
       await act(async () => {
-        fireEvent.click(screen.getByTestId("modal-confirm"));
+        fireEvent.click(screen.getByTestId("planned-status-submit"));
       });
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalled();
@@ -1417,6 +1463,213 @@ describe("StudentDetailPage", () => {
 
       expect(screen.getByTestId("checkin-section")).toBeInTheDocument();
       expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Tabbed Navigation (#1501)", () => {
+    const limitedAccess = {
+      student: mockStudent,
+      loading: false,
+      error: null,
+      hasFullAccess: false,
+      hasWriteAccess: false,
+      supervisors: [{ name: "Frau Schmidt" }],
+      myGroups: ["1"],
+      myGroupRooms: [],
+      mySupervisedRooms: [],
+      refreshData: mockRefreshData,
+    };
+
+    // Radix activates a tab on pointer-down (mouseDown is the legacy fallback).
+    // Fire both, mirroring the precedent in ui/tabs.test.tsx, so these tests
+    // don't hinge on a single internal Radix event path and survive a bump.
+    const selectTab = (name: string) => {
+      const tab = screen.getByRole("tab", { name });
+      fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+      fireEvent.mouseDown(tab, { button: 0 });
+    };
+
+    it("renders all section tabs in the full access view", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Erziehungsberechtigte" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Betreuungszeiten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("defaults to the Stammdaten tab when no tab param is set", () => {
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("marks only the active panel active and the rest inactive (hidden via CSS)", () => {
+      // forceMount keeps every panel mounted; Radix sets data-state, and the
+      // `data-[state=inactive]:hidden` class hides the inactive ones in the
+      // browser. jsdom applies no CSS, so we assert the data-state wiring that
+      // drives the hiding instead of computed visibility.
+      render(<StudentDetailPage />);
+
+      const panels = screen.getAllByRole("tabpanel", { hidden: true });
+      const active = panels.filter(
+        (panel) => panel.getAttribute("data-state") === "active",
+      );
+      const inactive = panels.filter(
+        (panel) => panel.getAttribute("data-state") === "inactive",
+      );
+
+      expect(active).toHaveLength(1);
+      expect(inactive.length).toBeGreaterThan(0);
+      for (const panel of inactive) {
+        expect(panel.className).toContain("data-[state=inactive]:hidden");
+      }
+    });
+
+    it("activates the tab from the ?tab= query param (deep link)", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungszeiten" }),
+      ).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("updates the URL with the tab param when a tab is selected", () => {
+      render(<StudentDetailPage />);
+
+      selectTab("Historie");
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1?tab=historie", {
+        scroll: false,
+      });
+    });
+
+    it("drops the tab param when returning to the default tab", () => {
+      mockSearchParams.set("tab", "historie");
+
+      render(<StudentDetailPage />);
+
+      selectTab("Stammdaten");
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    it("preserves the from referrer when switching tabs", () => {
+      mockSearchParams.set("from", "/my-room");
+
+      render(<StudentDetailPage />);
+
+      selectTab("Historie");
+
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/students/1?from=%2Fmy-room&tab=historie",
+        { scroll: false },
+      );
+    });
+
+    it("hides the Betreuungszeiten tab in the limited access view", () => {
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungszeiten" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("falls back to the default tab when deep-linking a tab the access level lacks", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("rewrites the URL to drop an inaccessible deep-linked tab", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      // Clamped to the default tab, so the bogus param is stripped from the URL
+      // rather than left advertising a tab the user can't open.
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    it("rewrites the URL to drop an unknown tab value", () => {
+      mockSearchParams.set("tab", "nonsense");
+
+      render(<StudentDetailPage />);
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    // Regression guard for the Rules-of-Hooks ordering bug: the tab self-heal
+    // useEffect must be called before the loading/error early returns, or the
+    // first loaded render adds a hook that the loading render skipped and React
+    // throws "Rendered more hooks than during the previous render". A single
+    // mounted instance must survive the loading -> loaded transition. oxlint
+    // does not run the react-hooks plugin, so only this test catches it.
+    it("survives the loading -> loaded transition without a hook-order crash", () => {
+      mockUseStudentData.mockReturnValue({
+        student: null,
+        loading: true,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        supervisors: [],
+        myGroups: [],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      const { rerender } = render(<StudentDetailPage />);
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+
+      // Same component instance now finishes loading with full access.
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      expect(() => rerender(<StudentDetailPage />)).not.toThrow();
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
     });
   });
 });

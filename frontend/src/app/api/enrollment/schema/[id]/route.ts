@@ -69,7 +69,10 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   try {
-    const body = (await request.json()) as { fields?: unknown };
+    const body = (await request.json()) as {
+      fields?: unknown;
+      core_requirements?: unknown;
+    };
     const response = await fetch(
       `${getServerApiUrl()}/api/enrollment/schema/${id}`,
       {
@@ -78,7 +81,15 @@ export async function PUT(
           "Content-Type": "application/json",
           Authorization: authHeader,
         },
-        body: JSON.stringify({ fields: body.fields ?? [] }),
+        // Forward core_requirements only when present so the backend's
+        // "absent = preserve existing" semantics still hold; sending it
+        // makes the admin's guardian-phone-required toggle stick.
+        body: JSON.stringify({
+          fields: body.fields ?? [],
+          ...(body.core_requirements === undefined
+            ? {}
+            : { core_requirements: body.core_requirements }),
+        }),
       },
     );
     const payload = await response.json().catch(() => ({}));

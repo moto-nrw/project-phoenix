@@ -76,19 +76,23 @@ func (r *EmailOutboxRepository) ClaimDuePending(ctx context.Context, limit int, 
 	var rows []*platform.EmailOutbox
 	query := `
 		WITH due AS (
-			SELECT id
+			SELECT id, next_retry_at
 			FROM platform.email_outbox
 			WHERE status = 'pending'
 			  AND next_retry_at <= ?
-			ORDER BY next_retry_at
+			ORDER BY next_retry_at, id
 			FOR UPDATE SKIP LOCKED
 			LIMIT ?
+		), updated AS (
+			UPDATE platform.email_outbox AS o
+			SET status = 'sending'
+			FROM due
+			WHERE o.id = due.id
+			RETURNING o.*
 		)
-		UPDATE platform.email_outbox AS o
-		SET status = 'sending'
-		FROM due
-		WHERE o.id = due.id
-		RETURNING o.*
+		SELECT updated.*
+		FROM updated
+		ORDER BY updated.next_retry_at, updated.id
 	`
 	// Use base.GetDB so the query runs inside the caller's tx (which
 	// holds SET LOCAL ROLE phoenix_admin). Bypassing it would grab a

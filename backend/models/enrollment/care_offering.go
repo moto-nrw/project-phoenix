@@ -47,6 +47,7 @@ type CareOffering struct {
 	Capacity            *int     `bun:"capacity" json:"capacity,omitempty"`
 	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
 	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
+	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
 	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
 }
 
@@ -83,6 +84,13 @@ func (c *CareOffering) Validate() error {
 	}
 	if c.PriceCents != nil && *c.PriceCents < 0 {
 		return errors.New("price_cents must be non-negative")
+	}
+	// A required offering must be available to every child, so it cannot
+	// carry a hard capacity limit - otherwise a full offering would block
+	// every new enrollment in the phase. The admin editor prevents the
+	// combination; this is the backstop.
+	if c.IsRequired && c.Capacity != nil {
+		return errors.New("a required care offering must not have a capacity limit")
 	}
 	return nil
 }

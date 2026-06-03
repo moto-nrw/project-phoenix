@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
@@ -266,6 +267,10 @@ function ProfileContent() {
             Passwort ändern
           </Button>
         </div>
+
+        {/* Trusted Devices Section — personal device management.
+            Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
+        <TrustedDevicesSection />
       </div>
 
       {showPasswordModal && (

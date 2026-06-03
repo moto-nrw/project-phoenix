@@ -609,3 +609,114 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 		assert.True(t, r.IsPrimary)
 	}
 }
+
+// TestStudentGuardianRepository_LinkIfNotExists unit-tests the idempotent link
+// used by the select-existing-guardian path (#1513) directly at the repo layer.
+// It pins three contracts the service relies on: a fresh link inserts and
+// reports true, a duplicate link is a silent no-op reporting false (never a
+// unique-violation that would abort the surrounding tenant tx), and tenant_id is
+// auto-populated from context when the caller leaves it unset.
+func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("inserts a new link and reports it as inserted", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Link", "Student", "1a")
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkfresh")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+
+		rel := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			CanPickup:         true,
+			EmergencyPriority: 1,
+		}
+		rel.SetTenantID(1)
+
+		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		defer cleanupStudentGuardians(t, db, rel.ID)
+		require.NoError(t, err)
+		assert.True(t, inserted, "a brand-new link must report inserted=true")
+	})
+
+	t.Run("treats a duplicate link as a no-op reporting not-inserted", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Dup", "Student", "1b")
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkdup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+
+		first := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		}
+		first.SetTenantID(1)
+		inserted, err := repo.LinkIfNotExists(ctx, first)
+		require.NoError(t, err)
+		require.True(t, inserted)
+		defer cleanupStudentGuardians(t, db, first.ID)
+
+		// Same (tenant, student, guardian) again — must NOT raise a unique
+		// violation and must report that nothing new was inserted.
+		dup := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "guardian",
+			EmergencyPriority: 2,
+		}
+		dup.SetTenantID(1)
+		inserted, err = repo.LinkIfNotExists(ctx, dup)
+		require.NoError(t, err, "a duplicate link must not error")
+		assert.False(t, inserted, "a duplicate link must report inserted=false")
+
+		// Exactly one row survives for this (student, guardian) pair.
+		count, err := repo.List(ctx, map[string]interface{}{"student_id": student.ID})
+		require.NoError(t, err)
+		var matched int
+		for _, l := range count {
+			if l.GuardianProfileID == guardian.ID {
+				matched++
+			}
+		}
+		assert.Equal(t, 1, matched, "the duplicate must not create a second row")
+	})
+
+	t.Run("auto-populates tenant_id from context when unset", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Auto", "Student", "1c")
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkauto")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+
+		// TenantID deliberately left at zero — the repo must fill it from ctx.
+		rel := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		}
+		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		defer cleanupStudentGuardians(t, db, rel.ID)
+		require.NoError(t, err)
+		require.True(t, inserted)
+		assert.Equal(t, int64(1), rel.GetTenantID(), "tenant_id must be auto-set from context")
+	})
+}
+
+// TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput pins
+// the early-return contract the picker batch relies on: an empty id slice yields
+// an empty result with no query (and no error), so SearchGuardiansForPicker can
+// call it unconditionally.
+func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
+	require.NoError(t, err)
+	assert.Empty(t, rows, "an empty guardian-id slice must return no rows")
+}

@@ -1230,14 +1230,14 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		endTime := time.Now()
 
 		// ACT
-		_, err := service.GetRoomHistory(ctx, 999999999, startTime, endTime)
+		_, err := service.GetRoomHistory(ctx, 999999999, startTime, endTime, nil)
 
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
-	t.Run("returns empty history for room with no visits", func(t *testing.T) {
+	t.Run("returns empty history for room with no sessions", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "HistoryEmpty")
 		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
@@ -1246,46 +1246,46 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		endTime := time.Now()
 
 		// ACT
-		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime)
+		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime, nil)
 
 		// ASSERT
 		require.NoError(t, err)
 		assert.Empty(t, history)
 	})
 
-	t.Run("returns visit history for room", func(t *testing.T) {
+	// Issue #1425: room history now aggregates by active.groups session
+	// (no per-student rows). The endpoint returns activity / group name,
+	// supervisor names, and a distinct student count — never student IDs
+	// or names. Per-child detail lives behind /students/{id}/attendance-history.
+	t.Run("returns aggregated session history for room", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "HistoryWithVisits")
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "HistoryGroup")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "History", "Student", "1a")
+		outsideWindowStudent := testpkg.CreateTestStudent(t, db, "History", "OutsideWindow", "1b")
 
-		// Create a visit
 		entryTime := time.Now().Add(-1 * time.Hour)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
 
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
-
 		startTime := time.Now().Add(-24 * time.Hour)
 		endTime := time.Now().Add(1 * time.Hour)
+		oldExitTime := startTime.Add(-1 * time.Hour)
+		oldVisit := testpkg.CreateTestVisit(t, db, outsideWindowStudent.ID, activeGroup.ID, startTime.Add(-2*time.Hour), &oldExitTime)
+
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, outsideWindowStudent.ID, visit.ID, oldVisit.ID)
 
 		// ACT
-		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime)
+		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime, nil)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotEmpty(t, history)
+		require.Len(t, history, 1, "one aggregated session expected for the active group")
 
-		// Verify the visit is in the history
-		found := false
-		for _, h := range history {
-			if h.StudentID == student.ID {
-				found = true
-				assert.Equal(t, "History Student", h.StudentName)
-				break
-			}
-		}
-		assert.True(t, found, "Visit should be in history")
+		entry := history[0]
+		assert.Equal(t, activeGroup.ID, entry.SessionID)
+		assert.Equal(t, "HistoryGroup", entry.ActivityName)
+		assert.Equal(t, 1, entry.StudentCount, "distinct student count must only include visits overlapping the requested window")
 	})
 }
 

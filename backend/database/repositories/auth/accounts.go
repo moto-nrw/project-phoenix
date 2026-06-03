@@ -109,6 +109,66 @@ func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwo
 	return nil
 }
 
+// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
+// mfa_locked_until = now() + lockoutDuration when the post-increment
+// count is >= threshold. Returns the post-update counter and lock
+// timestamp so the service can detect the lockout transition (exact
+// threshold equality means *this* call crossed the line).
+//
+// The whole "read-mutate-write" pattern in the model layer was racy:
+// two concurrent failed verifies both read mfa_attempts=N, both wrote
+// N+1, and the counter only advanced by 1 — letting an attacker make
+// 2N attempts before the threshold hit. Single SQL statement removes
+// the race. (#1430 review item #6)
+func (r *AccountRepository) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (auth.MFAAttemptResult, error) {
+	type incrementRow struct {
+		MFAAttempts    int        `bun:"mfa_attempts"`
+		MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+	}
+	row := new(incrementRow)
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("mfa_attempts = mfa_attempts + 1").
+		Set(
+			"mfa_locked_until = CASE WHEN mfa_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE mfa_locked_until END",
+			threshold, int64(lockoutDuration.Seconds()),
+		).
+		Where(whereID, id).
+		Returning("mfa_attempts, mfa_locked_until").
+		Exec(ctx, row)
+	if err != nil {
+		return auth.MFAAttemptResult{}, &modelBase.DatabaseError{
+			Op:  "increment mfa attempts",
+			Err: err,
+		}
+	}
+	return auth.MFAAttemptResult{
+		Attempts:    row.MFAAttempts,
+		LockedUntil: row.MFALockedUntil,
+	}, nil
+}
+
+// ResetMFAAttempts atomically clears mfa_attempts and mfa_locked_until.
+// Used after a successful verify so a stale in-memory Account.Update
+// can't accidentally re-set a concurrent racer's incremented counter.
+func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("mfa_attempts = 0").
+		Set("mfa_locked_until = NULL").
+		Where(whereID, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "reset mfa attempts",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // SetActive toggles only the active flag for an account. Targeted update so
 // it does not clobber password_hash or other in-memory stale fields.
 func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {

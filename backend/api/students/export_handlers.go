@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -28,14 +29,18 @@ type studentExportRequest struct {
 }
 
 type studentExportFilters struct {
-	Search      string `json:"search"`
-	GroupID     string `json:"group_id"`
-	RoomID      string `json:"room_id"`
-	Year        string `json:"year"`
-	Status      string `json:"status"`
-	PickupTime  string `json:"pickup_time"`
-	ArrivalTime string `json:"arrival_time"`
-	Sort        string `json:"sort"`
+	Search       string `json:"search"`
+	GroupID      string `json:"group_id"`
+	RoomID       string `json:"room_id"`
+	Year         string `json:"year"`
+	Status       string `json:"status"`
+	Bus          string `json:"bus"`
+	PhotoConsent string `json:"photo_consent"`
+	PickupStatus string `json:"pickup_status"`
+	DayStatus    string `json:"day_status"`
+	PickupTime   string `json:"pickup_time"`
+	ArrivalTime  string `json:"arrival_time"`
+	Sort         string `json:"sort"`
 }
 
 type weeklySchedule struct {
@@ -71,6 +76,9 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	accessCtx := rs.determineStudentAccess(r)
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)
+	if exportNeedsPhotoConsentFilter(req.Filters) {
+		populateExportPhotoConsentFilterData(responses, students)
+	}
 	for i := range responses {
 		if responses[i].HasFullAccess {
 			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
@@ -78,7 +86,12 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	today := time.Now()
+	today := rs.Now()
+	rs.applyStatusDaysForDate(r.Context(), responses, today)
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
 	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, today)
 	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
 
@@ -139,6 +152,7 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		pageSize:            studentExportPageSize,
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
+		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
 	}
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
@@ -153,6 +167,27 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 	return params
 }
 
+func exportNeedsPhotoConsentFilter(filters studentExportFilters) bool {
+	return filters.PhotoConsent != "" && filters.PhotoConsent != "all"
+}
+
+func populateExportPhotoConsentFilterData(responses []StudentResponse, students []*users.Student) {
+	consentByStudentID := make(map[int64]bool, len(students))
+	for _, student := range students {
+		if student == nil {
+			continue
+		}
+		consentByStudentID[student.ID] = student.PhotoConsentGivenAt != nil
+	}
+	for i := range responses {
+		consentGiven, ok := consentByStudentID[responses[i].ID]
+		if !ok {
+			continue
+		}
+		responses[i].PhotoConsentGiven = &consentGiven
+	}
+}
+
 func applyExportFilters(students []StudentResponse, filters studentExportFilters) []StudentResponse {
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
@@ -160,6 +195,12 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 			continue
 		}
 		if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
+			continue
+		}
+		if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
+			continue
+		}
+		if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
 			continue
 		}
 		if filters.PickupTime != "" && filters.PickupTime != "all" {
@@ -365,7 +406,51 @@ func exportFilterLabels(filters studentExportFilters) []string {
 	if filters.Status != "" && filters.Status != "all" {
 		labels = append(labels, "Momentaufnahme: "+filters.Status)
 	}
+	if filters.Bus != "" && filters.Bus != "all" {
+		if filters.Bus == "yes" {
+			labels = append(labels, "Buskind")
+		} else {
+			labels = append(labels, "Kein Buskind")
+		}
+	}
+	if filters.PhotoConsent != "" && filters.PhotoConsent != "all" {
+		if filters.PhotoConsent == "yes" {
+			labels = append(labels, "Fotoerlaubnis liegt vor")
+		} else {
+			labels = append(labels, "Keine Fotoerlaubnis")
+		}
+	}
+	if filters.PickupStatus != "" && filters.PickupStatus != "all" {
+		labels = append(labels, "Abholregelung: "+exportPickupStatusLabel(filters.PickupStatus))
+	}
+	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
+		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+	}
 	return labels
+}
+
+func exportPickupStatusLabel(status string) string {
+	switch status {
+	case "self":
+		return "Geht alleine nach Hause"
+	case "pickedUp":
+		return "Wird abgeholt"
+	case "none":
+		return "Keine Abholregelung"
+	default:
+		return "Sonstige"
+	}
+}
+
+func dayStatusExportLabel(status string) string {
+	switch status {
+	case DayPlanningStatusComesToday:
+		return "Kommt heute"
+	case DayPlanningStatusNotComingToday:
+		return "Kommt heute nicht"
+	default:
+		return status
+	}
 }
 
 func schoolYear(schoolClass string) string {

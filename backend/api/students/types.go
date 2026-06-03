@@ -3,7 +3,10 @@ package students
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // Constants for date formats
@@ -46,6 +49,9 @@ type StudentResponse struct {
 	SickSince          *time.Time `json:"sick_since,omitempty"`
 	Excused            bool       `json:"excused"`
 	ExcusedSince       *time.Time `json:"excused_since,omitempty"`
+	DayPlanningStatus  string     `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -99,6 +105,24 @@ type StudentDetailResponse struct {
 	FeedbackEnabled      bool                `json:"feedback_enabled"`
 }
 
+type StudentStatusDayResponse struct {
+	ID         int64      `json:"id"`
+	StudentID  int64      `json:"student_id"`
+	Date       string     `json:"date"`
+	Status     string     `json:"status"`
+	Label      string     `json:"label"`
+	ReportedAt time.Time  `json:"reported_at"`
+	ClearedAt  *time.Time `json:"cleared_at,omitempty"`
+	Source     string     `json:"source"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type CreateStudentStatusDaysRequest struct {
+	Status string   `json:"status"`
+	Dates  []string `json:"dates"`
+}
+
 // StudentRequest represents a student creation request with person details
 type StudentRequest struct {
 	// Person details (required)
@@ -123,6 +147,59 @@ type StudentRequest struct {
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+
+	// Guardians created together with the student in one atomic transaction
+	// (guardian_profiles system). Optional and independent of the legacy
+	// scalar guardian_* fields above.
+	Guardians []GuardianInput `json:"guardians,omitempty"`
+
+	// Weekly recurring arrival/pickup schedules persisted together with the
+	// student in the same atomic transaction. Reuse the bulk-update item DTOs
+	// so the time format and validation match the post-creation editing
+	// endpoints (PUT /students/{id}/{arrival,pickup}-schedules).
+	ArrivalSchedules []ArrivalScheduleRequestItem `json:"arrival_schedules,omitempty"`
+	PickupSchedules  []PickupScheduleRequest      `json:"pickup_schedules,omitempty"`
+}
+
+// GuardianPhoneInput is one phone number for a guardian created alongside a student.
+type GuardianPhoneInput struct {
+	PhoneNumber string `json:"phone_number"`
+	PhoneType   string `json:"phone_type,omitempty"` // mobile, home, work, other
+	Label       string `json:"label,omitempty"`
+	IsPrimary   bool   `json:"is_primary,omitempty"`
+}
+
+// GuardianInput is one guardian (profile + relationship + phone numbers) to be
+// created together with a new student. Mirrors the fields managed on the
+// student detail page's guardian form.
+type GuardianInput struct {
+	// GuardianProfileID, when set, links an EXISTING guardian profile to the
+	// new student instead of creating a new one (sibling case, issue #1513).
+	// When present the profile fields below (name, email, address, phone
+	// numbers) are ignored and the existing profile is never mutated — only the
+	// relationship flags apply to the new link.
+	GuardianProfileID *int64 `json:"guardian_profile_id,omitempty"`
+
+	// Profile
+	FirstName              string `json:"first_name"`
+	LastName               string `json:"last_name"`
+	Email                  string `json:"email,omitempty"`
+	AddressStreet          string `json:"address_street,omitempty"`
+	AddressCity            string `json:"address_city,omitempty"`
+	AddressPostalCode      string `json:"address_postal_code,omitempty"`
+	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
+	LanguagePreference     string `json:"language_preference,omitempty"`
+	Notes                  string `json:"notes,omitempty"`
+
+	// Relationship to the student
+	RelationshipType   string `json:"relationship_type"` // parent, guardian, relative, other
+	IsPrimary          bool   `json:"is_primary,omitempty"`
+	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
+	CanPickup          bool   `json:"can_pickup,omitempty"`
+	PickupNotes        string `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int    `json:"emergency_priority,omitempty"`
+
+	PhoneNumbers []GuardianPhoneInput `json:"phone_numbers,omitempty"`
 }
 
 // UpdateStudentRequest represents a student update request
@@ -214,6 +291,25 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
 	// No validation required for guardian fields
 
+	// Validate guardians created alongside the student. Email/phone format and
+	// other field-level rules are enforced at the model layer on insert (which
+	// rolls back the whole transaction on failure); here we only guard the
+	// relationship type, which has no default and is required to link.
+	for i := range req.Guardians {
+		if strings.TrimSpace(req.Guardians[i].RelationshipType) == "" {
+			return errors.New("guardian relationship_type is required")
+		}
+	}
+
+	// Validate weekly schedules with the same rules as the bulk-update
+	// endpoints so the atomic create path cannot persist invalid times.
+	if err := validateArrivalScheduleItems(req.ArrivalSchedules); err != nil {
+		return err
+	}
+	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -231,6 +327,33 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
+	return nil
+}
+
+func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
+	req.Status = strings.TrimSpace(req.Status)
+	if req.Status != active.StudentStatusDaySick && req.Status != active.StudentStatusDayExcused {
+		return errors.New("status must be sick or excused")
+	}
+	if len(req.Dates) == 0 {
+		return errors.New("dates are required")
+	}
+
+	seen := make(map[string]struct{}, len(req.Dates))
+	for i, rawDate := range req.Dates {
+		date := strings.TrimSpace(rawDate)
+		if date == "" {
+			return errors.New("date cannot be empty")
+		}
+		if _, err := time.Parse(dateFormatYYYYMMDD, date); err != nil {
+			return errors.New("invalid date format, expected YYYY-MM-DD")
+		}
+		if _, ok := seen[date]; ok {
+			return errors.New("duplicate dates are not allowed")
+		}
+		seen[date] = struct{}{}
+		req.Dates[i] = date
+	}
 	return nil
 }
 

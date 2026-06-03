@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
@@ -16,7 +17,8 @@ import (
 // Server provides an HTTP server for the API
 type Server struct {
 	*http.Server
-	scheduler *scheduler.Scheduler
+	scheduler      *scheduler.Scheduler
+	capacityLogger *observability.CapacityLogger
 }
 
 // NewServer creates and configures a new API server
@@ -48,7 +50,8 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			WriteTimeout: 0,
 			IdleTimeout:  0,
 		},
-		scheduler: nil, // Will be initialized if cleanup is enabled
+		scheduler:      nil, // Will be initialized if cleanup is enabled
+		capacityLogger: observability.NewCapacityLogger(api.db.DB, api.Services.RealtimeHub, api.Metrics, logger.With("component", "capacity")),
 	}
 
 	// Initialize scheduler if cleanup is enabled
@@ -109,6 +112,13 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 
 // Start runs the server with graceful shutdown
 func (srv *Server) Start() {
+	capacityCtx, stopCapacityLogger := context.WithCancel(context.Background())
+	defer stopCapacityLogger()
+	if srv.capacityLogger != nil {
+		srv.capacityLogger.LogSnapshot()
+		go srv.capacityLogger.Start(capacityCtx)
+	}
+
 	// Start scheduler if initialized (includes session cleanup task)
 	if srv.scheduler != nil {
 		srv.scheduler.Start()

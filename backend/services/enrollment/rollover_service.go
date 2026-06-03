@@ -334,21 +334,22 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	mode := req.RolloverMode
 	deadline := req.RolloverDeadline
 	newPhase := &enrollmentModels.Phase{
-		Name:                     req.Name,
-		Kind:                     req.Kind,
-		ServiceStartDate:         req.ServiceStartDate,
-		ServiceEndDate:           req.ServiceEndDate,
-		EnrollmentOpenAt:         req.EnrollmentOpenAt,
-		EnrollmentCloseAt:        req.EnrollmentCloseAt,
-		FormSchemaID:             formSchemaID,
-		ShowStatusReasonToParent: source.ShowStatusReasonToParent,
-		CareOverflowMode:         source.CareOverflowMode,
-		IsActive:                 true,
-		RolloverSourcePhaseID:    &source.ID,
-		RolloverMode:             &mode,
-		RolloverAutoApprove:      req.RolloverAutoApprove,
-		RolloverDeadline:         &deadline,
-		RolloverBumpsGrade:       req.RolloverBumpsGrade,
+		Name:                      req.Name,
+		Kind:                      req.Kind,
+		ServiceStartDate:          req.ServiceStartDate,
+		ServiceEndDate:            req.ServiceEndDate,
+		EnrollmentOpenAt:          req.EnrollmentOpenAt,
+		EnrollmentCloseAt:         req.EnrollmentCloseAt,
+		FormSchemaID:              formSchemaID,
+		ShowStatusReasonToParent:  source.ShowStatusReasonToParent,
+		CareOverflowMode:          source.CareOverflowMode,
+		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
+		IsActive:                  true,
+		RolloverSourcePhaseID:     &source.ID,
+		RolloverMode:              &mode,
+		RolloverAutoApprove:       req.RolloverAutoApprove,
+		RolloverDeadline:          &deadline,
+		RolloverBumpsGrade:        req.RolloverBumpsGrade,
 	}
 	newPhase.SetTenantID(tenantID)
 	if err := newPhase.Validate(); err != nil {

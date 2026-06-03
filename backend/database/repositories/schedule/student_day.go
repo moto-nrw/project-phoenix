@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/uptrace/bun"
 )
 
 // scheduledInstanceScan is the flat row bun scans into; the repo then lifts
@@ -150,4 +151,34 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		out = append(out, &schedule.ScheduledInstanceRow{Instance: inst, Attendance: att})
 	}
 	return out, nil
+}
+
+func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error) {
+	if len(studentIDs) == 0 {
+		return []int64{}, nil
+	}
+
+	var ids []int64
+	dateOnly := dateParam(date)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`schedule.instance_students AS "instance_student"`).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		ColumnExpr(`DISTINCT "instance_student".student_id`).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?::date`, dateOnly).
+		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
+		OrderExpr(`"instance_student".student_id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find planned student ids by date",
+			Err: err,
+		}
+	}
+
+	return ids, nil
 }

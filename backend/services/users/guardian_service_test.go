@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -116,6 +117,47 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, result.Email)
 	})
+}
+
+// TestGuardianService_CreateGuardian_DuplicateEmail verifies that creating a
+// second guardian with an email already in use returns a *ValidationError
+// (rendered as a 400 with a German "use the search" message) instead of letting
+// the tenant-scoped UNIQUE(tenant_id, email) index fail the INSERT with a raw
+// 23505 that would surface as a generic 500 (#1513).
+func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	email := fmt.Sprintf("dup-guardian-%d@example.com", time.Now().UnixNano())
+	req := users.GuardianCreateRequest{
+		FirstName:              "First",
+		LastName:               "Guardian",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+
+	// First create succeeds.
+	first, err := service.CreateGuardian(ctx, req)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	defer testpkg.CleanupActivityFixtures(t, db, first.ID)
+
+	// Second create with the SAME email (different name) must be rejected as a
+	// validation error, not a DB/operational failure — and nothing is inserted.
+	dupReq := req
+	dupReq.FirstName = "Second"
+	second, err := service.CreateGuardian(ctx, dupReq)
+
+	require.Error(t, err)
+	assert.Nil(t, second)
+	var validationErr *users.ValidationError
+	require.ErrorAs(t, err, &validationErr, "duplicate email must be a ValidationError → 400, not a 500")
+	assert.Contains(t, err.Error(), "bereits vergeben")
+	assert.Contains(t, err.Error(), "Suche")
 }
 
 // =============================================================================
@@ -313,6 +355,98 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		assert.Equal(t, guardian.ID, result.GuardianProfileID)
 		assert.Equal(t, "parent", result.RelationshipType)
 		assert.True(t, result.IsPrimary)
+	})
+
+	t.Run("is idempotent when the guardian is already linked", func(t *testing.T) {
+		// ARRANGE — link a guardian once.
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "relink")
+		student := testpkg.CreateTestStudent(t, db, "Relink", "Student", "1c")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		req := users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		}
+		first, err := service.LinkGuardianToStudent(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, first)
+
+		// ACT — link the SAME guardian to the SAME student again.
+		second, err := service.LinkGuardianToStudent(ctx, req)
+
+		// ASSERT — no UNIQUE-constraint error; the existing relationship is
+		// returned, and only one link exists.
+		require.NoError(t, err, "re-linking an already-linked guardian must not error")
+		require.NotNil(t, second)
+		assert.Equal(t, first.ID, second.ID, "re-link must return the existing relationship, not create a new one")
+
+		links, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		var count int
+		for _, l := range links {
+			if l.Profile != nil && l.Profile.ID == guardian.ID {
+				count++
+			}
+		}
+		assert.Equal(t, 1, count, "exactly one link must exist after re-linking")
+	})
+
+	t.Run("re-linking is a no-op and never overwrites the existing relationship flags", func(t *testing.T) {
+		// Linking is a CREATE, not an edit: a re-link must return the existing
+		// row untouched. Changing flags goes through the dedicated update path
+		// (UpdateStudentGuardianRelationship). This guards against a stray or
+		// retried link request silently flipping pickup/emergency-contact flags.
+		// ARRANGE — link a guardian with a minimal relationship.
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "upsert")
+		student := testpkg.CreateTestStudent(t, db, "Upsert", "Student", "1d")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		first, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			IsPrimary:         false,
+			CanPickup:         false,
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, first)
+
+		// ACT — re-link the SAME guardian with DIFFERENT relationship flags.
+		second, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:          student.ID,
+			GuardianProfileID:  guardian.ID,
+			RelationshipType:   "guardian",
+			IsPrimary:          true,
+			IsEmergencyContact: true,
+			CanPickup:          true,
+			EmergencyPriority:  2,
+		})
+
+		// ASSERT — same single row, and the flags STILL reflect the ORIGINAL
+		// link, not the re-link request (the changed flags were ignored).
+		require.NoError(t, err, "re-linking must not error")
+		require.NotNil(t, second)
+		assert.Equal(t, first.ID, second.ID, "re-link must return the existing row, not create a new one")
+
+		links, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		var matched int
+		for _, l := range links {
+			if l.Profile == nil || l.Profile.ID != guardian.ID {
+				continue
+			}
+			matched++
+			require.NotNil(t, l.Relationship)
+			assert.Equal(t, "parent", l.Relationship.RelationshipType, "relationship type must be unchanged by a re-link")
+			assert.False(t, l.Relationship.IsPrimary, "is_primary must be unchanged by a re-link")
+			assert.False(t, l.Relationship.IsEmergencyContact, "is_emergency_contact must be unchanged by a re-link")
+			assert.False(t, l.Relationship.CanPickup, "can_pickup must be unchanged by a re-link")
+			assert.Equal(t, 1, l.Relationship.EmergencyPriority, "emergency_priority must be unchanged by a re-link")
+		}
+		assert.Equal(t, 1, matched, "exactly one link must exist after re-linking")
 	})
 
 	t.Run("returns error when guardian not found", func(t *testing.T) {
@@ -776,7 +910,11 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 		GuardianPhoneNumberRepo: repoFactory.GuardianPhoneNumber,
 		StudentGuardianRepo:     repoFactory.StudentGuardian,
 		GuardianInvitationRepo:  repoFactory.GuardianInvitation,
+		AccountRepo:             repoFactory.Account,
 		AccountParentRepo:       repoFactory.AccountParent,
+		AccountTenantRepo:       repoFactory.AccountTenant,
+		AccountRoleRepo:         repoFactory.AccountRole,
+		RoleRepo:                repoFactory.Role,
 		StudentRepo:             repoFactory.Student,
 		PersonRepo:              repoFactory.Person,
 		Mailer:                  mailer,
@@ -1202,6 +1340,107 @@ func TestGuardianService_AcceptInvitation_Success(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updatedProfile.HasAccount)
 	})
+}
+
+func TestGuardianService_AcceptInvitation_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(db, mailer)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	guardianEmail := fmt.Sprintf("legacy-existing-%d@example.com", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
+	existingHash := *account.PasswordHash
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
+	})
+
+	req := users.GuardianCreateRequest{
+		FirstName:              "Existing",
+		LastName:               "Guardian",
+		Email:                  &guardianEmail,
+		PreferredContactMethod: "email",
+	}
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Existing", "Inviter")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+	acceptedAccount, err := service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+		Token:           invitation.Token,
+		Password:        testValidPassword,
+		ConfirmPassword: testValidPassword,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, acceptedAccount)
+	assert.Equal(t, account.ID, acceptedAccount.ID)
+
+	stored, err := repoFactory.Account.FindByEmail(ctx, guardianEmail)
+	require.NoError(t, err)
+	require.NotNil(t, stored.PasswordHash)
+	assert.Equal(t, existingHash, *stored.PasswordHash)
+}
+
+func TestGuardianService_AcceptInvitation_ReactivatesExistingTenantMapping(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	mailer := testpkg.NewCapturingMailer()
+	service := setupGuardianServiceWithMailer(db, mailer)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	guardianEmail := fmt.Sprintf("legacy-inactive-%d@example.com", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, db, guardianEmail, "Existing!2026")
+	deactivatedAt := time.Now().Add(-time.Hour)
+	require.NoError(t, repoFactory.AccountTenant.Create(ctx, &authModels.AccountTenant{
+		AccountID:     account.ID,
+		TenantID:      1,
+		Status:        authModels.AccountTenantStatusInactive,
+		DeactivatedAt: &deactivatedAt,
+	}))
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.account_tenants").Where("account_id = ?", account.ID).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(ctx)
+	})
+
+	req := users.GuardianCreateRequest{
+		FirstName:              "Inactive",
+		LastName:               "Guardian",
+		Email:                  &guardianEmail,
+		PreferredContactMethod: "email",
+	}
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inactive", "Inviter")
+	defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.PersonID)
+	profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
+	require.NoError(t, err)
+	defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+	_, err = service.AcceptInvitation(ctx, users.GuardianInvitationAcceptRequest{
+		Token:           invitation.Token,
+		Password:        testValidPassword,
+		ConfirmPassword: testValidPassword,
+	})
+	require.NoError(t, err)
+
+	var mapping authModels.AccountTenant
+	err = db.NewSelect().
+		Model(&mapping).
+		ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
+		Where(`"account_tenant".account_id = ?`, account.ID).
+		Where(`"account_tenant".tenant_id = ?`, 1).
+		Scan(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.AccountTenantStatusActive, mapping.Status)
+	assert.Nil(t, mapping.DeactivatedAt)
+	assert.NotNil(t, mapping.ActivatedAt)
 }
 
 func TestGuardianService_AcceptInvitation_PasswordMismatch(t *testing.T) {
