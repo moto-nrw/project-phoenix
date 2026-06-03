@@ -1,7 +1,7 @@
 import {
   createParentPostHandler,
   parentApiPost,
-} from "~/lib/parent/route-wrapper";
+} from "~/lib/parent/route-wrapper.server";
 
 interface SubmitResult {
   request_id: string;

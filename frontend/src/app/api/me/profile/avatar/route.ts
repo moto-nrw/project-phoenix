@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { createFileUploadHandler } from "~/lib/file-upload-wrapper";
-import { createDeleteHandler } from "~/lib/route-wrapper";
+import { createFileUploadHandler } from "~/lib/file-upload-wrapper.server";
+import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import type { BackendProfile } from "~/lib/profile-helpers";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";

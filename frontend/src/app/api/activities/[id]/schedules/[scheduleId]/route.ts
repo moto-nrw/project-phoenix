@@ -1,11 +1,11 @@
 // app/api/activities/[id]/schedules/[scheduleId]/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 import type { BackendActivitySchedule } from "~/lib/activity-helpers";
 import { mapActivityScheduleResponse } from "~/lib/activity-helpers";
 

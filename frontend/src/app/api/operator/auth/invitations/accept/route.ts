@@ -1,4 +1,4 @@
-import { createOperatorPublicProxyPostHandler } from "~/lib/operator/route-wrapper";
+import { createOperatorPublicProxyPostHandler } from "~/lib/operator/route-wrapper.server";
 
 /**
  * POST /api/operator/auth/invitations/accept

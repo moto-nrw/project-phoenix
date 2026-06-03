@@ -4,7 +4,7 @@ import {
   createOperatorPutHandler,
   operatorApiGet,
   operatorApiPut,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 interface ProfileResponse {
   id: number;

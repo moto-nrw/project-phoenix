@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Handler for GET /api/active/groups/unclaimed

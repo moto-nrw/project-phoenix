@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  fetchDashboardAnalytics,
-  fetchDashboardAnalyticsClient,
-} from "./dashboard-api";
-import { apiGet } from "./api-helpers";
+import { fetchDashboardAnalyticsClient } from "./dashboard-api";
+import { fetchDashboardAnalytics } from "./dashboard-api.server";
+import { apiGet } from "./api-helpers.server";
 import { mapDashboardAnalyticsResponse } from "./dashboard-helpers";
 import { fetchWithAuth } from "./fetch-with-auth";
 
-vi.mock("./api-helpers", () => ({
+vi.mock("./api-helpers.server", () => ({
   apiGet: vi.fn(),
 }));
 

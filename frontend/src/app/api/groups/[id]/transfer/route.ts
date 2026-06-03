@@ -1,5 +1,5 @@
-import { createPostHandler } from "~/lib/route-wrapper";
-import { apiPost } from "~/lib/api-helpers";
+import { createPostHandler } from "~/lib/route-wrapper.server";
+import { apiPost } from "~/lib/api-helpers.server";
 
 export const POST = createPostHandler<
   { success: boolean },

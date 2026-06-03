@@ -1,4 +1,4 @@
-import { createOperatorProxyPostHandler } from "~/lib/operator/route-wrapper";
+import { createOperatorProxyPostHandler } from "~/lib/operator/route-wrapper.server";
 
 /**
  * POST /api/operator/profile/email-change

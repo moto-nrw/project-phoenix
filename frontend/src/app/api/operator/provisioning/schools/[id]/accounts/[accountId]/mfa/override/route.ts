@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { operatorAuth, uncachedOperatorAuth } from "~/server/auth/operator";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import type { RouteContext } from "~/lib/route-wrapper-utils";
+import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
 export async function PUT(request: NextRequest, context: RouteContext) {
   const session = await operatorAuth();

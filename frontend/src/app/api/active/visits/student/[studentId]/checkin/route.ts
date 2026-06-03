@@ -1,6 +1,6 @@
 // API route for immediate student check-in
 
-import { createPostHandler } from "~/lib/route-wrapper";
+import { createPostHandler } from "~/lib/route-wrapper.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
 interface CheckinBody {

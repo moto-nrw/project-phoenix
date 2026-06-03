@@ -286,7 +286,7 @@ describe("response interceptor token refresh queue", () => {
     await expect(requestInterceptorRejected(error)).rejects.toBe(error);
   });
 
-  it("server-side refresh retries original request with refreshed token", async () => {
+  it("server context rejects 401 retries without importing server refresh", async () => {
     const original = globalThis.window;
     Object.defineProperty(globalThis, "window", {
       value: undefined,
@@ -294,73 +294,16 @@ describe("response interceptor token refresh queue", () => {
       configurable: true,
     });
     try {
-      mockRefreshSessionTokensOnServer.mockResolvedValue({
-        accessToken: "server-token",
-        refreshToken: "server-refresh",
-      });
-      mockAxiosInstance.mockResolvedValue({
-        status: 200,
-        data: { server: true },
-      });
-      const headers = {
-        set: vi.fn(),
-      } as unknown as AxiosRequestConfig["headers"] & {
-        set: ReturnType<typeof vi.fn>;
-      };
-
-      const result = await responseInterceptorRejected(
-        make401Error({
-          url: "/api/server",
-          method: "get",
-          headers,
-        }),
-      );
-
-      expect(mockRefreshSessionTokensOnServer).toHaveBeenCalledTimes(1);
-      expect(headers.set).toHaveBeenCalledWith(
-        "Authorization",
-        "Bearer server-token",
-      );
-      expect(mockAxiosInstance).toHaveBeenCalledWith(
-        expect.objectContaining({ url: "/api/server" }),
-      );
-      expect(result).toEqual({ status: 200, data: { server: true } });
-    } finally {
-      Object.defineProperty(globalThis, "window", {
-        value: original,
-        writable: true,
-        configurable: true,
-      });
-    }
-  });
-
-  it("server-side refresh writes authorization onto plain header objects", async () => {
-    const original = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: undefined,
-      writable: true,
-      configurable: true,
-    });
-    try {
-      mockRefreshSessionTokensOnServer.mockResolvedValue({
-        accessToken: "plain-server-token",
-        refreshToken: "server-refresh",
-      });
-      mockAxiosInstance.mockResolvedValue({
-        status: 200,
-        data: { server: true },
-      });
       const headers: Record<string, string> = {};
+      const error = make401Error({
+        url: "/api/server",
+        method: "get",
+        headers,
+      });
 
-      await responseInterceptorRejected(
-        make401Error({
-          url: "/api/server",
-          method: "get",
-          headers,
-        }),
-      );
-
-      expect(headers.Authorization).toBe("Bearer plain-server-token");
+      await expect(responseInterceptorRejected(error)).rejects.toBe(error);
+      expect(mockRefreshSessionTokensOnServer).not.toHaveBeenCalled();
+      expect(headers.Authorization).toBeUndefined();
     } finally {
       Object.defineProperty(globalThis, "window", {
         value: original,

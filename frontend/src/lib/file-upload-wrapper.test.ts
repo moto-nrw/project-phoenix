@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-import { createFileUploadHandler } from "./file-upload-wrapper";
+import { createFileUploadHandler } from "./file-upload-wrapper.server";
 
 interface ErrorResponse {
   error: string;

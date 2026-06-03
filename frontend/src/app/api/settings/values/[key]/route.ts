@@ -1,8 +1,11 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
-import { apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiPut, apiDelete } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
-import { createPutHandler, createDeleteHandler } from "~/lib/route-wrapper";
+import {
+  createPutHandler,
+  createDeleteHandler,
+} from "~/lib/route-wrapper.server";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import { tenantSlugFromHost } from "~/lib/tenant-host";
 

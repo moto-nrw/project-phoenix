@@ -1,6 +1,6 @@
 // app/api/rooms/[id]/history/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, ApiResponseError } from "~/lib/api-helpers";
+import { apiGet, ApiResponseError } from "~/lib/api-helpers.server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { createLogger } from "~/lib/logger";

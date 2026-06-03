@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPostHandler,
   isStringParam,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 interface BackendCommentResponse {
   id: number;

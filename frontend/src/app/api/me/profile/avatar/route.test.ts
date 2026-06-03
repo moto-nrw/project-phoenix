@@ -15,7 +15,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   handleApiError: vi.fn((error: unknown) => {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";

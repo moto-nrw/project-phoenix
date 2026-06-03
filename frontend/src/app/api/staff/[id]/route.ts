@@ -1,11 +1,11 @@
 // app/api/staff/[id]/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffDetailRoute" });

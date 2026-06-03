@@ -1,5 +1,5 @@
-import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "@/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
 import type { BackendRole } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 

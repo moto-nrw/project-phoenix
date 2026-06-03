@@ -1,5 +1,5 @@
-import { createGetHandler, createPutHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPut } from "@/lib/api-helpers";
+import { createGetHandler, createPutHandler } from "@/lib/route-wrapper.server";
+import { apiGet, apiPut } from "@/lib/api-helpers.server";
 
 // GET /api/students/[id]/pickup-schedules - Get pickup schedules and exceptions for a student
 export const GET = createGetHandler(async (_request, token, params) => {

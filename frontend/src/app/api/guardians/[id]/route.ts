@@ -2,8 +2,8 @@ import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
-} from "@/lib/route-wrapper";
-import { apiGet, apiPut, apiDelete } from "@/lib/api-helpers";
+} from "@/lib/route-wrapper.server";
+import { apiGet, apiPut, apiDelete } from "@/lib/api-helpers.server";
 
 // GET /api/guardians/[id] - Get guardian by ID
 export const GET = createGetHandler(async (request, token, params) => {

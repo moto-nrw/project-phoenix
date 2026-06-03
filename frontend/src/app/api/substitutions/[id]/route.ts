@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 import type { BackendSubstitution } from "~/lib/substitution-helpers";
 
 // Context type is used implicitly by the route handlers

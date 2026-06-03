@@ -1,7 +1,10 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsRoute" });

@@ -201,7 +201,7 @@ describe("auth-api", () => {
   });
 
   describe("handleAuthFailure", () => {
-    it("handles server context by calling server-side refresh", async () => {
+    it("returns false in server context without importing server refresh", async () => {
       const restore = setupServerEnv();
       try {
         const { refreshSessionTokensOnServer } =
@@ -213,8 +213,8 @@ describe("auth-api", () => {
 
         const result = await handleAuthFailure();
 
-        expect(result).toBe(true);
-        expect(refreshSessionTokensOnServer).toHaveBeenCalled();
+        expect(result).toBe(false);
+        expect(refreshSessionTokensOnServer).not.toHaveBeenCalled();
       } finally {
         restore();
       }

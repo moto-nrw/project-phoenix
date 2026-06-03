@@ -1,7 +1,10 @@
 // app/api/active/groups/route.ts
 import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers";
-import { createPostHandler, createProxyGetHandler } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers.server";
+import {
+  createPostHandler,
+  createProxyGetHandler,
+} from "~/lib/route-wrapper.server";
 
 /**
  * Type definition for group creation request

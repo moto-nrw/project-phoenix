@@ -97,24 +97,6 @@ function redirectToLogin(): void {
   }
 }
 
-// Helper: Set authorization header (handles both methods)
-function setAuthorizationHeader(
-  headers: AxiosRequestConfig["headers"],
-  token: string,
-): void {
-  if (!headers) return;
-
-  const headersObj = headers as Record<string, unknown> & {
-    set?: (key: string, value: string) => void;
-  };
-
-  if (typeof headersObj.set === "function") {
-    headersObj.set("Authorization", `Bearer ${token}`);
-  } else {
-    headersObj.Authorization = `Bearer ${token}`;
-  }
-}
-
 // Helper: Queue request for token refresh completion
 function queueRequestForRefresh(
   originalRequest: AxiosRequestConfig,
@@ -130,28 +112,6 @@ function queueRequestForRefresh(
       reject,
     });
   });
-}
-
-// Helper: Attempt server-side token refresh
-async function attemptServerSideRefresh(
-  originalRequest: AxiosRequestConfig,
-): Promise<AxiosResponse | null> {
-  try {
-    const { refreshSessionTokensOnServer } =
-      await import("~/server/auth/token-refresh");
-    const refreshed = await refreshSessionTokensOnServer();
-
-    if (!refreshed?.accessToken) {
-      return null;
-    }
-
-    originalRequest.headers ??= {};
-    setAuthorizationHeader(originalRequest.headers, refreshed.accessToken);
-    onTokenRefreshed(refreshed.accessToken);
-    return api(originalRequest);
-  } catch {
-    return null;
-  }
 }
 
 // Helper: Attempt client-side token refresh
@@ -234,19 +194,8 @@ api.interceptors.response.use(
     lastRefreshedToken = null;
 
     try {
-      // Server-side refresh
       if (globalThis.window === undefined) {
-        logger.info("attempting server-side token refresh", {
-          caller_id: callerId,
-        });
-        const result = await attemptServerSideRefresh(originalRequest);
-        if (result) {
-          logger.info("server-side token refresh successful", {
-            caller_id: callerId,
-          });
-          return result;
-        }
-        logger.error("server-side token refresh failed", {
+        logger.error("axios token refresh attempted from server context", {
           caller_id: callerId,
         });
         throw error;
