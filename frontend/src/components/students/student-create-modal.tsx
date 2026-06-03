@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Users, Plus, Search, Trash2 } from "lucide-react";
+import { Users, Plus, Search, Trash2, Clock } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
 import {
@@ -25,6 +25,16 @@ import {
   type PhoneType,
   type StudentGuardianPayload,
 } from "@/lib/guardian-helpers";
+import { CareWeeklyPlanModal } from "./care-weekly-plan-modal";
+import {
+  WEEKDAYS,
+  type ArrivalScheduleFormEntry,
+} from "~/lib/arrival-schedule-helpers";
+import {
+  mapBulkPickupScheduleFormToBackend,
+  type BackendPickupScheduleRequest,
+  type PickupScheduleFormData,
+} from "~/lib/pickup-schedule-helpers";
 
 // Shape returned by GuardianFormModal's onSubmit for each entry.
 type GuardianSubmitEntry = {
@@ -104,11 +114,22 @@ function relationshipLabel(value: string): string {
   return RELATIONSHIP_TYPES.find((t) => t.value === value)?.label ?? value;
 }
 
+// Weekly schedules travel to the backend in snake_case alongside the student so
+// they are persisted in the same atomic create transaction. Arrival entries are
+// already backend-shaped (ArrivalScheduleFormEntry); pickup entries are mapped
+// from the care-plan form via mapBulkPickupScheduleFormToBackend.
+export type CreateStudentSchedules = {
+  arrival_schedules?: ArrivalScheduleFormEntry[];
+  pickup_schedules?: BackendPickupScheduleRequest[];
+};
+
 interface StudentCreateModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onCreate: (
-    data: Partial<Student> & { guardians?: StudentGuardianPayload[] },
+    data: Partial<Student> & {
+      guardians?: StudentGuardianPayload[];
+    } & CreateStudentSchedules,
   ) => Promise<void>;
   readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
@@ -139,12 +160,22 @@ export function StudentCreateModal({
   const [saveLoading, setSaveLoading] = useState(false);
   const [guardians, setGuardians] = useState<StudentGuardianPayload[]>([]);
   const [guardianModalOpen, setGuardianModalOpen] = useState(false);
+  // Weekly care plan staged in the create modal (no API calls here — persisted
+  // atomically with the student on submit). Arrival entries are backend-shaped;
+  // pickup entries stay in the care-plan form shape until submit.
+  const [arrivalSchedules, setArrivalSchedules] = useState<
+    ArrivalScheduleFormEntry[]
+  >([]);
+  const [pickupSchedules, setPickupSchedules] = useState<
+    PickupScheduleFormData[]
+  >([]);
+  const [carePlanModalOpen, setCarePlanModalOpen] = useState(false);
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
   // to the guardian section so the user stays where they acted and sees the
   // result (the added guardian) instead of jumping past it.
-  const guardianSectionRef = useRef<HTMLDivElement>(null);
+  const guardianSectionRef = useRef<HTMLElement>(null);
   const pendingGuardianScrollRef = useRef(false);
 
   // Reset form when modal opens/closes
@@ -167,6 +198,9 @@ export function StudentCreateModal({
       setErrors({});
       setGuardians([]);
       setGuardianModalOpen(false);
+      setArrivalSchedules([]);
+      setPickupSchedules([]);
+      setCarePlanModalOpen(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
     }
@@ -237,8 +271,20 @@ export function StudentCreateModal({
   };
 
   const handleSubmit = (e: React.FormEvent) => {
-    const payload: Partial<Student> & { guardians?: StudentGuardianPayload[] } =
-      guardians.length > 0 ? { ...formData, guardians } : formData;
+    const payload: Partial<Student> & {
+      guardians?: StudentGuardianPayload[];
+    } & CreateStudentSchedules = { ...formData };
+    if (guardians.length > 0) {
+      payload.guardians = guardians;
+    }
+    if (arrivalSchedules.length > 0) {
+      payload.arrival_schedules = arrivalSchedules;
+    }
+    if (pickupSchedules.length > 0) {
+      payload.pickup_schedules = mapBulkPickupScheduleFormToBackend({
+        schedules: pickupSchedules,
+      }).schedules;
+    }
     return handleStudentFormSubmit(
       e,
       payload,
@@ -263,6 +309,17 @@ export function StudentCreateModal({
       });
     }
   };
+
+  // Weekdays covered by either an arrival or a pickup time, for the summary.
+  const scheduledWeekdays = Array.from(
+    new Set([
+      ...arrivalSchedules.map((s) => s.weekday),
+      ...pickupSchedules.map((s) => s.weekday),
+    ]),
+  ).sort((a, b) => a - b);
+  const hasCarePlan = scheduledWeekdays.length > 0;
+  const weekdayShort = (value: number) =>
+    WEEKDAYS.find((d) => d.value === value)?.shortLabel ?? String(value);
 
   return (
     <>
@@ -291,8 +348,9 @@ export function StudentCreateModal({
               matches the other modal sections (border-gray-100 + blue tint,
               blue heading icon) and reuses the guardian modal's own dashed
               add-button and red remove patterns. */}
-          <div
+          <section
             ref={guardianSectionRef}
+            aria-label="Erziehungsberechtigte"
             className="scroll-mt-4 rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4"
           >
             <div className="mb-3 flex items-center justify-between md:mb-4">
@@ -380,7 +438,60 @@ export function StudentCreateModal({
                 </button>
               </div>
             )}
-          </div>
+          </section>
+
+          {/* Betreuungszeiten — weekly arrival/pickup times staged here and
+              persisted atomically with the student, mirroring the guardian
+              section above. Reuses the existing CareWeeklyPlanModal editor. */}
+          <section
+            aria-label="Betreuungszeiten"
+            className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4"
+          >
+            <div className="mb-3 flex items-center justify-between md:mb-4">
+              <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+                <Clock className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
+                Betreuungszeiten
+              </h3>
+              <span className="text-xs text-gray-500">
+                {hasCarePlan ? `${scheduledWeekdays.length} Tage` : "Optional"}
+              </span>
+            </div>
+
+            {hasCarePlan && (
+              <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
+                    {scheduledWeekdays.map(weekdayShort).join(" · ")}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-gray-500">
+                    {`${arrivalSchedules.length}× Ankunft · ${pickupSchedules.length}× Abholung`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setArrivalSchedules([]);
+                    setPickupSchedules([]);
+                  }}
+                  disabled={saveLoading}
+                  aria-label="Betreuungszeiten entfernen"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setCarePlanModalOpen(true)}
+              disabled={saveLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+            >
+              <Plus className="h-4 w-4" />
+              {hasCarePlan ? "Wochenplan bearbeiten" : "Wochenplan hinzufügen"}
+            </button>
+          </section>
 
           {/* Common Form Sections */}
           <StudentCommonFormSections
@@ -455,6 +566,24 @@ export function StudentCreateModal({
           mode="create"
           onClose={() => setGuardianModalOpen(false)}
           onSubmit={handleGuardianSubmit}
+        />
+      )}
+
+      {/* Reuse the existing weekly care-plan editor. onSubmit only stages the
+          plan locally (no API calls) — it is persisted atomically with the
+          student on create. successMessage overrides the default "saved"
+          wording since nothing is persisted yet here. */}
+      {carePlanModalOpen && (
+        <CareWeeklyPlanModal
+          isOpen={carePlanModalOpen}
+          onClose={() => setCarePlanModalOpen(false)}
+          initialArrivalSchedules={arrivalSchedules}
+          initialPickupSchedules={pickupSchedules}
+          successMessage="Betreuungszeiten übernommen"
+          onSubmit={async ({ arrivalSchedules: nextArrival, pickupData }) => {
+            setArrivalSchedules(nextArrival);
+            setPickupSchedules(pickupData.schedules);
+          }}
         />
       )}
     </>

@@ -8,6 +8,7 @@ import {
   waitFor,
   fireEvent,
   act,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
@@ -157,6 +158,56 @@ vi.mock("~/components/guardians/guardian-form-modal", () => ({
           }
         >
           MockSubmitGuardian
+        </button>
+      </div>
+    ) : null,
+}));
+
+// Mock the reused CareWeeklyPlanModal the same way as the guardian modal: when
+// open, expose a button that calls onSubmit with one canned arrival + pickup
+// entry (the shapes the real modal emits). This exercises StudentCreateModal's
+// staging/summary/payload logic without driving the full weekly-plan editor.
+vi.mock("./care-weekly-plan-modal", () => ({
+  CareWeeklyPlanModal: ({
+    isOpen,
+    onClose,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (data: {
+      arrivalSchedules: Array<{
+        weekday: number;
+        expected_arrival: string;
+        notes: string | null;
+      }>;
+      pickupData: {
+        schedules: Array<{
+          weekday: number;
+          pickupTime: string;
+          notes?: string;
+        }>;
+      };
+    }) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid="care-weekly-plan-modal">
+        <button
+          type="button"
+          onClick={() =>
+            // Mirror the real modal: after onSubmit resolves it closes itself.
+            void onSubmit({
+              arrivalSchedules: [
+                { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
+                { weekday: 3, expected_arrival: "08:00", notes: null },
+              ],
+              pickupData: {
+                schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Oma" }],
+              },
+            }).then(() => onClose())
+          }
+        >
+          MockSubmitCarePlan
         </button>
       </div>
     ) : null,
@@ -565,7 +616,11 @@ describe("StudentCreateModal", () => {
     });
 
     expect(screen.queryByText(/Erika Muster/)).not.toBeInTheDocument();
-    expect(screen.getByText("Optional")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Erziehungsberechtigte" }),
+      ).getByText("Optional"),
+    ).toBeInTheDocument();
   });
 
   it("forwards collected guardians (snake_case mapped) to onCreate on submit", async () => {
@@ -646,6 +701,151 @@ describe("StudentCreateModal", () => {
     const submitted = vi.mocked(handleStudentFormSubmit).mock
       .calls[0]?.[1] as Record<string, unknown>;
     expect(submitted).not.toHaveProperty("guardians");
+  });
+
+  it("opens the reused weekly care-plan editor when the add button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(screen.getByTestId("care-weekly-plan-modal")).toBeInTheDocument();
+  });
+
+  it("stages a submitted care plan and shows the weekday summary", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+
+    // Summary lists the covered weekdays (Mo from arrival+pickup, Mi from
+    // arrival) and the per-type counts, and the add button flips to "edit".
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2× Ankunft · 1× Abholung")).toBeInTheDocument();
+    expect(screen.getByText("2 Tage")).toBeInTheDocument();
+    expect(screen.getByText("Wochenplan bearbeiten")).toBeInTheDocument();
+    // Sub-modal closes after collecting.
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("removes the staged care plan via the remove button", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Betreuungszeiten entfernen"));
+    });
+
+    expect(screen.queryByText("Mo · Mi")).not.toBeInTheDocument();
+    // Section reverts to the "Optional" empty state + "add" wording.
+    expect(
+      within(
+        screen.getByRole("region", { name: "Betreuungszeiten" }),
+      ).getByText("Optional"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Wochenplan hinzufügen")).toBeInTheDocument();
+  });
+
+  it("forwards staged schedules (snake_case mapped) to the submit payload", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // Arrival entries travel backend-shaped already; pickup entries are mapped
+    // from the care-plan form (pickupTime → pickup_time) before submit.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      arrival_schedules: [
+        { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
+        { weekday: 3, expected_arrival: "08:00", notes: null },
+      ],
+      pickup_schedules: [{ weekday: 1, pickup_time: "15:00", notes: "Oma" }],
+    });
+  });
+
+  it("does not attach schedule fields when no care plan was staged", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).not.toHaveProperty("arrival_schedules");
+    expect(submitted).not.toHaveProperty("pickup_schedules");
   });
 
   it("opens the existing-guardian picker when the search button is clicked", async () => {

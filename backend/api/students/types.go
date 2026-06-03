@@ -152,6 +152,13 @@ type StudentRequest struct {
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
 	Guardians []GuardianInput `json:"guardians,omitempty"`
+
+	// Weekly recurring arrival/pickup schedules persisted together with the
+	// student in the same atomic transaction. Reuse the bulk-update item DTOs
+	// so the time format and validation match the post-creation editing
+	// endpoints (PUT /students/{id}/{arrival,pickup}-schedules).
+	ArrivalSchedules []ArrivalScheduleRequestItem `json:"arrival_schedules,omitempty"`
+	PickupSchedules  []PickupScheduleRequest      `json:"pickup_schedules,omitempty"`
 }
 
 // GuardianPhoneInput is one phone number for a guardian created alongside a student.
@@ -292,6 +299,15 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 		if strings.TrimSpace(req.Guardians[i].RelationshipType) == "" {
 			return errors.New("guardian relationship_type is required")
 		}
+	}
+
+	// Validate weekly schedules with the same rules as the bulk-update
+	// endpoints so the atomic create path cannot persist invalid times.
+	if err := validateArrivalScheduleItems(req.ArrivalSchedules); err != nil {
+		return err
+	}
+	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
+		return err
 	}
 
 	return nil
