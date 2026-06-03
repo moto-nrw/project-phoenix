@@ -385,4 +385,73 @@ describe("proxy", () => {
       expect(redirect).toBeNull();
     });
   });
+
+  // The public /help guide must stay host-agnostic: served as-is on every host
+  // with security headers, never rewritten to a tenant/operator/parents segment
+  // (no such route exists there) and never blocked.
+  describe("public help docs", () => {
+    const TENANT_SUBDOMAIN_HOST = "school-a.localhost:3000";
+
+    it("serves /help on a tenant subdomain without rewriting to /{tenant}/help", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/help`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("serves nested /help/* on a tenant subdomain without rewriting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/help/setup`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("serves /help on the operator host without rewriting to /operator or blocking", () => {
+      const res = proxy(
+        makeRequest(`http://${OPERATOR_HOSTNAME}/help`, OPERATOR_HOSTNAME),
+      );
+
+      expect(res.status).not.toBe(404);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("serves /help/nfc on the parents host without rewriting to /parents or blocking", () => {
+      const res = proxy(
+        makeRequest(`http://${PARENTS_HOSTNAME}/help/nfc`, PARENTS_HOSTNAME),
+      );
+
+      expect(res.status).not.toBe(404);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("does not treat a non-/help path containing 'help' as public docs", () => {
+      // Guards against a `.includes('help')`-style mistake: /helpdesk on a
+      // tenant subdomain must still rewrite to the tenant segment.
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/helpdesk`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/helpdesk",
+      );
+    });
+  });
 });

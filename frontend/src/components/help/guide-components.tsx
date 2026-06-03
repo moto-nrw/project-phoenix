@@ -166,8 +166,8 @@ export function EntryPointCard({
       </h2>
       <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
       <ul className="mt-4 space-y-2 text-sm leading-6 text-gray-700">
-        {points.map((point) => (
-          <li key={point} className="flex gap-2">
+        {points.map((point, index) => (
+          <li key={`${point}-${index}`} className="flex gap-2">
             <span
               className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
               aria-hidden="true"
@@ -473,8 +473,8 @@ function Checklist({ items }: { readonly items: readonly string[] }) {
         <h4 className="text-sm font-semibold text-gray-950">Checkliste</h4>
       </div>
       <ul className="space-y-2.5 text-sm leading-6 text-gray-700">
-        {items.map((item) => (
-          <li key={item} className="flex gap-3">
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`} className="flex gap-3">
             <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/16 text-[#3F6F12] print:border print:border-gray-300 print:bg-white">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
@@ -532,9 +532,9 @@ function ScreenshotGallery({
 }) {
   return (
     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2 print:gap-3">
-      {items.map((item) => (
+      {items.map((item, index) => (
         <figure
-          key={item.image}
+          key={`${item.image}-${index}`}
           className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -48,7 +48,8 @@ export interface GuideStep {
   readonly callout?: GuideCallout;
   /** Caption / alt text describing the supporting screenshot. */
   readonly screenshot: string;
-  /** Path under /public to the screenshot image. Falls back to a placeholder. */
+  /** Path under /public to the screenshot image. When omitted, the step
+      renders no image (no placeholder); `screenshot` still documents intent. */
   readonly image?: string;
   /**
    * Ordered sequence of tablet screens for this step. When present it renders
