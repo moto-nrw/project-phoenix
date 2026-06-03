@@ -243,7 +243,7 @@ export const setupChapters: readonly GuideChapter[] = [
     id: "kinder-und-zeiten",
     title: "Kinder und Betreuungszeiten",
     description:
-      "Kinder kommen automatisch ins System, wenn Familien die moto-Anmeldung nutzen. Ohne Online-Anmeldung legen Sie Kinder als Liste oder einzeln an und pflegen danach Ankunfts- und Abholzeiten.",
+      "Kinder kommen automatisch ins System, wenn Familien die moto-Anmeldung nutzen. Ohne Online-Anmeldung legen Sie Kinder als Liste oder einzeln an. Erziehungsberechtigte und Betreuungszeiten erfassen Sie beim einzelnen Anlegen direkt mit.",
     icon: Users,
     tone: "orange",
     steps: [
@@ -275,24 +275,26 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "kind-manuell-anlegen",
         title: "Einzelnes Kind manuell anlegen",
         summary:
-          "Der Standardweg ohne Importliste, auch um einzelne Kinder jederzeit nachzutragen.",
+          "Der Standardweg ohne Importliste, auch um einzelne Kinder jederzeit nachzutragen. Erziehungsberechtigte und Betreuungszeiten erfassen Sie optional direkt im selben Formular.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Neues Kind anlegen.",
           "`Vorname`, `Nachname`, `Klasse` und `OGS Gruppe` eintragen.",
+          "Optional im Abschnitt `Erziehungsberechtigte` mit `Neu anlegen` eine Bezugsperson erfassen oder mit `Vorhandene/n suchen` eine bereits angelegte Person verknüpfen.",
+          "Optional im Abschnitt `Betreuungszeiten` auf `Wochenplan hinzufügen` klicken und die regelmäßigen `Ankunft`- und `Abholung`-Zeiten je Wochentag eintragen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
-          "Speichern und das Kind in der `Kindersuche` öffnen.",
-          "Auf der Schülerdetailseite `Erziehungsberechtigte` und Abholinformationen ergänzen.",
+          "Auf `Erstellen` klicken. Erziehungsberechtigte und Betreuungszeiten werden zusammen mit dem Kind gespeichert.",
+          "Das Kind anschließend in der `Kindersuche` prüfen; weitere Angaben ergänzen Sie jederzeit auf der Schülerdetailseite.",
         ],
         screenshot:
-          "Kinderformular mit Stammdaten, Gruppe und Hinweis zu Erziehungsberechtigten.",
+          "Kinderformular mit Stammdaten sowie den Abschnitten Erziehungsberechtigte und Betreuungszeiten.",
         image: "/help/screens/kind-manuell-anlegen.png",
       },
       {
         id: "betreuungszeiten-pflegen",
         title: "Ankunfts- und Abholzeiten pflegen",
         summary:
-          "Für jedes Kind die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten eintragen.",
+          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Das Kind in der Liste auswählen.",
@@ -364,6 +366,30 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot: "Kindersuche mit Suchfeld, Filtern und Status-Badges.",
         image: "/help/screens/kindersuche.png",
+      },
+      {
+        id: "kinderdetailansicht",
+        title: "Kinderdetailansicht",
+        icon: FileText,
+        summary:
+          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen vier Tabs.",
+        steps: [
+          "In der `Kindersuche` auf die Karte des Kindes klicken.",
+          "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
+          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren.",
+          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
+          "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen.",
+          "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten.",
+          "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
+        ],
+        callout: {
+          title: "Status immer im Blick",
+          body: "Der Kopfbereich zeigt unabhängig vom geöffneten Tab, wo sich das Kind gerade befindet und seit wann.",
+          tone: "blue",
+        },
+        screenshot:
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden und Entschuldigen sowie den Tabs Stammdaten, Erziehungsberechtigte, Betreuungszeiten und Historie.",
+        image: "/help/screens/kinderdetailansicht.png",
       },
       {
         id: "meine-gruppen",

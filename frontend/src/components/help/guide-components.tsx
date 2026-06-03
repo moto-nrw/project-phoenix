@@ -423,7 +423,9 @@ function StepCard({
           <h3 className="text-lg font-semibold tracking-normal text-gray-950 sm:text-xl">
             {item.title}
           </h3>
-          <p className="mt-1 text-sm leading-6 text-gray-600">{item.summary}</p>
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            <InlineText text={item.summary} />
+          </p>
 
           {item.steps ? (
             <ol className="mt-4 space-y-2.5">
