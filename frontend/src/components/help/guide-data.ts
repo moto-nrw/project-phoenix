@@ -151,7 +151,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Loginseite mit E-Mail-Adresse, Passwort und Anmelden.",
-        image: "/help/screens/konto-erstellen.png",
+        image: "/help/screens/konto-erstellen.webp",
       },
       {
         id: "mitarbeitende-anlegen",
@@ -167,7 +167,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Speichern und die Person zum Login auffordern.",
         ],
         screenshot: "Personalformular mit Vorname, Nachname, E-Mail und Rolle.",
-        image: "/help/screens/mitarbeitende-anlegen.png",
+        image: "/help/screens/mitarbeitende-anlegen.webp",
       },
     ],
   },
@@ -192,7 +192,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Räume-Liste in der Datenverwaltung mit Beispiel-Einträgen.",
-        image: "/help/screens/raeume-anlegen.png",
+        image: "/help/screens/raeume-anlegen.webp",
       },
       {
         id: "gruppen-anlegen",
@@ -213,7 +213,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",
-        image: "/help/screens/gruppen-anlegen.png",
+        image: "/help/screens/gruppen-anlegen.webp",
       },
       {
         id: "aktivitaeten-anlegen",
@@ -235,7 +235,7 @@ export const setupChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Aktivitätsformular mit Name, Kategorie und maximale Teilnehmer.",
-        image: "/help/screens/aktivitaeten-anlegen.png",
+        image: "/help/screens/aktivitaeten-anlegen.webp",
       },
     ],
   },
@@ -269,7 +269,7 @@ export const setupChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Kinderimport mit Vorlage herunterladen, Datenvorschau und Schüler importieren.",
-        image: "/help/screens/kinder-importieren.png",
+        image: "/help/screens/kinder-importieren.webp",
       },
       {
         id: "kind-manuell-anlegen",
@@ -288,7 +288,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Kinderformular mit Stammdaten sowie den Abschnitten Erziehungsberechtigte und Betreuungszeiten.",
-        image: "/help/screens/kind-manuell-anlegen.png",
+        image: "/help/screens/kind-manuell-anlegen.webp",
       },
       {
         id: "betreuungszeiten-pflegen",
@@ -306,7 +306,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Betreuungszeiten mit Ankunftsplan, Abholplan und Tag bearbeiten.",
-        image: "/help/screens/betreuungszeiten-pflegen.png",
+        image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
     ],
   },
@@ -332,7 +332,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Go-live-Übersicht mit Kindersuche, aktueller Aufsicht und Räumen.",
-        image: "/help/screens/go-live-check.png",
+        image: "/help/screens/go-live-check.webp",
       },
     ],
   },
@@ -365,7 +365,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
         screenshot: "Kindersuche mit Suchfeld, Filtern und Status-Badges.",
-        image: "/help/screens/kindersuche.png",
+        image: "/help/screens/kindersuche.webp",
       },
       {
         id: "kinderdetailansicht",
@@ -389,7 +389,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden und Entschuldigen sowie den Tabs Stammdaten, Erziehungsberechtigte, Betreuungszeiten und Historie.",
-        image: "/help/screens/kinderdetailansicht.png",
+        image: "/help/screens/kinderdetailansicht.webp",
       },
       {
         id: "meine-gruppen",
@@ -404,7 +404,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
-        image: "/help/screens/meine-gruppen.png",
+        image: "/help/screens/meine-gruppen.webp",
       },
       {
         id: "aktuelle-aufsicht",
@@ -423,7 +423,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Laufende Aufsicht mit Anwesend, Erwartet und Spontane Aktivität.",
-        image: "/help/screens/aktuelle-aufsicht.png",
+        image: "/help/screens/aktuelle-aufsicht.webp",
       },
     ],
   },
@@ -448,7 +448,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über die Schaltfläche zum Anlegen eine neue Aktivität erstellen.",
         ],
         screenshot: "Aktivitätenliste mit Suche, Filter und neuer Aktivität.",
-        image: "/help/screens/aktivitaeten.png",
+        image: "/help/screens/aktivitaeten.webp",
       },
       {
         id: "raeume",
@@ -464,7 +464,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Räume-Übersicht mit Statusfilter, Frei/Belegt und Unterwegs.",
-        image: "/help/screens/raeume.png",
+        image: "/help/screens/raeume.webp",
       },
       {
         id: "mitarbeiter",
@@ -480,7 +480,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Mitarbeiterliste mit Status-Badges und aktiven Aufsichten.",
-        image: "/help/screens/mitarbeiter.png",
+        image: "/help/screens/mitarbeiter.webp",
       },
       {
         id: "vertretungen",
@@ -498,7 +498,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Vertretungen mit verfügbaren Fachkräften und Dialog Vertretung zuweisen.",
-        image: "/help/screens/vertretungen.png",
+        image: "/help/screens/vertretungen.webp",
       },
     ],
   },
@@ -528,7 +528,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot: "Stundenplan-Kalender mit Termin und Serien.",
-        image: "/help/screens/stundenplan.png",
+        image: "/help/screens/stundenplan.webp",
       },
       {
         id: "zeiterfassung",
@@ -544,7 +544,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
-        image: "/help/screens/zeiterfassung.png",
+        image: "/help/screens/zeiterfassung.webp",
       },
     ],
   },
@@ -568,7 +568,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Einträge anlegen, bearbeiten oder prüfen.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
-        image: "/help/screens/datenverwaltung.png",
+        image: "/help/screens/datenverwaltung.webp",
       },
       {
         id: "anmeldungen",
@@ -591,7 +591,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
-        image: "/help/screens/anmeldungen.png",
+        image: "/help/screens/anmeldungen.webp",
       },
       {
         id: "anmeldephasen",
@@ -614,7 +614,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Anmeldephase mit Betreuungszeitraum, Anmeldefenster und Formularwahl.",
-        image: "/help/screens/anmeldephasen.png",
+        image: "/help/screens/anmeldephasen.webp",
       },
       {
         id: "betreuungsangebote",
@@ -636,7 +636,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Betreuungsangebote einer Anmeldephase mit Tagen, Kapazität und Extras.",
-        image: "/help/screens/betreuungsangebote.png",
+        image: "/help/screens/betreuungsangebote.webp",
       },
       {
         id: "anmeldeformulare",
@@ -656,7 +656,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",
-        image: "/help/screens/anmeldeformulare.png",
+        image: "/help/screens/anmeldeformulare.webp",
       },
       {
         id: "feedback",
@@ -672,7 +672,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
-        image: "/help/screens/feedback.png",
+        image: "/help/screens/feedback.webp",
       },
     ],
   },
@@ -739,7 +739,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Tablet-Startbildschirm mit moto-Logo und der Begrüßung „Willkommen bei moto!“.",
-        image: "/help/screens/nfc-tablet-willkommen.png",
+        image: "/help/screens/nfc-tablet-willkommen.webp",
       },
     ],
   },
@@ -766,7 +766,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Kindersuche mit eindeutig gefundenem Kind vor NFC-Zuweisung.",
-        image: "/help/screens/kindersuche.png",
+        image: "/help/screens/kindersuche.webp",
       },
       {
         id: "nfc-namen",
@@ -782,7 +782,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Datenverwaltung mit klar benannten Räumen, Gruppen und Aktivitäten.",
-        image: "/help/screens/datenverwaltung.png",
+        image: "/help/screens/datenverwaltung.webp",
       },
       {
         id: "nfc-geraete-pruefen",
@@ -797,7 +797,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Gerätedetail mit Geräte-ID, Gerätetyp, Status und Verbindung.",
-        image: "/help/screens/nfc-geraete-pruefen.png",
+        image: "/help/screens/nfc-geraete-pruefen.webp",
       },
     ],
   },
@@ -829,11 +829,11 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet mit PIN-Eingabe und Tastenfeld für die 4-stellige PIN.",
         gallery: [
           {
-            image: "/help/screens/nfc-tablet-pin.png",
+            image: "/help/screens/nfc-tablet-pin.webp",
             caption: "PIN-Eingabe: 4-stellige PIN über das Zahlenfeld.",
           },
           {
-            image: "/help/screens/nfc-tablet-menue.png",
+            image: "/help/screens/nfc-tablet-menue.webp",
             caption: "Menü nach erfolgreicher Anmeldung.",
           },
         ],
@@ -868,15 +868,15 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet-Bildschirm „Armband identifizieren“ mit Button „Scan starten“.",
         gallery: [
           {
-            image: "/help/screens/nfc-armband-scan.png",
+            image: "/help/screens/nfc-armband-scan.webp",
             caption: "„Scan starten“ und Armband an den NFC-Sensor halten.",
           },
           {
-            image: "/help/screens/nfc-armband-wird-erkannt.png",
+            image: "/help/screens/nfc-armband-wird-erkannt.webp",
             caption: "„Armband wird erkannt …“ mit blauem Lade-Symbol.",
           },
           {
-            image: "/help/screens/nfc-armband-erkannt-frei.png",
+            image: "/help/screens/nfc-armband-erkannt-frei.webp",
             caption: "„Armband erkannt“ – hier noch keinem Kind zugewiesen.",
           },
         ],
@@ -903,20 +903,20 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet-Bildschirm „Person auswählen“ mit Filtern nach Klasse und OGS-Gruppe und dem Button „Armband zuweisen“.",
         gallery: [
           {
-            image: "/help/screens/nfc-person-auswaehlen.png",
+            image: "/help/screens/nfc-person-auswaehlen.webp",
             caption:
               "„Person auswählen“: Liste aller Kinder und Mitarbeitenden.",
           },
           {
-            image: "/help/screens/nfc-person-gefiltert.png",
+            image: "/help/screens/nfc-person-gefiltert.webp",
             caption: "Über Klasse und OGS-Gruppe eingrenzen.",
           },
           {
-            image: "/help/screens/nfc-person-ausgewaehlt.png",
+            image: "/help/screens/nfc-person-ausgewaehlt.webp",
             caption: "Kind antippen – die Auswahl wird grün hervorgehoben.",
           },
           {
-            image: "/help/screens/nfc-armband-erfolg.png",
+            image: "/help/screens/nfc-armband-erfolg.webp",
             caption: "„Erfolgreich!“ – das Armband ist dem Kind zugewiesen.",
           },
         ],
@@ -940,7 +940,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Tablet zeigt das aktuell zugewiesene Kind mit „Anderer Person zuweisen“ und „Armband freigeben“.",
-        image: "/help/screens/nfc-armband-wechseln.png",
+        image: "/help/screens/nfc-armband-wechseln.webp",
       },
     ],
   },
@@ -972,23 +972,23 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet-Bildschirm „Was machen wir?“ mit grün markierter Aktivität und „Weiter“.",
         gallery: [
           {
-            image: "/help/screens/nfc-aktivitaet-leer.png",
+            image: "/help/screens/nfc-aktivitaet-leer.webp",
             caption: "„Was machen wir?“ – Aktivitäten zur Auswahl.",
           },
           {
-            image: "/help/screens/nfc-aktivitaet-waehlen.png",
+            image: "/help/screens/nfc-aktivitaet-waehlen.webp",
             caption: "Aktivität antippen (grün) und mit „Weiter“ bestätigen.",
           },
           {
-            image: "/help/screens/nfc-wer-ist-dabei-leer.png",
+            image: "/help/screens/nfc-wer-ist-dabei-leer.webp",
             caption: "„Wer ist dabei?“ – verfügbare Betreuer.",
           },
           {
-            image: "/help/screens/nfc-wer-ist-dabei.png",
+            image: "/help/screens/nfc-wer-ist-dabei.webp",
             caption: "Mindestens eine Person wählen, dann „Weiter“.",
           },
           {
-            image: "/help/screens/nfc-raum-waehlen.png",
+            image: "/help/screens/nfc-raum-waehlen.webp",
             caption: "„Wo machen wir das?“ – den Raum antippen.",
           },
         ],
@@ -1006,7 +1006,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         screenshot:
           "Bestätigungsfenster „Aufsicht starten?“ mit Aktivität, Betreuer und Raum.",
-        image: "/help/screens/nfc-aufsicht-bestaetigen.png",
+        image: "/help/screens/nfc-aufsicht-bestaetigen.webp",
       },
     ],
   },
@@ -1033,11 +1033,11 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet zeigt die Check-in-Bestätigung „Hallo Linus!“ mit Abholzeit und Raum.",
         gallery: [
           {
-            image: "/help/screens/nfc-hauptbildschirm.png",
+            image: "/help/screens/nfc-hauptbildschirm.webp",
             caption: "Hauptbildschirm mit Aktivität, Raum und Zähler.",
           },
           {
-            image: "/help/screens/nfc-kind-eingecheckt.png",
+            image: "/help/screens/nfc-kind-eingecheckt.webp",
             caption: "„Hallo Linus!“ mit Abholzeit und aktuellem Raum.",
           },
         ],
@@ -1061,7 +1061,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Tablet-Bildschirm „Wohin geht …?“ mit Raumwechsel, Schulhof, Toilette und nach Hause.",
-        image: "/help/screens/nfc-auschecken.png",
+        image: "/help/screens/nfc-auschecken.webp",
       },
     ],
   },
@@ -1089,7 +1089,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Tablet-`Menü` mit `Aufsicht beenden` und `Abmelden`.",
-        image: "/help/screens/nfc-tablet-menue.png",
+        image: "/help/screens/nfc-tablet-menue.webp",
       },
       {
         id: "nfc-team-anpassen",
@@ -1106,15 +1106,15 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Tablet-Bildschirm „Team anpassen“ mit grün markierten Personen und „Team speichern“.",
         gallery: [
           {
-            image: "/help/screens/nfc-team-leer.png",
+            image: "/help/screens/nfc-team-leer.webp",
             caption: "„Team anpassen“: aktuelle Personenauswahl.",
           },
           {
-            image: "/help/screens/nfc-team-anpassen.png",
+            image: "/help/screens/nfc-team-anpassen.webp",
             caption: "Personen hinzufügen oder entfernen (grün markiert).",
           },
           {
-            image: "/help/screens/nfc-team-gespeichert.png",
+            image: "/help/screens/nfc-team-gespeichert.webp",
             caption: "„Team erfolgreich gespeichert!“",
           },
         ],
@@ -1147,7 +1147,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Einstellungen, Tab `Geräte` mit OGS Geräte-PIN und Button-Schaltern.",
-        image: "/help/screens/nfc-einstellungen-geraete.png",
+        image: "/help/screens/nfc-einstellungen-geraete.webp",
       },
       {
         id: "nfc-einstellungen-betrieb",
@@ -1164,7 +1164,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot: "Einstellungen, Tab `Betrieb` mit Tägliche Abmeldezeit.",
-        image: "/help/screens/nfc-einstellungen-betrieb.png",
+        image: "/help/screens/nfc-einstellungen-betrieb.webp",
       },
     ],
   },

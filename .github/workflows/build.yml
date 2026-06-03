@@ -268,9 +268,25 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      # Cache the downloaded browser binary (~150 MB) keyed on the lockfile, so
+      # a Playwright version bump invalidates it automatically. The runner is
+      # ephemeral, so OS libs (--with-deps, apt) still install every run; only
+      # the binary download is skipped on a cache hit.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
       - name: Install Playwright Chromium
         working-directory: frontend
-        run: pnpm exec playwright install --with-deps chromium
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
 
       - name: Generate guide PDFs
         working-directory: frontend
