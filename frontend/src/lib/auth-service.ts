@@ -2,7 +2,7 @@
 import { getSession } from "next-auth/react";
 import { isAxiosError } from "axios";
 import { env } from "~/env";
-import api from "./api";
+import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -38,7 +38,7 @@ import {
   type BackendParentAccount,
 } from "./auth-helpers";
 import type { AxiosError } from "axios";
-import type { ApiError } from "./auth-api";
+import type { ApiError } from "./api-error";
 
 // Generic API response interface
 interface ApiResponse<T> {

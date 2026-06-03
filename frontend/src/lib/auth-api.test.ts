@@ -328,6 +328,46 @@ describe("auth-api", () => {
       }
     });
 
+    it("attempts token refresh when the previous successful refresh is stale", async () => {
+      const restore = setupBrowserEnv();
+      try {
+        const mockTokens = {
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+        };
+        const getItemMock = vi.fn().mockImplementation((key: string) => {
+          if (key === "lastSuccessfulRefresh") {
+            return (Date.now() - 10_000).toString();
+          }
+          return null;
+        });
+        const setItemMock = vi.fn();
+        Object.defineProperty(globalThis, "sessionStorage", {
+          value: { getItem: getItemMock, setItem: setItemMock, clear: vi.fn() },
+          writable: true,
+        });
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockTokens),
+        });
+
+        const result = await handleAuthFailure();
+
+        expect(result).toBe(true);
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/auth/token",
+          expect.any(Object),
+        );
+        expect(setItemMock).toHaveBeenCalledWith(
+          "lastSuccessfulRefresh",
+          expect.any(String),
+        );
+      } finally {
+        restore();
+      }
+    });
+
     it("signs out and redirects when token refresh fails", async () => {
       const restore = setupBrowserEnv();
       try {
