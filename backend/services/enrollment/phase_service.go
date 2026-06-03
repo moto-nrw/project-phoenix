@@ -7,24 +7,28 @@ import (
 	"log/slog"
 	"time"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/uptrace/bun"
 )
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
 var (
-	ErrPhaseNotFound      = errors.New("phase not found")
-	ErrInvalidPhase       = errors.New("invalid phase")
-	ErrPhaseHasReferences = errors.New("phase still referenced by submissions or care offerings")
-	// ErrPhaseHasRequests is returned when the phase still has one or
-	// more enrollment.requests rows. Wraps ErrPhaseHasReferences so
-	// callers using errors.Is(_, ErrPhaseHasReferences) still match.
-	ErrPhaseHasRequests = fmt.Errorf("%w: phase has enrollment requests", ErrPhaseHasReferences)
-	// ErrPhaseHasOfferings is returned when the phase still has one or
-	// more enrollment.care_offerings rows. Wraps ErrPhaseHasReferences
-	// for backward compat.
-	ErrPhaseHasOfferings = fmt.Errorf("%w: phase has care offerings", ErrPhaseHasReferences)
+	ErrPhaseNotFound = errors.New("phase not found")
+	ErrInvalidPhase  = errors.New("invalid phase")
 )
+
+// PhaseDeleteImpact summarizes what a phase delete will remove vs keep.
+// The admin confirmation modal renders these counts before the
+// destructive action: Requests + CareOfferings are permanently deleted,
+// StudentsKept survive (their request_children back-link is cleared via
+// ON DELETE SET NULL, but the users.students rows are untouched).
+type PhaseDeleteImpact struct {
+	Requests      int `json:"requests"`
+	CareOfferings int `json:"care_offerings"`
+	StudentsKept  int `json:"students_kept"`
+}
 
 // PhaseService manages the per-tenant catalog of enrollment phases.
 // Each phase carries its own enrollment window, optional form schema,
@@ -41,6 +45,18 @@ type PhaseService interface {
 
 	Create(ctx context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error)
 	Update(ctx context.Context, phase *enrollmentModels.Phase) error
+
+	// DeleteImpact reports how many enrollment requests + care offerings a
+	// delete would remove, and how many created students would be kept.
+	// Backs the admin confirmation modal.
+	DeleteImpact(ctx context.Context, id int64) (*PhaseDeleteImpact, error)
+
+	// Delete permanently removes the phase and all of its enrollment
+	// records (requests, request children, child-offering selections, and
+	// care offerings) in one transaction. Students created from the phase
+	// are preserved. There is no reference guard — admins may delete a
+	// phase at any point in its lifecycle (before, during, or after the
+	// service period); use Update(is_active=false) to merely hide it.
 	Delete(ctx context.Context, id int64) error
 }
 
@@ -48,14 +64,18 @@ type PhaseService interface {
 type PhaseServiceConfig struct {
 	Repo             enrollmentModels.PhaseRepository
 	RequestRepo      enrollmentModels.RequestRepository
+	RequestChildRepo enrollmentModels.RequestChildRepository
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	DB               *bun.DB
 	Logger           *slog.Logger
 }
 
 type phaseService struct {
 	repo             enrollmentModels.PhaseRepository
 	requestRepo      enrollmentModels.RequestRepository
+	requestChildRepo enrollmentModels.RequestChildRepository
 	careOfferingRepo enrollmentModels.CareOfferingRepository
+	txHandler        *modelBase.TxHandler
 	logger           *slog.Logger
 }
 
@@ -64,10 +84,16 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var txHandler *modelBase.TxHandler
+	if cfg.DB != nil {
+		txHandler = modelBase.NewTxHandler(cfg.DB)
+	}
 	return &phaseService{
 		repo:             cfg.Repo,
 		requestRepo:      cfg.RequestRepo,
+		requestChildRepo: cfg.RequestChildRepo,
 		careOfferingRepo: cfg.CareOfferingRepo,
+		txHandler:        txHandler,
 		logger:           logger,
 	}
 }
@@ -119,55 +145,94 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	return nil
 }
 
-// Delete refuses to remove phases that already have rows referencing
-// them. Admins should toggle is_active=false instead - that hides the
-// phase from parents without losing the audit trail.
+// DeleteImpact returns the blast radius of deleting the phase so the
+// admin UI can warn before the destructive action. Requests +
+// CareOfferings are deleted; StudentsKept survive.
+func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDeleteImpact, error) {
+	if id <= 0 {
+		return nil, ErrPhaseNotFound
+	}
+	if _, err := s.repo.FindByID(ctx, id); err != nil {
+		return nil, ErrPhaseNotFound
+	}
+
+	impact := &PhaseDeleteImpact{}
+	var err error
+	if s.requestRepo != nil {
+		if impact.Requests, err = s.requestRepo.CountByPhaseID(ctx, id); err != nil {
+			return nil, fmt.Errorf("phase delete impact: count requests: %w", err)
+		}
+	}
+	if s.careOfferingRepo != nil {
+		if impact.CareOfferings, err = s.careOfferingRepo.CountByPhaseID(ctx, id); err != nil {
+			return nil, fmt.Errorf("phase delete impact: count care offerings: %w", err)
+		}
+	}
+	if s.requestChildRepo != nil {
+		if impact.StudentsKept, err = s.requestChildRepo.CountCreatedStudentsByPhaseID(ctx, id); err != nil {
+			return nil, fmt.Errorf("phase delete impact: count created students: %w", err)
+		}
+	}
+	return impact, nil
+}
+
+// Delete permanently removes the phase and every enrollment record that
+// hangs off it. There is intentionally no reference guard: admins may
+// delete a phase at any lifecycle stage. To merely hide a phase from
+// parents, use Update(is_active=false) instead.
 //
-// The reference checks short-circuit: requests first (more likely to
-// be set), then care offerings.
+// Ordering matters. enrollment.request_child_offerings.care_offering_id
+// is an ON DELETE RESTRICT FK, so a single DELETE on phases (which would
+// cascade requests and care_offerings concurrently) can fail. We delete
+// requests first — that cascades request_children and
+// request_child_offerings away, clearing the RESTRICT referrers — then
+// delete the phase, whose cascade drops the now-unreferenced care
+// offerings cleanly. Both steps run in one transaction.
+//
+// Students created from the phase are preserved: request_children
+// .created_student_id is ON DELETE SET NULL and the student is the
+// parent in that relationship, so deleting children never deletes the
+// student.
 func (s *phaseService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidPhase)
 	}
-
-	// Both checks bypass the FK ON DELETE CASCADE - we want a clean
-	// admin-facing error, not a silent cascade that nukes submissions.
-	hasRequests, err := s.phaseHasRequests(ctx, id)
-	if err != nil {
-		return fmt.Errorf("phase delete: check requests: %w", err)
-	}
-	if hasRequests {
-		return ErrPhaseHasRequests
-	}
-	hasOfferings, err := s.phaseHasOfferings(ctx, id)
-	if err != nil {
-		return fmt.Errorf("phase delete: check care offerings: %w", err)
-	}
-	if hasOfferings {
-		return ErrPhaseHasOfferings
+	if _, err := s.repo.FindByID(ctx, id); err != nil {
+		return ErrPhaseNotFound
 	}
 
-	if err := s.repo.Delete(ctx, id); err != nil {
+	deletedRequests := 0
+	run := func(txCtx context.Context) error {
+		if s.requestRepo != nil {
+			n, err := s.requestRepo.DeleteByPhaseID(txCtx, id)
+			if err != nil {
+				return fmt.Errorf("phase delete: requests: %w", err)
+			}
+			deletedRequests = n
+		}
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return fmt.Errorf("phase delete: phase: %w", err)
+		}
+		return nil
+	}
+
+	var err error
+	if s.txHandler != nil {
+		err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+			return run(txCtx)
+		})
+	} else {
+		// No DB wired (unit tests with mocks): run without an explicit
+		// transaction. Ordering still holds; the caller's tenant tx, if
+		// any, provides atomicity.
+		err = run(ctx)
+	}
+	if err != nil {
 		return err
 	}
-	s.logger.Info("phase deleted", slog.Int64("phase_id", id))
+
+	s.logger.Info("phase deleted",
+		slog.Int64("phase_id", id),
+		slog.Int("deleted_requests", deletedRequests))
 	return nil
-}
-
-func (s *phaseService) phaseHasRequests(ctx context.Context, phaseID int64) (bool, error) {
-	if s.requestRepo == nil {
-		return false, nil
-	}
-	return s.requestRepo.ExistsByPhaseID(ctx, phaseID)
-}
-
-func (s *phaseService) phaseHasOfferings(ctx context.Context, phaseID int64) (bool, error) {
-	if s.careOfferingRepo == nil {
-		return false, nil
-	}
-	list, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
-	if err != nil {
-		return false, err
-	}
-	return len(list) > 0, nil
 }

@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { createLogger } from "~/lib/logger";
-import { ConfirmDeleteModal } from "./confirm-delete-modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 
 const logger = createLogger({ component: "DeletePersonModal" });
 

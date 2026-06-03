@@ -37,6 +37,11 @@ interface ConfirmDeleteModalProps {
   readonly description: ReactNode;
   readonly warningSlot?: ReactNode;
   readonly gate: GateConfig;
+  // Externally-driven gate. When true, the destructive flow is blocked: the
+  // two-step "advance" button and the final confirm button are both disabled.
+  // Used to hold deletion until a prerequisite (e.g. a blast-radius preview)
+  // has loaded successfully.
+  readonly confirmDisabled?: boolean;
   readonly onConfirm: () => Promise<void> | void;
   readonly onClose: () => void;
   readonly loading: boolean;
@@ -51,6 +56,7 @@ export function ConfirmDeleteModal({
   description,
   warningSlot,
   gate,
+  confirmDisabled: externalConfirmDisabled = false,
   onConfirm,
   onClose,
   loading,
@@ -81,8 +87,11 @@ export function ConfirmDeleteModal({
   const inFirstStep = gate.mode === "twoStep" && !confirmed;
   const textGatePassed =
     gate.mode === "textConfirm" && textInput === gate.expected;
+  // The external gate blocks both advancing the two-step flow and the final
+  // confirm, so the flow cannot be completed while the prerequisite is unmet.
+  const gateBlocked = loading || externalConfirmDisabled;
   const confirmDisabled =
-    loading || (gate.mode === "textConfirm" && !textGatePassed);
+    gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -136,7 +145,8 @@ export function ConfirmDeleteModal({
             <button
               type="button"
               onClick={() => setConfirmed(true)}
-              className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626]"
+              disabled={gateBlocked}
+              className="rounded-lg bg-[#FF3130] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#CC2626] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {gate.mode === "twoStep" && gate.firstStepLabel
                 ? gate.firstStepLabel
