@@ -172,12 +172,11 @@ func TestTimetableSettings_Types(t *testing.T) {
 func TestTimetableSettings_Defaults(t *testing.T) {
 	enabledDef := config.GetDefinition("timetable.enabled")
 	require.NotNil(t, enabledDef)
-	assert.Equal(t, false, enabledDef.Default, "timetable must default to false")
+	assert.Equal(t, true, enabledDef.Default, "timetable must default to true so the feature is opt-out")
 
-	// Both the materialization and auto-start flags default to FALSE so that
-	// WP-B7 is a pure no-op until the consuming services (WP-B8 / B9) ship
-	// AND a tenant explicitly opts in. Regressing either of these defaults
-	// would silently activate incomplete features for every tenant.
+	// The top-level feature is opt-out, but materialization and auto-start stay
+	// opt-in so background writes and live activity transitions do not begin
+	// unless a tenant explicitly enables those behaviours.
 	matDef := config.GetDefinition("timetable.materialization_enabled")
 	require.NotNil(t, matDef)
 	assert.Equal(t, false, matDef.Default, "materialization must default to false")
