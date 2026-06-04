@@ -388,30 +388,54 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* In print/PDF (page.pdf with printBackground) two unlayered rules above leak a
-   grey tint that the layered Tailwind `print:*` utilities cannot override
-   (unlayered always beats layered, regardless of specificity or media query):
-   - `.moto-dotted-background { background:#f9fafb }` paints the whole content
-     column grey-50 — `print:bg-white` on the element can't win.
-   - `.moto-content-surface { box-shadow:var(--shadow-sm) }` renders a grey halo
-     behind every card — `print:shadow-none` can't win.
-   These rules are unlayered too and come later in source order, so they win and
-   reset both only for print. backdrop-filter is dropped as well: pointless over
-   a white page and a needless rasterisation cost. */
+/* Print rules reset unlayered page styles that Tailwind print utilities cannot
+   override, then add a dedicated guide background for PDF exports. */
 @media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+
+  html:has(.moto-dotted-background--guide),
+  body:has(.moto-dotted-background--guide) {
+    background: #f9fafb;
+  }
+
+  body:has(.moto-dotted-background--guide)::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-color: #f9fafb;
+    background-image:
+      radial-gradient(
+        circle at 12% 8%,
+        rgba(80, 128, 216, 0.14),
+        transparent 30%
+      ),
+      radial-gradient(
+        circle at 86% 16%,
+        rgba(131, 205, 45, 0.12),
+        transparent 34%
+      ),
+      radial-gradient(
+        circle at 1px 1px,
+        rgba(17, 24, 39, 0.12) 1px,
+        transparent 0
+      );
+    background-repeat: no-repeat, no-repeat, repeat;
+    background-size: 100% 100%, 100% 100%, 14px 14px;
+  }
+
   .moto-dotted-background:not(.moto-dotted-background--guide) {
     background: #ffffff;
   }
   .moto-dotted-background--guide {
-    background-color: #f9fafb;
-    background-image: radial-gradient(
-      circle at 1px 1px,
-      rgba(17, 24, 39, 0.12) 1px,
-      transparent 0
-    );
-    background-size: 14px 14px;
-    box-sizing: border-box;
-    padding: 18mm 16mm;
+    background: transparent;
+    position: relative;
+    z-index: 1;
+  }
+  .moto-dotted-background--guide > div {
+    padding-inline: 2mm;
   }
   .moto-dotted-background--guide::before {
     display: none;
