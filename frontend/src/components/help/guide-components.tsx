@@ -379,24 +379,16 @@ function GuidePrintCover({
         </p>
       </div>
 
-      <div className="mt-16 grid grid-cols-[1fr_160px] gap-10">
-        <div>
-          <p className="text-sm font-bold tracking-[0.12em] text-[#3F6F12] uppercase">
-            {eyebrow}
-          </p>
-          <h1 className="mt-5 max-w-[520px] text-5xl leading-[1.02] font-semibold tracking-normal text-gray-950">
-            {title}
-          </h1>
-          <p className="mt-6 max-w-[560px] text-lg leading-8 text-gray-600">
-            {description}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-end gap-4 pt-8">
-          <div className="h-28 w-28 rounded-full bg-[#83CD2D]" />
-          <div className="h-20 w-20 rounded-full bg-[#F78C10]" />
-          <div className="h-14 w-14 rounded-full bg-[#5080D8]" />
-        </div>
+      <div className="mt-16">
+        <p className="text-sm font-bold tracking-[0.12em] text-[#3F6F12] uppercase">
+          {eyebrow}
+        </p>
+        <h1 className="mt-5 max-w-[620px] text-5xl leading-[1.02] font-semibold tracking-normal text-gray-950">
+          {title}
+        </h1>
+        <p className="mt-6 max-w-[620px] text-lg leading-8 text-gray-600">
+          {description}
+        </p>
       </div>
 
       <div className="mt-10 flex flex-wrap gap-2.5">
@@ -420,15 +412,15 @@ function GuidePrintCover({
             <span className="h-2.5 w-2.5 rounded-full bg-[#F78C10]" />
             <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]" />
           </div>
-          <p className="text-xs font-semibold tracking-[0.08em] text-gray-400 uppercase">
-            moto.app
+          <p className="text-xs font-semibold tracking-[0.08em] text-gray-400">
+            moto-app.de
           </p>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cover.image}
           alt={cover.imageAlt}
-          className="block h-[265px] w-full object-cover object-top"
+          className="block h-[300px] w-full object-cover object-top"
         />
       </div>
 
@@ -436,10 +428,10 @@ function GuidePrintCover({
         <p className="max-w-[360px] text-sm leading-6 text-gray-500">
           Eine kompakte Anleitung für Teams in OGS, Betreuung und Verwaltung.
         </p>
-        <p className="text-right text-sm font-semibold text-gray-700">
-          moto NRW
+        <p className="text-right text-lg leading-7 font-semibold text-gray-950">
+          Ganztag.
           <br />
-          Ganztag digital organisieren
+          Digital.
         </p>
       </div>
     </section>
