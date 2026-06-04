@@ -361,6 +361,21 @@ describe("proxy", () => {
       expect(rewrite).toBeNull();
     });
 
+    it("returns null slug for the reserved 'help' subdomain so it never rewrites to /help/*", () => {
+      // A tenant slug of "help" would collide with the public /help docs route:
+      // help.localhost/dashboard would rewrite to /help/dashboard, where the
+      // static app/help segment shadows [tenant]. Reserving "help" prevents it.
+      const res = proxy(
+        makeRequest(
+          `http://help.localhost:3000/dashboard`,
+          "help.localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
     it("attaches security headers to rewritten tenant responses", () => {
       const res = proxy(
         makeRequest(
