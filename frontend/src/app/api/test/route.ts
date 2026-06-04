@@ -1,5 +1,5 @@
 // Test endpoint to debug groups API
-import { apiGet } from "~/lib/api-helpers";
+import { apiGet } from "~/lib/api-helpers.server";
 import { auth } from "~/server/auth";
 import { NextResponse } from "next/server";
 import { createLogger } from "~/lib/logger";

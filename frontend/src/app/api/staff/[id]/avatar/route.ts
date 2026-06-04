@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
-import { handleApiError } from "~/lib/api-helpers";
+import { handleApiError } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { encodePathSegment, isStringParam } from "~/lib/route-wrapper-utils";
+import {
+  encodePathSegment,
+  isStringParam,
+} from "~/lib/route-wrapper-utils.server";
 
 // GET handler for fetching staff avatar images
 // Returns raw image data, not JSON — does not use createGetHandler

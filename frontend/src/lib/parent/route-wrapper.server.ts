@@ -1,13 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { handleApiError } from "../api-helpers";
+import { handleApiError } from "../api-helpers.server";
 import {
   type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
   createUnauthorizedResponse,
-} from "../route-wrapper-utils";
+} from "../route-wrapper-utils.server";
 
 /**
  * Parent-app route wrapper. Mirrors lib/operator/route-wrapper.ts —

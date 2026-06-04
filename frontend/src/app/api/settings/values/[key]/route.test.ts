@@ -5,12 +5,12 @@ const mockApiDelete = vi.fn();
 const mockRevalidateTag = vi.fn();
 const mockRevalidatePath = vi.fn();
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiPut: (...args: unknown[]) => mockApiPut(...args),
   apiDelete: (...args: unknown[]) => mockApiDelete(...args),
 }));
 
-vi.mock("~/lib/route-wrapper", () => ({
+vi.mock("~/lib/route-wrapper.server", () => ({
   createPutHandler: (handler: Function) => handler,
   createDeleteHandler: (handler: Function) => handler,
 }));

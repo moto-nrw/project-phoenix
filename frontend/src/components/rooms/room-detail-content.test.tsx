@@ -556,7 +556,7 @@ describe("RoomDetailContent", () => {
     // duration_minutes from the session takes precedence over calculateDuration().
     expect(screen.getByText("45m")).toBeInTheDocument();
     expect(screen.getByText(/Frau A/)).toBeInTheDocument();
-    expect(screen.getByText(/Teilnehmer: 12/)).toBeInTheDocument();
+    expect(screen.getByText(/Kinder: 12/)).toBeInTheDocument();
     expect(screen.queryByText("Laufend")).not.toBeInTheDocument();
   });
 

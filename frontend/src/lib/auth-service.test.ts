@@ -26,7 +26,7 @@ vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),
 }));
 
-vi.mock("./api", () => ({
+vi.mock("./api-transport", () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock("./api", () => ({
 
 // Import after mocks
 import { getSession } from "next-auth/react";
-import api from "./api";
+import api from "./api-transport";
 import { authService } from "./auth-service";
 
 const mockedGetSession = vi.mocked(getSession);

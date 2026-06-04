@@ -1,8 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "../server/auth";
-import type { ApiErrorResponse, ApiResponse } from "./api-helpers";
-import { apiDelete, apiGet, apiPut, handleApiError } from "./api-helpers";
+import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
+import {
+  apiDelete,
+  apiGet,
+  apiPut,
+  handleApiError,
+} from "./api-helpers.server";
 import {
   type RouteContext,
   buildQueryString,
@@ -11,9 +16,9 @@ import {
   wrapInApiResponse,
   createUnauthorizedResponse,
   isStringParam,
-} from "./route-wrapper-utils";
+} from "./route-wrapper-utils.server";
 
-export { isStringParam } from "./route-wrapper-utils";
+export { isStringParam } from "./route-wrapper-utils.server";
 
 /**
  * Checks if error is a 401 authentication error

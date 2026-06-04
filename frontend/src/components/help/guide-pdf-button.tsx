@@ -9,7 +9,7 @@ export function GuidePdfButton({
   download,
 }: {
   readonly href: string;
-  /** German filename the visitor sees when saving — independent of the
+  /** German filename the visitor sees when saving , independent of the
       ASCII served path. */
   readonly download: string;
 }) {

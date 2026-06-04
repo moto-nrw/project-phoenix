@@ -3,7 +3,7 @@ import {
   createOperatorGetHandler,
   isStringParam,
   operatorApiGet,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 const VALID_KEY_PATTERN = /^[a-z0-9_.]{1,255}$/;
 

@@ -25,7 +25,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", async (importOriginal) => {
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -127,9 +127,7 @@ describe("GET /api/students/[id]/privacy-consent", () => {
   });
 
   it("returns default consent when not found (404)", async () => {
-    mockApiGet.mockRejectedValueOnce(
-      new Error("API error (404): Not found"),
-    );
+    mockApiGet.mockRejectedValueOnce(new Error("API error (404): Not found"));
 
     const request = createMockRequest("/api/students/123/privacy-consent");
     const response = await GET(request, createMockContext({ id: "123" }));

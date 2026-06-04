@@ -2,14 +2,17 @@ import {
   createGetHandler,
   createPutHandler,
   createDeleteHandler,
-} from "@/lib/route-wrapper";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers";
+} from "@/lib/route-wrapper.server";
+import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import type { BackendDevice } from "@/lib/iot-helpers";
 import { mapDeviceResponse } from "@/lib/iot-helpers";
 
 export const GET = createGetHandler(async (request, token, params) => {
   const id = params.id as string;
-  const response = await apiGet<{ data: BackendDevice }>(`/api/iot/${id}`, token);
+  const response = await apiGet<{ data: BackendDevice }>(
+    `/api/iot/${id}`,
+    token,
+  );
 
   if (!response?.data) {
     throw new Error("Device not found");
@@ -20,7 +23,11 @@ export const GET = createGetHandler(async (request, token, params) => {
 
 export const PUT = createPutHandler(async (request, body, token, params) => {
   const id = params.id as string;
-  const response = await apiPut<{ data: BackendDevice }>(`/api/iot/${id}`, token, body);
+  const response = await apiPut<{ data: BackendDevice }>(
+    `/api/iot/${id}`,
+    token,
+    body,
+  );
 
   if (!response?.data) {
     throw new Error("Failed to update device");

@@ -127,6 +127,7 @@ function TextInput({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
         className={`block w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
           error
             ? "border-red-300 bg-red-50"
@@ -403,6 +404,7 @@ export function PrivacyConsentSection({
             type="number"
             min="1"
             max="31"
+            aria-invalid={errors.data_retention_days ? true : undefined}
             value={formData.data_retention_days ?? ""}
             onChange={(e) => {
               const inputValue = e.target.value;

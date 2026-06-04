@@ -10,9 +10,17 @@
  * to fit on one line at desktop widths.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
+  Plus,
+} from "lucide-react";
+
+import { useClickOutside } from "~/lib/hooks/use-click-outside";
 
 export type TimetableView = "week" | "month" | "year" | "series";
 
@@ -81,12 +89,12 @@ export function TimetableToolbar({
   const showDensity = view === "week" && density && onDensityChange;
 
   return (
-    <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
+    <div className="flex flex-col gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
       {/* Segmented view tabs */}
       <div
         role="tablist"
         aria-label="Ansicht wählen"
-        className="grid w-full grid-cols-4 rounded-md bg-slate-100 p-0.5 sm:inline-flex sm:w-auto sm:items-center lg:self-auto"
+        className="grid w-full grid-cols-4 rounded-md bg-gray-100 p-0.5 sm:inline-flex sm:w-auto sm:items-center lg:self-auto"
       >
         {VIEW_TABS.map((tab) => {
           const isActive = view === tab.id;
@@ -97,10 +105,10 @@ export function TimetableToolbar({
               type="button"
               aria-selected={isActive}
               onClick={() => onViewChange(tab.id)}
-              className={`rounded px-2 py-1.5 text-[13px] font-medium transition-colors sm:px-3 sm:py-1 ${
+              className={`rounded px-2 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-3 sm:py-1 ${
                 isActive
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-600 hover:text-gray-900"
               }`}
             >
               {tab.label}
@@ -111,20 +119,20 @@ export function TimetableToolbar({
 
       {showRangeNav && (
         <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-x-2 gap-y-2 sm:flex sm:gap-3">
-          <div className="hidden h-6 w-px bg-slate-200 lg:block" aria-hidden />
+          <div className="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden />
 
           {/* Date navigator — ghost buttons, no borders */}
           <button
             type="button"
             onClick={onPrev}
             disabled={navDisabled}
-            className="order-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+            className="order-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Vorheriger Zeitraum"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
 
-          <span className="order-2 min-w-0 text-center text-sm leading-tight font-semibold text-slate-900 tabular-nums sm:order-4 sm:truncate sm:text-left">
+          <span className="order-2 min-w-0 text-center text-sm leading-tight font-semibold text-gray-900 tabular-nums sm:order-4 sm:truncate sm:text-left">
             {rangeLabel}
           </span>
 
@@ -132,7 +140,7 @@ export function TimetableToolbar({
             type="button"
             onClick={onNext}
             disabled={navDisabled}
-            className="order-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40 sm:order-2"
+            className="order-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 sm:order-2"
             aria-label="Nächster Zeitraum"
           >
             <ChevronRight className="h-4 w-4" />
@@ -144,7 +152,7 @@ export function TimetableToolbar({
               type="button"
               onClick={onToday}
               disabled={navDisabled}
-              className="order-4 col-span-3 inline-flex h-8 items-center justify-self-center rounded-md border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:order-3"
+              className="order-4 col-span-3 inline-flex h-8 items-center justify-self-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 sm:order-3"
             >
               Heute
             </button>
@@ -165,7 +173,7 @@ export function TimetableToolbar({
             <button
               type="button"
               onClick={onAddInstance}
-              className="inline-flex h-8 items-center gap-1 rounded-md bg-slate-900 px-2.5 text-[12px] font-medium text-white transition-colors hover:bg-slate-700"
+              className="inline-flex h-8 items-center gap-1 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-gray-700"
             >
               <Plus className="h-3.5 w-3.5" />
               Termin
@@ -191,27 +199,7 @@ function DensityMenu({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        event.target instanceof Node &&
-        !containerRef.current.contains(event.target)
-      ) {
-        setOpen(false);
-      }
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  useClickOutside(containerRef, () => setOpen(false), open);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -221,7 +209,7 @@ function DensityMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Weitere Optionen"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
@@ -229,10 +217,10 @@ function DensityMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-md"
+          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
         >
-          <div className="border-b border-slate-100 px-3 py-2">
-            <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+          <div className="border-b border-gray-100 px-3 py-2">
+            <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
               Zeilenhöhe
             </p>
           </div>
@@ -248,15 +236,13 @@ function DensityMenu({
                   onDensityChange(opt.value);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center justify-between px-3 py-2 text-[12px] font-medium transition-colors hover:bg-slate-50 ${
-                  isActive ? "text-slate-900" : "text-slate-600"
+                className={`flex w-full items-center justify-between px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50 ${
+                  isActive ? "text-gray-900" : "text-gray-600"
                 }`}
               >
                 <span>{opt.label}</span>
                 {isActive && (
-                  <span className="text-[12px] text-slate-900" aria-hidden>
-                    ✓
-                  </span>
+                  <Check className="h-4 w-4 text-gray-900" aria-hidden />
                 )}
               </button>
             );

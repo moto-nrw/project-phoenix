@@ -3,8 +3,8 @@
 // The planner UI passes the currently visible week's from/to so admins can
 // re-run materialization for that exact window.
 import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers";
-import { createPostHandler } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler } from "~/lib/route-wrapper.server";
 
 interface MaterializeBody {
   from_date?: string;

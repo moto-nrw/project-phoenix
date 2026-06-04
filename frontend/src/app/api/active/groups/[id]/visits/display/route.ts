@@ -1,9 +1,9 @@
 // app/api/active/groups/[id]/visits/display/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import type { ApiResponse } from "~/lib/api-helpers";
+import { apiGet } from "~/lib/api-helpers.server";
+import type { ApiResponse } from "~/lib/api-helpers.server";
 import type { BackendVisit } from "~/lib/active-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Type guard to check if parameter exists and is a string

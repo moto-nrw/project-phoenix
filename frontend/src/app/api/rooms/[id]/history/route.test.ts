@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
-import { ApiResponseError } from "~/lib/api-helpers";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 
 // ============================================================================
 // Types
@@ -28,8 +28,9 @@ vi.mock("~/server/auth", () => ({
 // Re-export the real ApiResponseError so route's `instanceof` check matches
 // the same class the test throws. Keep apiGet etc. mocked so the route
 // never hits the network.
-vi.mock("~/lib/api-helpers", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/api-helpers")>();
+vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/api-helpers.server")>();
   return {
     ApiResponseError: actual.ApiResponseError,
     apiGet: mockApiGet,

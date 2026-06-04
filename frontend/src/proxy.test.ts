@@ -8,7 +8,7 @@ vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 
-// Import after env is stubbed — proxy reads the env var at module load
+// Import after env is stubbed , proxy reads the env var at module load
 const { proxy } = await import("./proxy");
 
 function makeRequest(url: string, host?: string): NextRequest {
@@ -25,7 +25,7 @@ describe("proxy env validation", () => {
     vi.stubEnv("TENANT_DOMAIN", "localhost");
 
     await expect(
-      // @ts-expect-error — query string forces fresh module evaluation
+      // @ts-expect-error , query string forces fresh module evaluation
       import("./proxy?missing-operator"),
     ).rejects.toThrow("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
 
@@ -40,7 +40,7 @@ describe("proxy env validation", () => {
     vi.stubEnv("TENANT_DOMAIN", "");
 
     await expect(
-      // @ts-expect-error — query string forces fresh module evaluation
+      // @ts-expect-error , query string forces fresh module evaluation
       import("./proxy?missing-tenant"),
     ).rejects.toThrow("TENANT_DOMAIN is not set");
 
@@ -348,7 +348,7 @@ describe("proxy", () => {
     });
 
     it("returns null slug for reserved subdomains", () => {
-      // "www" is in RESERVED_SLUGS — extractTenantSlug returns null,
+      // "www" is in RESERVED_SLUGS , extractTenantSlug returns null,
       // so it passes through as a bare domain (no rewrite).
       const res = proxy(
         makeRequest(

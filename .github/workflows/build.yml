@@ -269,7 +269,7 @@ jobs:
         # --ignore-scripts: this install only feeds the guide-PDF render
         # (next build + playwright). pnpm 10 already gates dependency lifecycle
         # scripts to the onlyBuiltDependencies allowlist (esbuild/sharp/unrs-
-        # resolver), and of those only sharp matters here — it loads its
+        # resolver), and of those only sharp matters here , it loads its
         # prebuilt @img/sharp-* binary at runtime, no install script needed.
         # Verified: install + full next build (incl. /help pages) pass without
         # scripts. Satisfies sonar githubactions:S6505.

@@ -1,5 +1,8 @@
-import { createGetHandler, createPostHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPost } from "@/lib/api-helpers";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "@/lib/route-wrapper.server";
+import { apiGet, apiPost } from "@/lib/api-helpers.server";
 
 // GET /api/guardians/[id]/phone-numbers - List guardian phone numbers
 export const GET = createGetHandler(async (request, token, params) => {

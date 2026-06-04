@@ -21,7 +21,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiPost: mockApiPost,
   apiDelete: mockApiDelete,
   handleApiError: vi.fn((error: unknown) => {

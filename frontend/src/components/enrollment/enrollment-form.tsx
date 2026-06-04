@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
@@ -21,6 +21,7 @@ import {
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
+import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "EnrollmentForm" });
 
@@ -142,32 +143,13 @@ export function EnrollmentForm({
   // (guardian_email, children_0_first_name, ...). Drives the red border +
   // inline message on the offending input; rebuilt on every submit.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  // Scroll the top error banner into view on every submit attempt that
-  // leaves an error showing. The form is long (guardian + N children +
-  // offerings) with the submit button at the bottom, so an error rendered
-  // only at the top is easy to miss. Keyed on a per-attempt counter rather
-  // than the error string (the app's shared useScrollToError hook) so a
-  // repeated submit with the *same* unchanged message still scrolls back
-  // up. On a successful submit the banner isn't rendered, so the ref is
-  // null and the scroll is a no-op.
-  const errorRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [submitAttempt, setSubmitAttempt] = useState(0);
-
-  useEffect(() => {
-    if (submitAttempt === 0) return;
-    // Scroll to the first invalid field (every marked input/select/checkbox
-    // carries aria-invalid) so the parent lands on the actual problem and its
-    // inline message, not just the top banner. Server-level errors (e.g.
-    // offering full) mark no field, so fall back to the banner.
-    const firstInvalid = formRef.current?.querySelector<HTMLElement>(
-      '[aria-invalid="true"]',
-    );
-    (firstInvalid ?? errorRef.current)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  }, [submitAttempt]);
+  // Scroll to the first invalid field on every submit attempt that leaves an
+  // error showing. The form is long (guardian + N children + offerings) with
+  // the submit button at the bottom, so an error rendered above is easy to
+  // miss. `scrollToError()` is keyed on a per-attempt counter, so a repeated
+  // submit with the *same* unchanged message still scrolls back to it; on a
+  // successful submit nothing is marked invalid so it's a no-op.
+  const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
   const [guardianLastName, setGuardianLastName] = useState("");
@@ -347,7 +329,7 @@ export function EnrollmentForm({
     // submit produces the same error message as the previous one. Covers
     // every synchronous validation failure below (error is set in the same
     // batch). On success no error is set, so the scroll is a no-op.
-    setSubmitAttempt((n) => n + 1);
+    scrollToError();
 
     if (previewMode) {
       setError(
@@ -622,7 +604,7 @@ export function EnrollmentForm({
       setError(message);
       // A server-side rejection resolves after the synchronous attempt bump
       // above, so bump again to scroll the late-arriving error into view.
-      setSubmitAttempt((n) => n + 1);
+      scrollToError();
     } finally {
       setSubmitting(false);
     }

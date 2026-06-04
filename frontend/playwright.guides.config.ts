@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
 //
 // Renders against a *production* server (`next build && next start`), not
 // `next dev`: the PDFs ship inside the prod image, so they must be generated
-// from the same output users actually see — and a prod server renders
+// from the same output users actually see , and a prod server renders
 // deterministically and fast (no first-request compile / HMR), which removes
 // the main flakiness source. The render step is on the deploy critical path,
 // so `retries` (in CI) absorbs transient hiccups instead of failing a deploy.

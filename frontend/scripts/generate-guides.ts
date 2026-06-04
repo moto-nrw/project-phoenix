@@ -6,7 +6,7 @@ import path from "node:path";
 //
 // The HTML guide pages are the single source of truth. This script renders
 // them with headless Chromium and exports clean A4 PDFs (no browser-injected
-// date / URL / title / page-number header or footer — which window.print()
+// date / URL / title / page-number header or footer , which window.print()
 // cannot suppress). Output lands in public/help/pdfs/ and is served as a
 // static download; it is regenerated on every CI build, never committed, so
 // the PDFs can never drift from the live guide content.
@@ -49,7 +49,7 @@ for (const guide of GUIDES) {
     // Screenshots use loading="lazy"; force eager load and wait for every image
     // to fully decode so none are missing/half-painted in the exported PDF.
     // decode() resolves once the image is paintable and rejects on a broken
-    // source — swallow the rejection so one bad asset can't hang the render.
+    // source , swallow the rejection so one bad asset can't hang the render.
     await page.evaluate(async () => {
       const images = Array.from(document.querySelectorAll("img"));
       images.forEach((img) => {
@@ -73,7 +73,7 @@ for (const guide of GUIDES) {
     const { size } = await stat(outPath);
     expect(
       size,
-      `${guide.file} is only ${size} bytes — render likely failed`,
+      `${guide.file} is only ${size} bytes , render likely failed`,
     ).toBeGreaterThan(MIN_PDF_BYTES);
   });
 }

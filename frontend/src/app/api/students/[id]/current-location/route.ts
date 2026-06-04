@@ -1,7 +1,7 @@
 // app/api/students/[id]/current-location/route.ts
 import type { NextRequest } from "next/server";
-import { createGetHandler } from "~/lib/route-wrapper";
-import { apiGet } from "~/lib/api-helpers";
+import { createGetHandler } from "~/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentLocationRoute" });
@@ -365,12 +365,21 @@ function mapAxiosErrorToCode(
   }
 
   const message = error.message;
-  if (message.includes("fetch") || message.includes("network") || message.includes("ECONNREFUSED")) {
+  if (
+    message.includes("fetch") ||
+    message.includes("network") ||
+    message.includes("ECONNREFUSED")
+  ) {
     return "NETWORK";
   }
   if (message.includes("401")) return "UNAUTHORIZED";
   if (message.includes("403")) return "FORBIDDEN";
   if (message.includes("404")) return "NOT_FOUND";
-  if (message.includes("500") || message.includes("502") || message.includes("503")) return "SERVER";
+  if (
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503")
+  )
+    return "SERVER";
   return undefined;
 }

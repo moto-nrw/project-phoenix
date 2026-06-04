@@ -129,7 +129,7 @@ describe("GuideShell", () => {
     expect(pdf).toHaveAttribute("href", "/help/pdfs/setup.pdf");
     expect(pdf).toHaveAttribute(
       "download",
-      "moto Anleitung – Ersteinrichtung.pdf",
+      "moto Anleitung - Ersteinrichtung.pdf",
     );
   });
 

@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers";
+import { apiPost } from "~/lib/api-helpers.server";
 import {
   createPostHandler,
   createProxyGetDataHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/time-tracking/absences?from=YYYY-MM-DD&to=YYYY-MM-DD

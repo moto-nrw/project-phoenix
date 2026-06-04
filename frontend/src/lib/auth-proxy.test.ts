@@ -8,7 +8,7 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
 }));
 
-vi.mock("~/lib/client-headers", () => ({
+vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: vi.fn(() => ({
     "x-forwarded-for": "203.0.113.10",
     "user-agent": "test-agent",
@@ -19,7 +19,7 @@ vi.mock("~/lib/client-headers", () => ({
 // logger.error(msg, ctx) routes to console.error(msg, ctx) — and the
 // spy below picks the call up.
 
-import { forwardJsonPost } from "./auth-proxy";
+import { forwardJsonPost } from "./auth-proxy.server";
 
 const ORIGINAL_FETCH = globalThis.fetch;
 

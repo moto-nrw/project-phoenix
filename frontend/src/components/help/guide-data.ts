@@ -53,7 +53,7 @@ export interface GuideStep {
   readonly image?: string;
   /**
    * Ordered sequence of tablet screens for this step. When present it renders
-   * as a captioned grid instead of the single `image` — used by the NFC manual
+   * as a captioned grid instead of the single `image` , used by the NFC manual
    * so every tablet state from the printed guide is shown, not just one.
    */
   readonly gallery?: readonly {
@@ -108,7 +108,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
   {
     href: "/help/nfc",
     title: "NFC & Tablets",
-    body: "Das komplette Tablet-Handbuch für Einrichtungen mit NFC-Armbändern – vom Aufstellen bis zur Fehlerbehebung.",
+    body: "Das komplette Tablet-Handbuch für Einrichtungen mit NFC-Armbändern - vom Aufstellen bis zur Fehlerbehebung.",
     icon: TabletSmartphone,
     points: [
       "Gerät aufstellen, anmelden und Armbänder zuweisen",
@@ -576,7 +576,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten – `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
@@ -587,7 +587,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "So hängt alles zusammen",
-          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular – am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
+          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
           tone: "blue",
         },
         screenshot:
@@ -599,7 +599,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldephasen",
         icon: CalendarRange,
         summary:
-          "Eine Anmeldephase ist der Zeitraum, für den Eltern anmelden – zum Beispiel ein Schuljahr oder eine Ferienbetreuung. Sie steuert das öffentliche Anmeldefenster.",
+          "Eine Anmeldephase ist der Zeitraum, für den Eltern anmelden - zum Beispiel ein Schuljahr oder eine Ferienbetreuung. Sie steuert das öffentliche Anmeldefenster.",
         steps: [
           "`Anmeldephasen` öffnen und auf `Neue Anmeldephase` klicken.",
           "`Name` und `Typ` (`Schuljahr`, `Ferienbetreuung` oder `Sonstiges`) wählen.",
@@ -622,13 +622,13 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Betreuungsangebote",
         icon: ClipboardList,
         summary:
-          "Betreuungsangebote sind die Optionen, die Eltern im Formular auswählen – etwa Regelbetreuung oder ein Angebot mit Mittagessen. Jedes Angebot gehört zu einer Anmeldephase.",
+          "Betreuungsangebote sind die Optionen, die Eltern im Formular auswählen - etwa Regelbetreuung oder ein Angebot mit Mittagessen. Jedes Angebot gehört zu einer Anmeldephase.",
         steps: [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
-          "`Aktiv` setzen – nur aktive Angebote sind für Eltern auswählbar.",
+          "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
         callout: {
           title: "Pro Phase eigene Angebote",
@@ -697,10 +697,10 @@ export const nfcChapters: readonly GuideChapter[] = [
         id: "nfc-lieferumfang",
         title: "Lieferumfang und Anschlüsse",
         summary:
-          "Das Gerät ist sofort einsatzbereit. Zusätzliche Installationen, Registrierungen oder Konfigurationsschritte sind nicht nötig – Netzwerk und Software sind vorkonfiguriert.",
+          "Das Gerät ist sofort einsatzbereit. Zusätzliche Installationen, Registrierungen oder Konfigurationsschritte sind nicht nötig - Netzwerk und Software sind vorkonfiguriert.",
         steps: [
           "Lieferumfang prüfen: `1x NFC-Tablet` mit Touchscreen und NFC-Leser sowie `1x fest montiertes Netzkabel`.",
-          "Vorderseite: Der `NFC-Sensor` sitzt unten am Standfuß – hier halten die Kinder später ihr Armband an.",
+          "Vorderseite: Der `NFC-Sensor` sitzt unten am Standfuß - hier halten die Kinder später ihr Armband an.",
           "Rückseite: `LAN-Anschluss` für eine optionale Kabelverbindung und die `VESA-Halterung` für Tisch- oder Wandmontage.",
           "Das `Stromkabel` ist fest montiert und muss nur in eine Steckdose gesteckt werden.",
         ],
@@ -718,7 +718,7 @@ export const nfcChapters: readonly GuideChapter[] = [
     id: "nfc-aufstellen",
     title: "Gerät aufstellen & einschalten",
     description:
-      "Aufstellen, einstecken, fertig. Das Gerät startet bei Stromzufuhr automatisch und ist innerhalb weniger Minuten einsatzbereit – ein Einschaltknopf ist nicht vorhanden.",
+      "Aufstellen, einstecken, fertig. Das Gerät startet bei Stromzufuhr automatisch und ist innerhalb weniger Minuten einsatzbereit - ein Einschaltknopf ist nicht vorhanden.",
     icon: PlugZap,
     tone: "blue",
     steps: [
@@ -731,11 +731,11 @@ export const nfcChapters: readonly GuideChapter[] = [
           "`Standort wählen`: in der Nähe des Eingangsbereichs oder an einem zentralen Ort, an dem die Kinder regelmäßig vorbeikommen. Eine Steckdose muss in der Nähe sein.",
           "`Befestigen`: per VESA-Standhalterung auf dem Tisch oder per VESA-Wandhalterung. Achten Sie darauf, dass das Kabel keine Stolperfalle bildet und der NFC-Sensor für die Kinder frei zugänglich bleibt.",
           "`Einstecken`: Netzkabel mit der Steckdose verbinden. Das Gerät startet automatisch und zeigt zunächst einen Ladebildschirm.",
-          "`Warten`: Nach ca. 1–2 Minuten erscheint der Startbildschirm mit `Willkommen bei moto!`. Sobald er sichtbar ist, ist das Gerät einsatzbereit.",
+          "`Warten`: Nach ca. 1-2 Minuten erscheint der Startbildschirm mit `Willkommen bei moto!`. Sobald er sichtbar ist, ist das Gerät einsatzbereit.",
         ],
         callout: {
           title: "Netzwerkverbindung",
-          body: "Das Tablet ist bereits mit dem WLAN Ihrer Einrichtung verbunden; alternativ ist eine LAN-Verbindung möglich. Solange die Verbindung in Ordnung ist, wird kein Symbol angezeigt. Nur bei schlechter oder fehlender Verbindung erscheint unten rechts ein rotes WLAN-Warnsymbol – prüfen Sie dann Ihre Internetverbindung oder wenden sich an den moto-Support.",
+          body: "Das Tablet ist bereits mit dem WLAN Ihrer Einrichtung verbunden; alternativ ist eine LAN-Verbindung möglich. Solange die Verbindung in Ordnung ist, wird kein Symbol angezeigt. Nur bei schlechter oder fehlender Verbindung erscheint unten rechts ein rotes WLAN-Warnsymbol - prüfen Sie dann Ihre Internetverbindung oder wenden sich an den moto-Support.",
           tone: "blue",
         },
         screenshot:
@@ -818,7 +818,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Auf dem Startbildschirm auf den großen Button `Anmelden` tippen.",
           "Im Zahlenfeld die 4-stellige PIN Ihrer Einrichtung eingeben. Jede Ziffer wird als Punkt angezeigt, damit niemand mitlesen kann.",
-          "Nach der vierten Ziffer prüft das Tablet die PIN automatisch – einen `Bestätigen`-Button gibt es nicht.",
+          "Nach der vierten Ziffer prüft das Tablet die PIN automatisch - einen `Bestätigen`-Button gibt es nicht.",
           "Bei korrekter Eingabe öffnet sich das `Menü`. Bei falscher PIN erscheint eine Fehlermeldung; mit der `C`-Taste löschen Sie die gesamte Eingabe.",
         ],
         callout: {
@@ -862,7 +862,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Auf dem Armband stehen keine Daten",
-          body: "Jedes Armband enthält nur eine zufällige Nummer – keine Namen oder Fotos. Erst die Zuweisung im System verbindet sie mit einem Kind. Geht ein Armband verloren, kann niemand persönliche Informationen auslesen. Die Armbänder sind wasserfest, robust und ohne Batterie für den Dauergebrauch im Schulalltag gemacht.",
+          body: "Jedes Armband enthält nur eine zufällige Nummer - keine Namen oder Fotos. Erst die Zuweisung im System verbindet sie mit einem Kind. Geht ein Armband verloren, kann niemand persönliche Informationen auslesen. Die Armbänder sind wasserfest, robust und ohne Batterie für den Dauergebrauch im Schulalltag gemacht.",
           tone: "gray",
         },
         screenshot:
@@ -878,7 +878,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           },
           {
             image: "/help/screens/nfc-armband-erkannt-frei.webp",
-            caption: "„Armband erkannt“ – hier noch keinem Kind zugewiesen.",
+            caption: "„Armband erkannt“ - hier noch keinem Kind zugewiesen.",
           },
         ],
       },
@@ -891,8 +891,8 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Bei einem freien Armband auf `Person auswählen` tippen.",
           "Es öffnet sich eine Liste aller Kinder und Mitarbeitenden, jeweils mit Name und Zugehörigkeit (Gruppe, Klasse).",
           "Die Liste über `Klasse` und `OGS-Gruppe` eingrenzen oder mit der Seitennavigation blättern.",
-          "Das richtige Kind antippen – die Auswahl wird farbig hervorgehoben.",
-          "Mit `Armband zuweisen` bestätigen – es erscheint `Erfolgreich!` mit dem Namen des Kindes.",
+          "Das richtige Kind antippen - die Auswahl wird farbig hervorgehoben.",
+          "Mit `Armband zuweisen` bestätigen - es erscheint `Erfolgreich!` mit dem Namen des Kindes.",
           "Mit `Weiteres Armband scannen` direkt das nächste Kind vorbereiten.",
         ],
         callout: {
@@ -914,11 +914,11 @@ export const nfcChapters: readonly GuideChapter[] = [
           },
           {
             image: "/help/screens/nfc-person-ausgewaehlt.webp",
-            caption: "Kind antippen – die Auswahl wird grün hervorgehoben.",
+            caption: "Kind antippen - die Auswahl wird grün hervorgehoben.",
           },
           {
             image: "/help/screens/nfc-armband-erfolg.webp",
-            caption: "„Erfolgreich!“ – das Armband ist dem Kind zugewiesen.",
+            caption: "„Erfolgreich!“ - das Armband ist dem Kind zugewiesen.",
           },
         ],
       },
@@ -932,7 +932,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Das Tablet zeigt unter `Aktuell zugewiesen an:` das aktuelle Kind.",
           "Für einen Wechsel auf `Anderer Person zuweisen` tippen und das neue Kind wählen.",
           "Zum vollständigen Lösen auf `Armband freigeben` (rot) tippen.",
-          "Die Rückfrage mit `Ja` bestätigen – danach ist das Armband wieder frei.",
+          "Die Rückfrage mit `Ja` bestätigen - danach ist das Armband wieder frei.",
         ],
         callout: {
           title: "Gefahrlos neu zuweisen",
@@ -949,7 +949,7 @@ export const nfcChapters: readonly GuideChapter[] = [
     id: "nfc-aufsicht-starten",
     title: "Eine Aufsicht starten",
     description:
-      "Bevor Kinder ein- und auschecken können, muss eine Aufsicht gestartet werden. Sie beschreibt, welche Aktivität stattfindet, wer betreut und in welchem Raum – in drei einfachen Schritten.",
+      "Bevor Kinder ein- und auschecken können, muss eine Aufsicht gestartet werden. Sie beschreibt, welche Aktivität stattfindet, wer betreut und in welchem Raum - in drei einfachen Schritten.",
     icon: PlayCircle,
     tone: "orange",
     steps: [
@@ -961,12 +961,12 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Im `Menü` auf den großen Button `Aufsicht starten` tippen.",
           "`Was machen wir?`: die Aktivität antippen (sie wird grün umrandet) und mit `Weiter` bestätigen.",
-          "`Wer ist dabei?`: alle beteiligten Betreuerinnen und Betreuer antippen – mindestens eine Person ist nötig. Dann `Weiter`.",
+          "`Wer ist dabei?`: alle beteiligten Betreuerinnen und Betreuer antippen - mindestens eine Person ist nötig. Dann `Weiter`.",
           "`Wo machen wir das?`: den Raum antippen und mit `Weiter` bestätigen.",
         ],
         callout: {
           title: "Tipp: Letzte Aufsicht wiederholen",
-          body: "`Letzte Aufsicht wiederholen` im Menü übernimmt Aktivität, Team und Raum der vorherigen Aufsicht automatisch – praktisch für wiederkehrende Nachmittagsangebote.",
+          body: "`Letzte Aufsicht wiederholen` im Menü übernimmt Aktivität, Team und Raum der vorherigen Aufsicht automatisch - praktisch für wiederkehrende Nachmittagsangebote.",
           tone: "blue",
         },
         screenshot:
@@ -974,7 +974,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         gallery: [
           {
             image: "/help/screens/nfc-aktivitaet-leer.webp",
-            caption: "„Was machen wir?“ – Aktivitäten zur Auswahl.",
+            caption: "„Was machen wir?“ - Aktivitäten zur Auswahl.",
           },
           {
             image: "/help/screens/nfc-aktivitaet-waehlen.webp",
@@ -982,7 +982,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           },
           {
             image: "/help/screens/nfc-wer-ist-dabei-leer.webp",
-            caption: "„Wer ist dabei?“ – verfügbare Betreuer.",
+            caption: "„Wer ist dabei?“ - verfügbare Betreuer.",
           },
           {
             image: "/help/screens/nfc-wer-ist-dabei.webp",
@@ -990,7 +990,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           },
           {
             image: "/help/screens/nfc-raum-waehlen.webp",
-            caption: "„Wo machen wir das?“ – den Raum antippen.",
+            caption: "„Wo machen wir das?“ - den Raum antippen.",
           },
         ],
       },
@@ -1015,7 +1015,7 @@ export const nfcChapters: readonly GuideChapter[] = [
     id: "nfc-ein-auschecken",
     title: "Kinder ein- und auschecken",
     description:
-      "Das Ein- und Auschecken ist die zentrale Funktion im Alltag. Die Kinder halten einfach ihr Armband an den NFC-Sensor, den Rest erledigt das System – ein Eingreifen durch die Betreuenden ist nicht nötig.",
+      "Das Ein- und Auschecken ist die zentrale Funktion im Alltag. Die Kinder halten einfach ihr Armband an den NFC-Sensor, den Rest erledigt das System - ein Eingreifen durch die Betreuenden ist nicht nötig.",
     icon: ScanLine,
     tone: "green",
     steps: [
@@ -1049,7 +1049,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         summary:
           "Hält ein bereits eingechecktes Kind sein Armband erneut an, fragt das Tablet, wohin es geht.",
         steps: [
-          "Das Kind scannt sein Armband erneut – es erscheint `Wohin geht …?`.",
+          "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht …?`.",
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
           "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
@@ -1081,7 +1081,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Am Ende der Betreuungszeit die Aufsicht abschließen und das Tablet wieder sperren.",
         steps: [
           "Auf dem Hauptbildschirm oben rechts auf `Anmelden` tippen und die 4-stellige PIN eingeben.",
-          "Im Menü oben rechts auf `Aufsicht beenden` tippen und im Dialog mit `Ja, beenden` bestätigen – alle eingecheckten Kinder werden automatisch ausgecheckt.",
+          "Im Menü oben rechts auf `Aufsicht beenden` tippen und im Dialog mit `Ja, beenden` bestätigen - alle eingecheckten Kinder werden automatisch ausgecheckt.",
           "Über `Abmelden` kehrt das Tablet zum Startbildschirm zurück.",
         ],
         callout: {
@@ -1099,7 +1099,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Ändert sich das Betreuungsteam, passen Sie es an, ohne die Aufsicht neu starten zu müssen.",
         steps: [
           "Im Menü auf `Team anpassen` tippen.",
-          "In der Personenauswahl Teammitglieder hinzufügen oder entfernen – ausgewählte Personen werden grün markiert.",
+          "In der Personenauswahl Teammitglieder hinzufügen oder entfernen - ausgewählte Personen werden grün markiert.",
           "Mit `Team speichern` bestätigen.",
           "Eine grüne Meldung `Team erfolgreich gespeichert!` bestätigt die Aktualisierung.",
         ],
@@ -1143,7 +1143,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Weniger ist mehr",
-          body: "`Schulhof` und `Toilette` legen automatisch einen passenden Raum an. Aktivieren Sie nur die Buttons, die Ihre Einrichtung wirklich nutzt – weniger Auswahl ist für die Kinder am Tablet einfacher.",
+          body: "`Schulhof` und `Toilette` legen automatisch einen passenden Raum an. Aktivieren Sie nur die Buttons, die Ihre Einrichtung wirklich nutzt - weniger Auswahl ist für die Kinder am Tablet einfacher.",
           tone: "blue",
         },
         screenshot:
@@ -1183,10 +1183,10 @@ export const nfcChapters: readonly GuideChapter[] = [
         summary:
           "Die fünf häufigsten Situationen und wie Sie sie direkt am Gerät beheben.",
         steps: [
-          "`Armband wird nicht erkannt`: Armband ruhig und mittig flach auf den NFC-Sensor legen und ca. 1–2 Sekunden halten. Hilft das nicht, ein anderes Armband testen, sonst Gerät neu starten.",
-          "`PIN wird nicht akzeptiert`: Prüfen, ob die richtige PIN eingegeben wird. Sie kann von der OGS-Leitung geändert worden sein – im Zweifel dort nach der aktuellen PIN fragen.",
+          "`Armband wird nicht erkannt`: Armband ruhig und mittig flach auf den NFC-Sensor legen und ca. 1-2 Sekunden halten. Hilft das nicht, ein anderes Armband testen, sonst Gerät neu starten.",
+          "`PIN wird nicht akzeptiert`: Prüfen, ob die richtige PIN eingegeben wird. Sie kann von der OGS-Leitung geändert worden sein - im Zweifel dort nach der aktuellen PIN fragen.",
           "`Kein Internet / Verbindungsprobleme`: Erscheint unten rechts ein rotes oder durchgestrichenes WLAN-Symbol, das Gerät neu starten. Bleibt das Problem, den WLAN-Router prüfen oder den IT-Dienstleister kontaktieren.",
-          "`App reagiert nicht / Bildschirm eingefroren`: Gerät für ca. 10 Sekunden vom Strom trennen und wieder einstecken. Die moto-App startet automatisch neu und ist nach ca. 1–2 Minuten wieder einsatzbereit.",
+          "`App reagiert nicht / Bildschirm eingefroren`: Gerät für ca. 10 Sekunden vom Strom trennen und wieder einstecken. Die moto-App startet automatisch neu und ist nach ca. 1-2 Minuten wieder einsatzbereit.",
           "`Falsches Kind wird beim Scannen angezeigt`: Über `Armband identifizieren` das Armband scannen, die aktuelle Zuweisung prüfen, die falsche Zuweisung aufheben und das Armband dem richtigen Kind zuweisen.",
         ],
         callout: {
