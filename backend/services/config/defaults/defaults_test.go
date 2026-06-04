@@ -144,7 +144,7 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
 	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, false, def.Default, "web spontaneous activities must default off")
+	assert.Equal(t, true, def.Default, "web spontaneous activities must be opt-out")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators should both be able to manage this operational setting")
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
@@ -968,7 +968,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
-		{"attendance.web_spontaneous_activities_enabled", false},
+		{"attendance.web_spontaneous_activities_enabled", true},
 		{"operations.student_photos_enabled", false},
 	}
 

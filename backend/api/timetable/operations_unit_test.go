@@ -371,6 +371,21 @@ func TestOperationsCapabilities(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
 }
 
+func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: false,
+			boolValue:   false,
+		},
+	})
+	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
+
+	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
+}
+
 func TestOperationsRosterByActiveGroup(t *testing.T) {
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 240}},
