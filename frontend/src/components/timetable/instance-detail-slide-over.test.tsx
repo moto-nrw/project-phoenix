@@ -117,7 +117,30 @@ describe("InstanceDetailSlideOver", () => {
       expect.objectContaining({ id: "42" }),
     );
 
-    expect(onAttendancePatch).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Kind abmelden" })[0]!,
+    );
+    await waitFor(() =>
+      expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
+        status: "absent",
+        substatus: "excused",
+      }),
+    );
+  });
+
+  it("marks spontaneous instances in the detail header", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ isSpontaneous: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Spontan")).toBeInTheDocument();
   });
 
   it("handles active, cancelled and fallback student states", async () => {

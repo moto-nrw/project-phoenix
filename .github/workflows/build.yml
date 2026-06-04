@@ -248,6 +248,70 @@ jobs:
             echo "domain=moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      # Generate clean guide PDFs from the public /help HTML pages before the
+      # Docker build, so they ship inside the image (served as static
+      # downloads) and never drift from the live guide content. Done here on
+      # the Ubuntu runner rather than inside the Alpine Dockerfile to keep the
+      # runtime image free of Chromium. The PDFs land in frontend/public/help/
+      # pdfs/ and are picked up by the build context below; they are gitignored.
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        # --ignore-scripts: this install only feeds the guide-PDF render
+        # (next build + playwright). pnpm 10 already gates dependency lifecycle
+        # scripts to the onlyBuiltDependencies allowlist (esbuild/sharp/unrs-
+        # resolver), and of those only sharp matters here , it loads its
+        # prebuilt @img/sharp-* binary at runtime, no install script needed.
+        # Verified: install + full next build (incl. /help pages) pass without
+        # scripts. Satisfies sonar githubactions:S6505.
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Cache the downloaded browser binary (~150 MB) keyed on the lockfile, so
+      # a Playwright version bump invalidates it automatically. The runner is
+      # ephemeral, so OS libs (--with-deps, apt) still install every run; only
+      # the binary download is skipped on a cache hit.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Generate guide PDFs
+        working-directory: frontend
+        # The /help pages are public and host-agnostic; proxy.ts only requires
+        # these hostnames to be non-empty, so harmless placeholders suffice for
+        # the throwaway render server. METRICS_BEARER_TOKEN is required by the
+        # runtime instrumentation hook (validateServerRuntimeEnv runs on
+        # `next start` regardless of SKIP_ENV_VALIDATION), so a throwaway value
+        # is needed or the render server crashes before serving /help.
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          METRICS_BEARER_TOKEN: "ci-guide-render-throwaway-token"
+          NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+          NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+          TENANT_DOMAIN: "localhost"
+          NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+        run: pnpm run generate:guides
+
       - name: Build and push frontend
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:

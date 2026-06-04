@@ -65,7 +65,7 @@ export function TemplateCard({
   const timeRange = summarizeTimeRange(template);
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white transition-shadow hover:shadow-sm">
+    <article className="group moto-content-surface relative flex flex-col overflow-hidden rounded-2xl border transition-shadow hover:shadow-sm">
       <div
         className="absolute top-0 left-0 h-full w-1"
         style={{ backgroundColor: color }}
@@ -75,10 +75,10 @@ export function TemplateCard({
       <div className="flex flex-col gap-3 p-4 pl-5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold text-slate-900">
+            <h3 className="truncate text-sm font-semibold text-gray-900">
               {template.name}
             </h3>
-            <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-500 uppercase">
+            <p className="mt-0.5 text-[11px] font-medium tracking-wide text-gray-500 uppercase">
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
@@ -93,8 +93,8 @@ export function TemplateCard({
                 key={wd}
                 className={`flex h-6 w-7 items-center justify-center rounded text-[10px] font-semibold ${
                   active
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-400"
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-100 text-gray-400"
                 }`}
               >
                 {weekdayShort(wd)}
@@ -103,19 +103,19 @@ export function TemplateCard({
           })}
         </div>
 
-        <dl className="space-y-1.5 text-[12px] text-slate-600">
+        <dl className="space-y-1.5 text-xs text-gray-600">
           <div className="flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+            <Clock className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <DoorOpen className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+            <DoorOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Users className="h-3.5 w-3.5 text-slate-400" aria-hidden />
+            <Users className="h-3.5 w-3.5 text-gray-400" aria-hidden />
             <span>
               {template.enrollmentCount}{" "}
               {template.enrollmentCount === 1 ? "Kind" : "Kinder"}
@@ -126,19 +126,19 @@ export function TemplateCard({
         </dl>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-2.5 pl-5">
+      <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => onEdit(template)}
-            className="rounded px-1.5 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
+            className="rounded px-1.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
           >
             Bearbeiten
           </button>
           <button
             type="button"
             onClick={() => onArchive(template)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
           >
             <Archive className="h-3.5 w-3.5" aria-hidden />
             Archivieren
@@ -147,7 +147,7 @@ export function TemplateCard({
         <button
           type="button"
           onClick={() => onApply(template)}
-          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-slate-900 px-2.5 text-[12px] font-medium whitespace-nowrap text-white transition-colors hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:outline-none"
+          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-gray-900 px-2.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           Termine erzeugen
         </button>

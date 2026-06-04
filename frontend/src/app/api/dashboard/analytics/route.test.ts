@@ -16,7 +16,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/dashboard-api", () => ({
+vi.mock("~/lib/dashboard-api.server", () => ({
   fetchDashboardAnalytics: mockFetchDashboardAnalytics,
 }));
 

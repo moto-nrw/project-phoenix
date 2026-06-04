@@ -47,35 +47,35 @@ export function YearPlannerGrid({
         return (
           <section
             key={`${month.getFullYear()}-${month.getMonth()}`}
-            className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+            className="moto-content-surface overflow-hidden rounded-2xl border"
           >
             <button
               type="button"
               onClick={() => onMonthClick(month)}
-              className="flex w-full items-center justify-between gap-3 border-b border-slate-200 px-3 py-2 text-left transition-colors hover:bg-slate-50"
+              className="flex w-full items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 text-left transition-colors hover:bg-gray-50"
             >
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">
+                <h2 className="text-sm font-semibold text-gray-900">
                   {month.toLocaleDateString("de-DE", { month: "long" })}
                 </h2>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-gray-500">
                   {monthInstances.length} Termin
                   {monthInstances.length === 1 ? "" : "e"}
                 </p>
               </div>
               {conflictCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[#FCEFD9] px-2 py-1 text-[10px] font-semibold text-[#F78C10]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/10 px-2 py-1 text-[10px] font-semibold text-[#EAB308]">
                   <AlertTriangle className="h-3 w-3" aria-hidden />
                   {conflictCount}
                 </span>
               )}
             </button>
 
-            <div className="grid grid-cols-7 border-b border-slate-100 px-2 pt-2">
+            <div className="grid grid-cols-7 border-b border-gray-100 px-2 pt-2">
               {monthDays.slice(0, 7).map((day) => (
                 <div
                   key={getGermanWeekdayShort(day)}
-                  className="pb-1 text-center text-[10px] font-medium text-slate-400"
+                  className="pb-1 text-center text-[10px] font-medium text-gray-400"
                 >
                   {getGermanWeekdayShort(day)}
                 </div>
@@ -97,15 +97,15 @@ export function YearPlannerGrid({
                     key={iso}
                     type="button"
                     onClick={() => onDayClick(iso)}
-                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded text-[11px] font-medium tabular-nums transition-colors hover:bg-slate-100 ${
-                      outsideMonth ? "text-slate-300" : "text-slate-700"
-                    } ${dayInstances.length > 0 ? "bg-slate-50" : ""}`}
+                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 ${
+                      outsideMonth ? "text-gray-300" : "text-gray-700"
+                    } ${dayInstances.length > 0 ? "bg-gray-50" : ""}`}
                     aria-label={`${iso}: ${dayInstances.length} Termine`}
                   >
                     <span
                       className={
                         isToday
-                          ? "flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"
+                          ? "flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-white"
                           : ""
                       }
                     >
@@ -114,7 +114,7 @@ export function YearPlannerGrid({
                     {dayInstances.length > 0 && (
                       <span
                         className={`absolute bottom-1 h-1.5 w-1.5 rounded-full ${
-                          hasConflicts ? "bg-[#F78C10]" : "bg-[#83CD2D]"
+                          hasConflicts ? "bg-[#EAB308]" : "bg-[#83CD2D]"
                         }`}
                         aria-hidden
                       />
@@ -125,7 +125,7 @@ export function YearPlannerGrid({
             </div>
 
             {monthInstances.length === 0 && (
-              <div className="flex items-center gap-1 border-t border-slate-100 px-3 py-2 text-[11px] text-slate-400">
+              <div className="flex items-center gap-1 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-400">
                 <CalendarDays className="h-3 w-3" aria-hidden />
                 Leer
               </div>

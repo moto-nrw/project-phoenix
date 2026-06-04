@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import {
   createOperatorPostHandler,
   operatorApiPost,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 interface ModalBody {
   currentPassword?: string;

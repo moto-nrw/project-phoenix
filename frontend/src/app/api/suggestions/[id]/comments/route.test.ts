@@ -14,7 +14,7 @@ const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
 }));
 
 vi.mock("~/server/auth", () => ({ auth: mockAuth }));
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   handleApiError: vi.fn((error: unknown) => {

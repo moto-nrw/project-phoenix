@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
-import { apiPut, apiDelete } from "~/lib/api-helpers";
+import { apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
   createPutHandler,
   createDeleteHandler,
   isStringParam,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 interface UpdateAbsenceBody {
   absence_type?: string;

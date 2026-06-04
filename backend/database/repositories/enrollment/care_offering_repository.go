@@ -147,6 +147,21 @@ func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64)
 	return offerings, nil
 }
 
+// CountByPhaseID returns how many care offerings belong to the phase.
+// Powers the phase-delete confirmation modal ("Y Betreuungsangebote
+// werden gelöscht"). Tenant-scoped via RLS.
+func (r *CareOfferingRepository) CountByPhaseID(ctx context.Context, phaseID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.CareOffering)(nil)).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".phase_id = ?`, phaseID).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count care offerings by phase: %w", err)
+	}
+	return count, nil
+}
+
 // ListActiveByPhase returns is_active=true offerings for the phase.
 // The phase's enrollment window is enforced one layer up (handler
 // rejects the parent before this query runs), so this method only

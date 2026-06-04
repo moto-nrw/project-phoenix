@@ -1,5 +1,5 @@
-import { createDeleteHandler } from "~/lib/route-wrapper";
-import { apiDelete } from "~/lib/api-helpers";
+import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { apiDelete } from "~/lib/api-helpers.server";
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {
   const groupId = params.id as string;

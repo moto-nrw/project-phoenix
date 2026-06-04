@@ -1,8 +1,8 @@
 // src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiPut, handleApiError } from "~/lib/api-helpers";
-import { createPutHandler } from "~/lib/route-wrapper";
+import { apiPut, handleApiError } from "~/lib/api-helpers.server";
+import { createPutHandler } from "~/lib/route-wrapper.server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import {
@@ -11,7 +11,7 @@ import {
   extractParams,
   isStringParam,
   type RouteContext,
-} from "~/lib/route-wrapper-utils";
+} from "~/lib/route-wrapper-utils.server";
 
 function createTokenExpiredResponse(): NextResponse {
   return NextResponse.json(

@@ -7,13 +7,13 @@
 // All three strip the Go envelope ({ status, data, message }) so
 // route-wrapper produces a single envelope on the wire.
 import type { NextRequest } from "next/server";
-import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
+import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers.server";
 import {
   createDeleteHandler,
   createGetHandler,
   createPutHandler,
   isStringParam,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 export const GET = createGetHandler(
   async (_request: NextRequest, token: string, params) => {

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler, isStringParam } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/time-tracking/{id}/edits

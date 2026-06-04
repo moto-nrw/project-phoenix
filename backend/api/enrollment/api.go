@@ -124,6 +124,10 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
+				// delete-impact previews the blast radius for the
+				// confirmation modal; same permission as the delete it
+				// precedes.
+				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getPhaseDeleteImpact)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
 				// Rollover (phase renewal). createRollover carries
 				// approved enrollments from this phase forward into a

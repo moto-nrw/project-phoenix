@@ -1,11 +1,11 @@
 // app/api/suggestions/[id]/vote/route.ts
 import type { NextRequest } from "next/server";
-import { apiPost, apiDelete } from "~/lib/api-helpers";
+import { apiPost, apiDelete } from "~/lib/api-helpers.server";
 import {
   createPostHandler,
   createDeleteHandler,
   isStringParam,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 interface BackendSuggestionResponse {
   id: number;

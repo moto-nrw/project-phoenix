@@ -33,6 +33,17 @@ export interface Phase {
   updated_at: string;
 }
 
+/**
+ * Blast radius of deleting a phase, fetched for the confirmation modal.
+ * `requests` and `care_offerings` are permanently deleted; `students_kept`
+ * survive (their enrollment back-link is cleared, the student records stay).
+ */
+export interface PhaseDeleteImpact {
+  requests: number;
+  care_offerings: number;
+  students_kept: number;
+}
+
 export interface PhaseInput {
   name: string;
   kind: PhaseKind;
@@ -72,12 +83,6 @@ const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
     "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
   "rollover.source_already_rolled":
     "Aus dieser Phase wurde bereits eine Anschlussphase erstellt. Bitte zuerst die bestehende Anschlussphase löschen, bevor du eine neue anlegst.",
-  "enrollment.phase_has_requests":
-    "Diese Phase enthält bereits Anmeldungen und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen, damit die Anmeldungen und der Verlauf erhalten bleiben.",
-  "enrollment.phase_has_offerings":
-    "Dieser Phase sind noch Betreuungsangebote zugeordnet. Bitte entferne oder verschiebe die Angebote, bevor du die Phase löschst.",
-  "enrollment.phase_has_references":
-    "Diese Phase wird noch an anderer Stelle verwendet und kann nicht gelöscht werden. Bitte deaktiviere sie stattdessen.",
 };
 
 async function readJSON<T>(response: Response): Promise<T> {
@@ -189,9 +194,29 @@ export async function updatePhase(
 }
 
 /**
- * Deletes a phase. Returns 409 from the backend when the phase still
- * has care offerings or submissions referencing it — caller should
- * surface a "deactivate instead" hint.
+ * Fetches the blast radius of deleting a phase so the confirmation modal
+ * can warn the admin what will be removed vs kept.
+ */
+export async function getPhaseDeleteImpact(
+  id: string,
+): Promise<PhaseDeleteImpact> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(id)}/delete-impact`,
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Löschvorschau konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PhaseDeleteImpact>(response);
+}
+
+/**
+ * Permanently deletes a phase and all of its enrollment records
+ * (submissions, per-child decisions, care offerings). Students created
+ * from the phase are preserved by the backend. Always allowed — there is
+ * no "has enrollments" guard anymore.
  */
 export async function deletePhase(id: string): Promise<void> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {

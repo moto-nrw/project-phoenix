@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 import {
-  extractParams,
-  handleApiError,
   handleDomainApiError,
   isBrowserContext,
   buildAuthHeaders,
@@ -10,13 +8,14 @@ import {
   convertToBackendRoom,
   authFetch,
   fetchWithRetry,
-  apiGet,
-  apiPost,
-  apiPut,
-  apiDelete,
   ApiResponseError,
-  checkAuth,
 } from "./api-helpers";
+import {
+  extractParams,
+  handleApiError,
+  apiGet,
+  checkAuth,
+} from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
 
 const { mockNextHeaders } = vi.hoisted(() => ({
@@ -829,72 +828,7 @@ describe("checkAuth", () => {
   });
 });
 
-// ===== API FUNCTION TESTS (CLIENT-SIDE) =====
-
-// Mock api module
-vi.mock("./api", () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
-
-describe("apiGet (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    // Simulate browser environment
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes GET request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.get).mockResolvedValueOnce({
-      data: { result: "test" },
-      status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
-
-    const result = await apiGet<{ result: string }>("/test", "token");
-
-    expect(result).toEqual({ result: "test" });
-    expect(api.get).toHaveBeenCalledWith("/test", {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-
-  it("throws error on axios failure", async () => {
-    const api = (await import("./api")).default;
-    const error = {
-      response: { status: 404, data: { message: "Not Found" } },
-      message: "Request failed",
-      isAxiosError: true,
-    };
-    vi.mocked(api.get).mockRejectedValueOnce(error);
-
-    await expect(apiGet("/test", "token")).rejects.toThrow(
-      'API error (404): {"message":"Not Found"}',
-    );
-  });
-});
+// ===== API FUNCTION TESTS (SERVER-SIDE) =====
 
 describe("apiGet (server-side)", () => {
   let originalWindow: typeof globalThis.window;
@@ -1048,142 +982,5 @@ describe("apiGet (server-side)", () => {
         },
       }),
     );
-  });
-});
-
-describe("apiPost (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes POST request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.post).mockResolvedValueOnce({
-      data: { id: 1 },
-      status: 201,
-      statusText: "Created",
-      headers: {},
-      config: {} as never,
-    });
-
-    const body = { name: "Test" };
-    const result = await apiPost<{ id: number }>("/test", "token", body);
-
-    expect(result).toEqual({ id: 1 });
-    expect(api.post).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-});
-
-describe("apiPut (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes PUT request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.put).mockResolvedValueOnce({
-      data: { updated: true },
-      status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
-
-    const body = { name: "Updated" };
-    const result = await apiPut<{ updated: boolean }>("/test", "token", body);
-
-    expect(result).toEqual({ updated: true });
-    expect(api.put).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-});
-
-describe("apiDelete (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes DELETE request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.delete).mockResolvedValueOnce({
-      data: {},
-      status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
-
-    const result = await apiDelete("/test/1", "token");
-
-    expect(result).toEqual({});
-    expect(api.delete).toHaveBeenCalledWith("/test/1", {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-
-  it("returns undefined for 204 No Content", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.delete).mockResolvedValueOnce({
-      data: {},
-      status: 204,
-      statusText: "No Content",
-      headers: {},
-      config: {} as never,
-    });
-
-    const result = await apiDelete("/test/1", "token");
-
-    expect(result).toBeUndefined();
   });
 });

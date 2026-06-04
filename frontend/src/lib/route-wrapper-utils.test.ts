@@ -8,7 +8,7 @@ import {
   createUnauthorizedResponse,
   isStringParam,
   type RouteContext,
-} from "./route-wrapper-utils";
+} from "./route-wrapper-utils.server";
 
 function createMockRequest(
   path: string,

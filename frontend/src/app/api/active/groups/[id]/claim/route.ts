@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers";
-import { createPostHandler } from "~/lib/route-wrapper";
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Handler for POST /api/active/groups/{id}/claim

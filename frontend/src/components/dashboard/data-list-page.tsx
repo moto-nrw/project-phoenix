@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { PageHeader, SectionTitle } from "@/components/dashboard";
+import { PageHeader } from "./page-header";
+import { SectionTitle } from "./section-title";
 import Link from "next/link";
 import { createLogger } from "~/lib/logger";
 

@@ -201,7 +201,7 @@ describe("auth-api", () => {
   });
 
   describe("handleAuthFailure", () => {
-    it("handles server context by calling server-side refresh", async () => {
+    it("returns false in server context without importing server refresh", async () => {
       const restore = setupServerEnv();
       try {
         const { refreshSessionTokensOnServer } =
@@ -213,8 +213,8 @@ describe("auth-api", () => {
 
         const result = await handleAuthFailure();
 
-        expect(result).toBe(true);
-        expect(refreshSessionTokensOnServer).toHaveBeenCalled();
+        expect(result).toBe(false);
+        expect(refreshSessionTokensOnServer).not.toHaveBeenCalled();
       } finally {
         restore();
       }
@@ -319,6 +319,46 @@ describe("auth-api", () => {
         expect(result).toBe(true);
         // After Fix 4: no signIn call — JWT callback already persisted tokens
         // via auth() in /api/auth/token. Just verify sessionStorage was updated.
+        expect(setItemMock).toHaveBeenCalledWith(
+          "lastSuccessfulRefresh",
+          expect.any(String),
+        );
+      } finally {
+        restore();
+      }
+    });
+
+    it("attempts token refresh when the previous successful refresh is stale", async () => {
+      const restore = setupBrowserEnv();
+      try {
+        const mockTokens = {
+          access_token: "new-access-token",
+          refresh_token: "new-refresh-token",
+        };
+        const getItemMock = vi.fn().mockImplementation((key: string) => {
+          if (key === "lastSuccessfulRefresh") {
+            return (Date.now() - 10_000).toString();
+          }
+          return null;
+        });
+        const setItemMock = vi.fn();
+        Object.defineProperty(globalThis, "sessionStorage", {
+          value: { getItem: getItemMock, setItem: setItemMock, clear: vi.fn() },
+          writable: true,
+        });
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockTokens),
+        });
+
+        const result = await handleAuthFailure();
+
+        expect(result).toBe(true);
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/auth/token",
+          expect.any(Object),
+        );
         expect(setItemMock).toHaveBeenCalledWith(
           "lastSuccessfulRefresh",
           expect.any(String),

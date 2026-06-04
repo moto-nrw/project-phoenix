@@ -15,7 +15,12 @@ import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import type {
+  FilterConfig,
+  ActiveFilter,
+  FilterSection,
+} from "~/components/ui/page-header";
+import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
@@ -181,7 +186,7 @@ const PICKUP_STATUS_FILTER_VALUES: readonly PickupStatusFilter[] = [
 ];
 
 const BUS_FILTER_OPTIONS: Array<{ value: BooleanFilter; label: string }> = [
-  { value: "all", label: "Buskind: Beliebig" },
+  { value: "all", label: "Alle Kinder" },
   { value: "yes", label: "Buskind" },
   { value: "no", label: "Kein Buskind" },
 ];
@@ -190,7 +195,7 @@ const PHOTO_CONSENT_FILTER_OPTIONS: Array<{
   value: BooleanFilter;
   label: string;
 }> = [
-  { value: "all", label: "Fotoerlaubnis: Beliebig" },
+  { value: "all", label: "Alle Kinder" },
   { value: "yes", label: "Fotoerlaubnis liegt vor" },
   { value: "no", label: "Keine Fotoerlaubnis" },
 ];
@@ -199,7 +204,7 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
   value: PickupStatusFilter;
   label: string;
 }> = [
-  { value: "all", label: "Abholregelung: Beliebig" },
+  { value: "all", label: "Alle Kinder" },
   { value: "self", label: "Geht alleine nach Hause" },
   { value: "pickedUp", label: "Wird abgeholt" },
   { value: "none", label: "Keine Abholregelung" },
@@ -1212,6 +1217,41 @@ function SearchPageContent() {
     [rooms, myGroupRooms, mySupervisedRooms],
   );
 
+  // Grouping for the quiet filter popover. Lives here, not in the shared
+  // panel: which student filters belong together is this page's domain
+  // knowledge. Any id not listed falls into a trailing "Weitere" section.
+  const filterSections: FilterSection[] = useMemo(
+    () => [
+      {
+        title: "Organisation",
+        icon: DetailIcons.building,
+        filterIds: ["year", "group", "room"],
+      },
+      {
+        title: "Anwesenheit",
+        icon: DetailIcons.check,
+        filterIds: ["dayStatus", "attendance", "tracking"],
+      },
+      {
+        title: "Zeiten & Abholung",
+        icon: DetailIcons.bus,
+        filterIds: [
+          "arrivalTime",
+          "pickupTime",
+          "pickupStatus",
+          "bus",
+          "photoConsent",
+        ],
+      },
+      {
+        title: "Darstellung",
+        icon: DetailIcons.document,
+        filterIds: ["sort", "groupMode"],
+      },
+    ],
+    [],
+  );
+
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
@@ -1825,6 +1865,9 @@ function SearchPageContent() {
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
+          activeFilterDisplay="count"
+          filterVariant="quiet"
+          filterSections={filterSections}
           onClearAllFilters={clearAllFilters}
           overflowMenu={[
             {

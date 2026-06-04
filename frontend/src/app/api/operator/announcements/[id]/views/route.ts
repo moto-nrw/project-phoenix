@@ -3,7 +3,7 @@ import {
   createOperatorGetHandler,
   operatorApiGet,
   isStringParam,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 export const GET = createOperatorGetHandler<BackendAnnouncementViewDetail[]>(
   async (_request, token, params) => {

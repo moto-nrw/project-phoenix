@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers";
+import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PasswordResetConfirmRoute" });

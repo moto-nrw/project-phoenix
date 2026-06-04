@@ -112,10 +112,10 @@ export function PlanQualityPanel({
   };
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div>
-        <h2 className="text-sm font-bold text-slate-900">Planstatus</h2>
-        <p className="mt-0.5 text-xs text-slate-500">
+        <h2 className="text-sm font-bold text-gray-900">Planstatus</h2>
+        <p className="mt-0.5 text-xs text-gray-500">
           {hasError
             ? "Planstatus konnte nicht vollständig geprüft werden."
             : loading
@@ -154,7 +154,7 @@ export function PlanQualityPanel({
       </div>
 
       {hasError && (
-        <div className="mt-4 rounded-md border border-[#FDE68A] bg-[#FFFBEB] p-3 text-xs text-[#713F12]">
+        <div className="mt-4 rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3 text-xs text-[#EAB308]">
           <div className="flex items-center gap-2 font-bold">
             <TriangleAlert className="h-4 w-4" />
             Prüfung unvollständig
@@ -169,8 +169,8 @@ export function PlanQualityPanel({
       {(gaps.length > 0 || conflicts.length > 0) && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {gaps.length > 0 && (
-            <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] p-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#7F1D1D]">
+            <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                 <UserPlus className="h-4 w-4" />
                 Personal-Lücken
               </div>
@@ -190,11 +190,11 @@ export function PlanQualityPanel({
                       <button
                         type="button"
                         onClick={() => onSelectInstance(gap.instanceId)}
-                        className="text-left font-bold text-slate-900 hover:text-[#5080D8]"
+                        className="text-left font-bold text-gray-900 hover:text-gray-900"
                       >
                         {dateLabel(gap.date)} • {gap.startTime} {gap.title}
                       </button>
-                      <div className="mt-1 text-slate-500">
+                      <div className="mt-1 text-gray-500">
                         {gap.assignedStaffCount === 0
                           ? "Kein Personal zugeordnet."
                           : `${gap.absentStaffCount} von ${gap.assignedStaffCount} zugeordneten Personen abwesend.`}
@@ -232,7 +232,7 @@ export function PlanQualityPanel({
                                   [gap.instanceId]: e.target.value,
                                 }))
                               }
-                              className="min-w-48 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                              className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
                             >
                               {absentRows.map((item) => (
                                 <option key={item.staffId} value={item.staffId}>
@@ -250,7 +250,7 @@ export function PlanQualityPanel({
                                 [gap.instanceId]: e.target.value,
                               }))
                             }
-                            className="min-w-48 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+                            className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
                           >
                             <option value="">Ersatz auswählen …</option>
                             {availableStaff.map((item) => (
@@ -279,8 +279,8 @@ export function PlanQualityPanel({
           )}
 
           {conflicts.length > 0 && (
-            <div className="rounded-md border border-[#FDE68A] bg-[#FFFBEB] p-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#713F12]">
+            <div className="rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#EAB308]">
                 <TriangleAlert className="h-4 w-4" />
                 Ausnahmen prüfen
               </div>
@@ -292,16 +292,16 @@ export function PlanQualityPanel({
                     onClick={() => onSelectInstance(conflict.instanceId)}
                     className="block w-full rounded-md bg-white p-2 text-left text-xs shadow-sm hover:bg-[#FFF7ED]"
                   >
-                    <div className="font-bold text-slate-900">
+                    <div className="font-bold text-gray-900">
                       {dateLabel(conflict.date)} • {conflict.activityTitle}
                     </div>
-                    <div className="mt-0.5 text-slate-600">
+                    <div className="mt-0.5 text-gray-600">
                       {conflictText(conflict)}
                     </div>
                   </button>
                 ))}
                 {conflicts.length > 6 && (
-                  <div className="text-xs font-semibold text-[#713F12]">
+                  <div className="text-xs font-semibold text-[#EAB308]">
                     + {conflicts.length - 6} weitere Konflikte
                   </div>
                 )}
@@ -326,10 +326,10 @@ function Metric({
   tone: "neutral" | "success" | "warning" | "danger";
 }) {
   const palette = {
-    neutral: "border-slate-200 bg-slate-50 text-slate-700",
-    success: "border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]",
-    warning: "border-[#FDE68A] bg-[#FFFBEB] text-[#A16207]",
-    danger: "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]",
+    neutral: "border-gray-200 bg-gray-50 text-gray-700",
+    success: "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]",
+    warning: "border-[#EAB308]/20 bg-[#EAB308]/10 text-[#EAB308]",
+    danger: "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]",
   };
   return (
     <div className={`rounded-md border px-3 py-2 ${palette[tone]}`}>

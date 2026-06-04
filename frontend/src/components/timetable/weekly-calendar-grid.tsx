@@ -30,10 +30,10 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
 
-// Grid template columns: narrow time gutter + 7 day columns (Mo-So).
-// Mobile uses a 40px gutter so the day cells get ~48px each on iPhone SE.
+// Grid template columns: narrow time gutter + day columns. Mobile shows a
+// single day column (gutter + 1fr) via the day strip; sm+ shows all seven.
 const GRID_COLS_CLASS =
-  "grid-cols-[40px_repeat(7,minmax(0,1fr))] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
+  "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
 
 interface WeeklyCalendarGridProps {
   weekDays: Date[]; // Mo-So (7 dates)
@@ -99,11 +99,61 @@ export function WeeklyCalendarGrid({
   }, []);
   void nowTick;
 
+  // Mobile (< sm) shows one day at a time, picked via the day strip. Default
+  // to today when it falls in the visible week, otherwise Monday.
+  const todayIndex = weekDays.findIndex((day) => toISODate(day) === todayISO);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(
+    todayIndex >= 0 ? todayIndex : 0,
+  );
+  const safeSelectedIndex = Math.min(
+    Math.max(selectedDayIndex, 0),
+    weekDays.length - 1,
+  );
+
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      {/* Sticky day header */}
+    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+      {/* Mobile day strip — tap a day to switch (single-day view < sm) */}
+      <div className="flex gap-1 border-b border-gray-200 bg-white p-2 sm:hidden">
+        {weekDays.map((day, index) => {
+          const iso = toISODate(day);
+          const isToday = iso === todayISO;
+          const isSelected = index === safeSelectedIndex;
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => setSelectedDayIndex(index)}
+              aria-pressed={isSelected}
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                isSelected
+                  ? "bg-gray-900 text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <span
+                className={`text-[10px] font-medium tracking-wide uppercase ${
+                  isSelected ? "text-white/80" : "text-gray-500"
+                }`}
+              >
+                {getGermanWeekdayShort(day)}
+              </span>
+              <span className="text-sm font-semibold tabular-nums">
+                {String(day.getDate()).padStart(2, "0")}
+              </span>
+              {isToday && !isSelected && (
+                <span
+                  className="h-1 w-1 rounded-full bg-[#FF3130]"
+                  aria-hidden
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sticky day header (desktop — mobile uses the day strip above) */}
       <div
-        className={`grid h-[52px] border-b border-slate-200 bg-white sm:h-14 ${GRID_COLS_CLASS}`}
+        className={`hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${GRID_COLS_CLASS}`}
       >
         <div aria-hidden />
         {weekDays.map((day) => {
@@ -112,21 +162,21 @@ export function WeeklyCalendarGrid({
           return (
             <div
               key={iso}
-              className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-slate-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
+              className="flex min-w-0 flex-col items-center justify-center gap-0.5 border-l border-gray-200 px-1 py-1 sm:flex-row sm:gap-2 sm:px-2 sm:py-2"
             >
-              <span className="text-[10px] font-medium tracking-wide text-slate-500 uppercase sm:text-[11px]">
+              <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
                 {getGermanWeekdayShort(day)}
               </span>
               {isToday ? (
                 <span
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-[12px]"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold text-white tabular-nums sm:h-6 sm:w-6 sm:text-xs"
                   aria-label={formatDayHeader(day)}
                 >
                   {day.getDate()}
                 </span>
               ) : (
                 <span
-                  className="text-[12px] font-semibold text-slate-900 tabular-nums sm:text-[14px]"
+                  className="text-xs font-semibold text-gray-900 tabular-nums sm:text-sm"
                   aria-label={formatDayHeader(day)}
                 >
                   {String(day.getDate()).padStart(2, "0")}
@@ -142,13 +192,13 @@ export function WeeklyCalendarGrid({
         <div className={`grid ${GRID_COLS_CLASS}`}>
           {/* Time gutter */}
           <div
-            className="border-r border-slate-200 bg-slate-50"
+            className="border-r border-gray-200 bg-gray-50"
             style={{ height: `${gridHeightPx}px` }}
           >
             {hours.slice(0, -1).map((hour) => (
               <div
                 key={hour}
-                className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-slate-400 sm:px-2 sm:text-[11px]"
+                className="flex items-start justify-end px-1 pt-1 text-[10px] font-medium text-gray-400 sm:px-2 sm:text-[11px]"
                 style={{ height: `${hourHeightPx}px` }}
               >
                 {String(hour).padStart(2, "0")}:00
@@ -157,7 +207,7 @@ export function WeeklyCalendarGrid({
           </div>
 
           {/* Day columns */}
-          {weekDays.map((day) => {
+          {weekDays.map((day, dayIndex) => {
             const iso = toISODate(day);
             const isToday = iso === todayISO;
             const dayInstances = grouped.get(iso) ?? [];
@@ -173,7 +223,7 @@ export function WeeklyCalendarGrid({
             return (
               <div
                 key={iso}
-                className={`relative min-w-0 border-l border-slate-200 ${isToday ? "bg-slate-50/60" : ""}`}
+                className={`relative min-w-0 border-l border-gray-200 ${isToday ? "bg-gray-50/60" : ""} ${dayIndex === safeSelectedIndex ? "" : "hidden sm:block"}`}
                 style={{ height: `${gridHeightPx}px` }}
               >
                 {/* Hour grid lines */}
@@ -182,7 +232,7 @@ export function WeeklyCalendarGrid({
                   return (
                     <div
                       key={hour}
-                      className="pointer-events-none absolute right-0 left-0 border-t border-slate-100"
+                      className="pointer-events-none absolute right-0 left-0 border-t border-gray-100"
                       style={{ top: `${top}px` }}
                     />
                   );
@@ -195,7 +245,7 @@ export function WeeklyCalendarGrid({
                   return (
                     <div
                       key={`half-${hour}`}
-                      className="pointer-events-none absolute right-0 left-0 border-t border-slate-50"
+                      className="pointer-events-none absolute right-0 left-0 border-t border-gray-50"
                       style={{ top: `${top}px` }}
                     />
                   );
@@ -238,10 +288,11 @@ export function WeeklyCalendarGrid({
                   </>
                 )}
 
-                {/* Empty-state hint (hidden on mobile: column too narrow) */}
-                {dayInstances.length === 0 && (
+                {/* Per-column hint — only on a genuinely empty day, not when
+                    the whole-week empty overlay is showing. */}
+                {dayInstances.length === 0 && !emptyState && (
                   <div className="pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex">
-                    <span className="text-[11px] text-slate-400 italic">
+                    <span className="text-[11px] text-gray-400 italic">
                       Keine Aktivitäten
                     </span>
                   </div>
@@ -253,11 +304,11 @@ export function WeeklyCalendarGrid({
 
         {emptyState && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="max-w-sm rounded-lg border border-slate-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
-              <h3 className="text-sm font-semibold text-slate-900">
+            <div className="max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+              <h3 className="text-sm font-semibold text-gray-900">
                 {emptyState.title}
               </h3>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              <p className="mt-1 text-xs leading-relaxed text-gray-500">
                 {emptyState.description}
               </p>
             </div>

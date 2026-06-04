@@ -295,20 +295,7 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 		return rs.PhaseService.Delete(ctx, id)
 	})
 	if err != nil {
-		// 409 Conflict so the frontend can surface a "deaktivieren
-		// statt löschen" hint inline. Two specific sentinels so the
-		// admin sees a precise message (requests vs care offerings).
-		switch {
-		case errors.Is(err, enrollmentService.ErrPhaseHasRequests):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasRequests))
-			return
-		case errors.Is(err, enrollmentService.ErrPhaseHasOfferings):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasOfferings))
-			return
-		case errors.Is(err, enrollmentService.ErrPhaseHasReferences):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, ErrCodePhaseHasReferences))
-			return
-		case errors.Is(err, enrollmentService.ErrPhaseNotFound):
+		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -318,10 +305,43 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-// Stable error codes for phase delete conflicts. Keep in sync with the
-// matching map in frontend/src/lib/enrollment-phase-api.ts.
-const (
-	ErrCodePhaseHasRequests   = "enrollment.phase_has_requests"
-	ErrCodePhaseHasOfferings  = "enrollment.phase_has_offerings"
-	ErrCodePhaseHasReferences = "enrollment.phase_has_references"
-)
+// PhaseDeleteImpactResponse is the delete-confirmation preview the admin
+// UI fetches before deleting. Requests + CareOfferings will be
+// permanently removed; StudentsKept survive the delete.
+type PhaseDeleteImpactResponse struct {
+	Requests      int `json:"requests"`
+	CareOfferings int `json:"care_offerings"`
+	StudentsKept  int `json:"students_kept"`
+}
+
+func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request) {
+	if rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+		return
+	}
+
+	var impact *enrollmentService.PhaseDeleteImpact
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		i, e := rs.PhaseService.DeleteImpact(ctx, id)
+		impact = i
+		return e
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, PhaseDeleteImpactResponse{
+		Requests:      impact.Requests,
+		CareOfferings: impact.CareOfferings,
+		StudentsKept:  impact.StudentsKept,
+	}, "Phase delete impact")
+}

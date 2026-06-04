@@ -6,8 +6,8 @@ import type { NextRequest } from "next/server";
 import {
   createFileUploadHandler,
   FileValidationError,
-} from "~/lib/file-upload-wrapper";
-import { createDeleteHandler } from "~/lib/route-wrapper";
+} from "~/lib/file-upload-wrapper.server";
+import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import {

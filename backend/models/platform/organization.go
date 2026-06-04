@@ -23,6 +23,7 @@ var reservedSlugs = map[string]bool{
 	"parents":    true, // parents.moto-app.de — guardian portal (cross-tenant)
 	"grafana":    true, // grafana.moto-app.de monitoring
 	"pyreportal": true, // pyreportal.moto-app.de kiosk SPA
+	"help":       true, // public /help docs — top-level app route shadows [tenant]
 	// Defensive reservations (common infrastructure subdomains)
 	"admin":     true,
 	"app":       true,
