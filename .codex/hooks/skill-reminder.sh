@@ -8,24 +8,41 @@ set -euo pipefail
 project_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 skills=()
+skill_roots=(
+    "$project_root/.claude/skills"
+    "$project_root/.agents/skills"
+    "$HOME/.codex/skills"
+    "$HOME/.claude/skills"
+    "$HOME/.agents/skills"
+    "$HOME/repos/dotfiles/claude/.claude/skills"
+)
 
-json_escape() {
-    local value=$1
-    value=${value//\\/\\\\}
-    value=${value//\"/\\\"}
-    value=${value//$'\n'/\\n}
-    value=${value//$'\r'/\\r}
-    value=${value//$'\t'/\\t}
-    printf '%s' "$value"
-}
-
-# Scan project-local skills (.claude/skills/*/SKILL.md)
-if [[ -d "$project_root/.claude/skills" ]]; then
-    while IFS= read -r skill_path; do
-        skill_name=$(basename "$(dirname "$skill_path")")
-        skills+=("$skill_name")
-    done < <(find "$project_root/.claude/skills" -name "SKILL.md" -type f 2>/dev/null | sort)
+if [[ -n "${CODEX_SKILLS_PATH:-}" ]]; then
+    IFS=':' read -r -a extra_skill_roots <<< "$CODEX_SKILLS_PATH"
+    skill_roots+=("${extra_skill_roots[@]}")
 fi
+
+if [[ -n "${CLAUDE_SKILLS_PATH:-}" ]]; then
+    IFS=':' read -r -a extra_skill_roots <<< "$CLAUDE_SKILLS_PATH"
+    skill_roots+=("${extra_skill_roots[@]}")
+fi
+
+if [[ -n "${AGENT_SKILLS_PATH:-}" ]]; then
+    IFS=':' read -r -a extra_skill_roots <<< "$AGENT_SKILLS_PATH"
+    skill_roots+=("${extra_skill_roots[@]}")
+fi
+
+# Scan project-local and user-global skills.
+while IFS= read -r skill_path; do
+    skill_name=$(basename "$(dirname "$skill_path")")
+    skills+=("$skill_name")
+done < <(
+    for skill_root in "${skill_roots[@]}"; do
+        if [[ -d "$skill_root" ]]; then
+            find "$skill_root" -name "SKILL.md" -type f 2>/dev/null
+        fi
+    done | sort -u
+)
 
 # Scan project-local commands (.claude/commands/*.md)
 if [[ -d "$project_root/.claude/commands" ]]; then
@@ -40,19 +57,22 @@ fi
 
 # Build vertical list
 skill_list=""
-for skill in "${skills[@]}"; do
+while IFS= read -r skill; do
+    if [[ -z "$skill" ]]; then
+        continue
+    fi
     skill_list="${skill_list}
 - ${skill}"
-done
+done < <(printf '%s\n' "${skills[@]}" | sort -u)
 
-# Output compact JSON reminder
+# Output compact JSON reminder. Use jq so embedded newlines are escaped.
 additional_context="<skill-reminder>USE SKILLS ACTIVELY! Available:${skill_list}
 
 Invoke via Skill tool before acting.</skill-reminder>"
 
-printf '{\n'
-printf '  "hookSpecificOutput": {\n'
-printf '    "hookEventName": "UserPromptSubmit",\n'
-printf '    "additionalContext": "%s"\n' "$(json_escape "$additional_context")"
-printf '  }\n'
-printf '}\n'
+jq -n --arg context "$additional_context" '{
+  hookSpecificOutput: {
+    hookEventName: "UserPromptSubmit",
+    additionalContext: $context
+  }
+}'
