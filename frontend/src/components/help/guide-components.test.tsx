@@ -117,7 +117,13 @@ describe("GuideShell", () => {
       />,
     );
 
-    expect(screen.getByText("Übersicht")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /moto\s+Anleitung/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Zur Übersicht").closest("a")).toHaveAttribute(
+      "href",
+      "/help",
+    );
     expect(screen.getAllByText("Ersteinrichtung")).toHaveLength(2);
     expect(
       screen.getAllByRole("heading", {
