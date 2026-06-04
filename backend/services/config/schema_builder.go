@@ -44,23 +44,13 @@ func buildSchemaWithScope(
 ) (*SettingsSchema, error) {
 	defs := config.AllDefinitions()
 
-	// Resolve all values and build the resolved map
+	// Resolve all values for dependency evaluation, then filter the output
+	// separately. Tenant-visible settings can depend on operator-only
+	// provisioning flags such as attendance.nfc_enabled; hiding those parents
+	// before evaluating DependsOn would make the tenant-visible children vanish.
 	resolvedMap := make(map[string]*ResolvedSetting, len(defs))
+	outputMap := make(map[string]*ResolvedSetting, len(defs))
 	for key, def := range defs {
-		// AccessPolicy filter: hide the other audience's dedicated settings.
-		if isOperator && def.AccessPolicy == config.AccessAdminOnly {
-			continue
-		}
-		if !isOperator && def.AccessPolicy == config.AccessOperatorOnly {
-			continue
-		}
-
-		// Permission filter: only applied for tenant callers. Operators bypass
-		// the per-setting ReadPermission — AccessPolicy already gated them.
-		if !isOperator && def.ReadPermission != "" && !authorize.HasPermission(def.ReadPermission, userPermissions) {
-			continue
-		}
-
 		value, err := svc.Resolve(ctx, key)
 		if err != nil {
 			svc.logger.Warn("failed to resolve setting",
@@ -103,6 +93,9 @@ func buildSchemaWithScope(
 			Options:      def.Options,
 		}
 		resolvedMap[key] = resolved
+		if shouldIncludeInSchema(def, userPermissions, isOperator) {
+			outputMap[key] = resolved
+		}
 	}
 
 	// Evaluate DependsOn visibility. Dependencies may be nested, so resolve
@@ -117,7 +110,7 @@ func buildSchemaWithScope(
 	catItems := make(map[catKey][]*ResolvedSetting)
 	tabSet := make(map[string]bool)
 
-	for _, resolved := range resolvedMap {
+	for _, resolved := range outputMap {
 		def := config.GetDefinition(resolved.Key)
 		if def == nil {
 			continue
@@ -180,6 +173,21 @@ func buildSchemaWithScope(
 	}
 
 	return schema, nil
+}
+
+func shouldIncludeInSchema(def *config.Definition, userPermissions []string, isOperator bool) bool {
+	if isOperator && def.AccessPolicy == config.AccessAdminOnly {
+		return false
+	}
+	if !isOperator && def.AccessPolicy == config.AccessOperatorOnly {
+		return false
+	}
+
+	// Permission filter is only applied for tenant callers. Operators bypass
+	// the per-setting ReadPermission because operator access is route-gated.
+	return isOperator ||
+		def.ReadPermission == "" ||
+		authorize.HasPermission(def.ReadPermission, userPermissions)
 }
 
 // evaluateDependency checks if a setting's dependency condition is met.

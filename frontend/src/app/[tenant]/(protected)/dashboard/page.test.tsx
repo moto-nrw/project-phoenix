@@ -109,6 +109,11 @@ vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: vi.fn(),
 }));
 
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useNFCEnabled: vi.fn(() => true),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+}));
+
 vi.mock("~/lib/dashboard-helpers", () => ({
   formatRecentActivityTime: vi.fn((timestamp: string) => {
     const date = new Date(timestamp);
@@ -124,6 +129,7 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { useNFCEnabled } from "~/components/tenant/tenant-provider";
 
 // Helper to create SWR mock return values
 function mockSWR(
@@ -149,6 +155,7 @@ describe("DashboardPage", () => {
     });
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("renders dashboard for admin user", async () => {
@@ -234,6 +241,25 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("hides activity dashboard surfaces when NFC is disabled", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Aktivitäten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Laufende Aktivitäten"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
   });
@@ -359,6 +385,7 @@ describe("DashboardContent rendering states", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("shows empty state for recent activity when no data", async () => {
@@ -579,6 +606,7 @@ describe("StatCard component behavior", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("renders stat cards as links when href is provided", async () => {
@@ -620,6 +648,7 @@ describe("InfoCard component behavior", () => {
       update: vi.fn(),
     });
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("renders info cards as links when href is provided", async () => {

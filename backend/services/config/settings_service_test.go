@@ -488,6 +488,108 @@ func TestGetSchema_DependsOn_ShowsChild(t *testing.T) {
 	}
 }
 
+func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:             "attendance.nfc_enabled",
+		Label:           "NFC",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		Tab:             "operations",
+		Category:        "attendance",
+		AccessPolicy:    config.AccessOperatorOnly,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+	})
+	config.Register(config.Definition{
+		Key:             "security.ogs_device_pin",
+		Label:           "PIN",
+		Type:            config.FieldPassword,
+		Default:         "1234",
+		Tab:             "security",
+		Category:        "devices",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		DependsOn: &config.Dependency{
+			Key:       "attendance.nfc_enabled",
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+	config.Register(config.Definition{
+		Key:             "checkout.raumwechsel_enabled",
+		Label:           "Raumwechsel",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		Tab:             "devices",
+		Category:        "checkout",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		AccessPolicy:    config.AccessAdminOnly,
+		DependsOn: &config.Dependency{
+			Key:       "attendance.nfc_enabled",
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
+	tenantID := int64(42)
+	valueRepo := newMockValueRepo()
+	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")] = &config.SettingValue{
+		SettingKey: "attendance.nfc_enabled",
+		Value:      json.RawMessage(`true`),
+	}
+	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")].TenantID = tenantID
+	svc := createService(valueRepo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(tenantID), []string{"config:read"})
+	require.NoError(t, err)
+
+	visibility := schemaVisibility(schema)
+	_, parentIncluded := visibility["attendance.nfc_enabled"]
+	assert.False(t, parentIncluded, "operator-only parent must not be serialized to tenant admins")
+	assert.True(t, visibility["security.ogs_device_pin"], "shared child should use hidden parent for visibility")
+	assert.True(t, visibility["checkout.raumwechsel_enabled"], "admin-only child should use hidden parent for visibility")
+}
+
+func TestGetSchema_DependsOn_HidesChildWhenHiddenOperatorOnlyParentFalse(t *testing.T) {
+	setupTest(t)
+
+	config.Register(config.Definition{
+		Key:          "attendance.nfc_enabled",
+		Label:        "NFC",
+		Type:         config.FieldBoolean,
+		Default:      false,
+		Tab:          "operations",
+		Category:     "attendance",
+		AccessPolicy: config.AccessOperatorOnly,
+	})
+	config.Register(config.Definition{
+		Key:      "operations.student_daily_checkout_time",
+		Label:    "Checkout time",
+		Type:     config.FieldTime,
+		Default:  "",
+		Tab:      "operations",
+		Category: "checkout",
+		DependsOn: &config.Dependency{
+			Key:       "attendance.nfc_enabled",
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(42), []string{})
+	require.NoError(t, err)
+
+	visibility := schemaVisibility(schema)
+	_, parentIncluded := visibility["attendance.nfc_enabled"]
+	assert.False(t, parentIncluded, "operator-only parent must not be serialized to tenant admins")
+	assert.False(t, visibility["operations.student_daily_checkout_time"], "child should hide when hidden parent is false")
+}
+
 func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 	setupTest(t)
 
@@ -540,6 +642,18 @@ func TestGetSchema_DependsOn_HidesGrandchildWhenParentHidden(t *testing.T) {
 	assert.True(t, visibility["root.enabled"], "root should stay visible")
 	assert.False(t, visibility["child.enabled"], "child should hide when root is false")
 	assert.False(t, visibility["grandchild.minutes"], "grandchild should hide when its parent is hidden")
+}
+
+func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
+	visibility := make(map[string]bool)
+	for _, tab := range schema.Tabs {
+		for _, category := range tab.Categories {
+			for _, item := range category.Items {
+				visibility[item.Key] = item.Visible
+			}
+		}
+	}
+	return visibility
 }
 
 func TestSettingsError_Unwrap(t *testing.T) {
