@@ -897,17 +897,14 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
       },
       {
-        id: "nfc-armband-zuweisen",
-        title: "Kind auswählen und Armband zuweisen",
+        id: "nfc-armband-person-auswaehlen",
+        title: "Kind auswählen",
         summary:
-          "Aus der Liste das richtige Kind wählen und es dauerhaft mit dem Armband verbinden.",
+          "Aus der Liste das richtige Kind wählen und bei Bedarf über Klasse oder OGS-Gruppe eingrenzen.",
         steps: [
           "Bei einem freien Armband auf `Person auswählen` tippen.",
           "Es öffnet sich eine Liste aller Kinder und Mitarbeitenden, jeweils mit Name und Zugehörigkeit (Gruppe, Klasse).",
           "Die Liste über `Klasse` und `OGS-Gruppe` eingrenzen oder mit der Seitennavigation blättern.",
-          "Das richtige Kind antippen - die Auswahl wird farbig hervorgehoben.",
-          "Mit `Armband zuweisen` bestätigen - es erscheint `Erfolgreich!` mit dem Namen des Kindes.",
-          "Mit `Weiteres Armband scannen` direkt das nächste Kind vorbereiten.",
         ],
         callout: {
           title: "Kind nicht in der Liste?",
@@ -915,7 +912,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Tablet-Bildschirm „Person auswählen“ mit Filtern nach Klasse und OGS-Gruppe und dem Button „Armband zuweisen“.",
+          "Tablet-Bildschirm „Person auswählen“ mit Filtern nach Klasse und OGS-Gruppe.",
         gallery: [
           {
             image: "/help/screens/nfc-person-auswaehlen.webp",
@@ -926,6 +923,21 @@ export const nfcChapters: readonly GuideChapter[] = [
             image: "/help/screens/nfc-person-gefiltert.webp",
             caption: "Über Klasse und OGS-Gruppe eingrenzen.",
           },
+        ],
+      },
+      {
+        id: "nfc-armband-zuweisen",
+        title: "Armband zuweisen",
+        summary:
+          "Das markierte Kind dauerhaft mit dem Armband verbinden und direkt das nächste Armband vorbereiten.",
+        steps: [
+          "Das richtige Kind antippen - die Auswahl wird farbig hervorgehoben.",
+          "Mit `Armband zuweisen` bestätigen - es erscheint `Erfolgreich!` mit dem Namen des Kindes.",
+          "Mit `Weiteres Armband scannen` direkt das nächste Kind vorbereiten.",
+        ],
+        screenshot:
+          "Tablet-Bildschirm mit ausgewähltem Kind und erfolgreicher Armband-Zuweisung.",
+        gallery: [
           {
             image: "/help/screens/nfc-person-ausgewaehlt.webp",
             caption: "Kind antippen - die Auswahl wird grün hervorgehoben.",
@@ -1113,6 +1125,7 @@ export const nfcChapters: readonly GuideChapter[] = [
       {
         id: "nfc-aufsicht-abschliessen",
         title: "Aufsicht beenden und abmelden",
+        printCompact: true,
         summary:
           "Am Ende der Betreuungszeit die Aufsicht abschließen und das Tablet wieder sperren.",
         steps: [
