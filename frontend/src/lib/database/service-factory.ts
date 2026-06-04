@@ -181,7 +181,13 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       // Try to extract a clean error message from the nested JSON response.
       // The error chain is: backend → route handler → this fetch, each wrapping the previous.
       const userMessage = extractErrorMessage(errorText, response.status);
-      throw new Error(userMessage);
+      // Carry the HTTP status on the thrown error so callers can distinguish a
+      // client-side validation error (4xx, message is user-facing) from a
+      // network/server error (5xx, message is technical noise). Additive: the
+      // message and `instanceof Error` are unchanged for existing consumers.
+      const apiError = new Error(userMessage) as Error & { status?: number };
+      apiError.status = response.status;
+      throw apiError;
     }
 
     // Handle empty responses (204 No Content, or empty body from DELETE)

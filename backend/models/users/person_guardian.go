@@ -21,6 +21,24 @@ const (
 	RelationshipOther    RelationshipType = "other"
 )
 
+// validRelationshipTypes is the single source of truth for the allowed guardian
+// relationship types. PersonGuardian.Validate, StudentGuardian.Validate, and the
+// student-create guardian path (services/users) all resolve the allowed set
+// through here so the three request paths cannot drift apart.
+var validRelationshipTypes = map[RelationshipType]bool{
+	RelationshipParent:   true,
+	RelationshipGuardian: true,
+	RelationshipRelative: true,
+	RelationshipOther:    true,
+}
+
+// IsValidRelationshipType reports whether s names an allowed guardian
+// relationship type. Input is trimmed and lowercased before the lookup, matching
+// the normalization the model Validate() methods apply.
+func IsValidRelationshipType(s string) bool {
+	return validRelationshipTypes[RelationshipType(strings.ToLower(strings.TrimSpace(s)))]
+}
+
 const personGuardianTableName = "users.persons_guardians"
 
 // PersonGuardian represents the relationship between a person and their guardian
@@ -74,15 +92,8 @@ func (pg *PersonGuardian) Validate() error {
 	// Convert relationship type to lowercase for consistency
 	pg.RelationshipType = RelationshipType(strings.ToLower(string(pg.RelationshipType)))
 
-	// Validate against known types
-	validTypes := map[RelationshipType]bool{
-		RelationshipParent:   true,
-		RelationshipGuardian: true,
-		RelationshipRelative: true,
-		RelationshipOther:    true,
-	}
-
-	if !validTypes[pg.RelationshipType] {
+	// Validate against the shared allowed set (single source of truth)
+	if !validRelationshipTypes[pg.RelationshipType] {
 		return errors.New("invalid relationship type")
 	}
 

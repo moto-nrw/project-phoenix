@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchWithAuth } from "./fetch-with-auth";
 
-// Mock auth-api
-vi.mock("./auth-api", () => ({
+// Mock auth-failure
+vi.mock("./auth-failure", () => ({
   handleAuthFailure: vi.fn(),
 }));
 
@@ -16,7 +16,7 @@ describe("fetchWithAuth", () => {
 
   beforeEach(async () => {
     // Import after mocks are set up
-    const authApiModule = await import("./auth-api");
+    const authApiModule = await import("./auth-failure");
     mockHandleAuthFailure =
       authApiModule.handleAuthFailure as typeof mockHandleAuthFailure;
 

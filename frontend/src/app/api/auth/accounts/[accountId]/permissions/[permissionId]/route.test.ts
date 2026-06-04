@@ -24,7 +24,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", async (importOriginal) => {
+vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, apiDelete: mockApiDelete };
 });
@@ -153,7 +153,9 @@ describe("DELETE /api/auth/accounts/[accountId]/permissions/[permissionId]", () 
   });
 
   it("handles unauthorized deletion attempts", async () => {
-    mockApiDelete.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
+    mockApiDelete.mockRejectedValueOnce(
+      new Error("API error (401): Unauthorized"),
+    );
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456",

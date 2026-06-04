@@ -3,8 +3,8 @@ import {
   createOperatorDeleteHandler,
   isStringParam,
   operatorApiDelete,
-} from "~/lib/operator/route-wrapper";
-import { encodePathSegment } from "~/lib/route-wrapper-utils";
+} from "~/lib/operator/route-wrapper.server";
+import { encodePathSegment } from "~/lib/route-wrapper-utils.server";
 
 export const DELETE = createOperatorDeleteHandler(
   async (_request: NextRequest, token: string, params) => {

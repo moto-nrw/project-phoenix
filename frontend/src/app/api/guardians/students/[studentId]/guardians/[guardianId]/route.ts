@@ -1,5 +1,5 @@
-import { createDeleteHandler } from "@/lib/route-wrapper";
-import { apiDelete } from "@/lib/api-helpers";
+import { createDeleteHandler } from "@/lib/route-wrapper.server";
+import { apiDelete } from "@/lib/api-helpers.server";
 
 // DELETE /api/guardians/students/[studentId]/guardians/[guardianId] - Remove guardian from student
 export const DELETE = createDeleteHandler(async (request, token, params) => {

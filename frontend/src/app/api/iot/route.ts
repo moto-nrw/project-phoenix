@@ -1,6 +1,9 @@
 import type { NextRequest } from "next/server";
-import { createGetHandler, createPostHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "@/lib/route-wrapper.server";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import type { BackendDevice, Device } from "@/lib/iot-helpers";
 import { mapDeviceResponse } from "@/lib/iot-helpers";
 
@@ -53,7 +56,11 @@ export const GET = createGetHandler(
 );
 
 export const POST = createPostHandler(async (request, body, token) => {
-  const response = await apiPost<{ data: BackendDevice }>("/api/iot", token, body);
+  const response = await apiPost<{ data: BackendDevice }>(
+    "/api/iot",
+    token,
+    body,
+  );
 
   if (!response?.data) {
     throw new Error("Invalid response format");

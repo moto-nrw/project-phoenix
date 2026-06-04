@@ -56,8 +56,10 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 		return nil, fmt.Errorf("preload reference data: %w", err)
 	}
 
+	batchErrors := s.validateBatch(ctx, request.Rows)
+
 	// Process all rows (may terminate early if StopOnError is set)
-	_ = s.processAllRows(ctx, request, result)
+	_ = s.processAllRows(ctx, request, result, batchErrors)
 
 	result.CompletedAt = time.Now()
 	result.BulkActions = s.generateBulkActions(result.Errors)
@@ -65,13 +67,21 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 	return result, nil
 }
 
+func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int][]importModels.ValidationError {
+	validator, ok := s.config.(importModels.BatchValidator[T])
+	if !ok {
+		return nil
+	}
+	return validator.ValidateBatch(ctx, rows)
+}
+
 // processAllRows processes all rows in the import request
-func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T]) bool {
+func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
 	for i := range request.Rows {
 		row := &request.Rows[i]
 		rowNum := i + 2
 
-		if s.processImportRow(ctx, request, result, row, rowNum) {
+		if s.processImportRow(ctx, request, result, row, rowNum, batchErrors[i]) {
 			return true
 		}
 	}
@@ -79,8 +89,9 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 }
 
 // processImportRow processes a single row
-func (s *ImportService[T]) processImportRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int) bool {
+func (s *ImportService[T]) processImportRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int, batchErrors []importModels.ValidationError) bool {
 	validationErrors := s.config.Validate(ctx, row)
+	validationErrors = append(validationErrors, batchErrors...)
 	blockingErrors, warnings := categorizeValidationErrors(validationErrors)
 
 	result.WarningCount += len(warnings)
@@ -95,7 +106,7 @@ func (s *ImportService[T]) processImportRow(ctx context.Context, request importM
 	}
 
 	if request.DryRun {
-		return s.processDryRunRow(ctx, result, row, rowNum)
+		return s.processDryRunRow(ctx, request, result, row, rowNum)
 	}
 
 	return s.processActualImportRow(ctx, request, result, row, rowNum)
@@ -140,7 +151,7 @@ func recordBlockingErrors[T any](result *importModels.ImportResult[T], rowNum in
 }
 
 // processDryRunRow processes a row in dry run mode
-func (s *ImportService[T]) processDryRunRow(ctx context.Context, result *importModels.ImportResult[T], row *T, rowNum int) bool {
+func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int) bool {
 	existingID, err := s.config.FindExisting(ctx, *row)
 	if err != nil {
 		recordDuplicateCheckError(result, rowNum, row, err)
@@ -148,7 +159,13 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, result *importM
 	}
 
 	if existingID != nil {
+		if request.Mode == importModels.ImportModeCreate {
+			recordAlreadyExistsError(s, result, rowNum, row)
+			return false
+		}
 		result.UpdatedCount++
+	} else if request.Mode == importModels.ImportModeUpdate {
+		recordNotFoundError(s, result, rowNum, row)
 	} else {
 		result.CreatedCount++
 	}

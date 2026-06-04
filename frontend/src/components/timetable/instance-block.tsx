@@ -7,7 +7,7 @@
  * - 3px left color-bar tied to activity type via `getActivityColor`
  * - flat surface with single hairline border, no default shadow
  * - status indicator as a 6px dot, not a noisy pill
- * - text hierarchy: title 12px semibold, time/room 10px slate-500
+ * - text hierarchy: title 12px semibold, time/room 10px gray-500
  *
  * Brand colours come exclusively from the helpers in `timetable-helpers.ts`.
  * Cancelled instances render with a dashed red border + line-through, matching
@@ -56,19 +56,19 @@ export function InstanceBlock({
     : getActivityLightTint(instance.activityType);
 
   const ringClass = isSelected
-    ? "ring-2 ring-offset-1 ring-slate-900"
-    : "ring-0 hover:ring-1 hover:ring-slate-300";
+    ? "ring-2 ring-offset-1 ring-gray-900"
+    : "ring-0 hover:ring-1 hover:ring-gray-300";
 
   const borderClass = isCancelled
     ? "border border-dashed border-[#FF3130]"
-    : "border border-slate-200/60";
+    : "border border-gray-200/60";
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={isSelected}
-      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-md text-left transition-all`}
+      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-md text-left transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
       style={{
         top: `${top}px`,
         height: `${Math.max(height, 18)}px`,
@@ -81,9 +81,9 @@ export function InstanceBlock({
       <div className="flex h-full flex-col gap-0.5">
         <div className="flex items-start justify-between gap-1">
           <span
-            className={`min-w-0 truncate font-semibold text-slate-900 ${
-              isCancelled ? "text-slate-400 line-through" : ""
-            } ${isTiny ? "text-[11px]" : "text-[12px]"}`}
+            className={`min-w-0 truncate font-semibold text-gray-900 ${
+              isCancelled ? "text-gray-400 line-through" : ""
+            } ${isTiny ? "text-[11px]" : "text-xs"}`}
           >
             {isActive && !isCancelled && (
               <span
@@ -95,7 +95,7 @@ export function InstanceBlock({
           </span>
           {hasConflict && (
             <TriangleAlert
-              className="h-3 w-3 shrink-0 text-[#A16207]"
+              className="h-3 w-3 shrink-0 text-[#EAB308]"
               aria-label={`${instance.conflictWarnings.length} Konflikte`}
             />
           )}
@@ -104,7 +104,7 @@ export function InstanceBlock({
         {!isTiny && (
           <div
             className={`truncate text-[10px] tabular-nums ${
-              isCancelled ? "text-slate-400 line-through" : "text-slate-500"
+              isCancelled ? "text-gray-400 line-through" : "text-gray-500"
             }`}
           >
             {instance.startTime} – {instance.endTime}
@@ -113,7 +113,7 @@ export function InstanceBlock({
         )}
 
         {!isCompact && !isCancelled && (
-          <div className="truncate text-[10px] text-slate-500">
+          <div className="truncate text-[10px] text-gray-500">
             {instance.staffCount} P ·{" "}
             {instance.expectedStudentsCount + instance.presentStudentsCount} K
             {isActive &&

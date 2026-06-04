@@ -3,7 +3,7 @@ import {
   createOperatorGetHandler,
   createOperatorProxyPostHandler,
   operatorApiGet,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 export const GET = createOperatorGetHandler(
   async (_request: NextRequest, token: string) => {

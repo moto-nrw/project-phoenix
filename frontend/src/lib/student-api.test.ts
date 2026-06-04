@@ -459,20 +459,33 @@ describe("student-api", () => {
       expect(result?.accepted).toBe(true);
     });
 
-    it("returns null on error", async () => {
+    it("throws on network error", async () => {
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error("Network error"),
       );
 
-      const result = await fetchStudentPrivacyConsent("123");
+      await expect(fetchStudentPrivacyConsent("123")).rejects.toThrow(
+        "Network error",
+      );
 
-      expect(result).toBeNull();
       expect(consoleSpies.error).toHaveBeenCalledWith(
         "failed to fetch privacy consent",
         {
           student_id: "123",
           error: expect.any(String),
         },
+      );
+    });
+
+    it("throws on non-404 API error", async () => {
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+      } as Response);
+
+      await expect(fetchStudentPrivacyConsent("123")).rejects.toThrow(
+        "API error (500): Internal Server Error",
       );
     });
   });

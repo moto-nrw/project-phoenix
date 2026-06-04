@@ -563,7 +563,7 @@ export function TimetableEventModal({
             <SlideOverClose asChild>
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100"
                 aria-label="Schließen"
               >
                 <X className="h-4 w-4" aria-hidden />
@@ -579,7 +579,7 @@ export function TimetableEventModal({
         >
           <div className="flex flex-col gap-5">
             {initialInstance && initialInstance.status !== "planned" && (
-              <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]">
+              <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]">
                 Nur geplante Termine können bearbeitet werden.
               </div>
             )}
@@ -640,7 +640,7 @@ export function TimetableEventModal({
                 onChange={(event) => update("roomId", event.target.value)}
                 disabled={loadingRefs}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
               >
                 <option value="">
                   {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
@@ -656,10 +656,10 @@ export function TimetableEventModal({
             </Field>
 
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-slate-700">
+              <span className="text-xs font-semibold text-gray-700">
                 Wiederholen
               </span>
-              <div className="inline-flex w-fit rounded-md bg-slate-100 p-0.5">
+              <div className="inline-flex w-fit rounded-md bg-gray-100 p-0.5">
                 {REPEAT_OPTIONS.map((option) => {
                   const isActive = form.repeat === option.value;
                   const disabled = isEditingSeries && option.value === "none";
@@ -681,10 +681,10 @@ export function TimetableEventModal({
                           );
                         }
                       }}
-                      className={`rounded px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                         isActive
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-600 hover:text-slate-900"
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-600 hover:text-gray-900"
                       }`}
                     >
                       {option.label}
@@ -697,7 +697,7 @@ export function TimetableEventModal({
             {isSeriesFlow && (
               <>
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-xs font-semibold text-gray-700">
                     Typ <span className="ml-0.5 text-[#FF3130]">*</span>
                   </span>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -712,7 +712,7 @@ export function TimetableEventModal({
                           className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition-colors ${
                             isActive
                               ? "border-2 bg-white"
-                              : "border border-slate-200 bg-slate-50 hover:bg-white"
+                              : "border border-gray-200 bg-gray-50 hover:bg-white"
                           }`}
                           style={isActive ? { borderColor: color } : undefined}
                         >
@@ -722,7 +722,7 @@ export function TimetableEventModal({
                           >
                             {option.label}
                           </span>
-                          <span className="text-[10px] text-slate-500">
+                          <span className="text-[10px] text-gray-500">
                             {option.hint}
                           </span>
                         </button>
@@ -732,7 +732,7 @@ export function TimetableEventModal({
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-xs font-semibold text-gray-700">
                     Wochentage <span className="ml-0.5 text-[#FF3130]">*</span>
                   </span>
                   <div className="flex flex-wrap gap-1.5">
@@ -745,8 +745,8 @@ export function TimetableEventModal({
                           onClick={() => toggleWeekday(iso)}
                           className={`min-w-[44px] rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
                             isActive
-                              ? "border-[#5080D8] bg-[#5080D8] text-white"
-                              : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                              ? "border-gray-900 bg-gray-900 text-white"
+                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                           }`}
                           aria-pressed={isActive}
                         >
@@ -767,7 +767,7 @@ export function TimetableEventModal({
                       }
                       required
                       disabled={loadingRefs}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-100"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
                     >
                       <option value="">
                         {loadingRefs
@@ -794,7 +794,7 @@ export function TimetableEventModal({
                           update("calendarPeriodId", event.target.value)
                         }
                         required
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
                       >
                         <option value="">Periode auswählen ...</option>
                         {calendarPeriods.map((period) => (
@@ -806,13 +806,13 @@ export function TimetableEventModal({
                     </Field>
                   ) : (
                     <div className="flex flex-col justify-end gap-1">
-                      <span className="text-xs font-semibold text-slate-700">
+                      <span className="text-xs font-semibold text-gray-700">
                         Planungsperiode
                       </span>
-                      <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+                      <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
                         <span className="truncate">
                           Gilt in{" "}
-                          <span className="font-semibold text-slate-800">
+                          <span className="font-semibold text-gray-800">
                             {calendarPeriods.find(
                               (p) => p.id === form.calendarPeriodId,
                             )?.name ?? "der aktuellen Planungsperiode"}
@@ -854,7 +854,7 @@ export function TimetableEventModal({
                   onChange={(event) =>
                     update("primaryStaffId", event.target.value)
                   }
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
                 >
                   <option value="">Keine Auswahl</option>
                   {staff
@@ -875,7 +875,7 @@ export function TimetableEventModal({
                   value={form.notes}
                   onChange={(event) => update("notes", event.target.value)}
                   rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
                 />
               </Field>
             )}
@@ -883,7 +883,7 @@ export function TimetableEventModal({
             {isSeriesFlow && calendarPeriods.length === 0 && (
               <div
                 role="alert"
-                className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
               >
                 Für diese Woche gibt es keine aktive Planungsperiode. Lege
                 zuerst eine Periode im Kopfbereich an.
@@ -893,7 +893,7 @@ export function TimetableEventModal({
             {validationError && (
               <div
                 role="alert"
-                className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
               >
                 {validationError}
               </div>
@@ -941,7 +941,7 @@ function Field({
 }) {
   return (
     <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-slate-700">
+      <span className="text-xs font-semibold text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
       </span>
@@ -1038,10 +1038,10 @@ function MultiSelectField({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-700">{label}</span>
-        <span className="text-[11px] text-slate-500">
+        <span className="text-xs font-semibold text-gray-700">{label}</span>
+        <span className="text-[11px] text-gray-500">
           {value.length} ausgewählt
         </span>
       </div>
@@ -1050,7 +1050,7 @@ function MultiSelectField({
         <label className="relative">
           <span className="sr-only">{label} suchen</span>
           <Search
-            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden
           />
           <input
@@ -1058,14 +1058,14 @@ function MultiSelectField({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`${label} suchen ...`}
-            className="h-9 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            className="h-9 w-full rounded-md border border-gray-200 bg-white pr-3 pl-9 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
           />
         </label>
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
             onChange={(event) => setClassFilter(event.target.value)}
-            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
             aria-label="Nach Klasse filtern"
           >
             <option value="all">Alle Klassen</option>
@@ -1080,7 +1080,7 @@ function MultiSelectField({
           <select
             value={groupFilter}
             onChange={(event) => setGroupFilter(event.target.value)}
-            className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm text-slate-700 focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
             aria-label="Nach Gruppe filtern"
           >
             <option value="all">Alle Gruppen</option>
@@ -1098,7 +1098,7 @@ function MultiSelectField({
           type="button"
           onClick={allVisibleSelected ? clearVisible : selectVisible}
           disabled={visibleIds.length === 0}
-          className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
         </button>
@@ -1106,7 +1106,7 @@ function MultiSelectField({
           <button
             type="button"
             onClick={() => onChange([])}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
           >
             Auswahl leeren
           </button>
@@ -1119,20 +1119,20 @@ function MultiSelectField({
               setClassFilter("all");
               setGroupFilter("all");
             }}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
           >
             Filter zurücksetzen
           </button>
         )}
       </div>
 
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
         {options.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-slate-500">
+          <div className="px-2 py-3 text-xs text-gray-500">
             Keine Einträge gefunden
           </div>
         ) : filteredOptions.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-slate-500">
+          <div className="px-2 py-3 text-xs text-gray-500">
             Keine passenden Einträge gefunden
           </div>
         ) : (
@@ -1140,18 +1140,18 @@ function MultiSelectField({
             {filteredOptions.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
                 <input
                   type="checkbox"
                   checked={selected.has(option.id)}
                   onChange={() => toggle(option.id)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#5080D8] focus:ring-[#5080D8]"
+                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-200"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{option.name}</span>
                   {(option.schoolClass || option.groupName) && (
-                    <span className="block truncate text-[11px] text-slate-400">
+                    <span className="block truncate text-[11px] text-gray-400">
                       {[option.schoolClass, option.groupName]
                         .filter(Boolean)
                         .join(" · ")}

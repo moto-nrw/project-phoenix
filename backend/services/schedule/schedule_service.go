@@ -507,9 +507,6 @@ func (s *service) CheckConflict(ctx context.Context, startTime, endTime time.Tim
 
 // FindAvailableSlots finds available time slots within a date range
 func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate time.Time, duration time.Duration) ([]*schedule.Timeframe, error) {
-	startDate = timezone.WallClock(startDate)
-	endDate = timezone.WallClock(endDate)
-
 	// Validate input
 	if startDate.After(endDate) {
 		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDateRange}
@@ -518,6 +515,9 @@ func (s *service) FindAvailableSlots(ctx context.Context, startDate, endDate tim
 	if duration <= 0 {
 		return nil, &ScheduleError{Op: opFindAvailableSlots, Err: ErrInvalidDuration}
 	}
+
+	startDate = timezone.WallClock(startDate)
+	endDate = timezone.WallClock(endDate)
 
 	// Get all timeframes within the date range
 	existingTimeframes, err := s.timeframeRepo.FindByTimeRange(ctx, startDate, endDate)

@@ -2,8 +2,8 @@
 // BFF (Backend-for-Frontend) endpoint for shared user context data
 // Consolidates 3 API calls into 1 to eliminate redundant auth() overhead
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 // Backend response types
 interface BackendEducationalGroup {

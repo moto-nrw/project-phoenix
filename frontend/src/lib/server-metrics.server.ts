@@ -123,7 +123,7 @@ function labels(values: Record<string, string>): string {
 
 function escapeLabelValue(value: string): string {
   return value
-    .replace(/\\/g, "\\\\")
-    .replace(/\n/g, "\\n")
-    .replace(/"/g, '\\"');
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\n", "\\n")
+    .replaceAll('"', '\\"');
 }

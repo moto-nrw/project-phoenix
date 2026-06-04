@@ -13,9 +13,10 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
-func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, func()) {
+func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, 1)
@@ -24,12 +25,15 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo:             repoFactory.Phase,
 		RequestRepo:      repoFactory.Request,
+		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
+		DB:               db,
 		Logger:           slog.Default(),
 	})
 
 	cleanup := func() {
 		bg := context.Background()
+		// Deleting requests cascades request_children + request_child_offerings.
 		_, _ = db.NewDelete().
 			TableExpr("enrollment.requests").
 			Where("phase_id IN (SELECT id FROM enrollment.phases WHERE tenant_id = ? AND name LIKE ?)", 1, phaseNamePrefix+"%").
@@ -44,7 +48,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 			Exec(bg)
 		_ = db.Close()
 	}
-	return svc, repoFactory, cleanup
+	return svc, repoFactory, db, cleanup
 }
 
 func minimalPhase(suffix string) *enrollmentModels.Phase {
@@ -61,7 +65,7 @@ func minimalPhase(suffix string) *enrollmentModels.Phase {
 }
 
 func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -73,7 +77,7 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -86,7 +90,7 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -98,7 +102,7 @@ func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -112,7 +116,7 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -132,7 +136,7 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -180,15 +184,16 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	assert.Equal(t, "phase-"+t.Name()+"-open-active", matching[0].Name)
 }
 
-func TestPhaseService_Delete_RefusesWhenOfferingsReference(t *testing.T) {
-	svc, repoFactory, cleanup := setupPhaseTest(t)
+// Business rule (changed): a phase with care offerings is now deletable.
+// The offerings cascade away with the phase; there is no reference guard.
+func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
+	svc, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
 	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
 	require.NoError(t, err)
 
-	// Anchor an offering on the phase so delete must refuse.
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Linked offering",
@@ -199,22 +204,37 @@ func TestPhaseService_Delete_RefusesWhenOfferingsReference(t *testing.T) {
 	offering.SetTenantID(1)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
-	err = svc.Delete(ctx, phase.ID)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseHasReferences),
-		"phase with care offerings must not be deletable; got %v", err)
+	require.NoError(t, svc.Delete(ctx, phase.ID),
+		"phase with care offerings must be deletable")
+
+	_, err = svc.GetByID(ctx, phase.ID)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound),
+		"phase must be gone after delete")
+	remaining, err := repoFactory.CareOffering.CountByPhaseID(ctx, phase.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, remaining, "care offerings must cascade away with the phase")
 }
 
-func TestPhaseService_Delete_RefusesWhenRequestsReference(t *testing.T) {
-	svc, repoFactory, cleanup := setupPhaseTest(t)
+// Business rule (changed): a phase with enrollment requests is now
+// deletable. Requests + their children cascade away, but students that
+// were created from those requests are PRESERVED (created_student_id is
+// ON DELETE SET NULL; the student is the parent in that relationship).
+func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T) {
+	svc, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
+
+	// A real student that an approved enrollment "created".
+	student := testpkg.CreateTestStudent(t, db, "Kept", "Child", "1a")
+	defer func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		testpkg.CleanupPerson(t, db, student.PersonID)
+	}()
 
 	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
 	require.NoError(t, err)
 
-	// Seed one request on the phase so delete must refuse with the
-	// requests-specific sentinel.
 	req := &enrollmentModels.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Test",
@@ -226,16 +246,91 @@ func TestPhaseService_Delete_RefusesWhenRequestsReference(t *testing.T) {
 	req.SetTenantID(1)
 	require.NoError(t, repoFactory.Request.Create(ctx, req))
 
-	err = svc.Delete(ctx, phase.ID)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseHasRequests),
-		"phase with requests must return ErrPhaseHasRequests; got %v", err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseHasReferences),
-		"ErrPhaseHasRequests must also satisfy ErrPhaseHasReferences for backward compat; got %v", err)
+	child := &enrollmentModels.RequestChild{
+		RequestID:        req.ID,
+		FirstName:        "Kept",
+		LastName:         "Child",
+		DateOfBirth:      time.Date(2019, 5, 1, 0, 0, 0, 0, time.UTC),
+		CreatedStudentID: &student.ID,
+	}
+	child.SetTenantID(1)
+	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
+
+	require.NoError(t, svc.Delete(ctx, phase.ID),
+		"phase with enrollment requests must be deletable")
+
+	_, err = svc.GetByID(ctx, phase.ID)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+	reqCount, err := repoFactory.Request.CountByPhaseID(ctx, phase.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, reqCount, "requests must cascade away with the phase")
+
+	// The student must survive — deleting the request child never deletes
+	// the student it points to.
+	studentCount, err := db.NewSelect().
+		TableExpr("users.students").
+		Where("id = ?", student.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, studentCount,
+		"student created from the phase must survive phase deletion")
+}
+
+func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
+	svc, repoFactory, db, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Impact", "Child", "1a")
+	defer func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+		testpkg.CleanupPerson(t, db, student.PersonID)
+	}()
+
+	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        phase.ID,
+		Name:           "Impact offering",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	req := &enrollmentModels.Request{
+		PhaseID:           phase.ID,
+		GuardianFirstName: "Impact",
+		GuardianLastName:  "Guardian",
+		GuardianEmail:     "impact@example.com",
+		StatusToken:       "impact-token-" + t.Name(),
+		SubmittedAt:       time.Now(),
+	}
+	req.SetTenantID(1)
+	require.NoError(t, repoFactory.Request.Create(ctx, req))
+
+	child := &enrollmentModels.RequestChild{
+		RequestID:        req.ID,
+		FirstName:        "Impact",
+		LastName:         "Child",
+		DateOfBirth:      time.Date(2019, 5, 1, 0, 0, 0, 0, time.UTC),
+		CreatedStudentID: &student.ID,
+	}
+	child.SetTenantID(1)
+	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
+
+	impact, err := svc.DeleteImpact(ctx, phase.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, impact.Requests, "one request references the phase")
+	assert.Equal(t, 1, impact.CareOfferings, "one care offering references the phase")
+	assert.Equal(t, 1, impact.StudentsKept, "one created student would be kept")
 }
 
 func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
@@ -249,7 +344,7 @@ func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 }
 
 func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
-	svc, _, cleanup := setupPhaseTest(t)
+	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 

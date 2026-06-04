@@ -1,4 +1,4 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper";
+import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/time-tracking/history?from=YYYY-MM-DD&to=YYYY-MM-DD

@@ -7,11 +7,11 @@ const { mockApiGet, mockCreateGetHandler } = vi.hoisted(() => ({
   mockCreateGetHandler: vi.fn((handler: any) => handler),
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiGet: mockApiGet,
 }));
 
-vi.mock("~/lib/route-wrapper", () => ({
+vi.mock("~/lib/route-wrapper.server", () => ({
   createGetHandler: mockCreateGetHandler,
 }));
 

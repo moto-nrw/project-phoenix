@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { createGetHandler } from "@/lib/route-wrapper";
-import { apiGet, apiPut } from "~/lib/api-helpers";
+import { createGetHandler } from "@/lib/route-wrapper.server";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
 import { auth } from "@/server/auth";
 
 export const GET = createGetHandler(async (request, token, _params) => {

@@ -16,7 +16,7 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
 }));
 
-vi.mock("~/lib/client-headers", () => ({
+vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 

@@ -35,6 +35,9 @@ type mockPhaseService struct {
 	updateErr         error
 	deleteID          int64
 	deleteErr         error
+	deleteImpactID    int64
+	deleteImpactRes   *enrollmentService.PhaseDeleteImpact
+	deleteImpactErr   error
 }
 
 func (m *mockPhaseService) List(_ context.Context) ([]*enrollmentModels.Phase, error) {
@@ -59,6 +62,10 @@ func (m *mockPhaseService) Delete(_ context.Context, id int64) error {
 	m.deleteID = id
 	return m.deleteErr
 }
+func (m *mockPhaseService) DeleteImpact(_ context.Context, id int64) (*enrollmentService.PhaseDeleteImpact, error) {
+	m.deleteImpactID = id
+	return m.deleteImpactRes, m.deleteImpactErr
+}
 
 func buildPhaseRouter(svc enrollmentService.PhaseService) chi.Router {
 	rs := &Resource{PhaseService: svc}
@@ -68,6 +75,7 @@ func buildPhaseRouter(svc enrollmentService.PhaseService) chi.Router {
 	r.Get("/enrollment/phases/{id}", rs.getPhase)
 	r.Post("/enrollment/phases", rs.createPhase)
 	r.Put("/enrollment/phases/{id}", rs.updatePhase)
+	r.Get("/enrollment/phases/{id}/delete-impact", rs.getPhaseDeleteImpact)
 	r.Delete("/enrollment/phases/{id}", rs.deletePhase)
 	return r
 }
@@ -306,30 +314,6 @@ func TestDeletePhaseHandler_HappyPathReturns204(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.deleteID)
 }
 
-func TestDeletePhaseHandler_HasRequests409WithCode(t *testing.T) {
-	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseHasRequests}
-	router := buildPhaseRouter(mock)
-	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
-	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodePhaseHasRequests)
-}
-
-func TestDeletePhaseHandler_HasOfferings409WithCode(t *testing.T) {
-	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseHasOfferings}
-	router := buildPhaseRouter(mock)
-	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
-	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodePhaseHasOfferings)
-}
-
-func TestDeletePhaseHandler_HasReferences409WithCode(t *testing.T) {
-	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseHasReferences}
-	router := buildPhaseRouter(mock)
-	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
-	assert.Equal(t, http.StatusConflict, w.Code)
-	assert.Contains(t, w.Body.String(), ErrCodePhaseHasReferences)
-}
-
 func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
@@ -342,4 +326,31 @@ func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// --- getPhaseDeleteImpact ---------------------------------------------
+
+func TestPhaseDeleteImpactHandler_ReturnsCounts(t *testing.T) {
+	mock := &mockPhaseService{
+		deleteImpactRes: &enrollmentService.PhaseDeleteImpact{
+			Requests:      3,
+			CareOfferings: 2,
+			StudentsKept:  5,
+		},
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(1234), mock.deleteImpactID)
+	body := w.Body.String()
+	assert.Contains(t, body, `"requests":3`)
+	assert.Contains(t, body, `"care_offerings":2`)
+	assert.Contains(t, body, `"students_kept":5`)
+}
+
+func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
+	mock := &mockPhaseService{deleteImpactErr: enrollmentService.ErrPhaseNotFound}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }

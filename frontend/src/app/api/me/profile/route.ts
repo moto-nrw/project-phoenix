@@ -1,6 +1,6 @@
-import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
-import { apiGet, apiPut } from "~/lib/api-helpers";
-import type { ApiResponse } from "~/lib/api-helpers";
+import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
+import type { ApiResponse } from "~/lib/api-helpers.server";
 import type {
   BackendProfile,
   ProfileUpdateRequest,

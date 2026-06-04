@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,15 @@ func futureBirthdayGermanLongForTests() string {
 
 func futureBirthdayGermanShortForTests() string {
 	return futureBirthdayForTests().Format("02.01.06")
+}
+
+func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
+	today := timezone.TodayUTC()
+	tomorrow := today.AddDate(0, 0, 1)
+
+	assert.False(t, enrollmentStartsInFuture(nil))
+	assert.False(t, enrollmentStartsInFuture(&today), "today must be active, not pending")
+	assert.True(t, enrollmentStartsInFuture(&tomorrow))
 }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
@@ -209,6 +219,118 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	baseRow := func() importModels.StudentImportRow {
+		return importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+		}
+	}
+
+	hasCode := func(errs []importModels.ValidationError, code string) bool {
+		for _, e := range errs {
+			if e.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("valid range passes and normalizes to ISO", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "01.08.2024"
+		row.EnrolledUntil = "31.07.2025"
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasCode(errs, "invalid_date_format"))
+		assert.False(t, hasCode(errs, "invalid_date_range"))
+		assert.Equal(t, "2024-08-01", row.EnrolledFrom)
+		assert.Equal(t, "2025-07-31", row.EnrolledUntil)
+	})
+
+	t.Run("future enrolled_from is allowed", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = futureBirthdayISOForTests()
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasCode(errs, "invalid_date_format"),
+			"a future enrollment start date must be accepted (unlike a birthday)")
+	})
+
+	t.Run("invalid format reports error", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "kein-datum"
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date_format"))
+	})
+
+	t.Run("until before from reports range error", func(t *testing.T) {
+		row := baseRow()
+		row.EnrolledFrom = "01.08.2024"
+		row.EnrolledUntil = "01.08.2023"
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date_range"))
+	})
+}
+
+func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	baseRow := func() importModels.StudentImportRow {
+		return importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+		}
+	}
+
+	hasCode := func(errs []importModels.ValidationError, code string) bool {
+		for _, e := range errs {
+			if e.Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("valid consent dates pass and normalize to ISO", func(t *testing.T) {
+		row := baseRow()
+		row.AGBAcceptedAt = "01.08.2024"
+		row.PhotoConsentGivenAt = "2024-08-01"
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasCode(errs, "invalid_date_format"))
+		assert.False(t, hasCode(errs, "invalid_date"))
+		assert.Equal(t, "2024-08-01", row.AGBAcceptedAt)
+		assert.Equal(t, "2024-08-01", row.PhotoConsentGivenAt)
+	})
+
+	t.Run("future consent date is rejected", func(t *testing.T) {
+		row := baseRow()
+		row.DataProcessingAcceptedAt = futureBirthdayISOForTests()
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date"),
+			"a consent cannot have been given in the future")
+	})
+
+	t.Run("invalid format is rejected", func(t *testing.T) {
+		row := baseRow()
+		row.EmailContactAcceptedAt = "kein-datum"
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasCode(errs, "invalid_date_format"))
+	})
 }
 
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {

@@ -1,5 +1,5 @@
-import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
-import { apiGet, apiPut } from "~/lib/api-helpers";
+import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
 
 interface PrivacyConsentBody {
   policy_version?: string;

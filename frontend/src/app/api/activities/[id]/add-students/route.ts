@@ -1,7 +1,10 @@
 // app/api/activities/[id]/add-students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 
 /**
  * Handler for GET /api/activities/[id]/add-students

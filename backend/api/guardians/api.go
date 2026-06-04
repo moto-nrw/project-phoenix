@@ -65,6 +65,12 @@ func (rs *Resource) Router() chi.Router {
 		// Guardian profile CRUD operations
 		// Read operations require users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listGuardians)
+		// Guardian picker search (#1513): same users:read gate as the rest of the
+		// guardian reads, so anyone who can reach the student create/detail flows
+		// can link a sibling's existing guardian. Returns a minimal,
+		// enumeration-resistant projection (name, email, linked-children count) —
+		// see searchGuardiansForPicker.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/search", rs.searchGuardiansForPicker)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/without-account", rs.listGuardiansWithoutAccount)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitable", rs.listInvitableGuardians)

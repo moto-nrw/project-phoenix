@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { apiPost, handleApiError } from "~/lib/api-helpers";
+import { apiPost, handleApiError } from "~/lib/api-helpers.server";
 
 export async function POST(
   request: NextRequest,

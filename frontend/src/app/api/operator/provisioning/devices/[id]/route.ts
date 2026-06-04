@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import {
   createOperatorDeleteHandler,
   operatorApiDelete,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 export const DELETE = createOperatorDeleteHandler(
   async (

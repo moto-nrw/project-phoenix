@@ -140,11 +140,11 @@ function attendanceSubstatusLabel(
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
     case "present":
-      return "border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]";
+      return "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]";
     case "absent":
-      return "border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]";
+      return "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]";
     case "expected":
-      return "border-slate-200 bg-slate-50 text-slate-600";
+      return "border-gray-200 bg-gray-50 text-gray-600";
   }
 }
 
@@ -269,7 +269,7 @@ export function InstanceDetailSlideOver({
               <SlideOverClose asChild>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100"
                   aria-label="Schließen"
                 >
                   <X className="h-4 w-4" />
@@ -280,8 +280,8 @@ export function InstanceDetailSlideOver({
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
             {instance.conflictWarnings.length > 0 && (
-              <div className="rounded-md border border-[#FECACA] bg-[#FEF2F2] p-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-[#7F1D1D]">
+              <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                   <TriangleAlert className="h-4 w-4" />
                   {instance.conflictWarnings.length} Konflikt(e)
                 </div>
@@ -450,14 +450,14 @@ export function InstanceDetailSlideOver({
                 </Button>
               )}
               {instance.status === "completed" && (
-                <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                <span className="inline-flex items-center gap-2 text-xs text-gray-500">
                   <CheckCircle2 className="h-4 w-4" />
                   Diese Aktivität ist bereits abgeschlossen.
                 </span>
               )}
               {instance.status === "cancelled" && (
                 <>
-                  <span className="inline-flex items-center gap-2 text-xs text-slate-500">
+                  <span className="inline-flex items-center gap-2 text-xs text-gray-500">
                     <CircleX className="h-4 w-4" />
                     Diese Aktivität wurde abgesagt.
                   </span>
@@ -480,7 +480,7 @@ export function InstanceDetailSlideOver({
                   {deleteConfirm && !pendingDelete && (
                     <button
                       type="button"
-                      className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                      className="text-xs font-semibold text-gray-500 hover:text-gray-700"
                       onClick={() => setDeleteConfirm(false)}
                     >
                       Löschen abbrechen
@@ -490,7 +490,7 @@ export function InstanceDetailSlideOver({
               )}
             </div>
             {editDeferred && (
-              <div className="flex items-center justify-end gap-2 text-xs text-slate-400">
+              <div className="flex items-center justify-end gap-2 text-xs text-gray-400">
                 <Pencil className="h-3.5 w-3.5" />
                 <span>Bearbeiten kommt im nächsten Update</span>
               </div>
@@ -523,7 +523,7 @@ function StudentGroup({
   if (students.length === 0) return null;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-slate-400 uppercase">
+      <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
         <span>{attendanceLabel(status)}</span>
         <span>{students.length}</span>
       </div>
@@ -535,11 +535,11 @@ function StudentGroup({
           )}`}
         >
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-slate-900">
+            <div className="truncate text-sm font-semibold text-gray-900">
               {studentNames.get(student.studentId) ??
                 `Kind #${student.studentId}`}
             </div>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-gray-500">
               {attendanceLabel(student.status)}
               {student.substatus
                 ? ` • ${attendanceSubstatusLabel(student.substatus)}`
@@ -605,7 +605,7 @@ function StudentGroup({
 
 function EmptyLine({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+    <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-500">
       {children}
     </div>
   );
@@ -624,10 +624,10 @@ interface IconActionButtonProps {
 
 const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
   green:
-    "border-[#BBF7D0] bg-white text-[#15803D] hover:border-[#86EFAC] hover:bg-[#F0FDF4]",
-  red: "border-[#FECACA] bg-white text-[#B91C1C] hover:border-[#FCA5A5] hover:bg-[#FEF2F2]",
+    "border-[#83CD2D]/20 bg-white text-[#6BA023] hover:border-[#83CD2D]/40 hover:bg-[#83CD2D]/10",
+  red: "border-[#FF3130]/20 bg-white text-[#CC2626] hover:border-[#FF3130]/40 hover:bg-[#FF3130]/10",
   slate:
-    "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+    "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
 };
 
 function IconActionButton({
@@ -670,15 +670,15 @@ function PersonLine({
     <div
       className={`rounded-md border px-3 py-2 ${
         danger
-          ? "border-[#FECACA] bg-[#FEF2F2]"
-          : "border-slate-200 bg-slate-50"
+          ? "border-[#FF3130]/20 bg-[#FF3130]/10"
+          : "border-gray-200 bg-gray-50"
       }`}
     >
-      <div className="text-sm font-semibold text-slate-900">{name}</div>
+      <div className="text-sm font-semibold text-gray-900">{name}</div>
       {labels.length > 0 && (
         <div
           className={`mt-0.5 text-[11px] ${
-            danger ? "text-[#B91C1C]" : "text-slate-500"
+            danger ? "text-[#CC2626]" : "text-gray-500"
           }`}
         >
           {labels.join(" • ")}
@@ -742,29 +742,32 @@ const STAT_PILL_PALETTE: Record<
   StatPillTone,
   { bg: string; border: string; accent: string; muted: string }
 > = {
+  // Brand-aligned pill tints: green=GROUP_ROOM #83CD2D, blue=OTHER_ROOM
+  // #5080D8, amber=SICK #EAB308, slate=neutral gray. Solid hex (not /10
+  // classes) because these feed inline styles.
   green: {
-    bg: "#F0FDF4",
-    border: "#BBF7D0",
-    accent: "#15803D",
-    muted: "#166534CC",
+    bg: "#F1F9E6",
+    border: "#D7EDB8",
+    accent: "#5A8E1F",
+    muted: "#4A7A15CC",
   },
   blue: {
-    bg: "#EFF6FF",
-    border: "#BFDBFE",
-    accent: "#1E40AF",
-    muted: "#1E3A8ACC",
+    bg: "#EDF3FC",
+    border: "#C9DBF6",
+    accent: "#3F66C0",
+    muted: "#2F4F9ECC",
   },
   amber: {
-    bg: "#FEF3C7",
-    border: "#FDE68A",
-    accent: "#92400E",
-    muted: "#78350FCC",
+    bg: "#FBF3D6",
+    border: "#F2E2A0",
+    accent: "#8A6D00",
+    muted: "#6E5700CC",
   },
   slate: {
-    bg: "#F8FAFC",
-    border: "#E2E8F0",
-    accent: "#334155",
-    muted: "#475569CC",
+    bg: "#F9FAFB",
+    border: "#E5E7EB",
+    accent: "#374151",
+    muted: "#4B5563CC",
   },
 };
 
@@ -794,7 +797,7 @@ interface SectionProps {
 function Section({ title, children }: SectionProps) {
   return (
     <div className="space-y-2">
-      <h4 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+      <h4 className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
         {title}
       </h4>
       <div className="space-y-1.5">{children}</div>
@@ -811,12 +814,12 @@ interface RowProps {
 function Row({ icon, label, children }: RowProps) {
   return (
     <div className="flex items-start gap-3 text-sm">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-slate-400">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400">
         {icon}
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[11px] font-medium text-slate-500">{label}</span>
-        <span className="text-sm text-slate-900">{children}</span>
+        <span className="text-[11px] font-medium text-gray-500">{label}</span>
+        <span className="text-sm text-gray-900">{children}</span>
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ vi.mock("next/cache", () => ({
   revalidateTag: mockRevalidateTag,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   handleApiError: vi.fn((error: unknown) => {
     const message =
       error instanceof Error ? error.message : "Internal Server Error";

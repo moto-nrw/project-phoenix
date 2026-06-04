@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { handleApiError } from "../api-helpers";
+import { handleApiError } from "../api-helpers.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import {
   type RouteContext,
@@ -8,7 +8,7 @@ import {
   parseRequestBody,
   wrapInApiResponse,
   createUnauthorizedResponse,
-} from "../route-wrapper-utils";
+} from "../route-wrapper-utils.server";
 /**
  * Checks if error is a 401 authentication error
  */
@@ -350,7 +350,8 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
         );
       }
       const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const { getClientForwardHeaders } =
+        await import("~/lib/client-headers.server");
       const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);
       const startedAt = Date.now();
@@ -413,7 +414,8 @@ export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
 
     try {
       const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const { getClientForwardHeaders } =
+        await import("~/lib/client-headers.server");
       const startedAt = Date.now();
       const response = await fetch(`${getServerApiUrl()}${backendEndpoint}`, {
         method: "POST",
@@ -478,7 +480,8 @@ export function createOperatorProxyMethodHandler(
 
       const params = await extractParams(request, context);
       const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } = await import("~/lib/client-headers");
+      const { getClientForwardHeaders } =
+        await import("~/lib/client-headers.server");
       const backendEndpoint = endpointBuilder(params);
       const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);
@@ -525,4 +528,4 @@ export function createOperatorProxyMethodHandler(
   };
 }
 
-export { isStringParam } from "../route-wrapper-utils";
+export { isStringParam } from "../route-wrapper-utils.server";

@@ -1,7 +1,7 @@
 // app/api/activities/supervisors/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 import { mapSupervisorResponse } from "~/lib/activity-helpers";
 
 interface FallbackSupervisor {

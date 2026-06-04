@@ -543,7 +543,7 @@ export function RoomDetailContent({
                             {session.supervisorName && (
                               <div>Aufsicht: {session.supervisorName}</div>
                             )}
-                            <div>Teilnehmer: {session.studentCount}</div>
+                            <div>Kinder: {session.studentCount}</div>
                           </div>
 
                           <div className="mt-3 flex justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">

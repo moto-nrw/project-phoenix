@@ -1,4 +1,4 @@
-import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper";
+import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper.server";
 
 /**
  * DELETE /api/operator/invitations/[id]

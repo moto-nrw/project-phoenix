@@ -1,5 +1,8 @@
-import { createDeleteHandler, createPutHandler } from "@/lib/route-wrapper";
-import { apiDelete, apiPut } from "@/lib/api-helpers";
+import {
+  createDeleteHandler,
+  createPutHandler,
+} from "@/lib/route-wrapper.server";
+import { apiDelete, apiPut } from "@/lib/api-helpers.server";
 
 // PUT /api/students/[id]/arrival-notes/[noteId] - Update an arrival note
 export const PUT = createPutHandler(async (_request, body, token, params) => {

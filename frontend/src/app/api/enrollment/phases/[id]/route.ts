@@ -87,8 +87,8 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     if (response.status === 204) {
       return new NextResponse(null, { status: 204 });
     }
-    // 409 (still referenced) — pass through with the body so the
-    // frontend can surface the German hint.
+    // Non-204 (404 / 500) — pass the body through so the frontend can
+    // surface the message.
     const payload = await response
       .json()
       .catch(async () => ({ error: await response.text() }));

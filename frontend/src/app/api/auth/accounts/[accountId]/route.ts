@@ -1,4 +1,4 @@
-import { createGetHandler } from "@/lib/route-wrapper";
+import { createGetHandler } from "@/lib/route-wrapper.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 

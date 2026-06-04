@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
-import { handleApiError } from "~/lib/api-helpers";
+import { handleApiError } from "~/lib/api-helpers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
 // GET handler for fetching avatar images

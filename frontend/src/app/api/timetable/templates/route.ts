@@ -12,8 +12,11 @@
 // the payload — clients (timetable-api.ts unwrap) expect a single
 // envelope and read envelope.data as the real result.
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {

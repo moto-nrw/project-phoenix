@@ -117,6 +117,30 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 	return nil
 }
 
+// CountCreatedStudentsByPhaseID returns the number of distinct students
+// that were created from the phase's enrollment requests (children with
+// a non-null created_student_id). Powers the phase-delete confirmation
+// modal ("Z bereits angelegte Schüler bleiben erhalten"). Those students
+// survive the phase delete — created_student_id is ON DELETE SET NULL.
+// Tenant-scoped via RLS on both tables.
+func (r *RequestChildRepository) CountCreatedStudentsByPhaseID(ctx context.Context, phaseID int64) (int, error) {
+	if phaseID <= 0 {
+		return 0, fmt.Errorf("phase id must be positive")
+	}
+	var count int
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(requestChildTableExpr).
+		Join(`INNER JOIN enrollment.requests AS "request" ON "request".id = "request_child".request_id`).
+		Where(`"request".phase_id = ?`, phaseID).
+		Where(`"request_child".created_student_id IS NOT NULL`).
+		ColumnExpr(`COUNT(DISTINCT "request_child".created_student_id)`).
+		Scan(ctx, &count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count created students by phase: %w", err)
+	}
+	return count, nil
+}
+
 // ListByPhaseAndStatuses joins through enrollment.requests to filter by
 // phase_id, then narrows by status set. Tenant RLS on both tables.
 func (r *RequestChildRepository) ListByPhaseAndStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollment.RequestChild, error) {

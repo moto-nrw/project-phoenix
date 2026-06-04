@@ -1,6 +1,7 @@
 package users_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -400,5 +402,104 @@ func TestGuardianProfileRepository_GetStudentCount(t *testing.T) {
 		count, err := repo.GetStudentCount(ctx, profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
+	})
+}
+
+// seedNamedGuardian inserts a guardian with a caller-controlled first name (so
+// search assertions can key off a unique token) and registers cleanup.
+func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo users.GuardianProfileRepository, firstName, lastName string) *users.GuardianProfile {
+	t.Helper()
+	email := fmt.Sprintf("%s-%d@search.local", firstName, time.Now().UnixNano())
+	profile := &users.GuardianProfile{
+		FirstName:              firstName,
+		LastName:               lastName,
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	require.NoError(t, repo.Create(ctx, profile))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID) })
+	return profile
+}
+
+// TestGuardianProfileRepository_SearchByText unit-tests the picker search at the
+// repository layer (it was previously only exercised through the HTTP handler).
+// It pins the substring/case-insensitive contract and the input guards that back
+// the picker's enumeration defense.
+func TestGuardianProfileRepository_SearchByText(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("matches a first-name substring case-insensitively and excludes non-matches", func(t *testing.T) {
+		token := fmt.Sprintf("Zzsearch%d", time.Now().UnixNano())
+		match := seedNamedGuardian(t, db, ctx, repo, token, "Alpha")
+		other := seedNamedGuardian(t, db, ctx, repo, fmt.Sprintf("Zzother%d", time.Now().UnixNano()), "Beta")
+
+		// Lower-cased query must still match (SearchByText lower-cases both sides).
+		results, err := repo.SearchByText(ctx, token, 50)
+		require.NoError(t, err)
+
+		var sawMatch, sawOther bool
+		for _, g := range results {
+			if g.ID == match.ID {
+				sawMatch = true
+			}
+			if g.ID == other.ID {
+				sawOther = true
+			}
+		}
+		assert.True(t, sawMatch, "search must return the guardian whose name contains the token")
+		assert.False(t, sawOther, "search must exclude guardians that don't match the token")
+	})
+
+	t.Run("whitespace-only query returns an empty result without error", func(t *testing.T) {
+		results, err := repo.SearchByText(ctx, "   ", 50)
+		require.NoError(t, err)
+		assert.Empty(t, results, "a query with no real tokens must not match anything")
+	})
+
+	t.Run("a non-positive limit falls back to a default and still returns matches", func(t *testing.T) {
+		token := fmt.Sprintf("Zzlimit%d", time.Now().UnixNano())
+		match := seedNamedGuardian(t, db, ctx, repo, token, "Gamma")
+
+		// limit <= 0 must not mean "return nothing"; it falls back to the method's
+		// internal default rather than passing LIMIT 0 to the query.
+		results, err := repo.SearchByText(ctx, token, 0)
+		require.NoError(t, err)
+
+		var found bool
+		for _, g := range results {
+			if g.ID == match.ID {
+				found = true
+			}
+		}
+		assert.True(t, found, "limit<=0 must fall back to a default, not suppress all results")
+	})
+
+	t.Run("tolerates a pathological many-token query", func(t *testing.T) {
+		// Far more tokens than maxSearchTokens. The repo caps the token count so
+		// the WHERE clause can't grow unbounded; the call must still succeed and,
+		// since every token is the same matching string, still find the guardian.
+		token := fmt.Sprintf("Zzmany%d", time.Now().UnixNano())
+		match := seedNamedGuardian(t, db, ctx, repo, token, "Delta")
+
+		manyTokens := token
+		for i := 0; i < 14; i++ {
+			manyTokens += " " + token
+		}
+
+		results, err := repo.SearchByText(ctx, manyTokens, 50)
+		require.NoError(t, err, "a many-token query must be handled gracefully, never error")
+
+		var found bool
+		for _, g := range results {
+			if g.ID == match.ID {
+				found = true
+			}
+		}
+		assert.True(t, found, "repeated matching tokens must still find the guardian")
 	})
 }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiDelete } from "~/lib/api-helpers";
-import { createDeleteHandler, isStringParam } from "~/lib/route-wrapper";
+import { apiDelete } from "~/lib/api-helpers.server";
+import { createDeleteHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 export const DELETE = createDeleteHandler(
   async (

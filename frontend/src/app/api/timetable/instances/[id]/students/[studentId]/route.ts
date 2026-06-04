@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiPatch } from "~/lib/api-helpers";
-import { createPatchHandler, isStringParam } from "~/lib/route-wrapper";
+import { apiPatch } from "~/lib/api-helpers.server";
+import { createPatchHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 export const PATCH = createPatchHandler(
   async (_request: NextRequest, body: unknown, token: string, params) => {

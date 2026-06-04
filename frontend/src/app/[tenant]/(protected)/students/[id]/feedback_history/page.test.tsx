@@ -226,9 +226,11 @@ describe("StudentFeedbackHistoryPage", () => {
     await waitFor(
       () => {
         const backButton = screen.getByTestId("back-button");
+        // tab=historie returns to the Historie tab on the detail page (#1501);
+        // from= still drives the detail page's own back button to the list.
         expect(backButton).toHaveAttribute(
           "data-referrer",
-          "/students/1?from=/students/search",
+          "/students/1?from=/students/search&tab=historie",
         );
       },
       { timeout: 2000 },
