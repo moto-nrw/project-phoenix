@@ -230,6 +230,49 @@ describe("isFieldVisible", () => {
     ).toBe(false);
   });
 
+  it("hides a chained neq field when its controller is hidden", () => {
+    // The neq path is the dangerous one: a hidden controller must NOT make a
+    // `neq` dependent visible via "undefined !== expected". B uses neq on A;
+    // A is hidden when has_extra=false → B must be hidden, not visible.
+    const hasExtra = field({ key: "has_extra", type: "boolean" });
+    const a = field({
+      key: "a",
+      type: "select",
+      visible_when: {
+        source: "field",
+        field: "has_extra",
+        operator: "eq",
+        value: true,
+      },
+    });
+    const b = field({
+      key: "b",
+      visible_when: {
+        source: "field",
+        field: "a",
+        operator: "neq",
+        value: "x",
+      },
+    });
+    const fields = [hasExtra, a, b];
+
+    // A visible + a != "x" → B visible.
+    expect(
+      isFieldVisible(
+        b,
+        ctxFrom(fields, { guardianAnswers: { has_extra: true, a: "y" } }),
+      ),
+    ).toBe(true);
+
+    // has_extra=false hides A → B must collapse to hidden despite neq.
+    expect(
+      isFieldVisible(
+        b,
+        ctxFrom(fields, { guardianAnswers: { has_extra: false, a: "y" } }),
+      ),
+    ).toBe(false);
+  });
+
   it("treats a cyclic visibility configuration as hidden", () => {
     // A depends on B, B depends on A — a misconfiguration. Must not recurse
     // forever; both resolve to hidden.

@@ -17,34 +17,41 @@ import (
 
 func gradePtr(v int16) *int16 { return &v }
 
-// ---- answerEmpty ---------------------------------------------------------
+// ---- customValueSatisfiesRequired ---------------------------------------
 
-func TestAnswerEmpty(t *testing.T) {
-	text := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldText}
-	boolean := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
-	phones := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
-	contacts := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
-	sched := &enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+func TestCustomValueSatisfiesRequired(t *testing.T) {
+	text := enrollmentModels.FormField{Type: enrollmentModels.FormFieldText}
+	boolean := enrollmentModels.FormField{Type: enrollmentModels.FormFieldBoolean}
+	phones := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
+	contacts := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
+	sched := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
 
-	assert.True(t, answerEmpty(text, nil), "nil is empty")
-	assert.True(t, answerEmpty(text, ""), "empty string is empty")
-	assert.True(t, answerEmpty(text, "   "), "blank string is empty")
-	assert.False(t, answerEmpty(text, "x"), "non-blank string is an answer")
-	assert.False(t, answerEmpty(text, float64(0)), "number 0 is an answer")
+	// Plain text / number / boolean.
+	assert.False(t, customValueSatisfiesRequired(text, nil))
+	assert.False(t, customValueSatisfiesRequired(text, ""))
+	assert.False(t, customValueSatisfiesRequired(text, "   "))
+	assert.True(t, customValueSatisfiesRequired(text, "x"))
+	assert.True(t, customValueSatisfiesRequired(boolean, true))
+	assert.True(t, customValueSatisfiesRequired(boolean, false))
+	assert.False(t, customValueSatisfiesRequired(boolean, nil))
 
-	assert.False(t, answerEmpty(boolean, true), "bool true is an answer")
-	assert.False(t, answerEmpty(boolean, false), "bool false is still an answer")
-	assert.True(t, answerEmpty(boolean, nil), "unanswered bool is empty")
+	// Structured: a non-empty array is NOT enough — every entry must be
+	// well-formed (this is the regression the reviewer flagged).
+	assert.False(t, customValueSatisfiesRequired(phones, nil), "nil phone list")
+	assert.False(t, customValueSatisfiesRequired(phones, []any{}), "empty phone list")
+	assert.False(t, customValueSatisfiesRequired(phones, []any{map[string]any{}}), "phone_list:[{}] must be rejected")
+	assert.False(t, customValueSatisfiesRequired(phones, []any{map[string]any{"phone_number": "   "}}), "blank phone number rejected")
+	assert.True(t, customValueSatisfiesRequired(phones, []any{map[string]any{"phone_number": "012", "phone_type": "mobile"}}), "valid phone accepted")
 
-	// Structured types: empty when there is no entry.
-	assert.True(t, answerEmpty(phones, nil), "nil phone list is empty")
-	assert.True(t, answerEmpty(phones, []any{}), "empty phone list is empty")
-	assert.False(t, answerEmpty(phones, []any{map[string]any{"phone_number": "012"}}), "one phone is an answer")
-	assert.True(t, answerEmpty(contacts, []any{}), "empty contact list is empty")
-	assert.False(t, answerEmpty(contacts, []any{map[string]any{"first_name": "A"}}), "one contact is an answer")
-	assert.True(t, answerEmpty(sched, map[string]any{"mon": "", "tue": ""}), "all-blank schedule is empty")
-	assert.False(t, answerEmpty(sched, map[string]any{"mon": "08:00"}), "a filled day is an answer")
-	assert.True(t, answerEmpty(sched, nil), "nil schedule is empty")
+	assert.False(t, customValueSatisfiesRequired(contacts, []any{}), "empty contact list")
+	assert.False(t, customValueSatisfiesRequired(contacts, []any{map[string]any{"first_name": "A"}}), "contact without last name + contact rejected")
+	assert.False(t, customValueSatisfiesRequired(contacts, []any{map[string]any{"first_name": "A", "last_name": "B"}}), "contact without email or phone rejected")
+	assert.True(t, customValueSatisfiesRequired(contacts, []any{map[string]any{"first_name": "A", "last_name": "B", "email": "a@b.test"}}), "valid contact accepted")
+
+	// Schedule: needs at least one filled day.
+	assert.False(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "", "tue": ""}), "all-blank schedule rejected")
+	assert.True(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "08:00"}), "a filled day accepted")
+	assert.False(t, customValueSatisfiesRequired(sched, nil), "nil schedule rejected")
 }
 
 // ---- fieldVisible --------------------------------------------------------
@@ -96,6 +103,58 @@ func TestFieldVisible_ChildScopeControllerReadFromChildAnswers(t *testing.T) {
 		guardianAnswers: map[string]any{"child_flag": true}, // wrong scope
 		childAnswers:    map[string]any{},
 		fieldsByKey:     byKey,
+	}))
+}
+
+func TestFieldVisible_HiddenControllerCollapsesNeqDependent(t *testing.T) {
+	// has_extra (boolean) controls a (select); c uses neq on a. When has_extra
+	// is false, a is hidden — c must NOT stay visible via "nil != expected".
+	hasExtra := &enrollmentModels.FormField{Key: "has_extra", Type: enrollmentModels.FormFieldBoolean}
+	a := &enrollmentModels.FormField{
+		Key: "a", Type: enrollmentModels.FormFieldSelect,
+		VisibleWhen: &enrollmentModels.VisibilityCondition{
+			Source: enrollmentModels.ConditionSourceField, Field: "has_extra",
+			Operator: enrollmentModels.ConditionOpEquals, Value: true,
+		},
+	}
+	c := &enrollmentModels.FormField{
+		Key: "c", Type: enrollmentModels.FormFieldText,
+		VisibleWhen: &enrollmentModels.VisibilityCondition{
+			Source: enrollmentModels.ConditionSourceField, Field: "a",
+			Operator: enrollmentModels.ConditionOpNotEquals, Value: "x",
+		},
+	}
+	byKey := map[string]*enrollmentModels.FormField{"has_extra": hasExtra, "a": a, "c": c}
+
+	// a visible (has_extra=true) and a != "x" → c visible.
+	assert.True(t, fieldVisible(c, fieldVisibilityContext{
+		guardianAnswers: map[string]any{"has_extra": true, "a": "y"}, fieldsByKey: byKey,
+	}))
+	// has_extra=false hides a → c must collapse to hidden despite the neq.
+	assert.False(t, fieldVisible(c, fieldVisibilityContext{
+		guardianAnswers: map[string]any{"has_extra": false, "a": "y"}, fieldsByKey: byKey,
+	}))
+}
+
+func TestFieldVisible_CyclicConfigurationIsHidden(t *testing.T) {
+	a := &enrollmentModels.FormField{
+		Key: "a", Type: enrollmentModels.FormFieldSelect,
+		VisibleWhen: &enrollmentModels.VisibilityCondition{
+			Source: enrollmentModels.ConditionSourceField, Field: "b",
+			Operator: enrollmentModels.ConditionOpEquals, Value: "x",
+		},
+	}
+	b := &enrollmentModels.FormField{
+		Key: "b", Type: enrollmentModels.FormFieldSelect,
+		VisibleWhen: &enrollmentModels.VisibilityCondition{
+			Source: enrollmentModels.ConditionSourceField, Field: "a",
+			Operator: enrollmentModels.ConditionOpEquals, Value: "x",
+		},
+	}
+	byKey := map[string]*enrollmentModels.FormField{"a": a, "b": b}
+	// Must not recurse forever; resolves to hidden.
+	assert.False(t, fieldVisible(a, fieldVisibilityContext{
+		guardianAnswers: map[string]any{"a": "x", "b": "x"}, fieldsByKey: byKey,
 	}))
 }
 
@@ -279,9 +338,18 @@ func TestValidateRequiredCustomFields_StructuredSuggestedRequired(t *testing.T) 
 	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
 	require.Error(t, s.validateRequiredCustomFields(schema, req, nil))
 
-	// One contact → satisfied.
-	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{
+	// A contact with a name but no email/phone is malformed → still an error
+	// (a non-empty array is not enough; every entry must be well-formed).
+	reqMalformed := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{
 		"student_contacts": []any{map[string]any{"first_name": "Oma", "last_name": "X"}},
+	}}}}
+	require.Error(t, s.validateRequiredCustomFields(schema, reqMalformed, nil))
+
+	// One complete contact (name + email) → satisfied.
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{
+		"student_contacts": []any{map[string]any{
+			"first_name": "Oma", "last_name": "X", "email": "oma@example.test",
+		}},
 	}}}}
 	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
 }

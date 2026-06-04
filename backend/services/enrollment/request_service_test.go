@@ -1326,3 +1326,45 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 	_, err = env.svc.Submit(ctx, req)
 	require.Error(t, err, "a visible required field left blank must block the submit")
 }
+
+// TestRequestService_Submit_RequiredStructuredFieldValidatesEntries guards the
+// real submit path for structured required fields: a non-empty array is NOT
+// enough — malformed entries (a contact with no name / no contact channel)
+// must be rejected at submit, not pass through to a later approval failure.
+func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	repoFactory := repositories.NewFactory(env.db)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	// Required per-child contact_list (canonical target student.contacts).
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{
+			Key: "contacts", Label: "Notfallkontakte",
+			Type: enrollmentModels.FormFieldContactList, AppliesToCh: true,
+			Required: true, Target: enrollmentModels.TargetStudentContacts, SortOrder: 0,
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	// Malformed: a single contact with no name and no email/phone.
+	bad := validSubmission(env.phaseID)
+	bad.Children[0].CustomData = map[string]any{"contacts": []any{map[string]any{}}}
+	_, err = env.svc.Submit(ctx, bad)
+	require.Error(t, err, "a required contact_list with a malformed entry must be rejected at submit")
+
+	// Valid: a complete contact (name + email).
+	ok := validSubmission(env.phaseID)
+	ok.Children[0].CustomData = map[string]any{"contacts": []any{
+		map[string]any{"first_name": "Eva", "last_name": "Muster", "email": "eva@example.test"},
+	}}
+	res, err := env.svc.Submit(ctx, ok)
+	require.NoError(t, err, "a valid required contact_list must be accepted")
+	require.Len(t, res.Children, 1)
+}

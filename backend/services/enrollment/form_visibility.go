@@ -47,11 +47,12 @@ func fieldVisibleGuarded(field *enrollmentModels.FormField, ctx fieldVisibilityC
 	case enrollmentModels.ConditionSourceField:
 		controller := ctx.fieldsByKey[c.Field]
 		// If the controlling field is itself hidden (its own condition
-		// fails, recursively), its stored answer is stale and must not keep
-		// this field visible — treat the controller as unanswered so a
-		// dependent field collapses with its controller.
+		// fails, recursively), this field collapses with it — hidden,
+		// regardless of operator. Evaluating the operator against a nil/stale
+		// controller value would wrongly keep a `neq` dependent visible
+		// (nil != expected), so short-circuit to false here.
 		if controller != nil && !fieldVisibleGuarded(controller, ctx, seen) {
-			return matchScalar(c.Operator, nil, c.Value)
+			return false
 		}
 		// Resolve which answer map holds the controlling field: a
 		// guardian-level controller is read from guardianAnswers even
@@ -88,40 +89,6 @@ func matchScalar(operator string, actual, expected any) bool {
 		return !conditionValuesEqual(actual, expected)
 	default:
 		return true
-	}
-}
-
-// answerEmpty reports whether a custom-field answer is missing. A present
-// boolean (true or false) counts as answered; list/schedule fields need
-// at least one entry; everything else must be a non-blank value. Mirrors
-// the client-side isAnswerEmpty in enrollment-form.tsx.
-func answerEmpty(field *enrollmentModels.FormField, v any) bool {
-	switch field.Type {
-	case enrollmentModels.FormFieldPhoneList, enrollmentModels.FormFieldContactList:
-		arr, ok := v.([]any)
-		return !ok || len(arr) == 0
-	case enrollmentModels.FormFieldWeekdaySchedule:
-		m, ok := v.(map[string]any)
-		if !ok {
-			return true
-		}
-		for _, val := range m {
-			if s, ok := val.(string); ok && strings.TrimSpace(s) != "" {
-				return false
-			}
-		}
-		return true
-	default:
-		switch x := v.(type) {
-		case nil:
-			return true
-		case string:
-			return strings.TrimSpace(x) == ""
-		case bool:
-			return false
-		default:
-			return fmt.Sprintf("%v", v) == ""
-		}
 	}
 }
 
@@ -227,7 +194,7 @@ func (s *requestService) validateRequiredCustomFields(
 		if !fieldVisible(f, guardianCtx) {
 			continue
 		}
-		if answerEmpty(f, req.CustomData[f.Key]) {
+		if !customValueSatisfiesRequired(*f, req.CustomData[f.Key]) {
 			return fmt.Errorf("%w: field %q is required", ErrInvalidSubmission, f.Key)
 		}
 	}
@@ -249,10 +216,89 @@ func (s *requestService) validateRequiredCustomFields(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
-			if answerEmpty(f, child.CustomData[f.Key]) {
+			if !customValueSatisfiesRequired(*f, child.CustomData[f.Key]) {
 				return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 			}
 		}
 	}
 	return nil
+}
+
+// customValueSatisfiesRequired reports whether a required field's answer is
+// present AND well-formed. Unlike a plain "non-empty" check, structured fields
+// are validated entry-by-entry (PhoneEntry/ContactEntry.Validate, schedule has
+// a time) so a stale or scripted client can't satisfy a required phone_list
+// with [{}] or a contact_list with nameless/contactless rows — which would
+// otherwise pass submit and only fail later at approval/dispatch.
+func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) bool {
+	switch field.Type {
+	case enrollmentModels.FormFieldBoolean:
+		_, ok := value.(bool)
+		return ok
+	case enrollmentModels.FormFieldPhoneList:
+		return phoneListSatisfiesRequired(value)
+	case enrollmentModels.FormFieldContactList:
+		return contactListSatisfiesRequired(value)
+	case enrollmentModels.FormFieldWeekdaySchedule:
+		return scheduleHasAnyTime(value)
+	case enrollmentModels.FormFieldNumber:
+		return numberValueSatisfiesRequired(value)
+	default:
+		return stringValue(value) != ""
+	}
+}
+
+func phoneListSatisfiesRequired(value any) bool {
+	var entries []enrollmentModels.PhoneEntry
+	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+		return false
+	}
+	for i := range entries {
+		if err := entries[i].Validate(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func contactListSatisfiesRequired(value any) bool {
+	var entries []enrollmentModels.ContactEntry
+	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
+		return false
+	}
+	for i := range entries {
+		if err := entries[i].Validate(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func numberValueSatisfiesRequired(value any) bool {
+	switch v := value.(type) {
+	case float64, int:
+		return true
+	case string:
+		return strings.TrimSpace(v) != ""
+	default:
+		return false
+	}
+}
+
+func scheduleHasAnyTime(value any) bool {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, v := range typed {
+			if str, ok := v.(string); ok && strings.TrimSpace(str) != "" {
+				return true
+			}
+		}
+	case map[string]string:
+		for _, v := range typed {
+			if strings.TrimSpace(v) != "" {
+				return true
+			}
+		}
+	}
+	return false
 }

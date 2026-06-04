@@ -93,18 +93,28 @@ func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmen
 	return offering, nil
 }
 
-// checkGroupRuleConsistency enforces the single-rule-per-group invariant when
-// an offering with a non-optional selection_rule is saved: no other offering
-// in the same phase + selection_group may carry a different non-optional rule.
-// Checked here (admin save path) rather than only at parent submit, so a
-// misconfiguration surfaces to the admin instead of blocking every submission.
+// normalizeSelectionRule maps an empty rule to the "optional" default so a
+// group's members can be compared on equal footing.
+func normalizeSelectionRule(rule string) string {
+	if rule == "" {
+		return enrollmentModels.SelectionRuleOptional
+	}
+	return rule
+}
+
+// checkGroupRuleConsistency enforces that every offering sharing a phase +
+// selection_group declares the SAME selection_rule (treating empty as
+// "optional"). The parent submit path counts all members of a group, so a
+// mixed group — e.g. one "exactly_one" offering next to an "optional" one —
+// produces contradictory UI hints and later backend rejections. Enforced here
+// on the admin save path so the misconfiguration surfaces to the admin
+// immediately instead of blocking every parent submission for the phase.
 func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, offering *enrollmentModels.CareOffering) error {
 	group := strings.TrimSpace(offering.SelectionGroup)
-	if group == "" ||
-		offering.SelectionRule == "" ||
-		offering.SelectionRule == enrollmentModels.SelectionRuleOptional {
+	if group == "" {
 		return nil
 	}
+	thisRule := normalizeSelectionRule(offering.SelectionRule)
 	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
 	if err != nil {
 		return fmt.Errorf("check selection group consistency: %w", err)
@@ -116,14 +126,11 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 		if strings.TrimSpace(sib.SelectionGroup) != group {
 			continue
 		}
-		if sib.SelectionRule == "" ||
-			sib.SelectionRule == enrollmentModels.SelectionRuleOptional {
-			continue
-		}
-		if sib.SelectionRule != offering.SelectionRule {
+		sibRule := normalizeSelectionRule(sib.SelectionRule)
+		if sibRule != thisRule {
 			return fmt.Errorf(
 				"%w: group %q already uses %q, cannot also use %q",
-				ErrCareOfferingGroupRuleConflict, group, sib.SelectionRule, offering.SelectionRule,
+				ErrCareOfferingGroupRuleConflict, group, sibRule, thisRule,
 			)
 		}
 	}

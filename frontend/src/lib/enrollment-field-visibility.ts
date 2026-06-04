@@ -109,11 +109,12 @@ function evaluateFieldSource(
   const key = condition.field ?? "";
   const controller = ctx.fieldsByKey.get(key);
   // If the controller field is itself hidden (its own show-if condition
-  // fails, recursively), its stored answer is stale and must not keep this
-  // field visible. Treat the controller as unanswered in that case so a
-  // dependent field collapses with its controller.
+  // fails, recursively), this field collapses with it — hidden, regardless
+  // of operator. Evaluating the operator against an undefined/stale
+  // controller value would wrongly keep a `neq` dependent visible
+  // (undefined !== expected), so short-circuit to false here.
   if (controller && !visibleWithGuard(controller, ctx, seen)) {
-    return matchScalar(condition.operator, undefined, condition.value);
+    return false;
   }
   const answers = controller?.applies_to_child
     ? (ctx.childAnswers ?? {})
