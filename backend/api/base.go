@@ -360,6 +360,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          api.Services.Users,
+		GuardianService:        api.Services.Guardian,
 		StudentRepo:            repoFactory.Student,
 		EducationService:       api.Services.Education,
 		UserContextService:     api.Services.UserContext,
@@ -385,7 +386,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
-	api.Import = importAPI.NewResource(api.Services.Import, repoFactory.DataImport, api.Services.Users, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, repoFactory.DataImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, repoFactory.StaffAbsence, db, logger.With("handler", "staff"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
@@ -453,6 +454,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		StudentRepo:            repoFactory.Student,
 		StaffRepo:              repoFactory.Staff,
 		RoomRepo:               repoFactory.Room,
+		ActivityCategoryRepo:   repoFactory.ActivityCategory,
 		ActivityGroupRepo:      repoFactory.ActivityGroup,
 		ActivitySupervisorRepo: repoFactory.ActivitySupervisor,
 		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,

@@ -33,6 +33,14 @@ const (
 	FormFieldDate     FormFieldType = "date"
 	FormFieldSelect   FormFieldType = "select"
 
+	// FormFieldInfo is a read-only text block (optional heading + plain
+	// description) shown to parents. It collects no answer: the
+	// submission + decision services ignore it, and it can never be
+	// required or carry options/target/validation. Use it for
+	// instructions, notes, or disclaimers placed between questions. Like
+	// any field it may carry a VisibleWhen condition.
+	FormFieldInfo FormFieldType = "information"
+
 	// Structured types — admins cannot define their internal shape;
 	// the renderer + decision service know how to interpret them.
 	// Each pairs with a specific FormField.Target (see ReservedTargets).
@@ -49,6 +57,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldTextarea:        true,
 	FormFieldDate:            true,
 	FormFieldSelect:          true,
+	FormFieldInfo:            true,
 	FormFieldPhoneList:       true,
 	FormFieldWeekdaySchedule: true,
 	FormFieldContactList:     true,
@@ -69,6 +78,109 @@ type FormFieldValidation struct {
 	Pattern *string  `json:"pattern,omitempty"`
 }
 
+// Visibility condition sources. A field with a VisibleWhen condition is
+// only shown to parents when the source value matches.
+const (
+	// ConditionSourceField references another custom field in the same
+	// schema by key (must be a boolean or select field).
+	ConditionSourceField = "field"
+	// ConditionSourceGradeLevel references the per-child core field
+	// target_grade_level. Only valid on per-child fields.
+	ConditionSourceGradeLevel = "grade_level"
+	// ConditionSourceCareOffering references the child's selected care
+	// offerings by name (Value is an offering name, matched
+	// case-insensitively). Names are used rather than ids because form
+	// templates are not bound to a phase and offering ids differ per
+	// phase. Only valid on per-child fields, paired with the "includes"
+	// operator. Evaluated client-side only — the backend never resolves
+	// this source (care offerings are per-child, and ValidateSubmission
+	// checks guardian-level fields only).
+	ConditionSourceCareOffering = "care_offering"
+)
+
+// Visibility condition operators.
+const (
+	ConditionOpEquals    = "eq"        // source value equals Value
+	ConditionOpNotEquals = "neq"       // source value differs from Value
+	ConditionOpNotEmpty  = "not_empty" // source has any non-empty value
+	ConditionOpIncludes  = "includes"  // multi-value source contains Value (care offering only)
+)
+
+// VisibilityCondition makes a field appear only when a controlling value
+// matches. It mirrors the settings registry's Dependency shape but adds
+// enrollment-specific sources for the built-in grade level and the
+// child's selected care offerings, plus an "includes" operator for the
+// multi-value offering check. nil means "always visible".
+type VisibilityCondition struct {
+	Source   string `json:"source"`          // ConditionSource* constant
+	Field    string `json:"field,omitempty"` // controlling custom field key (Source == "field")
+	Operator string `json:"operator"`        // ConditionOp* constant
+	Value    any    `json:"value,omitempty"` // compared value (required except for not_empty)
+}
+
+// Validate checks a condition's shape in isolation. Cross-field
+// reference + scope checks (does the controlling field exist, is it a
+// boolean/select, same scope) happen in FormSchema.Validate, which can
+// see sibling fields. appliesToChild is the owning field's scope; the
+// grade_level / care_offering sources are per-child only.
+func (c *VisibilityCondition) Validate(appliesToChild bool) error {
+	switch c.Operator {
+	case ConditionOpEquals, ConditionOpNotEquals, ConditionOpNotEmpty, ConditionOpIncludes:
+	default:
+		return fmt.Errorf("unknown visibility operator %q", c.Operator)
+	}
+
+	needsValue := c.Operator != ConditionOpNotEmpty
+	if needsValue && (c.Value == nil || c.Value == "") {
+		return fmt.Errorf("visibility operator %q requires a value", c.Operator)
+	}
+	// The condition value must be a scalar. JSON decodes arrays as []any and
+	// objects as map[string]any; comparing two such values with == at
+	// evaluation time panics (uncomparable types), so reject them here with a
+	// clean validation error instead of letting a crafted schema crash submit.
+	if needsValue {
+		switch c.Value.(type) {
+		case string, bool,
+			float64, float32,
+			int, int8, int16, int32, int64,
+			uint, uint8, uint16, uint32, uint64:
+			// scalar — ok
+		default:
+			return fmt.Errorf(
+				"visibility condition value must be a string, number, or boolean, got %T",
+				c.Value,
+			)
+		}
+	}
+
+	switch c.Source {
+	case ConditionSourceField:
+		if strings.TrimSpace(c.Field) == "" {
+			return errors.New("field visibility condition requires the controlling field key")
+		}
+		if c.Operator == ConditionOpIncludes {
+			return errors.New("the 'includes' operator is only valid for care offering conditions")
+		}
+	case ConditionSourceGradeLevel:
+		if !appliesToChild {
+			return errors.New("grade level conditions are only valid on per-child fields")
+		}
+		if c.Operator == ConditionOpIncludes {
+			return errors.New("the 'includes' operator is only valid for care offering conditions")
+		}
+	case ConditionSourceCareOffering:
+		if !appliesToChild {
+			return errors.New("care offering conditions are only valid on per-child fields")
+		}
+		if c.Operator != ConditionOpIncludes {
+			return errors.New("care offering conditions must use the 'includes' operator")
+		}
+	default:
+		return fmt.Errorf("unknown visibility source %q", c.Source)
+	}
+	return nil
+}
+
 // FormField is one custom-field definition. Stored as a JSON object inside
 // FormSchema.Fields.
 //
@@ -85,11 +197,13 @@ type FormField struct {
 	Type        FormFieldType        `json:"type"`
 	Required    bool                 `json:"required,omitempty"`
 	HelpText    string               `json:"help_text,omitempty"`
+	Content     string               `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
 	Options     []FormFieldOption    `json:"options,omitempty"`
 	Validation  *FormFieldValidation `json:"validation,omitempty"`
 	SortOrder   int                  `json:"sort_order"`
 	AppliesToCh bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
 	Target      string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
+	VisibleWhen *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
 }
 
 const CoreRequirementGuardianPhone = "guardian_phone"
@@ -203,13 +317,61 @@ func (f *FormField) Validate() error {
 		return fmt.Errorf("form field key %q is reserved for a core field", f.Key)
 	}
 
+	if !validFormFieldTypes[f.Type] {
+		return fmt.Errorf("unknown form field type %q", f.Type)
+	}
+
 	f.Label = strings.TrimSpace(f.Label)
+	f.Content = strings.TrimSpace(f.Content)
+
+	if f.Type == FormFieldInfo {
+		if err := f.validateInfo(); err != nil {
+			return err
+		}
+	} else if err := f.validateQuestion(); err != nil {
+		return err
+	}
+
+	if f.VisibleWhen != nil {
+		if err := f.VisibleWhen.Validate(f.AppliesToCh); err != nil {
+			return fmt.Errorf("form field %q visibility: %w", f.Key, err)
+		}
+	}
+
+	return nil
+}
+
+// validateInfo enforces the constraints specific to read-only
+// information blocks: they carry body text instead of collecting an
+// answer, so the answer-oriented attributes must all be empty. The
+// label (heading) is optional.
+func (f *FormField) validateInfo() error {
+	if f.Content == "" {
+		return fmt.Errorf("information field %q requires content text", f.Key)
+	}
+	if f.Required {
+		return fmt.Errorf("information field %q cannot be required", f.Key)
+	}
+	if len(f.Options) > 0 {
+		return fmt.Errorf("information field %q must not declare options", f.Key)
+	}
+	if f.Target != "" {
+		return fmt.Errorf("information field %q must not declare a target", f.Key)
+	}
+	if f.Validation != nil {
+		return fmt.Errorf("information field %q must not declare validation", f.Key)
+	}
+	return nil
+}
+
+// validateQuestion enforces the constraints for answer-collecting fields
+// (every type except FormFieldInfo).
+func (f *FormField) validateQuestion() error {
 	if f.Label == "" {
 		return errors.New("form field label is required")
 	}
-
-	if !validFormFieldTypes[f.Type] {
-		return fmt.Errorf("unknown form field type %q", f.Type)
+	if f.Content != "" {
+		return fmt.Errorf("only information fields may declare content (field %q)", f.Key)
 	}
 
 	if f.Type == FormFieldSelect && len(f.Options) == 0 {
@@ -228,7 +390,9 @@ func (f *FormField) Validate() error {
 
 	// Target consistency: when set, the target dictates the type so
 	// the decision service can dispatch without ambiguity. Admin
-	// editor enforces this too; this check is the backstop.
+	// editor enforces this too; this check is the backstop. The Label
+	// is intentionally NOT constrained — admins may rename the question
+	// shown to parents while keeping the canonical target wiring.
 	if f.Target != "" {
 		spec, ok := ReservedTargets[f.Target]
 		if !ok {
@@ -403,15 +567,50 @@ func (s *FormSchema) Validate() error {
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
 	}
-	seenKeys := make(map[string]bool, len(s.Fields))
+	byKey := make(map[string]*FormField, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
 			return fmt.Errorf("field %d: %w", i, err)
 		}
-		if seenKeys[s.Fields[i].Key] {
+		if _, dup := byKey[s.Fields[i].Key]; dup {
 			return fmt.Errorf("duplicate form field key %q", s.Fields[i].Key)
 		}
-		seenKeys[s.Fields[i].Key] = true
+		byKey[s.Fields[i].Key] = &s.Fields[i]
+	}
+
+	// Second pass: validate cross-field visibility references now that
+	// every key is known. A "field" condition must point at an existing
+	// boolean/select field that the owning field can actually observe.
+	for i := range s.Fields {
+		if err := validateFieldVisibility(&s.Fields[i], byKey); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateFieldVisibility checks a field's "field"-sourced visibility
+// condition against its sibling fields: the controlling field must
+// exist, be a yes/no or selection field, not be the field itself, and
+// be observable from the owning field's scope (a parent-level field
+// cannot depend on a per-child answer).
+func validateFieldVisibility(f *FormField, byKey map[string]*FormField) error {
+	if f.VisibleWhen == nil || f.VisibleWhen.Source != ConditionSourceField {
+		return nil
+	}
+	ref := strings.TrimSpace(f.VisibleWhen.Field)
+	if ref == f.Key {
+		return fmt.Errorf("field %q cannot depend on itself", f.Key)
+	}
+	controller, ok := byKey[ref]
+	if !ok {
+		return fmt.Errorf("field %q depends on unknown field %q", f.Key, ref)
+	}
+	if controller.Type != FormFieldBoolean && controller.Type != FormFieldSelect {
+		return fmt.Errorf("field %q can only depend on a yes/no or selection field, but %q is %q", f.Key, ref, controller.Type)
+	}
+	if !f.AppliesToCh && controller.AppliesToCh {
+		return fmt.Errorf("parent-level field %q cannot depend on per-child field %q", f.Key, ref)
 	}
 	return nil
 }

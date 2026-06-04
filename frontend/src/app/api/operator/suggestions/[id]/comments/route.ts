@@ -3,7 +3,7 @@ import {
   createOperatorPostHandler,
   operatorApiPost,
   isStringParam,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 export const POST = createOperatorPostHandler(
   async (_request: NextRequest, body: unknown, token: string, params) => {

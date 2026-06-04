@@ -20,14 +20,16 @@ vi.mock("next-auth/react", () => ({
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
 const mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
     push: mockPush,
-    replace: vi.fn(),
+    replace: mockReplace,
     back: vi.fn(),
   })),
   useParams: vi.fn(() => ({ id: "1" })),
+  usePathname: vi.fn(() => "/students/1"),
   useSearchParams: vi.fn(() => mockSearchParams),
 }));
 
@@ -473,6 +475,7 @@ describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("from");
+    mockSearchParams.delete("tab");
     mockActionType = "none";
 
     // Default mock implementations
@@ -1460,6 +1463,213 @@ describe("StudentDetailPage", () => {
 
       expect(screen.getByTestId("checkin-section")).toBeInTheDocument();
       expect(screen.queryByTestId("checkout-section")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Tabbed Navigation (#1501)", () => {
+    const limitedAccess = {
+      student: mockStudent,
+      loading: false,
+      error: null,
+      hasFullAccess: false,
+      hasWriteAccess: false,
+      supervisors: [{ name: "Frau Schmidt" }],
+      myGroups: ["1"],
+      myGroupRooms: [],
+      mySupervisedRooms: [],
+      refreshData: mockRefreshData,
+    };
+
+    // Radix activates a tab on pointer-down (mouseDown is the legacy fallback).
+    // Fire both, mirroring the precedent in ui/tabs.test.tsx, so these tests
+    // don't hinge on a single internal Radix event path and survive a bump.
+    const selectTab = (name: string) => {
+      const tab = screen.getByRole("tab", { name });
+      fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
+      fireEvent.mouseDown(tab, { button: 0 });
+    };
+
+    it("renders all section tabs in the full access view", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Erziehungsberechtigte" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Betreuungszeiten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("defaults to the Stammdaten tab when no tab param is set", () => {
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("marks only the active panel active and the rest inactive (hidden via CSS)", () => {
+      // forceMount keeps every panel mounted; Radix sets data-state, and the
+      // `data-[state=inactive]:hidden` class hides the inactive ones in the
+      // browser. jsdom applies no CSS, so we assert the data-state wiring that
+      // drives the hiding instead of computed visibility.
+      render(<StudentDetailPage />);
+
+      const panels = screen.getAllByRole("tabpanel", { hidden: true });
+      const active = panels.filter(
+        (panel) => panel.getAttribute("data-state") === "active",
+      );
+      const inactive = panels.filter(
+        (panel) => panel.getAttribute("data-state") === "inactive",
+      );
+
+      expect(active).toHaveLength(1);
+      expect(inactive.length).toBeGreaterThan(0);
+      for (const panel of inactive) {
+        expect(panel.className).toContain("data-[state=inactive]:hidden");
+      }
+    });
+
+    it("activates the tab from the ?tab= query param (deep link)", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Betreuungszeiten" }),
+      ).toHaveAttribute("aria-selected", "true");
+    });
+
+    it("updates the URL with the tab param when a tab is selected", () => {
+      render(<StudentDetailPage />);
+
+      selectTab("Historie");
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1?tab=historie", {
+        scroll: false,
+      });
+    });
+
+    it("drops the tab param when returning to the default tab", () => {
+      mockSearchParams.set("tab", "historie");
+
+      render(<StudentDetailPage />);
+
+      selectTab("Stammdaten");
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    it("preserves the from referrer when switching tabs", () => {
+      mockSearchParams.set("from", "/my-room");
+
+      render(<StudentDetailPage />);
+
+      selectTab("Historie");
+
+      expect(mockReplace).toHaveBeenCalledWith(
+        "/students/1?from=%2Fmy-room&tab=historie",
+        { scroll: false },
+      );
+    });
+
+    it("hides the Betreuungszeiten tab in the limited access view", () => {
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Betreuungszeiten" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("falls back to the default tab when deep-linking a tab the access level lacks", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    it("rewrites the URL to drop an inaccessible deep-linked tab", () => {
+      mockSearchParams.set("tab", "betreuungszeiten");
+      mockUseStudentData.mockReturnValue(limitedAccess);
+
+      render(<StudentDetailPage />);
+
+      // Clamped to the default tab, so the bogus param is stripped from the URL
+      // rather than left advertising a tab the user can't open.
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    it("rewrites the URL to drop an unknown tab value", () => {
+      mockSearchParams.set("tab", "nonsense");
+
+      render(<StudentDetailPage />);
+
+      expect(mockReplace).toHaveBeenCalledWith("/students/1", {
+        scroll: false,
+      });
+    });
+
+    // Regression guard for the Rules-of-Hooks ordering bug: the tab self-heal
+    // useEffect must be called before the loading/error early returns, or the
+    // first loaded render adds a hook that the loading render skipped and React
+    // throws "Rendered more hooks than during the previous render". A single
+    // mounted instance must survive the loading -> loaded transition. oxlint
+    // does not run the react-hooks plugin, so only this test catches it.
+    it("survives the loading -> loaded transition without a hook-order crash", () => {
+      mockUseStudentData.mockReturnValue({
+        student: null,
+        loading: true,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        supervisors: [],
+        myGroups: [],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      const { rerender } = render(<StudentDetailPage />);
+      expect(screen.getByTestId("loading")).toBeInTheDocument();
+
+      // Same component instance now finishes loading with full access.
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      expect(() => rerender(<StudentDetailPage />)).not.toThrow();
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
     });
   });
 });

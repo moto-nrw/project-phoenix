@@ -776,8 +776,12 @@ function StudentRoomHistoryPageContent() {
 
   return (
     <div className="w-full">
-      {/* Back button (mobile only) */}
-      <BackButton referrer={`/students/${studentId}?from=${referrer}`} />
+      {/* Back button (mobile only). tab=historie returns to the originating tab
+          on the detail page (this sub-page lives under Historie, issue #1501);
+          from= still drives the detail page's own back button to the list. */}
+      <BackButton
+        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
+      />
 
       {/* Student header — matches StudentDetailHeader pattern */}
       {student && (

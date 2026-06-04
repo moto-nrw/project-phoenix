@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "./api-transport";
 import { isAxiosError } from "axios";
 import type { AxiosResponse, AxiosRequestConfig } from "axios";
 

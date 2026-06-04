@@ -24,7 +24,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", async (importOriginal) => {
+vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, apiPost: mockApiPost };
 });
@@ -135,7 +135,9 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/grant",
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (404): Permission not found"));
+    mockApiPost.mockRejectedValueOnce(
+      new Error("API error (404): Permission not found"),
+    );
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/999/grant",
@@ -152,7 +154,9 @@ describe("POST /api/auth/accounts/[accountId]/permissions/[permissionId]/grant",
   });
 
   it("handles unauthorized grant attempts", async () => {
-    mockApiPost.mockRejectedValueOnce(new Error("API error (401): Unauthorized"));
+    mockApiPost.mockRejectedValueOnce(
+      new Error("API error (401): Unauthorized"),
+    );
 
     const request = createMockRequest(
       "/api/auth/accounts/123/permissions/456/grant",

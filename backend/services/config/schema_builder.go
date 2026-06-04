@@ -44,23 +44,13 @@ func buildSchemaWithScope(
 ) (*SettingsSchema, error) {
 	defs := config.AllDefinitions()
 
-	// Resolve all values and build the resolved map
+	// Resolve all values for dependency evaluation, then filter the output
+	// separately. Tenant-visible settings can depend on operator-only
+	// provisioning flags such as attendance.nfc_enabled; hiding those parents
+	// before evaluating DependsOn would make the tenant-visible children vanish.
 	resolvedMap := make(map[string]*ResolvedSetting, len(defs))
+	outputMap := make(map[string]*ResolvedSetting, len(defs))
 	for key, def := range defs {
-		// AccessPolicy filter: hide the other audience's dedicated settings.
-		if isOperator && def.AccessPolicy == config.AccessAdminOnly {
-			continue
-		}
-		if !isOperator && def.AccessPolicy == config.AccessOperatorOnly {
-			continue
-		}
-
-		// Permission filter: only applied for tenant callers. Operators bypass
-		// the per-setting ReadPermission — AccessPolicy already gated them.
-		if !isOperator && def.ReadPermission != "" && !authorize.HasPermission(def.ReadPermission, userPermissions) {
-			continue
-		}
-
 		value, err := svc.Resolve(ctx, key)
 		if err != nil {
 			svc.logger.Warn("failed to resolve setting",
@@ -103,11 +93,16 @@ func buildSchemaWithScope(
 			Options:      def.Options,
 		}
 		resolvedMap[key] = resolved
+		if shouldIncludeInSchema(def, userPermissions, isOperator) {
+			outputMap[key] = resolved
+		}
 	}
 
-	// Evaluate DependsOn visibility
+	// Evaluate DependsOn visibility. Dependencies may be nested, so resolve
+	// parent visibility recursively instead of relying on map iteration order.
+	visibilityMemo := make(map[string]bool, len(resolvedMap))
 	for _, resolved := range resolvedMap {
-		resolved.Visible = evaluateDependency(resolved, resolvedMap)
+		resolved.Visible = evaluateDependency(resolved, resolvedMap, visibilityMemo, make(map[string]bool))
 	}
 
 	// Group by tab → category
@@ -115,7 +110,7 @@ func buildSchemaWithScope(
 	catItems := make(map[catKey][]*ResolvedSetting)
 	tabSet := make(map[string]bool)
 
-	for _, resolved := range resolvedMap {
+	for _, resolved := range outputMap {
 		def := config.GetDefinition(resolved.Key)
 		if def == nil {
 			continue
@@ -180,31 +175,69 @@ func buildSchemaWithScope(
 	return schema, nil
 }
 
-// evaluateDependency checks if a setting's dependency condition is met.
-func evaluateDependency(resolved *ResolvedSetting, resolvedMap map[string]*ResolvedSetting) bool {
-	if resolved.DependsOn == nil {
-		return true
+func shouldIncludeInSchema(def *config.Definition, userPermissions []string, isOperator bool) bool {
+	if isOperator && def.AccessPolicy == config.AccessAdminOnly {
+		return false
 	}
-
-	parent, ok := resolvedMap[resolved.DependsOn.Key]
-	if !ok {
+	if !isOperator && def.AccessPolicy == config.AccessOperatorOnly {
 		return false
 	}
 
+	// Permission filter is only applied for tenant callers. Operators bypass
+	// the per-setting ReadPermission because operator access is route-gated.
+	return isOperator ||
+		def.ReadPermission == "" ||
+		authorize.HasPermission(def.ReadPermission, userPermissions)
+}
+
+// evaluateDependency checks if a setting's dependency condition is met.
+func evaluateDependency(resolved *ResolvedSetting, resolvedMap map[string]*ResolvedSetting, memo map[string]bool, visiting map[string]bool) bool {
+	if visible, ok := memo[resolved.Key]; ok {
+		return visible
+	}
+	if visiting[resolved.Key] {
+		slog.Warn("settings dependency cycle detected, hiding setting",
+			slog.String("key", resolved.Key),
+		)
+		memo[resolved.Key] = false
+		return false
+	}
+	if resolved.DependsOn == nil {
+		memo[resolved.Key] = true
+		return true
+	}
+
+	visiting[resolved.Key] = true
+	defer delete(visiting, resolved.Key)
+
+	parent, ok := resolvedMap[resolved.DependsOn.Key]
+	if !ok {
+		memo[resolved.Key] = false
+		return false
+	}
+
+	if !evaluateDependency(parent, resolvedMap, memo, visiting) {
+		memo[resolved.Key] = false
+		return false
+	}
+
+	visible := false
 	switch resolved.DependsOn.Condition {
 	case "eq":
-		return jsonValuesEqual(parent.Value, resolved.DependsOn.Value)
+		visible = jsonValuesEqual(parent.Value, resolved.DependsOn.Value)
 	case "neq":
-		return !jsonValuesEqual(parent.Value, resolved.DependsOn.Value)
+		visible = !jsonValuesEqual(parent.Value, resolved.DependsOn.Value)
 	case "not_empty":
-		return parent.Value != nil && parent.Value != ""
+		visible = parent.Value != nil && parent.Value != ""
 	default:
 		slog.Warn("unknown dependency condition, treating as not met",
 			slog.String("key", resolved.DependsOn.Key),
 			slog.String("condition", resolved.DependsOn.Condition),
 		)
-		return false
+		visible = false
 	}
+	memo[resolved.Key] = visible
+	return visible
 }
 
 // jsonValuesEqual compares two values by their JSON representation.

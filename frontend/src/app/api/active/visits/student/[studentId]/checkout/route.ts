@@ -1,6 +1,6 @@
 // API route for immediate student checkout
 
-import { createPostHandler } from "~/lib/route-wrapper";
+import { createPostHandler } from "~/lib/route-wrapper.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const POST = createPostHandler<unknown, Record<string, never>>(

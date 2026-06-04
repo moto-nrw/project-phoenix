@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
+import { apiGet } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 import { auth } from "~/server/auth";
 

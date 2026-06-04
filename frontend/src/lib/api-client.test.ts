@@ -17,7 +17,7 @@ vi.mock("axios", () => ({
     mockIsAxiosError(...args) as boolean,
 }));
 
-vi.mock("./api", () => ({
+vi.mock("./api-transport", () => ({
   default: {
     get: (...args: unknown[]) => mockGet(...args),
     post: (...args: unknown[]) => mockPost(...args),

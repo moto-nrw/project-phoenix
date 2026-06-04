@@ -24,7 +24,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", async (importOriginal) => {
+vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, apiGet: mockApiGet };
 });
@@ -146,12 +146,15 @@ describe("GET /api/auth/accounts/[accountId]/permissions", () => {
     );
 
     expect(response.status).toBe(200);
-    const json = await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
+    const json =
+      await parseJsonResponse<ApiResponse<typeof mockResponse>>(response);
     expect(json.data).toEqual(mockResponse);
   });
 
   it("handles API errors gracefully", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("API error (404): Account not found"));
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (404): Account not found"),
+    );
 
     const request = createMockRequest("/api/auth/accounts/999/permissions");
     const response = await GET(

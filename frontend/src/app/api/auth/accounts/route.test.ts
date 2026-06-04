@@ -25,7 +25,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", async (importOriginal) => {
+vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -202,11 +202,9 @@ describe("POST /api/auth/accounts", () => {
     });
     const response = await POST(request);
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/auth/accounts/1",
-      "test-token",
-      { active: false },
-    );
+    expect(mockApiPut).toHaveBeenCalledWith("/auth/accounts/1", "test-token", {
+      active: false,
+    });
     expect(response.status).toBe(200);
     const json = (await response.json()) as {
       data: {

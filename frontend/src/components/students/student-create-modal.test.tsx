@@ -8,9 +8,11 @@ import {
   waitFor,
   fireEvent,
   act,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
+import { handleStudentFormSubmit } from "~/lib/student-form-validation";
 
 // Mock Modal component
 vi.mock("~/components/ui/modal", () => ({
@@ -107,6 +109,149 @@ vi.mock("./student-common-form-sections", () => ({
         value={(formData.health_info as string) ?? ""}
         onChange={(e) => onChange("health_info", e.target.value)}
       />
+    </div>
+  ),
+}));
+
+// Mock the reused GuardianFormModal: when open, expose a button that calls
+// onSubmit with one canned guardian entry (the same shape the real modal emits).
+// This lets us exercise StudentCreateModal's collection/summary logic without
+// driving the full guardian form.
+vi.mock("~/components/guardians/guardian-form-modal", () => ({
+  default: ({
+    isOpen,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    onSubmit: (entries: unknown[]) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid="guardian-form-modal">
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmit([
+              {
+                id: "g1",
+                guardianData: {
+                  firstName: "Erika",
+                  lastName: "Muster",
+                  email: "erika@example.com",
+                  languagePreference: "de",
+                },
+                relationshipData: {
+                  relationshipType: "parent",
+                  isPrimary: true,
+                  isEmergencyContact: false,
+                  canPickup: true,
+                  emergencyPriority: 1,
+                },
+                phoneNumbers: [
+                  {
+                    phoneNumber: "0151 2345678",
+                    phoneType: "mobile",
+                    isPrimary: true,
+                  },
+                ],
+              },
+            ])
+          }
+        >
+          MockSubmitGuardian
+        </button>
+      </div>
+    ) : null,
+}));
+
+// Mock the reused CareWeeklyPlanModal the same way as the guardian modal: when
+// open, expose a button that calls onSubmit with one canned arrival + pickup
+// entry (the shapes the real modal emits). This exercises StudentCreateModal's
+// staging/summary/payload logic without driving the full weekly-plan editor.
+vi.mock("./care-weekly-plan-modal", () => ({
+  CareWeeklyPlanModal: ({
+    isOpen,
+    onClose,
+    onSubmit,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (data: {
+      arrivalSchedules: Array<{
+        weekday: number;
+        expected_arrival: string;
+        notes: string | null;
+      }>;
+      pickupData: {
+        schedules: Array<{
+          weekday: number;
+          pickupTime: string;
+          notes?: string;
+        }>;
+      };
+    }) => Promise<void>;
+  }) =>
+    isOpen ? (
+      <div data-testid="care-weekly-plan-modal">
+        <button
+          type="button"
+          onClick={() =>
+            // Mirror the real modal: after onSubmit resolves it closes itself.
+            void onSubmit({
+              arrivalSchedules: [
+                { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
+                { weekday: 3, expected_arrival: "08:00", notes: null },
+              ],
+              pickupData: {
+                schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Oma" }],
+              },
+            }).then(() => onClose())
+          }
+        >
+          MockSubmitCarePlan
+        </button>
+      </div>
+    ) : null,
+}));
+
+// Mock the inline existing-guardian picker panel: it's mounted only while
+// active, so it always renders here and exposes a button that calls onSelect
+// with one canned EXISTING guardian + relationship (the shape the real panel
+// emits). Lets us exercise StudentCreateModal's link-existing collection without
+// driving the real search UI.
+vi.mock("~/components/guardians/guardian-picker-panel", () => ({
+  default: ({
+    onSelect,
+  }: {
+    onSelect: (guardian: unknown, relationship: unknown) => void;
+    onCancel: () => void;
+  }) => (
+    <div data-testid="guardian-picker-panel">
+      <button
+        type="button"
+        onClick={() =>
+          onSelect(
+            {
+              id: "777",
+              firstName: "Hans",
+              lastName: "Schmidt",
+              email: "hans@example.com",
+              phoneNumbers: [],
+              preferredContactMethod: "email",
+              languagePreference: "de",
+              hasAccount: false,
+            },
+            {
+              relationshipType: "parent",
+              isPrimary: false,
+              isEmergencyContact: false,
+              canPickup: true,
+              emergencyPriority: 1,
+            },
+          )
+        }
+      >
+        MockPickExisting
+      </button>
     </div>
   ),
 }));
@@ -311,6 +456,31 @@ describe("StudentCreateModal", () => {
     });
   });
 
+  it("passes a scroll-to-error callback to the submit helper", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    // 7th arg drives scroll-to-first-error on a failed submit (shared with the
+    // parents' enrollment form via useScrollToFirstError).
+    const onError = vi.mocked(handleStudentFormSubmit).mock.calls[0]?.[6];
+    expect(onError).toBeTypeOf("function");
+  });
+
   it("updates form data when input changes", async () => {
     render(
       <StudentCreateModal
@@ -398,6 +568,396 @@ describe("StudentCreateModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("personal-info-section")).toBeInTheDocument();
+    });
+  });
+
+  it("opens the reused guardian form when the add button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Neu anlegen"));
+    });
+
+    expect(screen.getByTestId("guardian-form-modal")).toBeInTheDocument();
+  });
+
+  it("adds a submitted guardian to the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Neu anlegen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+    // Relationship label and pickup flag are rendered from the payload.
+    expect(screen.getByText("Elternteil")).toBeInTheDocument();
+    expect(screen.getByText(/Abholberechtigt/)).toBeInTheDocument();
+    expect(screen.getByText("1 hinzugefügt")).toBeInTheDocument();
+    // Sub-modal closes after collecting.
+    expect(screen.queryByTestId("guardian-form-modal")).not.toBeInTheDocument();
+  });
+
+  it("removes a guardian from the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Neu anlegen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByLabelText("Erziehungsberechtigte/n entfernen"),
+      );
+    });
+
+    expect(screen.queryByText(/Erika Muster/)).not.toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Erziehungsberechtigte" }),
+      ).getByText("Optional"),
+    ).toBeInTheDocument();
+  });
+
+  it("forwards collected guardians (snake_case mapped) to onCreate on submit", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Neu anlegen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitGuardian"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Erika Muster/)).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // handleSubmit must hand the form payload (arg index 1) a snake_case-mapped
+    // guardians array, nested exactly as the create endpoint expects.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      guardians: [
+        {
+          first_name: "Erika",
+          last_name: "Muster",
+          email: "erika@example.com",
+          language_preference: "de",
+          relationship_type: "parent",
+          is_primary: true,
+          is_emergency_contact: false,
+          can_pickup: true,
+          emergency_priority: 1,
+          phone_numbers: [
+            {
+              phone_number: "0151 2345678",
+              phone_type: "mobile",
+              is_primary: true,
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("does not attach a guardians field when none were added", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).not.toHaveProperty("guardians");
+  });
+
+  it("opens the reused weekly care-plan editor when the add button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(screen.getByTestId("care-weekly-plan-modal")).toBeInTheDocument();
+  });
+
+  it("stages a submitted care plan and shows the weekday summary", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+
+    // Summary lists the covered weekdays (Mo from arrival+pickup, Mi from
+    // arrival) and the per-type counts, and the add button flips to "edit".
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2× Ankunft · 1× Abholung")).toBeInTheDocument();
+    expect(screen.getByText("2 Tage")).toBeInTheDocument();
+    expect(screen.getByText("Wochenplan bearbeiten")).toBeInTheDocument();
+    // Sub-modal closes after collecting.
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("removes the staged care plan via the remove button", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Betreuungszeiten entfernen"));
+    });
+
+    expect(screen.queryByText("Mo · Mi")).not.toBeInTheDocument();
+    // Section reverts to the "Optional" empty state + "add" wording.
+    expect(
+      within(
+        screen.getByRole("region", { name: "Betreuungszeiten" }),
+      ).getByText("Optional"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Wochenplan hinzufügen")).toBeInTheDocument();
+  });
+
+  it("forwards staged schedules (snake_case mapped) to the submit payload", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockSubmitCarePlan"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Mo · Mi")).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // Arrival entries travel backend-shaped already; pickup entries are mapped
+    // from the care-plan form (pickupTime → pickup_time) before submit.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      arrival_schedules: [
+        { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
+        { weekday: 3, expected_arrival: "08:00", notes: null },
+      ],
+      pickup_schedules: [{ weekday: 1, pickup_time: "15:00", notes: "Oma" }],
+    });
+  });
+
+  it("does not attach schedule fields when no care plan was staged", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).not.toHaveProperty("arrival_schedules");
+    expect(submitted).not.toHaveProperty("pickup_schedules");
+  });
+
+  it("opens the existing-guardian picker when the search button is clicked", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+
+    expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
+  });
+
+  it("adds a picked existing guardian to the summary list", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockPickExisting"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hans Schmidt/)).toBeInTheDocument();
+    });
+    expect(screen.getByText("1 hinzugefügt")).toBeInTheDocument();
+    // Picker closes after a selection.
+    expect(
+      screen.queryByTestId("guardian-picker-panel"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("forwards a picked existing guardian with guardian_profile_id to onCreate", async () => {
+    mockOnCreate.mockResolvedValue(undefined);
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Vorhandene/n suchen"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("MockPickExisting"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Hans Schmidt/)).toBeInTheDocument();
+    });
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+
+    // The existing selection must carry guardian_profile_id (link, not create)
+    // and the relationship flags, with no phone numbers.
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(submitted).toMatchObject({
+      guardians: [
+        {
+          guardian_profile_id: 777,
+          relationship_type: "parent",
+          can_pickup: true,
+          phone_numbers: [],
+        },
+      ],
     });
   });
 });

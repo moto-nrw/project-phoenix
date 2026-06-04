@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiPut } from "~/lib/api-helpers";
-import { createPutHandler, isStringParam } from "~/lib/route-wrapper";
+import { apiPut } from "~/lib/api-helpers.server";
+import { createPutHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 interface UpdateSessionRequest {
   status?: "present" | "home_office";

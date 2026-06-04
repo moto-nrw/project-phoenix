@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
@@ -17,10 +17,21 @@ import {
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,
+  fetchPublicLegalTexts,
   type PublicCaptchaConfig,
   type PublicFormSchema,
+  type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  buildFieldsByKey,
+  isFieldVisible,
+  visibleAnswerData,
+  type ConditionContext,
+} from "~/lib/enrollment-field-visibility";
+import ReactMarkdown, { type Components } from "react-markdown";
+import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
+import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "EnrollmentForm" });
 
@@ -61,6 +72,17 @@ const DAY_LABELS: Record<string, string> = {
   fri: "Fr",
   sat: "Sa",
   sun: "So",
+};
+
+// The four consent checkboxes that can carry a per-tenant info text.
+// Keys match the PublicLegalTexts fields and the modal title lookup.
+type LegalDocKey = "agb" | "dsgvo" | "email_contact" | "photo";
+
+const LEGAL_DOC_TITLES: Record<LegalDocKey, string> = {
+  agb: "Allgemeine Geschäftsbedingungen",
+  dsgvo: "Datenschutzerklärung",
+  email_contact: "E-Mail-Kontakt",
+  photo: "Fotoeinwilligung",
 };
 
 import type {
@@ -142,32 +164,13 @@ export function EnrollmentForm({
   // (guardian_email, children_0_first_name, ...). Drives the red border +
   // inline message on the offending input; rebuilt on every submit.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  // Scroll the top error banner into view on every submit attempt that
-  // leaves an error showing. The form is long (guardian + N children +
-  // offerings) with the submit button at the bottom, so an error rendered
-  // only at the top is easy to miss. Keyed on a per-attempt counter rather
-  // than the error string (the app's shared useScrollToError hook) so a
-  // repeated submit with the *same* unchanged message still scrolls back
-  // up. On a successful submit the banner isn't rendered, so the ref is
-  // null and the scroll is a no-op.
-  const errorRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const [submitAttempt, setSubmitAttempt] = useState(0);
-
-  useEffect(() => {
-    if (submitAttempt === 0) return;
-    // Scroll to the first invalid field (every marked input/select/checkbox
-    // carries aria-invalid) so the parent lands on the actual problem and its
-    // inline message, not just the top banner. Server-level errors (e.g.
-    // offering full) mark no field, so fall back to the banner.
-    const firstInvalid = formRef.current?.querySelector<HTMLElement>(
-      '[aria-invalid="true"]',
-    );
-    (firstInvalid ?? errorRef.current)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-  }, [submitAttempt]);
+  // Scroll to the first invalid field on every submit attempt that leaves an
+  // error showing. The form is long (guardian + N children + offerings) with
+  // the submit button at the bottom, so an error rendered above is easy to
+  // miss. `scrollToError()` is keyed on a per-attempt counter, so a repeated
+  // submit with the *same* unchanged message still scrolls back to it; on a
+  // successful submit nothing is marked invalid so it's a no-op.
+  const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
   const [guardianFirstName, setGuardianFirstName] = useState("");
   const [guardianLastName, setGuardianLastName] = useState("");
@@ -185,6 +188,12 @@ export function EnrollmentForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(null);
+  // Per-tenant legal documents (Markdown) shown behind the AGB +
+  // Datenschutz consent checkboxes. null until fetched / when the tenant
+  // configured none — the consent label then renders without a link.
+  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
+  // Which consent info text the parent is currently viewing in the modal.
+  const [openLegalDoc, setOpenLegalDoc] = useState<LegalDocKey | null>(null);
   const [profile, setProfile] = useState<MeProfileResponse | null>(null);
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
@@ -197,28 +206,40 @@ export function EnrollmentForm({
       setError(null);
       try {
         const profileLoader = profileFetcher ?? fetchMyEnrollmentProfile;
-        const [schemaResult, offeringsResult, profileResult, captchaResult] =
-          await Promise.all([
-            previewSchema !== undefined
-              ? Promise.resolve(previewSchema)
-              : phaseID
-                ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
-                : Promise.resolve(null),
-            phaseID
-              ? fetchPublicCareOfferings(tenantSlug, phaseID)
-              : Promise.resolve({
-                  offerings: [],
-                  careOfferingSelectionMode: "optional" as const,
-                  careRequired: false,
-                }),
-            profileLoader().catch(() => null),
-            // Skip the captcha config when the caller already authenticated
-            // the parent (parent-portal embedded form). Saves a round-trip
-            // and avoids rendering the widget on an already-trusted path.
-            skipCaptcha
-              ? Promise.resolve(null)
-              : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
-          ]);
+        const [
+          schemaResult,
+          offeringsResult,
+          profileResult,
+          captchaResult,
+          legalResult,
+        ] = await Promise.all([
+          previewSchema !== undefined
+            ? Promise.resolve(previewSchema)
+            : phaseID
+              ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
+              : Promise.resolve(null),
+          phaseID
+            ? fetchPublicCareOfferings(tenantSlug, phaseID)
+            : Promise.resolve({
+                offerings: [],
+                careOfferingSelectionMode: "optional" as const,
+                careRequired: false,
+              }),
+          profileLoader().catch(() => null),
+          // Skip the captcha config when the caller already authenticated
+          // the parent (parent-portal embedded form). Saves a round-trip
+          // and avoids rendering the widget on an already-trusted path.
+          skipCaptcha
+            ? Promise.resolve(null)
+            : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
+          // Legal texts are tenant-wide (no phase param). NOT best-
+          // effort: a real load failure rejects the whole load so the
+          // form shows an error instead of collecting legally relevant
+          // consent without the configured documents. Unconfigured
+          // texts return empty strings (no rejection) and just drop the
+          // link.
+          fetchPublicLegalTexts(tenantSlug),
+        ]);
         if (cancelled) return;
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
@@ -232,6 +253,7 @@ export function EnrollmentForm({
           setChildren((prev) => seedRequiredOfferings(prev, requiredIDs));
         }
         setCaptchaConfig(captchaResult);
+        setLegalTexts(legalResult);
         // Prefill guardian fields from the profile when present. We
         // only fill empty fields so an admin testing the form on a
         // teacher session can still type their own values.
@@ -275,6 +297,22 @@ export function EnrollmentForm({
     // selection mode only governs the choosable (non-required) offerings,
     // so required ones never block toggling a choosable one.
     if (requiredOfferingIDs.includes(offeringID)) return;
+    // "Genau eines" / "höchstens eines" selection_groups behave like radios:
+    // selecting one clears the other selected member(s) of the same group.
+    // Orthogonal to the phase-level exactly_one mode below; both can apply.
+    const toggled = offerings.find((o) => o.id === offeringID);
+    const group = toggled?.selection_group?.trim() ?? "";
+    const groupRule = toggled?.selection_rule ?? "optional";
+    const exclusiveGroup =
+      group !== "" &&
+      (groupRule === "exactly_one" || groupRule === "at_most_one");
+    const groupSiblingIDs = exclusiveGroup
+      ? new Set(
+          offerings
+            .filter((o) => (o.selection_group?.trim() ?? "") === group)
+            .map((o) => o.id),
+        )
+      : null;
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
@@ -292,6 +330,22 @@ export function EnrollmentForm({
             }
             nextIDs.clear();
             requiredOfferingIDs.forEach((id) => nextIDs.add(id));
+          }
+          if (groupSiblingIDs) {
+            for (const id of groupSiblingIDs) {
+              // Never clear a locked required offering: it's always part of
+              // the submission and the UI keeps rendering it checked, so
+              // dropping it from the payload would fail the backend's
+              // required-offering check.
+              if (
+                id !== offeringID &&
+                nextIDs.has(id) &&
+                !requiredOfferingIDs.includes(id)
+              ) {
+                nextIDs.delete(id);
+                delete nextDays[id];
+              }
+            }
           }
           nextIDs.add(offeringID);
         }
@@ -337,6 +391,36 @@ export function EnrollmentForm({
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
 
+  // Conditional field visibility. Contexts are rebuilt from the live answers
+  // each render so info blocks and questions appear/disappear as the parent
+  // fills the form. Hidden fields are also stripped from the submitted payload
+  // (see handleSubmit) so a stale value never leaks.
+  const fieldsByKey = useMemo(
+    () => buildFieldsByKey(schema?.fields ?? []),
+    [schema],
+  );
+  const guardianCtx: ConditionContext = {
+    guardianAnswers: customData,
+    fieldsByKey,
+  };
+  const visibleGuardianFields = (schema?.fields ?? []).filter(
+    (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+  );
+  const childConditionCtx = (child: ChildDraft): ConditionContext => ({
+    guardianAnswers: customData,
+    childAnswers: child.custom,
+    gradeLevel: child.target_grade_level,
+    // Care-offering conditions match by name (templates aren't phase-bound),
+    // so resolve the child's selected offering ids to names.
+    offeringNames: new Set(
+      Array.from(child.offering_ids)
+        .map((id) => offerings.find((o) => o.id === id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .map((name) => name.toLowerCase()),
+    ),
+    fieldsByKey,
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -347,7 +431,7 @@ export function EnrollmentForm({
     // submit produces the same error message as the previous one. Covers
     // every synchronous validation failure below (error is set in the same
     // batch). On success no error is set, so the scroll is a no-op.
-    setSubmitAttempt((n) => n + 1);
+    scrollToError();
 
     if (previewMode) {
       setError(
@@ -387,14 +471,16 @@ export function EnrollmentForm({
     } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
       newFieldErrors.guardian_phone = "Bitte gültige Telefonnummer angeben.";
     }
-    for (const field of schema?.fields.filter((f) => !f.applies_to_child) ??
-      []) {
-      if (!field.required) continue;
+    // Only visible (passing their show-if condition) non-info guardian fields
+    // are enforced — a hidden required field must never block submit.
+    for (const field of visibleGuardianFields) {
+      if (field.type === "information" || !field.required) continue;
       if (customValueMissing(field, customData[field.key])) {
         newFieldErrors[`custom_${field.key}`] = requiredMessageForField(field);
       }
     }
     for (const [i, c] of children.entries()) {
+      const childCtx = childConditionCtx(c);
       if (!c.first_name.trim()) {
         newFieldErrors[`children_${i}_first_name`] = "Bitte Vornamen angeben.";
       }
@@ -411,7 +497,8 @@ export function EnrollmentForm({
       }
       for (const field of schema?.fields.filter((f) => f.applies_to_child) ??
         []) {
-        if (!field.required) continue;
+        if (field.type === "information" || !field.required) continue;
+        if (!isFieldVisible(field, childCtx)) continue;
         if (customValueMissing(field, c.custom[field.key])) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
             requiredMessageForField(field);
@@ -439,6 +526,11 @@ export function EnrollmentForm({
     // everything is valid.
     const missingCareIndexes: number[] = [];
     const exactOneCareIndexes: number[] = [];
+    // Per-selection_group rule violations (exactly_one / at_least_one /
+    // at_most_one within a named group). Orthogonal to the phase-level
+    // selection mode above; both are enforced.
+    const groupRuleIndexes: number[] = [];
+    let firstGroupRuleMessage: string | null = null;
     // Selected parent_choice offerings with no day picked, keyed
     // `${childIndex}_${offeringId}` so each offending row gets a red border +
     // inline message and the scroll-to-error effect can target it.
@@ -477,6 +569,11 @@ export function EnrollmentForm({
           }
         }
       }
+      const groupRuleMessage = offeringGroupRuleError(c, offerings);
+      if (groupRuleMessage) {
+        groupRuleIndexes.push(i);
+        firstGroupRuleMessage ??= `Kind ${i + 1}: ${groupRuleMessage}`;
+      }
     }
 
     const fieldErrorKeys = Object.keys(newFieldErrors);
@@ -484,12 +581,14 @@ export function EnrollmentForm({
     const hasOfferingIssue =
       missingCareIndexes.length > 0 ||
       exactOneCareIndexes.length > 0 ||
+      groupRuleIndexes.length > 0 ||
       dayErrorCount > 0;
     if (fieldErrorKeys.length > 0 || hasOfferingIssue) {
       setFieldErrors(newFieldErrors);
       const invalidCareIndexes = [
         ...missingCareIndexes,
         ...exactOneCareIndexes,
+        ...groupRuleIndexes,
       ];
       if (invalidCareIndexes.length > 0) {
         setChildOfferingErrors(
@@ -527,6 +626,12 @@ export function EnrollmentForm({
         firstDayErrorMessage
       ) {
         banner = firstDayErrorMessage;
+      } else if (
+        fieldErrorKeys.length === 0 &&
+        groupRuleIndexes.length > 0 &&
+        firstGroupRuleMessage
+      ) {
+        banner = firstGroupRuleMessage;
       }
       setError(banner);
       return;
@@ -559,7 +664,14 @@ export function EnrollmentForm({
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
-        custom_data: c.custom,
+        // Strip answers to fields the parent couldn't see (hidden by a
+        // show-if condition) so a stale value never reaches the backend.
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          true,
+          c.custom,
+          childConditionCtx(c),
+        ),
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
@@ -580,7 +692,12 @@ export function EnrollmentForm({
           email_contact: emailConsent,
           photo: photoConsent === true,
         },
-        custom_data: customData,
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          false,
+          customData,
+          guardianCtx,
+        ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
       };
@@ -622,7 +739,7 @@ export function EnrollmentForm({
       setError(message);
       // A server-side rejection resolves after the synchronous attempt bump
       // above, so bump again to scroll the late-arriving error into view.
-      setSubmitAttempt((n) => n + 1);
+      scrollToError();
     } finally {
       setSubmitting(false);
     }
@@ -711,18 +828,24 @@ export function EnrollmentForm({
             description="Die OGS benötigt diese Angaben zusätzlich zu den Basisdaten. Pflichtfragen sind mit einem Stern markiert."
           />
           {schema.fields
-            .filter((f) => !f.applies_to_child)
-            .map((f) => (
-              <CustomFieldInput
-                key={f.key}
-                field={f}
-                value={customData[f.key]}
-                onChange={(v) =>
-                  setCustomData((prev) => ({ ...prev, [f.key]: v }))
-                }
-                error={fieldErrors[`custom_${f.key}`]}
-              />
-            ))}
+            .filter(
+              (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+            )
+            .map((f) =>
+              f.type === "information" ? (
+                <InfoBlock key={f.key} field={f} />
+              ) : (
+                <CustomFieldInput
+                  key={f.key}
+                  field={f}
+                  value={customData[f.key]}
+                  onChange={(v) =>
+                    setCustomData((prev) => ({ ...prev, [f.key]: v }))
+                  }
+                  error={fieldErrors[`custom_${f.key}`]}
+                />
+              ),
+            )}
         </section>
       )}
 
@@ -895,20 +1018,24 @@ export function EnrollmentForm({
                           : ""
                       }`}
                     >
-                      {offerings
-                        .filter((o) => !o.is_required)
-                        .map((o) => (
+                      {groupOfferings(
+                        offerings.filter((o) => !o.is_required),
+                      ).map((bucket) =>
+                        bucket.kind === "single" ? (
                           <OfferingCard
-                            key={o.id}
-                            offering={o}
+                            key={bucket.offering.id}
+                            offering={bucket.offering}
                             childIndex={i}
-                            checked={child.offering_ids.has(o.id)}
-                            selectedDays={child.offering_days[o.id]}
+                            checked={child.offering_ids.has(bucket.offering.id)}
+                            selectedDays={
+                              child.offering_days[bucket.offering.id]
+                            }
                             dayError={
-                              offeringDayErrors[`${i}_${o.id}`] ?? false
+                              offeringDayErrors[`${i}_${bucket.offering.id}`] ??
+                              false
                             }
                             onToggle={() => {
-                              toggleOffering(i, o.id);
+                              toggleOffering(i, bucket.offering.id);
                               if (childOfferingErrors[i]) {
                                 setChildOfferingErrors((prev) => {
                                   const next = { ...prev };
@@ -918,10 +1045,54 @@ export function EnrollmentForm({
                               }
                             }}
                             onToggleDay={(day) =>
-                              toggleOfferingDay(i, o.id, day)
+                              toggleOfferingDay(i, bucket.offering.id, day)
                             }
                           />
-                        ))}
+                        ) : (
+                          <div
+                            key={`group-${bucket.group}`}
+                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                          >
+                            <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                              <span className="text-xs font-semibold text-gray-800">
+                                {bucket.group}
+                              </span>
+                              {OFFERING_RULE_HINT[bucket.rule] && (
+                                <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                  {OFFERING_RULE_HINT[bucket.rule]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {bucket.offerings.map((o) => (
+                                <OfferingCard
+                                  key={o.id}
+                                  offering={o}
+                                  childIndex={i}
+                                  checked={child.offering_ids.has(o.id)}
+                                  selectedDays={child.offering_days[o.id]}
+                                  dayError={
+                                    offeringDayErrors[`${i}_${o.id}`] ?? false
+                                  }
+                                  onToggle={() => {
+                                    toggleOffering(i, o.id);
+                                    if (childOfferingErrors[i]) {
+                                      setChildOfferingErrors((prev) => {
+                                        const next = { ...prev };
+                                        delete next[i];
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  onToggleDay={(day) =>
+                                    toggleOfferingDay(i, o.id, day)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ),
+                      )}
                     </div>
                     {childOfferingErrors[i] && (
                       <p className="mt-1 text-xs text-[#FF3130]">
@@ -935,19 +1106,29 @@ export function EnrollmentForm({
               </div>
             )}
 
-            {schema?.fields
-              .filter((f) => f.applies_to_child)
-              .map((f) => (
-                <CustomFieldInput
-                  key={f.key}
-                  field={f}
-                  value={child.custom[f.key]}
-                  onChange={(v) =>
-                    updateChild(i, { custom: { ...child.custom, [f.key]: v } })
-                  }
-                  error={fieldErrors[`children_${i}_custom_${f.key}`]}
-                />
-              ))}
+            {(schema?.fields ?? [])
+              .filter(
+                (f) =>
+                  f.applies_to_child &&
+                  isFieldVisible(f, childConditionCtx(child)),
+              )
+              .map((f) =>
+                f.type === "information" ? (
+                  <InfoBlock key={f.key} field={f} />
+                ) : (
+                  <CustomFieldInput
+                    key={f.key}
+                    field={f}
+                    value={child.custom[f.key]}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        custom: { ...child.custom, [f.key]: v },
+                      })
+                    }
+                    error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                  />
+                ),
+              )}
           </div>
         ))}
       </section>
@@ -965,6 +1146,8 @@ export function EnrollmentForm({
           onChange={setAgbConsent}
           required
           error={fieldErrors.consent_agb}
+          legalText={legalTexts?.agb}
+          onViewLegal={() => setOpenLegalDoc("agb")}
         />
         <Consent
           name="consent_data_processing"
@@ -973,6 +1156,8 @@ export function EnrollmentForm({
           onChange={setDataConsent}
           required
           error={fieldErrors.consent_data_processing}
+          legalText={legalTexts?.dsgvo}
+          onViewLegal={() => setOpenLegalDoc("dsgvo")}
         />
         <Consent
           name="consent_email_contact"
@@ -981,14 +1166,33 @@ export function EnrollmentForm({
           onChange={setEmailConsent}
           required
           error={fieldErrors.consent_email_contact}
+          legalText={legalTexts?.email_contact}
+          onViewLegal={() => setOpenLegalDoc("email_contact")}
         />
         <Consent
           name="consent_photo"
           label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
           checked={photoConsent === true}
           onChange={(checked) => setPhotoConsent(checked)}
+          legalText={legalTexts?.photo}
+          onViewLegal={() => setOpenLegalDoc("photo")}
         />
       </section>
+
+      <Modal
+        isOpen={openLegalDoc !== null}
+        onClose={() => setOpenLegalDoc(null)}
+        title={openLegalDoc ? LEGAL_DOC_TITLES[openLegalDoc] : ""}
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+      >
+        <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
+          <LegalMarkdown
+            text={
+              openLegalDoc && legalTexts ? (legalTexts[openLegalDoc] ?? "") : ""
+            }
+          />
+        </div>
+      </Modal>
 
       {/*
         Cloudflare Turnstile widget. Only rendered when:
@@ -1070,6 +1274,114 @@ function seedRequiredOfferings(
     requiredIDs.forEach((id) => nextIDs.add(id));
     return { ...c, offering_ids: nextIDs };
   });
+}
+
+// ---- Care-offering selection groups + rules -----------------------------
+
+// Short German hint shown next to a group's header. Empty for "optional".
+const OFFERING_RULE_HINT: Record<string, string> = {
+  exactly_one: "Bitte genau eines wählen",
+  at_least_one: "Bitte mindestens eines wählen",
+  at_most_one: "Höchstens eines",
+  optional: "",
+};
+
+type OfferingBucket =
+  | { kind: "single"; offering: PublicCareOffering }
+  | {
+      kind: "group";
+      group: string;
+      rule: string;
+      offerings: PublicCareOffering[];
+    };
+
+// Buckets offerings for display: ungrouped offerings render individually (in
+// order); offerings sharing a non-empty selection_group collapse into one
+// bucket anchored at the group's first member. Mirrors the backend grouping
+// in services/enrollment/care_offering_rules.go.
+function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
+  const buckets: OfferingBucket[] = [];
+  const indexByGroup = new Map<string, number>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    if (group === "") {
+      buckets.push({ kind: "single", offering: o });
+      continue;
+    }
+    const existing = indexByGroup.get(group);
+    if (existing === undefined) {
+      indexByGroup.set(group, buckets.length);
+      buckets.push({
+        kind: "group",
+        group,
+        rule: o.selection_rule ?? "optional",
+        offerings: [o],
+      });
+    } else {
+      const bucket = buckets[existing];
+      if (bucket && bucket.kind === "group") bucket.offerings.push(o);
+    }
+  }
+  return buckets;
+}
+
+// offeringGroupRuleError validates one child's selection against every
+// selection_group's rule. Returns a German error message, or null when the
+// selection is valid. The backend re-checks the same in
+// validateOfferingGroupRules (defense-in-depth).
+function offeringGroupRuleError(
+  child: ChildDraft,
+  offerings: PublicCareOffering[],
+): string | null {
+  const ruleByGroup = new Map<string, string>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    const rule = o.selection_rule ?? "optional";
+    if (group === "" || rule === "optional") continue;
+    ruleByGroup.set(group, rule);
+  }
+  for (const [group, rule] of ruleByGroup) {
+    const count = offerings.filter(
+      (o) =>
+        (o.selection_group?.trim() ?? "") === group &&
+        child.offering_ids.has(o.id),
+    ).length;
+    if (rule === "exactly_one" && count !== 1) {
+      return `Bitte bei „${group}“ genau ein Angebot wählen.`;
+    }
+    if (rule === "at_least_one" && count < 1) {
+      return `Bitte bei „${group}“ mindestens ein Angebot wählen.`;
+    }
+    if (rule === "at_most_one" && count > 1) {
+      return `Bitte bei „${group}“ höchstens ein Angebot wählen.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Read-only information block (FormFieldInfo). Renders an optional heading +
+ * plain-text body to parents; collects no answer. Newlines in the body are
+ * preserved via `whitespace-pre-line`. Content is plain text by design (no
+ * HTML/markdown), so it is safe to render directly.
+ */
+function InfoBlock({
+  field,
+}: {
+  readonly field: PublicFormSchema["fields"][number];
+}) {
+  return (
+    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+      {field.label && (
+        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
+      )}
+      {field.content && (
+        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
+          {field.content}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // OfferingCard renders one care-offering row. Required offerings show as a
@@ -1307,6 +1619,81 @@ function SectionHeading({
   );
 }
 
+// Explicit element styling for the legal-document Markdown. Defined at
+// module scope (not inline in the `components` prop) so the renderers
+// keep a stable identity across re-renders. Tailwind v4 + Preflight
+// strips default heading/list styling, and the project has no
+// @tailwindcss/typography plugin, so each tag is styled by hand.
+// Links open in a new tab; react-markdown does not emit raw HTML by
+// default, so authored Markdown stays XSS-safe.
+//
+// Every renderer strips react-markdown's internal `node` prop before
+// spreading the rest onto the DOM element — forwarding `node` produces
+// an invalid HTML attribute and a React warning.
+const LEGAL_MARKDOWN_COMPONENTS: Components = {
+  h1: ({ node: _node, children, ...props }) => (
+    <h1 className="mt-4 mb-2 text-lg font-bold text-gray-900" {...props}>
+      {children}
+    </h1>
+  ),
+  h2: ({ node: _node, children, ...props }) => (
+    <h2 className="mt-4 mb-2 text-base font-bold text-gray-900" {...props}>
+      {children}
+    </h2>
+  ),
+  h3: ({ node: _node, children, ...props }) => (
+    <h3 className="mt-3 mb-1.5 text-sm font-bold text-gray-900" {...props}>
+      {children}
+    </h3>
+  ),
+  p: ({ node: _node, children, ...props }) => (
+    <p className="mb-3 leading-6" {...props}>
+      {children}
+    </p>
+  ),
+  ul: ({ node: _node, children, ...props }) => (
+    <ul className="mb-3 list-disc space-y-1 pl-5" {...props}>
+      {children}
+    </ul>
+  ),
+  ol: ({ node: _node, children, ...props }) => (
+    <ol className="mb-3 list-decimal space-y-1 pl-5" {...props}>
+      {children}
+    </ol>
+  ),
+  li: ({ node: _node, children, ...props }) => (
+    <li className="leading-6" {...props}>
+      {children}
+    </li>
+  ),
+  a: ({ node: _node, children, ...props }) => (
+    <a
+      className="font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+      target="_blank"
+      rel="noopener noreferrer"
+      {...props}
+    >
+      {children}
+    </a>
+  ),
+  strong: ({ node: _node, children, ...props }) => (
+    <strong className="font-semibold text-gray-900" {...props}>
+      {children}
+    </strong>
+  ),
+  em: ({ node: _node, children, ...props }) => (
+    <em className="italic" {...props}>
+      {children}
+    </em>
+  ),
+};
+
+function LegalMarkdown({ text }: { readonly text: string }) {
+  return (
+    <ReactMarkdown components={LEGAL_MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
+  );
+}
+
 function Consent({
   name,
   label,
@@ -1314,6 +1701,8 @@ function Consent({
   onChange,
   required = false,
   error,
+  legalText,
+  onViewLegal,
 }: {
   readonly name: string;
   readonly label: string;
@@ -1321,7 +1710,16 @@ function Consent({
   readonly onChange: (v: boolean) => void;
   readonly required?: boolean;
   readonly error?: string;
+  /**
+   * Optional per-tenant legal document (Markdown). When non-empty, the
+   * consent label gains an "anzeigen" link that opens onViewLegal. When
+   * empty/undefined the label renders plain — tenants that haven't
+   * configured a document still get a working form.
+   */
+  readonly legalText?: string;
+  readonly onViewLegal?: () => void;
 }) {
+  const hasLink = Boolean(legalText && legalText.trim() && onViewLegal);
   return (
     <div>
       <label
@@ -1349,9 +1747,26 @@ function Consent({
             </span>
           )}
         </span>
-        <span className="leading-6 font-medium text-gray-700">
+        <span className="min-w-0 flex-1 leading-6 font-medium text-gray-700">
           {label} {required && <span className="text-[#FF3130]">*</span>}
         </span>
+        {hasLink && (
+          <button
+            type="button"
+            // Inside the <label>, a plain click would toggle the
+            // checkbox. Prevent that so "anzeigen" only opens the
+            // document. shrink-0 + the flex-1 label above keep this
+            // pinned to the right edge of the box on every width.
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onViewLegal?.();
+            }}
+            className="mt-0.5 shrink-0 font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+          >
+            Mehr anzeigen
+          </button>
+        )}
       </label>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </div>

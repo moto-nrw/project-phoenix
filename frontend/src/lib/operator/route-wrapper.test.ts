@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import type { RouteContext } from "~/lib/route-wrapper-utils";
+import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
 const {
   mockFetch,
@@ -27,7 +27,7 @@ vi.mock("~/server/auth/operator", () => ({
   uncachedOperatorAuth: mockAuth,
 }));
 
-vi.mock("~/lib/client-headers", () => ({
+vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 
@@ -39,7 +39,7 @@ import {
   createOperatorProxyPostHandler,
   createOperatorPublicProxyPostHandler,
   createOperatorProxyMethodHandler,
-} from "./route-wrapper";
+} from "./route-wrapper.server";
 
 describe("operatorServerFetch", () => {
   beforeEach(() => {
@@ -144,7 +144,7 @@ describe("operatorServerFetch", () => {
   });
 
   it("sends PUT request correctly via operatorApiPut", async () => {
-    const { operatorApiPut } = await import("./route-wrapper");
+    const { operatorApiPut } = await import("./route-wrapper.server");
 
     mockFetch.mockResolvedValue({
       ok: true,
@@ -170,7 +170,7 @@ describe("operatorServerFetch", () => {
   });
 
   it("sends DELETE request correctly via operatorApiDelete", async () => {
-    const { operatorApiDelete } = await import("./route-wrapper");
+    const { operatorApiDelete } = await import("./route-wrapper.server");
 
     mockFetch.mockResolvedValue({
       ok: true,

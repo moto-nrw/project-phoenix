@@ -120,6 +120,14 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.ExtraInfo = mapper.GetCol("zusatzinfo")
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
+	row.EnrolledFrom = mapper.GetCol("einschreibung von")
+	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
+
+	// Consent dates (explicit date the consent was given)
+	row.AGBAcceptedAt = mapper.GetCol("agb akzeptiert am")
+	row.DataProcessingAcceptedAt = mapper.GetCol("datenverarbeitung akzeptiert am")
+	row.EmailContactAcceptedAt = mapper.GetCol("e-mail-kontakt akzeptiert am")
+	row.PhotoConsentGivenAt = mapper.GetCol("foto-einwilligung am")
 
 	// Privacy consent
 	row.PrivacyAccepted = ParseBool(mapper.GetCol("datenschutz"))

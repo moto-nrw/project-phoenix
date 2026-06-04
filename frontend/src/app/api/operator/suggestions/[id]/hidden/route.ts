@@ -3,7 +3,7 @@ import {
   createOperatorPutHandler,
   operatorApiPut,
   isStringParam,
-} from "~/lib/operator/route-wrapper";
+} from "~/lib/operator/route-wrapper.server";
 
 export const PUT = createOperatorPutHandler(
   async (_request: NextRequest, body: unknown, token: string, params) => {

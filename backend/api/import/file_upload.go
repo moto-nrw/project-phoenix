@@ -22,9 +22,17 @@ type FileUploadResult struct {
 	Filename string
 }
 
-// validateAndParseCSVFile handles common file upload validation and parsing
-// Supports both CSV and Excel (.xlsx) files
-func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Request) (*FileUploadResult, bool) {
+// StaffFileUploadResult contains the parsed staff rows and file metadata
+type StaffFileUploadResult struct {
+	Rows     []importModels.StaffImportRow
+	Filename string
+}
+
+// openValidatedUploadFile performs the shared upload validation (size limit,
+// MIME type, magic-byte content check) and returns the open file plus whether
+// it is an Excel file. On any failure it writes the error response and returns
+// ok=false. The CALLER owns the returned file and must close it.
+func (rs *Resource) openValidatedUploadFile(w http.ResponseWriter, r *http.Request) (multipart.File, *multipart.FileHeader, bool, bool) {
 	// Security: File size limit
 	r.Body = http.MaxBytesReader(w, r.Body, maxFileSize)
 
@@ -32,7 +40,7 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if r.ParseMultipartForm(maxFileSize) != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei zu groß (max 10MB)")))
-		return nil, false
+		return nil, nil, false, false
 	}
 
 	// Get the file from the request
@@ -40,6 +48,34 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("datei fehlt")))
+		return nil, nil, false, false
+	}
+
+	// Validate file type (MIME type and extension)
+	if !isValidImportFile(header) {
+		_ = file.Close()
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")))
+		return nil, nil, false, false
+	}
+
+	// SECURITY: Verify actual file content using magic bytes
+	// Protects against file type spoofing (e.g., malware.exe renamed to students.csv)
+	if err := verifyFileContent(file, header); err != nil {
+		_ = file.Close()
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return nil, nil, false, false
+	}
+
+	return file, header, isExcelFile(header), true
+}
+
+// validateAndParseCSVFile handles common file upload validation and parsing for
+// student imports. Supports both CSV and Excel (.xlsx) files.
+func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Request) (*FileUploadResult, bool) {
+	file, header, isExcel, ok := rs.openValidatedUploadFile(w, r)
+	if !ok {
 		return nil, false
 	}
 	defer func() {
@@ -48,30 +84,14 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 		}
 	}()
 
-	// Validate file type (MIME type and extension)
-	if !isValidImportFile(header) {
-		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("ungültiger Dateityp (nur CSV oder Excel erlaubt)")))
-		return nil, false
-	}
-
-	// SECURITY: Verify actual file content using magic bytes
-	// Protects against file type spoofing (e.g., malware.exe renamed to students.csv)
-	if err := verifyFileContent(file, header); err != nil {
-		render.Status(r, http.StatusBadRequest)
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return nil, false
-	}
-
 	// Select appropriate parser based on file extension
 	var parser importService.FileParser
-	if isExcelFile(header) {
+	if isExcel {
 		parser = importService.NewXLSXParser()
 	} else {
 		parser = importService.NewCSVParser()
 	}
 
-	// Parse file
 	rows, err := parser.ParseStudents(file)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
@@ -80,6 +100,38 @@ func (rs *Resource) validateAndParseCSVFile(w http.ResponseWriter, r *http.Reque
 	}
 
 	return &FileUploadResult{
+		Rows:     rows,
+		Filename: header.Filename,
+	}, true
+}
+
+// validateAndParseStaffFile handles upload validation and parsing for staff
+// (Mitarbeiter) imports. Supports both CSV and Excel (.xlsx) files.
+func (rs *Resource) validateAndParseStaffFile(w http.ResponseWriter, r *http.Request) (*StaffFileUploadResult, bool) {
+	file, header, isExcel, ok := rs.openValidatedUploadFile(w, r)
+	if !ok {
+		return nil, false
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Default().Error("failed to close file", slog.String("error", err.Error()))
+		}
+	}()
+
+	var rows []importModels.StaffImportRow
+	var err error
+	if isExcel {
+		rows, err = importService.ParseStaffXLSX(file)
+	} else {
+		rows, err = importService.ParseStaffCSV(file)
+	}
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("Datei-Fehler: %s", err.Error())))
+		return nil, false
+	}
+
+	return &StaffFileUploadResult{
 		Rows:     rows,
 		Filename: header.Filename,
 	}, true

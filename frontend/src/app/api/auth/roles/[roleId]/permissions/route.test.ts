@@ -24,7 +24,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", async (importOriginal) => {
+vi.mock("@/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, apiGet: mockApiGet };
 });

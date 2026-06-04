@@ -11,7 +11,7 @@ import {
   createProxyGetByIdHandler,
   createProxyPutHandler,
   createProxyDeleteHandler,
-} from "./route-wrapper";
+} from "./route-wrapper.server";
 import { mockSessionData } from "~/test/mocks/next-auth";
 
 // ============================================================================
@@ -46,7 +46,7 @@ vi.mock("../server/auth", () => ({
 }));
 
 // Mock api-helpers module
-vi.mock("./api-helpers", () => ({
+vi.mock("./api-helpers.server", () => ({
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: mockApiPut,

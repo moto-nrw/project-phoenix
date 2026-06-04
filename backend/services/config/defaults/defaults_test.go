@@ -61,8 +61,12 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"timetable.day_end_time",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
+		"attendance.web_enabled",
+		"attendance.nfc_enabled",
 		"attendance.web_checkin_access",
 		"attendance.web_spontaneous_activities_enabled",
+		"operations.group_mode",
+		"operations.care_concept",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -140,11 +144,59 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
 	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, false, def.Default, "web spontaneous activities must default off")
+	assert.Equal(t, true, def.Default, "web spontaneous activities must be opt-out")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators should both be able to manage this operational setting")
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+}
+
+func TestAttendanceSetupSettings(t *testing.T) {
+	webDef := config.GetDefinition(config.KeyAttendanceWebEnabled)
+	require.NotNil(t, webDef, "attendance.web_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, webDef.Type)
+	assert.Equal(t, true, webDef.Default, "web attendance should default on")
+	assert.Equal(t, config.AccessOperatorOnly, webDef.AccessPolicy, "web attendance is a provisioning flag, not a tenant-admin setting")
+	assert.Equal(t, "operations", webDef.Tab)
+	assert.Equal(t, "anwesenheit", webDef.Category)
+	assert.Equal(t, "config:manage", webDef.WritePermission)
+
+	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
+	require.NotNil(t, nfcDef, "attendance.nfc_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, nfcDef.Type)
+	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
+	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
+	assert.Equal(t, "operations", nfcDef.Tab)
+	assert.Equal(t, "anwesenheit", nfcDef.Category)
+	assert.Equal(t, "config:manage", nfcDef.WritePermission)
+}
+
+func TestOrganizationSetupSettings(t *testing.T) {
+	groupDef := config.GetDefinition(config.KeyGroupMode)
+	require.NotNil(t, groupDef, "operations.group_mode should be registered")
+	assert.Equal(t, config.FieldSelect, groupDef.Type)
+	assert.Equal(t, config.GroupModeFixedGroups, groupDef.Default)
+	assert.Equal(t, config.AccessShared, groupDef.AccessPolicy)
+	assert.Equal(t, "operations", groupDef.Tab)
+	assert.Equal(t, "organisation", groupDef.Category)
+	assert.Equal(t, "config:update", groupDef.WritePermission)
+	require.NotNil(t, groupDef.Options)
+	groupValues := []any{groupDef.Options.Static[0].Value, groupDef.Options.Static[1].Value}
+	assert.Contains(t, groupValues, config.GroupModeFixedGroups)
+	assert.Contains(t, groupValues, config.GroupModeOpenCare)
+
+	careDef := config.GetDefinition(config.KeyCareConcept)
+	require.NotNil(t, careDef, "operations.care_concept should be registered")
+	assert.Equal(t, config.FieldSelect, careDef.Type)
+	assert.Equal(t, config.CareConceptFixedSchedule, careDef.Default)
+	assert.Equal(t, config.AccessShared, careDef.AccessPolicy)
+	assert.Equal(t, "operations", careDef.Tab)
+	assert.Equal(t, "organisation", careDef.Category)
+	assert.Equal(t, "config:update", careDef.WritePermission)
+	require.NotNil(t, careDef.Options)
+	careValues := []any{careDef.Options.Static[0].Value, careDef.Options.Static[1].Value}
+	assert.Contains(t, careValues, config.CareConceptFixedSchedule)
+	assert.Contains(t, careValues, config.CareConceptOpenRooms)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {
@@ -172,12 +224,11 @@ func TestTimetableSettings_Types(t *testing.T) {
 func TestTimetableSettings_Defaults(t *testing.T) {
 	enabledDef := config.GetDefinition("timetable.enabled")
 	require.NotNil(t, enabledDef)
-	assert.Equal(t, false, enabledDef.Default, "timetable must default to false")
+	assert.Equal(t, true, enabledDef.Default, "timetable must default to true so the feature is opt-out")
 
-	// Both the materialization and auto-start flags default to FALSE so that
-	// WP-B7 is a pure no-op until the consuming services (WP-B8 / B9) ship
-	// AND a tenant explicitly opts in. Regressing either of these defaults
-	// would silently activate incomplete features for every tenant.
+	// The top-level feature is opt-out, but materialization and auto-start stay
+	// opt-in so background writes and live activity transitions do not begin
+	// unless a tenant explicitly enables those behaviours.
 	matDef := config.GetDefinition("timetable.materialization_enabled")
 	require.NotNil(t, matDef)
 	assert.Equal(t, false, matDef.Default, "materialization must default to false")
@@ -352,6 +403,36 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should be registered", key)
 		assert.Equalf(t, "system", def.Tab, "setting %q should be in system tab", key)
+	}
+}
+
+// TestEnrollmentLegalTexts guards the per-tenant AGB + Datenschutz
+// document settings: both are textarea-typed (so the admin gets a
+// multi-line editor for a full legal page), default to empty (so the
+// public form falls back to a plain consent label until an admin fills
+// them in), use the stricter config:manage write permission (legal/GDPR
+// documents), and hide behind the enrollment.enabled master toggle.
+func TestEnrollmentLegalTexts(t *testing.T) {
+	keys := []string{
+		config.KeyEnrollmentLegalAGBText,
+		config.KeyEnrollmentLegalDSGVOText,
+		config.KeyEnrollmentLegalEmailContactText,
+		config.KeyEnrollmentLegalPhotoText,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should be registered", key)
+		assert.Equalf(t, config.FieldTextarea, def.Type, "setting %q should be textarea", key)
+		assert.Equalf(t, "", def.Default, "setting %q should default to empty", key)
+		assert.Equalf(t, "enrollment", def.Tab, "setting %q should be in enrollment tab", key)
+		assert.Equalf(t, "rechtstexte", def.Category, "setting %q should be in rechtstexte category", key)
+		assert.Equalf(t, "config:manage", def.WritePermission, "setting %q should use config:manage (legal/GDPR)", key)
+		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
+		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
+		require.NotNilf(t, def.DependsOn, "setting %q must depend on enrollment.enabled", key)
+		assert.Equalf(t, config.KeyEnrollmentEnabled, def.DependsOn.Key, "setting %q parent should be enrollment.enabled", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
 	}
 }
 
@@ -584,6 +665,10 @@ func TestSecuritySettings(t *testing.T) {
 	assert.Equal(t, "devices", def.Tab)
 	assert.Equal(t, "pin", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 // TestMFASettings_TypesAndDefaults locks down the field types, registry
@@ -697,17 +782,26 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 }
 
 func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
+	dailyCheckoutDef := config.GetDefinition("operations.student_daily_checkout_time")
+	require.NotNil(t, dailyCheckoutDef)
+	require.NotNil(t, dailyCheckoutDef.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, dailyCheckoutDef.DependsOn.Key)
+	assert.Equal(t, "eq", dailyCheckoutDef.DependsOn.Condition)
+	assert.Equal(t, true, dailyCheckoutDef.DependsOn.Value)
+
+	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
+	require.NotNil(t, toggleDef)
+	require.NotNil(t, toggleDef.DependsOn)
+	assert.Equal(t, config.KeyAttendanceNFCEnabled, toggleDef.DependsOn.Key)
+	assert.Equal(t, "eq", toggleDef.DependsOn.Condition)
+	assert.Equal(t, true, toggleDef.DependsOn.Value)
+
 	deltaDef := config.GetDefinition("operations.per_student_checkout_delta_minutes")
 	require.NotNil(t, deltaDef)
 	require.NotNil(t, deltaDef.DependsOn)
 	assert.Equal(t, "operations.per_student_checkout_enabled", deltaDef.DependsOn.Key)
 	assert.Equal(t, "eq", deltaDef.DependsOn.Condition)
 	assert.Equal(t, true, deltaDef.DependsOn.Value)
-
-	// The toggle itself has no DependsOn
-	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
-	require.NotNil(t, toggleDef)
-	assert.Nil(t, toggleDef.DependsOn)
 }
 
 func TestDependsOn_AttendanceLogGroup(t *testing.T) {
@@ -785,6 +879,10 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
 		assert.Equal(t, "checkout", def.Category, "setting %q should be in checkout category", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
+		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
 	}
 
 	// Raumwechsel defaults to true (no system room required)
@@ -870,7 +968,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
-		{"attendance.web_spontaneous_activities_enabled", false},
+		{"attendance.web_spontaneous_activities_enabled", true},
 		{"operations.student_photos_enabled", false},
 	}
 

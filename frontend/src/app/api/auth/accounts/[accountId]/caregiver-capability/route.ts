@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import type { RouteContext } from "~/lib/route-wrapper-utils";
+import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
 async function proxyCaregiverCapability(
   request: NextRequest,

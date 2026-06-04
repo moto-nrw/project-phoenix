@@ -8,11 +8,13 @@ const {
   validateStudentFormMock,
   uploadStudentPhotoMock,
   deleteStudentPhotoMock,
+  fetchStudentPrivacyConsentMock,
 } = vi.hoisted(() => ({
   handleStudentFormSubmitMock: vi.fn(),
   validateStudentFormMock: vi.fn(),
   uploadStudentPhotoMock: vi.fn(),
   deleteStudentPhotoMock: vi.fn(),
+  fetchStudentPrivacyConsentMock: vi.fn(() => Promise.resolve(null)),
 }));
 
 vi.mock("~/lib/student-form-validation", () => ({
@@ -23,6 +25,7 @@ vi.mock("~/lib/student-form-validation", () => ({
 vi.mock("~/lib/student-api", () => ({
   uploadStudentPhoto: uploadStudentPhotoMock,
   deleteStudentPhoto: deleteStudentPhotoMock,
+  fetchStudentPrivacyConsent: fetchStudentPrivacyConsentMock,
 }));
 
 // Mock StudentPhotoSection with controllable test buttons. The real component
@@ -174,6 +177,7 @@ function makeStudent(overrides: Partial<Student> = {}): Student {
 describe("StudentStammdatenTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
     validateStudentFormMock.mockReturnValue({});
     handleStudentFormSubmitMock.mockImplementation(
       async (
@@ -243,6 +247,29 @@ describe("StudentStammdatenTab", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0]![0]).toMatchObject({ first_name: "Updated" });
+  });
+
+  it("blocks saving when privacy consent failed to load", async () => {
+    fetchStudentPrivacyConsentMock.mockRejectedValueOnce(
+      new Error("server unavailable"),
+    );
+    const onSave = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    await screen.findByText(/Datenschutzeinwilligung konnte nicht geladen/);
+    fireEvent.change(screen.getByTestId("first-name"), {
+      target: { value: "Updated" },
+    });
+
+    expect(screen.getByRole("button", { name: /Speichern/ })).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   // Regression test for the silent-data-loss bug. The global test setup
@@ -454,6 +481,7 @@ describe("StudentStammdatenTab", () => {
 describe("StudentStammdatenTab — photo orchestration", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    fetchStudentPrivacyConsentMock.mockResolvedValue(null);
     validateStudentFormMock.mockReturnValue({});
     // Override useTenantSafe so photosEnabled is true for this suite.
     const tenantProvider = await import("~/components/tenant/tenant-provider");

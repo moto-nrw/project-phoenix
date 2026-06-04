@@ -1,5 +1,5 @@
 import { revalidatePath, revalidateTag } from "next/cache";
-import { createOperatorPostHandler } from "~/lib/operator/route-wrapper";
+import { createOperatorPostHandler } from "~/lib/operator/route-wrapper.server";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 

@@ -152,6 +152,43 @@ func (r *RequestRepository) ExistsByPhaseID(ctx context.Context, phaseID int64) 
 	return count > 0, nil
 }
 
+// CountByPhaseID returns how many request rows reference the given
+// phase. Powers the phase-delete confirmation modal ("X Anmeldungen
+// werden gelöscht"). Tenant-scoped via RLS.
+func (r *RequestRepository) CountByPhaseID(ctx context.Context, phaseID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".phase_id = ?`, phaseID).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count phase requests: %w", err)
+	}
+	return count, nil
+}
+
+// DeleteByPhaseID removes every request row for the phase. The FK
+// cascade drops request_children and request_child_offerings with it;
+// the request_child_offerings.care_offering_id ON DELETE RESTRICT means
+// callers MUST delete requests before deleting the phase's care
+// offerings (or the phase itself, which cascades the offerings).
+// users.students rows are untouched — request_children.created_student_id
+// is ON DELETE SET NULL, and the student is the parent in that
+// relationship, so deleting children never deletes the student.
+// Tenant-scoped via RLS.
+func (r *RequestRepository) DeleteByPhaseID(ctx context.Context, phaseID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".phase_id = ?`, phaseID).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete phase requests: %w", err)
+	}
+	affected, _ := res.RowsAffected()
+	return int(affected), nil
+}
+
 // ExistsBySchemaID returns true if any request row references the
 // schema version. Used to keep historical enrollment submissions
 // auditable when admins delete unused form templates.

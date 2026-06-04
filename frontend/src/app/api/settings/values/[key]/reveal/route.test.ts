@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockApiGet = vi.fn();
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiGet: (...args: unknown[]) => mockApiGet(...args),
 }));
 
-vi.mock("~/lib/route-wrapper", () => ({
+vi.mock("~/lib/route-wrapper.server", () => ({
   createGetHandler: (handler: Function) => handler,
 }));
 

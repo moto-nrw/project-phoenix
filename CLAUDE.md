@@ -424,6 +424,14 @@ Per-school configuration via a registry-driven system. Schools configure setting
 
 **For architecture, step-by-step guides, and field type reference, see `.claude/rules/settings-system.md`.**
 
+## In-App Help Guide
+
+The school-facing manual lives under `/help` (three guides: Ersteinrichtung, Die App im Alltag, NFC & Tablets). Schools read it in the browser and receive it as a printable PDF generated in CI. All content is one file: `frontend/src/components/help/guide-data.ts` (`GuideChapter → GuideStep`, German). It is a living asset — it drifts the moment a screen or step changes and nobody touches it.
+
+**RULE: When you add a user-facing feature flow, or substantially change a flow that the guide already documents, update `guide-data.ts` (and any changed screenshot) in the SAME PR.** This does not apply to backend-only, operator/parents-portal-only, or pure-styling changes. When unsure: if a school user would *do something differently* after your change, the guide needs a line.
+
+**For the file map, the data model, the exact when/how, and the PDF-render caveat, see `.claude/rules/help-guide-sync.md`** (paired skill: `help-guide-sync`).
+
 ---
 
 @CLAUDE.local.md

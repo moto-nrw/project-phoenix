@@ -77,6 +77,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.Materialization != nil {
 			srv.scheduler.SetMaterializer(api.Services.Materialization)
 		}
+		if api.Services.AutoStart != nil {
+			srv.scheduler.SetAutoStartService(api.Services.AutoStart)
+		}
 		// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
 		if api.Services.TimetableCleanup != nil {
 			srv.scheduler.SetTimetableCleanup(api.Services.TimetableCleanup)

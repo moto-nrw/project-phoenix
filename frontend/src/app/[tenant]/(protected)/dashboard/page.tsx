@@ -15,6 +15,10 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -252,6 +256,9 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useTenantRouter();
+  const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -381,14 +388,16 @@ function DashboardContent() {
           loading={isLoading}
           href="/ogs-groups"
         />
-        <StatCard
-          title="Aktive Aktivitäten"
-          value={dashboardData?.activeActivities ?? 0}
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          color="from-[#FF3130] to-[#e02020]"
-          loading={isLoading}
-          href="/activities"
-        />
+        {showActivitySurfaces ? (
+          <StatCard
+            title="Aktive Aktivitäten"
+            value={dashboardData?.activeActivities ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            color="from-[#FF3130] to-[#e02020]"
+            loading={isLoading}
+            href="/activities"
+          />
+        ) : null}
         <StatCard
           title="Freie Räume"
           value={dashboardData?.freeRooms ?? 0}
@@ -483,58 +492,59 @@ function DashboardContent() {
           })()}
         </InfoCard>
 
-        {/* Current Activities */}
-        <InfoCard
-          title="Laufende Aktivitäten"
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          href="/activities"
-        >
-          {(() => {
-            if (isLoading) {
+        {showActivitySurfaces ? (
+          <InfoCard
+            title="Laufende Aktivitäten"
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            href="/activities"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.currentActivities;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine laufenden Aktivitäten
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => (
                     <div
-                      key={i}
-                      className="h-14 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
+                      key={`${activity.name}-${activity.category}-${idx}`}
+                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {activity.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {activity.category} • {activity.participants}/
+                          {activity.maxCapacity} Teilnehmer
+                        </p>
+                      </div>
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
+                      ></div>
+                    </div>
                   ))}
                 </div>
               );
-            }
-            const activities = dashboardData?.currentActivities;
-            if (!activities || activities.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine laufenden Aktivitäten
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {activities.slice(0, 5).map((activity, idx) => (
-                  <div
-                    key={`${activity.name}-${activity.category}-${idx}`}
-                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {activity.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {activity.category} • {activity.participants}/
-                        {activity.maxCapacity} Teilnehmer
-                      </p>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
-                    ></div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        ) : null}
 
         {/* Active Groups */}
         <InfoCard

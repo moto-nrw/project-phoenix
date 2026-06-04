@@ -25,7 +25,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("@/lib/api-helpers", () => ({
+vi.mock("@/lib/api-helpers.server", () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
   apiPut: mockApiPut,

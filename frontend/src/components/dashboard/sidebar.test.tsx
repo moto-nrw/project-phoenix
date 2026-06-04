@@ -60,7 +60,10 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -69,6 +72,7 @@ const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
+const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 
 // Helper to create mock search params
 function createMockSearchParams(
@@ -1521,6 +1525,35 @@ describe("Sidebar", () => {
       render(<Sidebar />);
       expect(screen.getByText("Kindersuche")).toBeInTheDocument();
       expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
+    });
+  });
+
+  describe("NFC mode", () => {
+    beforeEach(() => {
+      mockUseNFCEnabled.mockReturnValue(false);
+    });
+
+    afterEach(() => {
+      mockUseNFCEnabled.mockReturnValue(true);
+    });
+
+    it("hides the classic Aktivitäten nav item when NFC is disabled", () => {
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+    });
+
+    it("hides NFC-only database sub-pages when NFC is disabled", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUsePathname.mockReturnValue("/database");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(screen.getByText("Kinder")).toBeInTheDocument();
+      expect(screen.queryByText("Geräte")).not.toBeInTheDocument();
+      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
   });
 });

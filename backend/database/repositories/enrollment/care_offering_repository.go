@@ -84,6 +84,9 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 		Set("capacity = ?", offering.Capacity).
 		Set("price_cents = ?", offering.PriceCents).
 		Set("is_active = ?", offering.IsActive).
+		Set("is_required = ?", offering.IsRequired).
+		Set("selection_group = ?", offering.SelectionGroup).
+		Set("selection_rule = ?", offering.SelectionRule).
 		Set("sort_order = ?", offering.SortOrder).
 		Set("updated_at = NOW()").
 		Where(`"care_offering".id = ?`, offering.ID).
@@ -145,6 +148,21 @@ func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64)
 		return nil, fmt.Errorf("failed to list care offerings by phase: %w", err)
 	}
 	return offerings, nil
+}
+
+// CountByPhaseID returns how many care offerings belong to the phase.
+// Powers the phase-delete confirmation modal ("Y Betreuungsangebote
+// werden gelöscht"). Tenant-scoped via RLS.
+func (r *CareOfferingRepository) CountByPhaseID(ctx context.Context, phaseID int64) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.CareOffering)(nil)).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".phase_id = ?`, phaseID).
+		Count(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count care offerings by phase: %w", err)
+	}
+	return count, nil
 }
 
 // ListActiveByPhase returns is_active=true offerings for the phase.

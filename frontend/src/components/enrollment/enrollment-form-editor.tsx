@@ -20,6 +20,7 @@ import {
   FileText,
   GripVertical,
   HelpCircle,
+  Info,
   ListPlus,
   Lock,
   MoreVertical,
@@ -33,18 +34,22 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   blankField,
+  blankInfoField,
   createSchema,
   deleteSchema,
   latestSchemasByName,
   listSchemas,
   updateSchema,
   RESERVED_TARGETS,
+  type ConditionOperator,
+  type ConditionSource,
   type FormField,
   type FormFieldTarget,
   type FormFieldType,
   type FormSchema,
   type CoreRequirementKey,
   type CoreRequirements,
+  type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
@@ -58,9 +63,24 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   textarea: "Mehrzeiliger Text",
   date: "Datum",
   select: "Auswahl",
+  information: "Infotext",
   phone_list: "Telefonliste",
   weekday_schedule: "Wochenzeiten",
   contact_list: "Kontaktliste",
+};
+
+// German labels for the visibility-condition editor.
+const conditionSourceLabels: Record<ConditionSource, string> = {
+  field: "Antwort auf eine andere Frage",
+  grade_level: "Klassenstufe des Kindes",
+  care_offering: "Gewähltes Betreuungsangebot",
+};
+
+const conditionOperatorLabels: Record<ConditionOperator, string> = {
+  eq: "ist gleich",
+  neq: "ist nicht gleich",
+  not_empty: "ist ausgefüllt",
+  includes: "enthält",
 };
 
 const freeFieldTypes = [
@@ -313,6 +333,10 @@ export function EnrollmentFormEditor() {
 
   const addField = () => {
     setFields((prev) => [...prev, blankField(prev.length)]);
+  };
+
+  const addInfoField = () => {
+    setFields((prev) => [...prev, blankInfoField(prev.length)]);
   };
 
   const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
@@ -595,15 +619,26 @@ export function EnrollmentFormEditor() {
                     der Anmeldung.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addField}
-                  disabled={saving}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  Freie Zusatzfrage
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={addInfoField}
+                    disabled={saving}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                    Infotext
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addField}
+                    disabled={saving}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Freie Zusatzfrage
+                  </button>
+                </div>
               </div>
 
               {error ? (
@@ -626,6 +661,7 @@ export function EnrollmentFormEditor() {
                       field={field}
                       index={index}
                       total={fields.length}
+                      allFields={fields}
                       onChange={(patch) => updateField(index, patch)}
                       onRemove={() => removeField(index)}
                       onMoveUp={() => moveField(index, -1)}
@@ -1871,6 +1907,7 @@ interface FieldEditorRowProps {
   readonly field: FormField;
   readonly index: number;
   readonly total: number;
+  readonly allFields: FormField[];
   readonly onChange: (patch: Partial<FormField>) => void;
   readonly onRemove: () => void;
   readonly onMoveUp: () => void;
@@ -1882,6 +1919,7 @@ function FieldEditorRow({
   field,
   index,
   total,
+  allFields,
   onChange,
   onRemove,
   onMoveUp,
@@ -1890,9 +1928,12 @@ function FieldEditorRow({
 }: FieldEditorRowProps) {
   const target = field.target || null;
   const isTargetField = target !== null;
-  const displayLabel = target
-    ? RESERVED_TARGETS[target].label
-    : field.label.trim() || "Neue Zusatzfrage";
+  const isInfo = field.type === "information";
+  const displayLabel = isInfo
+    ? field.label.trim() || "Infotext"
+    : target
+      ? field.label.trim() || RESERVED_TARGETS[target].label
+      : field.label.trim() || "Neue Zusatzfrage";
   const optionSignature = useMemo(
     () => (field.options ?? []).map((option) => option.label).join("\n"),
     [field.options],
@@ -1928,9 +1969,14 @@ function FieldEditorRow({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Frage {index + 1}
+                  {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
-                {isTargetField ? (
+                {isInfo ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                    <Info className="h-3 w-3" aria-hidden="true" />
+                    Hinweis
+                  </span>
+                ) : isTargetField ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
                     <Lock className="h-3 w-3" aria-hidden="true" />
                     Fester Vorschlag
@@ -1976,14 +2022,25 @@ function FieldEditorRow({
             </div>
           </div>
 
-          {isTargetField ? (
+          {isInfo ? (
+            <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 px-3 py-2 text-xs leading-5 text-gray-600">
+              <p className="font-medium text-[#3D63B0]">
+                Wird Eltern als Hinweis angezeigt.
+              </p>
+              <p className="mt-0.5">
+                Ein Infotext sammelt keine Antwort. Nutze ihn für Erklärungen,
+                Hinweise oder Zwischenüberschriften.
+              </p>
+            </div>
+          ) : isTargetField ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs leading-5 text-gray-600">
               <p className="font-medium text-gray-800">
                 Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
               </p>
               <p className="mt-0.5">
-                Label und Typ sind fest vorgegeben. Entferne den Vorschlag, wenn
-                diese Angabe nicht abgefragt werden soll.
+                Du kannst die angezeigte Frage umbenennen. Inhalt und Typ sind
+                fest vorgegeben. Entferne den Vorschlag, wenn diese Angabe nicht
+                abgefragt werden soll.
               </p>
             </div>
           ) : (
@@ -1998,106 +2055,173 @@ function FieldEditorRow({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-medium text-gray-700">
-                Frage im Elternformular
-              </span>
-              <input
-                type="text"
-                value={isTargetField ? displayLabel : field.label}
-                onChange={(event) => {
-                  const nextLabel = event.target.value;
-                  const currentAutoKey = normalizeFieldKey(field.label);
-                  const shouldUpdateKey =
-                    field.key.trim() === "" || field.key === currentAutoKey;
-                  onChange({
-                    label: nextLabel,
-                    key: shouldUpdateKey
-                      ? normalizeFieldKey(nextLabel)
-                      : field.key,
-                  });
-                }}
-                placeholder="z. B. Allergien oder Hinweise"
-                disabled={disabled || isTargetField}
-                className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-700">
-                Typ
-                {field.target ? (
-                  <span className="ml-1 text-[11px] font-normal text-gray-500">
-                    (automatisch festgelegt)
+          {isInfo ? (
+            <>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Titel (optional)
+                </span>
+                <input
+                  type="text"
+                  value={field.label}
+                  onChange={(event) => onChange({ label: event.target.value })}
+                  placeholder="z. B. Wichtiger Hinweis"
+                  disabled={disabled}
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Infotext für Eltern
+                </span>
+                <textarea
+                  value={field.content ?? ""}
+                  onChange={(event) =>
+                    onChange({ content: event.target.value })
+                  }
+                  placeholder="Dieser Text wird Eltern im Formular angezeigt."
+                  disabled={disabled}
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                />
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FormChoice
+                  checked={Boolean(field.applies_to_child)}
+                  onChange={(checked) =>
+                    onChange({ applies_to_child: checked })
+                  }
+                  label="Pro Kind anzeigen"
+                  hint="Der Hinweis erscheint bei jedem angemeldeten Kind."
+                  disabled={disabled}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700">
+                    Frage im Elternformular
                   </span>
-                ) : null}
-              </span>
-              <select
-                value={field.type}
-                onChange={(event) =>
-                  onChange({ type: event.target.value as FormFieldType })
-                }
-                disabled={disabled || isTargetField}
-                className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-              >
-                {(isTargetField
-                  ? (Object.keys(fieldTypeLabels) as FormFieldType[])
-                  : freeFieldTypes
-                ).map((value) => (
-                  <option key={value} value={value}>
-                    {fieldTypeLabels[value]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+                  <input
+                    type="text"
+                    value={field.label}
+                    onChange={(event) => {
+                      const nextLabel = event.target.value;
+                      if (isTargetField) {
+                        // Suggested fields keep their fixed key + type; only
+                        // the displayed question text is editable.
+                        onChange({ label: nextLabel });
+                        return;
+                      }
+                      const currentAutoKey = normalizeFieldKey(field.label);
+                      const shouldUpdateKey =
+                        field.key.trim() === "" || field.key === currentAutoKey;
+                      onChange({
+                        label: nextLabel,
+                        key: shouldUpdateKey
+                          ? normalizeFieldKey(nextLabel)
+                          : field.key,
+                      });
+                    }}
+                    placeholder={
+                      isTargetField && target
+                        ? RESERVED_TARGETS[target].label
+                        : "z. B. Allergien oder Hinweise"
+                    }
+                    disabled={disabled}
+                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700">
+                    Typ
+                    {isTargetField ? (
+                      <span className="ml-1 text-[11px] font-normal text-gray-500">
+                        (automatisch festgelegt)
+                      </span>
+                    ) : null}
+                  </span>
+                  <select
+                    value={field.type}
+                    onChange={(event) =>
+                      onChange({ type: event.target.value as FormFieldType })
+                    }
+                    disabled={disabled || isTargetField}
+                    className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
+                  >
+                    {(isTargetField ? [field.type] : freeFieldTypes).map(
+                      (value) => (
+                        <option key={value} value={value}>
+                          {fieldTypeLabels[value]}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+              </div>
 
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">
-              Hilfetext für Eltern
-            </span>
-            <input
-              type="text"
-              value={field.help_text ?? ""}
-              onChange={(event) => onChange({ help_text: event.target.value })}
-              placeholder="Optionaler kurzer Hinweis unter der Frage"
-              disabled={disabled || isTargetField}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Hilfetext für Eltern
+                </span>
+                <input
+                  type="text"
+                  value={field.help_text ?? ""}
+                  onChange={(event) =>
+                    onChange({ help_text: event.target.value })
+                  }
+                  placeholder="Optionaler kurzer Hinweis unter der Frage"
+                  disabled={disabled}
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                />
+              </label>
 
-          {field.type === "select" ? (
-            <label className="block">
-              <span className="text-xs font-medium text-gray-700">
-                Auswahloptionen
-              </span>
-              <textarea
-                value={optionsDraft}
-                onChange={(event) => updateOptions(event.target.value)}
-                placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
-                disabled={disabled || isTargetField}
-                rows={3}
-                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              />
-            </label>
-          ) : null}
+              {field.type === "select" ? (
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700">
+                    Auswahloptionen
+                  </span>
+                  <textarea
+                    value={optionsDraft}
+                    onChange={(event) => updateOptions(event.target.value)}
+                    placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
+                    disabled={disabled || isTargetField}
+                    rows={3}
+                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  />
+                </label>
+              ) : null}
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <FormChoice
-              checked={Boolean(field.required)}
-              onChange={(checked) => onChange({ required: checked })}
-              label="Pflichtfrage"
-              hint={getRequiredHint(field)}
-              disabled={disabled}
-            />
-            <FormChoice
-              checked={Boolean(field.applies_to_child)}
-              onChange={(checked) => onChange({ applies_to_child: checked })}
-              label="Pro Kind abfragen"
-              hint="Die Frage erscheint für jedes angemeldete Kind."
-              disabled={disabled || isTargetField}
-            />
-          </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <FormChoice
+                  checked={Boolean(field.required)}
+                  onChange={(checked) => onChange({ required: checked })}
+                  label="Pflichtfrage"
+                  hint={getRequiredHint(field)}
+                  disabled={disabled}
+                />
+                <FormChoice
+                  checked={Boolean(field.applies_to_child)}
+                  onChange={(checked) =>
+                    onChange({ applies_to_child: checked })
+                  }
+                  label="Pro Kind abfragen"
+                  hint="Die Frage erscheint für jedes angemeldete Kind."
+                  disabled={disabled || isTargetField}
+                />
+              </div>
+            </>
+          )}
+
+          <ConditionEditor
+            field={field}
+            index={index}
+            allFields={allFields}
+            onChange={onChange}
+            disabled={disabled}
+          />
         </div>
       </div>
     </article>
@@ -2145,6 +2269,358 @@ function FormChoice({
         <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>
       </span>
     </button>
+  );
+}
+
+const conditionInputClass =
+  "moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
+
+// Field-source operators offered in the condition editor. "includes" is
+// reserved for the care-offering source and is not listed here.
+const FIELD_CONDITION_OPERATORS: ConditionOperator[] = [
+  "eq",
+  "neq",
+  "not_empty",
+];
+
+function defaultConditionForController(
+  controller: FormField,
+): VisibilityCondition {
+  if (controller.type === "select") {
+    return {
+      source: "field",
+      field: controller.key,
+      operator: "eq",
+      value: controller.options?.[0]?.value ?? "",
+    };
+  }
+  return {
+    source: "field",
+    field: controller.key,
+    operator: "eq",
+    value: true,
+  };
+}
+
+function defaultConditionForSource(
+  source: ConditionSource,
+  controllers: FormField[],
+): VisibilityCondition {
+  if (source === "grade_level") {
+    return { source: "grade_level", operator: "eq", value: 1 };
+  }
+  if (source === "care_offering") {
+    return { source: "care_offering", operator: "includes", value: "" };
+  }
+  const controller = controllers[0];
+  return controller
+    ? defaultConditionForController(controller)
+    : { source: "field", field: "", operator: "eq", value: "" };
+}
+
+/**
+ * Per-field visibility editor. Lets an admin gate a question or info
+ * block behind another answer, the child's grade level, or a chosen
+ * care offering. Eligible controlling questions are limited to yes/no
+ * and selection fields observable from this field's scope.
+ */
+function ConditionEditor({
+  field,
+  index,
+  allFields,
+  onChange,
+  disabled,
+}: Readonly<{
+  field: FormField;
+  index: number;
+  allFields: FormField[];
+  onChange: (patch: Partial<FormField>) => void;
+  disabled: boolean;
+}>) {
+  const condition = field.visible_when ?? null;
+
+  const controllers = allFields.filter(
+    (f, i) =>
+      i !== index &&
+      f.key.trim() !== "" &&
+      (f.type === "boolean" || f.type === "select") &&
+      (field.applies_to_child || !f.applies_to_child),
+  );
+
+  const sources: ConditionSource[] = [];
+  if (controllers.length > 0) sources.push("field");
+  if (field.applies_to_child) {
+    sources.push("grade_level", "care_offering");
+  }
+  const canEnable = sources.length > 0;
+
+  const setCondition = (next: VisibilityCondition | null) =>
+    onChange({ visible_when: next });
+  const patchCondition = (patch: Partial<VisibilityCondition>) => {
+    if (condition) setCondition({ ...condition, ...patch });
+  };
+
+  if (!canEnable && !condition) {
+    return (
+      <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2 text-xs leading-5 text-gray-500">
+        Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder
+        Auswahlfrage gibt
+        {field.applies_to_child
+          ? "."
+          : " (oder dieses Feld pro Kind angezeigt wird)."}
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-3">
+      <FormChoice
+        checked={condition !== null}
+        onChange={(checked) =>
+          setCondition(
+            checked
+              ? defaultConditionForSource(sources[0]!, controllers)
+              : null,
+          )
+        }
+        label="Nur unter einer Bedingung anzeigen"
+        hint="Das Feld erscheint nur, wenn die Bedingung erfüllt ist."
+        disabled={disabled || !canEnable}
+      />
+
+      {condition ? (
+        <div className="mt-3 space-y-2">
+          <label className="block">
+            <span className="text-xs font-medium text-gray-700">
+              Sichtbar wenn
+            </span>
+            <select
+              value={condition.source}
+              onChange={(event) =>
+                setCondition(
+                  defaultConditionForSource(
+                    event.target.value as ConditionSource,
+                    controllers,
+                  ),
+                )
+              }
+              disabled={disabled}
+              className={conditionInputClass}
+            >
+              {sources.map((source) => (
+                <option key={source} value={source}>
+                  {conditionSourceLabels[source]}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {condition.source === "field" ? (
+            <ConditionFieldControls
+              condition={condition}
+              controllers={controllers}
+              onPatch={patchCondition}
+              onReplace={setCondition}
+              disabled={disabled}
+            />
+          ) : condition.source === "grade_level" ? (
+            <ConditionGradeControls
+              condition={condition}
+              onPatch={patchCondition}
+              disabled={disabled}
+            />
+          ) : (
+            <ConditionOfferingControls
+              condition={condition}
+              onPatch={patchCondition}
+              disabled={disabled}
+            />
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ConditionFieldControls({
+  condition,
+  controllers,
+  onPatch,
+  onReplace,
+  disabled,
+}: Readonly<{
+  condition: VisibilityCondition;
+  controllers: FormField[];
+  onPatch: (patch: Partial<VisibilityCondition>) => void;
+  onReplace: (next: VisibilityCondition) => void;
+  disabled: boolean;
+}>) {
+  const controller = controllers.find((c) => c.key === condition.field);
+
+  const changeController = (key: string) => {
+    const next = controllers.find((c) => c.key === key);
+    if (!next) return;
+    const base = defaultConditionForController(next);
+    onReplace(
+      condition.operator === "not_empty"
+        ? { ...base, operator: "not_empty", value: undefined }
+        : base,
+    );
+  };
+
+  const changeOperator = (operator: ConditionOperator) => {
+    if (operator === "not_empty") {
+      onPatch({ operator, value: undefined });
+      return;
+    }
+    const fallback = controller
+      ? defaultConditionForController(controller).value
+      : "";
+    onPatch({ operator, value: condition.value ?? fallback });
+  };
+
+  return (
+    <>
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Frage</span>
+        <select
+          value={condition.field ?? ""}
+          onChange={(event) => changeController(event.target.value)}
+          disabled={disabled}
+          className={conditionInputClass}
+        >
+          {controllers.map((c) => (
+            <option key={c.key} value={c.key}>
+              {c.label.trim() || c.key}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Vergleich</span>
+        <select
+          value={condition.operator}
+          onChange={(event) =>
+            changeOperator(event.target.value as ConditionOperator)
+          }
+          disabled={disabled}
+          className={conditionInputClass}
+        >
+          {FIELD_CONDITION_OPERATORS.map((op) => (
+            <option key={op} value={op}>
+              {conditionOperatorLabels[op]}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {condition.operator !== "not_empty" && controller ? (
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">Wert</span>
+          {controller.type === "boolean" ? (
+            <select
+              value={condition.value === true ? "true" : "false"}
+              onChange={(event) =>
+                onPatch({ value: event.target.value === "true" })
+              }
+              disabled={disabled}
+              className={conditionInputClass}
+            >
+              <option value="true">Ja</option>
+              <option value="false">Nein</option>
+            </select>
+          ) : (
+            <select
+              value={String(condition.value ?? "")}
+              onChange={(event) => onPatch({ value: event.target.value })}
+              disabled={disabled}
+              className={conditionInputClass}
+            >
+              {(controller.options ?? []).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </label>
+      ) : null}
+    </>
+  );
+}
+
+function ConditionGradeControls({
+  condition,
+  onPatch,
+  disabled,
+}: Readonly<{
+  condition: VisibilityCondition;
+  onPatch: (patch: Partial<VisibilityCondition>) => void;
+  disabled: boolean;
+}>) {
+  return (
+    <>
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Vergleich</span>
+        <select
+          value={condition.operator}
+          onChange={(event) =>
+            onPatch({ operator: event.target.value as ConditionOperator })
+          }
+          disabled={disabled}
+          className={conditionInputClass}
+        >
+          <option value="eq">{conditionOperatorLabels.eq}</option>
+          <option value="neq">{conditionOperatorLabels.neq}</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Klassenstufe</span>
+        <input
+          type="number"
+          min={1}
+          value={String(condition.value ?? "")}
+          onChange={(event) =>
+            onPatch({
+              value:
+                event.target.value === "" ? "" : Number(event.target.value),
+            })
+          }
+          disabled={disabled}
+          className={conditionInputClass}
+        />
+      </label>
+    </>
+  );
+}
+
+function ConditionOfferingControls({
+  condition,
+  onPatch,
+  disabled,
+}: Readonly<{
+  condition: VisibilityCondition;
+  onPatch: (patch: Partial<VisibilityCondition>) => void;
+  disabled: boolean;
+}>) {
+  return (
+    <label className="block">
+      <span className="text-xs font-medium text-gray-700">
+        Angebotsname (enthält)
+      </span>
+      <input
+        type="text"
+        value={String(condition.value ?? "")}
+        onChange={(event) => onPatch({ value: event.target.value })}
+        placeholder="z. B. Mittagessen"
+        disabled={disabled}
+        className={conditionInputClass}
+      />
+      <span className="mt-1 block text-[11px] leading-4 text-gray-500">
+        Sichtbar, wenn ein gewähltes Betreuungsangebot diesen Namen trägt.
+      </span>
+    </label>
   );
 }
 
@@ -2361,18 +2837,56 @@ function PreviewSection({
   );
 }
 
+function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
+  if (!field.visible_when) return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[10px] font-medium text-[#3D63B0]">
+      bedingt
+    </span>
+  );
+}
+
 function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
+  if (field.type === "information") {
+    return (
+      <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 px-3 py-2">
+        <div className="flex items-start justify-between gap-3">
+          {field.label.trim() ? (
+            <span className="text-sm font-semibold text-gray-900">
+              {field.label}
+            </span>
+          ) : (
+            <span className="text-xs font-medium text-[#3D63B0]">Infotext</span>
+          )}
+          <ConditionalBadge field={field} />
+        </div>
+        {field.content?.trim() ? (
+          <p className="mt-1 text-xs leading-5 whitespace-pre-line text-gray-600">
+            {field.content}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs leading-5 text-gray-400 italic">
+            Noch kein Text hinterlegt.
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
       <div className="flex items-start justify-between gap-3">
         <span className="text-sm font-medium text-gray-900">
           {field.label.trim() || "Neue Zusatzfrage"}
         </span>
-        {field.required ? (
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-            Pflicht
-          </span>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <ConditionalBadge field={field} />
+          {field.required ? (
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+              Pflicht
+            </span>
+          ) : null}
+        </div>
       </div>
       {field.help_text ? (
         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -2538,7 +3052,31 @@ function getTargetOptions(
 function prepareFieldsForSave(fields: FormField[]): FormField[] {
   return fields.map((field, index) => {
     if (field.target) {
-      return createTargetField(field.target, index, field);
+      // Suggested field: type/options/scope are fixed by the spec, but
+      // the admin-edited label + help text + required flag + visibility
+      // ride along.
+      const base = createTargetField(field.target, index, field);
+      return {
+        ...base,
+        label: field.label.trim() || base.label,
+        help_text: field.help_text?.trim() ?? "",
+        required: Boolean(field.required),
+        visible_when: field.visible_when ?? undefined,
+      };
+    }
+    if (field.type === "information") {
+      return {
+        key:
+          field.key.trim() ||
+          normalizeFieldKey(field.label) ||
+          `infotext_${index + 1}`,
+        label: field.label.trim(),
+        type: "information",
+        content: field.content?.trim() ?? "",
+        sort_order: index,
+        applies_to_child: Boolean(field.applies_to_child),
+        visible_when: field.visible_when ?? undefined,
+      };
     }
     return {
       ...field,
@@ -2546,6 +3084,7 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
       label: field.label.trim(),
       help_text: field.help_text?.trim() ?? "",
       sort_order: index,
+      visible_when: field.visible_when ?? undefined,
     };
   });
 }
@@ -2589,26 +3128,42 @@ function getSchemaDraftValidationMessage({
 
   const seenKeys = new Set<string>();
   for (const [index, field] of fields.entries()) {
-    const questionNumber = index + 1;
+    const position = index + 1;
+
+    if (field.type === "information") {
+      if ((field.content ?? "").trim() === "") {
+        return `Bitte gib für den Infotext ${position} einen Text ein.`;
+      }
+      const infoKey =
+        field.key.trim() ||
+        normalizeFieldKey(field.label) ||
+        `infotext_${position}`;
+      if (seenKeys.has(infoKey)) {
+        return `Bitte ändere Infotext ${position}. Es entsteht ein doppeltes internes Feld.`;
+      }
+      seenKeys.add(infoKey);
+      continue;
+    }
+
     if (field.label.trim() === "") {
-      return `Bitte gib für Frage ${questionNumber} einen Fragetext ein.`;
+      return `Bitte gib für Frage ${position} einen Fragetext ein.`;
     }
 
     const key = field.key.trim() || normalizeFieldKey(field.label);
     if (key === "") {
-      return `Bitte ändere Frage ${questionNumber}. Aus dem Fragetext konnte kein internes Feld erzeugt werden.`;
+      return `Bitte ändere Frage ${position}. Aus dem Fragetext konnte kein internes Feld erzeugt werden.`;
     }
     if (seenKeys.has(key)) {
-      return `Bitte ändere Frage ${questionNumber}. Zwei Zusatzfragen haben denselben oder einen zu ähnlichen Fragetext.`;
+      return `Bitte ändere Frage ${position}. Zwei Zusatzfragen haben denselben oder einen zu ähnlichen Fragetext.`;
     }
     seenKeys.add(key);
 
     if (!field.target && structuredFieldTypes.has(field.type)) {
-      return `Bitte wähle für Frage ${questionNumber} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten sind nur als feste Vorschläge verfügbar.`;
+      return `Bitte wähle für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten sind nur als feste Vorschläge verfügbar.`;
     }
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
-      return `Bitte ergänze für Frage ${questionNumber} mindestens eine Auswahloption.`;
+      return `Bitte ergänze für Frage ${position} mindestens eine Auswahloption.`;
     }
   }
 

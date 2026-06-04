@@ -137,6 +137,55 @@ vi.mock("./guardian-form-modal", () => ({
     ) : null,
 }));
 
+// Mock the inline existing-guardian picker panel. It's mounted only while the
+// picker is open, so it renders here whenever present and exposes one button
+// that fires onSelect with a canned EXISTING guardian + relationship (the shape
+// the real panel emits). This exercises the manager's link-existing wiring
+// without driving the real search UI. A second button exercises onCancel.
+vi.mock("./guardian-picker-panel", () => ({
+  default: ({
+    onSelect,
+    onCancel,
+  }: {
+    onSelect: (guardian: unknown, relationship: unknown) => void;
+    onCancel: () => void;
+    excludeProfileIds?: readonly string[];
+  }) => (
+    <div data-testid="guardian-picker-panel">
+      <button
+        type="button"
+        data-testid="picker-select"
+        onClick={() =>
+          onSelect(
+            {
+              id: "777",
+              firstName: "Hans",
+              lastName: "Schmidt",
+              email: "hans@example.com",
+              phoneNumbers: [],
+              preferredContactMethod: "",
+              languagePreference: "",
+              hasAccount: false,
+            },
+            {
+              relationshipType: "parent",
+              isPrimary: false,
+              isEmergencyContact: false,
+              canPickup: true,
+              emergencyPriority: 1,
+            },
+          )
+        }
+      >
+        MockPickExisting
+      </button>
+      <button type="button" data-testid="picker-cancel" onClick={onCancel}>
+        MockCancelPicker
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("./guardian-delete-modal", () => ({
   GuardianDeleteModal: ({
     isOpen,
@@ -618,6 +667,122 @@ describe("StudentGuardianManager", () => {
           screen.queryByTestId("guardian-form-modal"),
         ).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Select Existing Guardian Flow", () => {
+    it("opens the picker when the search button is clicked", async () => {
+      render(<StudentGuardianManager studentId="student-123" />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+      );
+
+      expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
+    });
+
+    it("links the picked existing guardian and shows a success toast", async () => {
+      mockLinkGuardianToStudent.mockResolvedValue(undefined);
+
+      render(<StudentGuardianManager studentId="student-123" />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+      );
+      fireEvent.click(screen.getByTestId("picker-select"));
+
+      // The existing-guardian path links (never creates) with the profile id +
+      // the relationship flags chosen for THIS child.
+      await waitFor(() => {
+        expect(mockLinkGuardianToStudent).toHaveBeenCalledWith("student-123", {
+          guardianProfileId: "777",
+          relationshipType: "parent",
+          isPrimary: false,
+          isEmergencyContact: false,
+          canPickup: true,
+          emergencyPriority: 1,
+        });
+      });
+      // Never creates a profile or writes phone numbers on the existing path.
+      expect(mockCreateGuardian).not.toHaveBeenCalled();
+      expect(mockAddGuardianPhoneNumber).not.toHaveBeenCalled();
+
+      await waitFor(() => {
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Hans Schmidt wurde erfolgreich hinzugefügt",
+        );
+      });
+      // Picker closes after a selection.
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("guardian-picker-panel"),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("shows a German error toast when linking the existing guardian fails", async () => {
+      mockLinkGuardianToStudent.mockRejectedValue(
+        new Error("guardian already linked"),
+      );
+
+      render(<StudentGuardianManager studentId="student-123" />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+      );
+      fireEvent.click(screen.getByTestId("picker-select"));
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith(
+          "Fehler beim Verknüpfen der/des Erziehungsberechtigten",
+        );
+      });
+      // A raw backend message must never reach the user.
+      expect(mockToastError).not.toHaveBeenCalledWith(
+        "guardian already linked",
+      );
+    });
+
+    it("closes the picker without linking when cancelled", async () => {
+      render(<StudentGuardianManager studentId="student-123" />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(
+        screen.getByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+      );
+      expect(screen.getByTestId("guardian-picker-panel")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("picker-cancel"));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("guardian-picker-panel"),
+        ).not.toBeInTheDocument();
+      });
+      expect(mockLinkGuardianToStudent).not.toHaveBeenCalled();
     });
   });
 

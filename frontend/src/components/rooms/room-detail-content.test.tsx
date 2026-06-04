@@ -22,6 +22,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // null tenant keeps the photo feature off in this test (matching the
   // pre-feature shape the skeleton assertions were written against).
   useTenantSafe: () => ({ tenantSlug: "test-tenant", tenant: null }),
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 // The global test setup mocks `swr` to always return isLoading=true. To
@@ -556,7 +557,7 @@ describe("RoomDetailContent", () => {
     // duration_minutes from the session takes precedence over calculateDuration().
     expect(screen.getByText("45m")).toBeInTheDocument();
     expect(screen.getByText(/Frau A/)).toBeInTheDocument();
-    expect(screen.getByText(/Teilnehmer: 12/)).toBeInTheDocument();
+    expect(screen.getByText(/Kinder: 12/)).toBeInTheDocument();
     expect(screen.queryByText("Laufend")).not.toBeInTheDocument();
   });
 

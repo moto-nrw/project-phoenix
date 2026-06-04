@@ -22,6 +22,10 @@ interface CareWeeklyPlanModalProps {
     arrivalSchedules: ArrivalScheduleFormEntry[];
     pickupData: BulkPickupScheduleFormData;
   }) => Promise<void>;
+  // Success toast shown after onSubmit resolves. Defaults to the post-creation
+  // "saved" wording; the create-student flow overrides it because the plan is
+  // only staged locally there, not yet persisted.
+  readonly successMessage?: string;
 }
 
 interface CareWeeklyPlanRow {
@@ -40,6 +44,7 @@ export function CareWeeklyPlanModal({
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
+  successMessage = "Wochenplan wurde gespeichert",
 }: CareWeeklyPlanModalProps) {
   const toast = useToast();
   const [rows, setRows] = useState<CareWeeklyPlanRow[]>([]);
@@ -158,7 +163,7 @@ export function CareWeeklyPlanModal({
     setIsSubmitting(true);
     try {
       await onSubmit({ arrivalSchedules, pickupData });
-      toast.success("Wochenplan wurde gespeichert");
+      toast.success(successMessage);
       onClose();
     } catch (err) {
       const message =

@@ -1382,7 +1382,7 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 
 	t.Run("rejects invalid date range", func(t *testing.T) {
 		// ACT
-		endDate := time.Now()
+		endDate := time.Date(2026, 1, 1, 23, 30, 0, 0, time.UTC)
 		startDate := endDate.Add(1 * time.Hour)
 		_, err := service.FindAvailableSlots(ctx, startDate, endDate, 1*time.Hour)
 

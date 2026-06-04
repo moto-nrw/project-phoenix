@@ -16,7 +16,7 @@ vi.mock("../server/auth", () => ({
   uncachedAuth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiPost: mockApiPost,
   handleApiError: vi.fn((error: unknown) => {
     const message =

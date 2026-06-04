@@ -84,6 +84,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/care-offerings/public/{tenantSlug}/{phaseId}", rs.listPublicCareOfferings)
 	r.Get("/schema/public/{tenantSlug}/{phaseId}", rs.listPublicActiveSchema)
 	r.Get("/captcha-config/{tenantSlug}", rs.publicCaptchaConfig)
+	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
@@ -123,6 +124,10 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updatePhase)
+				// delete-impact previews the blast radius for the
+				// confirmation modal; same permission as the delete it
+				// precedes.
+				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getPhaseDeleteImpact)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deletePhase)
 				// Rollover (phase renewal). createRollover carries
 				// approved enrollments from this phase forward into a

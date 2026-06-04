@@ -1,4 +1,4 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper";
+import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
 
 interface UnreadAnnouncement {
   id: number;

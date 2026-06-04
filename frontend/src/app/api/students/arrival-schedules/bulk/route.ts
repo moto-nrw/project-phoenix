@@ -1,5 +1,5 @@
-import { createPostHandler } from "@/lib/route-wrapper";
-import { apiPost } from "@/lib/api-helpers";
+import { createPostHandler } from "@/lib/route-wrapper.server";
+import { apiPost } from "@/lib/api-helpers.server";
 
 // POST /api/students/arrival-schedules/bulk - Bulk upsert arrival schedules for a school class
 export const POST = createPostHandler(async (_request, body, token) => {

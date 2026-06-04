@@ -94,6 +94,10 @@ function isOperatorHost(hostname: string): boolean {
 function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
   // Block tenant auth endpoints on the operator host. Tenant session cookies
   // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
   // would expose tenant session data on operator.moto-app.de.
@@ -144,7 +148,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
 // --- Parents subdomain handling (cross-tenant guardian portal) ---
 
 /** Paths the parents subdomain serves (without /parents prefix).
- * Mirrors OPERATOR_PUBLIC_PATHS in shape — the proxy rewrites these to
+ * Mirrors OPERATOR_PUBLIC_PATHS in shape. The proxy rewrites these to
  * /parents/* internally so the App Router routes them under app/parent/.
  *
  * The "/parents" prefix is the path namespace inside the App Router,
@@ -165,6 +169,10 @@ function isParentsHost(hostname: string): boolean {
 
 function handleParentsSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
 
   // Block tenant + operator auth endpoints on the parents host. Tenant
   // and operator session cookies are strictly host-only on their own
@@ -247,7 +255,7 @@ function extractTenantSlug(host: string): string | null {
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  // /_next/* — Next.js internals; skip entirely (static assets).
+  // /_next/*: Next.js internals; skip entirely (static assets).
   if (pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
@@ -264,8 +272,15 @@ export function proxy(request: NextRequest): NextResponse {
     return handleParentsSubdomain(request);
   }
 
-  // 2. /api/* and /monitoring (Sentry tunnel) — pass through with security headers.
+  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
+    return withSecurityHeaders(NextResponse.next());
+  }
+
+  // Public documentation must stay host-agnostic. Without this exception,
+  // tenant subdomains rewrite /help to /{tenant}/help, where no
+  // App Router route exists.
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
     return withSecurityHeaders(NextResponse.next());
   }
 
@@ -297,13 +312,13 @@ export function proxy(request: NextRequest): NextResponse {
   const host = request.headers.get("host") ?? "";
   const tenantSlug = extractTenantSlug(host);
 
-  // No subdomain (bare domain) — pass through without rewrite.
+  // No subdomain (bare domain): pass through without rewrite.
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {
     return withSecurityHeaders(NextResponse.next());
   }
 
-  // Already has tenant prefix — useTenantRouter().push() adds the slug explicitly,
+  // Already has tenant prefix. useTenantRouter().push() adds the slug explicitly,
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
   if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
     return withSecurityHeaders(NextResponse.next());

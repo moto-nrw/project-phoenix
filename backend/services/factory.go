@@ -70,6 +70,7 @@ type Factory struct {
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
 	Instance                 schedule.InstanceService
+	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
@@ -78,6 +79,7 @@ type Factory struct {
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               listexport.Service
 	Emergency                emergency.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
@@ -456,6 +458,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "instance-lifecycle"),
 	})
 
+	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		InstanceService:   instanceService,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		Logger:            logger.With("service", "timetable-auto-start"),
+	})
+
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
@@ -467,6 +480,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
+		RoomRepo:           repos.Room,
 		PersonService:      usersService,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
@@ -714,6 +728,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
 
+	// Staff import bulk-creates invitations (reuses the invitation service);
+	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	staffImportConfig := importService.NewStaffImportConfig(
+		importService.StaffImportDeps{
+			InvitationService: invitationService,
+			AccountRepo:       repos.Account,
+			AccountTenantRepo: repos.AccountTenant,
+			RoleRepo:          repos.Role,
+			SchoolRepo:        repos.School,
+		},
+	)
+	staffImportService := importService.NewImportService(staffImportConfig, db)
+
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
 	// delivery constraints and security profile). If the two ever need to diverge,
@@ -845,7 +872,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Repo:             repos.Phase,
 		RequestRepo:      repos.Request,
+		RequestChildRepo: repos.RequestChild,
 		CareOfferingRepo: repos.CareOffering,
+		DB:               db,
 		Logger:           logger.With("service", "enrollment-phase"),
 	})
 
@@ -952,6 +981,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
 		Instance:                 instanceService,
+		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
@@ -960,6 +990,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
+		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
