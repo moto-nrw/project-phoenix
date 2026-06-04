@@ -29,6 +29,24 @@ var canonicalDaySet = map[string]bool{
 	"sat": true, "sun": true,
 }
 
+// Selection rules constrain how many offerings within the same
+// selection_group a parent may/must pick. Match the column CHECK
+// constraint from migration 1.15.78.
+const (
+	SelectionRuleOptional   = "optional"     // no constraint (default; today's behavior)
+	SelectionRuleExactlyOne = "exactly_one"  // XOR — exactly one in the group
+	SelectionRuleAtLeastOne = "at_least_one" // OR — one or more in the group
+	SelectionRuleAtMostOne  = "at_most_one"  // mutual exclusion — zero or one
+)
+
+// validSelectionRules mirrors the CHECK constraint.
+var validSelectionRules = map[string]bool{
+	SelectionRuleOptional:   true,
+	SelectionRuleExactlyOne: true,
+	SelectionRuleAtLeastOne: true,
+	SelectionRuleAtMostOne:  true,
+}
+
 // CareOffering is a row in enrollment.care_offerings - one care option
 // in the tenant's catalog. Admins build the catalog per calendar period
 // (typically a school year, occasionally a holiday); parents pick from
@@ -49,6 +67,11 @@ type CareOffering struct {
 	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
 	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
 	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	// SelectionGroup groups offerings that share a selection rule (empty
+	// = ungrouped). SelectionRule constrains how many of the group a
+	// parent must pick. See SelectionRule* constants.
+	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
+	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
 }
 
 // TableName returns the schema-qualified table name.
@@ -84,6 +107,18 @@ func (c *CareOffering) Validate() error {
 	}
 	if c.PriceCents != nil && *c.PriceCents < 0 {
 		return errors.New("price_cents must be non-negative")
+	}
+	c.SelectionGroup = strings.TrimSpace(c.SelectionGroup)
+	if c.SelectionRule == "" {
+		c.SelectionRule = SelectionRuleOptional
+	}
+	if !validSelectionRules[c.SelectionRule] {
+		return fmt.Errorf("selection_rule %q is invalid", c.SelectionRule)
+	}
+	// A non-optional rule only makes sense within a named group — it
+	// constrains the count across the group's members.
+	if c.SelectionRule != SelectionRuleOptional && c.SelectionGroup == "" {
+		return errors.New("a selection rule requires a selection_group name")
 	}
 	// A required offering must be available to every child, so it cannot
 	// carry a hard capacity limit - otherwise a full offering would block

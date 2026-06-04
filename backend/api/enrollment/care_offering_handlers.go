@@ -34,6 +34,8 @@ type CareOfferingResponse struct {
 	IsActive            bool      `json:"is_active"`
 	IsRequired          bool      `json:"is_required"`
 	SortOrder           int       `json:"sort_order"`
+	SelectionGroup      string    `json:"selection_group,omitempty"`
+	SelectionRule       string    `json:"selection_rule"`
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 }
@@ -53,6 +55,8 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		IsActive:            o.IsActive,
 		IsRequired:          o.IsRequired,
 		SortOrder:           o.SortOrder,
+		SelectionGroup:      o.SelectionGroup,
+		SelectionRule:       o.SelectionRule,
 		CreatedAt:           o.CreatedAt,
 		UpdatedAt:           o.UpdatedAt,
 	}
@@ -78,6 +82,8 @@ type CareOfferingRequest struct {
 	IsActive            bool     `json:"is_active"`
 	IsRequired          bool     `json:"is_required"`
 	SortOrder           int      `json:"sort_order"`
+	SelectionGroup      string   `json:"selection_group,omitempty"`
+	SelectionRule       string   `json:"selection_rule,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -104,6 +110,8 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 		IsActive:            req.IsActive,
 		IsRequired:          req.IsRequired,
 		SortOrder:           req.SortOrder,
+		SelectionGroup:      req.SelectionGroup,
+		SelectionRule:       req.SelectionRule,
 	}
 	o.ID = existingID
 	return o

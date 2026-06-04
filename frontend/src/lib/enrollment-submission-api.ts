@@ -20,6 +20,13 @@ export interface PublicCareOffering {
   price_cents?: number | null;
   is_active: boolean;
   is_required: boolean;
+  /**
+   * Offerings sharing a non-empty selection_group are constrained
+   * together by selection_rule (exactly_one / at_least_one /
+   * at_most_one). Empty group = ungrouped, no constraint.
+   */
+  selection_group?: string | null;
+  selection_rule?: "optional" | "exactly_one" | "at_least_one" | "at_most_one";
 }
 
 interface SubmitOfferingDays {
