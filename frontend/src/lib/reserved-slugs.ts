@@ -16,6 +16,7 @@ export const RESERVED_SLUGS = new Set([
   "parents", // parents.moto-app.de — guardian portal (cross-tenant)
   "grafana", // grafana.moto-app.de monitoring
   "pyreportal", // pyreportal.moto-app.de kiosk SPA
+  "help", // public /help docs — top-level app route shadows [tenant]
   // Defensive reservations (common infrastructure subdomains)
   "admin",
   "app",

@@ -8,7 +8,7 @@ vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 
-// Import after env is stubbed — proxy reads the env var at module load
+// Import after env is stubbed , proxy reads the env var at module load
 const { proxy } = await import("./proxy");
 
 function makeRequest(url: string, host?: string): NextRequest {
@@ -25,7 +25,7 @@ describe("proxy env validation", () => {
     vi.stubEnv("TENANT_DOMAIN", "localhost");
 
     await expect(
-      // @ts-expect-error — query string forces fresh module evaluation
+      // @ts-expect-error , query string forces fresh module evaluation
       import("./proxy?missing-operator"),
     ).rejects.toThrow("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
 
@@ -40,7 +40,7 @@ describe("proxy env validation", () => {
     vi.stubEnv("TENANT_DOMAIN", "");
 
     await expect(
-      // @ts-expect-error — query string forces fresh module evaluation
+      // @ts-expect-error , query string forces fresh module evaluation
       import("./proxy?missing-tenant"),
     ).rejects.toThrow("TENANT_DOMAIN is not set");
 
@@ -348,12 +348,27 @@ describe("proxy", () => {
     });
 
     it("returns null slug for reserved subdomains", () => {
-      // "www" is in RESERVED_SLUGS — extractTenantSlug returns null,
+      // "www" is in RESERVED_SLUGS , extractTenantSlug returns null,
       // so it passes through as a bare domain (no rewrite).
       const res = proxy(
         makeRequest(
           `http://www.localhost:3000/dashboard`,
           "www.localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
+    it("returns null slug for the reserved 'help' subdomain so it never rewrites to /help/*", () => {
+      // A tenant slug of "help" would collide with the public /help docs route:
+      // help.localhost/dashboard would rewrite to /help/dashboard, where the
+      // static app/help segment shadows [tenant]. Reserving "help" prevents it.
+      const res = proxy(
+        makeRequest(
+          `http://help.localhost:3000/dashboard`,
+          "help.localhost:3000",
         ),
       );
 
@@ -383,6 +398,75 @@ describe("proxy", () => {
       const redirect = res.headers.get("location");
       expect(rewrite).toBeNull();
       expect(redirect).toBeNull();
+    });
+  });
+
+  // The public /help guide must stay host-agnostic: served as-is on every host
+  // with security headers, never rewritten to a tenant/operator/parents segment
+  // (no such route exists there) and never blocked.
+  describe("public help docs", () => {
+    const TENANT_SUBDOMAIN_HOST = "school-a.localhost:3000";
+
+    it("serves /help on a tenant subdomain without rewriting to /{tenant}/help", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/help`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("serves nested /help/* on a tenant subdomain without rewriting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/help/setup`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("serves /help on the operator host without rewriting to /operator or blocking", () => {
+      const res = proxy(
+        makeRequest(`http://${OPERATOR_HOSTNAME}/help`, OPERATOR_HOSTNAME),
+      );
+
+      expect(res.status).not.toBe(404);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("serves /help/nfc on the parents host without rewriting to /parents or blocking", () => {
+      const res = proxy(
+        makeRequest(`http://${PARENTS_HOSTNAME}/help/nfc`, PARENTS_HOSTNAME),
+      );
+
+      expect(res.status).not.toBe(404);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+    });
+
+    it("does not treat a non-/help path containing 'help' as public docs", () => {
+      // Guards against a `.includes('help')`-style mistake: /helpdesk on a
+      // tenant subdomain must still rewrite to the tenant segment.
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/helpdesk`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/helpdesk",
+      );
     });
   });
 });

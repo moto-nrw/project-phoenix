@@ -153,6 +153,7 @@ interface AdditionalNavItem {
   hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
   comingSoon?: boolean; // Show as grayed out "coming soon" feature
   activePaths?: string[];
+  newTab?: boolean; // Open in a new browser tab (e.g. public help guide)
 }
 
 // Operator-mode overflow items, everything reachable from the sidebar on
@@ -277,6 +278,13 @@ const additionalNavItems: AdditionalNavItem[] = [
     label: "Notfall",
     iconKey: "emergency",
     alwaysShow: true,
+  },
+  {
+    href: "/help",
+    label: "Hilfe",
+    iconKey: "book",
+    alwaysShow: true,
+    newTab: true,
   },
   {
     href: "/suggestions",
@@ -621,6 +629,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       key={item.href}
                       href={item.href}
                       onClick={closeOverflowMenu}
+                      {...(item.newTab
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
                         isActive
                           ? "bg-gray-900 text-white"

@@ -38,6 +38,7 @@ interface NavItem {
   comingSoon?: boolean;
   bottomPinned?: boolean;
   activeColor?: string;
+  newTab?: boolean;
 }
 
 // Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
@@ -144,6 +145,15 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
     bottomPinned: true,
+  },
+  {
+    href: "/help",
+    label: "Hilfe",
+    icon: navigationIcons.book,
+    activeColor: "text-[#83CD2D]",
+    alwaysShow: true,
+    bottomPinned: true,
+    newTab: true,
   },
   {
     href: "/suggestions",
@@ -545,7 +555,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
           </span>
         </div>
       ) : (
-        <Link href={item.href} className={getLinkClasses(item.href)}>
+        <Link
+          href={item.href}
+          className={getLinkClasses(item.href)}
+          {...(item.newTab
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
+        >
           <svg
             className={getIconClasses(item)}
             fill="none"
