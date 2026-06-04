@@ -399,8 +399,24 @@
    reset both only for print. backdrop-filter is dropped as well: pointless over
    a white page and a needless rasterisation cost. */
 @media print {
-  .moto-dotted-background {
+  .moto-dotted-background:not(.moto-dotted-background--guide) {
     background: #ffffff;
+  }
+  .moto-dotted-background--guide {
+    background-color: #f9fafb;
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(17, 24, 39, 0.12) 1px,
+      transparent 0
+    );
+    background-size: 14px 14px;
+    box-sizing: border-box;
+    padding: 18mm 16mm;
+  }
+  .moto-dotted-background--guide::before {
+    display: none;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
   .moto-content-surface {
     box-shadow: none;

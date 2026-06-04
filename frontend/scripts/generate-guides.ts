@@ -66,7 +66,7 @@ for (const guide of GUIDES) {
       format: "A4",
       printBackground: true,
       displayHeaderFooter: false,
-      margin: { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" },
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
     });
 
     // Sanity-check the artifact actually rendered before it ships in the image.

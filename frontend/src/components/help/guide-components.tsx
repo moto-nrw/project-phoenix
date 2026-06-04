@@ -208,7 +208,7 @@ export function GuideShell({
   });
 
   return (
-    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden print:bg-white print:before:hidden">
+    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden">
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <header className="print:hidden">
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:p-4">
