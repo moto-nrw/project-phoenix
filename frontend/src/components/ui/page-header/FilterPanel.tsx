@@ -360,15 +360,15 @@ export function FilterPanel({
     <>
       {/* Click-outside backdrop. Transparent so the page content stays
           visible behind it — Stripe / Linear pattern. The panel itself
-          dominates focus via shadow + border. Stays at z-20 (below the
-          mobile bottom nav at z-30) on purpose: a higher backdrop would
-          swallow taps on the nav and close the panel instead of letting
-          the user navigate. */}
+          dominates focus via shadow + border. Sits at z-[45]: above the
+          page's floating actions (bottom nav z-30, FABs z-40) so any tap
+          outside the panel closes it instead of leaking through to a FAB
+          or nav action, and below the panel itself (z-50). */}
       <button
         type="button"
         onClick={onClose}
         aria-label="Filter schließen"
-        className="fixed inset-0 z-20 cursor-default bg-transparent"
+        className="fixed inset-0 z-[45] cursor-default bg-transparent"
       />
 
       {/* Panel. When an anchor is provided by the search row, the portaled
@@ -447,9 +447,10 @@ export function FilterPanel({
 
   // Portal to <body> so the panel escapes the page's `relative z-10` content
   // stacking context (app-shell.tsx). At the body level the transparent
-  // backdrop stays at z-20 (above page content, below the z-30 bottom nav so
-  // the nav stays tappable), while the panel itself is z-50 so it paints above
-  // page FABs (z-40) without geometrically covering the bottom nav.
+  // backdrop sits at z-[45] (above the bottom nav z-30 and FABs z-40 so an
+  // outside tap closes the panel rather than firing a FAB/nav action), while
+  // the panel itself is z-50 so it paints above the backdrop. The panel still
+  // never geometrically covers the bottom nav (MOBILE_BOTTOM_NAV_CLEARANCE).
   if (typeof document !== "undefined") {
     return createPortal(panel, document.body);
   }
