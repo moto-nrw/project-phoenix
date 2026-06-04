@@ -299,7 +299,15 @@ export function EnrollmentForm({
           }
           if (groupSiblingIDs) {
             for (const id of groupSiblingIDs) {
-              if (id !== offeringID && nextIDs.has(id)) {
+              // Never clear a locked required offering: it's always part of
+              // the submission and the UI keeps rendering it checked, so
+              // dropping it from the payload would fail the backend's
+              // required-offering check.
+              if (
+                id !== offeringID &&
+                nextIDs.has(id) &&
+                !requiredOfferingIDs.includes(id)
+              ) {
                 nextIDs.delete(id);
                 delete nextDays[id];
               }

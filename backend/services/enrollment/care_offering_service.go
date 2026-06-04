@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -12,6 +13,13 @@ import (
 // ErrCareOfferingNotFound is the sentinel returned by GetByID when the
 // row doesn't exist (or the tenant can't see it via RLS).
 var ErrCareOfferingNotFound = errors.New("care offering not found")
+
+// ErrCareOfferingGroupRuleConflict is returned by Create/Update when saving
+// an offering would leave two offerings in the same selection_group with
+// different non-optional selection rules. The invariant is enforced at save
+// time so an admin fixes the misconfiguration immediately, instead of every
+// parent submit for the phase failing later when the conflict is detected.
+var ErrCareOfferingGroupRuleConflict = errors.New("care offerings in the same selection group must share one selection rule")
 
 // CareOfferingService manages the per-tenant care-offering catalog.
 // Admin endpoints (PR 6) read + write all offerings; the public form
@@ -85,9 +93,49 @@ func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmen
 	return offering, nil
 }
 
+// checkGroupRuleConsistency enforces the single-rule-per-group invariant when
+// an offering with a non-optional selection_rule is saved: no other offering
+// in the same phase + selection_group may carry a different non-optional rule.
+// Checked here (admin save path) rather than only at parent submit, so a
+// misconfiguration surfaces to the admin instead of blocking every submission.
+func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	group := strings.TrimSpace(offering.SelectionGroup)
+	if group == "" ||
+		offering.SelectionRule == "" ||
+		offering.SelectionRule == enrollmentModels.SelectionRuleOptional {
+		return nil
+	}
+	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
+	if err != nil {
+		return fmt.Errorf("check selection group consistency: %w", err)
+	}
+	for _, sib := range siblings {
+		if sib.ID == offering.ID {
+			continue
+		}
+		if strings.TrimSpace(sib.SelectionGroup) != group {
+			continue
+		}
+		if sib.SelectionRule == "" ||
+			sib.SelectionRule == enrollmentModels.SelectionRuleOptional {
+			continue
+		}
+		if sib.SelectionRule != offering.SelectionRule {
+			return fmt.Errorf(
+				"%w: group %q already uses %q, cannot also use %q",
+				ErrCareOfferingGroupRuleConflict, group, sib.SelectionRule, offering.SelectionRule,
+			)
+		}
+	}
+	return nil
+}
+
 func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error) {
 	if offering == nil {
 		return nil, fmt.Errorf("offering is required")
+	}
+	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, offering); err != nil {
 		return nil, err
@@ -101,6 +149,9 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentModels.CareOffering) error {
 	if offering == nil || offering.ID <= 0 {
 		return fmt.Errorf("offering with valid id is required")
+	}
+	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
+		return err
 	}
 	if err := s.repo.Update(ctx, offering); err != nil {
 		return err

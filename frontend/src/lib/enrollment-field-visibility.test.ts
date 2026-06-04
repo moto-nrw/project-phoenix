@@ -191,6 +191,63 @@ describe("isFieldVisible", () => {
       ),
     ).toBe(false);
   });
+
+  it("hides a chained field when its controller is itself hidden", () => {
+    // has_extra (boolean) controls A; A (select) controls B. When has_extra
+    // is false, A is hidden — even if A still holds a stale "x" answer, B must
+    // collapse with its hidden controller.
+    const hasExtra = field({ key: "has_extra", type: "boolean" });
+    const a = field({
+      key: "a",
+      type: "select",
+      visible_when: {
+        source: "field",
+        field: "has_extra",
+        operator: "eq",
+        value: true,
+      },
+    });
+    const b = field({
+      key: "b",
+      visible_when: { source: "field", field: "a", operator: "eq", value: "x" },
+    });
+    const fields = [hasExtra, a, b];
+
+    // Controller visible + matching → B visible.
+    expect(
+      isFieldVisible(
+        b,
+        ctxFrom(fields, { guardianAnswers: { has_extra: true, a: "x" } }),
+      ),
+    ).toBe(true);
+
+    // has_extra=false hides A; A's stale "x" must NOT keep B visible.
+    expect(
+      isFieldVisible(
+        b,
+        ctxFrom(fields, { guardianAnswers: { has_extra: false, a: "x" } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("treats a cyclic visibility configuration as hidden", () => {
+    // A depends on B, B depends on A — a misconfiguration. Must not recurse
+    // forever; both resolve to hidden.
+    const a = field({
+      key: "a",
+      type: "select",
+      visible_when: { source: "field", field: "b", operator: "eq", value: "x" },
+    });
+    const b = field({
+      key: "b",
+      type: "select",
+      visible_when: { source: "field", field: "a", operator: "eq", value: "x" },
+    });
+    const fields = [a, b];
+    expect(
+      isFieldVisible(a, ctxFrom(fields, { guardianAnswers: { a: "x", b: "x" } })),
+    ).toBe(false);
+  });
 });
 
 describe("visibleAnswerData", () => {

@@ -337,16 +337,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
-	if schema != nil {
-		if err := validateSubmissionAgainstSchema(req, schema); err != nil {
-			return nil, err
-		}
-	}
 
-	// Defense-in-depth: enforce required custom fields server-side. The
-	// client does the same, but a stale or scripted submit must not be
-	// able to skip a visible required field. Hidden (conditional) fields
-	// are exempt.
+	// Single required-field gate: enforces required core + custom fields
+	// server-side (defense-in-depth; the client checks the same), while
+	// exempting fields hidden by a visibility condition. A field hidden by
+	// its show-if condition must never block an otherwise valid submit.
 	if err := s.validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return nil, err
 	}
@@ -569,116 +564,6 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		}
 	}
 	return nil
-}
-
-func validateSubmissionAgainstSchema(req SubmitRequest, schema *enrollmentModels.FormSchema) error {
-	if schema.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone) {
-		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
-			return fmt.Errorf("%w: guardian phone is required", ErrInvalidSubmission)
-		}
-	}
-	for _, field := range schema.Fields {
-		if err := validateRequiredCustomField(field, req); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// validateRequiredCustomField enforces a single schema field's required
-// constraint against the submission. Per-child fields are checked for every
-// child; request-level fields once. No-op for optional fields.
-func validateRequiredCustomField(field enrollmentModels.FormField, req SubmitRequest) error {
-	if !field.Required {
-		return nil
-	}
-	if field.AppliesToCh {
-		for i, child := range req.Children {
-			if !customValueSatisfiesRequired(field, child.CustomData[field.Key]) {
-				return fmt.Errorf("%w: child %d field %s is required", ErrInvalidSubmission, i, field.Key)
-			}
-		}
-		return nil
-	}
-	if !customValueSatisfiesRequired(field, req.CustomData[field.Key]) {
-		return fmt.Errorf("%w: field %s is required", ErrInvalidSubmission, field.Key)
-	}
-	return nil
-}
-
-func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) bool {
-	switch field.Type {
-	case enrollmentModels.FormFieldBoolean:
-		_, ok := value.(bool)
-		return ok
-	case enrollmentModels.FormFieldPhoneList:
-		return phoneListSatisfiesRequired(value)
-	case enrollmentModels.FormFieldContactList:
-		return contactListSatisfiesRequired(value)
-	case enrollmentModels.FormFieldWeekdaySchedule:
-		return scheduleHasAnyTime(value)
-	case enrollmentModels.FormFieldNumber:
-		return numberValueSatisfiesRequired(value)
-	default:
-		return stringValue(value) != ""
-	}
-}
-
-func phoneListSatisfiesRequired(value any) bool {
-	var entries []enrollmentModels.PhoneEntry
-	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-		return false
-	}
-	for i := range entries {
-		if err := entries[i].Validate(); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func contactListSatisfiesRequired(value any) bool {
-	var entries []enrollmentModels.ContactEntry
-	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-		return false
-	}
-	for i := range entries {
-		if err := entries[i].Validate(); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func numberValueSatisfiesRequired(value any) bool {
-	switch v := value.(type) {
-	case float64, int:
-		return true
-	case string:
-		return strings.TrimSpace(v) != ""
-	default:
-		return false
-	}
-}
-
-func scheduleHasAnyTime(value any) bool {
-	raw, ok := value.(map[string]any)
-	if !ok {
-		if typed, ok := value.(map[string]string); ok {
-			for _, v := range typed {
-				if strings.TrimSpace(v) != "" {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	for _, v := range raw {
-		if str, ok := v.(string); ok && strings.TrimSpace(str) != "" {
-			return true
-		}
-	}
-	return false
 }
 
 // validateOfferingSelections cross-checks every offering id against the

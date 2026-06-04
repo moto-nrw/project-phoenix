@@ -55,18 +55,33 @@ export function isFieldVisible(
   field: FormField,
   ctx: ConditionContext,
 ): boolean {
+  return visibleWithGuard(field, ctx, new Set<string>());
+}
+
+// visibleWithGuard evaluates visibility while tracking the fields already on
+// the dependency chain, so a cyclic visible_when configuration (A→B→A) can't
+// recurse forever. A field on a cycle is treated as hidden (a cyclic
+// condition can never be meaningfully satisfied).
+function visibleWithGuard(
+  field: FormField,
+  ctx: ConditionContext,
+  seen: Set<string>,
+): boolean {
   const condition = field.visible_when;
   if (!condition) return true;
-  return evaluateCondition(condition, ctx);
+  if (seen.has(field.key)) return false;
+  seen.add(field.key);
+  return evaluateCondition(condition, ctx, seen);
 }
 
 function evaluateCondition(
   condition: VisibilityCondition,
   ctx: ConditionContext,
+  seen: Set<string>,
 ): boolean {
   switch (condition.source) {
     case "field":
-      return evaluateFieldSource(condition, ctx);
+      return evaluateFieldSource(condition, ctx, seen);
     case "grade_level":
       return matchScalar(
         condition.operator,
@@ -89,9 +104,17 @@ function evaluateCondition(
 function evaluateFieldSource(
   condition: VisibilityCondition,
   ctx: ConditionContext,
+  seen: Set<string>,
 ): boolean {
   const key = condition.field ?? "";
   const controller = ctx.fieldsByKey.get(key);
+  // If the controller field is itself hidden (its own show-if condition
+  // fails, recursively), its stored answer is stale and must not keep this
+  // field visible. Treat the controller as unanswered in that case so a
+  // dependent field collapses with its controller.
+  if (controller && !visibleWithGuard(controller, ctx, seen)) {
+    return matchScalar(condition.operator, undefined, condition.value);
+  }
   const answers = controller?.applies_to_child
     ? (ctx.childAnswers ?? {})
     : ctx.guardianAnswers;

@@ -27,17 +27,37 @@ type fieldVisibilityContext struct {
 
 // fieldVisible reports whether a field is shown given the current answers.
 func fieldVisible(field *enrollmentModels.FormField, ctx fieldVisibilityContext) bool {
+	return fieldVisibleGuarded(field, ctx, map[string]bool{})
+}
+
+// fieldVisibleGuarded evaluates visibility while tracking the fields already
+// on the dependency chain, so a cyclic visible_when configuration (A→B→A)
+// can't recurse forever. A field on a cycle is treated as hidden. Mirrors the
+// frontend evaluator in enrollment-field-visibility.ts.
+func fieldVisibleGuarded(field *enrollmentModels.FormField, ctx fieldVisibilityContext, seen map[string]bool) bool {
 	c := field.VisibleWhen
 	if c == nil {
 		return true
 	}
+	if seen[field.Key] {
+		return false
+	}
+	seen[field.Key] = true
 	switch c.Source {
 	case enrollmentModels.ConditionSourceField:
+		controller := ctx.fieldsByKey[c.Field]
+		// If the controlling field is itself hidden (its own condition
+		// fails, recursively), its stored answer is stale and must not keep
+		// this field visible — treat the controller as unanswered so a
+		// dependent field collapses with its controller.
+		if controller != nil && !fieldVisibleGuarded(controller, ctx, seen) {
+			return matchScalar(c.Operator, nil, c.Value)
+		}
 		// Resolve which answer map holds the controlling field: a
 		// guardian-level controller is read from guardianAnswers even
 		// when the owning field is per-child.
 		answers := ctx.guardianAnswers
-		if controller := ctx.fieldsByKey[c.Field]; controller != nil && controller.AppliesToCh {
+		if controller != nil && controller.AppliesToCh {
 			answers = ctx.childAnswers
 		}
 		return matchScalar(c.Operator, answers[c.Field], c.Value)
@@ -166,10 +186,12 @@ func sanitizeVisibleAnswers(
 	return out
 }
 
-// validateRequiredCustomFields enforces the schema's required custom
-// fields against the submission, skipping fields hidden by a visibility
-// condition and information blocks. Mirrors the client-side check in
-// enrollment-form.tsx so a stale or scripted client can't bypass it.
+// validateRequiredCustomFields is the single required-field gate for the
+// public submit path. It enforces required core (built-in) fields and required
+// custom fields, skipping any field hidden by a visibility condition and
+// information blocks. Mirrors the client-side check in enrollment-form.tsx so a
+// stale or scripted client can't bypass it — and so a field hidden by its
+// show-if condition never blocks an otherwise valid submit.
 func (s *requestService) validateRequiredCustomFields(
 	schema *enrollmentModels.FormSchema,
 	req SubmitRequest,
@@ -177,6 +199,15 @@ func (s *requestService) validateRequiredCustomFields(
 ) error {
 	if schema == nil {
 		return nil
+	}
+
+	// Core (built-in) required fields are rendered from dedicated request
+	// columns rather than schema.Fields, so they are enforced here from the
+	// schema's core_requirements.
+	if schema.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone) {
+		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
+			return fmt.Errorf("%w: guardian phone is required", ErrInvalidSubmission)
+		}
 	}
 
 	byKey := make(map[string]*enrollmentModels.FormField, len(schema.Fields))
