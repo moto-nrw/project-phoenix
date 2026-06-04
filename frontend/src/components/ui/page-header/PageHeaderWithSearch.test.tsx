@@ -2,7 +2,7 @@
  * Tests for PageHeaderWithSearch Component
  * Tests rendering and functionality of the main page header with search and filters
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PageHeaderWithSearch } from "./PageHeaderWithSearch";
 import type { PageHeaderWithSearchProps } from "./types";
@@ -34,17 +34,25 @@ vi.mock("./DesktopFilters", () => ({
   DesktopFilters: () => <div data-testid="desktop-filters">Filters</div>,
 }));
 
-vi.mock("./MobileFilterButton", () => ({
-  MobileFilterButton: ({ onClick }: { onClick: () => void }) => (
-    <button data-testid="mobile-filter-button" onClick={onClick}>
+vi.mock("./FilterButton", () => ({
+  FilterButton: ({
+    onClick,
+    testId,
+  }: {
+    onClick: () => void;
+    testId?: string;
+  }) => (
+    <button data-testid={testId ?? "mobile-filter-button"} onClick={onClick}>
       Filter
     </button>
   ),
 }));
 
-vi.mock("./MobileFilterPanel", () => ({
-  MobileFilterPanel: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="mobile-filter-panel">Panel</div> : null,
+vi.mock("./FilterPanel", () => ({
+  FilterPanel: ({ isOpen, testId }: { isOpen: boolean; testId?: string }) =>
+    isOpen ? (
+      <div data-testid={testId ?? "mobile-filter-panel"}>Panel</div>
+    ) : null,
 }));
 
 vi.mock("./ActiveFilterChips", () => ({
@@ -88,6 +96,7 @@ describe("PageHeaderWithSearch", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setViewportWidth(1024);
   });
 
   const baseProps: PageHeaderWithSearchProps = {
@@ -368,6 +377,95 @@ describe("PageHeaderWithSearch", () => {
     });
   });
 
+  describe("filterVariant quiet (popover layout)", () => {
+    const propsWithFilters: PageHeaderWithSearchProps = {
+      ...baseProps,
+      filters: [
+        {
+          id: "status",
+          label: "Status",
+          type: "buttons",
+          value: "all",
+          onChange: vi.fn(),
+          options: [{ value: "all", label: "Alle" }],
+        },
+      ],
+    };
+
+    it("keeps desktop filters inline by default", () => {
+      render(<PageHeaderWithSearch {...propsWithFilters} />);
+
+      expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
+    });
+
+    it("uses the shared filter panel when set to popover", () => {
+      render(
+        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
+      );
+
+      expect(screen.queryByTestId("desktop-filters")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("desktop-filter-button"));
+
+      expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
+    });
+
+    it("transfers an open mobile filter panel to the desktop popover on breakpoint resize", async () => {
+      setViewportWidth(500);
+      render(
+        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
+      );
+
+      fireEvent.click(screen.getByTestId("mobile-filter-button"));
+      expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
+
+      setViewportWidth(1200);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("mobile-filter-panel"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
+      });
+    });
+
+    it("closes an open mobile panel when resizing to inline desktop filters", async () => {
+      setViewportWidth(500);
+      render(<PageHeaderWithSearch {...propsWithFilters} />);
+
+      fireEvent.click(screen.getByTestId("mobile-filter-button"));
+      expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
+
+      setViewportWidth(1200);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("mobile-filter-panel"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
+      });
+    });
+
+    it("transfers an open desktop popover back to the mobile panel on breakpoint resize", async () => {
+      setViewportWidth(1200);
+      render(
+        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
+      );
+
+      fireEvent.click(screen.getByTestId("desktop-filter-button"));
+      expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
+
+      setViewportWidth(500);
+
+      await waitFor(() => {
+        expect(
+          screen.queryByTestId("desktop-filter-panel"),
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
+      });
+    });
+  });
+
   describe("compactOnScroll prop", () => {
     it("does not add scroll-driven classes by default", () => {
       const { container } = render(<PageHeaderWithSearch {...baseProps} />);
@@ -387,3 +485,12 @@ describe("PageHeaderWithSearch", () => {
     });
   });
 });
+
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", {
+    value: width,
+    configurable: true,
+    writable: true,
+  });
+  fireEvent.resize(window);
+}

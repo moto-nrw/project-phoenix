@@ -25,8 +25,8 @@ export function PageHeader({
             <Image
               src="/images/moto_transparent.png"
               alt="Logo"
-              width={40}
-              height={40}
+              width={907}
+              height={646}
               className="h-10 w-auto"
             />
           </div>

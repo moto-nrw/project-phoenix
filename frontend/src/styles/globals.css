@@ -301,6 +301,25 @@
   );
 }
 
+.moto-dotted-background--guide::before {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 10rem,
+    rgba(0, 0, 0, 0.45) 18rem,
+    black 28rem,
+    black 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 10rem,
+    rgba(0, 0, 0, 0.45) 18rem,
+    black 28rem,
+    black 100%
+  );
+}
+
 .moto-dotted-background--split::before {
   mask-image: linear-gradient(
     to right,
@@ -367,6 +386,67 @@
   box-shadow: var(--shadow-sm);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* Print rules reset unlayered page styles that Tailwind print utilities cannot
+   override, then add a dedicated guide background for PDF exports. */
+@media print {
+  @page {
+    margin: 18mm 16mm;
+  }
+
+  html:has(.moto-dotted-background--guide),
+  body:has(.moto-dotted-background--guide) {
+    background-color: #f9fafb;
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(17, 24, 39, 0.12) 1px,
+      transparent 0
+    );
+    background-repeat: repeat;
+    background-size: 14px 14px;
+  }
+
+  body:has(.moto-dotted-background--guide)::before {
+    content: "";
+    position: fixed;
+    top: -18mm;
+    right: -16mm;
+    bottom: -18mm;
+    left: -16mm;
+    z-index: 0;
+    pointer-events: none;
+    background-color: #f9fafb;
+    background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(17, 24, 39, 0.12) 1px,
+      transparent 0
+    );
+    background-repeat: repeat;
+    background-size: 14px 14px;
+  }
+
+  .moto-dotted-background:not(.moto-dotted-background--guide) {
+    background: #ffffff;
+  }
+  .moto-dotted-background--guide {
+    background: transparent;
+    position: relative;
+    z-index: 1;
+  }
+  .moto-dotted-background--guide > div {
+    padding-inline: 2mm;
+  }
+  .moto-dotted-background--guide::before {
+    display: none;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+  .moto-content-surface {
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 .moto-hover-elevated {

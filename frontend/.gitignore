@@ -47,3 +47,8 @@ yarn-error.log*
 
 # idea files
 .idea
+
+# generated guide PDFs (built in CI from the /help HTML pages, never committed ,
+# a few MB each, would churn the repo). Absent in local dev: run
+# `pnpm run generate:guides` to preview the download buttons locally.
+public/help/pdfs/

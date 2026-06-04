@@ -5,12 +5,18 @@ export interface PlannedTimetableInstance {
   startTime: string;
   endTime: string;
   roomId: string;
+  roomName: string | null;
   status: "planned" | "active" | "completed" | "cancelled";
   isOverdue: boolean;
   minutesUntilStart: number;
   expectedStudentsCount: number;
   presentStudentsCount: number;
   assignedStaffIds: string[];
+  isAssigned: boolean;
+  isPrimary: boolean;
+  isSubstitute: boolean;
+  isAbsent: boolean;
+  rosterPreview: TimetableRosterRow[];
 }
 
 interface TimetableRosterInstance {
@@ -64,12 +70,18 @@ interface BackendPlannedTimetableInstance {
   start_time: string;
   end_time: string;
   room_id: number;
+  room_name?: string | null;
   status: PlannedTimetableInstance["status"];
   is_overdue: boolean;
   minutes_until_start: number;
   expected_students_count: number;
   present_students_count: number;
   assigned_staff_ids: number[];
+  is_assigned?: boolean;
+  is_primary?: boolean;
+  is_substitute?: boolean;
+  is_absent?: boolean;
+  roster_preview?: BackendRosterRow[];
 }
 
 interface BackendRosterInstance {
@@ -119,12 +131,36 @@ export function mapPlannedInstance(
     startTime: raw.start_time,
     endTime: raw.end_time,
     roomId: raw.room_id.toString(),
+    roomName: raw.room_name ?? null,
     status: raw.status,
     isOverdue: raw.is_overdue,
     minutesUntilStart: raw.minutes_until_start,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
     assignedStaffIds: raw.assigned_staff_ids.map(String),
+    isAssigned: raw.is_assigned ?? false,
+    isPrimary: raw.is_primary ?? false,
+    isSubstitute: raw.is_substitute ?? false,
+    isAbsent: raw.is_absent ?? false,
+    rosterPreview: (raw.roster_preview ?? []).map(mapRosterRow),
+  };
+}
+
+function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
+  return {
+    studentId: row.student_id.toString(),
+    studentName: row.student_name,
+    schoolClass: row.school_class,
+    groupName: row.group_name,
+    planned: row.planned,
+    isUnplanned: row.is_unplanned,
+    currentlyPresent: row.currently_present,
+    visitId: row.visit_id?.toString() ?? null,
+    status: row.status,
+    substatus: row.substatus ?? null,
+    note: row.note ?? null,
+    checkedInAt: row.checked_in_at ?? null,
+    visitEntryTime: row.visit_entry_time ?? null,
   };
 }
 
@@ -139,21 +175,7 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       roomId: raw.instance.room_id.toString(),
       roomName: raw.instance.room_name ?? null,
     },
-    rows: raw.rows.map((row) => ({
-      studentId: row.student_id.toString(),
-      studentName: row.student_name,
-      schoolClass: row.school_class,
-      groupName: row.group_name,
-      planned: row.planned,
-      isUnplanned: row.is_unplanned,
-      currentlyPresent: row.currently_present,
-      visitId: row.visit_id?.toString() ?? null,
-      status: row.status,
-      substatus: row.substatus ?? null,
-      note: row.note ?? null,
-      checkedInAt: row.checked_in_at ?? null,
-      visitEntryTime: row.visit_entry_time ?? null,
-    })),
+    rows: raw.rows.map(mapRosterRow),
   };
 }
 

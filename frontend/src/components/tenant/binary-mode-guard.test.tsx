@@ -30,6 +30,7 @@ function makeTenant(
     settings: {},
     presenceMode,
     studentPhotosEnabled: false,
+    nfcEnabled: false,
   };
 }
 

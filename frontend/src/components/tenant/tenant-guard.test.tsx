@@ -36,6 +36,7 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenant: mockUseTenant,
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/tenant-api", () => ({

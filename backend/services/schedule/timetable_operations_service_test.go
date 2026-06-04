@@ -8,7 +8,9 @@ import (
 	"time"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -37,7 +39,7 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 		instanceWithTimes(outsideWindowID, scheduleModel.InstanceStatusPlanned, now.Add(20*time.Minute), now.Add(time.Hour)),
 	}
 	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{
-		{StaffID: assignedID},
+		{StaffID: assignedID, IsPrimary: true},
 		{StaffID: absentID, IsAbsent: true},
 	}
 	deps.staffRepo.byInstance[outsideWindowID] = []*scheduleModel.InstanceStaff{{StaffID: assignedID}}
@@ -46,11 +48,15 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 		{StudentID: 521, Status: scheduleModel.AttendanceStatusPresent},
 	}
 
-	result, err := deps.service.PlannedNow(context.Background(), 610, false, now, now)
+	result, err := deps.service.PlannedNow(context.Background(), 610, false, now, now, PlannedNowOptions{})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, instanceID, result[0].ID)
+	require.NotNil(t, result[0].RoomName)
+	assert.Equal(t, "Lernraum", *result[0].RoomName)
 	assert.Equal(t, []int64{assignedID}, result[0].AssignedStaffIDs)
+	assert.True(t, result[0].IsAssigned)
+	assert.True(t, result[0].IsPrimary)
 	assert.Equal(t, 1, result[0].ExpectedStudentsCount)
 	assert.Equal(t, 1, result[0].PresentStudentsCount)
 	assert.False(t, result[0].IsOverdue)
@@ -66,7 +72,7 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	}
 	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
 
-	result, err := deps.service.PlannedNow(context.Background(), 620, true, now, now)
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, now, now, PlannedNowOptions{})
 
 	require.NoError(t, err)
 	require.Len(t, result, 1)
@@ -84,7 +90,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		}
 		deps.staffRepo.byInstance[334] = []*scheduleModel.InstanceStaff{{StaffID: 224}}
 
-		result, err := deps.service.PlannedNow(context.Background(), 625, true, tomorrowStart, now)
+		result, err := deps.service.PlannedNow(context.Background(), 625, true, tomorrowStart, now, PlannedNowOptions{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -95,7 +101,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		tomorrowStart := time.Date(2026, time.May, 11, 0, 5, 0, 0, time.UTC)
 		inst := instanceWithTimes(335, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour))
 
-		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now)
+		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil)
 
 		assert.False(t, result.IsOverdue)
 		assert.Equal(t, 10, result.MinutesUntilStart)
@@ -109,7 +115,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.personService.accountErr = usersSvc.ErrPersonNotFound
 
-		result, err := deps.service.PlannedNow(context.Background(), 621, false, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 621, false, now, now, PlannedNowOptions{})
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 		assert.Nil(t, result)
@@ -124,7 +130,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.staffRepo.byInstance[336] = []*scheduleModel.InstanceStaff{{StaffID: 226}}
 
-		result, err := deps.service.PlannedNow(context.Background(), 626, true, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 626, true, now, now, PlannedNowOptions{})
 
 		require.NoError(t, err)
 		require.Len(t, result, 1)
@@ -135,7 +141,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.personService.accountErr = errors.New("person lookup failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 627, true, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 627, true, now, now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "person lookup failed")
 		assert.Nil(t, result)
@@ -146,7 +152,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		wireAssignedStaff(deps, 622, 431, 221, 331)
 		deps.instanceRepo.findByDateErr = errors.New("date query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 622, false, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 622, false, now, now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "date query failed")
 		assert.Nil(t, result)
@@ -160,7 +166,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.staffRepo.err = errors.New("staff query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 623, false, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 623, false, now, now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "staff query failed")
 		assert.Nil(t, result)
@@ -174,11 +180,42 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.studentRepo.err = errors.New("student query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 624, false, now, now)
+		result, err := deps.service.PlannedNow(context.Background(), 624, false, now, now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "student query failed")
 		assert.Nil(t, result)
 	})
+}
+
+func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 628, 434, 227, 337)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(337, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(2*time.Hour)),
+		instanceWithTimes(338, scheduleModel.InstanceStatusPlanned, now.Add(100*time.Minute), now.Add(2*time.Hour)),
+	}
+	for _, inst := range deps.instanceRepo.byDate {
+		deps.instanceRepo.byID[inst.ID] = inst
+	}
+	deps.staffRepo.byInstance[338] = []*scheduleModel.InstanceStaff{{StaffID: 227}}
+	deps.studentRepo.byInstance[337] = []*scheduleModel.InstanceStudent{
+		{StudentID: 527, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
+	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
+
+	result, err := deps.service.PlannedNow(context.Background(), 628, false, now, now, PlannedNowOptions{
+		HorizonMinutes: 120,
+		Limit:          1,
+		IncludeRoster:  true,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(337), result[0].ID)
+	require.Len(t, result[0].RosterPreview, 1)
+	assert.Equal(t, "Lina Lang", result[0].RosterPreview[0].StudentName)
 }
 
 func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
@@ -730,9 +767,10 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 func TestTimetableOperationHelpers(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
-	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now), now))
-	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now), now))
-	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now), now))
+	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now), now, 0))
+	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now), now, 120))
 	assert.True(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255}}, 255))
 	assert.False(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255, IsAbsent: true}}, 255))
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
@@ -781,6 +819,7 @@ type timetableOpsTestDeps struct {
 	visitRepo       *fakeOpsVisitRepo
 	students        *fakeOpsStudentRepo
 	groups          *fakeOpsEducationGroupRepo
+	rooms           *fakeOpsRoomRepo
 	personService   *fakeOpsPersonService
 	settings        *fakeOpsSettings
 	broadcaster     *fakeOpsBroadcaster
@@ -798,6 +837,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		visitRepo:       &fakeOpsVisitRepo{byActiveGroup: map[int64][]*activeModel.Visit{}, currentByStudent: map[int64]*activeModel.Visit{}},
 		students:        &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
 		groups:          &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
+		rooms:           &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
 		personService:   &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
 		settings:        &fakeOpsSettings{},
 		broadcaster:     &fakeOpsBroadcaster{},
@@ -813,6 +853,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		VisitRepo:          deps.visitRepo,
 		StudentRepo:        deps.students,
 		EducationGroupRepo: deps.groups,
+		RoomRepo:           deps.rooms,
 		PersonService:      deps.personService,
 		Settings:           deps.settings,
 		Broadcaster:        deps.broadcaster,
@@ -1015,6 +1056,19 @@ func (r *fakeOpsEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (m
 		}
 	}
 	return out, nil
+}
+
+type fakeOpsRoomRepo struct {
+	facilitiesModel.RoomRepository
+	rooms []*facilitiesModel.Room
+	err   error
+}
+
+func (r *fakeOpsRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*facilitiesModel.Room, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.rooms, nil
 }
 
 type fakeOpsPersonService struct {

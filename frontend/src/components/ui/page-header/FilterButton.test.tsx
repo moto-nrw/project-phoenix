@@ -1,17 +1,17 @@
 /**
- * Tests for MobileFilterButton Component
- * Tests rendering and functionality of mobile filter toggle button
+ * Tests for FilterButton Component
+ * Tests rendering and functionality of filter toggle button
  */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
-import { MobileFilterButton } from "./MobileFilterButton";
+import { FilterButton } from "./FilterButton";
 
-describe("MobileFilterButton", () => {
+describe("FilterButton", () => {
   const mockOnClick = vi.fn();
 
   it("renders button", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={false}
         onClick={mockOnClick}
         hasActiveFilters={false}
@@ -24,7 +24,7 @@ describe("MobileFilterButton", () => {
 
   it("calls onClick when button is clicked", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={false}
         onClick={mockOnClick}
         hasActiveFilters={false}
@@ -39,7 +39,7 @@ describe("MobileFilterButton", () => {
 
   it("applies open state styles when isOpen is true", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={true}
         onClick={mockOnClick}
         hasActiveFilters={false}
@@ -52,7 +52,7 @@ describe("MobileFilterButton", () => {
 
   it("applies closed state styles when isOpen is false", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={false}
         onClick={mockOnClick}
         hasActiveFilters={false}
@@ -65,7 +65,7 @@ describe("MobileFilterButton", () => {
 
   it("shows ring when hasActiveFilters is true and not open", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={false}
         onClick={mockOnClick}
         hasActiveFilters={true}
@@ -78,7 +78,7 @@ describe("MobileFilterButton", () => {
 
   it("does not show ring when isOpen is true even with active filters", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={true}
         onClick={mockOnClick}
         hasActiveFilters={true}
@@ -91,7 +91,7 @@ describe("MobileFilterButton", () => {
 
   it("applies custom className", () => {
     render(
-      <MobileFilterButton
+      <FilterButton
         isOpen={false}
         onClick={mockOnClick}
         hasActiveFilters={false}

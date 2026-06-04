@@ -7,6 +7,7 @@ import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
+  useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
 } from "~/components/tenant/tenant-provider";
@@ -38,6 +39,7 @@ interface NavItem {
   comingSoon?: boolean;
   bottomPinned?: boolean;
   activeColor?: string;
+  newTab?: boolean;
 }
 
 // Flat navigation items (excludes accordion sections: ogs-groups, active-supervisions, database)
@@ -144,6 +146,15 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-[#FF3130]",
     alwaysShow: true,
     bottomPinned: true,
+  },
+  {
+    href: "/help",
+    label: "Hilfe",
+    icon: navigationIcons.book,
+    activeColor: "text-[#83CD2D]",
+    alwaysShow: true,
+    bottomPinned: true,
+    newTab: true,
   },
   {
     href: "/suggestions",
@@ -273,6 +284,12 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/permissions", label: "Berechtigungen" },
 ];
 
+const NFC_ONLY_HREFS = new Set<string>([
+  "/activities",
+  "/database/activities",
+  "/database/devices",
+]);
+
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
@@ -376,6 +393,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const userIsCaregiver = isCaregiver(session);
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  const nfcEnabled = useNFCEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   const { data: settingsSchema } = useSWR(
@@ -399,6 +417,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     return count ? `${count.present}/${count.total}` : undefined;
   };
 
+  const databaseSubPages = useMemo(
+    () =>
+      DATABASE_SUB_PAGES.filter(
+        (page) => nfcEnabled || !NFC_ONLY_HREFS.has(page.href),
+      ),
+    [nfcEnabled],
+  );
+
   // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
   // concepts with no operational meaning when the tenant only tracks
   // in-school/out-of-school on active.attendance. The Aktuelle-Aufsicht
@@ -408,6 +434,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
+    if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
@@ -545,7 +572,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
           </span>
         </div>
       ) : (
-        <Link href={item.href} className={getLinkClasses(item.href)}>
+        <Link
+          href={item.href}
+          className={getLinkClasses(item.href)}
+          {...(item.newTab
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
+        >
           <svg
             className={getIconClasses(item)}
             fill="none"
@@ -646,11 +679,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   useEffect(() => {
     if (
       pathname.startsWith("/database/") &&
-      DATABASE_SUB_PAGES.some((p) => pathname === p.href)
+      databaseSubPages.some((p) => pathname === p.href)
     ) {
       localStorage.setItem("sidebar-last-database", pathname);
     }
-  }, [pathname]);
+  }, [pathname, databaseSubPages]);
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads localStorage at click-time so the page loads with the right param immediately.
@@ -1026,12 +1059,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
               onToggle={handleDatabaseToggle}
               isActive={isAccordionSectionActive(
                 "/database",
-                DATABASE_SUB_PAGES.some((p) => pathname === p.href),
+                databaseSubPages.some((p) => pathname === p.href),
               )}
               isIconActive={pathname.startsWith("/database")}
-              hasChildren={DATABASE_SUB_PAGES.length > 0}
+              hasChildren={databaseSubPages.length > 0}
             >
-              {DATABASE_SUB_PAGES.map((page) => (
+              {databaseSubPages.map((page) => (
                 <SidebarSubItem
                   key={page.href}
                   href={page.href}

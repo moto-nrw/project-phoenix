@@ -1,63 +1,423 @@
 "use client";
 
-import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { useMemo, useState } from "react";
+import {
+  CalendarClock,
+  ChevronDown,
+  CircleAlert,
+  Clock,
+  type LucideIcon,
+  MapPin,
+  Play,
+  ShieldCheck,
+  UserCheck,
+  Users,
+} from "lucide-react";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import type {
+  PlannedTimetableInstance,
+  TimetableRosterRow,
+} from "~/lib/timetable-operations-types";
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
+  readonly hasActiveTimetableSession?: boolean;
   readonly isStartingInstance: string | null;
   readonly onStart: (instance: PlannedTimetableInstance) => void;
 }
 
+const SOON_THRESHOLD_MINUTES = 15;
+
 export function PlannedNowSection({
   plannedNow,
+  hasActiveTimetableSession = false,
   isStartingInstance,
   onStart,
 }: PlannedNowSectionProps) {
-  if (plannedNow.length === 0) {
-    return null;
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [sectionExpanded, setSectionExpanded] = useState<boolean | null>(null);
+  const sortedPlanned = useMemo(
+    () =>
+      [...plannedNow].sort((a, b) => {
+        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+        return a.minutesUntilStart - b.minutesUntilStart;
+      }),
+    [plannedNow],
+  );
+
+  if (sortedPlanned.length === 0) {
+    return (
+      <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              Als Nächstes
+            </p>
+            <h2 className="mt-1 text-base font-semibold text-gray-900">
+              Keine geplante Betreuung in Sicht
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Zugewiesene Betreuungsslots erscheinen hier, sobald sie im
+              heutigen Zeitfenster liegen.
+            </p>
+          </div>
+          <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+            Heute
+          </span>
+        </div>
+      </section>
+    );
   }
 
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const overdueCount = sortedPlanned.filter(
+    (instance) => instance.isOverdue,
+  ).length;
+  const soonCount = sortedPlanned.filter(
+    (instance) =>
+      !instance.isOverdue &&
+      instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES,
+  ).length;
+  const expectedCount = sortedPlanned.reduce(
+    (sum, instance) => sum + instance.expectedStudentsCount,
+    0,
+  );
+  const hasActionableSlot =
+    !hasActiveTimetableSession && (overdueCount > 0 || soonCount > 0);
+  const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
+
   return (
-    <section className="mb-6 rounded-lg border border-[#83CD2D]/30 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-900">Jetzt geplant</h2>
-        <span className="text-sm text-gray-500">
-          {plannedNow.length} Aktivität{plannedNow.length === 1 ? "" : "en"}
-        </span>
+    <section className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <button
+          type="button"
+          onClick={() =>
+            setSectionExpanded((current) => !(current ?? hasActionableSlot))
+          }
+          className="group flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+          aria-expanded={isSectionExpanded}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#4070C8]">
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              Als Nächstes
+            </span>
+            <span className="block truncate text-base font-semibold text-gray-900">
+              {sortedPlanned[0]?.title}
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <SummaryPill
+            icon={CalendarClock}
+            label={`${sortedPlanned.length} geplant`}
+            tone="info"
+          />
+          <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          {overdueCount > 0 ? (
+            <SummaryPill
+              icon={CircleAlert}
+              label={`${overdueCount} überfällig`}
+              tone="warning"
+            />
+          ) : soonCount > 0 ? (
+            <SummaryPill
+              icon={Clock}
+              label={`${soonCount} startet gleich`}
+              tone="success"
+            />
+          ) : null}
+        </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {plannedNow.map((instance) => (
-          <article
-            key={instance.id}
-            className="rounded-lg border border-gray-200 bg-gray-50 p-4"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-medium text-gray-900">{instance.title}</h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  {instance.startTime}–{instance.endTime}
-                </p>
-              </div>
-              {instance.isOverdue && (
-                <span className="rounded-full bg-[#F3B63F]/20 px-2 py-1 text-xs font-medium text-[#A66F00]">
-                  Überfällig
-                </span>
-              )}
-            </div>
-            <div className="mt-3 text-sm text-gray-600">
-              {instance.expectedStudentsCount} erwartet
-            </div>
-            <button
-              type="button"
-              disabled={isStartingInstance === instance.id}
-              onClick={() => onStart(instance)}
-              className="mt-4 w-full rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Jetzt starten
-            </button>
-          </article>
-        ))}
-      </div>
+
+      {isSectionExpanded ? (
+        <div className="overflow-hidden">
+          <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
+            {sortedPlanned.map((instance) => {
+              const isExpanded = expandedIds.has(instance.id);
+              const visibleRows = isExpanded
+                ? instance.rosterPreview
+                : instance.rosterPreview.slice(0, 4);
+              const hiddenCount = Math.max(
+                0,
+                instance.rosterPreview.length - visibleRows.length,
+              );
+
+              return (
+                <article
+                  key={instance.id}
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                >
+                  <div className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-sm font-semibold text-gray-900">
+                            {instance.title}
+                          </h3>
+                          <SlotStatusBadge instance={instance} />
+                          <ResponsibilityBadge instance={instance} />
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarClock
+                              className="h-4 w-4 text-gray-400"
+                              aria-hidden="true"
+                            />
+                            {instance.startTime}-{instance.endTime}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin
+                              className="h-4 w-4 text-gray-400"
+                              aria-hidden="true"
+                            />
+                            {instance.roomName ?? `Raum ${instance.roomId}`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isStartingInstance === instance.id}
+                        onClick={() => onStart(instance)}
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Play className="h-4 w-4" aria-hidden="true" />
+                        {isStartingInstance === instance.id
+                          ? "Startet..."
+                          : "Starten"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <SlotStat
+                        label="Erwartet"
+                        value={instance.expectedStudentsCount}
+                        tone="neutral"
+                      />
+                      <SlotStat
+                        label="Anwesend"
+                        value={instance.presentStudentsCount}
+                        tone={
+                          instance.presentStudentsCount > 0
+                            ? "success"
+                            : "neutral"
+                        }
+                      />
+                      <SlotStat
+                        label="Betreuende"
+                        value={instance.assignedStaffIds.length}
+                        tone={instance.isAssigned ? "info" : "neutral"}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(instance.id)}
+                      className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Users
+                          className="h-4 w-4 text-gray-400"
+                          aria-hidden="true"
+                        />
+                        Kinder
+                        <span className="text-xs font-normal text-gray-500">
+                          {instance.rosterPreview.length > 0
+                            ? `${instance.rosterPreview.length} erwartet`
+                            : "keine Liste"}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+
+                    {instance.rosterPreview.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {visibleRows.map((row) => (
+                          <RosterPreviewRow key={row.studentId} row={row} />
+                        ))}
+                        {hiddenCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(instance.id)}
+                            className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                          >
+                            {hiddenCount} weitere anzeigen
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function SlotStatusBadge({
+  instance,
+}: Readonly<{ instance: PlannedTimetableInstance }>) {
+  if (instance.isOverdue) {
+    return (
+      <span className="rounded-full bg-[#F3B63F]/20 px-2 py-0.5 text-xs font-medium text-[#A66F00]">
+        Überfällig
+      </span>
+    );
+  }
+  if (instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES) {
+    return (
+      <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
+        Startet gleich
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      Heute
+    </span>
+  );
+}
+
+function ResponsibilityBadge({
+  instance,
+}: Readonly<{ instance: PlannedTimetableInstance }>) {
+  const label = instance.isPrimary
+    ? "Primär"
+    : instance.isSubstitute
+      ? "Vertretung"
+      : instance.isAssigned
+        ? "Zugewiesen"
+        : "Info";
+  const className = instance.isAssigned
+    ? "bg-[#5080D8]/10 text-[#4070C8]"
+    : "bg-gray-100 text-gray-500";
+  const Icon = instance.isPrimary ? ShieldCheck : UserCheck;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+function SlotStat({
+  label,
+  value,
+  tone,
+}: Readonly<{
+  label: string;
+  value: number;
+  tone: "neutral" | "success" | "info";
+}>) {
+  const className =
+    tone === "success"
+      ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+      : tone === "info"
+        ? "bg-[#5080D8]/10 text-[#4070C8]"
+        : "bg-gray-50 text-gray-900";
+  return (
+    <div className={`rounded-lg px-3 py-2 ${className}`}>
+      <span className="block text-sm font-semibold">{value}</span>
+      <span className="block text-[11px] font-medium text-gray-500">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function SummaryPill({
+  icon: Icon,
+  label,
+  tone = "neutral",
+}: Readonly<{
+  icon: LucideIcon;
+  label: string;
+  tone?: "neutral" | "info" | "success" | "warning";
+}>) {
+  const className =
+    tone === "info"
+      ? "bg-[#5080D8]/10 text-[#4070C8]"
+      : tone === "success"
+        ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+        : tone === "warning"
+          ? "bg-[#F3B63F]/20 text-[#A66F00]"
+          : "bg-gray-100 text-gray-600";
+  return (
+    <span
+      className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium ${className}`}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+      <div className="min-w-0">
+        <p className="truncate font-medium text-gray-900">
+          {row.studentName || `Schüler ${row.studentId}`}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-gray-500">
+          {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||
+            "Ohne Klassengruppe"}
+        </p>
+      </div>
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: rosterDotColor(row) }}
+          aria-hidden="true"
+        />
+        {rosterStatusLabel(row)}
+      </span>
+    </div>
+  );
+}
+
+function rosterDotColor(row: TimetableRosterRow) {
+  if (row.currentlyPresent || row.status === "present") {
+    return LOCATION_COLORS.GROUP_ROOM;
+  }
+  if (row.status === "absent") {
+    return LOCATION_COLORS.HOME;
+  }
+  return "#D1D5DB";
+}
+
+function rosterStatusLabel(row: TimetableRosterRow) {
+  if (row.currentlyPresent || row.status === "present") return "Anwesend";
+  if (row.status === "absent") return "Abwesend";
+  return "Erwartet";
 }

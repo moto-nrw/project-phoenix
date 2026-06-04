@@ -55,6 +55,7 @@ type Resource struct {
 	studentRepo            users.StudentRepository
 	staffRepo              users.StaffRepository
 	roomRepo               facilities.RoomRepository
+	activityCategoryRepo   activities.CategoryRepository
 	activityGroupRepo      activities.GroupRepository
 	activitySupervisorRepo activities.SupervisorPlannedRepository
 	studentEnrollmentRepo  activities.StudentEnrollmentRepository
@@ -91,6 +92,7 @@ type Dependencies struct {
 	StudentRepo            users.StudentRepository
 	StaffRepo              users.StaffRepository
 	RoomRepo               facilities.RoomRepository
+	ActivityCategoryRepo   activities.CategoryRepository
 	ActivityGroupRepo      activities.GroupRepository
 	ActivitySupervisorRepo activities.SupervisorPlannedRepository
 	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
@@ -127,6 +129,7 @@ func NewResource(deps Dependencies) *Resource {
 		studentRepo:            deps.StudentRepo,
 		staffRepo:              deps.StaffRepo,
 		roomRepo:               deps.RoomRepo,
+		activityCategoryRepo:   deps.ActivityCategoryRepo,
 		activityGroupRepo:      deps.ActivityGroupRepo,
 		activitySupervisorRepo: deps.ActivitySupervisorRepo,
 		studentEnrollmentRepo:  deps.StudentEnrollmentRepo,

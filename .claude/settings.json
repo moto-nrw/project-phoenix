@@ -156,11 +156,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-go.sh\""
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/format-go.sh\"'"
           },
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-typescript.sh\""
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/format-typescript.sh\"'"
           }
         ]
       }
@@ -171,7 +171,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-commit-message.sh\""
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/check-commit-message.sh\"'"
           }
         ]
       }
@@ -182,7 +182,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-env-files.sh\""
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/check-env-files.sh\"'"
           }
         ]
       }
@@ -192,7 +192,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/skill-reminder.sh\"'"
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/skill-reminder.sh\"'"
           }
         ]
       },
@@ -200,7 +200,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) && bash \"$root/.claude/hooks/subagent-reminder.sh\"'"
+            "command": "bash -c 'root=\"${CLAUDE_PROJECT_DIR:-}\"; if [[ -z \"$root\" ]]; then root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; fi; bash \"$root/.claude/hooks/subagent-reminder.sh\"'"
           }
         ]
       }

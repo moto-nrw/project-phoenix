@@ -9,6 +9,7 @@ import { NumberField } from "./fields/number-field";
 import { TimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
+import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
 
@@ -411,6 +412,15 @@ function renderField(
     case "text":
       return (
         <TextField
+          value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
+          disabled={disabled}
+        />
+      );
+    case "textarea":
+      return (
+        <TextareaField
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}

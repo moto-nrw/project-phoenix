@@ -1,13 +1,20 @@
 // PageHeaderWithSearch - refactored with extracted sub-components
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { useScrollY } from "~/lib/hooks/use-scroll-y";
+import { useViewportAtLeast } from "~/lib/hooks/use-viewport-at-least";
 import { PageHeader } from "./PageHeader";
 import { SearchBar } from "./SearchBar";
 import { DesktopFilters } from "./DesktopFilters";
-import { MobileFilterButton } from "./MobileFilterButton";
-import { MobileFilterPanel } from "./MobileFilterPanel";
+import { FilterButton } from "./FilterButton";
+import { FilterPanel } from "./FilterPanel";
 import { ActiveFilterChips } from "./ActiveFilterChips";
 import { NavigationTabs } from "./NavigationTabs";
 import { OverflowMenu } from "./OverflowMenu";
@@ -17,7 +24,7 @@ import {
   DesktopSearchAction,
   shouldShowInlineStatusBadge,
 } from "./SearchRowHelpers";
-import type { PageHeaderWithSearchProps } from "./types";
+import type { FilterPanelAnchor, PageHeaderWithSearchProps } from "./types";
 
 // Threshold (in px) past which compactOnScroll engages. Chosen empirically:
 // just enough that a small touch-bounce or address-bar wobble doesn't trigger
@@ -44,10 +51,17 @@ export function PageHeaderWithSearch({
   primaryAction,
   compactOnScroll = false,
   activeFilterDisplay = "chips",
+  filterVariant = "default",
+  filterSections,
   desktopFiltersFrom = "lg",
   className = "",
 }: Readonly<PageHeaderWithSearchProps>) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
+  const isDesktopFilterLayout = useViewportAtLeast(
+    desktopFiltersFrom === "xl" ? 1280 : 1024,
+  );
+  const previousDesktopFilterLayoutRef = useRef(isDesktopFilterLayout);
 
   // Only subscribe to scroll updates when the consumer opted in. The hook
   // itself is rAF-throttled, but no point paying for it on the 28 pages that
@@ -73,6 +87,29 @@ export function PageHeaderWithSearch({
     activeFilterDisplay === "count" && activeFilterCount > 0;
   const showChipsRow =
     activeFilterDisplay === "chips" && activeFilters.length > 0;
+
+  useEffect(() => {
+    const wasDesktopFilterLayout = previousDesktopFilterLayoutRef.current;
+    if (wasDesktopFilterLayout === isDesktopFilterLayout) return;
+    previousDesktopFilterLayoutRef.current = isDesktopFilterLayout;
+
+    if (isDesktopFilterLayout) {
+      const shouldTransferToDesktopPopover =
+        isMobileFiltersOpen && filterVariant === "quiet";
+      setIsMobileFiltersOpen(false);
+      setIsDesktopFiltersOpen(shouldTransferToDesktopPopover);
+      return;
+    }
+
+    const shouldTransferToMobile = isDesktopFiltersOpen;
+    setIsDesktopFiltersOpen(false);
+    if (shouldTransferToMobile) setIsMobileFiltersOpen(true);
+  }, [
+    filterVariant,
+    isDesktopFilterLayout,
+    isDesktopFiltersOpen,
+    isMobileFiltersOpen,
+  ]);
 
   return (
     <div className={className}>
@@ -124,6 +161,8 @@ export function PageHeaderWithSearch({
           showFilterCountBadge ? activeFilterCount : undefined
         }
         showChipsRow={showChipsRow}
+        filterVariant={filterVariant}
+        filterSections={filterSections}
         hideClass={desktopFiltersFrom === "xl" ? "xl:hidden" : "lg:hidden"}
       />
 
@@ -136,6 +175,8 @@ export function PageHeaderWithSearch({
         hasFilters={hasFilters}
         hasTabs={hasTabs}
         hasTitle={hasTitle}
+        isDesktopFiltersOpen={isDesktopFiltersOpen}
+        setIsDesktopFiltersOpen={setIsDesktopFiltersOpen}
         actionButton={actionButton}
         statusIndicator={statusIndicator}
         badge={badge}
@@ -151,6 +192,8 @@ export function PageHeaderWithSearch({
           showFilterCountBadge ? activeFilterCount : undefined
         }
         showChipsRow={showChipsRow}
+        filterVariant={filterVariant}
+        filterSections={filterSections}
         showClass={
           desktopFiltersFrom === "xl" ? "hidden xl:block" : "hidden lg:block"
         }
@@ -160,6 +203,42 @@ export function PageHeaderWithSearch({
 }
 
 // --- Sub-components for section organization ---
+
+function useFilterPanelAnchor(
+  isOpen: boolean,
+  setIsOpen: (open: boolean) => void,
+) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<FilterPanelAnchor | null>(null);
+
+  // Snapshot the trigger position. This only seeds the panel's first paint;
+  // once open, the panel tracks the live `anchorRef` element every frame and
+  // re-positions itself imperatively (no React re-render), so we don't poll
+  // here.
+  const updateAnchor = useCallback(() => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    setAnchor(
+      rect
+        ? {
+            left: Math.round(rect.left),
+            bottom: Math.round(rect.bottom),
+            right: Math.round(rect.right),
+          }
+        : null,
+    );
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (!isOpen) updateAnchor();
+    setIsOpen(!isOpen);
+  }, [isOpen, setIsOpen, updateAnchor]);
+
+  useEffect(() => {
+    if (isOpen) updateAnchor();
+  }, [isOpen, updateAnchor]);
+
+  return { anchorRef, anchor, toggle };
+}
 
 interface TabsSectionProps {
   readonly tabs: NonNullable<PageHeaderWithSearchProps["tabs"]>;
@@ -232,6 +311,10 @@ interface MobileSearchSectionProps {
   /** When set, suppresses the chips row and renders this count on the filter pill. */
   readonly activeFilterCountForBadge?: number;
   readonly showChipsRow: boolean;
+  readonly filterVariant: NonNullable<
+    PageHeaderWithSearchProps["filterVariant"]
+  >;
+  readonly filterSections?: PageHeaderWithSearchProps["filterSections"];
   /** Tailwind class that hides this section at the desktop breakpoint. */
   readonly hideClass: "lg:hidden" | "xl:hidden";
 }
@@ -254,8 +337,16 @@ function MobileSearchSection({
   compactOnScroll,
   activeFilterCountForBadge,
   showChipsRow,
+  filterVariant,
+  filterSections,
   hideClass,
 }: MobileSearchSectionProps) {
+  const {
+    anchorRef: filterButtonRef,
+    anchor: filterPanelAnchor,
+    toggle: toggleMobileFilters,
+  } = useFilterPanelAnchor(isMobileFiltersOpen, setIsMobileFiltersOpen);
+
   const showInlineStatusBadge = shouldShowInlineStatusBadge(
     hasTabs,
     hasTitle,
@@ -285,12 +376,15 @@ function MobileSearchSection({
           <SearchBar {...search} className="min-w-0 flex-1" size="sm" />
 
           {hasFilters && (
-            <MobileFilterButton
-              isOpen={isMobileFiltersOpen}
-              onClick={() => setIsMobileFiltersOpen(!isMobileFiltersOpen)}
-              hasActiveFilters={hasActiveFilters}
-              activeCount={activeFilterCountForBadge}
-            />
+            <div ref={filterButtonRef} className="flex-shrink-0">
+              <FilterButton
+                isOpen={isMobileFiltersOpen}
+                onClick={toggleMobileFilters}
+                hasActiveFilters={hasActiveFilters}
+                activeCount={activeFilterCountForBadge}
+                testId="mobile-filter-button"
+              />
+            </div>
           )}
 
           {/* Mobile action button when no tabs and no title */}
@@ -311,17 +405,22 @@ function MobileSearchSection({
 
       {/* Mobile Filter Panel */}
       {hasFilters && (
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={isMobileFiltersOpen}
           onClose={() => setIsMobileFiltersOpen(false)}
           filters={filters}
           onApply={() => setIsMobileFiltersOpen(false)}
           onReset={onClearAllFilters}
+          anchorRect={filterPanelAnchor}
+          anchorRef={filterButtonRef}
+          variant={filterVariant}
+          sections={filterSections}
+          testId="mobile-filter-panel"
         />
       )}
 
       {/* Active Filters (Mobile) — suppressed entirely when the consumer opted
-          into count-display; the count badge on MobileFilterButton replaces it. */}
+          into count-display; the count badge on FilterButton replaces it. */}
       {showChipsRow && activeFilters.length > 0 && (
         <ActiveFilterChips
           filters={activeFilters}
@@ -339,6 +438,8 @@ interface DesktopSearchSectionProps {
   readonly hasFilters: boolean;
   readonly hasTabs: boolean;
   readonly hasTitle: boolean;
+  readonly isDesktopFiltersOpen: boolean;
+  readonly setIsDesktopFiltersOpen: (open: boolean) => void;
   readonly actionButton?: React.ReactNode;
   readonly statusIndicator?: PageHeaderWithSearchProps["statusIndicator"];
   readonly badge?: PageHeaderWithSearchProps["badge"];
@@ -352,6 +453,10 @@ interface DesktopSearchSectionProps {
   readonly compactOnScroll: boolean;
   readonly activeFilterCountForBadge?: number;
   readonly showChipsRow: boolean;
+  readonly filterVariant: NonNullable<
+    PageHeaderWithSearchProps["filterVariant"]
+  >;
+  readonly filterSections?: PageHeaderWithSearchProps["filterSections"];
   /** Tailwind class that shows this section at the desktop breakpoint. */
   readonly showClass: "hidden lg:block" | "hidden xl:block";
 }
@@ -362,6 +467,8 @@ function DesktopSearchSection({
   hasFilters,
   hasTabs,
   hasTitle,
+  isDesktopFiltersOpen,
+  setIsDesktopFiltersOpen,
   actionButton,
   statusIndicator,
   badge,
@@ -373,10 +480,19 @@ function DesktopSearchSection({
   compactOnScroll,
   activeFilterCountForBadge,
   showChipsRow,
+  filterVariant,
+  filterSections,
   showClass,
 }: DesktopSearchSectionProps) {
+  const {
+    anchorRef: desktopFilterButtonRef,
+    anchor: desktopFilterPanelAnchor,
+    toggle: toggleDesktopFilters,
+  } = useFilterPanelAnchor(isDesktopFiltersOpen, setIsDesktopFiltersOpen);
   const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
   const hasPrimaryAction = primaryAction != null;
+  // The quiet variant is the single opt-in for the consolidated popover layout.
+  const showFilterPopover = filterVariant === "quiet";
 
   // True when DesktopSearchAction will render something — the kebab
   // follows it as a tight cluster (no own `ml-auto` needed). False when
@@ -408,6 +524,52 @@ function DesktopSearchSection({
       }`
     : "";
 
+  const desktopFilterButton =
+    hasFilters && showFilterPopover ? (
+      <>
+        <FilterButton
+          isOpen={isDesktopFiltersOpen}
+          onClick={toggleDesktopFilters}
+          hasActiveFilters={activeFilters.length > 0}
+          activeCount={activeFilterCountForBadge}
+          testId="desktop-filter-button"
+        />
+        <FilterPanel
+          isOpen={isDesktopFiltersOpen}
+          onClose={() => setIsDesktopFiltersOpen(false)}
+          filters={filters}
+          onApply={() => setIsDesktopFiltersOpen(false)}
+          onReset={onClearAllFilters}
+          applyLabel="Schließen"
+          placement="desktop"
+          anchorRect={desktopFilterPanelAnchor}
+          anchorRef={desktopFilterButtonRef}
+          variant={filterVariant}
+          sections={filterSections}
+          testId="desktop-filter-panel"
+        />
+      </>
+    ) : null;
+  const inlineDesktopFilters =
+    hasFilters && !showFilterPopover ? (
+      <DesktopFilters filters={filters} />
+    ) : null;
+
+  // Popover layout shares the same search-bar + filter-button cluster in both
+  // the primaryAction and single-row branches below. The two branches are
+  // mutually exclusive returns, so reusing one element (incl. its ref) is safe.
+  const popoverSearchCluster = (
+    <div
+      ref={desktopFilterButtonRef}
+      className="flex min-w-0 flex-1 items-center gap-3"
+    >
+      {search && (
+        <SearchBar {...search} className="min-w-48 flex-1" size="md" />
+      )}
+      {desktopFilterButton}
+    </div>
+  );
+
   // Two-row layout when a primaryAction is set: row 1 = search +
   // primaryAction (right), row 2 = filters + actionButton + kebab (right).
   // Single-row layout otherwise (rückwärtskompatibel for the 28 other
@@ -415,15 +577,21 @@ function DesktopSearchSection({
   if (hasPrimaryAction) {
     return (
       <div className={`mb-6 ${showClass}`}>
-        {/* Row 1: search left, primary action right */}
-        {(search !== undefined || hasPrimaryAction) && (
+        {/* Row 1: search + popover filter left, primary action right */}
+        {(search !== undefined || desktopFilterButton || hasPrimaryAction) && (
           <div
             className={`mb-3 flex items-center gap-3 ${compactWrapper}`}
             style={{ transformOrigin: "top right" }}
           >
-            {search && (
-              <SearchBar {...search} className="min-w-48 flex-1" size="md" />
-            )}
+            {showFilterPopover
+              ? popoverSearchCluster
+              : search && (
+                  <SearchBar
+                    {...search}
+                    className="min-w-48 flex-1"
+                    size="md"
+                  />
+                )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               {primaryAction}
             </div>
@@ -431,11 +599,12 @@ function DesktopSearchSection({
         )}
 
         {/* Row 2: filters left, action + kebab right */}
-        {(hasFilters || hasActionContent) && (
+        {((hasFilters && !showFilterPopover) || hasActionContent) && (
           <div className="mb-3 flex items-center gap-3">
-            {hasFilters && <DesktopFilters filters={filters} />}
+            {inlineDesktopFilters}
 
-            {activeFilterCountForBadge !== undefined &&
+            {!showFilterPopover &&
+            activeFilterCountForBadge !== undefined &&
             activeFilterCountForBadge > 0 ? (
               <span
                 className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"
@@ -485,13 +654,19 @@ function DesktopSearchSection({
           className={`mb-3 flex items-center gap-3 ${compactWrapper}`}
           style={{ transformOrigin: "top right" }}
         >
-          {search && (
-            <SearchBar {...search} className={searchBarClass} size="md" />
+          {showFilterPopover ? (
+            popoverSearchCluster
+          ) : (
+            <>
+              {search && (
+                <SearchBar {...search} className={searchBarClass} size="md" />
+              )}
+              {inlineDesktopFilters}
+            </>
           )}
 
-          {hasFilters && <DesktopFilters filters={filters} />}
-
-          {activeFilterCountForBadge !== undefined &&
+          {!showFilterPopover &&
+          activeFilterCountForBadge !== undefined &&
           activeFilterCountForBadge > 0 ? (
             <span
               className="inline-flex h-6 items-center gap-1.5 rounded-full bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 ring-inset"

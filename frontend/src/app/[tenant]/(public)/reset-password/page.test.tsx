@@ -38,6 +38,7 @@ const mockUseTenant = vi.fn();
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSafe: () => mockUseTenant(),
   useTenantSlugSafe: () => "demo-school",
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/auth-api", () => ({

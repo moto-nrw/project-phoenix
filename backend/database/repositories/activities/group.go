@@ -37,6 +37,29 @@ func NewGroupRepository(db *bun.DB) activities.GroupRepository {
 	}
 }
 
+// FindByName finds a non-archived group by name, case-insensitively.
+func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activities.Group, error) {
+	group := new(activities.Group)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(group).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`LOWER(TRIM("group".name)) = LOWER(TRIM(?))`, name).
+		Where(`"group".archived_at IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find group by name",
+			Err: err,
+		}
+	}
+
+	return group, nil
+}
+
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group

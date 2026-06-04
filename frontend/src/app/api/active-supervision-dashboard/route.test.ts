@@ -126,6 +126,82 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.firstRoomId).toBeNull();
   });
 
+  it("fetches upcoming planned timetable slots with roster preview", async () => {
+    mockApiGet
+      .mockResolvedValueOnce({ data: [] }) // supervised groups
+      .mockResolvedValueOnce({ data: [] }) // unclaimed groups
+      .mockResolvedValueOnce({ data: { id: 5, person_id: 50 } }) // staff
+      .mockResolvedValueOnce({ data: [] }) // educational groups
+      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
+      .mockResolvedValueOnce({
+        data: {
+          instances: [
+            {
+              id: 10,
+              title: "Hausaufgaben",
+              date: "2026-06-04",
+              start_time: "14:00",
+              end_time: "15:00",
+              room_id: 20,
+              room_name: "Lernraum",
+              status: "planned",
+              is_overdue: false,
+              minutes_until_start: 30,
+              expected_students_count: 1,
+              present_students_count: 0,
+              assigned_staff_ids: [5],
+              is_assigned: true,
+              is_primary: true,
+              is_substitute: false,
+              is_absent: false,
+              roster_preview: [
+                {
+                  student_id: 99,
+                  student_name: "Mia Bauer",
+                  school_class: "2a",
+                  group_name: "Sternengruppe",
+                  planned: true,
+                  is_unplanned: false,
+                  currently_present: false,
+                  status: "expected",
+                },
+              ],
+            },
+          ],
+        },
+      }); // planned now
+
+    const request = createMockRequest("/api/active-supervision-dashboard");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/timetable/operations/planned-now?horizon_minutes=480&limit=5&include_roster=true",
+      defaultSession.user.token,
+    );
+
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        plannedNow: Array<{
+          id: string;
+          roomName: string | null;
+          isPrimary: boolean;
+          rosterPreview: Array<{ studentId: string; studentName: string }>;
+        }>;
+      }>
+    >(response);
+
+    expect(json.data.plannedNow[0]).toMatchObject({
+      id: "10",
+      roomName: "Lernraum",
+      isPrimary: true,
+    });
+    expect(json.data.plannedNow[0]?.rosterPreview[0]).toMatchObject({
+      studentId: "99",
+      studentName: "Mia Bauer",
+    });
+  });
+
   it("fetches supervised groups with room data and visits", async () => {
     const supervisedGroups = [
       {

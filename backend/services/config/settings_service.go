@@ -398,7 +398,7 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
-	case config.FieldText:
+	case config.FieldText, config.FieldTextarea:
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("expected a string")
 		}

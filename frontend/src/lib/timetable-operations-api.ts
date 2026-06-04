@@ -17,6 +17,13 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+interface PlannedNowOptions {
+  date?: string;
+  horizonMinutes?: number;
+  limit?: number;
+  includeRoster?: boolean;
+}
+
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
@@ -33,8 +40,25 @@ async function unwrap<T>(response: Response): Promise<T> {
 }
 
 export const timetableOperationsApi = {
-  async plannedNow(date?: string): Promise<PlannedTimetableInstance[]> {
-    const suffix = date ? `?date=${encodeURIComponent(date)}` : "";
+  async plannedNow(
+    dateOrOptions?: string | PlannedNowOptions,
+  ): Promise<PlannedTimetableInstance[]> {
+    const options =
+      typeof dateOrOptions === "string"
+        ? { date: dateOrOptions }
+        : dateOrOptions;
+    const params = new URLSearchParams();
+    if (options?.date) params.set("date", options.date);
+    if (options?.horizonMinutes !== undefined) {
+      params.set("horizon_minutes", options.horizonMinutes.toString());
+    }
+    if (options?.limit !== undefined) {
+      params.set("limit", options.limit.toString());
+    }
+    if (options?.includeRoster !== undefined) {
+      params.set("include_roster", String(options.includeRoster));
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : "";
     const raw = await unwrap<{
       instances: Parameters<typeof mapPlannedInstance>[0][];
     }>(
