@@ -68,13 +68,16 @@ describe("PlannedNowSection", () => {
       />,
     );
 
-    expect(screen.getByText("Anstehende Betreuung")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Als Nächstes/ }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("1 geplant")).toBeInTheDocument();
-    expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
+    expect(screen.getByText("8 Kinder")).toBeInTheDocument();
+    expect(screen.getAllByText("Hausaufgaben").length).toBeGreaterThan(0);
     expect(screen.getByText("Lernraum 2")).toBeInTheDocument();
     expect(screen.getByText("Primär")).toBeInTheDocument();
     expect(screen.getByText("Überfällig")).toBeInTheDocument();
-    expect(screen.getByText("Erwartet")).toBeInTheDocument();
+    expect(screen.getAllByText("Erwartet").length).toBeGreaterThan(0);
     expect(screen.getByText("Mia Bauer")).toBeInTheDocument();
 
     const startButton = screen.getByRole("button", { name: /Startet/i });
@@ -88,8 +91,58 @@ describe("PlannedNowSection", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Jetzt starten/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Starten$/i }));
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
+  });
+
+  it("keeps future-only slots collapsed until opened", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            isOverdue: false,
+            minutesUntilStart: 90,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: /Als Nächstes/ });
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: /^Starten$/i })).toBeNull();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: /^Starten$/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps soon slots collapsed while another timetable session is active", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            isOverdue: false,
+            minutesUntilStart: 5,
+          },
+        ]}
+        hasActiveTimetableSession
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Als Nächstes/ }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: /^Starten$/i })).toBeNull();
   });
 
   it("renders multiple cards and on-time status labels", () => {
@@ -116,7 +169,7 @@ describe("PlannedNowSection", () => {
     );
 
     expect(screen.getByText("2 geplant")).toBeInTheDocument();
-    expect(screen.getByText("AG Sport")).toBeInTheDocument();
+    expect(screen.getAllByText("AG Sport").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Startet gleich")).toHaveLength(1);
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
   });

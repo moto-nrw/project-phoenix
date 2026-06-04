@@ -8,6 +8,7 @@ import {
   useCallback,
   useRef,
 } from "react";
+import { CheckCircle2, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -222,6 +223,20 @@ function rosterStudentMeta(
     .join(" · ");
 }
 
+function RosterSummaryStat({
+  label,
+  value,
+}: Readonly<{ label: string; value: number }>) {
+  return (
+    <div className="rounded-xl bg-white/80 px-3 py-2 shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+      <span className="block text-sm font-semibold text-gray-900">{value}</span>
+      <span className="block text-[11px] font-medium text-gray-500">
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function MeinRaumPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -256,6 +271,7 @@ function MeinRaumPageContent() {
   );
   const [isStartingSpontaneous, setIsStartingSpontaneous] = useState(false);
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
+  const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
@@ -1129,6 +1145,39 @@ function MeinRaumPageContent() {
     }
   }, [activeTimetableInstanceId, mutateDashboard]);
 
+  const handleConfirmExpectedStudents = useCallback(
+    async (rows: TimetableRosterRow[]) => {
+      if (!activeTimetableInstanceId || rows.length === 0) return;
+      try {
+        setIsConfirmingExpected(true);
+        let nextRoster: TimetableRoster | null = null;
+        for (const row of rows) {
+          nextRoster = await timetableOperationsApi.checkIn(
+            activeTimetableInstanceId,
+            row.studentId,
+          );
+        }
+        if (nextRoster) {
+          await mutateRoster(nextRoster, { revalidate: false });
+        } else {
+          await mutateRoster();
+        }
+        await mutateDashboard();
+        setRefreshKey((prev) => prev + 1);
+      } catch (err) {
+        logger.error("failed to confirm expected timetable students", {
+          instance_id: activeTimetableInstanceId,
+          count: rows.length,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError("Erwartete Kinder konnten nicht bestätigt werden.");
+      } finally {
+        setIsConfirmingExpected(false);
+      }
+    },
+    [activeTimetableInstanceId, mutateDashboard, mutateRoster],
+  );
+
   const handleAddUnplannedStudent = useCallback(
     async (studentId: string) => {
       if (!activeTimetableInstanceId) return;
@@ -1446,6 +1495,9 @@ function MeinRaumPageContent() {
       const unplanned = currentTimetableRoster.rows.filter(
         (row) => row.isUnplanned && row.currentlyPresent,
       );
+      const confirmableExpectedRows = expected.filter(
+        (row) => row.planned && !row.currentlyPresent,
+      );
       const renderRosterRow = (row: TimetableRosterRow) => (
         <div
           key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
@@ -1542,28 +1594,57 @@ function MeinRaumPageContent() {
 
       return (
         <div className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                {currentTimetableRoster.instance.title}
-              </h2>
-              <p className="text-sm text-gray-600">
-                {isSpontaneousInstance
-                  ? "Laufende spontane Aktivität"
-                  : "Laufende geplante Aktivität"}
-              </p>
+          <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
+            <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
+                    Aktiv
+                  </p>
+                  <h2 className="truncate text-base font-semibold text-gray-900">
+                    {currentTimetableRoster.instance.title}
+                  </h2>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    isConfirmingExpected || confirmableExpectedRows.length === 0
+                  }
+                  onClick={() =>
+                    void handleConfirmExpectedStudents(confirmableExpectedRows)
+                  }
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                  {isConfirmingExpected
+                    ? "Bestätigt..."
+                    : `${confirmableExpectedRows.length} erwartete bestätigen`}
+                </button>
+                <button
+                  type="button"
+                  disabled={isCompletingInstance}
+                  onClick={() => void handleCompleteTimetableInstance()}
+                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                >
+                  Beenden
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              disabled={isCompletingInstance}
-              onClick={() => void handleCompleteTimetableInstance()}
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Beenden
-            </button>
+            <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
+              <RosterSummaryStat label="Anwesend" value={present.length} />
+              <RosterSummaryStat label="Erwartet" value={expected.length} />
+              <RosterSummaryStat label="Abwesend" value={absent.length} />
+              <RosterSummaryStat label="Gegangen" value={departed.length} />
+              <RosterSummaryStat label="Ungeplant" value={unplanned.length} />
+            </div>
           </div>
           <form
-            className="moto-content-surface rounded-lg border p-3"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
             onSubmit={(event) => {
               event.preventDefault();
               const onlyResult = addStudentResults[0];
@@ -1572,18 +1653,22 @@ function MeinRaumPageContent() {
               }
             }}
           >
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
+              Kind ungeplant hinzufügen
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="search"
                 value={addStudentSearch}
                 onChange={(event) => setAddStudentSearch(event.target.value)}
                 placeholder="Weiteren Schüler suchen..."
-                className="min-h-10 flex-1 rounded-md border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+                className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={isAddingStudent || addStudentResults.length !== 1}
-                className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
               >
                 Hinzufügen
               </button>
@@ -1811,6 +1896,7 @@ function MeinRaumPageContent() {
 
       <PlannedNowSection
         plannedNow={plannedNow}
+        hasActiveTimetableSession={currentTimetableRoster !== null}
         isStartingInstance={isStartingInstance}
         onStart={(instance) => void handleStartPlannedInstance(instance)}
       />
