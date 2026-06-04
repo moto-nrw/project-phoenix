@@ -44,27 +44,19 @@ const coverByPath: Record<
   ActivePath,
   {
     readonly label: string;
-    readonly image: string;
-    readonly imageAlt: string;
     readonly chips: readonly string[];
   }
 > = {
   ersteinrichtung: {
     label: "Setup Guide",
-    image: "/help/screens/konto-erstellen.webp",
-    imageAlt: "moto Login-Screen und Startseite.",
     chips: ["Zugang", "Datenverwaltung", "Go-Live"],
   },
   funktionen: {
     label: "App Guide",
-    image: "/help/screens/kindersuche.webp",
-    imageAlt: "Kindersuche in der moto App.",
     chips: ["Aufsicht", "Suche", "Verwaltung"],
   },
   nfc: {
     label: "Tablet Guide",
-    image: "/help/screens/nfc-tablet-willkommen.webp",
-    imageAlt: "Willkommen-Screen auf dem moto NFC-Tablet.",
     chips: ["Tablet", "Armbänder", "Check-in"],
   },
 };
@@ -296,68 +288,70 @@ export function GuideShell({
           cover={cover}
         />
 
-        <section className="py-8 sm:py-10 print:py-4">
-          <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
-            {eyebrow}
-          </p>
-          <h1 className="mt-3 text-3xl leading-tight font-semibold tracking-normal text-gray-950 sm:text-4xl print:text-2xl">
-            {title}
-          </h1>
-          <p className="mt-3 text-base leading-7 text-gray-600 print:text-sm print:leading-6">
-            {description}
-          </p>
+        <section className="py-8 sm:py-10 print:py-0">
+          <div className="print:hidden">
+            <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
+              {eyebrow}
+            </p>
+            <h1 className="mt-3 text-3xl leading-tight font-semibold tracking-normal text-gray-950 sm:text-4xl">
+              {title}
+            </h1>
+            <p className="mt-3 text-base leading-7 text-gray-600">
+              {description}
+            </p>
 
-          {note ? (
-            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#5080D8]/25 bg-[#5080D8]/8 p-3 text-sm leading-6 text-gray-700 print:bg-white">
-              <Info
-                className="mt-0.5 h-4 w-4 shrink-0 text-[#315C9B]"
-                aria-hidden="true"
-              />
-              <span>
-                <InlineText text={note} />
-              </span>
-            </div>
-          ) : null}
+            {note ? (
+              <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-[#5080D8]/25 bg-[#5080D8]/8 p-3 text-sm leading-6 text-gray-700">
+                <Info
+                  className="mt-0.5 h-4 w-4 shrink-0 text-[#315C9B]"
+                  aria-hidden="true"
+                />
+                <span>
+                  <InlineText text={note} />
+                </span>
+              </div>
+            ) : null}
 
-          <nav
-            className="mt-6 rounded-2xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur-md print:hidden"
-            aria-label="Auf dieser Seite"
-          >
-            <div className="mb-2.5 flex items-center gap-2 px-1">
-              <ListChecks
-                className="h-4 w-4 text-gray-500"
-                aria-hidden="true"
-              />
-              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Auf dieser Seite
-              </span>
-            </div>
-            <ol className="grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
-              {chapters.map((chapter, index) => {
-                const Icon = chapter.icon;
-                const tone = toneClasses[chapter.tone];
-                return (
-                  <li key={chapter.id}>
-                    <a
-                      href={`#${chapter.id}`}
-                      className="group flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    >
-                      <span
-                        className={`mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${tone.soft} ${tone.text}`}
+            <nav
+              className="mt-6 rounded-2xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur-md"
+              aria-label="Auf dieser Seite"
+            >
+              <div className="mb-2.5 flex items-center gap-2 px-1">
+                <ListChecks
+                  className="h-4 w-4 text-gray-500"
+                  aria-hidden="true"
+                />
+                <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Auf dieser Seite
+                </span>
+              </div>
+              <ol className="grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+                {chapters.map((chapter, index) => {
+                  const Icon = chapter.icon;
+                  const tone = toneClasses[chapter.tone];
+                  return (
+                    <li key={chapter.id}>
+                      <a
+                        href={`#${chapter.id}`}
+                        className="group flex items-start gap-2.5 rounded-lg px-2 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                       >
-                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                      </span>
-                      <span className="pt-0.5 leading-5">
-                        {index + 1}. {chapter.title}
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
+                        <span
+                          className={`mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${tone.soft} ${tone.text}`}
+                        >
+                          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        </span>
+                        <span className="pt-0.5 leading-5">
+                          {index + 1}. {chapter.title}
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          </div>
 
-          <div className="mt-8 space-y-12 print:mt-6 print:space-y-8">
+          <div className="mt-8 space-y-12 print:mt-0 print:space-y-8">
             {chapters.map((chapter, index) => (
               <ChapterBlock
                 key={chapter.id}
@@ -449,21 +443,10 @@ function GuidePrintCover({
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={cover.image}
-          alt={cover.imageAlt}
-          className="block h-[300px] w-full object-cover object-top"
+          src="/help/screens/konto-erstellen.webp"
+          alt="moto Login-Screen."
+          className="block h-auto w-full"
         />
-      </div>
-
-      <div className="mt-auto flex items-end justify-between border-t border-gray-300 pt-5">
-        <p className="max-w-[360px] text-sm leading-6 text-gray-500">
-          Eine kompakte Anleitung für Teams in OGS, Betreuung und Verwaltung.
-        </p>
-        <p className="text-right text-lg leading-7 font-semibold text-gray-950">
-          Ganztag.
-          <br />
-          Digital.
-        </p>
       </div>
     </section>
   );
@@ -532,8 +515,8 @@ function ChapterBlock({
   const Icon = chapter.icon;
 
   return (
-    <section id={chapter.id} className="scroll-mt-6 print:[break-inside:avoid]">
-      <div className="mb-5 flex items-start gap-4">
+    <section id={chapter.id} className="scroll-mt-6">
+      <div className="mb-5 flex items-start gap-4 print:[break-inside:avoid]">
         <div
           className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone.soft} ${tone.text} print:border print:border-gray-300 print:bg-white print:text-gray-900`}
         >
@@ -678,7 +661,12 @@ function Screenshot({
   return (
     <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:border-gray-300 print:shadow-none">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={image} alt={caption} loading="lazy" className="block w-full" />
+      <img
+        src={image}
+        alt={caption}
+        loading="lazy"
+        className="block w-full print:mx-auto print:max-h-[250px] print:w-auto"
+      />
     </figure>
   );
 }
@@ -703,7 +691,7 @@ function ScreenshotGallery({
             src={item.image}
             alt={item.caption}
             loading="lazy"
-            className="block w-full"
+            className="block w-full print:mx-auto print:max-h-[160px] print:w-auto"
           />
           <figcaption className="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200">
             {item.caption}
