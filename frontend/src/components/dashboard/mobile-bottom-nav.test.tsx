@@ -87,7 +87,10 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useNFCEnabled } from "~/components/tenant/tenant-provider";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -96,6 +99,7 @@ const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
+const mockUsePresenceMode = vi.mocked(usePresenceMode);
 
 // Helper to create mock search params - use unknown cast for test flexibility
 function createMockSearchParams(
@@ -166,6 +170,7 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
+    mockUsePresenceMode.mockReturnValue("detailed");
   });
 
   describe("rendering", () => {
@@ -369,6 +374,20 @@ describe("MobileBottomNav", () => {
         link.getAttribute("href"),
       );
       expect(drawerHrefs).not.toContain("/activities");
+    });
+
+    it("hides the classic activities item in binary presence mode", () => {
+      mockUseNFCEnabled.mockReturnValue(true);
+      mockUsePresenceMode.mockReturnValue("binary");
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/activities");
+      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/active-supervisions");
     });
   });
 

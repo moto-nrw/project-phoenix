@@ -18,7 +18,10 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
-import { useNFCEnabled } from "~/components/tenant/tenant-provider";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -459,6 +462,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
   const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivityNav = nfcEnabled && presenceMode !== "binary";
   const { data: settingsSchema } = useSWR(
     userIsAdmin && mode !== "operator" && mode !== "parent"
       ? SETTINGS_SCHEMA_SWR_KEY
@@ -479,7 +484,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Filter additional navigation items based on permissions
   const filteredMainItemsByMode = filteredMainItems.filter(
-    (item) => nfcEnabled || !NFC_ONLY_HREFS.has(item.href),
+    (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
@@ -487,7 +492,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
-    if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
+    if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;

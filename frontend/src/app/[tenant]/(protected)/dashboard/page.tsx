@@ -15,7 +15,10 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
-import { useNFCEnabled } from "~/components/tenant/tenant-provider";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -254,6 +257,8 @@ const InfoCard: React.FC<InfoCardProps> = ({
 function DashboardContent() {
   const router = useTenantRouter();
   const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -383,7 +388,7 @@ function DashboardContent() {
           loading={isLoading}
           href="/ogs-groups"
         />
-        {nfcEnabled ? (
+        {showActivitySurfaces ? (
           <StatCard
             title="Aktive Aktivitäten"
             value={dashboardData?.activeActivities ?? 0}
@@ -487,7 +492,7 @@ function DashboardContent() {
           })()}
         </InfoCard>
 
-        {nfcEnabled ? (
+        {showActivitySurfaces ? (
           <InfoCard
             title="Laufende Aktivitäten"
             icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
