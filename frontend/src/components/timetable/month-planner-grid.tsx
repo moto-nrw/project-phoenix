@@ -118,6 +118,11 @@ export function MonthPlannerGrid({
                         <span className="min-w-0 flex-1 truncate font-medium">
                           {inst.title}
                         </span>
+                        {inst.isSpontaneous && !isCancelled && (
+                          <span className="shrink-0 rounded bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
+                            Spontan
+                          </span>
+                        )}
                         {isActive && !isCancelled && (
                           <span
                             className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"

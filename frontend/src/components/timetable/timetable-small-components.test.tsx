@@ -96,6 +96,50 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 anwesend/)).toBeInTheDocument();
   });
 
+  it("marks spontaneous instances in week and month grids", () => {
+    const spontaneous = {
+      ...instance,
+      status: "planned" as const,
+      isLive: false,
+      isSpontaneous: true,
+      conflictWarnings: [],
+    };
+    const weekDays = [
+      new Date("2026-05-04T00:00:00"),
+      new Date("2026-05-05T00:00:00"),
+      new Date("2026-05-06T00:00:00"),
+      new Date("2026-05-07T00:00:00"),
+      new Date("2026-05-08T00:00:00"),
+    ];
+
+    const { rerender } = render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[spontaneous]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+      />,
+    );
+
+    expect(screen.getByText("Spontan")).toBeInTheDocument();
+
+    rerender(
+      <MonthPlannerGrid
+        days={weekDays}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[spontaneous]}
+        todayISO="2026-05-04"
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Spontan")).toBeInTheDocument();
+  });
+
   it("opens planning actions and confirms week replanning", async () => {
     const onMaterialize = vi.fn().mockResolvedValue(undefined);
     const onReplan = vi.fn().mockResolvedValue(undefined);
