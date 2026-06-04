@@ -525,7 +525,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Stundenplan zuerst aktivieren",
-          body: "Der Stundenplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` → `Betrieb` mit `Stundenplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
+          body: "Der Stundenplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` -> `Betrieb` mit `Stundenplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
           tone: "blue",
         },
         screenshot: "Stundenplan-Kalender mit Termin und Serien.",
@@ -823,7 +823,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Standard-PIN ändern",
-          body: "Die Standard-PIN bei Auslieferung ist `1234`. Ändern Sie sie nach der ersten Anmeldung im Browser unter `Einstellungen` → `Geräte` → `OGS Geräte-PIN`. Bei vergessener PIN wenden Sie sich an Ihre OGS-Leitung oder den moto-Support.",
+          body: "Die Standard-PIN bei Auslieferung ist `1234`. Ändern Sie sie nach der ersten Anmeldung im Browser unter `Einstellungen` -> `Geräte` -> `OGS Geräte-PIN`. Bei vergessener PIN wenden Sie sich an Ihre OGS-Leitung oder den moto-Support.",
           tone: "gray",
         },
         screenshot:
@@ -857,7 +857,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Im `Menü` oben links auf `Armband identifizieren` tippen.",
           "Auf `Scan starten` tippen und das Armband des Kindes flach an den NFC-Sensor unten am Tablet halten.",
-          "Nach etwa einer Sekunde erscheint `Armband wird erkannt …` mit einem blauen Lade-Symbol.",
+          "Nach etwa einer Sekunde erscheint `Armband wird erkannt ...` mit einem blauen Lade-Symbol.",
           "Das Tablet meldet `Armband erkannt` und zeigt, ob das Armband bereits einem Kind zugewiesen oder noch frei ist.",
         ],
         callout: {
@@ -874,7 +874,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           },
           {
             image: "/help/screens/nfc-armband-wird-erkannt.webp",
-            caption: "„Armband wird erkannt …“ mit blauem Lade-Symbol.",
+            caption: "„Armband wird erkannt ...“ mit blauem Lade-Symbol.",
           },
           {
             image: "/help/screens/nfc-armband-erkannt-frei.webp",
@@ -1027,7 +1027,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Der Hauptbildschirm zeigt die Aktivität, den Raum und einen großen Zähler der eingecheckten Kinder.",
           "Ein noch nicht eingechecktes Kind hält sein Armband an den NFC-Sensor.",
-          "Es erscheint eine große grüne Bestätigung mit `Hallo …!`, der Abholzeit und dem aktuellen Raum.",
+          "Es erscheint eine große grüne Bestätigung mit `Hallo ...!`, der Abholzeit und dem aktuellen Raum.",
           "Die Anzeige schließt sich nach wenigen Sekunden automatisch und der Zähler erhöht sich um eins.",
         ],
         screenshot:
@@ -1049,7 +1049,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         summary:
           "Hält ein bereits eingechecktes Kind sein Armband erneut an, fragt das Tablet, wohin es geht.",
         steps: [
-          "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht …?`.",
+          "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht ...?`.",
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
           "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
@@ -1057,11 +1057,11 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Welche Buttons erscheinen",
-          body: "Welche Ziele unter `Wohin geht …?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an.",
+          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an.",
           tone: "gray",
         },
         screenshot:
-          "Tablet-Bildschirm „Wohin geht …?“ mit Raumwechsel, Schulhof, Toilette und nach Hause.",
+          "Tablet-Bildschirm „Wohin geht ...?“ mit Raumwechsel, Schulhof, Toilette und nach Hause.",
         image: "/help/screens/nfc-auschecken.webp",
       },
     ],
@@ -1138,7 +1138,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Im Browser die `Einstellungen` öffnen und den Tab `Geräte` wählen.",
           "Unter `OGS Geräte-PIN` die 4-stellige PIN setzen, mit der sich das Team am Tablet anmeldet.",
-          "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht …?`) erscheinen.",
+          "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht ...?`) erscheinen.",
           "Änderungen werden automatisch gespeichert und beim nächsten Start vom Tablet übernommen.",
         ],
         callout: {

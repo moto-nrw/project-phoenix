@@ -5,7 +5,7 @@ import { EntryPointCard, GuideShell } from "./guide-components";
 import { GuidePdfButton } from "./guide-pdf-button";
 import type { GuideChapter } from "./guide-data";
 
-// next/link → plain anchor (forwarding the props the components rely on).
+// next/link -> plain anchor (forwarding the props the components rely on).
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -124,7 +124,7 @@ describe("GuideShell", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Eine Beschreibung")).toBeInTheDocument();
 
-    // PDF button → setup.pdf for the ersteinrichtung activePath.
+    // PDF button -> setup.pdf for the ersteinrichtung activePath.
     const pdf = screen.getByText("PDF herunterladen").closest("a");
     expect(pdf).toHaveAttribute("href", "/help/pdfs/setup.pdf");
     expect(pdf).toHaveAttribute(
@@ -233,7 +233,7 @@ describe("GuideShell", () => {
             screenshot: "x",
           },
           {
-            // numbered=false + an icon → the StepCard renders the icon in place
+            // numbered=false + an icon -> the StepCard renders the icon in place
             // of a number badge (the `badge ?? (Icon ? <Icon/> : null)` branch).
             id: "icon-step",
             title: "Icon-Schritt",
@@ -295,7 +295,7 @@ describe("GuideShell", () => {
       />,
     );
 
-    // ersteinrichtung → links forward to the features guide.
+    // ersteinrichtung -> links forward to the features guide.
     const next = screen.getByText("Die App entdecken").closest("a");
     expect(next).toHaveAttribute("href", "/help/features");
   });
