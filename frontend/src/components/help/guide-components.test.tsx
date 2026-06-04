@@ -272,6 +272,29 @@ describe("GuideShell", () => {
     }
   });
 
+  it("starts every NFC chapter after the first one on a new PDF page", () => {
+    render(
+      <GuideShell
+        eyebrow="E"
+        title="T"
+        description="D"
+        chapters={makeFourChapters()}
+        activePath="nfc"
+        numbered
+      />,
+    );
+
+    expect(document.getElementById("kap-1")).not.toHaveClass(
+      "print:[break-before:page]",
+    );
+    for (const id of ["kap-2", "kap-3", "kap-4"]) {
+      expect(document.getElementById(id)).toHaveClass(
+        "print:[break-before:page]",
+        "print:[page-break-before:always]",
+      );
+    }
+  });
+
   it("renders a step image with the caption as alt text, and nothing for image-less steps", () => {
     render(
       <GuideShell

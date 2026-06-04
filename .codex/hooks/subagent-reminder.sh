@@ -9,6 +9,16 @@ project_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 agents=()
 
+json_escape() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '%s' "$value"
+}
+
 # Scan project-local agents (.claude/agents/*.md)
 if [[ -d "$project_root/.claude/agents" ]]; then
     while IFS= read -r agent_path; do
@@ -32,13 +42,13 @@ for agent in "${agents[@]}"; do
 done
 
 # Output compact JSON reminder
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": "<subagent-reminder>Project subagents (use Task tool with subagent_type):${agent_list}
+additional_context="<subagent-reminder>Project subagents (use Task tool with subagent_type):${agent_list}
 
 Invoke via Task tool when relevant.</subagent-reminder>"
-  }
-}
-EOF
+
+printf '{\n'
+printf '  "hookSpecificOutput": {\n'
+printf '    "hookEventName": "UserPromptSubmit",\n'
+printf '    "additionalContext": "%s"\n' "$(json_escape "$additional_context")"
+printf '  }\n'
+printf '}\n'

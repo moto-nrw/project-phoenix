@@ -63,6 +63,9 @@ const coverByPath: Record<
 
 const setupPrintBreakBeforeChapterIndexes = new Set([1, 3]);
 const appPrintBreakBeforeChapterIndexes = new Set([1, 2, 3]);
+const nfcPrintBreakBeforeChapterIndexes = new Set(
+  Array.from({ length: 9 }, (_, index) => index + 1),
+);
 const printPageBreakBeforeClassName =
   "print:[break-before:page] print:[page-break-before:always]";
 
@@ -368,7 +371,9 @@ export function GuideShell({
                   (activePath === "ersteinrichtung" &&
                     setupPrintBreakBeforeChapterIndexes.has(index)) ||
                   (activePath === "funktionen" &&
-                    appPrintBreakBeforeChapterIndexes.has(index))
+                    appPrintBreakBeforeChapterIndexes.has(index)) ||
+                  (activePath === "nfc" &&
+                    nfcPrintBreakBeforeChapterIndexes.has(index))
                 }
               />
             ))}
@@ -576,12 +581,13 @@ function StepCard({
 }) {
   const toneClass = toneClasses[tone];
   const Icon = item.icon;
+  const compactPrint = item.printCompact ?? false;
   return (
     <article
       id={item.id}
-      className="moto-content-surface scroll-mt-24 rounded-2xl border p-5 shadow-sm sm:p-6 print:[break-inside:avoid] print:border-gray-300 print:p-4 print:shadow-none"
+      className={`moto-content-surface scroll-mt-24 rounded-2xl border p-5 shadow-sm sm:p-6 print:[break-inside:avoid] print:border-gray-300 print:shadow-none ${compactPrint ? "print:p-3" : "print:p-4"}`}
     >
-      <div className="flex gap-4">
+      <div className={`flex gap-4 ${compactPrint ? "print:gap-3" : ""}`}>
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${toneClass.soft} ${toneClass.text} print:border print:border-gray-300 print:bg-white print:text-gray-900`}
         >
@@ -589,21 +595,29 @@ function StepCard({
             (Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null)}
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-semibold tracking-normal text-gray-950 sm:text-xl">
+          <h3
+            className={`text-lg font-semibold tracking-normal text-gray-950 sm:text-xl ${compactPrint ? "print:text-lg" : ""}`}
+          >
             {item.title}
           </h3>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
+          <p
+            className={`mt-1 text-sm leading-6 text-gray-600 ${compactPrint ? "print:leading-5" : ""}`}
+          >
             <InlineText text={item.summary} />
           </p>
 
           {item.steps ? (
-            <ol className="mt-4 space-y-2.5">
+            <ol
+              className={`mt-4 space-y-2.5 ${compactPrint ? "print:mt-3 print:space-y-1.5" : ""}`}
+            >
               {item.steps.map((step, index) => (
                 <li key={index} className="flex gap-3">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600 print:border print:border-gray-300 print:bg-white">
                     {index + 1}
                   </span>
-                  <span className="pt-0.5 text-sm leading-6 text-gray-700">
+                  <span
+                    className={`pt-0.5 text-sm leading-6 text-gray-700 ${compactPrint ? "print:leading-5" : ""}`}
+                  >
                     <InlineText text={step} />
                   </span>
                 </li>
@@ -612,12 +626,21 @@ function StepCard({
           ) : null}
 
           {item.checklist ? <Checklist items={item.checklist} /> : null}
-          {item.callout ? <Callout callout={item.callout} /> : null}
+          {item.callout ? (
+            <Callout callout={item.callout} compactPrint={compactPrint} />
+          ) : null}
 
           {item.gallery ? (
-            <ScreenshotGallery items={item.gallery} />
+            <ScreenshotGallery
+              items={item.gallery}
+              compactPrint={compactPrint}
+            />
           ) : (
-            <Screenshot image={item.image} caption={item.screenshot} />
+            <Screenshot
+              image={item.image}
+              caption={item.screenshot}
+              compactPrint={compactPrint}
+            />
           )}
         </div>
       </div>
@@ -648,14 +671,22 @@ function Checklist({ items }: { readonly items: readonly string[] }) {
   );
 }
 
-function Callout({ callout }: { readonly callout: GuideCallout }) {
+function Callout({
+  callout,
+  compactPrint,
+}: {
+  readonly callout: GuideCallout;
+  readonly compactPrint?: boolean;
+}) {
   const tone = toneClasses[callout.tone ?? "blue"];
   return (
     <div
-      className={`mt-4 rounded-xl border p-3 ${tone.soft} ${tone.border} print:bg-white`}
+      className={`mt-4 rounded-xl border p-3 ${tone.soft} ${tone.border} print:bg-white ${compactPrint ? "print:mt-3 print:p-2.5" : ""}`}
     >
       <h4 className={`text-sm font-semibold ${tone.text}`}>{callout.title}</h4>
-      <p className="mt-1 text-sm leading-6 text-gray-700">
+      <p
+        className={`mt-1 text-sm leading-6 text-gray-700 ${compactPrint ? "print:leading-5" : ""}`}
+      >
         <InlineText text={callout.body} />
       </p>
     </div>
@@ -665,9 +696,11 @@ function Callout({ callout }: { readonly callout: GuideCallout }) {
 function Screenshot({
   image,
   caption,
+  compactPrint,
 }: {
   readonly image?: string;
   readonly caption: string;
+  readonly compactPrint?: boolean;
 }) {
   // No image: render nothing. The `caption` still serves as documentation /
   // alt text in the data, but image-less steps show no placeholder box.
@@ -681,7 +714,7 @@ function Screenshot({
         src={image}
         alt={caption}
         loading="lazy"
-        className="block w-full print:mx-auto print:max-h-[250px] print:w-auto print:object-contain"
+        className={`block w-full print:mx-auto print:w-auto print:object-contain ${compactPrint ? "print:max-h-[205px]" : "print:max-h-[250px]"}`}
       />
     </figure>
   );
@@ -689,14 +722,18 @@ function Screenshot({
 
 function ScreenshotGallery({
   items,
+  compactPrint,
 }: {
   readonly items: readonly {
     readonly image: string;
     readonly caption: string;
   }[];
+  readonly compactPrint?: boolean;
 }) {
   return (
-    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2 print:gap-3">
+    <div
+      className={`mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2 ${compactPrint ? "print:mt-3 print:gap-2" : "print:gap-3"}`}
+    >
       {items.map((item, index) => (
         <figure
           key={`${item.image}-${index}`}
@@ -707,9 +744,11 @@ function ScreenshotGallery({
             src={item.image}
             alt={item.caption}
             loading="lazy"
-            className="block w-full print:mx-auto print:max-h-[160px] print:w-auto print:object-contain"
+            className={`block w-full print:mx-auto print:w-auto print:object-contain ${compactPrint ? "print:max-h-[135px]" : "print:max-h-[160px]"}`}
           />
-          <figcaption className="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200">
+          <figcaption
+            className={`border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200 ${compactPrint ? "print:py-1.5 print:leading-4" : ""}`}
+          >
             {item.caption}
           </figcaption>
         </figure>

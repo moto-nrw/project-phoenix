@@ -9,6 +9,16 @@ project_root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 
 skills=()
 
+json_escape() {
+    local value=$1
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '%s' "$value"
+}
+
 # Scan project-local skills (.claude/skills/*/SKILL.md)
 if [[ -d "$project_root/.claude/skills" ]]; then
     while IFS= read -r skill_path; do
@@ -36,13 +46,13 @@ for skill in "${skills[@]}"; do
 done
 
 # Output compact JSON reminder
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": "<skill-reminder>USE SKILLS ACTIVELY! Available:${skill_list}
+additional_context="<skill-reminder>USE SKILLS ACTIVELY! Available:${skill_list}
 
 Invoke via Skill tool before acting.</skill-reminder>"
-  }
-}
-EOF
+
+printf '{\n'
+printf '  "hookSpecificOutput": {\n'
+printf '    "hookEventName": "UserPromptSubmit",\n'
+printf '    "additionalContext": "%s"\n' "$(json_escape "$additional_context")"
+printf '  }\n'
+printf '}\n'

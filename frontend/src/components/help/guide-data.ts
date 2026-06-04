@@ -60,6 +60,7 @@ export interface GuideStep {
     readonly image: string;
     readonly caption: string;
   }[];
+  readonly printCompact?: boolean;
   /** Shown instead of a number badge on function-reference pages. */
   readonly icon?: LucideIcon;
 }
@@ -736,6 +737,7 @@ export const nfcChapters: readonly GuideChapter[] = [
       {
         id: "nfc-aufstellen-schritte",
         title: "Aufstellen, einstecken und starten",
+        printCompact: true,
         summary:
           "Platzieren Sie das Tablet gut erreichbar für die Kinder, verbinden Sie das Netzkabel und warten Sie den Startbildschirm ab.",
         steps: [
@@ -863,6 +865,7 @@ export const nfcChapters: readonly GuideChapter[] = [
       {
         id: "nfc-armband-scannen",
         title: "Armband scannen und erkennen",
+        printCompact: true,
         summary:
           "Über `Armband identifizieren` lesen Sie ein Armband ein und sehen sofort seinen Status.",
         steps: [
@@ -966,14 +969,12 @@ export const nfcChapters: readonly GuideChapter[] = [
     steps: [
       {
         id: "nfc-aufsicht-auswahl",
-        title: "Aktivität, Team und Raum wählen",
+        title: "Aktivität wählen",
         summary:
-          "Drei Fragen führen durch den Start: Was machen wir, wer ist dabei und wo machen wir das?",
+          "Der Start beginnt mit der Frage, welche Aktivität oder welches Angebot gerade läuft.",
         steps: [
           "Im `Menü` auf den großen Button `Aufsicht starten` tippen.",
           "`Was machen wir?`: die Aktivität antippen (sie wird grün umrandet) und mit `Weiter` bestätigen.",
-          "`Wer ist dabei?`: alle beteiligten Betreuerinnen und Betreuer antippen - mindestens eine Person ist nötig. Dann `Weiter`.",
-          "`Wo machen wir das?`: den Raum antippen und mit `Weiter` bestätigen.",
         ],
         callout: {
           title: "Tipp: Letzte Aufsicht wiederholen",
@@ -991,6 +992,20 @@ export const nfcChapters: readonly GuideChapter[] = [
             image: "/help/screens/nfc-aktivitaet-waehlen.webp",
             caption: "Aktivität antippen (grün) und mit „Weiter“ bestätigen.",
           },
+        ],
+      },
+      {
+        id: "nfc-aufsicht-team-raum",
+        title: "Team und Raum wählen",
+        summary:
+          "Danach legen Sie fest, welche Mitarbeitenden dabei sind und in welchem Raum die Aufsicht stattfindet.",
+        steps: [
+          "`Wer ist dabei?`: alle beteiligten Betreuerinnen und Betreuer antippen - mindestens eine Person ist nötig. Dann `Weiter`.",
+          "`Wo machen wir das?`: den Raum antippen und mit `Weiter` bestätigen.",
+        ],
+        screenshot:
+          "Tablet-Bildschirme zur Auswahl von Team und Raum vor dem Start der Aufsicht.",
+        gallery: [
           {
             image: "/help/screens/nfc-wer-ist-dabei-leer.webp",
             caption: "„Wer ist dabei?“ - verfügbare Betreuer.",
@@ -1064,6 +1079,16 @@ export const nfcChapters: readonly GuideChapter[] = [
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
           "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
+        ],
+        screenshot:
+          "Tablet-Bildschirm „Wohin geht ...?“ mit Raumwechsel, Schulhof und Toilette.",
+      },
+      {
+        id: "nfc-kinder-nach-hause",
+        title: "Nach Hause auschecken und Ziele steuern",
+        summary:
+          "Der letzte Button meldet ein Kind endgültig ab; welche Ziele davor erscheinen, legen die Geräte-Einstellungen fest.",
+        steps: [
           "`nach Hause`: das Kind wird abgeholt und verlässt die Einrichtung. Danach erscheint optional ein freiwilliges Tages-Feedback über drei Symbole (`Gut`, `Okay`, `Schlecht`).",
         ],
         callout: {
@@ -1105,17 +1130,14 @@ export const nfcChapters: readonly GuideChapter[] = [
       },
       {
         id: "nfc-team-anpassen",
-        title: "Team während der Aufsicht anpassen",
+        title: "Team während der Aufsicht auswählen",
         summary:
-          "Ändert sich das Betreuungsteam, passen Sie es an, ohne die Aufsicht neu starten zu müssen.",
+          "Ändert sich das Betreuungsteam, öffnen Sie die Auswahl und markieren die passenden Personen.",
         steps: [
           "Im Menü auf `Team anpassen` tippen.",
           "In der Personenauswahl Teammitglieder hinzufügen oder entfernen - ausgewählte Personen werden grün markiert.",
-          "Mit `Team speichern` bestätigen.",
-          "Eine grüne Meldung `Team erfolgreich gespeichert!` bestätigt die Aktualisierung.",
         ],
-        screenshot:
-          "Tablet-Bildschirm „Team anpassen“ mit grün markierten Personen und „Team speichern“.",
+        screenshot: "Tablet-Bildschirm „Team anpassen“ mit Personenauswahl.",
         gallery: [
           {
             image: "/help/screens/nfc-team-leer.webp",
@@ -1125,6 +1147,20 @@ export const nfcChapters: readonly GuideChapter[] = [
             image: "/help/screens/nfc-team-anpassen.webp",
             caption: "Personen hinzufügen oder entfernen (grün markiert).",
           },
+        ],
+      },
+      {
+        id: "nfc-team-speichern",
+        title: "Teamänderung speichern",
+        summary:
+          "Die Auswahl wird erst wirksam, wenn Sie sie speichern und die Bestätigung erscheint.",
+        steps: [
+          "Mit `Team speichern` bestätigen.",
+          "Eine grüne Meldung `Team erfolgreich gespeichert!` bestätigt die Aktualisierung.",
+        ],
+        screenshot:
+          "Tablet-Bildschirm „Team erfolgreich gespeichert!“ nach einer Teamänderung.",
+        gallery: [
           {
             image: "/help/screens/nfc-team-gespeichert.webp",
             caption: "„Team erfolgreich gespeichert!“",
@@ -1189,14 +1225,24 @@ export const nfcChapters: readonly GuideChapter[] = [
     tone: "red",
     steps: [
       {
-        id: "nfc-fehler-haeufig",
-        title: "Häufige Probleme schnell lösen",
+        id: "nfc-fehler-erkennung-netzwerk",
+        title: "Erkennung, PIN und Netzwerk prüfen",
         summary:
-          "Die fünf häufigsten Situationen und wie Sie sie direkt am Gerät beheben.",
+          "Die häufigsten Startpunkte: Armband ruhig scannen, PIN prüfen und die Internetverbindung kontrollieren.",
         steps: [
           "`Armband wird nicht erkannt`: Armband ruhig und mittig flach auf den NFC-Sensor legen und ca. 1-2 Sekunden halten. Hilft das nicht, ein anderes Armband testen, sonst Gerät neu starten.",
           "`PIN wird nicht akzeptiert`: Prüfen, ob die richtige PIN eingegeben wird. Sie kann von der OGS-Leitung geändert worden sein - im Zweifel dort nach der aktuellen PIN fragen.",
           "`Kein Internet / Verbindungsprobleme`: Erscheint unten rechts ein rotes oder durchgestrichenes WLAN-Symbol, das Gerät neu starten. Bleibt das Problem, den WLAN-Router prüfen oder den IT-Dienstleister kontaktieren.",
+        ],
+        screenshot:
+          "Übersicht der häufigsten Störungen bei Erkennung, PIN und Netzwerk.",
+      },
+      {
+        id: "nfc-fehler-app-zuweisung",
+        title: "App neu starten oder Zuweisung korrigieren",
+        summary:
+          "Wenn die App hängt oder das falsche Kind erscheint, hilft meist ein Neustart oder die Prüfung der Armband-Zuweisung.",
+        steps: [
           "`App reagiert nicht / Bildschirm eingefroren`: Gerät für ca. 10 Sekunden vom Strom trennen und wieder einstecken. Die moto-App startet automatisch neu und ist nach ca. 1-2 Minuten wieder einsatzbereit.",
           "`Falsches Kind wird beim Scannen angezeigt`: Über `Armband identifizieren` das Armband scannen, die aktuelle Zuweisung prüfen, die falsche Zuweisung aufheben und das Armband dem richtigen Kind zuweisen.",
         ],
@@ -1206,7 +1252,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot:
-          "Übersicht der häufigsten Störungen am NFC-Tablet und ihrer Lösungen.",
+          "Übersicht der Lösungen für eingefrorene App und falsche Armband-Zuweisung.",
       },
     ],
   },
