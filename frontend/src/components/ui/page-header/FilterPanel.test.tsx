@@ -1,13 +1,13 @@
 /**
- * Tests for MobileFilterPanel Component
+ * Tests for FilterPanel Component
  * Tests rendering and functionality of mobile filter panel
  */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MobileFilterPanel } from "./MobileFilterPanel";
+import { FilterPanel } from "./FilterPanel";
 import type { FilterConfig } from "./types";
 
-describe("MobileFilterPanel", () => {
+describe("FilterPanel", () => {
   const mockOnClose = vi.fn();
   const mockOnApply = vi.fn();
   const mockOnReset = vi.fn();
@@ -32,9 +32,31 @@ describe("MobileFilterPanel", () => {
     },
   ];
 
+  // Grouping is now consumer-supplied via the `sections` prop (the panel no
+  // longer knows which filter ids belong together). Mirrors the student-search
+  // section map so the grouping assertions below stay meaningful.
+  const sampleSections = [
+    { title: "Organisation", filterIds: ["year", "group", "room"] },
+    {
+      title: "Anwesenheit",
+      filterIds: ["dayStatus", "attendance", "tracking"],
+    },
+    {
+      title: "Zeiten & Abholung",
+      filterIds: [
+        "arrivalTime",
+        "pickupTime",
+        "pickupStatus",
+        "bus",
+        "photoConsent",
+      ],
+    },
+    { title: "Darstellung", filterIds: ["sort", "groupMode"] },
+  ];
+
   it("renders nothing when isOpen is false", () => {
     const { container } = render(
-      <MobileFilterPanel
+      <FilterPanel
         isOpen={false}
         onClose={mockOnClose}
         filters={sampleFilters}
@@ -46,7 +68,7 @@ describe("MobileFilterPanel", () => {
 
   it("renders panel when isOpen is true", () => {
     render(
-      <MobileFilterPanel
+      <FilterPanel
         isOpen={true}
         onClose={mockOnClose}
         filters={sampleFilters}
@@ -56,10 +78,79 @@ describe("MobileFilterPanel", () => {
     expect(screen.getByText("Status")).toBeInTheDocument();
   });
 
+  it("sizes anchored mobile panels from the actual panel top", async () => {
+    const trigger = document.createElement("div");
+    trigger.getBoundingClientRect = () =>
+      ({
+        left: 12,
+        bottom: 160,
+        right: 52,
+        width: 40,
+      }) as DOMRect;
+
+    render(
+      <FilterPanel
+        isOpen={true}
+        onClose={mockOnClose}
+        anchorRect={{ left: 12, bottom: 80, right: 52 }}
+        anchorRef={{ current: trigger }}
+        filters={sampleFilters}
+      />,
+    );
+
+    await waitFor(() => {
+      const panel = screen.getByRole("dialog", { name: "Filter" });
+      expect(panel).toHaveStyle({ top: "168px" });
+      expect(panel).toHaveStyle({ position: "fixed" });
+      expect(panel.style.maxHeight).toBe(
+        "min(80vh, calc(100dvh - 168px - calc(6rem + env(safe-area-inset-bottom))))",
+      );
+    });
+  });
+
+  it("updates anchored mobile panel height continuously while the background scrolls", async () => {
+    let triggerBottom = 160;
+    const trigger = document.createElement("div");
+    trigger.getBoundingClientRect = () =>
+      ({
+        left: 12,
+        bottom: triggerBottom,
+        right: 52,
+        width: 40,
+      }) as DOMRect;
+
+    render(
+      <FilterPanel
+        isOpen={true}
+        onClose={mockOnClose}
+        anchorRect={{ left: 12, bottom: 160, right: 52 }}
+        anchorRef={{ current: trigger }}
+        filters={sampleFilters}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+        top: "168px",
+      }),
+    );
+
+    triggerBottom = 140;
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      const panel = screen.getByRole("dialog", { name: "Filter" });
+      expect(panel).toHaveStyle({ top: "148px" });
+      expect(panel.style.maxHeight).toBe(
+        "min(80vh, calc(100dvh - 148px - calc(6rem + env(safe-area-inset-bottom))))",
+      );
+    });
+  });
+
   describe("Button type filters", () => {
     it("renders button options", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -73,7 +164,7 @@ describe("MobileFilterPanel", () => {
 
     it("highlights selected button", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -86,7 +177,7 @@ describe("MobileFilterPanel", () => {
 
     it("handles single-select button click", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -109,7 +200,7 @@ describe("MobileFilterPanel", () => {
       ];
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={multiSelectFilters}
@@ -132,7 +223,7 @@ describe("MobileFilterPanel", () => {
       ];
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={multiSelectFilters}
@@ -166,7 +257,7 @@ describe("MobileFilterPanel", () => {
 
     it("renders grid options in 2 columns", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={gridFilters}
@@ -181,7 +272,7 @@ describe("MobileFilterPanel", () => {
 
     it("renders grid options with icons", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={gridFilters}
@@ -194,7 +285,7 @@ describe("MobileFilterPanel", () => {
 
     it("handles single-select grid option clicks", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={gridFilters}
@@ -216,7 +307,7 @@ describe("MobileFilterPanel", () => {
       ];
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={multiGridFilters}
@@ -247,7 +338,7 @@ describe("MobileFilterPanel", () => {
 
     it("renders single-select dropdown options inside a select", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={dropdownFilters}
@@ -268,7 +359,7 @@ describe("MobileFilterPanel", () => {
 
     it("includes counts in single-select option labels", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={dropdownFilters}
@@ -285,7 +376,7 @@ describe("MobileFilterPanel", () => {
 
     it("calls onChange when the single-select dropdown changes", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={dropdownFilters}
@@ -309,7 +400,7 @@ describe("MobileFilterPanel", () => {
       ];
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={multiDropdownFilters}
@@ -335,7 +426,7 @@ describe("MobileFilterPanel", () => {
       ];
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={multiDropdownFilters}
@@ -351,7 +442,7 @@ describe("MobileFilterPanel", () => {
   describe("Panel dismissal", () => {
     it("closes when Escape is pressed", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -365,7 +456,7 @@ describe("MobileFilterPanel", () => {
 
     it("ignores non-Escape key presses", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -379,7 +470,7 @@ describe("MobileFilterPanel", () => {
 
     it("closes when the backdrop is clicked", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -398,7 +489,7 @@ describe("MobileFilterPanel", () => {
       } as unknown as FilterConfig;
 
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={[unknownFilter]}
@@ -413,7 +504,7 @@ describe("MobileFilterPanel", () => {
   describe("Action buttons", () => {
     it("renders reset button when onReset provided", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -426,7 +517,7 @@ describe("MobileFilterPanel", () => {
 
     it("renders apply button when onApply provided", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -439,7 +530,7 @@ describe("MobileFilterPanel", () => {
 
     it("calls onReset when reset button clicked", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -455,7 +546,7 @@ describe("MobileFilterPanel", () => {
 
     it("calls onApply and onClose when apply button clicked", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -472,7 +563,7 @@ describe("MobileFilterPanel", () => {
 
     it("does not render action section when no actions provided", () => {
       render(
-        <MobileFilterPanel
+        <FilterPanel
           isOpen={true}
           onClose={mockOnClose}
           filters={sampleFilters}
@@ -481,6 +572,205 @@ describe("MobileFilterPanel", () => {
 
       expect(screen.queryByText("Zurücksetzen")).not.toBeInTheDocument();
       expect(screen.queryByText("Anwenden")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Desktop placement", () => {
+    it("groups filters into desktop sections", () => {
+      render(
+        <FilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          placement="desktop"
+          anchorRect={{ left: 24, bottom: 80, right: 624 }}
+          sections={sampleSections}
+          filters={[
+            {
+              id: "year",
+              label: "Stufe",
+              type: "dropdown",
+              value: "all",
+              onChange: mockOnChange,
+              options: [{ value: "all", label: "Alle Stufen" }],
+            },
+            {
+              id: "attendance",
+              label: "Status",
+              type: "dropdown",
+              value: "all",
+              onChange: mockOnChange,
+              options: [{ value: "all", label: "Alle Status" }],
+            },
+            {
+              id: "pickupTime",
+              label: "Abholzeit",
+              type: "dropdown",
+              value: "all",
+              onChange: mockOnChange,
+              options: [{ value: "all", label: "Alle Abholzeiten" }],
+            },
+            {
+              id: "sort",
+              label: "Sortierung",
+              type: "dropdown",
+              value: "name",
+              onChange: mockOnChange,
+              options: [{ value: "name", label: "Name A-Z" }],
+            },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText("Organisation")).toBeInTheDocument();
+      expect(screen.getByText("Anwesenheit")).toBeInTheDocument();
+      expect(screen.getByText("Zeiten & Abholung")).toBeInTheDocument();
+      expect(screen.getByText("Darstellung")).toBeInTheDocument();
+    });
+
+    it("aligns the desktop panel to the measured anchor edges", () => {
+      render(
+        <FilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          placement="desktop"
+          anchorRect={{ left: 24, bottom: 80, right: 624 }}
+          filters={sampleFilters}
+        />,
+      );
+
+      const panel = screen.getByRole("dialog", { name: "Filter" });
+      expect(panel).toHaveStyle({
+        left: "24px",
+        top: "88px",
+      });
+    });
+
+    it("positions the first anchored open after mounting closed", () => {
+      const { rerender } = render(
+        <FilterPanel
+          isOpen={false}
+          onClose={mockOnClose}
+          placement="desktop"
+          anchorRect={null}
+          filters={sampleFilters}
+        />,
+      );
+
+      rerender(
+        <FilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          placement="desktop"
+          anchorRect={{ left: 48, bottom: 96, right: 448 }}
+          filters={sampleFilters}
+        />,
+      );
+
+      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+        position: "fixed",
+        left: "48px",
+        top: "104px",
+      });
+    });
+
+    it("pins to an 8px viewport inset when no app topbar is present", () => {
+      // Trigger scrolled above the viewport (negative bottom): the panel must
+      // stop tracking it. With no [data-app-header] in the DOM it falls back to
+      // an 8px top inset.
+      render(
+        <FilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          placement="desktop"
+          anchorRect={{ left: 24, bottom: -200, right: 624 }}
+          filters={sampleFilters}
+        />,
+      );
+
+      expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+        top: "8px",
+      });
+    });
+
+    it("pins just below the sticky app topbar when the trigger scrolls away", () => {
+      // Inject a fake sticky topbar whose bottom edge sits at 64px.
+      const header = document.createElement("header");
+      header.setAttribute("data-app-header", "");
+      header.getBoundingClientRect = () => ({ bottom: 64 }) as DOMRect;
+      document.body.appendChild(header);
+
+      try {
+        render(
+          <FilterPanel
+            isOpen={true}
+            onClose={mockOnClose}
+            placement="desktop"
+            anchorRect={{ left: 24, bottom: -200, right: 624 }}
+            filters={sampleFilters}
+          />,
+        );
+
+        // 64px topbar bottom + 8px gap = 72px, not the trigger's negative top.
+        expect(screen.getByRole("dialog", { name: "Filter" })).toHaveStyle({
+          top: "72px",
+        });
+      } finally {
+        header.remove();
+      }
+    });
+  });
+
+  it("renders the mobile sheet as a non-modal dialog", () => {
+    render(
+      <FilterPanel
+        isOpen={true}
+        onClose={mockOnClose}
+        filters={sampleFilters}
+      />,
+    );
+
+    // Transparent backdrop, page stays interactive — non-modal, no aria-modal.
+    expect(screen.getByRole("dialog", { name: "Filter" })).not.toHaveAttribute(
+      "aria-modal",
+    );
+  });
+
+  describe("Quiet variant", () => {
+    const quietFilters: FilterConfig[] = [
+      {
+        id: "year",
+        label: "Stufe",
+        type: "buttons",
+        value: "active",
+        onChange: mockOnChange,
+        options: [
+          { value: "all", label: "Alle" },
+          { value: "active", label: "Aktiv" },
+        ],
+      },
+      {
+        id: "room",
+        label: "Raum",
+        type: "dropdown",
+        value: "all",
+        onChange: mockOnChange,
+        options: [{ value: "all", label: "Alle Räume" }],
+      },
+    ];
+
+    it("groups filters into sectioned cards even on mobile placement", () => {
+      render(
+        <FilterPanel
+          isOpen
+          onClose={mockOnClose}
+          variant="quiet"
+          sections={sampleSections}
+          filters={quietFilters}
+        />,
+      );
+
+      // Both "year" and "room" belong to the Organisation section.
+      expect(screen.getByText("Organisation")).toBeInTheDocument();
     });
   });
 });

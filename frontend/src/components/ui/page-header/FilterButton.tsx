@@ -1,21 +1,27 @@
 "use client";
 
-interface MobileFilterButtonProps {
+interface FilterButtonProps {
   readonly isOpen: boolean;
   readonly onClick: () => void;
   readonly hasActiveFilters: boolean;
   /** When set and >0, renders a numeric badge instead of the ring affordance. */
   readonly activeCount?: number;
   readonly className?: string;
+  /**
+   * Test hook. The button serves both the mobile and desktop filter triggers,
+   * so callers pass a placement-specific id to tell them apart.
+   */
+  readonly testId?: string;
 }
 
-export function MobileFilterButton({
+export function FilterButton({
   isOpen,
   onClick,
   hasActiveFilters,
   activeCount,
   className = "",
-}: MobileFilterButtonProps) {
+  testId,
+}: FilterButtonProps) {
   const showCountBadge =
     activeCount !== undefined && activeCount > 0 && !isOpen;
   // When the consumer opted into count-display, the ring becomes redundant —
@@ -26,10 +32,11 @@ export function MobileFilterButton({
     <button
       type="button"
       onClick={onClick}
+      data-testid={testId}
       aria-label={showCountBadge ? `Filter (${activeCount} aktiv)` : "Filter"}
       className={`relative rounded-2xl p-2.5 transition-all duration-200 ${
         isOpen
-          ? "bg-blue-500 text-white"
+          ? "border border-blue-500 bg-blue-500 text-white"
           : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
       } ${showRing ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${className}`}
     >
