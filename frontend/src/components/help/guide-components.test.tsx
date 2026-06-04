@@ -69,6 +69,42 @@ function makeChapters(): GuideChapter[] {
   ];
 }
 
+function makeFourChapters(): GuideChapter[] {
+  return [
+    ...makeChapters(),
+    {
+      id: "kap-3",
+      title: "Drittes Kapitel",
+      description: "Beschreibung drei",
+      icon: Activity,
+      tone: "orange",
+      steps: [
+        {
+          id: "s4",
+          title: "Schritt D",
+          summary: "Weiterer Schritt",
+          screenshot: "Bild D",
+        },
+      ],
+    },
+    {
+      id: "kap-4",
+      title: "Viertes Kapitel",
+      description: "Beschreibung vier",
+      icon: Activity,
+      tone: "purple",
+      steps: [
+        {
+          id: "s5",
+          title: "Schritt E",
+          summary: "Letzter Schritt",
+          screenshot: "Bild E",
+        },
+      ],
+    },
+  ];
+}
+
 describe("EntryPointCard", () => {
   it("renders title, body, every bullet point and the href", () => {
     const { container } = render(
@@ -132,11 +168,7 @@ describe("GuideShell", () => {
       }),
     ).toHaveLength(2);
     expect(screen.getAllByText("Eine Beschreibung")).toHaveLength(2);
-    expect(
-      screen.getByText(
-        "Eine kompakte Anleitung für Teams in OGS, Betreuung und Verwaltung.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Setup Guide")).toBeInTheDocument();
 
     // PDF button -> setup.pdf for the ersteinrichtung activePath.
     const pdf = screen.getByText("PDF herunterladen").closest("a");
@@ -187,6 +219,80 @@ describe("GuideShell", () => {
     const article = document.getElementById("s3");
     expect(article).not.toBeNull();
     expect(within(article as HTMLElement).getByText("3")).toBeInTheDocument();
+  });
+
+  it("starts setup chapters 2 and 4 on a new PDF page", () => {
+    render(
+      <GuideShell
+        eyebrow="E"
+        title="T"
+        description="D"
+        chapters={makeFourChapters()}
+        activePath="ersteinrichtung"
+        numbered
+      />,
+    );
+
+    expect(document.getElementById("kap-1")).not.toHaveClass(
+      "print:[break-before:page]",
+    );
+    expect(document.getElementById("kap-2")).toHaveClass(
+      "print:[break-before:page]",
+      "print:[page-break-before:always]",
+    );
+    expect(document.getElementById("kap-3")).not.toHaveClass(
+      "print:[break-before:page]",
+    );
+    expect(document.getElementById("kap-4")).toHaveClass(
+      "print:[break-before:page]",
+      "print:[page-break-before:always]",
+    );
+  });
+
+  it("starts app guide chapters 2, 3 and 4 on a new PDF page", () => {
+    render(
+      <GuideShell
+        eyebrow="E"
+        title="T"
+        description="D"
+        chapters={makeFourChapters()}
+        activePath="funktionen"
+        numbered
+      />,
+    );
+
+    expect(document.getElementById("kap-1")).not.toHaveClass(
+      "print:[break-before:page]",
+    );
+    for (const id of ["kap-2", "kap-3", "kap-4"]) {
+      expect(document.getElementById(id)).toHaveClass(
+        "print:[break-before:page]",
+        "print:[page-break-before:always]",
+      );
+    }
+  });
+
+  it("starts every NFC chapter after the first one on a new PDF page", () => {
+    render(
+      <GuideShell
+        eyebrow="E"
+        title="T"
+        description="D"
+        chapters={makeFourChapters()}
+        activePath="nfc"
+        numbered
+      />,
+    );
+
+    expect(document.getElementById("kap-1")).not.toHaveClass(
+      "print:[break-before:page]",
+    );
+    for (const id of ["kap-2", "kap-3", "kap-4"]) {
+      expect(document.getElementById(id)).toHaveClass(
+        "print:[break-before:page]",
+        "print:[page-break-before:always]",
+      );
+    }
   });
 
   it("renders a step image with the caption as alt text, and nothing for image-less steps", () => {
