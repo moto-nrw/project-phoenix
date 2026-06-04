@@ -109,14 +109,17 @@ function StatusBadge({ status }: StatusBadgeProps) {
   );
 }
 
-function attendanceLabel(status: InstanceStudentSummary["status"]): string {
+function attendanceLabel(
+  status: InstanceStudentSummary["status"],
+  plannedContext = false,
+): string {
   switch (status) {
     case "expected":
       return "Erwartet";
     case "present":
       return "Anwesend";
     case "absent":
-      return "Fehlt";
+      return plannedContext ? "Abgemeldet" : "Fehlt";
   }
 }
 
@@ -249,6 +252,11 @@ export function InstanceDetailSlideOver({
                 <div className="flex items-center gap-2">
                   <SlideOverTitle>{instance.title}</SlideOverTitle>
                   <StatusBadge status={instance.status} />
+                  {instance.isSpontaneous && (
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
+                      Spontan
+                    </span>
+                  )}
                   {(() => {
                     const tb = getActivityTypeBadge(instance.activityType);
                     return tb ? (
@@ -371,11 +379,13 @@ export function InstanceDetailSlideOver({
                       studentNames={studentNames}
                       pendingStudentId={pendingStudentId}
                       onAttendancePatch={
+                        instance.status === "planned" ||
                         instance.status === "active" ||
                         instance.status === "completed"
                           ? onAttendancePatch
                           : undefined
                       }
+                      instanceStatus={instance.status}
                       handleAttendancePatch={handleAttendancePatch}
                     />
                   ))}
@@ -508,6 +518,7 @@ function StudentGroup({
   studentNames,
   pendingStudentId,
   onAttendancePatch,
+  instanceStatus,
   handleAttendancePatch,
 }: {
   status: InstanceStudentSummary["status"];
@@ -515,16 +526,18 @@ function StudentGroup({
   studentNames: Map<string, string>;
   pendingStudentId: string | null;
   onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  instanceStatus: InstanceStatus;
   handleAttendancePatch: (
     studentId: string,
     body: AttendancePatchBody,
   ) => Promise<void>;
 }) {
   if (students.length === 0) return null;
+  const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-        <span>{attendanceLabel(status)}</span>
+        <span>{attendanceLabel(status, isPlanned)}</span>
         <span>{students.length}</span>
       </div>
       {students.map((student) => (
@@ -540,7 +553,7 @@ function StudentGroup({
                 `Kind #${student.studentId}`}
             </div>
             <div className="text-[11px] text-gray-500">
-              {attendanceLabel(student.status)}
+              {attendanceLabel(student.status, isPlanned)}
               {student.substatus
                 ? ` • ${attendanceSubstatusLabel(student.substatus)}`
                 : ""}
@@ -549,7 +562,7 @@ function StudentGroup({
           </div>
           {onAttendancePatch && (
             <div className="flex shrink-0 items-center gap-1">
-              {student.status !== "present" && (
+              {!isPlanned && student.status !== "present" && (
                 <IconActionButton
                   icon={<Check className="h-3.5 w-3.5" />}
                   label="Als anwesend markieren"
@@ -567,14 +580,14 @@ function StudentGroup({
               {student.status !== "absent" && (
                 <IconActionButton
                   icon={<X className="h-3.5 w-3.5" />}
-                  label="Als fehlend markieren"
+                  label={isPlanned ? "Kind abmelden" : "Als fehlend markieren"}
                   tone="red"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
                   onClick={() =>
                     void handleAttendancePatch(student.studentId, {
                       status: "absent",
-                      substatus: null,
+                      substatus: isPlanned ? "excused" : null,
                     })
                   }
                 />
