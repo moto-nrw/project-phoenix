@@ -406,24 +406,13 @@
     inset: 0;
     z-index: 0;
     background-color: #f9fafb;
-    background-image:
-      radial-gradient(
-        circle at 12% 8%,
-        rgba(80, 128, 216, 0.14),
-        transparent 30%
-      ),
-      radial-gradient(
-        circle at 86% 16%,
-        rgba(131, 205, 45, 0.12),
-        transparent 34%
-      ),
-      radial-gradient(
-        circle at 2px 2px,
-        rgba(17, 24, 39, 0.12) 0 1px,
-        transparent 1.1px
-      );
-    background-repeat: no-repeat, no-repeat, repeat;
-    background-size: 100% 100%, 100% 100%, 14px 14px;
+    background-image: radial-gradient(
+      circle at 2px 2px,
+      rgba(17, 24, 39, 0.12) 0 1px,
+      transparent 1.1px
+    );
+    background-repeat: repeat;
+    background-size: 14px 14px;
   }
 
   .moto-dotted-background:not(.moto-dotted-background--guide) {
