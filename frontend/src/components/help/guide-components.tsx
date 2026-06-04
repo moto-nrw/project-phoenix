@@ -39,6 +39,35 @@ const pdfByPath: Record<ActivePath, { href: string; download: string }> = {
   },
 };
 
+const coverByPath: Record<
+  ActivePath,
+  {
+    readonly label: string;
+    readonly image: string;
+    readonly imageAlt: string;
+    readonly chips: readonly string[];
+  }
+> = {
+  ersteinrichtung: {
+    label: "Setup Guide",
+    image: "/help/screens/konto-erstellen.webp",
+    imageAlt: "moto Login-Screen und Startseite.",
+    chips: ["Zugang", "Datenverwaltung", "Go-Live"],
+  },
+  funktionen: {
+    label: "App Guide",
+    image: "/help/screens/kindersuche.webp",
+    imageAlt: "Kindersuche in der moto App.",
+    chips: ["Aufsicht", "Suche", "Verwaltung"],
+  },
+  nfc: {
+    label: "Tablet Guide",
+    image: "/help/screens/nfc-tablet-willkommen.webp",
+    imageAlt: "Willkommen-Screen auf dem moto NFC-Tablet.",
+    chips: ["Tablet", "Armbänder", "Check-in"],
+  },
+};
+
 const nextLinks: Record<
   ActivePath,
   readonly {
@@ -206,6 +235,7 @@ export function GuideShell({
     runningIndex += chapter.steps.length;
     return start;
   });
+  const cover = coverByPath[activePath];
 
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden">
@@ -227,6 +257,13 @@ export function GuideShell({
             </div>
           </div>
         </header>
+
+        <GuidePrintCover
+          eyebrow={eyebrow}
+          title={title}
+          description={description}
+          cover={cover}
+        />
 
         <section className="py-8 sm:py-10 print:py-4">
           <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
@@ -305,6 +342,107 @@ export function GuideShell({
         </section>
       </div>
     </main>
+  );
+}
+
+function GuidePrintCover({
+  eyebrow,
+  title,
+  description,
+  cover,
+}: {
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly description: string;
+  readonly cover: (typeof coverByPath)[ActivePath];
+}) {
+  return (
+    <section className="hidden print:flex print:min-h-[calc(297mm-36mm)] print:[break-after:page] print:flex-col">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/moto_transparent.png"
+            alt=""
+            className="h-12 w-auto object-contain"
+          />
+          <span className="text-3xl font-semibold tracking-normal text-gray-950">
+            moto
+          </span>
+          <div className="h-10 w-px bg-gray-300" />
+          <p className="text-sm font-semibold tracking-[0.12em] text-gray-500 uppercase">
+            Anleitung
+          </p>
+        </div>
+        <p className="rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm font-semibold text-gray-700">
+          2026
+        </p>
+      </div>
+
+      <div className="mt-16 grid grid-cols-[1fr_160px] gap-10">
+        <div>
+          <p className="text-sm font-bold tracking-[0.12em] text-[#3F6F12] uppercase">
+            {eyebrow}
+          </p>
+          <h1 className="mt-5 max-w-[520px] text-5xl leading-[1.02] font-semibold tracking-normal text-gray-950">
+            {title}
+          </h1>
+          <p className="mt-6 max-w-[560px] text-lg leading-8 text-gray-600">
+            {description}
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-4 pt-8">
+          <div className="h-28 w-28 rounded-full bg-[#83CD2D]" />
+          <div className="h-20 w-20 rounded-full bg-[#F78C10]" />
+          <div className="h-14 w-14 rounded-full bg-[#5080D8]" />
+        </div>
+      </div>
+
+      <div className="mt-10 flex flex-wrap gap-2.5">
+        <span className="rounded-full bg-gray-950 px-4 py-2 text-sm font-semibold text-white">
+          {cover.label}
+        </span>
+        {cover.chips.map((chip) => (
+          <span
+            key={chip}
+            className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700"
+          >
+            {chip}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-12 overflow-hidden rounded-[28px] border border-gray-300 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+          <div className="flex gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#FF3130]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#F78C10]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#83CD2D]" />
+          </div>
+          <p className="text-xs font-semibold tracking-[0.08em] text-gray-400 uppercase">
+            moto.app
+          </p>
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cover.image}
+          alt={cover.imageAlt}
+          className="block h-[265px] w-full object-cover object-top"
+        />
+      </div>
+
+      <div className="mt-auto flex items-end justify-between border-t border-gray-300 pt-5">
+        <p className="max-w-[360px] text-sm leading-6 text-gray-500">
+          Eine kompakte Anleitung für Teams in OGS, Betreuung und Verwaltung.
+        </p>
+        <p className="text-right text-sm font-semibold text-gray-700">
+          moto NRW
+          <br />
+          Ganztag digital organisieren
+        </p>
+      </div>
+    </section>
   );
 }
 

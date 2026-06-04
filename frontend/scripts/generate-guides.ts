@@ -80,7 +80,7 @@ for (const guide of GUIDES) {
 
     // Wait for the guide title so we never PDF the loading placeholder.
     await page
-      .locator("main h1")
+      .locator("main h1:visible")
       .first()
       .waitFor({ state: "visible", timeout: 30_000 });
 

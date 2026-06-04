@@ -118,11 +118,19 @@ describe("GuideShell", () => {
     );
 
     expect(screen.getByText("Übersicht")).toBeInTheDocument();
-    expect(screen.getByText("Ersteinrichtung")).toBeInTheDocument();
+    expect(screen.getAllByText("Ersteinrichtung")).toHaveLength(2);
     expect(
-      screen.getByRole("heading", { name: "Schritt für Schritt", level: 1 }),
+      screen.getAllByRole("heading", {
+        name: "Schritt für Schritt",
+        level: 1,
+      }),
+    ).toHaveLength(2);
+    expect(screen.getAllByText("Eine Beschreibung")).toHaveLength(2);
+    expect(
+      screen.getByText(
+        "Eine kompakte Anleitung für Teams in OGS, Betreuung und Verwaltung.",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Eine Beschreibung")).toBeInTheDocument();
 
     // PDF button -> setup.pdf for the ersteinrichtung activePath.
     const pdf = screen.getByText("PDF herunterladen").closest("a");
