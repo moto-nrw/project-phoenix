@@ -42,6 +42,7 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/env", () => ({

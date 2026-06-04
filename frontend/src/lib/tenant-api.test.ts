@@ -135,6 +135,7 @@ describe("tenant-api", () => {
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        nfcEnabled: false,
       });
     });
 
@@ -178,6 +179,30 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("binary-school");
       expect(result?.presenceMode).toBe("binary");
+    });
+
+    it("passes through nfcEnabled=true when the backend advertises it", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "nfc-school",
+          name: "NFC School",
+          subdomain: "nfc",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+          nfc_enabled: true,
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("nfc-school");
+      expect(result?.nfcEnabled).toBe(true);
     });
 
     it("maps hidden tenants from resolve response", async () => {
@@ -306,6 +331,7 @@ describe("tenant-api", () => {
         // call resolveTenant() once the user picks a tenant.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        nfcEnabled: false,
       });
     });
 
@@ -425,6 +451,7 @@ describe("tenant-api", () => {
         // when the new tenant's layout mounts and calls resolveTenant.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        nfcEnabled: false,
       });
     });
 

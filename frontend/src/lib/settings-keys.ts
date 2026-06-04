@@ -12,4 +12,7 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // operator flipping it leaves reloads/new tabs on the old mode for
   // up to the layout cache TTL (300s).
   "operations.presence_mode",
+  // nfc_enabled is also served through /auth/tenant/resolve so every staff
+  // user can hide NFC-only navigation without config:read.
+  "attendance.nfc_enabled",
 ]);

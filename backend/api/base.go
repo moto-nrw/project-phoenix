@@ -454,6 +454,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		StudentRepo:            repoFactory.Student,
 		StaffRepo:              repoFactory.Staff,
 		RoomRepo:               repoFactory.Room,
+		ActivityCategoryRepo:   repoFactory.ActivityCategory,
 		ActivityGroupRepo:      repoFactory.ActivityGroup,
 		ActivitySupervisorRepo: repoFactory.ActivitySupervisor,
 		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,

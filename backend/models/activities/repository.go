@@ -22,6 +22,9 @@ type CategoryRepository interface {
 type GroupRepository interface {
 	base.Repository[*Group]
 
+	// FindByName finds a non-archived activity group by its name.
+	FindByName(ctx context.Context, name string) (*Group, error)
+
 	// FindByCategory finds all groups in a specific category
 	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
 

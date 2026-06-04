@@ -29,6 +29,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "demo",
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
