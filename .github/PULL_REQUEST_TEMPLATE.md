@@ -45,6 +45,7 @@
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, especially in hard-to-understand areas
 - [ ] I have updated the documentation as needed
+- [ ] If this PR changes a user-facing flow, I updated the in-app help guide (`guide-data.ts`) and any changed screenshot — or it doesn't apply (backend-only, operator/parents-portal-only, or pure-styling change)
 - [ ] All tests are passing
 - [ ] My changes generate no new warnings or errors
 - [ ] I have checked for and resolved any merge conflicts
