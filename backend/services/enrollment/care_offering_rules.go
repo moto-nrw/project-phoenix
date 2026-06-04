@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -20,14 +21,32 @@ import (
 // over-selection interactively), but a stale or scripted submit must not
 // slip past. Mirrors groupOfferings/validation in enrollment-form.tsx.
 func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
-	// Build group → rule from the catalog. Offerings in the same group
-	// share a rule; the editor keeps them consistent, so the last
-	// non-optional rule seen for a group wins deterministically.
+	// Build group → rule from the catalog. Iterate offerings in a stable
+	// order (sorted by id) rather than over the map directly: Go map
+	// iteration order is unspecified, so picking the rule from the map would
+	// make the chosen rule — and therefore the validation outcome —
+	// nondeterministic whenever a group's members disagree, and could
+	// diverge from the frontend. Offerings in one group MUST share a single
+	// non-optional rule; a group with conflicting rules is an admin
+	// misconfiguration we reject rather than silently resolve.
+	ids := make([]int64, 0, len(openByID))
+	for id := range openByID {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+
 	groupRule := map[string]string{}
-	for _, o := range openByID {
+	for _, id := range ids {
+		o := openByID[id]
 		group := strings.TrimSpace(o.SelectionGroup)
 		if group == "" || o.SelectionRule == "" || o.SelectionRule == enrollmentModels.SelectionRuleOptional {
 			continue
+		}
+		if existing, ok := groupRule[group]; ok && existing != o.SelectionRule {
+			return fmt.Errorf(
+				"%w: selection group %q has conflicting rules %q and %q",
+				ErrCareOfferingRule, group, existing, o.SelectionRule,
+			)
 		}
 		groupRule[group] = o.SelectionRule
 	}
@@ -35,10 +54,17 @@ func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enro
 		return nil
 	}
 
+	// Stable group order so the first reported violation is deterministic.
+	groups := make([]string, 0, len(groupRule))
+	for group := range groupRule {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
 	for idx := range children {
 		counts := offeringGroupCounts(children[idx], openByID)
-		for group, rule := range groupRule {
-			if err := checkGroupRule(idx, group, rule, counts[group]); err != nil {
+		for _, group := range groups {
+			if err := checkGroupRule(idx, group, groupRule[group], counts[group]); err != nil {
 				return err
 			}
 		}

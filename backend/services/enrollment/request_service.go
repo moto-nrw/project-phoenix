@@ -351,6 +351,35 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, err
 	}
 
+	// Defense-in-depth: drop answers for fields the parent couldn't see
+	// (hidden by a show-if condition) and any keys not declared in the
+	// schema before persisting. A stale or manipulated client must not be
+	// able to smuggle a value for a hidden field — with a field Target that
+	// value would otherwise be written into student data on approval.
+	// Conditions are evaluated against the raw submitted answers (matching
+	// the client + the required-field check above); only the persisted copy
+	// is filtered.
+	if schema != nil {
+		byKey := buildFieldsByKey(schema)
+		rawGuardian := req.CustomData
+		for i := range req.Children {
+			childCtx := fieldVisibilityContext{
+				guardianAnswers: rawGuardian,
+				childAnswers:    req.Children[i].CustomData,
+				gradeLevel:      req.Children[i].TargetGradeLevel,
+				offeringNames:   selectedOfferingNames(req.Children[i], openByID),
+				fieldsByKey:     byKey,
+			}
+			req.Children[i].CustomData = sanitizeVisibleAnswers(
+				schema, true, req.Children[i].CustomData, childCtx,
+			)
+		}
+		req.CustomData = sanitizeVisibleAnswers(
+			schema, false, rawGuardian,
+			fieldVisibilityContext{guardianAnswers: rawGuardian, fieldsByKey: byKey},
+		)
+	}
+
 	statusToken, err := newStatusToken()
 	if err != nil {
 		return nil, fmt.Errorf("submit: generate status token: %w", err)
@@ -834,6 +863,19 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	}
 	if patch.CustomData != nil {
 		req.CustomData = patch.CustomData
+	}
+
+	// Same hidden-answer sanitizing as Submit: an edit must not be able to
+	// (re)introduce a value for a guardian field the parent couldn't see.
+	// Children aren't edited here, so only the guardian scope is filtered.
+	if req.SchemaID != nil {
+		if schema, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+			byKey := buildFieldsByKey(schema)
+			req.CustomData = sanitizeVisibleAnswers(
+				schema, false, req.CustomData,
+				fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey},
+			)
+		}
 	}
 
 	tenantID := req.GetTenantID()

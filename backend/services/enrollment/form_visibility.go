@@ -117,6 +117,55 @@ func selectedOfferingNames(child SubmitChild, openByID map[int64]*enrollmentMode
 	return names
 }
 
+// buildFieldsByKey indexes a schema's fields by key for condition
+// resolution. Returns nil for a nil schema.
+func buildFieldsByKey(schema *enrollmentModels.FormSchema) map[string]*enrollmentModels.FormField {
+	if schema == nil {
+		return nil
+	}
+	byKey := make(map[string]*enrollmentModels.FormField, len(schema.Fields))
+	for i := range schema.Fields {
+		byKey[schema.Fields[i].Key] = &schema.Fields[i]
+	}
+	return byKey
+}
+
+// sanitizeVisibleAnswers returns a new map containing only the answers for
+// schema fields of the given scope (guardian vs per-child) that are visible
+// (their show-if condition passes) and actually collect an answer (not
+// information blocks). Answers to hidden fields AND keys not declared in the
+// schema are dropped.
+//
+// This is the persistence-time counterpart of the client-side
+// visibleAnswerData: a stale or manipulated client must not be able to smuggle
+// a value for a field the parent never saw. Such a value would otherwise be
+// stored in custom_data and, if the field carries a Target, written into
+// student data by the decision service on approval.
+func sanitizeVisibleAnswers(
+	schema *enrollmentModels.FormSchema,
+	appliesToChild bool,
+	values map[string]any,
+	ctx fieldVisibilityContext,
+) map[string]any {
+	out := make(map[string]any)
+	if schema == nil {
+		return out
+	}
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if f.AppliesToCh != appliesToChild || f.Type == enrollmentModels.FormFieldInfo {
+			continue
+		}
+		if !fieldVisible(f, ctx) {
+			continue
+		}
+		if v, ok := values[f.Key]; ok {
+			out[f.Key] = v
+		}
+	}
+	return out
+}
+
 // validateRequiredCustomFields enforces the schema's required custom
 // fields against the submission, skipping fields hidden by a visibility
 // condition and information blocks. Mirrors the client-side check in

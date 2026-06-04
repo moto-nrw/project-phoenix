@@ -96,3 +96,30 @@ func TestValidateOfferingGroupRules_ErrorNamesChildAndWrapsInvalidSubmission(t *
 	assert.True(t, errors.Is(err, ErrCareOfferingRule))
 	assert.True(t, errors.Is(err, ErrInvalidSubmission), "maps to 400 via ErrInvalidSubmission")
 }
+
+func TestValidateOfferingGroupRules_RejectsMixedRulesInGroup(t *testing.T) {
+	// Two offerings in the same group declare different non-optional rules.
+	// This is an admin misconfiguration: the chosen rule must not depend on
+	// map iteration order, so we reject it deterministically rather than
+	// silently picking one.
+	open := catalog(
+		offering(1, "umfang", enrollmentModels.SelectionRuleExactlyOne),
+		offering(2, "umfang", enrollmentModels.SelectionRuleAtLeastOne),
+	)
+	err := validateOfferingGroupRules([]SubmitChild{{OfferingIDs: []int64{1}}}, open)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting rules")
+	assert.True(t, errors.Is(err, ErrCareOfferingRule))
+}
+
+func TestValidateOfferingGroupRules_DeterministicAcrossManyRuns(t *testing.T) {
+	// Same conflicting catalog evaluated repeatedly must always error (never
+	// flip to "valid" depending on map iteration order).
+	for i := 0; i < 50; i++ {
+		open := catalog(
+			offering(1, "umfang", enrollmentModels.SelectionRuleExactlyOne),
+			offering(2, "umfang", enrollmentModels.SelectionRuleAtMostOne),
+		)
+		require.Error(t, validateOfferingGroupRules([]SubmitChild{{OfferingIDs: []int64{1}}}, open))
+	}
+}

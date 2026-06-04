@@ -285,3 +285,67 @@ func TestValidateRequiredCustomFields_StructuredSuggestedRequired(t *testing.T) 
 	}}}}
 	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
 }
+
+// ---- sanitizeVisibleAnswers ---------------------------------------------
+
+func TestSanitizeVisibleAnswers_DropsHiddenAndUnknownKeys(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "has_allergy", Type: enrollmentModels.FormFieldBoolean},
+			{
+				Key:  "which", // hidden unless has_allergy == true
+				Type: enrollmentModels.FormFieldText,
+				VisibleWhen: &enrollmentModels.VisibilityCondition{
+					Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
+					Operator: enrollmentModels.ConditionOpEquals, Value: true,
+				},
+			},
+			{Key: "info", Type: enrollmentModels.FormFieldInfo},
+		},
+	}
+	byKey := buildFieldsByKey(schema)
+	// has_allergy=false → "which" is hidden. A stale/manipulated client still
+	// sends a value for it, plus an info-block value and an unknown key.
+	raw := map[string]any{
+		"has_allergy": false,
+		"which":       "smuggled value with a target",
+		"info":        "should never be collected",
+		"unknown_key": "not in schema",
+	}
+	out := sanitizeVisibleAnswers(schema, false, raw,
+		fieldVisibilityContext{guardianAnswers: raw, fieldsByKey: byKey})
+
+	assert.Equal(t, false, out["has_allergy"], "visible field kept")
+	_, hasWhich := out["which"]
+	assert.False(t, hasWhich, "hidden field dropped")
+	_, hasInfo := out["info"]
+	assert.False(t, hasInfo, "information block dropped")
+	_, hasUnknown := out["unknown_key"]
+	assert.False(t, hasUnknown, "key not in schema dropped")
+}
+
+func TestSanitizeVisibleAnswers_KeepsValueWhenConditionPasses(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "has_allergy", Type: enrollmentModels.FormFieldBoolean},
+			{
+				Key:  "which",
+				Type: enrollmentModels.FormFieldText,
+				VisibleWhen: &enrollmentModels.VisibilityCondition{
+					Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
+					Operator: enrollmentModels.ConditionOpEquals, Value: true,
+				},
+			},
+		},
+	}
+	byKey := buildFieldsByKey(schema)
+	raw := map[string]any{"has_allergy": true, "which": "peanuts"}
+	out := sanitizeVisibleAnswers(schema, false, raw,
+		fieldVisibilityContext{guardianAnswers: raw, fieldsByKey: byKey})
+	assert.Equal(t, "peanuts", out["which"], "visible conditional field kept")
+}
+
+func TestSanitizeVisibleAnswers_NilSchemaReturnsEmpty(t *testing.T) {
+	out := sanitizeVisibleAnswers(nil, false, map[string]any{"x": "y"}, fieldVisibilityContext{})
+	assert.Empty(t, out)
+}

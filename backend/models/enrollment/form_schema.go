@@ -134,6 +134,24 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 	if needsValue && (c.Value == nil || c.Value == "") {
 		return fmt.Errorf("visibility operator %q requires a value", c.Operator)
 	}
+	// The condition value must be a scalar. JSON decodes arrays as []any and
+	// objects as map[string]any; comparing two such values with == at
+	// evaluation time panics (uncomparable types), so reject them here with a
+	// clean validation error instead of letting a crafted schema crash submit.
+	if needsValue {
+		switch c.Value.(type) {
+		case string, bool,
+			float64, float32,
+			int, int8, int16, int32, int64,
+			uint, uint8, uint16, uint32, uint64:
+			// scalar — ok
+		default:
+			return fmt.Errorf(
+				"visibility condition value must be a string, number, or boolean, got %T",
+				c.Value,
+			)
+		}
+	}
 
 	switch c.Source {
 	case ConditionSourceField:
