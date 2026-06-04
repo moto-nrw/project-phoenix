@@ -1595,19 +1595,19 @@ function MeinRaumPageContent() {
       return (
         <div className="space-y-4">
           <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
-            <div className="flex flex-col gap-4 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
-                  Aktiver Betreuungsslot
-                </p>
-                <h2 className="mt-1 truncate text-base font-semibold text-gray-900">
-                  {currentTimetableRoster.instance.title}
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  {isSpontaneousInstance
-                    ? "Spontane Aktivität läuft. Kinder können unten hinzugefügt werden."
-                    : "Der Raum ist aktiv. Erwartete Kinder können jetzt schnell bestätigt werden."}
-                </p>
+            <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
+                    Aktiv
+                  </p>
+                  <h2 className="truncate text-base font-semibold text-gray-900">
+                    {currentTimetableRoster.instance.title}
+                  </h2>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
                 <button
@@ -1896,6 +1896,7 @@ function MeinRaumPageContent() {
 
       <PlannedNowSection
         plannedNow={plannedNow}
+        hasActiveTimetableSession={currentTimetableRoster !== null}
         isStartingInstance={isStartingInstance}
         onStart={(instance) => void handleStartPlannedInstance(instance)}
       />

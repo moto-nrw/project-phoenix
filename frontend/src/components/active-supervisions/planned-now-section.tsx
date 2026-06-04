@@ -21,6 +21,7 @@ import type {
 
 interface PlannedNowSectionProps {
   readonly plannedNow: PlannedTimetableInstance[];
+  readonly hasActiveTimetableSession?: boolean;
   readonly isStartingInstance: string | null;
   readonly onStart: (instance: PlannedTimetableInstance) => void;
 }
@@ -29,10 +30,12 @@ const SOON_THRESHOLD_MINUTES = 15;
 
 export function PlannedNowSection({
   plannedNow,
+  hasActiveTimetableSession = false,
   isStartingInstance,
   onStart,
 }: PlannedNowSectionProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [sectionExpanded, setSectionExpanded] = useState<boolean | null>(null);
   const sortedPlanned = useMemo(
     () =>
       [...plannedNow].sort((a, b) => {
@@ -91,23 +94,38 @@ export function PlannedNowSection({
     (sum, instance) => sum + instance.expectedStudentsCount,
     0,
   );
+  const hasActionableSlot =
+    !hasActiveTimetableSession && (overdueCount > 0 || soonCount > 0);
+  const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (
     <section className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="p-4 pb-0 sm:p-5 sm:pb-0">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-            Als Nächstes
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
-            Betreuung starten und Raum aktivieren
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Geplante Slots werden hier manuell bestätigt. Beim Start wird der
-            Raum aktiv und die Kinderliste kann direkt abgearbeitet werden.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 p-4 pb-0 sm:justify-end sm:p-5 sm:pb-0">
+      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <button
+          type="button"
+          onClick={() =>
+            setSectionExpanded((current) => !(current ?? hasActionableSlot))
+          }
+          className="group flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+          aria-expanded={isSectionExpanded}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#4070C8]">
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              Als Nächstes
+            </span>
+            <span className="block truncate text-base font-semibold text-gray-900">
+              {sortedPlanned[0]?.title}
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <SummaryPill
             icon={CalendarClock}
             label={`${sortedPlanned.length} geplant`}
@@ -130,138 +148,136 @@ export function PlannedNowSection({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
-        {sortedPlanned.map((instance) => {
-          const isExpanded = expandedIds.has(instance.id);
-          const visibleRows = isExpanded
-            ? instance.rosterPreview
-            : instance.rosterPreview.slice(0, 4);
-          const hiddenCount = Math.max(
-            0,
-            instance.rosterPreview.length - visibleRows.length,
-          );
+      {isSectionExpanded ? (
+        <div className="overflow-hidden">
+          <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
+            {sortedPlanned.map((instance) => {
+              const isExpanded = expandedIds.has(instance.id);
+              const visibleRows = isExpanded
+                ? instance.rosterPreview
+                : instance.rosterPreview.slice(0, 4);
+              const hiddenCount = Math.max(
+                0,
+                instance.rosterPreview.length - visibleRows.length,
+              );
 
-          return (
-            <article
-              key={instance.id}
-              className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
-            >
-              <div className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate text-sm font-semibold text-gray-900">
-                        {instance.title}
-                      </h3>
-                      <SlotStatusBadge instance={instance} />
-                      <ResponsibilityBadge instance={instance} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CalendarClock
-                          className="h-4 w-4 text-gray-400"
-                          aria-hidden="true"
-                        />
-                        {instance.startTime}-{instance.endTime}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin
-                          className="h-4 w-4 text-gray-400"
-                          aria-hidden="true"
-                        />
-                        {instance.roomName ?? `Raum ${instance.roomId}`}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-gray-500">
-                      Start bestätigt die Betreuung und öffnet den Raum für die
-                      Anwesenheitserfassung.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isStartingInstance === instance.id}
-                    onClick={() => onStart(instance)}
-                    className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Play className="h-4 w-4" aria-hidden="true" />
-                    {isStartingInstance === instance.id
-                      ? "Startet..."
-                      : "Jetzt starten"}
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <SlotStat
-                    label="Erwartet"
-                    value={instance.expectedStudentsCount}
-                    tone="neutral"
-                  />
-                  <SlotStat
-                    label="Anwesend"
-                    value={instance.presentStudentsCount}
-                    tone={
-                      instance.presentStudentsCount > 0 ? "success" : "neutral"
-                    }
-                  />
-                  <SlotStat
-                    label="Betreuende"
-                    value={instance.assignedStaffIds.length}
-                    tone={instance.isAssigned ? "info" : "neutral"}
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => toggleExpanded(instance.id)}
-                  className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  aria-expanded={isExpanded}
+              return (
+                <article
+                  key={instance.id}
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
                 >
-                  <span className="inline-flex items-center gap-2">
-                    <Users
-                      className="h-4 w-4 text-gray-400"
-                      aria-hidden="true"
-                    />
-                    Zugeordnete Kinder
-                    <span className="text-xs font-normal text-gray-500">
-                      {instance.rosterPreview.length > 0
-                        ? `${instance.rosterPreview.length} erwartet`
-                        : "Liste nicht verfügbar"}
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    aria-hidden="true"
-                  />
-                </button>
+                  <div className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-sm font-semibold text-gray-900">
+                            {instance.title}
+                          </h3>
+                          <SlotStatusBadge instance={instance} />
+                          <ResponsibilityBadge instance={instance} />
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarClock
+                              className="h-4 w-4 text-gray-400"
+                              aria-hidden="true"
+                            />
+                            {instance.startTime}-{instance.endTime}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin
+                              className="h-4 w-4 text-gray-400"
+                              aria-hidden="true"
+                            />
+                            {instance.roomName ?? `Raum ${instance.roomId}`}
+                          </span>
+                        </div>
+                      </div>
 
-                {instance.rosterPreview.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {visibleRows.map((row) => (
-                      <RosterPreviewRow key={row.studentId} row={row} />
-                    ))}
-                    {hiddenCount > 0 ? (
                       <button
                         type="button"
-                        onClick={() => toggleExpanded(instance.id)}
-                        className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                        disabled={isStartingInstance === instance.id}
+                        onClick={() => onStart(instance)}
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {hiddenCount} weitere anzeigen
+                        <Play className="h-4 w-4" aria-hidden="true" />
+                        {isStartingInstance === instance.id
+                          ? "Startet..."
+                          : "Starten"}
                       </button>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <SlotStat
+                        label="Erwartet"
+                        value={instance.expectedStudentsCount}
+                        tone="neutral"
+                      />
+                      <SlotStat
+                        label="Anwesend"
+                        value={instance.presentStudentsCount}
+                        tone={
+                          instance.presentStudentsCount > 0
+                            ? "success"
+                            : "neutral"
+                        }
+                      />
+                      <SlotStat
+                        label="Betreuende"
+                        value={instance.assignedStaffIds.length}
+                        tone={instance.isAssigned ? "info" : "neutral"}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(instance.id)}
+                      className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Users
+                          className="h-4 w-4 text-gray-400"
+                          aria-hidden="true"
+                        />
+                        Kinder
+                        <span className="text-xs font-normal text-gray-500">
+                          {instance.rosterPreview.length > 0
+                            ? `${instance.rosterPreview.length} erwartet`
+                            : "keine Liste"}
+                        </span>
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+
+                    {instance.rosterPreview.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {visibleRows.map((row) => (
+                          <RosterPreviewRow key={row.studentId} row={row} />
+                        ))}
+                        {hiddenCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(instance.id)}
+                            className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                          >
+                            {hiddenCount} weitere anzeigen
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
-                ) : (
-                  <p className="mt-2 text-sm text-gray-500">
-                    Kinderliste für diesen Slot nicht verfügbar.
-                  </p>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
