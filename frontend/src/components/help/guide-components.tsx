@@ -61,6 +61,11 @@ const coverByPath: Record<
   },
 };
 
+const setupPrintBreakBeforeChapterIndexes = new Set([1, 3]);
+const appPrintBreakBeforeChapterIndexes = new Set([1, 2, 3]);
+const printPageBreakBeforeClassName =
+  "print:[break-before:page] print:[page-break-before:always]";
+
 const nextLinks: Record<
   ActivePath,
   readonly {
@@ -359,6 +364,12 @@ export function GuideShell({
                 index={index}
                 startIndex={chapterStartIndex[index] ?? 0}
                 numbered={numbered}
+                breakBefore={
+                  (activePath === "ersteinrichtung" &&
+                    setupPrintBreakBeforeChapterIndexes.has(index)) ||
+                  (activePath === "funktionen" &&
+                    appPrintBreakBeforeChapterIndexes.has(index))
+                }
               />
             ))}
           </div>
@@ -505,17 +516,22 @@ function ChapterBlock({
   index,
   startIndex,
   numbered,
+  breakBefore,
 }: {
   readonly chapter: GuideChapter;
   readonly index: number;
   readonly startIndex: number;
   readonly numbered: boolean;
+  readonly breakBefore: boolean;
 }) {
   const tone = toneClasses[chapter.tone];
   const Icon = chapter.icon;
 
   return (
-    <section id={chapter.id} className="scroll-mt-6">
+    <section
+      id={chapter.id}
+      className={`scroll-mt-6 ${breakBefore ? printPageBreakBeforeClassName : ""}`}
+    >
       <div className="mb-5 flex items-start gap-4 print:[break-inside:avoid]">
         <div
           className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone.soft} ${tone.text} print:border print:border-gray-300 print:bg-white print:text-gray-900`}

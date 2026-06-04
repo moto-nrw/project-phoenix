@@ -572,24 +572,35 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/datenverwaltung.webp",
       },
       {
-        id: "anmeldungen",
-        title: "Anmeldungen",
+        id: "anmeldungen-einrichten",
+        title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
           "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
-          "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
-          "Eine Anmeldung öffnen und Kind, gewähltes Betreuungsangebot und Formularangaben prüfen.",
-          "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
-          "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
         callout: {
           title: "So hängt alles zusammen",
           body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
           tone: "blue",
         },
+        screenshot:
+          "Anmeldungen-Überblick mit Einrichtungsbereich und Einstieg in die Online-Anmeldung.",
+      },
+      {
+        id: "anmeldungen-pruefen",
+        title: "Anmeldungen prüfen",
+        icon: LayoutDashboard,
+        summary:
+          "Eingegangene Anmeldungen öffnen, Angaben prüfen und die passende Entscheidung setzen.",
+        steps: [
+          "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
+          "Eine Anmeldung öffnen und Kind, gewähltes Betreuungsangebot und Formularangaben prüfen.",
+          "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
+          "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
+        ],
         screenshot:
           "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
