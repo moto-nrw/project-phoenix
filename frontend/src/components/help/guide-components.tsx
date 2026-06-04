@@ -8,6 +8,7 @@ import type {
   GuideTone,
 } from "./guide-data";
 import { GuidePdfButton } from "./guide-pdf-button";
+import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
 
@@ -209,6 +210,52 @@ export function EntryPointCard({
   );
 }
 
+export function HelpHeader({
+  pdf,
+}: {
+  readonly pdf?: { readonly href: string; readonly download: string };
+}) {
+  return (
+    <header className="sticky top-3 z-30 print:hidden">
+      <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:flex-row sm:items-center sm:justify-between sm:p-4">
+        <div className="flex w-full min-w-0 items-center justify-between gap-3">
+          {pdf ? (
+            <Link href="/help" className={helpBackButtonClassName}>
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">Zur Übersicht</span>
+            </Link>
+          ) : (
+            <HelpBackButton />
+          )}
+
+          {!pdf ? (
+            <Link
+              href="/help"
+              className="flex w-fit items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:gap-3"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-950 shadow-sm">
+                m
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-950">
+                  moto
+                </span>
+                <span className="block text-xs text-gray-500">Anleitung</span>
+              </span>
+            </Link>
+          ) : null}
+        </div>
+
+        {pdf ? (
+          <div className="flex min-h-10 w-full items-center sm:w-fit">
+            <GuidePdfButton href={pdf.href} download={pdf.download} />
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
 export function GuideShell({
   eyebrow,
   title,
@@ -240,23 +287,7 @@ export function GuideShell({
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden">
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
-        <header className="print:hidden">
-          <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:p-4">
-            <Link
-              href="/help"
-              className="inline-flex w-fit items-center gap-2 rounded-lg px-2 py-1 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Übersicht
-            </Link>
-            <div className="flex w-fit flex-wrap items-center gap-2">
-              <GuidePdfButton
-                href={pdfByPath[activePath].href}
-                download={pdfByPath[activePath].download}
-              />
-            </div>
-          </div>
-        </header>
+        <HelpHeader pdf={pdfByPath[activePath]} />
 
         <GuidePrintCover
           eyebrow={eyebrow}
