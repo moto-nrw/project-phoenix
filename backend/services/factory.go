@@ -468,6 +468,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
+		RoomRepo:           repos.Room,
 		PersonService:      usersService,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
