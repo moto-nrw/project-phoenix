@@ -710,7 +710,12 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     await waitFor(() => {
       expect(screen.getByText("Kreativ AG")).toBeInTheDocument();
       expect(
-        screen.getByText("Laufende geplante Aktivität"),
+        screen.getByText(
+          "Der Raum ist aktiv. Erwartete Kinder können jetzt schnell bestätigt werden.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "1 erwartete bestätigen" }),
       ).toBeInTheDocument();
       expect(screen.getByText("Anwesend (1)")).toBeInTheDocument();
       expect(screen.getByText("Erwartet (1)")).toBeInTheDocument();
@@ -802,12 +807,16 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     await waitFor(() => {
       expect(screen.getByText("Malen")).toBeInTheDocument();
       expect(
-        screen.getByText("Laufende spontane Aktivität"),
+        screen.getByText(
+          "Spontane Aktivität läuft. Kinder können unten hinzugefügt werden.",
+        ),
       ).toBeInTheDocument();
       expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
       expect(screen.getByText("2a · Sonnengruppe")).toBeInTheDocument();
       expect(screen.queryByText("Ungeplant (1)")).not.toBeInTheDocument();
-      expect(screen.queryByText(/ungeplant/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("2a · Sonnengruppe · ungeplant"),
+      ).not.toBeInTheDocument();
     });
   });
 

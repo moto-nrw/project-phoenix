@@ -68,13 +68,16 @@ describe("PlannedNowSection", () => {
       />,
     );
 
-    expect(screen.getByText("Anstehende Betreuung")).toBeInTheDocument();
+    expect(
+      screen.getByText("Betreuung starten und Raum aktivieren"),
+    ).toBeInTheDocument();
     expect(screen.getByText("1 geplant")).toBeInTheDocument();
+    expect(screen.getByText("8 Kinder")).toBeInTheDocument();
     expect(screen.getByText("Hausaufgaben")).toBeInTheDocument();
     expect(screen.getByText("Lernraum 2")).toBeInTheDocument();
     expect(screen.getByText("Primär")).toBeInTheDocument();
     expect(screen.getByText("Überfällig")).toBeInTheDocument();
-    expect(screen.getByText("Erwartet")).toBeInTheDocument();
+    expect(screen.getAllByText("Erwartet").length).toBeGreaterThan(0);
     expect(screen.getByText("Mia Bauer")).toBeInTheDocument();
 
     const startButton = screen.getByRole("button", { name: /Startet/i });

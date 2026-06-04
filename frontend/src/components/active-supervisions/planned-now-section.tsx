@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import {
   CalendarClock,
   ChevronDown,
+  CircleAlert,
+  Clock,
+  type LucideIcon,
   MapPin,
   Play,
   ShieldCheck,
@@ -76,24 +79,58 @@ export function PlannedNowSection({
     });
   };
 
+  const overdueCount = sortedPlanned.filter(
+    (instance) => instance.isOverdue,
+  ).length;
+  const soonCount = sortedPlanned.filter(
+    (instance) =>
+      !instance.isOverdue &&
+      instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES,
+  ).length;
+  const expectedCount = sortedPlanned.reduce(
+    (sum, instance) => sum + instance.expectedStudentsCount,
+    0,
+  );
+
   return (
-    <section className="moto-content-surface mb-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-5">
+    <section className="moto-content-surface mb-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="p-4 pb-0 sm:p-5 sm:pb-0">
           <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
             Als Nächstes
           </p>
           <h2 className="mt-1 text-base font-semibold text-gray-900">
-            Anstehende Betreuung
+            Betreuung starten und Raum aktivieren
           </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+            Geplante Slots werden hier manuell bestätigt. Beim Start wird der
+            Raum aktiv und die Kinderliste kann direkt abgearbeitet werden.
+          </p>
         </div>
-        <span className="inline-flex h-8 items-center gap-2 rounded-lg bg-[#5080D8]/10 px-3 text-sm font-medium text-[#4070C8]">
-          <CalendarClock className="h-4 w-4" aria-hidden="true" />
-          {sortedPlanned.length} geplant
-        </span>
+        <div className="flex flex-wrap gap-2 p-4 pb-0 sm:justify-end sm:p-5 sm:pb-0">
+          <SummaryPill
+            icon={CalendarClock}
+            label={`${sortedPlanned.length} geplant`}
+            tone="info"
+          />
+          <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          {overdueCount > 0 ? (
+            <SummaryPill
+              icon={CircleAlert}
+              label={`${overdueCount} überfällig`}
+              tone="warning"
+            />
+          ) : soonCount > 0 ? (
+            <SummaryPill
+              icon={Clock}
+              label={`${soonCount} startet gleich`}
+              tone="success"
+            />
+          ) : null}
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+      <div className="mt-4 grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
         {sortedPlanned.map((instance) => {
           const isExpanded = expandedIds.has(instance.id);
           const visibleRows = isExpanded
@@ -107,7 +144,7 @@ export function PlannedNowSection({
           return (
             <article
               key={instance.id}
-              className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+              className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
             >
               <div className="p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -135,6 +172,10 @@ export function PlannedNowSection({
                         {instance.roomName ?? `Raum ${instance.roomId}`}
                       </span>
                     </div>
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      Start bestätigt die Betreuung und öffnet den Raum für die
+                      Anwesenheitserfassung.
+                    </p>
                   </div>
 
                   <button
@@ -154,14 +195,19 @@ export function PlannedNowSection({
                   <SlotStat
                     label="Erwartet"
                     value={instance.expectedStudentsCount}
+                    tone="neutral"
                   />
                   <SlotStat
                     label="Anwesend"
                     value={instance.presentStudentsCount}
+                    tone={
+                      instance.presentStudentsCount > 0 ? "success" : "neutral"
+                    }
                   />
                   <SlotStat
                     label="Betreuende"
                     value={instance.assignedStaffIds.length}
+                    tone={instance.isAssigned ? "info" : "neutral"}
                   />
                 </div>
               </div>
@@ -181,7 +227,7 @@ export function PlannedNowSection({
                     Zugeordnete Kinder
                     <span className="text-xs font-normal text-gray-500">
                       {instance.rosterPreview.length > 0
-                        ? `${instance.rosterPreview.length} sichtbar`
+                        ? `${instance.rosterPreview.length} erwartet`
                         : "Liste nicht verfügbar"}
                     </span>
                   </span>
@@ -271,10 +317,21 @@ function ResponsibilityBadge({
 function SlotStat({
   label,
   value,
-}: Readonly<{ label: string; value: number }>) {
+  tone,
+}: Readonly<{
+  label: string;
+  value: number;
+  tone: "neutral" | "success" | "info";
+}>) {
+  const className =
+    tone === "success"
+      ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+      : tone === "info"
+        ? "bg-[#5080D8]/10 text-[#4070C8]"
+        : "bg-gray-50 text-gray-900";
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-semibold text-gray-900">{value}</span>
+    <div className={`rounded-lg px-3 py-2 ${className}`}>
+      <span className="block text-sm font-semibold">{value}</span>
       <span className="block text-[11px] font-medium text-gray-500">
         {label}
       </span>
@@ -282,9 +339,36 @@ function SlotStat({
   );
 }
 
+function SummaryPill({
+  icon: Icon,
+  label,
+  tone = "neutral",
+}: Readonly<{
+  icon: LucideIcon;
+  label: string;
+  tone?: "neutral" | "info" | "success" | "warning";
+}>) {
+  const className =
+    tone === "info"
+      ? "bg-[#5080D8]/10 text-[#4070C8]"
+      : tone === "success"
+        ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+        : tone === "warning"
+          ? "bg-[#F3B63F]/20 text-[#A66F00]"
+          : "bg-gray-100 text-gray-600";
+  return (
+    <span
+      className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium ${className}`}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
 function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm">
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
       <div className="min-w-0">
         <p className="truncate font-medium text-gray-900">
           {row.studentName || `Schüler ${row.studentId}`}
@@ -294,11 +378,14 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
             "Ohne Klassengruppe"}
         </p>
       </div>
-      <span
-        className="h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ backgroundColor: rosterDotColor(row) }}
-        aria-label={rosterStatusLabel(row)}
-      />
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
+        <span
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: rosterDotColor(row) }}
+          aria-hidden="true"
+        />
+        {rosterStatusLabel(row)}
+      </span>
     </div>
   );
 }
