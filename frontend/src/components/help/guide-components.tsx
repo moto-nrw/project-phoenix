@@ -430,7 +430,7 @@ function GuidePrintCover({
         ))}
       </div>
 
-      <div className="mt-12 overflow-hidden rounded-[28px] border border-gray-300 bg-white shadow-sm">
+      <div className="mt-12 overflow-hidden rounded-[28px] border border-gray-300 bg-white shadow-sm print:shadow-none">
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
           <div className="flex gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-[#FF3130]" />
@@ -665,7 +665,7 @@ function Screenshot({
         src={image}
         alt={caption}
         loading="lazy"
-        className="block w-full print:mx-auto print:max-h-[250px] print:w-auto"
+        className="block w-full print:mx-auto print:max-h-[250px] print:w-auto print:object-contain"
       />
     </figure>
   );
@@ -691,7 +691,7 @@ function ScreenshotGallery({
             src={item.image}
             alt={item.caption}
             loading="lazy"
-            className="block w-full print:mx-auto print:max-h-[160px] print:w-auto"
+            className="block w-full print:mx-auto print:max-h-[160px] print:w-auto print:object-contain"
           />
           <figcaption className="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200">
             {item.caption}
