@@ -156,19 +156,19 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	require.NotNil(t, webDef, "attendance.web_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, webDef.Type)
 	assert.Equal(t, true, webDef.Default, "web attendance should default on")
-	assert.Equal(t, config.AccessShared, webDef.AccessPolicy)
+	assert.Equal(t, config.AccessOperatorOnly, webDef.AccessPolicy, "web attendance is a provisioning flag, not a tenant-admin setting")
 	assert.Equal(t, "operations", webDef.Tab)
 	assert.Equal(t, "anwesenheit", webDef.Category)
-	assert.Equal(t, "config:update", webDef.WritePermission)
+	assert.Equal(t, "config:manage", webDef.WritePermission)
 
 	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
 	require.NotNil(t, nfcDef, "attendance.nfc_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, nfcDef.Type)
 	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
-	assert.Equal(t, config.AccessShared, nfcDef.AccessPolicy)
+	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
 	assert.Equal(t, "operations", nfcDef.Tab)
 	assert.Equal(t, "anwesenheit", nfcDef.Category)
-	assert.Equal(t, "config:update", nfcDef.WritePermission)
+	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 }
 
 func TestOrganizationSetupSettings(t *testing.T) {

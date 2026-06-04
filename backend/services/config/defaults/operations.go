@@ -281,10 +281,11 @@ func init() {
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
+		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       43,
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	config.Register(config.Definition{
@@ -294,10 +295,11 @@ func init() {
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
+		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       44,
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	// --- Organisationsmodell (setup-level decisions) ---
