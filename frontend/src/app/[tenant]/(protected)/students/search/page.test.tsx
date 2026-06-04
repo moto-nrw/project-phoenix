@@ -1964,15 +1964,15 @@ describe("StudentSearchPage", () => {
       expect(
         (screen.getByTestId("filter-bus") as HTMLSelectElement)
           .selectedOptions[0]?.textContent,
-      ).toBe("Buskind: Beliebig");
+      ).toBe("Alle Kinder");
       expect(
         (screen.getByTestId("filter-photoConsent") as HTMLSelectElement)
           .selectedOptions[0]?.textContent,
-      ).toBe("Fotoerlaubnis: Beliebig");
+      ).toBe("Alle Kinder");
       expect(
         (screen.getByTestId("filter-pickupStatus") as HTMLSelectElement)
           .selectedOptions[0]?.textContent,
-      ).toBe("Abholregelung: Beliebig");
+      ).toBe("Alle Kinder");
     });
 
     it("forwards the Buskind filter to the backend (#1492)", async () => {
