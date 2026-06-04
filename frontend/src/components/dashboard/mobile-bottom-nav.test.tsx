@@ -87,6 +87,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useNFCEnabled } from "~/components/tenant/tenant-provider";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -94,6 +95,7 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 
 // Helper to create mock search params - use unknown cast for test flexibility
 function createMockSearchParams(
@@ -163,6 +165,7 @@ describe("MobileBottomNav", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    mockUseNFCEnabled.mockReturnValue(true);
   });
 
   describe("rendering", () => {
@@ -330,6 +333,42 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/ogs-groups");
       expect(hrefs).toContain("/active-supervisions");
+    });
+  });
+
+  describe("NFC visibility", () => {
+    beforeEach(() => {
+      mockUseNFCEnabled.mockReturnValue(false);
+    });
+
+    it("hides the classic activities item from staff main navigation", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/activities");
+      expect(hrefs).toContain("/ogs-groups");
+      expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("hides the classic activities item from the overflow drawer", () => {
+      render(<MobileBottomNav />);
+
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const drawerLinks = screen
+        .getByTestId("drawer-content")
+        .querySelectorAll("a");
+      const drawerHrefs = Array.from(drawerLinks).map((link) =>
+        link.getAttribute("href"),
+      );
+      expect(drawerHrefs).not.toContain("/activities");
     });
   });
 
