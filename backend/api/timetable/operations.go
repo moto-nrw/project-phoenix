@@ -59,13 +59,47 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		}
 		date = parsed
 	}
+	opts, ok := parsePlannedNowOptions(w, r)
+	if !ok {
+		return
+	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.operationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now())
+	result, err := rs.operationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now(), opts)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]any{"instances": result}, "Planned timetable instances retrieved")
+}
+
+func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc.PlannedNowOptions, bool) {
+	query := r.URL.Query()
+	var opts scheduleSvc.PlannedNowOptions
+	if raw := query.Get("horizon_minutes"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 0 || value > 24*60 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid horizon_minutes")))
+			return opts, false
+		}
+		opts.HorizonMinutes = value
+	}
+	if raw := query.Get("limit"); raw != "" {
+		value, err := strconv.Atoi(raw)
+		if err != nil || value < 0 || value > 50 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid limit")))
+			return opts, false
+		}
+		opts.Limit = value
+	}
+	if raw := query.Get("include_roster"); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid include_roster")))
+			return opts, false
+		}
+		opts.IncludeRoster = value
+	}
+	return opts, true
 }
 
 func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {

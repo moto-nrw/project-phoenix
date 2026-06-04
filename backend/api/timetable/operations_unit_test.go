@@ -37,6 +37,13 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.True(t, service.lastIsAdmin)
 	assert.Equal(t, "2026-05-10", service.lastDate.Format(dateLayout))
 	assert.Contains(t, rr.Body.String(), `"instances"`)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=480&limit=5&include_roster=true", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 480, service.lastPlannedOptions.HorizonMinutes)
+	assert.Equal(t, 5, service.lastPlannedOptions.Limit)
+	assert.True(t, service.lastPlannedOptions.IncludeRoster)
 }
 
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
@@ -48,6 +55,12 @@ func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
 	router = operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?date=bad", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=-1", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?include_roster=maybe", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -408,13 +421,14 @@ type fakeOperationsService struct {
 	patchRow *scheduleSvc.OperationRosterRow
 	err      error
 
-	lastAccountID     int64
-	lastIsAdmin       bool
-	lastDate          time.Time
-	lastInstanceID    int64
-	lastActiveGroupID int64
-	lastStudentID     int64
-	lastPatch         schedule.AttendanceFieldPatch
+	lastAccountID      int64
+	lastIsAdmin        bool
+	lastDate           time.Time
+	lastPlannedOptions scheduleSvc.PlannedNowOptions
+	lastInstanceID     int64
+	lastActiveGroupID  int64
+	lastStudentID      int64
+	lastPatch          schedule.AttendanceFieldPatch
 }
 
 type fakeOperationActiveGroupRepo struct {
@@ -451,10 +465,11 @@ func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ in
 	return r.hasRoomConflict, nil, nil
 }
 
-func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time) ([]scheduleSvc.OperationPlannedInstance, error) {
+func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
 	s.lastDate = date
+	s.lastPlannedOptions = opts
 	return s.planned, s.err
 }
 
