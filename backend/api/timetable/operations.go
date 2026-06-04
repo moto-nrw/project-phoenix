@@ -387,7 +387,7 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 		r.Context(),
 		rs.settingsService,
 		configModel.KeyWebSpontaneousActivities,
-		false,
+		true,
 		logger,
 	)
 }

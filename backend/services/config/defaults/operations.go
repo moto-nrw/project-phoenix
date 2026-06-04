@@ -391,7 +391,7 @@ func init() {
 		Label:           "Spontane Aktivitäten über Web/App",
 		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Stundenplan geschrieben, auch wenn die Stundenplanplanung deaktiviert ist.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
