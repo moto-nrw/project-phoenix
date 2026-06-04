@@ -5,12 +5,14 @@ import "@testing-library/jest-dom/vitest";
 const {
   mockFetchPublicActiveSchema,
   mockFetchPublicCaptchaConfig,
+  mockFetchPublicLegalTexts,
   mockFetchPublicCareOfferings,
   mockFetchMyEnrollmentProfile,
   mockSubmitEnrollment,
 } = vi.hoisted(() => ({
   mockFetchPublicActiveSchema: vi.fn(),
   mockFetchPublicCaptchaConfig: vi.fn(),
+  mockFetchPublicLegalTexts: vi.fn(),
   mockFetchPublicCareOfferings: vi.fn(),
   mockFetchMyEnrollmentProfile: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
     ...actual,
     fetchPublicActiveSchema: mockFetchPublicActiveSchema,
     fetchPublicCaptchaConfig: mockFetchPublicCaptchaConfig,
+    fetchPublicLegalTexts: mockFetchPublicLegalTexts,
   };
 });
 
@@ -199,6 +202,7 @@ describe("EnrollmentForm", () => {
   beforeEach(() => {
     mockFetchPublicActiveSchema.mockReset();
     mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
     mockFetchPublicCareOfferings.mockReset();
     mockFetchMyEnrollmentProfile.mockReset();
     mockSubmitEnrollment.mockReset();
@@ -206,6 +210,16 @@ describe("EnrollmentForm", () => {
     mockFetchPublicCaptchaConfig.mockResolvedValue({
       enabled: false,
       site_key: "",
+    });
+    // Unconfigured tenant: the public legal endpoint returns empty
+    // strings (a 200 response), so the consent labels render without a
+    // document link. A real load failure rejects instead — covered by
+    // the dedicated fail-closed test below.
+    mockFetchPublicLegalTexts.mockResolvedValue({
+      agb: "",
+      dsgvo: "",
+      email_contact: "",
+      photo: "",
     });
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),
@@ -238,6 +252,27 @@ describe("EnrollmentForm", () => {
       await screen.findByText("Bitte korrigiere die rot markierten Felder."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Bitte Vornamen angeben.")).toHaveLength(2);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the legal texts cannot be loaded", async () => {
+    // A real load failure (settings/DB/JSON error) must reject the whole
+    // form load so the parent never submits legally relevant consent
+    // without the configured documents. Unconfigured texts (empty
+    // strings, a 200) do NOT trigger this — see the beforeEach default.
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicLegalTexts.mockRejectedValue(
+      new Error("legal texts request failed: 500"),
+    );
+    renderForm();
+    await waitForLoaded();
+
+    // The error banner surfaces and the schema-driven form body never
+    // renders, so consent can't be collected without the documents.
+    expect(
+      screen.getByText("legal texts request failed: 500"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 

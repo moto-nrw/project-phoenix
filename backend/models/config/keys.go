@@ -142,6 +142,13 @@ const (
 	KeyEnrollmentCaptchaSiteKey              = "enrollment.captcha_site_key"
 	KeyEnrollmentCaptchaSecretKey            = "enrollment.captcha_secret_key"
 	KeyEnrollmentGradeLevelMax               = "enrollment.grade_level_max"
+	// Per-tenant info texts (Markdown) shown behind each consent
+	// checkbox on the public enrollment form. Empty = no clickable
+	// "Mehr anzeigen" link, plain consent label only.
+	KeyEnrollmentLegalAGBText          = "enrollment.legal_agb_text"
+	KeyEnrollmentLegalDSGVOText        = "enrollment.legal_dsgvo_text"
+	KeyEnrollmentLegalEmailContactText = "enrollment.legal_email_contact_text"
+	KeyEnrollmentLegalPhotoText        = "enrollment.legal_photo_text"
 )
 
 // Enrollment select-option values.

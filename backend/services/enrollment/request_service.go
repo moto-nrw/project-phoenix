@@ -163,6 +163,26 @@ type RequestService interface {
 	// already be inside a tenant-tx so the settings repo can read the
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
+
+	// LegalTexts returns the tenant's configured AGB and Datenschutz
+	// (DSGVO) Markdown for the public enrollment form. Empty strings
+	// when the admin hasn't filled them in — the frontend then renders
+	// a plain consent label without a clickable "view document" link.
+	// Caller must already be inside a tenant-tx so the settings repo
+	// reads the per-tenant override. A non-nil error means a real
+	// settings/DB/JSON failure — the caller MUST fail the request rather
+	// than fall back to plain consent labels, because these texts sit
+	// behind legally relevant consents.
+	LegalTexts(ctx context.Context) (LegalTexts, error)
+}
+
+// LegalTexts bundles the per-tenant info texts surfaced behind each
+// consent checkbox on the public enrollment form's consent step.
+type LegalTexts struct {
+	AGB          string
+	DSGVO        string
+	EmailContact string
+	Photo        string
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -1079,6 +1099,45 @@ func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
 		}
 	}
 	return false
+}
+
+// LegalTexts resolves the AGB and Datenschutz Markdown for the tenant
+// in context. No env var fallback: these settings were registered from
+// the start, so a plain Resolve (tenant override → registry default of
+// "") is correct. Whitespace-only values normalize to "" so the
+// frontend treats them as "not configured".
+//
+// A resolve error (settings/DB/JSON failure) is propagated, NOT
+// swallowed: these texts sit behind legally relevant consents, so the
+// endpoint must fail rather than let the form collect consent without
+// the configured documents. An unconfigured (empty) text is not an
+// error — it returns "" and lets the frontend drop the link.
+func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
+	if s.settings == nil {
+		return LegalTexts{}, nil
+	}
+	agb, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBText)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve AGB legal text: %w", err)
+	}
+	dsgvo, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalDSGVOText)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve DSGVO legal text: %w", err)
+	}
+	emailContact, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalEmailContactText)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve email contact legal text: %w", err)
+	}
+	photo, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalPhotoText)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve photo legal text: %w", err)
+	}
+	return LegalTexts{
+		AGB:          strings.TrimSpace(agb),
+		DSGVO:        strings.TrimSpace(dsgvo),
+		EmailContact: strings.TrimSpace(emailContact),
+		Photo:        strings.TrimSpace(photo),
+	}, nil
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

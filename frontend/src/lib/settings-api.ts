@@ -29,7 +29,15 @@ export interface ResolvedSetting {
   key: string;
   label: string;
   description: string;
-  type: "boolean" | "number" | "time" | "date" | "text" | "password" | "select";
+  type:
+    | "boolean"
+    | "number"
+    | "time"
+    | "date"
+    | "text"
+    | "textarea"
+    | "password"
+    | "select";
   default: unknown;
   value: unknown;
   is_default: boolean;
