@@ -385,6 +385,42 @@ func TestXLSXParser_ParseStudents_GuardianProfileFields(t *testing.T) {
 // Pickup Schedule Tests
 // ============================================================================
 
+func TestXLSXParser_ParseStudents_ArrivalSchedule(t *testing.T) {
+	t.Run("parses all five weekdays with notes", func(t *testing.T) {
+		headers := []string{
+			"Vorname", "Nachname", "Klasse",
+			"Ankunft.Mo", "Ankunft.Mo.Notizen",
+			"Ankunft.Di", "Ankunft.Di.Notizen",
+			"Ankunft.Mi", "Ankunft.Mi.Notizen",
+			"Ankunft.Do", "Ankunft.Do.Notizen",
+			"Ankunft.Fr", "Ankunft.Fr.Notizen",
+		}
+		rows := [][]string{
+			{"Max", "Mustermann", "1A",
+				"08:00", "Frühdienst",
+				"08:10", "",
+				"08:00", "",
+				"08:15", "",
+				"08:30", "Später Start"},
+		}
+		buf := createTestXLSX(t, headers, rows)
+
+		parser := NewXLSXParser()
+		students, err := parser.ParseStudents(buf)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		require.Len(t, students[0].ArrivalSchedules, 5)
+
+		assert.Equal(t, 1, students[0].ArrivalSchedules[0].Weekday)
+		assert.Equal(t, "08:00", students[0].ArrivalSchedules[0].ExpectedArrival)
+		assert.Equal(t, "Frühdienst", students[0].ArrivalSchedules[0].Notes)
+		assert.Equal(t, 5, students[0].ArrivalSchedules[4].Weekday)
+		assert.Equal(t, "08:30", students[0].ArrivalSchedules[4].ExpectedArrival)
+		assert.Equal(t, "Später Start", students[0].ArrivalSchedules[4].Notes)
+	})
+}
+
 func TestXLSXParser_ParseStudents_PickupSchedule(t *testing.T) {
 	t.Run("parses all five weekdays with notes", func(t *testing.T) {
 		headers := []string{
@@ -475,6 +511,8 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 		"Erz1.Verhältnis", "Erz1.Hauptansprechpartner", "Erz1.Notfall", "Erz1.Abholberechtigt",
 		"Erz1.Straße", "Erz1.Stadt", "Erz1.PLZ",
 		"Erz1.Notizen", "Erz1.Sprache",
+		"Ankunft.Mo", "Ankunft.Mo.Notizen",
+		"Ankunft.Fr", "Ankunft.Fr.Notizen",
 		"Abholung.Mo", "Abholung.Mo.Notizen",
 		"Abholung.Fr", "Abholung.Fr.Notizen",
 	}
@@ -484,6 +522,8 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 			"Mutter", "Ja", "Ja", "Ja",
 			"Musterstr. 1", "Köln", "50667",
 			"Allergien", "de",
+			"08:00", "Frühdienst",
+			"08:30", "Später Start",
 			"16:00", "Hort",
 			"14:00", "Frühschluss"},
 	}
@@ -505,6 +545,14 @@ func TestXLSXParser_ParseStudents_FullRowAllNewFields(t *testing.T) {
 	assert.Equal(t, "50667", g.AddressPostalCode)
 	assert.Equal(t, "Allergien", g.Notes)
 	assert.Equal(t, "de", g.LanguagePreference)
+
+	require.Len(t, students[0].ArrivalSchedules, 2)
+	assert.Equal(t, 1, students[0].ArrivalSchedules[0].Weekday)
+	assert.Equal(t, "08:00", students[0].ArrivalSchedules[0].ExpectedArrival)
+	assert.Equal(t, "Frühdienst", students[0].ArrivalSchedules[0].Notes)
+	assert.Equal(t, 5, students[0].ArrivalSchedules[1].Weekday)
+	assert.Equal(t, "08:30", students[0].ArrivalSchedules[1].ExpectedArrival)
+	assert.Equal(t, "Später Start", students[0].ArrivalSchedules[1].Notes)
 
 	// Pickup
 	require.Len(t, students[0].PickupSchedules, 2)
