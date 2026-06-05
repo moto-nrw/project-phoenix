@@ -221,78 +221,52 @@ describe("GuideShell", () => {
     expect(within(article as HTMLElement).getByText("3")).toBeInTheDocument();
   });
 
-  it("starts setup chapters 2 and 4 on a new PDF page", () => {
+  it.each(["ersteinrichtung", "funktionen", "nfc"] as const)(
+    "does not force PDF page breaks before chapters for %s",
+    (activePath) => {
+      render(
+        <GuideShell
+          eyebrow="E"
+          title="T"
+          description="D"
+          chapters={makeFourChapters()}
+          activePath={activePath}
+          numbered
+        />,
+      );
+
+      for (const id of ["kap-1", "kap-2", "kap-3", "kap-4"]) {
+        expect(document.getElementById(id)).not.toHaveClass(
+          "print:[break-before:page]",
+          "print:[page-break-before:always]",
+        );
+      }
+    },
+  );
+
+  it("keeps chapter headers together with the following PDF content", () => {
     render(
       <GuideShell
         eyebrow="E"
         title="T"
         description="D"
-        chapters={makeFourChapters()}
+        chapters={makeChapters()}
         activePath="ersteinrichtung"
         numbered
       />,
     );
 
-    expect(document.getElementById("kap-1")).not.toHaveClass(
-      "print:[break-before:page]",
-    );
-    expect(document.getElementById("kap-2")).toHaveClass(
-      "print:[break-before:page]",
-      "print:[page-break-before:always]",
-    );
-    expect(document.getElementById("kap-3")).not.toHaveClass(
-      "print:[break-before:page]",
-    );
-    expect(document.getElementById("kap-4")).toHaveClass(
-      "print:[break-before:page]",
-      "print:[page-break-before:always]",
-    );
-  });
+    const chapter = document.getElementById("kap-1");
+    const chapterElement = chapter as HTMLElement;
+    const heading = within(chapterElement).getByRole("heading", {
+      name: "Erstes Kapitel",
+    });
 
-  it("starts app guide chapters 2, 3 and 4 on a new PDF page", () => {
-    render(
-      <GuideShell
-        eyebrow="E"
-        title="T"
-        description="D"
-        chapters={makeFourChapters()}
-        activePath="funktionen"
-        numbered
-      />,
+    expect(heading).toBeInTheDocument();
+    expect(chapterElement.firstElementChild).toHaveClass(
+      "print:[break-inside:avoid]",
+      "print:[break-after:avoid]",
     );
-
-    expect(document.getElementById("kap-1")).not.toHaveClass(
-      "print:[break-before:page]",
-    );
-    for (const id of ["kap-2", "kap-3", "kap-4"]) {
-      expect(document.getElementById(id)).toHaveClass(
-        "print:[break-before:page]",
-        "print:[page-break-before:always]",
-      );
-    }
-  });
-
-  it("starts every NFC chapter after the first one on a new PDF page", () => {
-    render(
-      <GuideShell
-        eyebrow="E"
-        title="T"
-        description="D"
-        chapters={makeFourChapters()}
-        activePath="nfc"
-        numbered
-      />,
-    );
-
-    expect(document.getElementById("kap-1")).not.toHaveClass(
-      "print:[break-before:page]",
-    );
-    for (const id of ["kap-2", "kap-3", "kap-4"]) {
-      expect(document.getElementById(id)).toHaveClass(
-        "print:[break-before:page]",
-        "print:[page-break-before:always]",
-      );
-    }
   });
 
   it("renders a step image with the caption as alt text, and nothing for image-less steps", () => {
