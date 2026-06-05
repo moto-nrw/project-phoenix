@@ -404,6 +404,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		repoFactory.Phase,
 		db,
 	)
+	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub)

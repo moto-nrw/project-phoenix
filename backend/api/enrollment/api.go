@@ -15,6 +15,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -31,7 +32,11 @@ type Resource struct {
 	GuardianProfileLoader     usersService.GuardianProfileLoader
 	SchoolRepo                platformModels.SchoolRepository
 	PhaseRepo                 enrollmentModels.PhaseRepository
-	db                        *bun.DB
+	// ListExportService renders the compact per-phase registration
+	// export (PDF blocks + XLSX flat table). Set as a field after
+	// construction (mirrors api/rooms), not via the constructor.
+	ListExportService listexport.Service
+	db                *bun.DB
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
@@ -136,6 +141,14 @@ func (rs *Resource) Router() chi.Router {
 				// FROM this phase. Both require config:manage.
 				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
 				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+				// Compact export of every registration in the phase
+				// (PDF for print, XLSX for data). Gated config:manage
+				// (not config:read like the review list): one call
+				// bundles every guardian + child's full PII into a file
+				// that leaves the RLS-protected system, so it sits at
+				// the GDPR/admin tier alongside rollover. Admins hold
+				// config:manage via the admin:* wildcard.
+				r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportPhaseRegistrations)
 			})
 		})
 

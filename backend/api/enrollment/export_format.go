@@ -1,0 +1,348 @@
+package enrollment
+
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+)
+
+// This file holds the leaf value-formatters for the phase export: the
+// German label maps, consent/status/grade/activation rendering, the
+// jsonb composite-field decoders, and the generic stringifier. They are
+// pure functions of their inputs (no HTTP, no DB) — export_handlers.go
+// keeps the HTTP wiring and document assembly that calls into these.
+
+var statusLabelsDE = map[string]string{
+	enrollmentModels.ChildStatusSubmitted:          "Eingereicht",
+	enrollmentModels.ChildStatusUnderReview:        "In Prüfung",
+	enrollmentModels.ChildStatusApproved:           "Angenommen",
+	enrollmentModels.ChildStatusWaitlisted:         "Warteliste",
+	enrollmentModels.ChildStatusRejected:           "Abgelehnt",
+	enrollmentModels.ChildStatusWithdrawn:          "Zurückgezogen",
+	enrollmentModels.ChildStatusPendingRenewal:     "Verlängerung offen",
+	enrollmentModels.ChildStatusAutoRenewed:        "Automatisch verlängert",
+	enrollmentModels.ChildStatusPendingAdminReview: "Admin-Prüfung",
+}
+
+func statusLabelDE(status string) string {
+	if label, ok := statusLabelsDE[status]; ok {
+		return label
+	}
+	return status
+}
+
+func activationSummary(c *enrollmentModels.RequestChild) string {
+	mode := "Geplant"
+	if c.ActivationMode == enrollmentModels.ChildActivationImmediate {
+		mode = "Sofort"
+	}
+	if c.ActivateOn != nil {
+		return mode + " (" + c.ActivateOn.Format("02.01.2006") + ")"
+	}
+	return mode
+}
+
+func gradeLabel(grade *int16) string {
+	if grade == nil {
+		return ""
+	}
+	return strconv.Itoa(int(*grade)) + ". Klasse"
+}
+
+var consentLabelsDE = []struct {
+	Key   string
+	Label string
+}{
+	{enrollmentModels.ConsentKeyAGB, "AGB"},
+	{enrollmentModels.ConsentKeyDataProcessing, "Datenverarbeitung"},
+	{enrollmentModels.ConsentKeyEmailContact, "E-Mail-Kontakt"},
+	{enrollmentModels.ConsentKeyPhoto, "Foto"},
+}
+
+func consentSummary(flags map[string]any) string {
+	parts := make([]string, 0, len(consentLabelsDE))
+	for _, c := range consentLabelsDE {
+		parts = append(parts, c.Label+": "+consentLabel(flags, c.Key))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func consentLabel(flags map[string]any, key string) string {
+	if isTruthy(flags[key]) {
+		return "Ja"
+	}
+	return "Nein"
+}
+
+var dayLabelsDE = map[string]string{
+	"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do",
+	"fri": "Fr", "sat": "Sa", "sun": "So",
+}
+
+func formatDayCodes(days []string) string {
+	if len(days) == 0 {
+		return ""
+	}
+	out := make([]string, 0, len(days))
+	for _, d := range days {
+		if label, ok := dayLabelsDE[strings.ToLower(strings.TrimSpace(d))]; ok {
+			out = append(out, label)
+		} else {
+			out = append(out, d)
+		}
+	}
+	return strings.Join(out, ", ")
+}
+
+func formatOfferings(offerings []enrollmentService.ChildOfferingRow) string {
+	if len(offerings) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(offerings))
+	for _, o := range offerings {
+		name := strings.TrimSpace(o.OfferingName)
+		if name == "" {
+			name = "Angebot #" + strconv.FormatInt(o.OfferingID, 10)
+		}
+		days := o.SelectedDays
+		if len(days) == 0 {
+			days = o.AvailableDays
+		}
+		if label := formatDayCodes(days); label != "" {
+			name += " (" + label + ")"
+		}
+		parts = append(parts, name)
+	}
+	return strings.Join(parts, "; ")
+}
+
+func formatCustomValue(field enrollmentModels.FormField, raw any) string {
+	switch field.Type {
+	case enrollmentModels.FormFieldBoolean:
+		if isTruthy(raw) {
+			return "Ja"
+		}
+		return "Nein"
+	case enrollmentModels.FormFieldSelect:
+		val := stringifyValue(raw)
+		for _, opt := range field.Options {
+			if opt.Value == val {
+				return opt.Label
+			}
+		}
+		return val
+	case enrollmentModels.FormFieldWeekdaySchedule:
+		return formatWeekdaySchedule(raw)
+	case enrollmentModels.FormFieldPhoneList:
+		return formatPhoneList(raw)
+	case enrollmentModels.FormFieldContactList:
+		return formatContactList(raw)
+	default:
+		return stringifyValue(raw)
+	}
+}
+
+// decodeComposite re-decodes a jsonb value (already unmarshalled into
+// map[string]any / []any when the request row was scanned) into a typed
+// composite struct via a JSON round-trip — the same approach the
+// decision service uses to consume these fields on approval. Reports
+// false on any failure so the caller can fall back to the generic
+// renderer rather than dropping the answer.
+func decodeComposite(raw any, dst any) bool {
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return false
+	}
+	return json.Unmarshal(b, dst) == nil
+}
+
+// weekdayOrder is the fixed Mo–Fr print order for a weekday schedule;
+// a Go map range would otherwise emit days in random order.
+var weekdayOrder = []string{"mon", "tue", "wed", "thu", "fri"}
+
+// formatWeekdaySchedule renders mon..fri → HH:MM as "Mo 07:30, Di 07:30",
+// in week order, skipping unset days. Empty/garbage falls back to the
+// generic renderer.
+func formatWeekdaySchedule(raw any) string {
+	var sched enrollmentModels.WeekdaySchedule
+	if !decodeComposite(raw, &sched) {
+		return stringifyValue(raw)
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		hhmm := strings.TrimSpace(sched[day])
+		if hhmm == "" {
+			continue
+		}
+		label := dayLabelsDE[day]
+		if label == "" {
+			label = day
+		}
+		parts = append(parts, label+" "+hhmm)
+	}
+	return strings.Join(parts, ", ")
+}
+
+var phoneTypeLabelsDE = map[string]string{
+	"mobile": "Mobil",
+	"home":   "Festnetz",
+	"work":   "Arbeit",
+	"other":  "Sonstige",
+}
+
+// formatPhoneEntries renders a list of phone entries as
+// "Mobil: 0151…, Festnetz: …" — explicit label wins over the type label.
+// Shared by the phone_list field and the per-contact phone numbers.
+func formatPhoneEntries(entries []enrollmentModels.PhoneEntry) string {
+	parts := make([]string, 0, len(entries))
+	for _, p := range entries {
+		num := strings.TrimSpace(p.PhoneNumber)
+		if num == "" {
+			continue
+		}
+		label := strings.TrimSpace(p.Label)
+		if label == "" {
+			label = phoneTypeLabelsDE[p.PhoneType]
+		}
+		entry := num
+		if label != "" {
+			entry = label + ": " + num
+		}
+		if p.IsPrimary {
+			entry += " (primär)"
+		}
+		parts = append(parts, entry)
+	}
+	return strings.Join(parts, ", ")
+}
+
+func formatPhoneList(raw any) string {
+	var entries []enrollmentModels.PhoneEntry
+	if !decodeComposite(raw, &entries) {
+		return stringifyValue(raw)
+	}
+	return formatPhoneEntries(entries)
+}
+
+// formatContactList renders each additional contact / pickup-authorised
+// person as "Vorname Nachname (Beziehung; Tel: …; abholberechtigt,
+// Notfallkontakt)". The pickup/emergency flags are the point of the
+// offline export — in a system outage this is who may collect the child.
+func formatContactList(raw any) string {
+	var contacts []enrollmentModels.ContactEntry
+	if !decodeComposite(raw, &contacts) {
+		return stringifyValue(raw)
+	}
+	parts := make([]string, 0, len(contacts))
+	for _, c := range contacts {
+		name := strings.TrimSpace(c.FirstName + " " + c.LastName)
+		if name == "" {
+			name = "Kontakt"
+		}
+		extras := make([]string, 0, 3)
+		if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
+			extras = append(extras, rel)
+		}
+		if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
+			extras = append(extras, "Tel: "+phones)
+		}
+		flags := make([]string, 0, 2)
+		if c.CanPickup {
+			flags = append(flags, "abholberechtigt")
+		}
+		if c.IsEmergencyContact {
+			flags = append(flags, "Notfallkontakt")
+		}
+		if len(flags) > 0 {
+			extras = append(extras, strings.Join(flags, ", "))
+		}
+		if len(extras) > 0 {
+			name += " (" + strings.Join(extras, "; ") + ")"
+		}
+		parts = append(parts, name)
+	}
+	return strings.Join(parts, " | ")
+}
+
+// stringifyValue renders an arbitrary JSON value (from a jsonb column)
+// to a compact human string without dropping data.
+func stringifyValue(raw any) string {
+	switch v := raw.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case bool:
+		if v {
+			return "Ja"
+		}
+		return "Nein"
+	case float64:
+		if v == float64(int64(v)) {
+			return strconv.FormatInt(int64(v), 10)
+		}
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			parts = append(parts, stringifyValue(item))
+		}
+		return strings.Join(parts, ", ")
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for k := range v {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := make([]string, 0, len(keys))
+		for _, k := range keys {
+			parts = append(parts, k+": "+stringifyValue(v[k]))
+		}
+		return strings.Join(parts, "; ")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func isTruthy(raw any) bool {
+	switch v := raw.(type) {
+	case bool:
+		return v
+	case string:
+		s := strings.ToLower(strings.TrimSpace(v))
+		return s == "true" || s == "ja" || s == "1" || s == "yes"
+	case float64:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func strOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func timeOrEmpty(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return t.Format("02.01.2006 15:04")
+}
+
+func cloneValues(src map[listexport.ColumnID]string) map[listexport.ColumnID]string {
+	dst := make(map[listexport.ColumnID]string, len(src)+12)
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
+}

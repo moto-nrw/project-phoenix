@@ -9,6 +9,12 @@ import (
 // ResourceType constants for DataAccessLog.ResourceType.
 const (
 	ResourceTypeAttendanceHistory = "attendance_history"
+	// ResourceTypeEnrollmentPhaseExport records a bulk export of every
+	// registration (guardian + child PII) in one enrollment phase. The
+	// row's range_start/range_end carry the phase's service window —
+	// the temporal span of the disclosed data — and metadata carries
+	// phase_id, format, request_count and child_count.
+	ResourceTypeEnrollmentPhaseExport = "enrollment_phase_export"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive
@@ -25,6 +31,9 @@ type DataAccessLog struct {
 	RangeStart     time.Time `bun:"range_start,notnull" json:"range_start"`
 	RangeEnd       time.Time `bun:"range_end,notnull" json:"range_end"`
 	AccessedAt     time.Time `bun:"accessed_at,notnull,default:now()" json:"accessed_at"`
+	// Metadata holds event-specific context (migration 1.15.99).
+	// Mirrors the metadata column on the sibling audit tables.
+	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }
 
 // TableName returns the database table name.
@@ -46,4 +55,20 @@ func (d *DataAccessLog) GetCreatedAt() time.Time {
 // append-only, so updated_at mirrors accessed_at.
 func (d *DataAccessLog) GetUpdatedAt() time.Time {
 	return d.AccessedAt
+}
+
+// GetMetadata returns the metadata map, lazily initialising it.
+func (d *DataAccessLog) GetMetadata() map[string]interface{} {
+	if d.Metadata == nil {
+		d.Metadata = make(map[string]interface{})
+	}
+	return d.Metadata
+}
+
+// SetMetadata sets a single metadata key.
+func (d *DataAccessLog) SetMetadata(key string, value interface{}) {
+	if d.Metadata == nil {
+		d.Metadata = make(map[string]interface{})
+	}
+	d.Metadata[key] = value
 }
