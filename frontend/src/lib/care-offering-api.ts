@@ -4,6 +4,24 @@ const logger = createLogger({ component: "CareOfferingAPI" });
 
 export type DaysOfWeekMode = "fixed" | "parent_choice";
 
+/**
+ * How many offerings within the same selection_group a parent must pick.
+ * Mirrors the backend SelectionRule* constants.
+ */
+export type CareSelectionRule =
+  | "optional"
+  | "exactly_one"
+  | "at_least_one"
+  | "at_most_one";
+
+/** German labels for the selection-rule dropdown in the admin editor. */
+export const SELECTION_RULE_LABELS: Record<CareSelectionRule, string> = {
+  optional: "Optional (frei wählbar)",
+  exactly_one: "Genau eines (Pflicht)",
+  at_least_one: "Mindestens eines (Pflicht)",
+  at_most_one: "Höchstens eines",
+};
+
 export interface CareOffering {
   id: string;
   phase_id: string;
@@ -19,6 +37,10 @@ export interface CareOffering {
   is_active: boolean;
   is_required: boolean;
   sort_order: number;
+  selection_group?: string | null;
+  // Optional in the type (older rows + existing fixtures may omit it);
+  // the backend always sends it, defaulting to "optional".
+  selection_rule?: CareSelectionRule;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +59,10 @@ export interface CareOfferingInput {
   is_active: boolean;
   is_required: boolean;
   sort_order: number;
+  selection_group?: string | null;
+  // Optional in the type (older rows + existing fixtures may omit it);
+  // the backend always sends it, defaulting to "optional".
+  selection_rule?: CareSelectionRule;
 }
 
 interface BackendEnvelope<T> {

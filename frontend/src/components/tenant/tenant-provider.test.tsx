@@ -30,6 +30,7 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 
 import {
   TenantProvider,
+  useNFCEnabled,
   usePresenceMode,
   useTenant,
   useTenantSafe,
@@ -50,6 +51,7 @@ const mockTenant: TenantInfo = {
   settings: {},
   presenceMode: "detailed",
   studentPhotosEnabled: false,
+  nfcEnabled: false,
 };
 
 // ============================================================================
@@ -431,5 +433,34 @@ describe("usePresenceMode", () => {
     );
     const { result } = renderHook(() => usePresenceMode(), { wrapper });
     expect(result.current).toBe("detailed");
+  });
+});
+
+describe("useNFCEnabled", () => {
+  const nfcTenant: TenantInfo = { ...mockTenant, nfcEnabled: true };
+
+  it("returns true when NFC is enabled for the tenant", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={nfcTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useNFCEnabled(), { wrapper });
+    expect(result.current).toBe(true);
+  });
+
+  it("returns false outside any TenantProvider", () => {
+    const { result } = renderHook(() => useNFCEnabled());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns false when tenant hasn't resolved yet", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={null}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useNFCEnabled(), { wrapper });
+    expect(result.current).toBe(false);
   });
 });

@@ -28,6 +28,10 @@ interface BackendRoomsEnvelope {
   }>;
 }
 
+type BackendRoomList =
+  | BackendRoomsEnvelope
+  | NonNullable<BackendRoomsEnvelope["data"]>;
+
 export interface SpontaneousActivityStartPayload {
   title: string;
   roomId: string;
@@ -44,8 +48,9 @@ interface SpontaneousActivityStartProps {
   readonly onStart: (payload: SpontaneousActivityStartPayload) => void;
 }
 
-function normalizeRoomEnvelope(envelope: BackendRoomsEnvelope): RoomOption[] {
-  return (envelope.data ?? [])
+function normalizeRoomEnvelope(envelope: BackendRoomList): RoomOption[] {
+  const rooms = Array.isArray(envelope) ? envelope : (envelope.data ?? []);
+  return rooms
     .map((room) => ({
       id: String(room.id),
       name: room.name ?? room.room_name ?? `Raum ${room.id}`,

@@ -89,10 +89,14 @@ const (
 	KeySickClearMode                  = "operations.sick_clear_mode"
 	KeyExcusedClearMode               = "operations.excused_clear_mode"
 	KeyPresenceMode                   = "operations.presence_mode"
+	KeyAttendanceWebEnabled           = "attendance.web_enabled"
+	KeyAttendanceNFCEnabled           = "attendance.nfc_enabled"
 	KeyWebCheckinAccess               = "attendance.web_checkin_access"
 	KeyStudentActivationIntervalMin   = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities       = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
+	KeyGroupMode                      = "operations.group_mode"
+	KeyCareConcept                    = "operations.care_concept"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -105,6 +109,18 @@ const (
 const (
 	WebCheckinAccessGroupSupervisors = "group_supervisors"
 	WebCheckinAccessAllStaff         = "all_staff"
+)
+
+// GroupMode option values for KeyGroupMode.
+const (
+	GroupModeFixedGroups = "fixed_groups"
+	GroupModeOpenCare    = "open_care"
+)
+
+// CareConcept option values for KeyCareConcept.
+const (
+	CareConceptFixedSchedule = "fixed_schedule"
+	CareConceptOpenRooms     = "open_rooms"
 )
 
 // StatusFlagClearMode option values for KeySickClearMode and KeyExcusedClearMode.

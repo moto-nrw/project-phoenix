@@ -19,6 +19,10 @@ import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
+import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
 } from "~/lib/settings-api";
@@ -339,6 +343,8 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
 ];
 
+const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
+
 interface MobileBottomNavProps {
   readonly className?: string;
 }
@@ -463,6 +469,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivityNav = nfcEnabled && presenceMode !== "binary";
   const { data: settingsSchema } = useSWR(
     userIsAdmin && mode !== "operator" && mode !== "parent"
       ? SETTINGS_SCHEMA_SWR_KEY
@@ -482,11 +491,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
   // Filter additional navigation items based on permissions
+  const filteredMainItemsByMode = filteredMainItems.filter(
+    (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
+  );
+
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
+    if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
@@ -504,7 +518,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Static navigation - 4 main items + overflow drawer. Operator mode uses a
   // dedicated item list (the 4 sibling Verwaltung pages + Einstellungen) since
   // the bottom nav has only one Verwaltung slot.
-  const displayMainItems: NavItem[] = filteredMainItems;
+  const displayMainItems: NavItem[] = filteredMainItemsByMode;
   const showOverflowMenu = true;
   // Avoid duplicates between main and additional
   const mainHrefs = new Set(

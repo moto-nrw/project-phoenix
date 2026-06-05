@@ -81,13 +81,56 @@ export function applyOptimisticSchemaUpdate(
   value: unknown,
 ): SettingsSchema {
   const valueMap = new Map<string, unknown>();
+  const itemMap = new Map<string, ResolvedSetting>();
   for (const tab of schema.tabs) {
     for (const cat of tab.categories) {
       for (const item of cat.items) {
         valueMap.set(item.key, item.key === key ? value : item.value);
+        itemMap.set(item.key, item);
       }
     }
   }
+
+  const visibilityMemo = new Map<string, boolean>();
+  const evaluateVisibility = (
+    item: ResolvedSetting,
+    visiting = new Set<string>(),
+  ): boolean => {
+    const cached = visibilityMemo.get(item.key);
+    if (cached !== undefined) return cached;
+    if (!item.depends_on) {
+      visibilityMemo.set(item.key, true);
+      return true;
+    }
+    if (visiting.has(item.key)) {
+      visibilityMemo.set(item.key, false);
+      return false;
+    }
+    visiting.add(item.key);
+    const parent = itemMap.get(item.depends_on.key);
+    if (!parent || !evaluateVisibility(parent, visiting)) {
+      visibilityMemo.set(item.key, false);
+      visiting.delete(item.key);
+      return false;
+    }
+    const parentVal = valueMap.get(item.depends_on.key);
+    const cond = item.depends_on.condition;
+    const expected = item.depends_on.value;
+    let visible = true;
+    if (cond === "eq") {
+      visible = JSON.stringify(parentVal) === JSON.stringify(expected);
+    } else if (cond === "neq") {
+      visible = JSON.stringify(parentVal) !== JSON.stringify(expected);
+    } else if (cond === "not_empty") {
+      visible = parentVal != null && parentVal !== "";
+    } else {
+      visible = false;
+    }
+    visibilityMemo.set(item.key, visible);
+    visiting.delete(item.key);
+    return visible;
+  };
+
   return {
     ...schema,
     tabs: schema.tabs.map((tab) => ({
@@ -100,20 +143,7 @@ export function applyOptimisticSchemaUpdate(
             item.key === key
               ? { ...item, value: optimisticValue, is_default: false }
               : item;
-          if (updated.depends_on) {
-            const parentVal = valueMap.get(updated.depends_on.key);
-            const cond = updated.depends_on.condition;
-            const expected = updated.depends_on.value;
-            let visible = true;
-            if (cond === "eq")
-              visible = JSON.stringify(parentVal) === JSON.stringify(expected);
-            if (cond === "neq")
-              visible = JSON.stringify(parentVal) !== JSON.stringify(expected);
-            if (cond === "not_empty")
-              visible = parentVal != null && parentVal !== "";
-            return { ...updated, visible };
-          }
-          return updated;
+          return { ...updated, visible: evaluateVisibility(updated) };
         }),
       })),
     })),

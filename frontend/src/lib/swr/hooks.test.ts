@@ -30,6 +30,7 @@ const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
 // Mock tenant provider — default returns null (no tenant context).
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 // Import mocked modules

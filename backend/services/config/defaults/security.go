@@ -19,6 +19,11 @@ func init() {
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
 		AccessPolicy:    config.AccessAdminOnly,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	// --- MFA / Two-Factor Authentication (issue #1308) ---

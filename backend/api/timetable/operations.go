@@ -2,11 +2,13 @@ package timetable
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -41,6 +44,10 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	}
 	if req.RoomID <= 0 {
 		return errors.New("room_id is required")
+	}
+	req.Title = strings.TrimSpace(req.Title)
+	if req.Title == "" {
+		return errors.New("title is required")
 	}
 	return nil
 }
@@ -184,6 +191,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	req.StaffIDs = appendUniquePositive(req.StaffIDs, currentStaffID)
 	createdBy := currentStaffID
+	activityGroupID, err := rs.resolveSpontaneousActivityGroupID(r.Context(), req.Title, req.ActivityGroupID, createdBy)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
+		return
+	}
 	isSpontaneous := true
 	window := serverSpontaneousActivityWindow(timezone.Now())
 	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
@@ -194,7 +206,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		Description:      req.Description,
 		Notes:            req.Notes,
 		RoomID:           req.RoomID,
-		ActivityGroupID:  req.ActivityGroupID,
+		ActivityGroupID:  activityGroupID,
 		IsSpontaneous:    &isSpontaneous,
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       nil,
@@ -234,6 +246,65 @@ func bindSpontaneousStartRequest(w http.ResponseWriter, r *http.Request) (*spont
 	return req, true
 }
 
+func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title string, requestedID *int64, createdBy int64) (*int64, error) {
+	if requestedID != nil {
+		return requestedID, nil
+	}
+	if rs.activityGroupRepo == nil || rs.activityCategoryRepo == nil {
+		return nil, errors.New("activity repositories are not wired")
+	}
+	if err := rs.lockSpontaneousActivityName(ctx, title); err != nil {
+		return nil, err
+	}
+	if existing, err := rs.activityGroupRepo.FindByName(ctx, title); err == nil && existing != nil {
+		return &existing.ID, nil
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	category, err := rs.ensureSpontaneousActivityCategory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	group := &activityModel.Group{
+		Name:            title,
+		CategoryID:      category.ID,
+		MaxParticipants: 999,
+		IsOpen:          true,
+		CreatedBy:       &createdBy,
+		Type:            activityModel.GroupTypeActivity,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(tenant.FromContext(ctx))
+	if err := rs.activityGroupRepo.Create(ctx, group); err != nil {
+		return nil, err
+	}
+	return &group.ID, nil
+}
+
+func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*activityModel.Category, error) {
+	const spontaneousCategoryName = "Spontan"
+	if err := rs.lockSpontaneousActivityCategory(ctx); err != nil {
+		return nil, err
+	}
+	if existing, err := rs.activityCategoryRepo.FindByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
+		return existing, nil
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+
+	category := &activityModel.Category{
+		Name:        spontaneousCategoryName,
+		Description: "Automatisch angelegte Aktivitäten aus spontanen Web-Starts",
+		Color:       "#83CD2D",
+	}
+	category.SetTenantID(tenant.FromContext(ctx))
+	if err := rs.activityCategoryRepo.Create(ctx, category); err != nil {
+		return nil, err
+	}
+	return category, nil
+}
+
 func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	now = now.In(timezone.Berlin)
 	currentMinutes := now.Hour()*60 + now.Minute()
@@ -267,6 +338,40 @@ func (rs *Resource) lockSpontaneousStartRoom(ctx context.Context, roomID int64) 
 	return err
 }
 
+func (rs *Resource) lockSpontaneousActivityName(ctx context.Context, name string) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
+	}
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		if rs.db == nil {
+			return nil
+		}
+		return errors.New("tenant transaction is required")
+	}
+	key := fmt.Sprintf("timetable:spontaneous-activity-name:%d:%s", tenantID, strings.ToLower(strings.TrimSpace(name)))
+	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
+func (rs *Resource) lockSpontaneousActivityCategory(ctx context.Context) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
+	}
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		if rs.db == nil {
+			return nil
+		}
+		return errors.New("tenant transaction is required")
+	}
+	key := fmt.Sprintf("timetable:spontaneous-activity-category:%d", tenantID)
+	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, map[string]any{
 		"web_spontaneous_activities_enabled": rs.webSpontaneousActivitiesEnabled(r),
@@ -282,7 +387,7 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 		r.Context(),
 		rs.settingsService,
 		configModel.KeyWebSpontaneousActivities,
-		false,
+		true,
 		logger,
 	)
 }

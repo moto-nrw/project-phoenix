@@ -45,9 +45,14 @@ var (
 	// targets a specific mandatory offering. Mapped to 400 with a stable
 	// code so the parent form can highlight the right child.
 	ErrRequiredCareOfferingMissing = errors.New("a required care offering was not selected for every child")
-	ErrRateLimited                 = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound             = errors.New("enrollment request not found")
-	ErrInvalidGuardianPhone        = errors.New("guardian phone number has an invalid format")
+	// ErrCareOfferingRule wraps ErrInvalidSubmission (so the HTTP layer
+	// maps it to 400) and is returned when a child's offering selection
+	// violates a group's selection rule (exactly_one / at_least_one /
+	// at_most_one). Defense-in-depth: the parent form enforces the same.
+	ErrCareOfferingRule     = fmt.Errorf("%w: care offering selection rule not satisfied", ErrInvalidSubmission)
+	ErrRateLimited          = errors.New("too many submission attempts; please retry later")
+	ErrRequestNotFound      = errors.New("enrollment request not found")
+	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
 	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission so callers that match
 	// the broad category keep working, while the HTTP layer maps the specific
 	// case to a stable code (enrollment.invalid_email) for per-field marking.
@@ -323,6 +328,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := validateOfferingSelections(req.Children, openByID); err != nil {
 		return nil, err
 	}
+	if err := validateOfferingGroupRules(req.Children, openByID); err != nil {
+		return nil, err
+	}
 	if err := validateRequiredOfferings(req.Children, openByID); err != nil {
 		return nil, err
 	}
@@ -349,10 +357,42 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
+
+	// Single required-field gate: enforces required core + custom fields
+	// server-side (defense-in-depth; the client checks the same), while
+	// exempting fields hidden by a visibility condition. A field hidden by
+	// its show-if condition must never block an otherwise valid submit.
+	if err := s.validateRequiredCustomFields(schema, req, openByID); err != nil {
+		return nil, err
+	}
+
+	// Defense-in-depth: drop answers for fields the parent couldn't see
+	// (hidden by a show-if condition) and any keys not declared in the
+	// schema before persisting. A stale or manipulated client must not be
+	// able to smuggle a value for a hidden field — with a field Target that
+	// value would otherwise be written into student data on approval.
+	// Conditions are evaluated against the raw submitted answers (matching
+	// the client + the required-field check above); only the persisted copy
+	// is filtered.
 	if schema != nil {
-		if err := validateSubmissionAgainstSchema(req, schema); err != nil {
-			return nil, err
+		byKey := buildFieldsByKey(schema)
+		rawGuardian := req.CustomData
+		for i := range req.Children {
+			childCtx := fieldVisibilityContext{
+				guardianAnswers: rawGuardian,
+				childAnswers:    req.Children[i].CustomData,
+				gradeLevel:      req.Children[i].TargetGradeLevel,
+				offeringNames:   selectedOfferingNames(req.Children[i], openByID),
+				fieldsByKey:     byKey,
+			}
+			req.Children[i].CustomData = sanitizeVisibleAnswers(
+				schema, true, req.Children[i].CustomData, childCtx,
+			)
 		}
+		req.CustomData = sanitizeVisibleAnswers(
+			schema, false, rawGuardian,
+			fieldVisibilityContext{guardianAnswers: rawGuardian, fieldsByKey: byKey},
+		)
 	}
 
 	statusToken, err := newStatusToken()
@@ -546,116 +586,6 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	return nil
 }
 
-func validateSubmissionAgainstSchema(req SubmitRequest, schema *enrollmentModels.FormSchema) error {
-	if schema.CoreRequirements.Required(enrollmentModels.CoreRequirementGuardianPhone) {
-		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
-			return fmt.Errorf("%w: guardian phone is required", ErrInvalidSubmission)
-		}
-	}
-	for _, field := range schema.Fields {
-		if err := validateRequiredCustomField(field, req); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// validateRequiredCustomField enforces a single schema field's required
-// constraint against the submission. Per-child fields are checked for every
-// child; request-level fields once. No-op for optional fields.
-func validateRequiredCustomField(field enrollmentModels.FormField, req SubmitRequest) error {
-	if !field.Required {
-		return nil
-	}
-	if field.AppliesToCh {
-		for i, child := range req.Children {
-			if !customValueSatisfiesRequired(field, child.CustomData[field.Key]) {
-				return fmt.Errorf("%w: child %d field %s is required", ErrInvalidSubmission, i, field.Key)
-			}
-		}
-		return nil
-	}
-	if !customValueSatisfiesRequired(field, req.CustomData[field.Key]) {
-		return fmt.Errorf("%w: field %s is required", ErrInvalidSubmission, field.Key)
-	}
-	return nil
-}
-
-func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) bool {
-	switch field.Type {
-	case enrollmentModels.FormFieldBoolean:
-		_, ok := value.(bool)
-		return ok
-	case enrollmentModels.FormFieldPhoneList:
-		return phoneListSatisfiesRequired(value)
-	case enrollmentModels.FormFieldContactList:
-		return contactListSatisfiesRequired(value)
-	case enrollmentModels.FormFieldWeekdaySchedule:
-		return scheduleHasAnyTime(value)
-	case enrollmentModels.FormFieldNumber:
-		return numberValueSatisfiesRequired(value)
-	default:
-		return stringValue(value) != ""
-	}
-}
-
-func phoneListSatisfiesRequired(value any) bool {
-	var entries []enrollmentModels.PhoneEntry
-	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-		return false
-	}
-	for i := range entries {
-		if err := entries[i].Validate(); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func contactListSatisfiesRequired(value any) bool {
-	var entries []enrollmentModels.ContactEntry
-	if err := decodeStructured(value, &entries); err != nil || len(entries) == 0 {
-		return false
-	}
-	for i := range entries {
-		if err := entries[i].Validate(); err != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func numberValueSatisfiesRequired(value any) bool {
-	switch v := value.(type) {
-	case float64, int:
-		return true
-	case string:
-		return strings.TrimSpace(v) != ""
-	default:
-		return false
-	}
-}
-
-func scheduleHasAnyTime(value any) bool {
-	raw, ok := value.(map[string]any)
-	if !ok {
-		if typed, ok := value.(map[string]string); ok {
-			for _, v := range typed {
-				if strings.TrimSpace(v) != "" {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	for _, v := range raw {
-		if str, ok := v.(string); ok && strings.TrimSpace(str) != "" {
-			return true
-		}
-	}
-	return false
-}
-
 // validateOfferingSelections cross-checks every offering id against the
 // live open-window catalog. Defense-in-depth against stale clients.
 func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
@@ -838,6 +768,19 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	}
 	if patch.CustomData != nil {
 		req.CustomData = patch.CustomData
+	}
+
+	// Same hidden-answer sanitizing as Submit: an edit must not be able to
+	// (re)introduce a value for a guardian field the parent couldn't see.
+	// Children aren't edited here, so only the guardian scope is filtered.
+	if req.SchemaID != nil {
+		if schema, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+			byKey := buildFieldsByKey(schema)
+			req.CustomData = sanitizeVisibleAnswers(
+				schema, false, req.CustomData,
+				fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey},
+			)
+		}
 	}
 
 	tenantID := req.GetTenantID()

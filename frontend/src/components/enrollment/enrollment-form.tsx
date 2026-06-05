@@ -22,6 +22,12 @@ import {
   type PublicFormSchema,
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  buildFieldsByKey,
+  isFieldVisible,
+  visibleAnswerData,
+  type ConditionContext,
+} from "~/lib/enrollment-field-visibility";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
@@ -291,6 +297,22 @@ export function EnrollmentForm({
     // selection mode only governs the choosable (non-required) offerings,
     // so required ones never block toggling a choosable one.
     if (requiredOfferingIDs.includes(offeringID)) return;
+    // "Genau eines" / "höchstens eines" selection_groups behave like radios:
+    // selecting one clears the other selected member(s) of the same group.
+    // Orthogonal to the phase-level exactly_one mode below; both can apply.
+    const toggled = offerings.find((o) => o.id === offeringID);
+    const group = toggled?.selection_group?.trim() ?? "";
+    const groupRule = toggled?.selection_rule ?? "optional";
+    const exclusiveGroup =
+      group !== "" &&
+      (groupRule === "exactly_one" || groupRule === "at_most_one");
+    const groupSiblingIDs = exclusiveGroup
+      ? new Set(
+          offerings
+            .filter((o) => (o.selection_group?.trim() ?? "") === group)
+            .map((o) => o.id),
+        )
+      : null;
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
@@ -308,6 +330,22 @@ export function EnrollmentForm({
             }
             nextIDs.clear();
             requiredOfferingIDs.forEach((id) => nextIDs.add(id));
+          }
+          if (groupSiblingIDs) {
+            for (const id of groupSiblingIDs) {
+              // Never clear a locked required offering: it's always part of
+              // the submission and the UI keeps rendering it checked, so
+              // dropping it from the payload would fail the backend's
+              // required-offering check.
+              if (
+                id !== offeringID &&
+                nextIDs.has(id) &&
+                !requiredOfferingIDs.includes(id)
+              ) {
+                nextIDs.delete(id);
+                delete nextDays[id];
+              }
+            }
           }
           nextIDs.add(offeringID);
         }
@@ -352,6 +390,36 @@ export function EnrollmentForm({
     setChildren((prev) => [...prev, blankChild(requiredOfferingIDs)]);
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
+
+  // Conditional field visibility. Contexts are rebuilt from the live answers
+  // each render so info blocks and questions appear/disappear as the parent
+  // fills the form. Hidden fields are also stripped from the submitted payload
+  // (see handleSubmit) so a stale value never leaks.
+  const fieldsByKey = useMemo(
+    () => buildFieldsByKey(schema?.fields ?? []),
+    [schema],
+  );
+  const guardianCtx: ConditionContext = {
+    guardianAnswers: customData,
+    fieldsByKey,
+  };
+  const visibleGuardianFields = (schema?.fields ?? []).filter(
+    (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+  );
+  const childConditionCtx = (child: ChildDraft): ConditionContext => ({
+    guardianAnswers: customData,
+    childAnswers: child.custom,
+    gradeLevel: child.target_grade_level,
+    // Care-offering conditions match by name (templates aren't phase-bound),
+    // so resolve the child's selected offering ids to names.
+    offeringNames: new Set(
+      Array.from(child.offering_ids)
+        .map((id) => offerings.find((o) => o.id === id)?.name)
+        .filter((name): name is string => Boolean(name))
+        .map((name) => name.toLowerCase()),
+    ),
+    fieldsByKey,
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -403,14 +471,16 @@ export function EnrollmentForm({
     } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
       newFieldErrors.guardian_phone = "Bitte gültige Telefonnummer angeben.";
     }
-    for (const field of schema?.fields.filter((f) => !f.applies_to_child) ??
-      []) {
-      if (!field.required) continue;
+    // Only visible (passing their show-if condition) non-info guardian fields
+    // are enforced — a hidden required field must never block submit.
+    for (const field of visibleGuardianFields) {
+      if (field.type === "information" || !field.required) continue;
       if (customValueMissing(field, customData[field.key])) {
         newFieldErrors[`custom_${field.key}`] = requiredMessageForField(field);
       }
     }
     for (const [i, c] of children.entries()) {
+      const childCtx = childConditionCtx(c);
       if (!c.first_name.trim()) {
         newFieldErrors[`children_${i}_first_name`] = "Bitte Vornamen angeben.";
       }
@@ -427,7 +497,8 @@ export function EnrollmentForm({
       }
       for (const field of schema?.fields.filter((f) => f.applies_to_child) ??
         []) {
-        if (!field.required) continue;
+        if (field.type === "information" || !field.required) continue;
+        if (!isFieldVisible(field, childCtx)) continue;
         if (customValueMissing(field, c.custom[field.key])) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
             requiredMessageForField(field);
@@ -455,6 +526,11 @@ export function EnrollmentForm({
     // everything is valid.
     const missingCareIndexes: number[] = [];
     const exactOneCareIndexes: number[] = [];
+    // Per-selection_group rule violations (exactly_one / at_least_one /
+    // at_most_one within a named group). Orthogonal to the phase-level
+    // selection mode above; both are enforced.
+    const groupRuleIndexes: number[] = [];
+    let firstGroupRuleMessage: string | null = null;
     // Selected parent_choice offerings with no day picked, keyed
     // `${childIndex}_${offeringId}` so each offending row gets a red border +
     // inline message and the scroll-to-error effect can target it.
@@ -493,6 +569,11 @@ export function EnrollmentForm({
           }
         }
       }
+      const groupRuleMessage = offeringGroupRuleError(c, offerings);
+      if (groupRuleMessage) {
+        groupRuleIndexes.push(i);
+        firstGroupRuleMessage ??= `Kind ${i + 1}: ${groupRuleMessage}`;
+      }
     }
 
     const fieldErrorKeys = Object.keys(newFieldErrors);
@@ -500,12 +581,14 @@ export function EnrollmentForm({
     const hasOfferingIssue =
       missingCareIndexes.length > 0 ||
       exactOneCareIndexes.length > 0 ||
+      groupRuleIndexes.length > 0 ||
       dayErrorCount > 0;
     if (fieldErrorKeys.length > 0 || hasOfferingIssue) {
       setFieldErrors(newFieldErrors);
       const invalidCareIndexes = [
         ...missingCareIndexes,
         ...exactOneCareIndexes,
+        ...groupRuleIndexes,
       ];
       if (invalidCareIndexes.length > 0) {
         setChildOfferingErrors(
@@ -543,6 +626,12 @@ export function EnrollmentForm({
         firstDayErrorMessage
       ) {
         banner = firstDayErrorMessage;
+      } else if (
+        fieldErrorKeys.length === 0 &&
+        groupRuleIndexes.length > 0 &&
+        firstGroupRuleMessage
+      ) {
+        banner = firstGroupRuleMessage;
       }
       setError(banner);
       return;
@@ -575,7 +664,14 @@ export function EnrollmentForm({
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
-        custom_data: c.custom,
+        // Strip answers to fields the parent couldn't see (hidden by a
+        // show-if condition) so a stale value never reaches the backend.
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          true,
+          c.custom,
+          childConditionCtx(c),
+        ),
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
@@ -596,7 +692,12 @@ export function EnrollmentForm({
           email_contact: emailConsent,
           photo: photoConsent === true,
         },
-        custom_data: customData,
+        custom_data: visibleAnswerData(
+          schema?.fields ?? [],
+          false,
+          customData,
+          guardianCtx,
+        ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
       };
@@ -727,18 +828,24 @@ export function EnrollmentForm({
             description="Die OGS benötigt diese Angaben zusätzlich zu den Basisdaten. Pflichtfragen sind mit einem Stern markiert."
           />
           {schema.fields
-            .filter((f) => !f.applies_to_child)
-            .map((f) => (
-              <CustomFieldInput
-                key={f.key}
-                field={f}
-                value={customData[f.key]}
-                onChange={(v) =>
-                  setCustomData((prev) => ({ ...prev, [f.key]: v }))
-                }
-                error={fieldErrors[`custom_${f.key}`]}
-              />
-            ))}
+            .filter(
+              (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
+            )
+            .map((f) =>
+              f.type === "information" ? (
+                <InfoBlock key={f.key} field={f} />
+              ) : (
+                <CustomFieldInput
+                  key={f.key}
+                  field={f}
+                  value={customData[f.key]}
+                  onChange={(v) =>
+                    setCustomData((prev) => ({ ...prev, [f.key]: v }))
+                  }
+                  error={fieldErrors[`custom_${f.key}`]}
+                />
+              ),
+            )}
         </section>
       )}
 
@@ -911,20 +1018,24 @@ export function EnrollmentForm({
                           : ""
                       }`}
                     >
-                      {offerings
-                        .filter((o) => !o.is_required)
-                        .map((o) => (
+                      {groupOfferings(
+                        offerings.filter((o) => !o.is_required),
+                      ).map((bucket) =>
+                        bucket.kind === "single" ? (
                           <OfferingCard
-                            key={o.id}
-                            offering={o}
+                            key={bucket.offering.id}
+                            offering={bucket.offering}
                             childIndex={i}
-                            checked={child.offering_ids.has(o.id)}
-                            selectedDays={child.offering_days[o.id]}
+                            checked={child.offering_ids.has(bucket.offering.id)}
+                            selectedDays={
+                              child.offering_days[bucket.offering.id]
+                            }
                             dayError={
-                              offeringDayErrors[`${i}_${o.id}`] ?? false
+                              offeringDayErrors[`${i}_${bucket.offering.id}`] ??
+                              false
                             }
                             onToggle={() => {
-                              toggleOffering(i, o.id);
+                              toggleOffering(i, bucket.offering.id);
                               if (childOfferingErrors[i]) {
                                 setChildOfferingErrors((prev) => {
                                   const next = { ...prev };
@@ -934,10 +1045,54 @@ export function EnrollmentForm({
                               }
                             }}
                             onToggleDay={(day) =>
-                              toggleOfferingDay(i, o.id, day)
+                              toggleOfferingDay(i, bucket.offering.id, day)
                             }
                           />
-                        ))}
+                        ) : (
+                          <div
+                            key={`group-${bucket.group}`}
+                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                          >
+                            <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                              <span className="text-xs font-semibold text-gray-800">
+                                {bucket.group}
+                              </span>
+                              {OFFERING_RULE_HINT[bucket.rule] && (
+                                <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                  {OFFERING_RULE_HINT[bucket.rule]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {bucket.offerings.map((o) => (
+                                <OfferingCard
+                                  key={o.id}
+                                  offering={o}
+                                  childIndex={i}
+                                  checked={child.offering_ids.has(o.id)}
+                                  selectedDays={child.offering_days[o.id]}
+                                  dayError={
+                                    offeringDayErrors[`${i}_${o.id}`] ?? false
+                                  }
+                                  onToggle={() => {
+                                    toggleOffering(i, o.id);
+                                    if (childOfferingErrors[i]) {
+                                      setChildOfferingErrors((prev) => {
+                                        const next = { ...prev };
+                                        delete next[i];
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                  onToggleDay={(day) =>
+                                    toggleOfferingDay(i, o.id, day)
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ),
+                      )}
                     </div>
                     {childOfferingErrors[i] && (
                       <p className="mt-1 text-xs text-[#FF3130]">
@@ -951,19 +1106,29 @@ export function EnrollmentForm({
               </div>
             )}
 
-            {schema?.fields
-              .filter((f) => f.applies_to_child)
-              .map((f) => (
-                <CustomFieldInput
-                  key={f.key}
-                  field={f}
-                  value={child.custom[f.key]}
-                  onChange={(v) =>
-                    updateChild(i, { custom: { ...child.custom, [f.key]: v } })
-                  }
-                  error={fieldErrors[`children_${i}_custom_${f.key}`]}
-                />
-              ))}
+            {(schema?.fields ?? [])
+              .filter(
+                (f) =>
+                  f.applies_to_child &&
+                  isFieldVisible(f, childConditionCtx(child)),
+              )
+              .map((f) =>
+                f.type === "information" ? (
+                  <InfoBlock key={f.key} field={f} />
+                ) : (
+                  <CustomFieldInput
+                    key={f.key}
+                    field={f}
+                    value={child.custom[f.key]}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        custom: { ...child.custom, [f.key]: v },
+                      })
+                    }
+                    error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                  />
+                ),
+              )}
           </div>
         ))}
       </section>
@@ -1109,6 +1274,114 @@ function seedRequiredOfferings(
     requiredIDs.forEach((id) => nextIDs.add(id));
     return { ...c, offering_ids: nextIDs };
   });
+}
+
+// ---- Care-offering selection groups + rules -----------------------------
+
+// Short German hint shown next to a group's header. Empty for "optional".
+const OFFERING_RULE_HINT: Record<string, string> = {
+  exactly_one: "Bitte genau eines wählen",
+  at_least_one: "Bitte mindestens eines wählen",
+  at_most_one: "Höchstens eines",
+  optional: "",
+};
+
+type OfferingBucket =
+  | { kind: "single"; offering: PublicCareOffering }
+  | {
+      kind: "group";
+      group: string;
+      rule: string;
+      offerings: PublicCareOffering[];
+    };
+
+// Buckets offerings for display: ungrouped offerings render individually (in
+// order); offerings sharing a non-empty selection_group collapse into one
+// bucket anchored at the group's first member. Mirrors the backend grouping
+// in services/enrollment/care_offering_rules.go.
+function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
+  const buckets: OfferingBucket[] = [];
+  const indexByGroup = new Map<string, number>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    if (group === "") {
+      buckets.push({ kind: "single", offering: o });
+      continue;
+    }
+    const existing = indexByGroup.get(group);
+    if (existing === undefined) {
+      indexByGroup.set(group, buckets.length);
+      buckets.push({
+        kind: "group",
+        group,
+        rule: o.selection_rule ?? "optional",
+        offerings: [o],
+      });
+    } else {
+      const bucket = buckets[existing];
+      if (bucket && bucket.kind === "group") bucket.offerings.push(o);
+    }
+  }
+  return buckets;
+}
+
+// offeringGroupRuleError validates one child's selection against every
+// selection_group's rule. Returns a German error message, or null when the
+// selection is valid. The backend re-checks the same in
+// validateOfferingGroupRules (defense-in-depth).
+function offeringGroupRuleError(
+  child: ChildDraft,
+  offerings: PublicCareOffering[],
+): string | null {
+  const ruleByGroup = new Map<string, string>();
+  for (const o of offerings) {
+    const group = o.selection_group?.trim() ?? "";
+    const rule = o.selection_rule ?? "optional";
+    if (group === "" || rule === "optional") continue;
+    ruleByGroup.set(group, rule);
+  }
+  for (const [group, rule] of ruleByGroup) {
+    const count = offerings.filter(
+      (o) =>
+        (o.selection_group?.trim() ?? "") === group &&
+        child.offering_ids.has(o.id),
+    ).length;
+    if (rule === "exactly_one" && count !== 1) {
+      return `Bitte bei „${group}“ genau ein Angebot wählen.`;
+    }
+    if (rule === "at_least_one" && count < 1) {
+      return `Bitte bei „${group}“ mindestens ein Angebot wählen.`;
+    }
+    if (rule === "at_most_one" && count > 1) {
+      return `Bitte bei „${group}“ höchstens ein Angebot wählen.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Read-only information block (FormFieldInfo). Renders an optional heading +
+ * plain-text body to parents; collects no answer. Newlines in the body are
+ * preserved via `whitespace-pre-line`. Content is plain text by design (no
+ * HTML/markdown), so it is safe to render directly.
+ */
+function InfoBlock({
+  field,
+}: {
+  readonly field: PublicFormSchema["fields"][number];
+}) {
+  return (
+    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+      {field.label && (
+        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
+      )}
+      {field.content && (
+        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
+          {field.content}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // OfferingCard renders one care-offering row. Required offerings show as a

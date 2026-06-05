@@ -228,3 +228,49 @@ func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingNotFound))
 }
+
+func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	groupOffering := func(name, rule string) *enrollmentModels.CareOffering {
+		o := &enrollmentModels.CareOffering{
+			PhaseID:        phase.ID,
+			Name:           name,
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+			AvailableDays:  []string{"mon"},
+			IsActive:       true,
+			SelectionGroup: "tag",
+			SelectionRule:  rule,
+		}
+		o.SetTenantID(1)
+		return o
+	}
+
+	first, err := svc.Create(ctx, groupOffering("A", enrollmentModels.SelectionRuleExactlyOne))
+	require.NoError(t, err)
+
+	// A non-optional rule differing from the group's existing rule is rejected.
+	_, err = svc.Create(ctx, groupOffering("B", enrollmentModels.SelectionRuleAtLeastOne))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+
+	// An optional (or empty-rule) sibling in a non-optional group is ALSO
+	// rejected — the submit path counts all members, so the group must be
+	// homogeneous.
+	_, err = svc.Create(ctx, groupOffering("C", enrollmentModels.SelectionRuleOptional))
+	require.Error(t, err, "optional sibling in an exactly_one group must be rejected")
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+
+	// A matching rule is accepted.
+	_, err = svc.Create(ctx, groupOffering("D", enrollmentModels.SelectionRuleExactlyOne))
+	require.NoError(t, err)
+
+	// Updating the first offering to a different rule is likewise rejected
+	// while siblings still hold the old rule.
+	first.SelectionRule = enrollmentModels.SelectionRuleAtMostOne
+	err = svc.Update(ctx, first)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
+}

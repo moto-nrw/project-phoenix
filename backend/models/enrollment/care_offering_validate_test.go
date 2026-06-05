@@ -172,3 +172,43 @@ func TestCareOffering_HasUnlimitedCapacity_SetIsBounded(t *testing.T) {
 	c.Capacity = &cap
 	assert.False(t, c.HasUnlimitedCapacity())
 }
+
+// ---- selection group + rule ----------------------------------------------
+
+func TestCareOffering_Validate_DefaultsRuleToOptional(t *testing.T) {
+	c := validCareOffering() // SelectionRule left empty
+	require.NoError(t, c.Validate())
+	assert.Equal(t, SelectionRuleOptional, c.SelectionRule)
+}
+
+func TestCareOffering_Validate_AcceptsGroupedRule(t *testing.T) {
+	c := validCareOffering()
+	c.SelectionGroup = "Betreuungsumfang"
+	c.SelectionRule = SelectionRuleExactlyOne
+	require.NoError(t, c.Validate())
+}
+
+func TestCareOffering_Validate_TrimsGroup(t *testing.T) {
+	c := validCareOffering()
+	c.SelectionGroup = "  Betreuungsumfang  "
+	c.SelectionRule = SelectionRuleAtLeastOne
+	require.NoError(t, c.Validate())
+	assert.Equal(t, "Betreuungsumfang", c.SelectionGroup)
+}
+
+func TestCareOffering_Validate_RejectsUnknownRule(t *testing.T) {
+	c := validCareOffering()
+	c.SelectionGroup = "G"
+	c.SelectionRule = "pick_three"
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "selection_rule")
+}
+
+func TestCareOffering_Validate_RuleRequiresGroup(t *testing.T) {
+	c := validCareOffering()
+	c.SelectionRule = SelectionRuleExactlyOne // no group
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "selection_group")
+}

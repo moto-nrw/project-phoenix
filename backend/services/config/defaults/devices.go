@@ -16,6 +16,11 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       10,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	config.Register(config.Definition{
@@ -29,6 +34,11 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       11,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	config.Register(config.Definition{
@@ -42,5 +52,10 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       12,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 }
