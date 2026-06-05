@@ -17,6 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
+	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // testStrongCredential is a valid credential for unit tests that meets strength requirements.
@@ -811,4 +813,725 @@ func TestAcceptInvitationReactivatesInactiveAccount(t *testing.T) {
 	require.NoError(t, findErr)
 	require.True(t, stored.Active, "stored account must reflect activation")
 	require.NotEqual(t, existingHash, *stored.PasswordHash)
+}
+
+func TestCreateInvitationRejectsInvalidRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     InvitationRequest
+		wantErr error
+	}{
+		{
+			name:    "empty email",
+			req:     InvitationRequest{Email: " ", RoleID: 1},
+			wantErr: fmt.Errorf("email is required"),
+		},
+		{
+			name:    "invalid email",
+			req:     InvitationRequest{Email: "not-an-email", RoleID: 1},
+			wantErr: fmt.Errorf("invalid email address"),
+		},
+		{
+			name:    "missing role id",
+			req:     InvitationRequest{Email: "person@example.com"},
+			wantErr: fmt.Errorf("role id is required"),
+		},
+		{
+			name:    "negative created by",
+			req:     InvitationRequest{Email: "person@example.com", RoleID: 1, CreatedBy: -10},
+			wantErr: fmt.Errorf("created_by is invalid"),
+		},
+		{
+			name:    "negative tenant id",
+			req:     InvitationRequest{Email: "person@example.com", RoleID: 1, TenantID: -10},
+			wantErr: fmt.Errorf("tenant id is invalid"),
+		},
+		{
+			name:    "unknown role",
+			req:     InvitationRequest{Email: "person@example.com", RoleID: 404},
+			wantErr: fmt.Errorf("role not found"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+			t.Cleanup(cleanup)
+
+			_, err := service.CreateInvitation(context.Background(), tt.req)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr.Error())
+		})
+	}
+}
+
+func TestCreateInvitationRejectsExistingAccountWithoutTargetTenant(t *testing.T) {
+	service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	accounts.storeAccount(&authModel.Account{
+		Model:  baseModel.Model{ID: 101},
+		Email:  "existing@example.com",
+		Active: true,
+	})
+
+	_, err := service.CreateInvitation(context.Background(), InvitationRequest{
+		Email:  "existing@example.com",
+		RoleID: 1,
+	})
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrEmailAlreadyExists), "expected ErrEmailAlreadyExists, got %v", err)
+}
+
+func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
+	invitations := newStubInvitationTokenRepository()
+	accounts := newStubAccountRepository(&authModel.Account{
+		Model:  baseModel.Model{ID: 102},
+		Email:  "existing@example.com",
+		Active: true,
+	})
+	accountTenants := newStubAccountTenantRepository()
+	require.NoError(t, accountTenants.Create(context.Background(), &authModel.AccountTenant{
+		AccountID: 102,
+		TenantID:  77,
+		Status:    authModel.AccountTenantStatusActive,
+	}))
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:    invitations,
+		AccountRepo:       accounts,
+		AccountTenantRepo: accountTenants,
+		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"}),
+		AccountRoleRepo:   newStubAccountRoleRepository(),
+		PersonRepo:        newStubPersonRepository(),
+		StaffRepo:         newStubStaffRepository(),
+		TeacherRepo:       newStubTeacherRepository(),
+		SchoolRepo:        &stubSchoolRepository{},
+		FrontendURL:       "http://localhost:3000",
+		DefaultFrom:       newDefaultFromEmail(),
+		InvitationExpiry:  48 * time.Hour,
+	})
+
+	_, err := service.CreateInvitation(context.Background(), InvitationRequest{
+		Email:    "existing@example.com",
+		RoleID:   1,
+		TenantID: 77,
+	})
+
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrAccountAlreadyHasTenantAccess),
+		"expected ErrAccountAlreadyHasTenantAccess, got %v", err)
+}
+
+func TestAcceptInvitationUsesInvitationNameFallback(t *testing.T) {
+	service, invitations, _, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+
+	ctx := context.Background()
+	token := &authModel.InvitationToken{
+		Email:     "fallback@example.com",
+		Token:     "fallback-name-token",
+		RoleID:    2,
+		FirstName: strPtr("Invite"),
+		LastName:  strPtr("Name"),
+		ExpiresAt: time.Now().Add(10 * time.Hour),
+	}
+	token.SetTenantID(5)
+	require.NoError(t, invitations.Create(ctx, token))
+
+	expectAdminTx(mock)
+	account, err := service.AcceptInvitation(ctx, token.Token, UserRegistrationData{
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Len(t, persons.people, 1)
+	for _, person := range persons.people {
+		require.Equal(t, "Invite", person.FirstName)
+		require.Equal(t, "Name", person.LastName)
+	}
+}
+
+func TestAcceptInvitationRejectsPasswordMismatchAndMissingNames(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    UserRegistrationData
+		wantErr error
+	}{
+		{
+			name: "password mismatch",
+			data: UserRegistrationData{
+				FirstName:       "Jane",
+				LastName:        "Doe",
+				Password:        testStrongCredential,
+				ConfirmPassword: testStrongCredential + "x",
+			},
+			wantErr: ErrPasswordMismatch,
+		},
+		{
+			name: "missing names",
+			data: UserRegistrationData{
+				Password:        testStrongCredential,
+				ConfirmPassword: testStrongCredential,
+			},
+			wantErr: ErrInvitationNameRequired,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
+			t.Cleanup(cleanup)
+
+			token := &authModel.InvitationToken{
+				Email:     tt.name + "@example.com",
+				Token:     tt.name + "-token",
+				RoleID:    2,
+				ExpiresAt: time.Now().Add(10 * time.Hour),
+			}
+			require.NoError(t, invitations.Create(context.Background(), token))
+
+			expectAdminTxRollback(mock)
+			_, err := service.AcceptInvitation(context.Background(), token.Token, tt.data)
+			require.Error(t, err)
+			require.True(t, errors.Is(err, tt.wantErr), "expected %v, got %v", tt.wantErr, err)
+			require.False(t, token.IsUsed())
+		})
+	}
+}
+
+func TestInvitationManagementErrorAndEdgePaths(t *testing.T) {
+	t.Run("list wraps repository error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		svc := service.(*invitationService)
+		svc.invitationRepo = &failingInvitationTokenRepository{stubInvitationTokenRepository: invitations, listErr: errors.New("list failed")}
+
+		_, err := svc.ListPendingInvitations(context.Background())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "list failed")
+	})
+
+	t.Run("cleanup deletes expired invitations", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		require.NoError(t, invitations.Create(context.Background(), &authModel.InvitationToken{
+			Email:     "expired@example.com",
+			Token:     "cleanup-expired",
+			RoleID:    1,
+			ExpiresAt: time.Now().Add(-time.Hour),
+		}))
+
+		count, err := service.CleanupExpiredInvitations(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 1, count)
+	})
+
+	t.Run("cleanup wraps repository error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		svc := service.(*invitationService)
+		svc.invitationRepo = &failingInvitationTokenRepository{stubInvitationTokenRepository: invitations, deleteExpiredErr: errors.New("delete failed")}
+
+		_, err := svc.CleanupExpiredInvitations(context.Background())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "delete failed")
+	})
+
+	t.Run("invalidate tenant wraps repository error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		svc := service.(*invitationService)
+		svc.invitationRepo = &failingInvitationTokenRepository{stubInvitationTokenRepository: invitations, invalidateTenantErr: errors.New("invalidate failed")}
+
+		_, err := svc.InvalidatePendingInvitationsByTenantID(context.Background(), 42)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalidate failed")
+	})
+}
+
+func TestResendInvitationErrorPaths(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		err := service.ResendInvitation(context.Background(), 404, 99)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrInvitationNotFound), "expected ErrInvitationNotFound, got %v", err)
+	})
+
+	t.Run("used", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		now := time.Now()
+		token := &authModel.InvitationToken{
+			Email:     "used-resend@example.com",
+			Token:     "used-resend-token",
+			RoleID:    1,
+			ExpiresAt: time.Now().Add(time.Hour),
+			UsedAt:    &now,
+		}
+		require.NoError(t, invitations.Create(context.Background(), token))
+
+		err := service.ResendInvitation(context.Background(), token.ID, 99)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrInvitationUsed), "expected ErrInvitationUsed, got %v", err)
+	})
+
+	t.Run("role lookup error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		token := &authModel.InvitationToken{
+			Email:     "missing-role@example.com",
+			Token:     "missing-role-token",
+			RoleID:    404,
+			ExpiresAt: time.Now().Add(time.Hour),
+		}
+		require.NoError(t, invitations.Create(context.Background(), token))
+
+		err := service.ResendInvitation(context.Background(), token.ID, 99)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "role not found")
+	})
+
+	t.Run("update error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		token := &authModel.InvitationToken{
+			Email:     "update-error@example.com",
+			Token:     "update-error-token",
+			RoleID:    1,
+			ExpiresAt: time.Now().Add(time.Hour),
+		}
+		require.NoError(t, invitations.Create(context.Background(), token))
+		svc := service.(*invitationService)
+		svc.invitationRepo = &failingInvitationTokenRepository{stubInvitationTokenRepository: invitations, updateErr: errors.New("update failed")}
+
+		err := svc.ResendInvitation(context.Background(), token.ID, 99)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "update failed")
+	})
+}
+
+func TestRevokeInvitationErrorPaths(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+
+		err := service.RevokeInvitation(context.Background(), 404, 99)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrInvitationNotFound), "expected ErrInvitationNotFound, got %v", err)
+	})
+
+	t.Run("used", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		now := time.Now()
+		token := &authModel.InvitationToken{
+			Email:     "used-revoke@example.com",
+			Token:     "used-revoke-token",
+			RoleID:    1,
+			ExpiresAt: time.Now().Add(time.Hour),
+			UsedAt:    &now,
+		}
+		require.NoError(t, invitations.Create(context.Background(), token))
+
+		err := service.RevokeInvitation(context.Background(), token.ID, 99)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ErrInvitationUsed), "expected ErrInvitationUsed, got %v", err)
+	})
+
+	t.Run("mark used error", func(t *testing.T) {
+		service, invitations, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		token := &authModel.InvitationToken{
+			Email:     "mark-error@example.com",
+			Token:     "mark-error-token",
+			RoleID:    1,
+			ExpiresAt: time.Now().Add(time.Hour),
+		}
+		require.NoError(t, invitations.Create(context.Background(), token))
+		svc := service.(*invitationService)
+		svc.invitationRepo = &failingInvitationTokenRepository{stubInvitationTokenRepository: invitations, markErr: errors.New("mark failed")}
+
+		err := svc.RevokeInvitation(context.Background(), token.ID, 99)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "mark failed")
+	})
+}
+
+func TestInvitationHelpersCoverFallbacks(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+	svc := service.(*invitationService)
+
+	require.Equal(t, "", svc.lookupSchoolName(context.Background(), 0))
+	require.Equal(t, "", svc.lookupSchoolName(context.Background(), 55))
+	require.Equal(t, "", sanitizeEmailError(nil))
+	require.Equal(t, "smtp down", sanitizeEmailError(errors.New(" smtp down ")))
+
+	dbErr := &baseModel.DatabaseError{Err: sql.ErrNoRows}
+	require.True(t, isNotFoundError(dbErr))
+	require.False(t, isNotFoundError(errors.New("other")))
+
+	invitation := svc.buildInvitationToken("name@example.com", InvitationRequest{
+		Email:     "name@example.com",
+		RoleID:    1,
+		FirstName: strPtr(" Ada "),
+		LastName:  strPtr(" Lovelace "),
+		Position:  strPtr(" Leitung "),
+	})
+	require.Equal(t, "Ada", *invitation.FirstName)
+	require.Equal(t, "Lovelace", *invitation.LastName)
+	require.Equal(t, "Leitung", *invitation.Position)
+
+	var tx bun.Tx
+	ctxWithTx := baseModel.ContextWithTx(context.Background(), &tx)
+	called := false
+	require.NoError(t, svc.withAdminTx(ctxWithTx, func(context.Context) error {
+		called = true
+		return nil
+	}))
+	require.True(t, called)
+
+	tenantCtx := tenant.WithTenantID(context.Background(), 123)
+	require.Same(t, tenantCtx, scopedInvitationTenantContext(tenantCtx, 123))
+
+	svc.dispatcher = nil
+	svc.sendInvitationEmail(&authModel.InvitationToken{
+		Model: baseModel.Model{ID: 99},
+		Email: "skip-email@example.com",
+		Token: "skip-email-token",
+	}, "admin", "")
+}
+
+func TestInvitationLookupErrorBranches(t *testing.T) {
+	service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+	svc := service.(*invitationService)
+
+	_, err := svc.fetchValidInvitation(context.Background(), " ")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrInvitationNotFound), "expected ErrInvitationNotFound, got %v", err)
+
+	_, err = svc.fetchValidInvitation(context.Background(), "missing-token")
+	require.Error(t, err)
+	require.True(t, errors.Is(err, ErrInvitationNotFound), "expected ErrInvitationNotFound, got %v", err)
+
+	svc.roleRepo = &failingRoleRepository{
+		stubRoleRepository: newStubRoleRepository(),
+		findErr:            errors.New("role lookup failed"),
+	}
+	_, err = svc.lookupRoleName(context.Background(), 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "role lookup failed")
+
+	err = svc.assignCaregiverRoleIfRequested(context.Background(), 1, &authModel.InvitationToken{
+		RoleID:           1,
+		CaregiverEnabled: true,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "role lookup failed")
+
+	svc.roleRepo = &failingRoleRepository{
+		stubRoleRepository: newStubRoleRepository(&authModel.Role{
+			Model: baseModel.Model{ID: 2},
+			Name:  "admin",
+		}),
+		listErr: errors.New("role list failed"),
+	}
+	err = svc.assignCaregiverRoleIfRequested(context.Background(), 1, &authModel.InvitationToken{
+		RoleID:           2,
+		CaregiverEnabled: true,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "role list failed")
+}
+
+func TestEnsureInvitationTargetAllowedWrapsTenantLookupError(t *testing.T) {
+	service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+	t.Cleanup(cleanup)
+	accounts.storeAccount(&authModel.Account{
+		Model:  baseModel.Model{ID: 201},
+		Email:  "tenant-error@example.com",
+		Active: true,
+	})
+	svc := service.(*invitationService)
+	svc.accountTenantRepo = &failingAccountTenantRepository{
+		stubAccountTenantRepository: newStubAccountTenantRepository(),
+		existsErr:                   errors.New("tenant lookup failed"),
+	}
+
+	err := svc.ensureInvitationTargetAllowed(context.Background(), "tenant-error@example.com", InvitationRequest{
+		TenantID: 88,
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tenant lookup failed")
+}
+
+func TestCreateOrUpdateAccountErrorPaths(t *testing.T) {
+	t.Run("create account error", func(t *testing.T) {
+		service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		accounts.failCreate = true
+		svc := service.(*invitationService)
+
+		_, err := svc.createOrUpdateAccount(context.Background(), "create-error@example.com", "hash", nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "account create failed")
+	})
+
+	t.Run("update password error", func(t *testing.T) {
+		service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		svc := service.(*invitationService)
+
+		_, err := svc.createOrUpdateAccount(context.Background(), "missing@example.com", "hash", &authModel.Account{
+			Model:  baseModel.Model{ID: 202},
+			Email:  "missing@example.com",
+			Active: true,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "update account password")
+	})
+
+	t.Run("reactivate error", func(t *testing.T) {
+		service, _, accounts, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+		t.Cleanup(cleanup)
+		svc := service.(*invitationService)
+
+		_, err := svc.createOrUpdateAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
+			Model:  baseModel.Model{ID: 203},
+			Email:  "inactive@example.com",
+			Active: false,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "update account password")
+
+		accounts.storeAccount(&authModel.Account{
+			Model:  baseModel.Model{ID: 204},
+			Email:  "inactive@example.com",
+			Active: false,
+		})
+		svc.accountRepo = &failingSetActiveAccountRepository{stubAccountRepository: accounts}
+		_, err = svc.createOrUpdateAccount(context.Background(), "inactive@example.com", "hash", &authModel.Account{
+			Model:  baseModel.Model{ID: 204},
+			Email:  "inactive@example.com",
+			Active: false,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "reactivate account on invitation")
+	})
+}
+
+func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*invitationService, *authModel.InvitationToken)
+		wantErr string
+	}{
+		{
+			name: "account tenant mapping error",
+			mutate: func(svc *invitationService, _ *authModel.InvitationToken) {
+				svc.accountTenantRepo = &failingAccountTenantRepository{
+					stubAccountTenantRepository: newStubAccountTenantRepository(),
+					createErr:                   errors.New("mapping failed"),
+				}
+			},
+			wantErr: "mapping failed",
+		},
+		{
+			name: "role assignment error",
+			mutate: func(svc *invitationService, _ *authModel.InvitationToken) {
+				svc.accountRoleRepo = failingAccountRoleRepository{}
+			},
+			wantErr: "role assignment failed",
+		},
+		{
+			name: "caregiver role error",
+			mutate: func(_ *invitationService, invitation *authModel.InvitationToken) {
+				invitation.RoleID = 1
+				invitation.CaregiverEnabled = true
+			},
+			wantErr: "user role not found",
+		},
+		{
+			name: "staff creation error",
+			mutate: func(svc *invitationService, invitation *authModel.InvitationToken) {
+				invitation.RoleID = 10
+				svc.roleRepo = newStubRoleRepository(&authModel.Role{
+					Model:    baseModel.Model{ID: 10},
+					Name:     "admin",
+					IsSystem: true,
+				})
+				svc.staffRepo = failingStaffRepository{stubStaffRepository: newStubStaffRepository()}
+			},
+			wantErr: "staff failed",
+		},
+		{
+			name: "teacher creation error",
+			mutate: func(svc *invitationService, invitation *authModel.InvitationToken) {
+				invitation.RoleID = 11
+				svc.roleRepo = newStubRoleRepository(&authModel.Role{
+					Model:    baseModel.Model{ID: 11},
+					Name:     "user",
+					IsSystem: true,
+				})
+				svc.teacherRepo = failingTeacherRepository{stubTeacherRepository: newStubTeacherRepository()}
+			},
+			wantErr: "teacher failed",
+		},
+		{
+			name: "mark invitation used error",
+			mutate: func(svc *invitationService, _ *authModel.InvitationToken) {
+				svc.invitationRepo = &failingInvitationTokenRepository{
+					stubInvitationTokenRepository: newStubInvitationTokenRepository(),
+					markErr:                       errors.New("mark failed"),
+				}
+			},
+			wantErr: "mark failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, _, _, _, _, _, _, _, cleanup := newInvitationTestEnv(t)
+			t.Cleanup(cleanup)
+			svc := service.(*invitationService)
+			invitation := &authModel.InvitationToken{
+				Model:  baseModel.Model{ID: 301},
+				Email:  tt.name + "@example.com",
+				Token:  tt.name + "-token",
+				RoleID: 1,
+			}
+			invitation.SetTenantID(55)
+			tt.mutate(svc, invitation)
+
+			_, err := svc.createAccountWithRole(context.Background(), invitation, "hash", "First", "Last", nil)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+type failingInvitationTokenRepository struct {
+	*stubInvitationTokenRepository
+
+	listErr             error
+	deleteExpiredErr    error
+	invalidateTenantErr error
+	updateErr           error
+	markErr             error
+}
+
+func (r *failingInvitationTokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*authModel.InvitationToken, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.stubInvitationTokenRepository.List(ctx, filters)
+}
+
+func (r *failingInvitationTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
+	if r.deleteExpiredErr != nil {
+		return 0, r.deleteExpiredErr
+	}
+	return r.stubInvitationTokenRepository.DeleteExpired(ctx, now)
+}
+
+func (r *failingInvitationTokenRepository) InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	if r.invalidateTenantErr != nil {
+		return 0, r.invalidateTenantErr
+	}
+	return r.stubInvitationTokenRepository.InvalidateByTenantID(ctx, tenantID)
+}
+
+func (r *failingInvitationTokenRepository) Update(ctx context.Context, token *authModel.InvitationToken) error {
+	if r.updateErr != nil {
+		return r.updateErr
+	}
+	return r.stubInvitationTokenRepository.Update(ctx, token)
+}
+
+func (r *failingInvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {
+	if r.markErr != nil {
+		return r.markErr
+	}
+	return r.stubInvitationTokenRepository.MarkAsUsed(ctx, id)
+}
+
+type failingAccountTenantRepository struct {
+	*stubAccountTenantRepository
+
+	createErr error
+	existsErr error
+}
+
+func (r *failingAccountTenantRepository) Create(ctx context.Context, accountTenant *authModel.AccountTenant) error {
+	if r.createErr != nil {
+		return r.createErr
+	}
+	return r.stubAccountTenantRepository.Create(ctx, accountTenant)
+}
+
+func (r *failingAccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	if r.existsErr != nil {
+		return false, r.existsErr
+	}
+	return r.stubAccountTenantRepository.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+}
+
+type failingSetActiveAccountRepository struct {
+	*stubAccountRepository
+}
+
+func (r *failingSetActiveAccountRepository) SetActive(context.Context, int64, bool) error {
+	return errors.New("set active failed")
+}
+
+type failingAccountRoleRepository struct {
+	noopAccountRoleRepository
+}
+
+func (failingAccountRoleRepository) Create(context.Context, *authModel.AccountRole) error {
+	return errors.New("role assignment failed")
+}
+
+type failingStaffRepository struct {
+	*stubStaffRepository
+}
+
+func (failingStaffRepository) Create(context.Context, *userModel.Staff) error {
+	return errors.New("staff failed")
+}
+
+type failingTeacherRepository struct {
+	*stubTeacherRepository
+}
+
+func (failingTeacherRepository) Create(context.Context, *userModel.Teacher) error {
+	return errors.New("teacher failed")
+}
+
+type failingRoleRepository struct {
+	*stubRoleRepository
+
+	findErr error
+	listErr error
+}
+
+func (r *failingRoleRepository) FindByID(ctx context.Context, id interface{}) (*authModel.Role, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.stubRoleRepository.FindByID(ctx, id)
+}
+
+func (r *failingRoleRepository) List(ctx context.Context, filters map[string]interface{}) ([]*authModel.Role, error) {
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	return r.stubRoleRepository.List(ctx, filters)
 }
