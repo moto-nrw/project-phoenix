@@ -515,6 +515,86 @@ func TestShouldCreateTeacherForRole(t *testing.T) {
 	require.False(t, shouldCreateTeacherForRole("admin"))
 }
 
+func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	invitations := newStubInvitationTokenRepository()
+	accounts := newStubAccountRepository()
+	roles := newStubRoleRepository(
+		&authModel.Role{Model: baseModel.Model{ID: 21}, Name: "admin", IsSystem: true},
+		&authModel.Role{Model: baseModel.Model{ID: 22}, Name: "user", IsSystem: true},
+	)
+	accountRoles := newStubAccountRoleRepository()
+	persons := newStubPersonRepository()
+	staff := newStubStaffRepository()
+	teachers := newStubTeacherRepository()
+
+	service := NewInvitationService(InvitationServiceConfig{
+		InvitationRepo:    invitations,
+		AccountRepo:       accounts,
+		AccountTenantRepo: newStubAccountTenantRepository(),
+		RoleRepo:          roles,
+		AccountRoleRepo:   accountRoles,
+		PersonRepo:        persons,
+		StaffRepo:         staff,
+		TeacherRepo:       teachers,
+		SchoolRepo:        &stubSchoolRepository{},
+		FrontendURL:       "http://localhost:3000",
+		DefaultFrom:       newDefaultFromEmail(),
+		InvitationExpiry:  48 * time.Hour,
+		DB:                bunDB,
+	})
+
+	position := "OGS-Büro"
+	token := &authModel.InvitationToken{
+		Email:            "admin-caregiver@example.com",
+		Token:            "admin-caregiver-token",
+		RoleID:           21,
+		CreatedBy:        nullableCreatedBy(31),
+		ExpiresAt:        time.Now().Add(10 * time.Hour),
+		Position:         &position,
+		CaregiverEnabled: true,
+	}
+	token.SetTenantID(42)
+	require.NoError(t, invitations.Create(context.Background(), token))
+
+	expectAdminTx(mock)
+	account, err := service.AcceptInvitation(context.Background(), token.Token, UserRegistrationData{
+		FirstName:       "Ada",
+		LastName:        "Lovelace",
+		Password:        testStrongCredential,
+		ConfirmPassword: testStrongCredential,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, account)
+
+	assignments := accountRoles.Assignments()
+	require.Len(t, assignments, 2)
+	require.Equal(t, int64(21), assignments[0].RoleID)
+	require.Equal(t, int64(22), assignments[1].RoleID)
+	require.Equal(t, int64(42), assignments[0].TenantID)
+	require.Equal(t, int64(42), assignments[1].TenantID)
+
+	createdStaff := staff.All()
+	require.Len(t, createdStaff, 1)
+	require.Equal(t, int64(42), createdStaff[0].TenantID)
+
+	createdTeachers := teachers.All()
+	require.Len(t, createdTeachers, 1)
+	require.Equal(t, createdStaff[0].ID, createdTeachers[0].StaffID)
+	require.Equal(t, int64(42), createdTeachers[0].TenantID)
+	require.Equal(t, position, createdTeachers[0].Role)
+}
+
 func TestAcceptInvitationSecondAttemptFails(t *testing.T) {
 	service, invitations, _, _, _, _, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)

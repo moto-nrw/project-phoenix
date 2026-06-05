@@ -244,10 +244,11 @@ func (s *invitationService) invalidatePreviousInvitations(ctx context.Context, e
 // buildInvitationToken constructs the invitation token with optional fields.
 func (s *invitationService) buildInvitationToken(email string, req InvitationRequest) *authModels.InvitationToken {
 	invitation := &authModels.InvitationToken{
-		Email:     email,
-		Token:     uuid.Must(uuid.NewV4()).String(),
-		RoleID:    req.RoleID,
-		ExpiresAt: time.Now().Add(s.invitationExpiry),
+		Email:            email,
+		Token:            uuid.Must(uuid.NewV4()).String(),
+		RoleID:           req.RoleID,
+		ExpiresAt:        time.Now().Add(s.invitationExpiry),
+		CaregiverEnabled: req.CaregiverEnabled,
 	}
 	if req.CreatedBy > 0 {
 		invitation.CreatedBy = nullableCreatedBy(req.CreatedBy)
@@ -312,12 +313,13 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 		}
 
 		result = &InvitationValidationResult{
-			Email:     invitation.Email,
-			RoleName:  roleName,
-			FirstName: invitation.FirstName,
-			LastName:  invitation.LastName,
-			Position:  invitation.Position,
-			ExpiresAt: invitation.ExpiresAt,
+			Email:            invitation.Email,
+			RoleName:         roleName,
+			FirstName:        invitation.FirstName,
+			LastName:         invitation.LastName,
+			Position:         invitation.Position,
+			CaregiverEnabled: invitation.CaregiverEnabled,
+			ExpiresAt:        invitation.ExpiresAt,
 		}
 		return nil
 	})
@@ -475,6 +477,10 @@ func (s *invitationService) createAccountWithRole(
 		return nil, err
 	}
 
+	if err := s.assignCaregiverRoleIfRequested(ctx, account.ID, invitation); err != nil {
+		return nil, err
+	}
+
 	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
 		return nil, err
 	}
@@ -625,6 +631,33 @@ func (s *invitationService) createAccountTenant(ctx context.Context, accountID, 
 	return nil
 }
 
+func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, accountID int64, invitation *authModels.InvitationToken) error {
+	if !invitation.CaregiverEnabled {
+		return nil
+	}
+
+	role, err := s.roleRepo.FindByID(ctx, invitation.RoleID)
+	if err != nil {
+		return &AuthError{Op: "assign caregiver role", Err: err}
+	}
+	if role == nil {
+		return &AuthError{Op: "assign caregiver role", Err: fmt.Errorf("role not found")}
+	}
+	if shouldCreateTeacherForRole(role.Name) {
+		return nil
+	}
+
+	userRole, err := s.roleRepo.FindByName(ctx, "user")
+	if err != nil {
+		return &AuthError{Op: "assign caregiver role", Err: err}
+	}
+	if userRole == nil {
+		return &AuthError{Op: "assign caregiver role", Err: fmt.Errorf("user role not found")}
+	}
+
+	return s.assignRole(ctx, accountID, userRole.ID, invitation.TenantID)
+}
+
 // createStaffAndTeacherIfSystemRole creates staff and teacher records for system roles.
 func (s *invitationService) createStaffAndTeacherIfSystemRole(
 	ctx context.Context,
@@ -642,7 +675,7 @@ func (s *invitationService) createStaffAndTeacherIfSystemRole(
 		return &AuthError{Op: "create staff", Err: err}
 	}
 
-	if !shouldCreateTeacherForRole(role.Name) {
+	if !shouldCreateTeacherForRole(role.Name) && !invitation.CaregiverEnabled {
 		return nil
 	}
 

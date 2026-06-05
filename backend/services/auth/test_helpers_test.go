@@ -807,6 +807,15 @@ func (r *stubRoleRepository) FindByID(_ context.Context, id interface{}) (*authM
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubRoleRepository) FindByName(_ context.Context, name string) (*authModel.Role, error) {
+	for _, role := range r.roles {
+		if strings.EqualFold(role.Name, name) {
+			return role, nil
+		}
+	}
+	return nil, sql.ErrNoRows
+}
+
 // noopAccountRoleRepository provides default panic implementations.
 type noopAccountRoleRepository struct{}
 
@@ -1217,6 +1226,16 @@ func (r *stubStaffRepository) Create(_ context.Context, staff *userModel.Staff) 
 	return nil
 }
 
+func (r *stubStaffRepository) All() []*userModel.Staff {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*userModel.Staff, 0, len(r.staff))
+	for _, staff := range r.staff {
+		out = append(out, staff)
+	}
+	return out
+}
+
 func (r *stubStaffRepository) FindByID(context.Context, interface{}) (*userModel.Staff, error) {
 	panic("FindByID not implemented")
 }
@@ -1283,6 +1302,16 @@ func (r *stubTeacherRepository) Create(_ context.Context, teacher *userModel.Tea
 	}
 	r.teachers[teacher.ID] = teacher
 	return nil
+}
+
+func (r *stubTeacherRepository) All() []*userModel.Teacher {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*userModel.Teacher, 0, len(r.teachers))
+	for _, teacher := range r.teachers {
+		out = append(out, teacher)
+	}
+	return out
 }
 
 func (r *stubTeacherRepository) FindByID(context.Context, interface{}) (*userModel.Teacher, error) {
