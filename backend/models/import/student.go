@@ -34,6 +34,9 @@ type StudentImportRow struct {
 	// Pickup schedule (weekly recurring)
 	PickupSchedules []PickupScheduleImportData `json:"pickup_schedules,omitempty"`
 
+	// Arrival schedule (weekly recurring)
+	ArrivalSchedules []ArrivalScheduleImportData `json:"arrival_schedules,omitempty"`
+
 	// Privacy consent
 	PrivacyAccepted   bool `json:"privacy_accepted"`
 	DataRetentionDays int  `json:"data_retention_days"` // 1-31, default 30
@@ -47,6 +50,13 @@ type PickupScheduleImportData struct {
 	Weekday    int    `json:"weekday"`         // 1-5 (Mon-Fri)
 	PickupTime string `json:"pickup_time"`     // HH:MM format
 	Notes      string `json:"notes,omitempty"` // Day-specific notes
+}
+
+// ArrivalScheduleImportData represents a weekly arrival schedule entry from CSV
+type ArrivalScheduleImportData struct {
+	Weekday         int    `json:"weekday"`          // 1-5 (Mon-Fri)
+	ExpectedArrival string `json:"expected_arrival"` // HH:MM format
+	Notes           string `json:"notes,omitempty"`  // Day-specific notes
 }
 
 // PhoneImportData represents a phone number from CSV import
