@@ -32,6 +32,7 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
+import { ParentNotesCard } from "~/components/students/parent-notes-card";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -281,6 +282,7 @@ export default function StudentDetailPage() {
   // Sick toggle state
   const [showConfirmSick, setShowConfirmSick] = useState(false);
   const [sickLoading, setSickLoading] = useState(false);
+  const [sickReason, setSickReason] = useState("");
   const sickConfirmText = sickLoading
     ? "Wird gespeichert..."
     : student?.sick
@@ -339,6 +341,18 @@ export default function StudentDetailPage() {
   const ensureStatusDayRange = useCallback((from: string, to: string) => {
     setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
   }, []);
+  // Reason attached to today's sick day (set by staff or by a parent via the
+  // portal), shown next to the absence badge in the header.
+  const currentSickReason = useMemo(() => {
+    if (!student?.sick) return undefined;
+    const now = new Date();
+    const todayIso = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, "0")}-${`${now.getDate()}`.padStart(2, "0")}`;
+    const row = statusDays.find(
+      (s) =>
+        s.status === "sick" && !s.cleared_at && s.date === todayIso && s.note,
+    );
+    return row?.note ?? undefined;
+  }, [student?.sick, statusDays]);
   // Load active groups when check-in modal opens
   useEffect(() => {
     if (!showConfirmCheckin) {
@@ -555,12 +569,18 @@ export default function StudentDetailPage() {
     setSickLoading(true);
     try {
       const newSickStatus = !(student.sick ?? false);
+      const trimmedReason = sickReason.trim();
       await studentService.updateStudent(studentId, {
         sick: newSickStatus,
+        // Only send a reason when marking sick; clearing carries none.
+        ...(newSickStatus && trimmedReason
+          ? { sick_reason: trimmedReason }
+          : {}),
       });
       refreshData();
       await mutateStatusDays();
       setShowConfirmSick(false);
+      setSickReason("");
       toast.success(
         newSickStatus
           ? `${student.name} wurde krankgemeldet`
@@ -663,7 +683,10 @@ export default function StudentDetailPage() {
     }
   };
 
-  const handleCreatePlannedStatus = async (dates: string[]) => {
+  const handleCreatePlannedStatus = async (
+    dates: string[],
+    reason?: string,
+  ) => {
     if (!plannedStatusModal || !student) return;
 
     setPlannedStatusLoading(true);
@@ -672,6 +695,7 @@ export default function StudentDetailPage() {
         studentId,
         plannedStatusModal,
         dates,
+        reason,
       );
       refreshData();
       setStatusDayRange((current) => extendStatusDayRange(current, dates));
@@ -824,6 +848,7 @@ export default function StudentDetailPage() {
           isArrivalException={todayArrival.isException}
           todayArrivalNote={todayArrival.note}
           isArrivalAbsent={todayArrival.isAbsent}
+          sickReason={currentSickReason}
         />
 
         {hasFullAccess ? (
@@ -916,7 +941,10 @@ export default function StudentDetailPage() {
       {/* Sick Report Confirmation Modal */}
       <ConfirmationModal
         isOpen={showConfirmSick}
-        onClose={() => setShowConfirmSick(false)}
+        onClose={() => {
+          setShowConfirmSick(false);
+          setSickReason("");
+        }}
         onConfirm={handleConfirmSickToggle}
         title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
         confirmText={sickConfirmText}
@@ -937,6 +965,25 @@ export default function StudentDetailPage() {
             </>
           )}
         </p>
+        {!student.sick && (
+          <div className="mt-4">
+            <label
+              htmlFor="sick-reason"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Grund (optional)
+            </label>
+            <textarea
+              id="sick-reason"
+              value={sickReason}
+              onChange={(e) => setSickReason(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              placeholder="z. B. Fieber, beim Arzt"
+              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+            />
+          </div>
+        )}
       </ConfirmationModal>
 
       {/* Excused Confirmation Modal */}
@@ -1195,6 +1242,11 @@ function FullAccessView({
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
+          {studentId && (
+            <div className="mt-4">
+              <ParentNotesCard studentId={studentId} />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent

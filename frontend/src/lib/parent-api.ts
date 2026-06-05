@@ -65,6 +65,27 @@ export interface EnrollmentRequest {
   readonly children: EnrollmentRequestChild[];
 }
 
+export type StudentStatusKind = "sick" | "excused";
+
+// One reported sick/excused day. Mirrors api/parent.StatusDayResponse.
+export interface StatusDay {
+  readonly id: string;
+  readonly student_id: string;
+  readonly date: string; // YYYY-MM-DD
+  readonly status: StudentStatusKind;
+  readonly reported_at: string; // ISO timestamp
+  readonly source: string;
+  readonly note?: string;
+}
+
+// One parent note. Mirrors api/parent.ParentNoteResponse, newest-first.
+export interface ParentNote {
+  readonly id: string;
+  readonly student_id: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
 interface ApiEnvelope<T> {
   readonly status?: string;
   readonly data?: T;
@@ -98,6 +119,39 @@ async function getJson<T>(url: string): Promise<T> {
 
   const json = (await response.json()) as ApiEnvelope<T>;
   // Backend wraps in { status, data }; some routes return data directly.
+  if (json && typeof json === "object" && "data" in json) {
+    return json.data as T;
+  }
+  return json as unknown as T;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const errBody = (await response.json()) as { error?: string };
+      if (errBody.error) message = errBody.error;
+    } catch {
+      // Body was not JSON, keep the generic message.
+    }
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.location.assign("/parents/login");
+    }
+    logger.error("parent_api_request_failed", {
+      url,
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
+
+  const json = (await response.json()) as ApiEnvelope<T>;
   if (json && typeof json === "object" && "data" in json) {
     return json.data as T;
   }
@@ -201,4 +255,49 @@ export async function submitParentEnrollment(
     request_id: json.request_id ?? "",
     status_url: json.status_url ?? "",
   };
+}
+
+/**
+ * Reports the child sick for one or more dates (YYYY-MM-DD). Returns the
+ * active sick days in the submitted range. The backend verifies the
+ * caller is a guardian of the child and that the school has the feature
+ * enabled; a disabled school surfaces as a thrown error.
+ */
+export async function submitSickNote(
+  studentId: string,
+  dates: string[],
+  reason?: string,
+): Promise<StatusDay[]> {
+  return postJson<StatusDay[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
+    { dates, reason: reason ?? "" },
+  );
+}
+
+/**
+ * Fetches the child's active sick days (today .. +2 months by default).
+ * Used to show already-reported days on the child page.
+ */
+export async function listSickDays(studentId: string): Promise<StatusDay[]> {
+  return getJson<StatusDay[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
+  );
+}
+
+/** Fetches the newest notes the parent left for the team (newest first). */
+export async function listChildNotes(studentId: string): Promise<ParentNote[]> {
+  return getJson<ParentNote[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+  );
+}
+
+/** Appends a note and returns the newest few (newest first). */
+export async function addChildNote(
+  studentId: string,
+  body: string,
+): Promise<ParentNote[]> {
+  return postJson<ParentNote[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+    { body },
+  );
 }

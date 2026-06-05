@@ -45,6 +45,10 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 		Set("reported_at = EXCLUDED.reported_at").
 		Set("cleared_at = NULL").
 		Set("source = EXCLUDED.source").
+		// Preserve an existing reason when the incoming row carries none, so
+		// an unrelated re-report (e.g. editing other fields while sick) does
+		// not wipe a previously-supplied note. A new non-null note overwrites.
+		Set("note = COALESCE(EXCLUDED.note, student_status_days.note)").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert student status day", Err: err}

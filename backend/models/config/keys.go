@@ -97,6 +97,8 @@ const (
 	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
 	KeyGroupMode                      = "operations.group_mode"
 	KeyCareConcept                    = "operations.care_concept"
+	KeyParentSickNoteEnabled          = "operations.parent_sick_note_enabled"
+	KeyParentNotesEnabled             = "operations.parent_notes_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

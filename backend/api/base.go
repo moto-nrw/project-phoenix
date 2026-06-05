@@ -376,6 +376,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
 		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
+		StudentParentNoteRepo:  repoFactory.StudentParentNote,
 		VisitRepo:              repoFactory.ActiveVisit,
 		DataAccessLogRepo:      repoFactory.DataAccessLog,
 		Broadcaster:            api.Services.RealtimeHub,

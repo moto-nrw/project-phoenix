@@ -114,13 +114,16 @@ type StudentStatusDayResponse struct {
 	ReportedAt time.Time  `json:"reported_at"`
 	ClearedAt  *time.Time `json:"cleared_at,omitempty"`
 	Source     string     `json:"source"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	// Note carries an optional free-text reason (e.g. a parent sick note).
+	Note      *string   `json:"note,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type CreateStudentStatusDaysRequest struct {
 	Status string   `json:"status"`
 	Dates  []string `json:"dates"`
+	Reason string   `json:"reason,omitempty"` // optional free-text reason stamped on each day
 }
 
 // StudentRequest represents a student creation request with person details
@@ -223,6 +226,7 @@ type UpdateStudentRequest struct {
 	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
 	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
 	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
+	SickReason      *string `json:"sick_reason,omitempty"`      // optional free-text reason stamped on today's sick day
 	Excused         *bool   `json:"excused,omitempty"`          // true = currently excused (not attending today)
 
 	// PhotoConsentGiven: documented parental photo-consent flag. The handler

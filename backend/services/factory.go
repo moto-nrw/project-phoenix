@@ -924,6 +924,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:             repos.ParentChild,
 		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		StatusDayRepo:         repos.StudentStatusDay,
+		StudentRepo:           repos.Student,
+		NoteRepo:              repos.StudentParentNote,
+		Settings:              settingsService,
+		Broadcaster:           realtimeHub,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),
 	})
