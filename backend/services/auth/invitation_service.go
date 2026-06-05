@@ -647,7 +647,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 		return nil
 	}
 
-	userRole, err := s.roleRepo.FindByName(ctx, "user")
+	userRole, err := s.resolveSystemRoleByName(ctx, authModels.BaseRoleUser)
 	if err != nil {
 		return &AuthError{Op: "assign caregiver role", Err: err}
 	}
@@ -656,6 +656,25 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	}
 
 	return s.assignRole(ctx, accountID, userRole.ID, invitation.TenantID)
+}
+
+func (s *invitationService) resolveSystemRoleByName(ctx context.Context, name string) (*authModels.Role, error) {
+	roles, err := s.roleRepo.List(ctx, map[string]interface{}{
+		"name":      strings.TrimSpace(strings.ToLower(name)),
+		"is_system": true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
+			return role, nil
+		}
+	}
+	return nil, nil
 }
 
 // createStaffAndTeacherIfSystemRole creates staff and teacher records for system roles.

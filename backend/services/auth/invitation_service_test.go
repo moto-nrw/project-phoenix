@@ -528,9 +528,11 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 
 	invitations := newStubInvitationTokenRepository()
 	accounts := newStubAccountRepository()
+	tenantID := int64(42)
 	roles := newStubRoleRepository(
 		&authModel.Role{Model: baseModel.Model{ID: 21}, Name: "admin", IsSystem: true},
 		&authModel.Role{Model: baseModel.Model{ID: 22}, Name: "user", IsSystem: true},
+		&authModel.Role{Model: baseModel.Model{ID: 23}, TenantID: &tenantID, Name: "user", IsSystem: false},
 	)
 	accountRoles := newStubAccountRoleRepository()
 	persons := newStubPersonRepository()
@@ -563,7 +565,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 		Position:         &position,
 		CaregiverEnabled: true,
 	}
-	token.SetTenantID(42)
+	token.SetTenantID(tenantID)
 	require.NoError(t, invitations.Create(context.Background(), token))
 
 	expectAdminTx(mock)
@@ -581,17 +583,18 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	require.Len(t, assignments, 2)
 	require.Equal(t, int64(21), assignments[0].RoleID)
 	require.Equal(t, int64(22), assignments[1].RoleID)
-	require.Equal(t, int64(42), assignments[0].TenantID)
-	require.Equal(t, int64(42), assignments[1].TenantID)
+	require.NotEqual(t, int64(23), assignments[1].RoleID, "caregiver capability must use the global system user role, not a tenant-owned role with the same name")
+	require.Equal(t, tenantID, assignments[0].TenantID)
+	require.Equal(t, tenantID, assignments[1].TenantID)
 
 	createdStaff := staff.All()
 	require.Len(t, createdStaff, 1)
-	require.Equal(t, int64(42), createdStaff[0].TenantID)
+	require.Equal(t, tenantID, createdStaff[0].TenantID)
 
 	createdTeachers := teachers.All()
 	require.Len(t, createdTeachers, 1)
 	require.Equal(t, createdStaff[0].ID, createdTeachers[0].StaffID)
-	require.Equal(t, int64(42), createdTeachers[0].TenantID)
+	require.Equal(t, tenantID, createdTeachers[0].TenantID)
 	require.Equal(t, position, createdTeachers[0].Role)
 }
 

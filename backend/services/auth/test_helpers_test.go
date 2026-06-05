@@ -816,6 +816,20 @@ func (r *stubRoleRepository) FindByName(_ context.Context, name string) (*authMo
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubRoleRepository) List(_ context.Context, filters map[string]interface{}) ([]*authModel.Role, error) {
+	var roles []*authModel.Role
+	for _, role := range r.roles {
+		if name, ok := filters["name"].(string); ok && !strings.EqualFold(role.Name, name) {
+			continue
+		}
+		if isSystem, ok := filters["is_system"].(bool); ok && role.IsSystem != isSystem {
+			continue
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
 // noopAccountRoleRepository provides default panic implementations.
 type noopAccountRoleRepository struct{}
 
