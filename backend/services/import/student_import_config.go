@@ -81,42 +81,45 @@ func MapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo         users.PersonRepository
-	studentRepo        users.StudentRepository
-	guardianRepo       users.GuardianProfileRepository
-	guardianPhoneRepo  users.GuardianPhoneNumberRepository
-	relationRepo       users.StudentGuardianRepository
-	privacyRepo        users.PrivacyConsentRepository
-	pickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
-	resolver           *RelationshipResolver
-	txHandler          *base.TxHandler
+	personRepo          users.PersonRepository
+	studentRepo         users.StudentRepository
+	guardianRepo        users.GuardianProfileRepository
+	guardianPhoneRepo   users.GuardianPhoneNumberRepository
+	relationRepo        users.StudentGuardianRepository
+	privacyRepo         users.PrivacyConsentRepository
+	arrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
+	pickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	resolver            *RelationshipResolver
+	txHandler           *base.TxHandler
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
 type StudentImportDeps struct {
-	PersonRepo         users.PersonRepository
-	StudentRepo        users.StudentRepository
-	GuardianRepo       users.GuardianProfileRepository
-	GuardianPhoneRepo  users.GuardianPhoneNumberRepository
-	RelationRepo       users.StudentGuardianRepository
-	PrivacyRepo        users.PrivacyConsentRepository
-	PickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
-	Resolver           *RelationshipResolver
+	PersonRepo          users.PersonRepository
+	StudentRepo         users.StudentRepository
+	GuardianRepo        users.GuardianProfileRepository
+	GuardianPhoneRepo   users.GuardianPhoneNumberRepository
+	RelationRepo        users.StudentGuardianRepository
+	PrivacyRepo         users.PrivacyConsentRepository
+	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
+	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	Resolver            *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:         deps.PersonRepo,
-		studentRepo:        deps.StudentRepo,
-		guardianRepo:       deps.GuardianRepo,
-		guardianPhoneRepo:  deps.GuardianPhoneRepo,
-		relationRepo:       deps.RelationRepo,
-		privacyRepo:        deps.PrivacyRepo,
-		pickupScheduleRepo: deps.PickupScheduleRepo,
-		resolver:           deps.Resolver,
-		txHandler:          base.NewTxHandler(db),
+		personRepo:          deps.PersonRepo,
+		studentRepo:         deps.StudentRepo,
+		guardianRepo:        deps.GuardianRepo,
+		guardianPhoneRepo:   deps.GuardianPhoneRepo,
+		relationRepo:        deps.RelationRepo,
+		privacyRepo:         deps.PrivacyRepo,
+		arrivalScheduleRepo: deps.ArrivalScheduleRepo,
+		pickupScheduleRepo:  deps.PickupScheduleRepo,
+		resolver:            deps.Resolver,
+		txHandler:           base.NewTxHandler(db),
 	}
 }
 
@@ -196,7 +199,8 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 
 	}
 
-	// 5b. OPTIONAL: Pickup schedule validation
+	// 5b. OPTIONAL: Arrival and pickup schedule validation
+	errors = append(errors, validateArrivalSchedules(row.ArrivalSchedules)...)
 	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
 	// 6. Birthday validation (if provided)
@@ -330,6 +334,30 @@ func validateConsentDates(row *importModels.StudentImportRow) []importModels.Val
 	validate(&row.EmailContactAcceptedAt, "email_contact_accepted_at", "E-Mail-Kontakt akzeptiert am")
 	validate(&row.PhotoConsentGivenAt, "photo_consent_given_at", "Foto-Einwilligung am")
 
+	return errors
+}
+
+// validateArrivalSchedules validates all arrival schedule entries
+func validateArrivalSchedules(schedules []importModels.ArrivalScheduleImportData) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+	for _, sched := range schedules {
+		if sched.Weekday < 1 || sched.Weekday > 5 {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "arrival_schedule",
+				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
+				Code:     "invalid_weekday",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+		if !isValidTimeFormat(sched.ExpectedArrival) {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "arrival_schedule",
+				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 08:00)", sched.ExpectedArrival),
+				Code:     "invalid_time_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+	}
 	return errors
 }
 
@@ -520,7 +548,7 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 	return c.createAllEntities(ctx, row)
 }
 
-// createAllEntities creates person, student, guardians, privacy consent, and pickup schedules.
+// createAllEntities creates person, student, guardians, privacy consent, and weekly schedules.
 func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
 	person, err := c.createPersonFromRow(ctx, row)
 	if err != nil {
@@ -537,6 +565,10 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	}
 
 	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
+		return 0, err
+	}
+
+	if err := c.createArrivalSchedules(ctx, student.ID, row.ArrivalSchedules); err != nil {
 		return 0, err
 	}
 
@@ -962,6 +994,36 @@ func guardianLanguagePreference(val string) string {
 		return "de"
 	}
 	return strings.ToLower(strings.TrimSpace(val))
+}
+
+// createArrivalSchedules creates weekly arrival schedule records for a student
+func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
+	if len(schedules) == 0 || c.arrivalScheduleRepo == nil {
+		return nil
+	}
+
+	for i, sched := range schedules {
+		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
+		if err != nil {
+			return fmt.Errorf("arrival schedule %d: invalid time '%s': %w", i+1, sched.ExpectedArrival, err)
+		}
+		arrivalTime := time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+
+		record := &scheduleModels.StudentArrivalSchedule{
+			StudentID:       studentID,
+			Weekday:         sched.Weekday,
+			ExpectedArrival: arrivalTime,
+			Notes:           stringPtr(sched.Notes),
+			CreatedBy:       ImporterIDFromContext(ctx),
+		}
+		record.SetTenantID(tenant.FromContext(ctx))
+
+		if err := c.arrivalScheduleRepo.Create(ctx, record); err != nil {
+			return fmt.Errorf("create arrival schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+
+	return nil
 }
 
 // createPickupSchedules creates weekly pickup schedule records for a student

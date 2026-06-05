@@ -206,6 +206,7 @@ func getStudentImportHeaders() []string {
 		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
 		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
 		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
+		"Ankunft.Mo (optional)", "Ankunft.Mo.Notizen (optional)", "Ankunft.Di (optional)", "Ankunft.Di.Notizen (optional)", "Ankunft.Mi (optional)", "Ankunft.Mi.Notizen (optional)", "Ankunft.Do (optional)", "Ankunft.Do.Notizen (optional)", "Ankunft.Fr (optional)", "Ankunft.Fr.Notizen (optional)",
 		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
 }
@@ -224,6 +225,8 @@ func getStudentImportExamples() [][]any {
 			testAddressMusterstr, "Köln", "50667", "", "de",
 			// Additional info
 			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Nein", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
+			// Arrival schedule (Mon-Fri)
+			"08:00", "", "08:00", "", "08:00", "", "08:00", "", "08:30", "Frühbetreuung",
 			// Pickup schedule (Mon-Fri)
 			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss"},
 		{"Anna", "Schmidt", "2B", "Gruppe 2B", "22.03.14",
@@ -237,6 +240,8 @@ func getStudentImportExamples() [][]any {
 			"", "", "", "", "",
 			// Additional info
 			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
+			// Arrival schedule (partial)
+			"07:45", "", "07:45", "", "07:45", "", "", "", "", "",
 			// Pickup schedule (partial)
 			"15:00", "", "15:00", "", "15:00", "", "15:00", "", "", ""},
 	}

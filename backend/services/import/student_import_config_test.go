@@ -766,6 +766,76 @@ func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
 	}
 }
 
+func TestStudentImportConfig_Validate_ArrivalSchedule(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	tests := []struct {
+		name      string
+		schedules []importModels.ArrivalScheduleImportData
+		wantCodes []string
+	}{
+		{
+			name: "valid schedule",
+			schedules: []importModels.ArrivalScheduleImportData{
+				{Weekday: 1, ExpectedArrival: "08:00"},
+				{Weekday: 5, ExpectedArrival: "08:30"},
+			},
+			wantCodes: nil,
+		},
+		{
+			name: "invalid weekday",
+			schedules: []importModels.ArrivalScheduleImportData{
+				{Weekday: 6, ExpectedArrival: "08:00"},
+			},
+			wantCodes: []string{"invalid_weekday"},
+		},
+		{
+			name: "invalid time format",
+			schedules: []importModels.ArrivalScheduleImportData{
+				{Weekday: 1, ExpectedArrival: "morgens"},
+			},
+			wantCodes: []string{"invalid_time_format"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := importModels.StudentImportRow{
+				FirstName:         "Max",
+				LastName:          "Mustermann",
+				SchoolClass:       "1A",
+				ArrivalSchedules:  tt.schedules,
+				DataRetentionDays: 30,
+			}
+
+			errors := config.Validate(context.Background(), &row)
+
+			for _, expectedCode := range tt.wantCodes {
+				found := false
+				for _, err := range errors {
+					if err.Code == expectedCode {
+						found = true
+						break
+					}
+				}
+				assert.True(t, found, "Expected error code '%s' not found", expectedCode)
+			}
+
+			if tt.wantCodes == nil {
+				for _, err := range errors {
+					if err.Field == "arrival_schedule" {
+						t.Errorf("Unexpected arrival schedule error: %s", err.Message)
+					}
+				}
+			}
+		})
+	}
+}
+
 // ============================================================================
 // isValidTimeFormat Tests
 // ============================================================================
@@ -964,6 +1034,31 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 // ============================================================================
 // createPickupSchedules nil-repo safety
 // ============================================================================
+
+func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
+	config := &StudentImportConfig{
+		arrivalScheduleRepo: nil,
+	}
+
+	schedules := []importModels.ArrivalScheduleImportData{
+		{Weekday: 1, ExpectedArrival: "08:00"},
+	}
+
+	err := config.createArrivalSchedules(context.Background(), 123, schedules)
+	assert.NoError(t, err, "should not error when arrivalScheduleRepo is nil")
+}
+
+func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
+	config := &StudentImportConfig{
+		arrivalScheduleRepo: nil,
+	}
+
+	err := config.createArrivalSchedules(context.Background(), 123, nil)
+	assert.NoError(t, err)
+
+	err = config.createArrivalSchedules(context.Background(), 123, []importModels.ArrivalScheduleImportData{})
+	assert.NoError(t, err)
+}
 
 func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 	config := &StudentImportConfig{
