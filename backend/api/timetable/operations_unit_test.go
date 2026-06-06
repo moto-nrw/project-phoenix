@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -356,6 +357,31 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	assert.Nil(t, instanceSvc.lastCreate, "disabled web spontaneous activities must not create instances")
 }
 
+func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
+	instanceSvc := &mockInstanceService{}
+	res := NewResource(Dependencies{
+		InstanceService:   instanceSvc,
+		OperationsService: &fakeOperationsService{},
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+			stringValue: configModel.CareConceptFixedSchedule,
+		},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"date":       "2026-05-11",
+		"start_time": "14:00",
+		"end_time":   "15:00",
+		"title":      "Freispiel",
+		"room_id":    7,
+	})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Nil(t, instanceSvc.lastCreate, "fixed schedule must not create spontaneous instances")
+}
+
 func TestOperationsCapabilities(t *testing.T) {
 	res := NewResource(Dependencies{
 		SettingsService: &fakeOperationSettingsService{
@@ -384,6 +410,22 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
+}
+
+func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+			stringValue: configModel.CareConceptFixedSchedule,
+		},
+	})
+	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
+
+	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":false`)
 }
 
 func TestOperationsRosterByActiveGroup(t *testing.T) {
@@ -614,6 +656,7 @@ type fakeOperationSettingsService struct {
 	configSvc.SettingsService
 	hasOverride bool
 	boolValue   bool
+	stringValue string
 	err         error
 }
 
@@ -629,6 +672,13 @@ func (s *fakeOperationSettingsService) ResolveBool(_ context.Context, _ string) 
 		return false, s.err
 	}
 	return s.boolValue, nil
+}
+
+func (s *fakeOperationSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.stringValue, nil
 }
 
 func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *activeModels.Group, error) {
