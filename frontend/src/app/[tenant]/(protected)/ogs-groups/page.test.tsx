@@ -595,6 +595,66 @@ describe("OGSGroupPage", () => {
     });
   });
 
+  it("shows sick and excused counts in the selected group summary", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        groups: [
+          {
+            id: 1,
+            name: "OGS Gruppe A",
+            room_id: 10,
+            room: { id: 10, name: "Raum 101" },
+          },
+        ],
+        students: [
+          {
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+            sick: true,
+          },
+          {
+            id: 2,
+            first_name: "Mia",
+            last_name: "Musterfrau",
+            current_location: "Zuhause",
+            excused: true,
+          },
+          {
+            id: 3,
+            first_name: "Ben",
+            last_name: "Beispiel",
+            current_location: "Raum 101",
+          },
+        ],
+        roomStatus: {
+          student_room_status: {
+            "1": { in_group_room: true },
+            "2": { in_group_room: false },
+            "3": { in_group_room: true },
+          },
+        },
+        substitutions: [],
+        pickupTimes: [],
+        firstGroupId: "1",
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Abwesenheiten heute")).toBeInTheDocument();
+      expect(screen.queryByText("3 Kinder")).not.toBeInTheDocument();
+      expect(screen.getByText("1/3 krank")).toBeInTheDocument();
+      expect(screen.getByText("1/3 entschuldigt")).toBeInTheDocument();
+    });
+  });
+
   it("converts BFF pickup times array to Map and displays pickup time", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: {
