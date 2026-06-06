@@ -388,6 +388,7 @@ describe("OperatorSuggestionDetailPage", () => {
 
   it("toggles hidden state and refreshes the list cache", async () => {
     mockHidePost.mockResolvedValue(undefined);
+    const dispatchEventSpy = vi.spyOn(window, "dispatchEvent");
 
     render(<OperatorSuggestionDetailPage />);
 
@@ -400,7 +401,19 @@ describe("OperatorSuggestionDetailPage", () => {
         { revalidate: false },
       );
       expect(mockGlobalMutate).toHaveBeenCalledWith("operator-suggestions");
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unread-refresh",
+        }),
+      );
+      expect(dispatchEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "operator-suggestions-unviewed-refresh",
+        }),
+      );
     });
+
+    dispatchEventSpy.mockRestore();
   });
 
   it("logs hide toggle errors gracefully", async () => {

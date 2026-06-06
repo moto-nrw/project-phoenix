@@ -58,19 +58,15 @@ func (r *PostReadRepository) IsViewed(ctx context.Context, accountID, postID int
 	return exists, nil
 }
 
-// CountUnviewed counts posts that a reader has not yet viewed.
-// For ReaderTypeUser, hidden posts are excluded.
+// CountUnviewed counts visible posts that a reader has not yet viewed.
 func (r *PostReadRepository) CountUnviewed(ctx context.Context, accountID int64, readerType string) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.posts AS p").
+		Where("p.is_hidden = FALSE").
 		Where(`NOT EXISTS (
 			SELECT 1 FROM suggestions.post_reads pr
 			WHERE pr.account_id = ? AND pr.post_id = p.id AND pr.reader_type = ?
 		)`, accountID, readerType)
-
-	if readerType == "user" {
-		query = query.Where("p.is_hidden = FALSE")
-	}
 
 	count, err := query.Count(ctx)
 	if err != nil {
