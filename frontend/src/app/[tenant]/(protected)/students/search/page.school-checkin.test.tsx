@@ -51,6 +51,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   usePresenceMode: vi.fn(() => "binary"),
+  useNFCEnabled: vi.fn(() => true),
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 

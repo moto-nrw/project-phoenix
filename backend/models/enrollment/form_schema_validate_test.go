@@ -80,6 +80,52 @@ func TestFormSchema_Validate_RejectsUnknownCoreRequirement(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown core requirement")
 }
 
+func TestFormSchema_Validate_RejectsNonScalarVisibleWhenValue(t *testing.T) {
+	// JSON decodes arrays/objects as []any / map[string]any. Comparing two
+	// such values at evaluation time panics, so a non-scalar condition value
+	// must be rejected at schema-save time with a clean error.
+	for name, value := range map[string]any{
+		"array":  []any{"1", "2"},
+		"object": map[string]any{"k": "v"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := validSchema()
+			s.Fields = []FormField{{
+				Key:         "x",
+				Label:       "X",
+				Type:        FormFieldText,
+				AppliesToCh: true,
+				SortOrder:   0,
+				VisibleWhen: &VisibilityCondition{
+					Source:   ConditionSourceGradeLevel,
+					Operator: ConditionOpEquals,
+					Value:    value,
+				},
+			}}
+			err := s.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "string, number, or boolean")
+		})
+	}
+}
+
+func TestFormSchema_Validate_AcceptsScalarVisibleWhenValue(t *testing.T) {
+	s := validSchema()
+	s.Fields = []FormField{{
+		Key:         "x",
+		Label:       "X",
+		Type:        FormFieldText,
+		AppliesToCh: true,
+		SortOrder:   0,
+		VisibleWhen: &VisibilityCondition{
+			Source:   ConditionSourceGradeLevel,
+			Operator: ConditionOpEquals,
+			Value:    float64(2), // JSON numbers decode to float64
+		},
+	}}
+	assert.NoError(t, s.Validate())
+}
+
 func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
 	s := validSchema()
 	s.Fields = []FormField{

@@ -70,6 +70,7 @@ type Factory struct {
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
 	Instance                 schedule.InstanceService
+	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
@@ -457,6 +458,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "instance-lifecycle"),
 	})
 
+	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		InstanceService:   instanceService,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		Logger:            logger.With("service", "timetable-auto-start"),
+	})
+
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
@@ -468,6 +480,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
+		RoomRepo:           repos.Room,
 		PersonService:      usersService,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
@@ -702,14 +715,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			PersonRepo:         repos.Person,
-			StudentRepo:        repos.Student,
-			GuardianRepo:       repos.GuardianProfile,
-			GuardianPhoneRepo:  repos.GuardianPhoneNumber,
-			RelationRepo:       repos.StudentGuardian,
-			PrivacyRepo:        repos.PrivacyConsent,
-			PickupScheduleRepo: repos.StudentPickupSchedule,
-			Resolver:           relationshipResolver,
+			PersonRepo:          repos.Person,
+			StudentRepo:         repos.Student,
+			GuardianRepo:        repos.GuardianProfile,
+			GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+			RelationRepo:        repos.StudentGuardian,
+			PrivacyRepo:         repos.PrivacyConsent,
+			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			Resolver:            relationshipResolver,
 		},
 		db,
 	)
@@ -968,6 +982,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
 		Instance:                 instanceService,
+		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,

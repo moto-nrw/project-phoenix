@@ -666,6 +666,82 @@ func TestMapStudentRow_PickupSchedules(t *testing.T) {
 	})
 }
 
+func TestMapStudentRow_ArrivalSchedules(t *testing.T) {
+	t.Run("maps all five weekdays", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":            0,
+			"nachname":           1,
+			"ankunft.mo":         2,
+			"ankunft.mo.notizen": 3,
+			"ankunft.di":         4,
+			"ankunft.di.notizen": 5,
+			"ankunft.mi":         6,
+			"ankunft.mi.notizen": 7,
+			"ankunft.do":         8,
+			"ankunft.do.notizen": 9,
+			"ankunft.fr":         10,
+			"ankunft.fr.notizen": 11,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"08:00", "Frühdienst",
+			"08:10", "",
+			"08:00", "",
+			"08:15", "",
+			"08:30", "Später Start",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.ArrivalSchedules, 5)
+
+		assert.Equal(t, 1, row.ArrivalSchedules[0].Weekday)
+		assert.Equal(t, "08:00", row.ArrivalSchedules[0].ExpectedArrival)
+		assert.Equal(t, "Frühdienst", row.ArrivalSchedules[0].Notes)
+		assert.Equal(t, 5, row.ArrivalSchedules[4].Weekday)
+		assert.Equal(t, "08:30", row.ArrivalSchedules[4].ExpectedArrival)
+		assert.Equal(t, "Später Start", row.ArrivalSchedules[4].Notes)
+	})
+
+	t.Run("skips empty days", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":    0,
+			"nachname":   1,
+			"ankunft.mo": 2,
+			"ankunft.di": 3,
+			"ankunft.mi": 4,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"08:00", "", "08:15",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.ArrivalSchedules, 2)
+		assert.Equal(t, 1, row.ArrivalSchedules[0].Weekday)
+		assert.Equal(t, 3, row.ArrivalSchedules[1].Weekday)
+	})
+
+	t.Run("no arrival columns returns empty", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":  0,
+			"nachname": 1,
+		}
+		values := []string{"Max", "Mustermann"}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		assert.Empty(t, row.ArrivalSchedules)
+	})
+}
+
 // TestMapStudentRow_GuardianProfileFieldsEmpty tests that empty guardian profile fields are mapped as empty strings
 func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
 	mapping := map[string]int{

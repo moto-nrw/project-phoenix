@@ -185,3 +185,15 @@ export function usePresenceMode(): PresenceMode {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.presenceMode ?? "detailed";
 }
+
+/**
+ * Returns whether the current tenant uses NFC attendance devices.
+ *
+ * Defaults to false when tenant metadata is unavailable. That matches the
+ * registry default and keeps NFC-only navigation hidden until the tenant
+ * explicitly opts into NFC.
+ */
+export function useNFCEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.nfcEnabled === true;
+}

@@ -16,6 +16,7 @@ const (
 	FieldTime     FieldType = "time"
 	FieldDate     FieldType = "date"
 	FieldText     FieldType = "text"
+	FieldTextarea FieldType = "textarea"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
 )
@@ -23,7 +24,7 @@ const (
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
 	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
-	FieldText: true, FieldPassword: true, FieldSelect: true,
+	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true,
 }
 
 // AccessPolicy classifies which audience can read and write a setting.

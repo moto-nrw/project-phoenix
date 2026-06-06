@@ -16,7 +16,10 @@
 
 import { TriangleAlert } from "lucide-react";
 
-import { getActivityLightTint } from "~/lib/timetable-helpers";
+import {
+  getActivityColor,
+  getActivityLightTint,
+} from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 interface InstanceBlockProps {
@@ -109,6 +112,19 @@ export function InstanceBlock({
           >
             {instance.startTime} – {instance.endTime}
             {!isCompact && instance.roomName ? ` · ${instance.roomName}` : ""}
+          </div>
+        )}
+
+        {!isCompact && instance.isSpontaneous && !isCancelled && (
+          <div className="truncate text-[10px] font-semibold text-gray-600">
+            <span
+              className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
+              style={{
+                backgroundColor: getActivityColor(instance.activityType),
+              }}
+              aria-hidden
+            />
+            Spontan
           </div>
         )}
 

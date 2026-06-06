@@ -18,6 +18,7 @@ import {
   type Timeframe,
 } from "@/lib/activity-helpers";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivityDetailPage" });
 
@@ -423,16 +424,18 @@ function ActivityDetailContent() {
 
 export default function ActivityDetailPage() {
   return (
-    <BinaryModeGuard>
-      <Suspense
-        fallback={
-          <div className="flex min-h-screen items-center justify-center">
-            <p>Lädt...</p>
-          </div>
-        }
-      >
-        <ActivityDetailContent />
-      </Suspense>
-    </BinaryModeGuard>
+    <NfcModeGuard>
+      <BinaryModeGuard>
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center">
+              <p>Lädt...</p>
+            </div>
+          }
+        >
+          <ActivityDetailContent />
+        </Suspense>
+      </BinaryModeGuard>
+    </NfcModeGuard>
   );
 }

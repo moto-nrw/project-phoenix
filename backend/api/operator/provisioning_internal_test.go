@@ -415,25 +415,27 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 			require.NotNil(t, req.LastName)
 			require.NotNil(t, req.Position)
 			assert.Equal(t, "principal@example.com", req.Email)
+			assert.True(t, req.CaregiverEnabled)
 			return &authModels.InvitationToken{
-				Model:      modelBase.Model{ID: 5},
-				Email:      req.Email,
-				RoleID:     9,
-				Token:      token,
-				ExpiresAt:  expiresAt,
-				FirstName:  &first,
-				LastName:   &last,
-				Position:   &position,
-				CreatedBy:  nil,
-				Role:       &authModels.Role{Name: roleName},
-				Creator:    &authModels.Account{Email: creatorEmail},
-				EmailError: nil,
+				Model:            modelBase.Model{ID: 5},
+				Email:            req.Email,
+				RoleID:           9,
+				Token:            token,
+				ExpiresAt:        expiresAt,
+				FirstName:        &first,
+				LastName:         &last,
+				Position:         &position,
+				CaregiverEnabled: req.CaregiverEnabled,
+				CreatedBy:        nil,
+				Role:             &authModels.Role{Name: roleName},
+				Creator:          &authModels.Account{Email: creatorEmail},
+				EmailError:       nil,
 			}, nil
 		},
 	})
 
 	viper.Set("app_env", "development")
-	req := httptest.NewRequest(http.MethodPost, "/operator/schools/12/invite-admin", bytes.NewBufferString(`{"email":" PRINCIPAL@example.com ","first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
+	req := httptest.NewRequest(http.MethodPost, "/operator/schools/12/invite-admin", bytes.NewBufferString(`{"email":" PRINCIPAL@example.com ","first_name":" Ada ","last_name":" Lovelace ","position":" Principal ","caregiver_enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(seedTokenHeader, "true")
 	req.RemoteAddr = "203.0.113.5:9999"
@@ -451,6 +453,7 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 	assert.Equal(t, float64(0), data["created_by"])
 	assert.Equal(t, roleName, data["role_name"])
 	assert.Equal(t, creatorEmail, data["creator"])
+	assert.Equal(t, true, data["caregiver_enabled"])
 }
 
 func TestProvisioningResource_InviteSchoolAdmin_InvalidSchoolID(t *testing.T) {
@@ -864,10 +867,11 @@ func TestCreateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 
 func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 	req := &inviteSchoolAdminRequest{
-		Email:     "  ADMIN@EXAMPLE.COM  ",
-		FirstName: "  Ada  ",
-		LastName:  "  Lovelace  ",
-		Position:  "  Principal  ",
+		Email:            "  ADMIN@EXAMPLE.COM  ",
+		FirstName:        "  Ada  ",
+		LastName:         "  Lovelace  ",
+		Position:         "  Principal  ",
+		CaregiverEnabled: true,
 	}
 	err := req.Bind(nil)
 	require.NoError(t, err)
@@ -875,6 +879,7 @@ func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 	assert.Equal(t, "Ada", req.FirstName)
 	assert.Equal(t, "Lovelace", req.LastName)
 	assert.Equal(t, "Principal", req.Position)
+	assert.True(t, req.CaregiverEnabled)
 }
 
 func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {

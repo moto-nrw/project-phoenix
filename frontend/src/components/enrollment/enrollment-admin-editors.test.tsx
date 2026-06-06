@@ -29,6 +29,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "demo",
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -101,6 +102,13 @@ vi.mock("~/lib/care-offering-api", () => ({
   deleteCareOffering: mocks.deleteCareOffering,
   listCareOfferings: mocks.listCareOfferings,
   updateCareOffering: mocks.updateCareOffering,
+  // Real const consumed by CareOfferingForm's selection-rule dropdown.
+  SELECTION_RULE_LABELS: {
+    optional: "Optional (frei wählbar)",
+    exactly_one: "Genau eines (Pflicht)",
+    at_least_one: "Mindestens eines (Pflicht)",
+    at_most_one: "Höchstens eines",
+  },
 }));
 
 import { CareOfferingsEditor } from "./care-offerings-editor";

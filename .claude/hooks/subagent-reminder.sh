@@ -31,14 +31,14 @@ for agent in "${agents[@]}"; do
 - ${agent}"
 done
 
-# Output compact JSON reminder
-cat <<EOF
-{
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": "<subagent-reminder>Project subagents (use Task tool with subagent_type):${agent_list}
+# Output compact JSON reminder. Use jq so embedded newlines are escaped.
+additional_context="<subagent-reminder>Project subagents (use Task tool with subagent_type):${agent_list}
 
 Invoke via Task tool when relevant.</subagent-reminder>"
+
+jq -n --arg context "$additional_context" '{
+  hookSpecificOutput: {
+    hookEventName: "UserPromptSubmit",
+    additionalContext: $context
   }
-}
-EOF
+}'

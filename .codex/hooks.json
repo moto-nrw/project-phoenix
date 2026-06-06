@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/check-commit-message.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/check-commit-message.sh\"'"
           }
         ]
       }
@@ -17,11 +17,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/format-go.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/format-go.sh\"'"
           },
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/format-typescript.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/format-typescript.sh\"'"
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/check-env-files.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/check-env-files.sh\"'"
           }
         ]
       }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/skill-reminder.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/skill-reminder.sh\"'"
           }
         ]
       },
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/subagent-reminder.sh\""
+            "command": "bash -c 'root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0; bash \"$root/.codex/hooks/subagent-reminder.sh\"'"
           }
         ]
       }

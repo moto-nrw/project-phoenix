@@ -1238,3 +1238,133 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 	assert.Nil(t, res.Request.SchemaID,
 		"Basis phase must persist with schema_id=NULL, not silently fall back to the tenant's active schema")
 }
+
+// TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted
+// is the key regression for conditional required fields on the real submit
+// path: a required field hidden by its show-if condition must NOT block an
+// otherwise valid submit, and a value smuggled for that hidden field must NOT
+// be persisted.
+func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Schema: per-child boolean controller "has_allergy" + per-child REQUIRED
+	// text "which_allergy" that is only visible when has_allergy == true.
+	repoFactory := repositories.NewFactory(env.db)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
+		{
+			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
+			AppliesToCh: true, Required: true, SortOrder: 1,
+			VisibleWhen: &enrollmentModels.VisibilityCondition{
+				Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
+				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+			},
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+
+	// Point the phase at this schema.
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	// has_allergy=false → which_allergy is hidden + unanswered. The client
+	// also smuggles a stale value for the hidden field.
+	req := validSubmission(env.phaseID)
+	req.Children[0].CustomData = map[string]any{
+		"has_allergy":   false,
+		"which_allergy": "smuggled value",
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err, "a hidden required field must not block an otherwise valid submit")
+	require.Len(t, result.Children, 1)
+
+	child := result.Children[0]
+	_, hasHidden := child.CustomData["which_allergy"]
+	assert.False(t, hasHidden, "value for the hidden field must be sanitized out before persisting")
+	assert.Equal(t, false, child.CustomData["has_allergy"], "visible controller answer is kept")
+}
+
+// TestRequestService_Submit_VisibleRequiredFieldStillEnforced is the positive
+// counterpart: when the controller makes the required field visible, leaving it
+// blank must still block the submit.
+func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	repoFactory := repositories.NewFactory(env.db)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
+		{
+			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
+			AppliesToCh: true, Required: true, SortOrder: 1,
+			VisibleWhen: &enrollmentModels.VisibilityCondition{
+				Source: enrollmentModels.ConditionSourceField, Field: "has_allergy",
+				Operator: enrollmentModels.ConditionOpEquals, Value: true,
+			},
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	// has_allergy=true → which_allergy is visible + required, but left blank.
+	req := validSubmission(env.phaseID)
+	req.Children[0].CustomData = map[string]any{"has_allergy": true}
+
+	_, err = env.svc.Submit(ctx, req)
+	require.Error(t, err, "a visible required field left blank must block the submit")
+}
+
+// TestRequestService_Submit_RequiredStructuredFieldValidatesEntries guards the
+// real submit path for structured required fields: a non-empty array is NOT
+// enough — malformed entries (a contact with no name / no contact channel)
+// must be rejected at submit, not pass through to a later approval failure.
+func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	repoFactory := repositories.NewFactory(env.db)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	// Required per-child contact_list (canonical target student.contacts).
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{
+			Key: "contacts", Label: "Notfallkontakte",
+			Type: enrollmentModels.FormFieldContactList, AppliesToCh: true,
+			Required: true, Target: enrollmentModels.TargetStudentContacts, SortOrder: 0,
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	// Malformed: a single contact with no name and no email/phone.
+	bad := validSubmission(env.phaseID)
+	bad.Children[0].CustomData = map[string]any{"contacts": []any{map[string]any{}}}
+	_, err = env.svc.Submit(ctx, bad)
+	require.Error(t, err, "a required contact_list with a malformed entry must be rejected at submit")
+
+	// Valid: a complete contact (name + email).
+	ok := validSubmission(env.phaseID)
+	ok.Children[0].CustomData = map[string]any{"contacts": []any{
+		map[string]any{"first_name": "Eva", "last_name": "Muster", "email": "eva@example.test"},
+	}}
+	res, err := env.svc.Submit(ctx, ok)
+	require.NoError(t, err, "a valid required contact_list must be accepted")
+	require.Len(t, res.Children, 1)
+}

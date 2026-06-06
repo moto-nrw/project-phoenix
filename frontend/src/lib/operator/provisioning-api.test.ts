@@ -475,6 +475,7 @@ describe("OperatorProvisioningService", () => {
         email: "admin@example.com",
         first_name: "Ada",
         last_name: "Lovelace",
+        caregiver_enabled: true,
       });
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
@@ -485,6 +486,7 @@ describe("OperatorProvisioningService", () => {
             email: "admin@example.com",
             first_name: "Ada",
             last_name: "Lovelace",
+            caregiver_enabled: true,
           },
         },
       );
@@ -508,6 +510,7 @@ describe("OperatorProvisioningService", () => {
         firstName: "Ada",
         lastName: "Lovelace",
         position: null,
+        caregiverEnabled: false,
         createdBy: "0",
         creator: "",
         deliveryStatus: "pending",
