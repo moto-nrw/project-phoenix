@@ -32,6 +32,21 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
 
+function clearSessionErrorFromUrl() {
+  const url = new URL(window.location.href);
+  const hadSessionError =
+    url.searchParams.get("error") === "SessionRequired" ||
+    url.searchParams.get("error") === "SessionExpired";
+
+  if (!hadSessionError) return;
+
+  url.searchParams.delete("error");
+  url.searchParams.delete("callbackUrl");
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+}
+
 interface MFAStep {
   challengeToken: string;
   maskedEmail: string;
@@ -161,11 +176,12 @@ function LoginForm() {
       }
       if (deliberate) {
         // Clean up NextAuth's error/callbackUrl params from the URL
-        window.history.replaceState({}, "", window.location.pathname);
+        clearSessionErrorFromUrl();
       } else {
         setError(
           "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
         );
+        clearSessionErrorFromUrl();
       }
     }
   }, [searchParams]);
@@ -179,6 +195,7 @@ function LoginForm() {
   // backend has already authenticated the account, so we only seed the
   // session.
   const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    clearSessionErrorFromUrl();
     const result = await signIn("credentials", {
       redirect: false,
       internalRefresh: "true",
