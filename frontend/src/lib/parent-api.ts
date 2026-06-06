@@ -65,7 +65,7 @@ export interface EnrollmentRequest {
   readonly children: EnrollmentRequestChild[];
 }
 
-export type StudentStatusKind = "sick" | "excused";
+type StudentStatusKind = "sick" | "excused";
 
 // One reported sick/excused day. Mirrors api/parent.StatusDayResponse.
 export interface StatusDay {

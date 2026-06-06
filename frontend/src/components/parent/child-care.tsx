@@ -41,7 +41,7 @@ function enumerateDates(fromISO: string, toISO: string): string[] {
   return out;
 }
 
-export function formatGermanDate(iso: string): string {
+function formatGermanDate(iso: string): string {
   try {
     const d = iso.length === 10 ? new Date(`${iso}T00:00:00Z`) : new Date(iso);
     return new Intl.DateTimeFormat("de-DE", {

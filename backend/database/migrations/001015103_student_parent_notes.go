@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentParentNotesVersion     = "1.15.102"
+	studentParentNotesVersion     = "1.15.103"
 	studentParentNotesDescription = "Create users.student_parent_notes for parent-submitted free-text notes"
 )
 
@@ -35,7 +35,7 @@ func init() {
 }
 
 func studentParentNotesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.102: Creating users.student_parent_notes...")
+	fmt.Println("Migration 1.15.103: Creating users.student_parent_notes...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -87,7 +87,7 @@ func studentParentNotesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentParentNotesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.102: Dropping users.student_parent_notes...")
+	fmt.Println("Rolling back migration 1.15.103: Dropping users.student_parent_notes...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

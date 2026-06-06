@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentStatusDaysParentSourceVersion     = "1.15.100"
+	studentStatusDaysParentSourceVersion     = "1.15.101"
 	studentStatusDaysParentSourceDescription = "Allow parent source for active.student_status_days"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func studentStatusDaysParentSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.100: Allowing parent student status day source...")
+	fmt.Println("Migration 1.15.101: Allowing parent student status day source...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -60,7 +60,7 @@ func studentStatusDaysParentSourceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentStatusDaysParentSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.100: Removing parent student status day source...")
+	fmt.Println("Rolling back migration 1.15.101: Removing parent student status day source...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
