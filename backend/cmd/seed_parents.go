@@ -35,11 +35,15 @@ role, an active account_tenants mapping, and stamps guardian_profile.account_id.
 Because the guardian↔student links already exist, the promoted parents see
 their children in the portal immediately.
 
+The shared password is taken from --password, or the SEED_PARENT_PASSWORD
+env var when the flag is omitted. There is no built-in default — a missing
+password fails fast (no hardcoded credentials in source).
+
 REQUIRES: a database reachable via DB_DSN (run after migrate + seed). DEV ONLY.
 
 Usage:
-  docker compose run server ./main seed-parents
-  docker compose run server ./main seed-parents --count 8 --password 'Test1234%'`,
+  SEED_PARENT_PASSWORD='<password>' docker compose run server ./main seed-parents
+  docker compose run server ./main seed-parents --count 8 --password '<password>'`,
 	Run: func(cmd *cobra.Command, _ []string) {
 		if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
 			log.Fatal("seed-parents is dev-only and must never run with APP_ENV=production")
@@ -48,7 +52,10 @@ Usage:
 		count, _ := cmd.Flags().GetInt("count")
 		password, _ := cmd.Flags().GetString("password")
 		if strings.TrimSpace(password) == "" {
-			password = "Test1234%"
+			password = os.Getenv("SEED_PARENT_PASSWORD")
+		}
+		if strings.TrimSpace(password) == "" {
+			log.Fatal("seed-parents: no password provided — pass --password or set SEED_PARENT_PASSWORD")
 		}
 
 		db, err := database.DBConn()
@@ -66,7 +73,7 @@ Usage:
 func init() {
 	RootCmd.AddCommand(seedParentsCmd)
 	seedParentsCmd.Flags().Int("count", 5, "How many demo guardians to promote into parent accounts")
-	seedParentsCmd.Flags().String("password", "Test1234%", "Shared password for the seeded parent accounts")
+	seedParentsCmd.Flags().String("password", "", "Shared password for the seeded parent accounts (or set SEED_PARENT_PASSWORD)")
 }
 
 // parentCandidate is one promotable guardian profile.
