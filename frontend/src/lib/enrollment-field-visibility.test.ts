@@ -288,7 +288,10 @@ describe("isFieldVisible", () => {
     });
     const fields = [a, b];
     expect(
-      isFieldVisible(a, ctxFrom(fields, { guardianAnswers: { a: "x", b: "x" } })),
+      isFieldVisible(
+        a,
+        ctxFrom(fields, { guardianAnswers: { a: "x", b: "x" } }),
+      ),
     ).toBe(false);
   });
 });
