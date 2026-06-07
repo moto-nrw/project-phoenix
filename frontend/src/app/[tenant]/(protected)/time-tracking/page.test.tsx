@@ -373,7 +373,6 @@ const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart
 
 // WeekTable skips weekends (day 0=Sun, 6=Sat). When today is a weekend,
 // shift test dates to the nearest weekday (previous Friday) so rows render.
-const isWeekend = today.getDay() === 0 || today.getDay() === 6;
 const weekday = new Date(today);
 if (weekday.getDay() === 0) weekday.setDate(weekday.getDate() - 2); // Sun → Fri
 if (weekday.getDay() === 6) weekday.setDate(weekday.getDate() - 1); // Sat → Fri
@@ -2933,11 +2932,10 @@ describe("TimeTrackingPage", () => {
 
   describe("WeekTable desktop - detailed branches", () => {
     it("shows active session with 'aktiv' badge and ... for end time", () => {
-      // "aktiv" badge only renders when today is a weekday (WeekTable skips weekends)
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
-        date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
+        date: weekdayISO,
+        checkInTime: `${weekdayISO}T08:00:00Z`,
         checkOutTime: null,
         netMinutes: 0,
       };
@@ -2949,12 +2947,7 @@ describe("TimeTrackingPage", () => {
       render(<TimeTrackingPage />);
 
       const aktivBadges = screen.queryAllByText("aktiv");
-      if (!isWeekend) {
-        expect(aktivBadges.length).toBeGreaterThan(0);
-      } else {
-        // On weekends, today's row is not rendered in WeekTable
-        expect(aktivBadges.length).toBe(0);
-      }
+      expect(aktivBadges.length).toBeGreaterThan(0);
     });
 
     it("shows home_office badge as 'Homeoffice' in desktop table", () => {
