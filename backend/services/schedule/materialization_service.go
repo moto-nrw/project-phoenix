@@ -610,6 +610,7 @@ func resolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time) {
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
+//   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, periodID int64) bool {
 	if e == nil {
 		return false
@@ -622,6 +623,15 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, period
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
+		return false
+	}
+	if len(e.SelectedWeekdays) > 0 {
+		weekday := isoWeekday(d)
+		for _, selected := range e.SelectedWeekdays {
+			if selected == weekday {
+				return true
+			}
+		}
 		return false
 	}
 	return true

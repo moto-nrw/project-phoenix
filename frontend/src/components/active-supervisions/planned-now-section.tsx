@@ -379,25 +379,47 @@ function SummaryPill({
 }
 
 function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
+  const warningLabel =
+    row.warnings.length > 0
+      ? row.warnings.map((warning) => warning.message).join("\n")
+      : null;
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
-      <div className="min-w-0">
-        <p className="truncate font-medium text-gray-900">
-          {row.studentName || `Schüler ${row.studentId}`}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-gray-500">
-          {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||
-            "Ohne Klassengruppe"}
-        </p>
+    <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-gray-900">
+            {row.studentName || `Schüler ${row.studentId}`}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-gray-500">
+            {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||
+              "Ohne Klassengruppe"}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {warningLabel ? (
+            <span
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F3B63F]/20 text-[#A66F00]"
+              title={warningLabel}
+              aria-label={`${row.warnings.length} Planungs-Hinweis`}
+            >
+              <CircleAlert className="h-4 w-4" aria-hidden="true" />
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: rosterDotColor(row) }}
+              aria-hidden="true"
+            />
+            {rosterStatusLabel(row)}
+          </span>
+        </div>
       </div>
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
-        <span
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: rosterDotColor(row) }}
-          aria-hidden="true"
-        />
-        {rosterStatusLabel(row)}
-      </span>
+      {row.warnings.length > 0 ? (
+        <p className="mt-2 text-xs text-[#A66F00]">
+          {row.warnings[0]?.message}
+        </p>
+      ) : null}
     </div>
   );
 }

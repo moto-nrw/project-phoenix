@@ -522,7 +522,8 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Stundenplan` öffnen und die Planungsperiode wählen.",
           "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
-          "Für wiederkehrende Angebote eine Serie anlegen und `Termine erzeugen`.",
+          "Für wiederkehrende Angebote eine Serie anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Dienstplan markieren kann.",
+          "`Termine erzeugen` nutzen, damit die Serie in konkrete Termine der Planungsperiode übernommen wird.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
         ],
         callout: {
@@ -640,13 +641,14 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
+          "Unter `Stundenplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen automatisch im Stundenplan erwartet werden sollen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
         callout: {
-          title: "Pro Phase eigene Angebote",
-          body: "Angebote gehören immer zu genau einer Phase. Ein Angebot aus einer früheren Phase übernimmst du über `Duplizieren` in eine andere Phase, statt es neu anzulegen.",
-          tone: "gray",
+          title: "Anmeldung und Stundenplan verbinden",
+          body: "Eltern wählen weiterhin nur Angebot und Tage. Die genaue Betreuung entsteht später aus genehmigter Anmeldung plus verknüpfter Stundenplan-Vorlage. Phoenix zeigt Hinweise, wenn Angebotstage, Vorlage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
+          tone: "blue",
         },
         screenshot:
           "Betreuungsangebote einer Anmeldephase mit Tagen, Kapazität und Extras.",

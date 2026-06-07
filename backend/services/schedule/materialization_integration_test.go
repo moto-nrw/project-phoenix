@@ -169,15 +169,15 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 	validFrom := materializeDate.AddDate(0, 0, -30)
 	enroll1 := &activitiesModels.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll1.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
 	enroll2 := &activitiesModels.StudentEnrollment{StudentID: student2.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll2.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll2).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	_, err = db.NewInsert().Model(enroll2).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
 	enroll3 := &activitiesModels.StudentEnrollment{StudentID: student3.ID, ActivityGroupID: template.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
 	enroll3.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(enroll3).ModelTableExpr(`activities.student_enrollments`).Exec(ctx)
+	_, err = db.NewInsert().Model(enroll3).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
 	require.NoError(t, err)
 
 	// 7. Supervisor (primary, unbounded).

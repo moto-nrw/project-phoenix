@@ -51,6 +51,7 @@ type createTemplateRequest struct {
 	MaxParticipants  *int    `json:"max_participants,omitempty"`
 	WeekPattern      *int    `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64  `json:"education_group_id,omitempty"`
 	MaterializeFrom  *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo    *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
 	StudentIDs       []int64 `json:"student_ids,omitempty"`
@@ -169,6 +170,10 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
+	if err := rs.validateTemplateEducationGroup(ctx, req.EducationGroupID); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	// 1. Find or create timeframe matching the requested clock window.
 	//    Reusing existing timeframes keeps the schedule.timeframes table
@@ -191,14 +196,15 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 
 	roomIDCopy := req.RoomID
 	group := &activitiesModel.Group{
-		Name:            req.Name,
-		MaxParticipants: maxParticipants,
-		IsOpen:          true,
-		CategoryID:      req.CategoryID,
-		PlannedRoomID:   &roomIDCopy,
-		Type:            req.Type,
-		IsTemplate:      true,
-		CreatedBy:       createdByPtr,
+		Name:             req.Name,
+		MaxParticipants:  maxParticipants,
+		IsOpen:           true,
+		CategoryID:       req.CategoryID,
+		PlannedRoomID:    &roomIDCopy,
+		Type:             req.Type,
+		EducationGroupID: req.EducationGroupID,
+		IsTemplate:       true,
+		CreatedBy:        createdByPtr,
 	}
 	group.SetTenantID(tenantID)
 	if err := rs.activityGroupRepo.Create(ctx, group); err != nil {

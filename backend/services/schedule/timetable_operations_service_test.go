@@ -8,6 +8,7 @@ import (
 	"time"
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -282,6 +283,42 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	assert.Equal(t, "Zoe Zimmer", roster.Rows[1].StudentName)
 	assert.True(t, roster.Rows[1].Planned)
 	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
+}
+
+func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
+	instanceID := int64(361)
+	activeGroupID := int64(261)
+	activityGroupID := int64(271)
+	expectedGroupID := int64(281)
+	actualGroupID := int64(282)
+	studentID := int64(532)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 651, 451, 241, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.instanceRepo.byID[instanceID].ActivityGroupID = &activityGroupID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.activityGroups.byID[activityGroupID] = &activitiesModel.Group{EducationGroupID: &expectedGroupID}
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 462, SchoolClass: "3b", GroupID: &actualGroupID}
+	deps.personService.people[462] = &usersModel.Person{FirstName: "Nina", LastName: "Nachmittag"}
+	deps.groups.byID[expectedGroupID] = &educationModel.Group{Name: "Klasse 2a"}
+	deps.groups.byID[actualGroupID] = &educationModel.Group{Name: "Klasse 3b"}
+	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
+	deps.arrivalService.byStudent[studentID] = &EffectiveArrivalTime{ArrivalTime: &lateArrival}
+
+	roster, err := deps.service.Roster(context.Background(), 651, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	require.Len(t, roster.Rows[0].Warnings, 2)
+	assert.Equal(t, "arrival_after_slot_start", roster.Rows[0].Warnings[0].Kind)
+	assert.Equal(t, "14:30", *roster.Rows[0].Warnings[0].ExpectedArrival)
+	assert.Equal(t, "14:00", *roster.Rows[0].Warnings[0].SlotStart)
+	assert.Equal(t, "template_class_mismatch", roster.Rows[0].Warnings[1].Kind)
+	assert.Equal(t, expectedGroupID, *roster.Rows[0].Warnings[1].ExpectedGroupID)
+	assert.Equal(t, "Klasse 2a", *roster.Rows[0].Warnings[1].ExpectedGroupName)
+	assert.Equal(t, actualGroupID, *roster.Rows[0].Warnings[1].CurrentEducationGroup)
 }
 
 func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing.T) {
@@ -814,7 +851,9 @@ type timetableOpsTestDeps struct {
 	studentRepo     *fakeOpsInstanceStudentRepo
 	instanceService *fakeOpsInstanceService
 	activeGroups    *fakeOpsActiveGroupRepo
+	activityGroups  *fakeOpsActivityGroupRepo
 	activeService   *fakeOpsActiveService
+	arrivalService  *fakeOpsArrivalService
 	supervisors     *fakeOpsSupervisorRepo
 	visitRepo       *fakeOpsVisitRepo
 	students        *fakeOpsStudentRepo
@@ -832,7 +871,9 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		studentRepo:     &fakeOpsInstanceStudentRepo{byInstance: map[int64][]*scheduleModel.InstanceStudent{}, byInstanceStudent: map[instanceStudentKey]*scheduleModel.InstanceStudent{}},
 		instanceService: &fakeOpsInstanceService{},
 		activeGroups:    &fakeOpsActiveGroupRepo{lastActivity: map[int64]time.Time{}},
+		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}},
 		activeService:   &fakeOpsActiveService{},
+		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo:       &fakeOpsVisitRepo{byActiveGroup: map[int64][]*activeModel.Visit{}, currentByStudent: map[int64]*activeModel.Visit{}},
 		students:        &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
@@ -848,7 +889,9 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		InstanceStudents:   deps.studentRepo,
 		InstanceService:    deps.instanceService,
 		ActiveGroupRepo:    deps.activeGroups,
+		ActivityGroupRepo:  deps.activityGroups,
 		ActiveService:      deps.activeService,
+		ArrivalService:     deps.arrivalService,
 		SupervisorRepo:     deps.supervisors,
 		VisitRepo:          deps.visitRepo,
 		StudentRepo:        deps.students,
@@ -982,6 +1025,23 @@ func (r *fakeOpsActiveGroupRepo) UpdateLastActivity(_ context.Context, id int64,
 	return nil
 }
 
+type fakeOpsActivityGroupRepo struct {
+	activitiesModel.GroupRepository
+	byID map[int64]*activitiesModel.Group
+	err  error
+}
+
+func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (*activitiesModel.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	group := r.byID[id.(int64)]
+	if group == nil {
+		return nil, sql.ErrNoRows
+	}
+	return group, nil
+}
+
 type fakeOpsActiveService struct {
 	created   []*activeModel.Visit
 	ended     []int64
@@ -1003,6 +1063,26 @@ func (s *fakeOpsActiveService) EndVisit(_ context.Context, id int64) error {
 	}
 	s.ended = append(s.ended, id)
 	return nil
+}
+
+type fakeOpsArrivalService struct {
+	byStudent map[int64]*EffectiveArrivalTime
+	err       error
+}
+
+func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	out := make(map[int64]*EffectiveArrivalTime, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if arrival := s.byStudent[studentID]; arrival != nil {
+			out[studentID] = arrival
+			continue
+		}
+		out[studentID] = &EffectiveArrivalTime{Date: date}
+	}
+	return out, nil
 }
 
 type fakeOpsSupervisorRepo struct {

@@ -544,6 +544,12 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           ? String(template.room_id)
           : undefined,
       roomName: template.room_name,
+      educationGroupId:
+        template.education_group_id !== undefined &&
+        template.education_group_id !== null
+          ? String(template.education_group_id)
+          : undefined,
+      educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
       enrollmentCount: template.enrollment_count,

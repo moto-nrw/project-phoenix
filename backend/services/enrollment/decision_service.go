@@ -768,6 +768,12 @@ func (s *decisionService) materializeEnrollments(
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
+	type enrollmentDraft struct {
+		activityGroupID int64
+		selectedWeekday map[int]bool
+		allWeekdays     bool
+	}
+	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
 		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
@@ -781,11 +787,38 @@ func (s *decisionService) materializeEnrollments(
 			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
+		draft := drafts[*offering.ActivityGroupID]
+		if draft == nil {
+			draft = &enrollmentDraft{
+				activityGroupID: *offering.ActivityGroupID,
+				selectedWeekday: make(map[int]bool),
+			}
+			drafts[*offering.ActivityGroupID] = draft
+		}
+		if len(link.SelectedDays) == 0 {
+			draft.allWeekdays = true
+			continue
+		}
+		if !draft.allWeekdays {
+			for _, day := range link.SelectedDays {
+				weekday, ok := enrollmentDayToISOWeekday(day)
+				if !ok {
+					return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
+				}
+				draft.selectedWeekday[weekday] = true
+			}
+		}
+	}
+
+	for _, draft := range drafts {
 		row := &activities.StudentEnrollment{
 			StudentID:       studentID,
-			ActivityGroupID: *offering.ActivityGroupID,
+			ActivityGroupID: draft.activityGroupID,
 			ValidFrom:       validFrom,
 			ValidUntil:      &validUntil,
+		}
+		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
+			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
 		}
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
@@ -795,6 +828,37 @@ func (s *decisionService) materializeEnrollments(
 		}
 	}
 	return nil
+}
+
+func enrollmentDayToISOWeekday(day string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(day)) {
+	case "mon":
+		return 1, true
+	case "tue":
+		return 2, true
+	case "wed":
+		return 3, true
+	case "thu":
+		return 4, true
+	case "fri":
+		return 5, true
+	case "sat":
+		return 6, true
+	case "sun":
+		return 7, true
+	default:
+		return 0, false
+	}
+}
+
+func sortedWeekdaySet(days map[int]bool) []int {
+	out := make([]int, 0, len(days))
+	for day := 1; day <= 7; day++ {
+		if days[day] {
+			out = append(out, day)
+		}
+	}
+	return out
 }
 
 // linkCreatedStudent stamps request_children.created_student_id so the

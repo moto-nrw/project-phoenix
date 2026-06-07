@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -52,6 +54,10 @@ type OperationActiveService interface {
 	EndVisit(ctx context.Context, id int64) error
 }
 
+type OperationArrivalService interface {
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error)
+}
+
 type TimetableOperationsService interface {
 	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
@@ -75,7 +81,9 @@ type TimetableOperationsDependencies struct {
 	InstanceStudents   scheduleModel.InstanceStudentRepository
 	InstanceService    InstanceService
 	ActiveGroupRepo    activeModel.GroupRepository
+	ActivityGroupRepo  activitiesModel.GroupRepository
 	ActiveService      OperationActiveService
+	ArrivalService     OperationArrivalService
 	SupervisorRepo     activeModel.GroupSupervisorRepository
 	VisitRepo          activeModel.VisitRepository
 	StudentRepo        usersModel.StudentRepository
@@ -126,19 +134,30 @@ type OperationRosterInstance struct {
 }
 
 type OperationRosterRow struct {
-	StudentID        int64   `json:"student_id"`
-	StudentName      string  `json:"student_name"`
-	SchoolClass      string  `json:"school_class"`
-	GroupName        string  `json:"group_name"`
-	Planned          bool    `json:"planned"`
-	IsUnplanned      bool    `json:"is_unplanned"`
-	CurrentlyPresent bool    `json:"currently_present"`
-	VisitID          *int64  `json:"visit_id,omitempty"`
-	Status           string  `json:"status"`
-	Substatus        *string `json:"substatus,omitempty"`
-	Note             *string `json:"note,omitempty"`
-	CheckedInAt      *string `json:"checked_in_at,omitempty"`
-	VisitEntryTime   *string `json:"visit_entry_time,omitempty"`
+	StudentID        int64                    `json:"student_id"`
+	StudentName      string                   `json:"student_name"`
+	SchoolClass      string                   `json:"school_class"`
+	GroupName        string                   `json:"group_name"`
+	Planned          bool                     `json:"planned"`
+	IsUnplanned      bool                     `json:"is_unplanned"`
+	CurrentlyPresent bool                     `json:"currently_present"`
+	VisitID          *int64                   `json:"visit_id,omitempty"`
+	Status           string                   `json:"status"`
+	Substatus        *string                  `json:"substatus,omitempty"`
+	Note             *string                  `json:"note,omitempty"`
+	CheckedInAt      *string                  `json:"checked_in_at,omitempty"`
+	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
+	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
+}
+
+type OperationRosterWarning struct {
+	Kind                  string  `json:"kind"`
+	Message               string  `json:"message"`
+	ExpectedArrival       *string `json:"expected_arrival,omitempty"`
+	SlotStart             *string `json:"slot_start,omitempty"`
+	ExpectedGroupID       *int64  `json:"expected_group_id,omitempty"`
+	ExpectedGroupName     *string `json:"expected_group_name,omitempty"`
+	CurrentEducationGroup *int64  `json:"current_education_group_id,omitempty"`
 }
 
 type timetableOperationsService struct {
@@ -147,7 +166,8 @@ type timetableOperationsService struct {
 
 func NewTimetableOperationsService(deps TimetableOperationsDependencies) TimetableOperationsService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
-		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActiveService == nil || deps.SupervisorRepo == nil ||
+		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActivityGroupRepo == nil ||
+		deps.ActiveService == nil || deps.ArrivalService == nil || deps.SupervisorRepo == nil ||
 		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
@@ -439,6 +459,10 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 	if err != nil {
 		return nil, err
 	}
+	templateGroup, err := s.loadRosterTemplateGroup(ctx, inst.ActivityGroupID)
+	if err != nil {
+		return nil, err
+	}
 	groupIDs := make([]int64, 0, len(students))
 	personIDs := make([]int64, 0, len(students))
 	for _, st := range students {
@@ -446,6 +470,9 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 		if st.GroupID != nil {
 			groupIDs = append(groupIDs, *st.GroupID)
 		}
+	}
+	if templateGroup != nil && templateGroup.EducationGroupID != nil {
+		groupIDs = append(groupIDs, *templateGroup.EducationGroupID)
 	}
 	persons, err := s.deps.PersonService.GetByIDs(ctx, personIDs)
 	if err != nil {
@@ -461,15 +488,16 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 			latestVisits[visit.StudentID] = visit
 		}
 	}
+	warningsByStudent := s.rosterWarnings(ctx, inst, studentIDs, students, groups, templateGroup)
 	rows := make([]OperationRosterRow, 0, len(seen))
 	for _, planned := range plannedRows {
-		rows = append(rows, s.mapRosterRow(planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups))
+		rows = append(rows, s.mapRosterRow(planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID]))
 	}
 	for _, visit := range latestVisits {
 		if _, planned := findPlanned(plannedRows, visit.StudentID); planned {
 			continue
 		}
-		rows = append(rows, s.mapRosterRow(visit.StudentID, nil, visit, students, persons, groups))
+		rows = append(rows, s.mapRosterRow(visit.StudentID, nil, visit, students, persons, groups, nil))
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].CurrentlyPresent != rows[j].CurrentlyPresent {
@@ -493,13 +521,14 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 	}, nil
 }
 
-func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group) OperationRosterRow {
+func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
 		Planned:          planned != nil,
 		IsUnplanned:      planned == nil && visit != nil,
 		CurrentlyPresent: visit != nil && visit.ExitTime == nil,
 		Status:           scheduleModel.AttendanceStatusPresent,
+		Warnings:         warnings,
 	}
 	if planned != nil {
 		row.Status = planned.Status
@@ -528,6 +557,101 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 		}
 	}
 	return row
+}
+
+func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*activitiesModel.Group, error) {
+	if activityGroupID == nil || *activityGroupID <= 0 {
+		return nil, nil
+	}
+	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
+	if err != nil {
+		if isNoRows(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return group, nil
+}
+
+func (s *timetableOperationsService) rosterWarnings(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	studentIDs []int64,
+	students map[int64]*usersModel.Student,
+	groups map[int64]*educationModel.Group,
+	templateGroup *activitiesModel.Group,
+) map[int64][]OperationRosterWarning {
+	warnings := make(map[int64][]OperationRosterWarning)
+	if len(studentIDs) == 0 {
+		return warnings
+	}
+
+	arrivals, err := s.deps.ArrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, inst.Date)
+	if err != nil {
+		s.logger().WarnContext(
+			ctx,
+			"could not load arrival times for timetable roster warnings",
+			slog.String("error", err.Error()),
+			slog.Int64("instance_id", inst.ID),
+		)
+	} else {
+		appendArrivalWarnings(warnings, arrivals, inst)
+	}
+
+	if templateGroup != nil && templateGroup.EducationGroupID != nil {
+		expectedGroupID := *templateGroup.EducationGroupID
+		var expectedGroupName *string
+		if group := groups[expectedGroupID]; group != nil {
+			name := group.Name
+			expectedGroupName = &name
+		}
+		for _, studentID := range studentIDs {
+			st := students[studentID]
+			if st == nil || (st.GroupID != nil && *st.GroupID == expectedGroupID) {
+				continue
+			}
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:                  "template_class_mismatch",
+				Message:               "Kind passt nicht zur Klassengruppe der Stundenplan-Vorlage.",
+				ExpectedGroupID:       &expectedGroupID,
+				ExpectedGroupName:     expectedGroupName,
+				CurrentEducationGroup: st.GroupID,
+			})
+		}
+	}
+
+	return warnings
+}
+
+func appendArrivalWarnings(warnings map[int64][]OperationRosterWarning, arrivals map[int64]*EffectiveArrivalTime, inst *scheduleModel.ActivityInstance) {
+	slotStart := inst.StartTime.Format("15:04")
+	slotStartClock := timezone.WallClock(inst.StartTime)
+	for studentID, arrival := range arrivals {
+		if arrival == nil {
+			continue
+		}
+		if arrival.ArrivalTime == nil {
+			if arrival.IsException {
+				continue
+			}
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:      "missing_arrival_schedule",
+				Message:   "Für diesen Tag ist keine erwartete Ankunft hinterlegt.",
+				SlotStart: &slotStart,
+			})
+			continue
+		}
+		arrivalClock := timezone.WallClock(*arrival.ArrivalTime)
+		if arrivalClock.After(slotStartClock) {
+			expectedArrival := arrival.ArrivalTime.Format("15:04")
+			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
+				Kind:            "arrival_after_slot_start",
+				Message:         "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+				ExpectedArrival: &expectedArrival,
+				SlotStart:       &slotStart,
+			})
+		}
+	}
 }
 
 func (s *timetableOperationsService) resolveStaffID(ctx context.Context, accountID int64) (int64, bool, error) {

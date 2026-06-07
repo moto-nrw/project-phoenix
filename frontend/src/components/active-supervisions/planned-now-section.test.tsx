@@ -36,6 +36,7 @@ const plannedInstance: PlannedTimetableInstance = {
       note: null,
       checkedInAt: null,
       visitEntryTime: null,
+      warnings: [],
     },
   ],
   isOverdue: true,

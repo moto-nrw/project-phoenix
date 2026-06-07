@@ -46,11 +46,23 @@ interface PersonOption {
   groupName?: string;
 }
 
+interface GroupOption {
+  id: string;
+  name: string;
+}
+
 interface BackendRoomsEnvelope {
   data?: Array<{
     id: number;
     name: string;
     building?: string;
+  }>;
+}
+
+interface BackendGroupsEnvelope {
+  data?: Array<{
+    id: number;
+    name: string;
   }>;
 }
 
@@ -64,6 +76,7 @@ interface EventFormState {
   roomId: string;
   type: ActivityType;
   categoryId: string;
+  educationGroupId: string;
   notes: string;
   repeat: RepeatMode;
   weekdays: number[];
@@ -140,6 +153,7 @@ function emptyForm(
     roomId: "",
     type: "care",
     categoryId: "",
+    educationGroupId: "",
     notes: "",
     repeat: defaultRepeat,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
@@ -164,6 +178,7 @@ function formFromInstance(
     roomId: instance.roomId,
     type: instance.activityType,
     categoryId: "",
+    educationGroupId: "",
     notes: instance.notes ?? "",
     repeat,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
@@ -191,6 +206,7 @@ function formFromSeries(
     roomId: series.roomId ?? "",
     type: series.type,
     categoryId: series.categoryId,
+    educationGroupId: series.educationGroupId ?? "",
     notes: "",
     repeat,
     weekdays: weekdays.length > 0 ? weekdays : [1],
@@ -243,6 +259,7 @@ export function TimetableEventModal({
   );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
@@ -293,6 +310,20 @@ export function TimetableEventModal({
           });
           return [] as ActivityCategory[];
         }),
+      fetch("/api/groups", { credentials: "include" })
+        .then((r) => r.json() as Promise<BackendGroupsEnvelope>)
+        .then((j): GroupOption[] =>
+          (j.data ?? []).map((group) => ({
+            id: String(group.id),
+            name: group.name,
+          })),
+        )
+        .catch((err: unknown) => {
+          logger.error("groups_fetch_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as GroupOption[];
+        }),
       fetchStudents({ page_size: 500 })
         .then((res) =>
           res.students.map((student) => ({
@@ -318,15 +349,19 @@ export function TimetableEventModal({
           return [] as PersonOption[];
         }),
     ])
-      .then(([roomData, categoryData, studentData, staffData]) => {
+      .then(([roomData, categoryData, groupData, studentData, staffData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
         const sortedCategories = [...categoryData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
+        const sortedGroups = [...groupData].sort((a, b) =>
+          a.name.localeCompare(b.name, "de"),
+        );
         setRooms(sortedRooms);
         setCategories(sortedCategories);
+        setGroups(sortedGroups);
         setStudents(sortPeople(studentData));
         setStaff(sortPeople(staffData));
         setForm((prev) =>
@@ -438,6 +473,9 @@ export function TimetableEventModal({
     end_time: form.endTime,
     room_id: roomId,
     category_id: categoryId,
+    education_group_id: form.educationGroupId
+      ? Number(form.educationGroupId)
+      : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: seriesWeekPattern(form.repeat),
     student_ids: form.studentIds.map(Number),
@@ -781,6 +819,27 @@ export function TimetableEventModal({
                       ))}
                     </select>
                   </Field>
+                  <Field label="Klassengruppe" htmlFor="event_education_group">
+                    <select
+                      id="event_education_group"
+                      value={form.educationGroupId}
+                      onChange={(event) =>
+                        update("educationGroupId", event.target.value)
+                      }
+                      disabled={loadingRefs}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                    >
+                      <option value="">Keine Zuordnung</option>
+                      {groups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {showPeriodField ? (
                     <Field
                       label="Planungsperiode"
