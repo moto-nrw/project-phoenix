@@ -5,7 +5,12 @@ import type {
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
-import { computeStaffMetrics, toDateKey } from "./staff-metrics-helpers";
+import {
+  computeStaffMetrics,
+  getDeltaStatus,
+  resolveWeekIndex,
+  toDateKey,
+} from "./staff-metrics-helpers";
 
 const schedule: StaffSchedule = {
   mode: "custom",
@@ -48,6 +53,24 @@ function session(overrides: Partial<StaffHistorySession>): StaffHistorySession {
 }
 
 describe("computeStaffMetrics absence credit", () => {
+  it("credits a single half day absence with half the target", () => {
+    const metrics = computeStaffMetrics(
+      schedule,
+      [],
+      [
+        absence({
+          date_start: "2026-06-02",
+          date_end: "2026-06-02",
+          half_day: true,
+        }),
+      ],
+      new Date(2026, 5, 5),
+    );
+
+    expect(metrics.weekIst).toBe(240);
+    expect(metrics.weekDelta).toBe(-2160);
+  });
+
   it("uses boundary half days instead of halving the whole range", () => {
     const metrics = computeStaffMetrics(
       schedule,
@@ -144,5 +167,71 @@ describe("computeStaffMetrics account start", () => {
     expect(metrics.accountSoll).toBe(1440);
     expect(metrics.accountIst).toBe(480);
     expect(metrics.accountBalance).toBe(-960);
+  });
+
+  it("falls back to Jan 1 when the configured account start date is invalid", () => {
+    const metrics = computeStaffMetrics(
+      schedule,
+      [],
+      [],
+      new Date(2026, 5, 5),
+      "not-a-date",
+    );
+
+    expect(toDateKey(metrics.accountStart)).toBe("2026-01-01");
+  });
+
+  it("counts account absences before schedule validFrom when the account start allows it", () => {
+    const metrics = computeStaffMetrics(
+      { ...schedule, validFrom: "2026-06-03" },
+      [],
+      [absence({ date_start: "2026-06-01", date_end: "2026-06-02" })],
+      new Date(2026, 5, 5),
+      "2026-06-01",
+    );
+
+    expect(metrics.weekSoll).toBe(1440);
+    expect(metrics.weekIst).toBe(0);
+    expect(metrics.accountSoll).toBe(2400);
+    expect(metrics.accountIst).toBe(960);
+    expect(metrics.accountBalance).toBe(-1440);
+  });
+});
+
+describe("resolveWeekIndex", () => {
+  it("returns the forward rotation week index", () => {
+    expect(
+      resolveWeekIndex(
+        { rotationLength: 2, rotationAnchorDate: "2026-06-01" },
+        new Date(2026, 5, 8),
+      ),
+    ).toBe(1);
+  });
+
+  it("wraps dates before the rotation anchor into a positive index", () => {
+    expect(
+      resolveWeekIndex(
+        { rotationLength: 3, rotationAnchorDate: "2026-06-15" },
+        new Date(2026, 5, 1),
+      ),
+    ).toBe(1);
+  });
+
+  it("falls back to week zero when the rotation anchor is invalid", () => {
+    expect(
+      resolveWeekIndex(
+        { rotationLength: 2, rotationAnchorDate: "invalid" },
+        new Date(2026, 5, 8),
+      ),
+    ).toBe(0);
+  });
+});
+
+describe("getDeltaStatus", () => {
+  it("uses green inside tolerance, amber above, and gray below", () => {
+    expect(getDeltaStatus(0)).toBe("green");
+    expect(getDeltaStatus(15)).toBe("green");
+    expect(getDeltaStatus(16)).toBe("amber");
+    expect(getDeltaStatus(-16)).toBe("gray");
   });
 });

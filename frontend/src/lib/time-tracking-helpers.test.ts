@@ -19,6 +19,7 @@ import {
   getWeekNumber,
   getComplianceWarnings,
   calculateNetMinutes,
+  mapHistoryResponse,
 } from "./time-tracking-helpers";
 
 // Helper to create mock backend session
@@ -241,6 +242,35 @@ describe("mapWorkSessionHistoryResponse", () => {
     const result = mapWorkSessionHistoryResponse(backend);
 
     expect(result.editCount).toBe(0);
+  });
+});
+
+describe("mapHistoryResponse", () => {
+  it("maps weekly summaries", () => {
+    const result = mapHistoryResponse({
+      sessions: [],
+      weekly_summaries: [
+        {
+          week_number: 23,
+          year: 2026,
+          total_net_minutes: 1200,
+          target_minutes: 1500,
+          delta_minutes: -300,
+          session_count: 3,
+          is_over_weekly_max: false,
+        },
+      ],
+    });
+
+    expect(result.weeklySummaries[0]).toEqual({
+      weekNumber: 23,
+      year: 2026,
+      totalNetMinutes: 1200,
+      targetMinutes: 1500,
+      deltaMinutes: -300,
+      sessionCount: 3,
+      isOverWeeklyMax: false,
+    });
   });
 });
 
@@ -593,6 +623,15 @@ describe("getComplianceWarnings", () => {
     const warnings = getComplianceWarnings(session);
 
     expect(warnings).toContain("Pausenzeit < 45min bei >9h Arbeitszeit");
+  });
+
+  it("returns rest period warning", () => {
+    const session = createHistorySession({
+      restPeriodWarning: "Ruhezeit unterschritten",
+    });
+    const warnings = getComplianceWarnings(session);
+
+    expect(warnings).toContain("Ruhezeit unterschritten");
   });
 
   it("returns warning for >6h work with <30min break", () => {
