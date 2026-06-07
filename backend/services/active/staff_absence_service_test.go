@@ -649,6 +649,41 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 	assert.Contains(t, err.Error(), "overlap")
 }
 
+func TestAbsUpdateAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusApproved,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: absenceID},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+			absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+				t.Fatal("workflow vacation must not be updated through generic absence update")
+				return nil
+			}
+
+			note := "changed"
+			result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{Note: &note})
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "vacation flow")
+		})
+	}
+}
+
 // ============================================================================
 // DeleteAbsence Tests
 // ============================================================================
@@ -721,6 +756,39 @@ func TestAbsDeleteAbsence_RepoError(t *testing.T) {
 	err := svc.DeleteAbsence(context.Background(), staffID, 100)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete absence")
+}
+
+func TestAbsDeleteAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusApproved,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: absenceID},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+			absRepo.deleteFunc = func(_ context.Context, _ any) error {
+				t.Fatal("workflow vacation must not be deleted through generic absence delete")
+				return nil
+			}
+
+			err := svc.DeleteAbsence(context.Background(), staffID, absenceID)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "vacation flow")
+		})
+	}
 }
 
 // ============================================================================

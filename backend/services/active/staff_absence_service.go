@@ -272,6 +272,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
+	if isVacationWorkflowAbsence(absence) {
+		return nil, fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
+	}
 
 	// Apply updates from request
 	if err := applyAbsenceUpdates(absence, req); err != nil {
@@ -351,6 +354,9 @@ func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return fmt.Errorf("can only delete own absences")
 	}
+	if isVacationWorkflowAbsence(absence) {
+		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")
+	}
 
 	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
 		return fmt.Errorf("failed to delete absence: %w", err)
@@ -405,6 +411,16 @@ func blocksAbsenceRange(status string) bool {
 	return status == activeModels.AbsenceStatusReported ||
 		status == activeModels.AbsenceStatusRequested ||
 		status == activeModels.AbsenceStatusApproved
+}
+
+func isVacationWorkflowAbsence(absence *activeModels.StaffAbsence) bool {
+	if absence.AbsenceType != activeModels.AbsenceTypeVacation {
+		return false
+	}
+	return absence.Status == activeModels.AbsenceStatusRequested ||
+		absence.Status == activeModels.AbsenceStatusApproved ||
+		absence.Status == activeModels.AbsenceStatusDeclined ||
+		absence.Status == activeModels.AbsenceStatusCanceled
 }
 
 func filterBlockingAbsences(rows []*activeModels.StaffAbsence) []*activeModels.StaffAbsence {

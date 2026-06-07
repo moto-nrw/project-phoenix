@@ -87,15 +87,53 @@ func createWorkTimeModels(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE config.staff_work_schedules
 			ADD COLUMN IF NOT EXISTS week_index SMALLINT NOT NULL DEFAULT 0;
 
-		ALTER TABLE config.staff_work_schedules
-			ADD CONSTRAINT chk_sws_week CHECK (week_index BETWEEN 0 AND 3);
+			ALTER TABLE config.staff_work_schedules
+				ADD CONSTRAINT chk_sws_week CHECK (week_index BETWEEN 0 AND 3);
 
-		ALTER TABLE config.staff_work_schedules
-			ADD COLUMN IF NOT EXISTS rotation_length SMALLINT NOT NULL DEFAULT 1;
+			ALTER TABLE config.staff_work_schedules
+				ADD COLUMN IF NOT EXISTS rotation_length SMALLINT NOT NULL DEFAULT 1;
 
-		ALTER TABLE config.staff_work_schedules
-			ADD CONSTRAINT chk_sws_rotation CHECK (rotation_length BETWEEN 1 AND 4);
-	`)
+			ALTER TABLE config.staff_work_schedules
+				ADD CONSTRAINT chk_sws_rotation CHECK (rotation_length BETWEEN 1 AND 4);
+
+			ALTER TABLE config.work_time_models ENABLE ROW LEVEL SECURITY;
+			ALTER TABLE config.work_time_models FORCE ROW LEVEL SECURITY;
+			DROP POLICY IF EXISTS tenant_isolation_config_work_time_models ON config.work_time_models;
+			CREATE POLICY tenant_isolation_config_work_time_models ON config.work_time_models
+				FOR ALL
+				USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+				WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+
+			ALTER TABLE config.work_time_model_entries ENABLE ROW LEVEL SECURITY;
+			ALTER TABLE config.work_time_model_entries FORCE ROW LEVEL SECURITY;
+			DROP POLICY IF EXISTS tenant_isolation_config_work_time_model_entries ON config.work_time_model_entries;
+			CREATE POLICY tenant_isolation_config_work_time_model_entries ON config.work_time_model_entries
+				FOR ALL
+				USING (
+					EXISTS (
+						SELECT 1
+						FROM config.work_time_models AS model
+						WHERE model.id = model_id
+							AND model.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+					)
+				)
+				WITH CHECK (
+					EXISTS (
+						SELECT 1
+						FROM config.work_time_models AS model
+						WHERE model.id = model_id
+							AND model.tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
+					)
+				);
+
+			ALTER TABLE config.staff_work_schedules ENABLE ROW LEVEL SECURITY;
+			ALTER TABLE config.staff_work_schedules FORCE ROW LEVEL SECURITY;
+			DROP POLICY IF EXISTS tenant_isolation_config_staff_work_schedules ON config.staff_work_schedules;
+			CREATE POLICY tenant_isolation_config_staff_work_schedules ON config.staff_work_schedules
+				FOR ALL
+				USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+				WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+		`)
 	if err != nil {
 		return fmt.Errorf("error creating work-time model tables: %w", err)
 	}

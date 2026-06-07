@@ -1277,7 +1277,7 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	checkOutWeekOne := mondayWeekOne.Add(30 * time.Hour)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		getCurrentByStaffIDFunc: func(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
 			validFrom := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
 			return []*configModels.StaffWorkSchedule{
 				{
@@ -1335,6 +1335,88 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	}
 
 	historyResp, err := svc.GetHistory(context.Background(), staffID, wednesdayWeekZero, mondayWeekOne)
+	require.NoError(t, err)
+	require.Len(t, historyResp.WeeklySummaries, 2)
+	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
+	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
+	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
+}
+
+func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	oldWeek := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
+	newWeek := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	checkOutOldWeek := oldWeek.Add(20 * time.Hour)
+	checkOutNewWeek := newWeek.Add(30 * time.Hour)
+	changeDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		getCurrentByStaffIDFunc: func(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
+			t.Fatal("history targets must use date-valid schedule rows")
+			return nil, nil
+		},
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, date time.Time) ([]*configModels.StaffWorkSchedule, error) {
+			if date.Before(changeDate) {
+				return []*configModels.StaffWorkSchedule{
+					{
+						StaffID:        staffID,
+						WeekIndex:      0,
+						RotationLength: 1,
+						DayOfWeek:      configModels.DayWednesday,
+						TargetMinutes:  20 * 60,
+						ValidFrom:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					},
+				}, nil
+			}
+			return []*configModels.StaffWorkSchedule{
+				{
+					StaffID:        staffID,
+					WeekIndex:      0,
+					RotationLength: 1,
+					DayOfWeek:      configModels.DayWednesday,
+					TargetMinutes:  30 * 60,
+					ValidFrom:      changeDate,
+				},
+			}, nil
+		},
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 2401},
+				StaffID:      staffID,
+				Date:         oldWeek,
+				CheckInTime:  oldWeek,
+				CheckOutTime: &checkOutOldWeek,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+			{
+				Model:        base.Model{ID: 2402},
+				StaffID:      staffID,
+				Date:         newWeek,
+				CheckInTime:  newWeek,
+				CheckOutTime: &checkOutNewWeek,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+		}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, oldWeek, newWeek)
+
 	require.NoError(t, err)
 	require.Len(t, historyResp.WeeklySummaries, 2)
 	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
