@@ -40,6 +40,7 @@ import {
 } from "~/lib/staff-api";
 import {
   computeStaffMetrics,
+  resolveAccountStartDate,
   startOfYear,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
@@ -2765,12 +2766,12 @@ function TimeTrackingContent() {
   //
   // The user's own staff id comes from the user-context endpoint; we then
   // fetch the staff-scoped schedule/history/absence endpoints over the
-  // cumulative range (validFrom → today) and feed them into
+  // cumulative range and feed them into
   // computeStaffMetrics, the same helper the admin staff-detail view uses.
   // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
   //
   // Note: history is already fetched up there for the chart, but only over
-  // 2 weeks — the Stundenkonto card needs the full validFrom→today range.
+  // 2 weeks. The Stundenkonto card needs the full account range.
   // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
   // dedupes anything that overlaps.
   const todayMidnight = useMemo(() => {
@@ -2792,14 +2793,18 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
 
+  const { data: timeTrackingConfig } = useSWRAuth(
+    "time-tracking-config",
+    () => timeTrackingService.getConfig(),
+    { revalidateOnFocus: false },
+  );
+
   const accountAnchor = useMemo(() => {
-    const vf = ownSchedule?.validFrom ?? "";
-    if (vf.length >= 10) {
-      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
-      if (y && m && d) return new Date(y, m - 1, d);
-    }
-    return startOfYear(todayMidnight);
-  }, [ownSchedule?.validFrom, todayMidnight]);
+    return resolveAccountStartDate(
+      todayMidnight,
+      timeTrackingConfig?.accountStartDate,
+    );
+  }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
   const accountFrom = toDateKey(accountAnchor);
   const accountTo = toDateKey(todayMidnight);
   const { data: accountSessions } = useSWRAuth(
@@ -2834,8 +2839,15 @@ function TimeTrackingContent() {
       accountSessions ?? [],
       accountAbsences ?? [],
       todayMidnight,
+      timeTrackingConfig?.accountStartDate,
     );
-  }, [ownSchedule, accountSessions, accountAbsences, todayMidnight]);
+  }, [
+    ownSchedule,
+    accountSessions,
+    accountAbsences,
+    todayMidnight,
+    timeTrackingConfig?.accountStartDate,
+  ]);
 
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {

@@ -93,13 +93,17 @@ function computeSollForRange(
   schedule: StaffSchedule,
   from: Date,
   to: Date,
+  options?: { readonly honorValidFrom?: boolean },
 ): number {
   const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
   const dayMs = 24 * 60 * 60 * 1000;
   const totalDays = Math.floor((end.getTime() - start.getTime()) / dayMs) + 1;
   if (totalDays <= 0) return 0;
-  const validFrom = parseSessionDate(schedule.validFrom);
+  const validFrom =
+    options?.honorValidFrom === false
+      ? null
+      : parseSessionDate(schedule.validFrom);
   let sum = 0;
   for (let i = 0; i < totalDays; i++) {
     const day = new Date(start);
@@ -124,11 +128,15 @@ function computeAbsenceCreditForRange(
   absences: readonly StaffAbsenceRow[] | undefined,
   from: Date,
   to: Date,
+  options?: { readonly honorValidFrom?: boolean },
 ): number {
   if (!absences || absences.length === 0) return 0;
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
-  const validFrom = parseSessionDate(schedule.validFrom);
+  const validFrom =
+    options?.honorValidFrom === false
+      ? null
+      : parseSessionDate(schedule.validFrom);
   let credit = 0;
   const seen = new Set<string>();
   for (const absence of absences) {
@@ -322,6 +330,13 @@ export function startOfYear(date: Date): Date {
   return new Date(date.getFullYear(), 0, 1);
 }
 
+export function resolveAccountStartDate(
+  now: Date,
+  accountStartDate?: string | null,
+): Date {
+  return parseSessionDate(accountStartDate ?? "") ?? startOfYear(now);
+}
+
 export interface StaffMetrics {
   // Current week
   weekSoll: number;
@@ -331,7 +346,7 @@ export interface StaffMetrics {
   monthSoll: number;
   monthIst: number;
   monthDelta: number;
-  // Cumulative balance since the schedule's validFrom (or today's year as fallback).
+  // Cumulative balance since the configured account start date or Jan 1.
   // accountStart is the anchor date used for the cumulative cards.
   accountStart: Date;
   accountSoll: number;
@@ -356,6 +371,7 @@ export function computeStaffMetrics(
   sessions: StaffHistorySession[],
   absences: readonly StaffAbsenceRow[] | undefined,
   now: Date,
+  accountStartDate?: string | null,
 ): StaffMetrics {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -386,18 +402,17 @@ export function computeStaffMetrics(
     monthSollEnd,
   );
 
-  // Stundenkonto: starts at the schedule's validFrom (or Jan 1 of the current
-  // year as fallback when no schedule exists yet). Anything before that date
-  // doesn't count, see computeSollForRange for the per-day guard.
-  const accountStart =
-    parseSessionDate(schedule.validFrom) ?? startOfYear(today);
-  const accountSoll = computeSollForRange(schedule, accountStart, today);
+  const accountStart = resolveAccountStartDate(today, accountStartDate);
+  const accountSoll = computeSollForRange(schedule, accountStart, today, {
+    honorValidFrom: false,
+  });
   const accountIstSessions = computeIstForRange(sessions, accountStart, today);
   const accountIstAbsence = computeAbsenceCreditForRange(
     schedule,
     absences,
     accountStart,
     today,
+    { honorValidFrom: false },
   );
   const accountIst = accountIstSessions + accountIstAbsence;
   const accountBalance = accountIst - accountSoll;

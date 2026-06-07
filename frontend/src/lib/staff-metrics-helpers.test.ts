@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { StaffAbsenceRow, StaffSchedule } from "./staff-api";
-import { computeStaffMetrics } from "./staff-metrics-helpers";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "./staff-api";
+import { computeStaffMetrics, toDateKey } from "./staff-metrics-helpers";
 
 const schedule: StaffSchedule = {
   mode: "custom",
@@ -27,6 +31,18 @@ function absence(overrides: Partial<StaffAbsenceRow>): StaffAbsenceRow {
     half_day: false,
     note: "",
     status: "approved",
+    ...overrides,
+  };
+}
+
+function session(overrides: Partial<StaffHistorySession>): StaffHistorySession {
+  return {
+    date: "2026-08-03",
+    status: "present",
+    net_minutes: 480,
+    check_in_time: "08:00",
+    check_out_time: "16:00",
+    break_minutes: 0,
     ...overrides,
   };
 }
@@ -96,5 +112,37 @@ describe("computeStaffMetrics absence credit", () => {
     expect(metrics.weekSoll).toBe(1440);
     expect(metrics.weekIst).toBe(1440);
     expect(metrics.weekDelta).toBe(0);
+  });
+});
+
+describe("computeStaffMetrics account start", () => {
+  it("uses Jan 1 when no account start date is configured", () => {
+    const metrics = computeStaffMetrics(
+      { ...schedule, validFrom: "2026-06-01" },
+      [],
+      [],
+      new Date(2026, 0, 5),
+    );
+
+    expect(toDateKey(metrics.accountStart)).toBe("2026-01-01");
+    expect(metrics.accountSoll).toBe(1440);
+  });
+
+  it("uses the configured account start date", () => {
+    const metrics = computeStaffMetrics(
+      schedule,
+      [
+        session({ date: "2026-07-31", net_minutes: 480 }),
+        session({ date: "2026-08-03", net_minutes: 480 }),
+      ],
+      [],
+      new Date(2026, 7, 5),
+      "2026-08-01",
+    );
+
+    expect(toDateKey(metrics.accountStart)).toBe("2026-08-01");
+    expect(metrics.accountSoll).toBe(1440);
+    expect(metrics.accountIst).toBe(480);
+    expect(metrics.accountBalance).toBe(-960);
   });
 });

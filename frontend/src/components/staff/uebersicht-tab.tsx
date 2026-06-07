@@ -44,12 +44,13 @@ import {
   endOfWeek,
   getDeltaStatus,
   resolveTargetForDate,
+  resolveAccountStartDate,
   startOfWeek,
-  startOfYear,
   toDateKey,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { timeTrackingService } from "~/lib/time-tracking-api";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
 
@@ -66,6 +67,11 @@ const EMPTY_SCHEDULE: StaffSchedule = {
 type DistributionCenterLabelProps = {
   readonly total: number;
   readonly viewBox?: unknown;
+};
+
+type ConcreteDateRange = {
+  readonly from: Date;
+  readonly to: Date;
 };
 
 function DistributionCenterLabel({
@@ -123,32 +129,25 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     () => staffScheduleService.getSchedule(staffId),
   );
 
-  // Schedule's first-effective-day. Used as the natural "Gesamt" anchor of the
-  // date-range picker presets — earlier ranges have no Soll to compute against.
-  const accountAnchor = useMemo(() => {
-    const vf = schedule?.validFrom ?? "";
-    if (vf.length >= 10) {
-      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
-      if (y && m && d) return new Date(y, m - 1, d);
-    }
-    return startOfYear(today);
-  }, [schedule?.validFrom, today]);
+  const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
+    timeTrackingService.getConfig(),
+  );
 
-  // Always fetch the whole year so chart ranges can be narrowed client-side
-  // without re-hitting the API. Wide fetch + local filtering keeps the picker
-  // instant — and prevents the loading-flicker we had previously.
-  const yearStart = useMemo(() => startOfYear(today), [today]);
-  const yearStartKey = toDateKey(yearStart);
+  const accountAnchor = useMemo(() => {
+    return resolveAccountStartDate(today, timeTrackingConfig?.accountStartDate);
+  }, [timeTrackingConfig?.accountStartDate, today]);
+
+  const accountStartKey = toDateKey(accountAnchor);
   const yearEndKey = toDateKey(today);
   const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
     StaffHistorySession[]
-  >(`staff-history-account-${staffId}-${yearStartKey}-${yearEndKey}`, () =>
-    staffHistoryService.getHistory(staffId, yearStartKey, yearEndKey),
+  >(`staff-history-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
+    staffHistoryService.getHistory(staffId, accountStartKey, yearEndKey),
   );
   const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
     StaffAbsenceRow[]
-  >(`staff-absences-account-${staffId}-${yearStartKey}-${yearEndKey}`, () =>
-    staffAbsenceService.getAbsences(staffId, yearStartKey, yearEndKey),
+  >(`staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
+    staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
   );
 
   const metrics = useMemo(
@@ -158,8 +157,15 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         accountSessions ?? [],
         accountAbsences ?? [],
         today,
+        timeTrackingConfig?.accountStartDate,
       ),
-    [schedule, accountSessions, accountAbsences, today],
+    [
+      schedule,
+      accountSessions,
+      accountAbsences,
+      today,
+      timeTrackingConfig?.accountStartDate,
+    ],
   );
 
   // Three independent date-range states — each chart has its own picker so the
@@ -182,12 +188,15 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     to: today,
   }));
 
-  const donutFrom = donutRange?.from ?? addDaysSafe(today, -59);
-  const donutTo = donutRange?.to ?? today;
-  const saldoFrom = saldoRange?.from ?? addDaysSafe(today, -59);
-  const saldoTo = saldoRange?.to ?? today;
-  const dailyFrom = dailyRange?.from ?? addDaysSafe(today, -59);
-  const dailyTo = dailyRange?.to ?? today;
+  const clampedDonutRange = clampDateRange(donutRange, accountAnchor, today);
+  const clampedSaldoRange = clampDateRange(saldoRange, accountAnchor, today);
+  const clampedDailyRange = clampDateRange(dailyRange, accountAnchor, today);
+  const donutFrom = clampedDonutRange.from;
+  const donutTo = clampedDonutRange.to;
+  const saldoFrom = clampedSaldoRange.from;
+  const saldoTo = clampedSaldoRange.to;
+  const dailyFrom = clampedDailyRange.from;
+  const dailyTo = clampedDailyRange.to;
 
   const absenceDays = useMemo(
     () => countAbsenceDays(accountAbsences ?? [], donutFrom, donutTo),
@@ -253,19 +262,23 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
         <KpiCard
           label="Stundenkonto"
           primary={formatSignedDuration(metrics.accountBalance)}
-          secondary={`seit ${yearStartLabel}`}
+          secondary={
+            metrics.accountBalance === 0
+              ? `Soll und Ist ausgeglichen seit ${yearStartLabel}`
+              : `seit ${yearStartLabel}`
+          }
           color={accountColor}
         />
         <KpiCard
           label="Urlaubstage"
           primary={`${absenceDays.vacation}`}
-          secondary="genommen dieses Jahr"
+          secondary={`genommen seit ${yearStartLabel}`}
           color="gray"
         />
         <KpiCard
           label="Krankheitstage"
           primary={`${absenceDays.sick}`}
-          secondary="dieses Jahr"
+          secondary={`seit ${yearStartLabel}`}
           color="gray"
         />
       </div>
@@ -279,10 +292,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               Tagesvergleich Ist / Soll
             </h3>
             <DateRangePicker
-              value={dailyRange}
+              value={clampedDailyRange}
               onChange={setDailyRange}
               presets={buildDefaultPresets(accountAnchor, today)}
-              fromMin={yearStart}
+              fromMin={accountAnchor}
               toMax={today}
             />
           </div>
@@ -365,10 +378,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
               Saldo-Verlauf
             </h3>
             <DateRangePicker
-              value={saldoRange}
+              value={clampedSaldoRange}
               onChange={setSaldoRange}
               presets={buildDefaultPresets(accountAnchor, today)}
-              fromMin={yearStart}
+              fromMin={accountAnchor}
               toMax={today}
             />
           </div>
@@ -453,10 +466,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
             Zeitverteilung
           </h3>
           <DateRangePicker
-            value={donutRange}
+            value={clampedDonutRange}
             onChange={setDonutRange}
             presets={buildDefaultPresets(accountAnchor, today)}
-            fromMin={yearStart}
+            fromMin={accountAnchor}
             toMax={today}
           />
         </div>
@@ -600,6 +613,7 @@ function countAbsenceDays(
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
   for (const a of absences) {
+    if (a.status !== "reported" && a.status !== "approved") continue;
     const startKey = a.date_start.slice(0, 10);
     const endKey = a.date_end.slice(0, 10);
     const clippedStart = startKey < fromKey ? fromKey : startKey;
@@ -644,6 +658,20 @@ function addDaysSafe(d: Date, days: number): Date {
   const result = new Date(d);
   result.setDate(result.getDate() + days);
   return result;
+}
+
+function clampDateRange(
+  range: DateRange | undefined,
+  accountAnchor: Date,
+  today: Date,
+): ConcreteDateRange {
+  const minimum = accountAnchor > today ? today : accountAnchor;
+  const fallbackFrom = addDaysSafe(today, -59);
+  const fromCandidate = range?.from ?? fallbackFrom;
+  const toCandidate = range?.to ?? today;
+  const from = fromCandidate < minimum ? minimum : fromCandidate;
+  const to = toCandidate < from ? from : toCandidate;
+  return { from, to };
 }
 
 interface DistributionBucket {

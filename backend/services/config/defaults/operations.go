@@ -196,6 +196,21 @@ func init() {
 		SortOrder:       1,
 	})
 
+	// --- Zeiterfassung ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingAccountStartDate,
+		Label:           "Stundenkonto ab Datum berechnen",
+		Description:     "Legt fest, ab welchem Datum das Stundenkonto neu berechnet wird. Wenn kein Datum gesetzt ist, startet die Berechnung am 1. Januar des aktuellen Jahres.",
+		Type:            config.FieldDate,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       1,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 

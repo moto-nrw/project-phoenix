@@ -116,7 +116,11 @@ export function KpiCards({
       <KpiCard
         label="Stundenkonto"
         primary={formatSignedDuration(metrics.accountBalance)}
-        secondary={`seit ${accountStartLabel}`}
+        secondary={
+          metrics.accountBalance === 0
+            ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
+            : `seit ${accountStartLabel}`
+        }
         color={accountColor}
       />
     </div>

@@ -15,7 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,15 +31,17 @@ type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
 	StaffAbsenceService activeSvc.StaffAbsenceService
 	PersonService       usersSvc.PersonService
+	SettingsService     configSvc.SettingsService
 	db                  *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, db *bun.DB) *Resource {
 	return &Resource{
 		WorkSessionService:  workSessionService,
 		StaffAbsenceService: staffAbsenceService,
 		PersonService:       personService,
+		SettingsService:     settingsService,
 		db:                  db,
 	}
 }
@@ -61,6 +65,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/config", rs.getConfig)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
@@ -94,6 +99,10 @@ func (rs *Resource) Router() chi.Router {
 // CheckInRequest represents a check-in request
 type CheckInRequest struct {
 	Status string `json:"status"` // "present" or "home_office"
+}
+
+type ConfigResponse struct {
+	AccountStartDate string `json:"account_start_date"`
 }
 
 // Bind validates the check-in request
@@ -225,6 +234,21 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 
 	// Return null if no active session (not an error)
 	common.Respond(w, r, http.StatusOK, session, "Current session retrieved successfully")
+}
+
+// getConfig handles GET /api/time-tracking/config
+func (rs *Resource) getConfig(w http.ResponseWriter, r *http.Request) {
+	accountStartDate := ""
+	if rs.SettingsService != nil {
+		value, err := rs.SettingsService.ResolveString(r.Context(), configModels.KeyTimeTrackingAccountStartDate)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		accountStartDate = value
+	}
+
+	common.Respond(w, r, http.StatusOK, ConfigResponse{AccountStartDate: accountStartDate}, "Time tracking config retrieved successfully")
 }
 
 // getHistory handles GET /api/time-tracking/history?from=2026-01-01&to=2026-01-31

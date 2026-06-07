@@ -13,12 +13,14 @@ import {
   computeStaffMetrics,
   endOfMonth,
   endOfWeek,
+  resolveAccountStartDate,
   startOfMonth,
   startOfWeek,
   startOfYear,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import { timeTrackingService } from "~/lib/time-tracking-api";
 import { useSWRAuth } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
@@ -44,17 +46,13 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     () => staffScheduleService.getSchedule(staffId),
   );
 
-  // KPI cards run on the cumulative range (schedule.validFrom or Jan 1 → today),
-  // independent of which week/month the table is showing. Anchored here so the
-  // numbers stay stable as the admin scrolls through past weeks below.
+  const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
+    timeTrackingService.getConfig(),
+  );
+
   const accountAnchor = useMemo(() => {
-    const vf = schedule?.validFrom ?? "";
-    if (vf.length >= 10) {
-      const [y, m, d] = vf.slice(0, 10).split("-").map(Number);
-      if (y && m && d) return new Date(y, m - 1, d);
-    }
-    return startOfYear(today);
-  }, [schedule?.validFrom, today]);
+    return resolveAccountStartDate(today, timeTrackingConfig?.accountStartDate);
+  }, [timeTrackingConfig?.accountStartDate, today]);
   const accountFromKey = toDateKey(accountAnchor);
   const accountToKey = toDateKey(today);
   const { data: accountSessions } = useSWRAuth<StaffHistorySession[]>(
@@ -74,9 +72,16 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
             accountSessions ?? [],
             accountAbsences ?? [],
             today,
+            timeTrackingConfig?.accountStartDate,
           )
         : null,
-    [schedule, accountSessions, accountAbsences, today],
+    [
+      schedule,
+      accountSessions,
+      accountAbsences,
+      today,
+      timeTrackingConfig?.accountStartDate,
+    ],
   );
 
   const visibleFrom = useMemo(

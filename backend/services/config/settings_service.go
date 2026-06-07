@@ -398,6 +398,15 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
+	case config.FieldDate:
+		str, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("expected a date string")
+		}
+		if err := validateDateFormat(str); err != nil {
+			return err
+		}
+
 	case config.FieldText, config.FieldTextarea:
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("expected a string")
@@ -431,6 +440,17 @@ func validateValue(def *config.Definition, value any) error {
 func validateTimeFormat(s string) error {
 	if _, err := time.Parse("15:04", strings.TrimSpace(s)); err != nil {
 		return fmt.Errorf("expected time in HH:MM format")
+	}
+	return nil
+}
+
+func validateDateFormat(s string) error {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	if _, err := time.Parse("2006-01-02", trimmed); err != nil {
+		return fmt.Errorf("expected date in YYYY-MM-DD format")
 	}
 	return nil
 }

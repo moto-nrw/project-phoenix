@@ -70,6 +70,14 @@ export interface UpdateAbsenceRequest {
   note?: string;
 }
 
+interface TimeTrackingConfig {
+  accountStartDate: string;
+}
+
+interface BackendTimeTrackingConfig {
+  account_start_date?: string;
+}
+
 /**
  * Service class for time tracking API operations
  */
@@ -153,6 +161,17 @@ class TimeTrackingService {
       "Failed to get current session",
     );
     return result.data ? mapWorkSessionResponse(result.data as never) : null;
+  }
+
+  async getConfig(): Promise<TimeTrackingConfig> {
+    const result = await this.request<BackendTimeTrackingConfig>(
+      "/config",
+      "GET",
+      "Failed to get time tracking config",
+    );
+    return {
+      accountStartDate: result.data?.account_start_date ?? "",
+    };
   }
 
   async getHistory(
