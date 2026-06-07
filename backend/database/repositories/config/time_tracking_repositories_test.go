@@ -123,6 +123,52 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	assert.Equal(t, 480, found.Entries[0].TargetMinutes)
 }
 
+func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Assigned", "Template")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	repo := configRepo.NewWorkTimeModelRepository(db)
+	model := &configModel.WorkTimeModel{
+		Name:               "Assigned delete safety",
+		RotationLength:     1,
+		RotationAnchorDate: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+	}
+	entries := []*configModel.WorkTimeModelEntry{
+		{
+			WeekIndex:     0,
+			DayOfWeek:     configModel.DayMonday,
+			TargetMinutes: 480,
+		},
+	}
+	require.NoError(t, repo.Create(ctx, model, entries))
+	defer func() {
+		_, _ = db.NewUpdate().
+			Table("users.staff").
+			Set("work_time_model_id = NULL").
+			Where("id = ?", staff.ID).
+			Exec(ctx)
+		_ = repo.Delete(ctx, model.ID)
+	}()
+
+	_, err := db.NewUpdate().
+		Table("users.staff").
+		Set("work_time_model_id = ?", model.ID).
+		Where("id = ?", staff.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	err = repo.Delete(ctx, model.ID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "assigned to staff")
+
+	found, err := repo.FindByID(ctx, model.ID)
+	require.NoError(t, err)
+	assert.Equal(t, model.ID, found.ID)
+}
+
 func cleanupStaffWorkSchedules(t *testing.T, db *bun.DB, staffID int64) {
 	t.Helper()
 	_, err := db.NewDelete().

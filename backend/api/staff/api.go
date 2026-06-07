@@ -195,6 +195,7 @@ type StaffResponse struct {
 	WorkStatus      string          `json:"work_status,omitempty"`
 	AbsenceType     string          `json:"absence_type,omitempty"`
 	AccountRole     string          `json:"account_role,omitempty"`
+	EmploymentType  *string         `json:"employment_type,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -362,6 +363,7 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 		WorkStatus:      workStatus,
 		AbsenceType:     absenceType,
 		AccountRole:     accountRole,
+		EmploymentType:  staff.EmploymentType,
 		CreatedAt:       staff.CreatedAt,
 		UpdatedAt:       staff.UpdatedAt,
 	}
@@ -860,7 +862,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveStaffAvatar serves the avatar image for a staff member.
-// Requires users:read permission — any authenticated user in the same tenant can view staff avatars.
+// Requires users:read permission, any authenticated user in the same tenant can view staff avatars.
 func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
@@ -2029,6 +2031,11 @@ func (rs *Resource) approveAbsence(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
 	var req activeSvc.VacationDecisionRequest
 	if r.ContentLength > 0 {
 		if err := render.DecodeJSON(r.Body, &req); err != nil {
@@ -2036,7 +2043,7 @@ func (rs *Resource) approveAbsence(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, decidedBy, req.DecisionNote)
+	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, int64(claims.ID), decidedBy, req.DecisionNote)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -2056,12 +2063,17 @@ func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
 	var req activeSvc.VacationDecisionRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	resp, err := rs.StaffAbsenceService.DenyAbsence(r.Context(), absenceID, decidedBy, req.DecisionNote)
+	resp, err := rs.StaffAbsenceService.DenyAbsence(r.Context(), absenceID, int64(claims.ID), decidedBy, req.DecisionNote)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -2141,7 +2153,7 @@ func parseYearQuery(r *http.Request) (int, error) {
 	return year, nil
 }
 
-// resolveEditorStaffID maps the JWT account id to a staff id — the staff
+// resolveEditorStaffID maps the JWT account id to a staff id, the staff
 // record of the admin currently making the request. Lands in
 // audit.work_session_edits.edited_by so the audit trail can name a real
 // person, not an opaque account.
@@ -2162,7 +2174,7 @@ func (rs *Resource) resolveEditorStaffID(ctx context.Context) (int64, error) {
 }
 
 // adminUpdateStaffSession handles PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
-// Admin counterpart to /api/time-tracking/{id} — gated on
+// Admin counterpart to /api/time-tracking/{id}, gated on
 // time_tracking:manage at the router level, so a Betreuer with only
 // time_tracking:own gets 403 before reaching the handler.
 func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Request) {
@@ -2207,7 +2219,7 @@ func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Reque
 }
 
 // adminCreateStaffSession handles POST /api/staff/{id}/time-tracking/sessions
-// — the "nachtragen" flow when an MA forgot to stamp.
+// the "nachtragen" flow when an MA forgot to stamp.
 func (rs *Resource) adminCreateStaffSession(w http.ResponseWriter, r *http.Request) {
 	targetStaffID, err := common.ParseID(r)
 	if err != nil {

@@ -639,7 +639,7 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, absenceID)
+		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, int64(userClaims.ID), absenceID)
 	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return

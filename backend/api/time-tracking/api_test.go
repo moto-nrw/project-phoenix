@@ -281,18 +281,18 @@ func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID 
 	return false, nil, nil
 }
 
-// Vacation workflow methods (Tranche 4) — no-op defaults so MA-side tests
+// Vacation workflow methods (Tranche 4): no-op defaults so MA-side tests
 // satisfy the StaffAbsenceService interface without exercising the flow.
 func (m *mockStaffAbsenceService) RequestVacation(_ context.Context, _ int64, _ activeSvc.RequestVacationRequest) (*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }
-func (m *mockStaffAbsenceService) ApproveAbsence(_ context.Context, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+func (m *mockStaffAbsenceService) ApproveAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }
-func (m *mockStaffAbsenceService) DenyAbsence(_ context.Context, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+func (m *mockStaffAbsenceService) DenyAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
 	return nil, nil
 }
-func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64) error {
+func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64, _ int64) error {
 	return nil
 }
 func (m *mockStaffAbsenceService) GetVacationQuotaSummary(_ context.Context, _ int64, _ int) (*activeSvc.VacationQuotaSummary, error) {

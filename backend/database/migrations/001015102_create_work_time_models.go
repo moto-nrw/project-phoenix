@@ -78,8 +78,37 @@ func createWorkTimeModels(ctx context.Context, db *bun.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_wtme_model ON config.work_time_model_entries(model_id);
 
-		ALTER TABLE users.staff
-			ADD COLUMN IF NOT EXISTS work_time_model_id BIGINT REFERENCES config.work_time_models(id) ON DELETE SET NULL;
+			ALTER TABLE users.staff
+				ADD COLUMN IF NOT EXISTS work_time_model_id BIGINT;
+
+			DO $$
+			DECLARE
+				fk_name text;
+			BEGIN
+				SELECT conname INTO fk_name
+				FROM pg_constraint
+				WHERE conrelid = 'users.staff'::regclass
+					AND contype = 'f'
+					AND conkey = ARRAY[
+						(
+							SELECT attnum
+							FROM pg_attribute
+							WHERE attrelid = 'users.staff'::regclass
+								AND attname = 'work_time_model_id'
+						)
+					]
+				LIMIT 1;
+
+				IF fk_name IS NOT NULL THEN
+					EXECUTE format('ALTER TABLE users.staff DROP CONSTRAINT %I', fk_name);
+				END IF;
+			END $$;
+
+			ALTER TABLE users.staff
+				ADD CONSTRAINT fk_staff_work_time_model
+				FOREIGN KEY (work_time_model_id)
+				REFERENCES config.work_time_models(id)
+				ON DELETE RESTRICT;
 
 		ALTER TABLE users.staff
 			ADD COLUMN IF NOT EXISTS rotation_anchor_date DATE;
@@ -90,13 +119,29 @@ func createWorkTimeModels(ctx context.Context, db *bun.DB) error {
 			ALTER TABLE config.staff_work_schedules
 				ADD CONSTRAINT chk_sws_week CHECK (week_index BETWEEN 0 AND 3);
 
-			ALTER TABLE config.staff_work_schedules
-				ADD COLUMN IF NOT EXISTS rotation_length SMALLINT NOT NULL DEFAULT 1;
+				ALTER TABLE config.staff_work_schedules
+					ADD COLUMN IF NOT EXISTS rotation_length SMALLINT NOT NULL DEFAULT 1;
 
-			ALTER TABLE config.staff_work_schedules
-				ADD CONSTRAINT chk_sws_rotation CHECK (rotation_length BETWEEN 1 AND 4);
+				ALTER TABLE config.staff_work_schedules
+					ADD CONSTRAINT chk_sws_rotation CHECK (rotation_length BETWEEN 1 AND 4);
 
-			ALTER TABLE config.work_time_models ENABLE ROW LEVEL SECURITY;
+				DO $$
+				BEGIN
+					IF NOT EXISTS (
+						SELECT 1
+						FROM pg_constraint
+						WHERE conrelid = 'config.staff_work_schedules'::regclass
+							AND conname = 'fk_staff_work_schedules_tenant'
+					) THEN
+						ALTER TABLE config.staff_work_schedules
+							ADD CONSTRAINT fk_staff_work_schedules_tenant
+							FOREIGN KEY (tenant_id)
+							REFERENCES platform.schools(id)
+							ON DELETE CASCADE;
+					END IF;
+				END $$;
+
+				ALTER TABLE config.work_time_models ENABLE ROW LEVEL SECURITY;
 			ALTER TABLE config.work_time_models FORCE ROW LEVEL SECURITY;
 			DROP POLICY IF EXISTS tenant_isolation_config_work_time_models ON config.work_time_models;
 			CREATE POLICY tenant_isolation_config_work_time_models ON config.work_time_models
@@ -156,12 +201,14 @@ func dropWorkTimeModels(ctx context.Context, db *bun.DB) error {
 	}()
 
 	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE config.staff_work_schedules DROP CONSTRAINT IF EXISTS chk_sws_rotation;
-		ALTER TABLE config.staff_work_schedules DROP COLUMN IF EXISTS rotation_length;
-		ALTER TABLE config.staff_work_schedules DROP CONSTRAINT IF EXISTS chk_sws_week;
-		ALTER TABLE config.staff_work_schedules DROP COLUMN IF EXISTS week_index;
-		ALTER TABLE users.staff DROP COLUMN IF EXISTS rotation_anchor_date;
-		ALTER TABLE users.staff DROP COLUMN IF EXISTS work_time_model_id;
+			ALTER TABLE config.staff_work_schedules DROP CONSTRAINT IF EXISTS fk_staff_work_schedules_tenant;
+			ALTER TABLE config.staff_work_schedules DROP CONSTRAINT IF EXISTS chk_sws_rotation;
+			ALTER TABLE config.staff_work_schedules DROP COLUMN IF EXISTS rotation_length;
+				ALTER TABLE config.staff_work_schedules DROP CONSTRAINT IF EXISTS chk_sws_week;
+			ALTER TABLE config.staff_work_schedules DROP COLUMN IF EXISTS week_index;
+			ALTER TABLE users.staff DROP COLUMN IF EXISTS rotation_anchor_date;
+			ALTER TABLE users.staff DROP CONSTRAINT IF EXISTS fk_staff_work_time_model;
+			ALTER TABLE users.staff DROP COLUMN IF EXISTS work_time_model_id;
 		DROP TABLE IF EXISTS config.work_time_model_entries CASCADE;
 		DROP TABLE IF EXISTS config.work_time_models CASCADE;
 	`)

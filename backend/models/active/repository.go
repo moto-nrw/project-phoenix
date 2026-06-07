@@ -306,6 +306,10 @@ type StaffAbsenceRepository interface {
 	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
 }
 
+type StaffAbsenceAuditRepository interface {
+	Create(ctx context.Context, audit *StaffAbsenceAudit) error
+}
+
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
 type StaffVacationQuotaRepository interface {
 	base.Repository[*StaffVacationQuota]

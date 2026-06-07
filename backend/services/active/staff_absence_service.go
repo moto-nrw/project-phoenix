@@ -76,9 +76,9 @@ type StaffAbsenceService interface {
 
 	// Vacation workflow (Tranche 4)
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
-	ApproveAbsence(ctx context.Context, absenceID int64, decidedBy int64, note string) (*StaffAbsenceResponse, error)
-	DenyAbsence(ctx context.Context, absenceID int64, decidedBy int64, reason string) (*StaffAbsenceResponse, error)
-	CancelAbsence(ctx context.Context, staffID int64, absenceID int64) error
+	ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
+	DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error)
+	CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
@@ -89,6 +89,7 @@ type staffAbsenceService struct {
 	absenceRepo     activeModels.StaffAbsenceRepository
 	workSessionRepo activeModels.WorkSessionRepository
 	quotaRepo       activeModels.StaffVacationQuotaRepository
+	auditRepo       activeModels.StaffAbsenceAuditRepository
 }
 
 // NewStaffAbsenceService creates a new staff absence service
@@ -96,11 +97,13 @@ func NewStaffAbsenceService(
 	absenceRepo activeModels.StaffAbsenceRepository,
 	workSessionRepo activeModels.WorkSessionRepository,
 	quotaRepo activeModels.StaffVacationQuotaRepository,
+	auditRepo activeModels.StaffAbsenceAuditRepository,
 ) StaffAbsenceService {
 	return &staffAbsenceService{
 		absenceRepo:     absenceRepo,
 		workSessionRepo: workSessionRepo,
 		quotaRepo:       quotaRepo,
+		auditRepo:       auditRepo,
 	}
 }
 
@@ -540,7 +543,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	return toAbsenceResponse(absence), nil
 }
 
-func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, decidedBy int64, note string) (*StaffAbsenceResponse, error) {
+func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error) {
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
@@ -548,9 +551,10 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be approved")
 	}
+	fromStatus := absence.Status
 	now := time.Now()
 	absence.Status = activeModels.AbsenceStatusApproved
-	absence.ApprovedBy = &decidedBy
+	absence.ApprovedBy = &decidedByStaffID
 	absence.ApprovedAt = &now
 	absence.DecisionNote = note
 	absence.UpdatedAt = now
@@ -558,10 +562,13 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err := s.absenceRepo.Update(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to approve absence: %w", err)
 	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, note); err != nil {
+		return nil, fmt.Errorf("failed to audit absence approval: %w", err)
+	}
 	return toAbsenceResponse(absence), nil
 }
 
-func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, decidedBy int64, reason string) (*StaffAbsenceResponse, error) {
+func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error) {
 	if reason == "" {
 		return nil, fmt.Errorf("decline reason is required")
 	}
@@ -572,9 +579,10 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be declined")
 	}
+	fromStatus := absence.Status
 	now := time.Now()
 	absence.Status = activeModels.AbsenceStatusDeclined
-	absence.ApprovedBy = &decidedBy
+	absence.ApprovedBy = &decidedByStaffID
 	absence.ApprovedAt = &now
 	absence.DecisionNote = reason
 	absence.UpdatedAt = now
@@ -582,10 +590,13 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err := s.absenceRepo.Update(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to decline absence: %w", err)
 	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, reason); err != nil {
+		return nil, fmt.Errorf("failed to audit absence decline: %w", err)
+	}
 	return toAbsenceResponse(absence), nil
 }
 
-func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, absenceID int64) error {
+func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error {
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return fmt.Errorf("absence not found")
@@ -603,12 +614,30 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 		isBeforeLocalToday(absence.DateStart, time.Now()) {
 		return fmt.Errorf("past absences cannot be canceled")
 	}
+	fromStatus := absence.Status
 	absence.Status = activeModels.AbsenceStatusCanceled
 	absence.UpdatedAt = time.Now()
 	if err := s.absenceRepo.Update(ctx, absence); err != nil {
 		return fmt.Errorf("failed to cancel absence: %w", err)
 	}
+	if err := s.createAudit(ctx, absence.ID, actorAccountID, fromStatus, absence.Status, ""); err != nil {
+		return fmt.Errorf("failed to audit absence cancellation: %w", err)
+	}
 	return nil
+}
+
+func (s *staffAbsenceService) createAudit(ctx context.Context, absenceID int64, actorAccountID int64, fromStatus string, toStatus string, note string) error {
+	if s.auditRepo == nil {
+		return fmt.Errorf("staff absence audit repository is not configured")
+	}
+	audit := &activeModels.StaffAbsenceAudit{
+		AbsenceID:  absenceID,
+		FromStatus: &fromStatus,
+		ToStatus:   toStatus,
+		ActorID:    actorAccountID,
+		Note:       note,
+	}
+	return s.auditRepo.Create(ctx, audit)
 }
 
 func isBeforeLocalToday(date time.Time, now time.Time) bool {

@@ -142,6 +142,17 @@ func (m *absVacationQuotaRepoMock) Upsert(ctx context.Context, quota *activeMode
 	return nil
 }
 
+type absStaffAbsenceAuditRepoMock struct {
+	createFunc func(ctx context.Context, audit *activeModels.StaffAbsenceAudit) error
+}
+
+func (m *absStaffAbsenceAuditRepoMock) Create(ctx context.Context, audit *activeModels.StaffAbsenceAudit) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, audit)
+	}
+	return nil
+}
+
 // ============================================================================
 // Mock for WorkSessionRepository (prefixed with abs)
 // ============================================================================
@@ -253,10 +264,12 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 	absRepo := &absStaffAbsenceRepoMock{}
 	workRepo := &absWorkSessionRepoMock{}
 	quotaRepo := &absVacationQuotaRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{
 		absenceRepo:     absRepo,
 		workSessionRepo: workRepo,
 		quotaRepo:       quotaRepo,
+		auditRepo:       auditRepo,
 	}
 	return svc, absRepo, workRepo
 }
@@ -1037,6 +1050,133 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, int64(101), result.ID)
+}
+
+func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	absenceID := int64(1000)
+	actorAccountID := int64(2000)
+	decidedByStaffID := int64(3000)
+
+	absRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.StaffAbsence, error) {
+		assert.Equal(t, absenceID, id)
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     int64(4000),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusApproved, entity.Status)
+		require.NotNil(t, entity.ApprovedBy)
+		assert.Equal(t, decidedByStaffID, *entity.ApprovedBy)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, absenceID, audit.AbsenceID)
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusApproved, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Equal(t, "ok", audit.Note)
+		return nil
+	}
+
+	result, err := svc.ApproveAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "ok")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, activeModels.AbsenceStatusApproved, result.Status)
+}
+
+func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	absenceID := int64(1001)
+	actorAccountID := int64(2001)
+	decidedByStaffID := int64(3001)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     int64(4001),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 3, 2, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusDeclined, entity.Status)
+		require.NotNil(t, entity.ApprovedBy)
+		assert.Equal(t, decidedByStaffID, *entity.ApprovedBy)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusDeclined, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Equal(t, "no", audit.Note)
+		return nil
+	}
+
+	result, err := svc.DenyAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "no")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, activeModels.AbsenceStatusDeclined, result.Status)
+}
+
+func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	staffID := int64(4002)
+	absenceID := int64(1002)
+	actorAccountID := int64(2002)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 4, 1, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 4, 2, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusApproved,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusCanceled, entity.Status)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusApproved, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusCanceled, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Empty(t, audit.Note)
+		return nil
+	}
+
+	err := svc.CancelAbsence(context.Background(), staffID, actorAccountID, absenceID)
+
+	require.NoError(t, err)
 }
 
 func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,6 +77,18 @@ func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 		testutil.AssertForbidden(t, rr)
 	}
+}
+
+func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
+	employmentType := users.EmploymentTypePartTime
+	response := newStaffResponse(&users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		EmploymentType: &employmentType,
+	}, false, false, "", "", "", "", "")
+
+	require.NotNil(t, response.EmploymentType)
+	assert.Equal(t, users.EmploymentTypePartTime, *response.EmploymentType)
 }
 
 func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *testing.T) {

@@ -21,6 +21,7 @@ export interface BackendStaffResponse {
   updated_at: string;
   staff_id?: string;
   teacher_id?: string;
+  employment_type?: string | null;
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;

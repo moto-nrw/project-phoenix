@@ -189,6 +189,20 @@ func (r *WorkTimeModelRepository) Update(ctx context.Context, model *config.Work
 // Delete removes a template; entries cascade via the FK.
 func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 	db := repoBase.GetDB(ctx, r.db)
+	assignedQuery := db.NewSelect().
+		TableExpr(`users.staff AS "staff"`).
+		Where(`"staff".work_time_model_id = ?`, id)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
+	}
+	assignedCount, err := assignedQuery.Count(ctx)
+	if err != nil {
+		return fmt.Errorf("check assigned staff: %w", err)
+	}
+	if assignedCount > 0 {
+		return fmt.Errorf("work time model is assigned to staff")
+	}
+
 	query := db.NewDelete().
 		Model((*config.WorkTimeModel)(nil)).
 		ModelTableExpr(tableWorkTimeModels).
