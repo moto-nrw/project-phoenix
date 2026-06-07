@@ -31,7 +31,7 @@ type DataAccessLog struct {
 	RangeStart     time.Time `bun:"range_start,notnull" json:"range_start"`
 	RangeEnd       time.Time `bun:"range_end,notnull" json:"range_end"`
 	AccessedAt     time.Time `bun:"accessed_at,notnull,default:now()" json:"accessed_at"`
-	// Metadata holds event-specific context (migration 1.15.100).
+	// Metadata holds event-specific context (migration 1.15.101).
 	// Mirrors the metadata column on the sibling audit tables.
 	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }

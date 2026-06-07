@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	auditDataAccessLogMetadataVersion     = "1.15.100"
+	auditDataAccessLogMetadataVersion     = "1.15.101"
 	auditDataAccessLogMetadataDescription = "Add metadata jsonb to audit.data_access_log (matches auth_events/data_imports/data_deletions) so non-attendance access events — e.g. enrollment phase exports — can record event-specific context."
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func addAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.100: Adding metadata column to audit.data_access_log...")
+	fmt.Println("Migration 1.15.101: Adding metadata column to audit.data_access_log...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -65,7 +65,7 @@ func addAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
 }
 
 func dropAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.100: Dropping audit.data_access_log.metadata...")
+	fmt.Println("Rolling back migration 1.15.101: Dropping audit.data_access_log.metadata...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
