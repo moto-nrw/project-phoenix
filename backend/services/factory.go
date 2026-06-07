@@ -715,14 +715,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			PersonRepo:         repos.Person,
-			StudentRepo:        repos.Student,
-			GuardianRepo:       repos.GuardianProfile,
-			GuardianPhoneRepo:  repos.GuardianPhoneNumber,
-			RelationRepo:       repos.StudentGuardian,
-			PrivacyRepo:        repos.PrivacyConsent,
-			PickupScheduleRepo: repos.StudentPickupSchedule,
-			Resolver:           relationshipResolver,
+			PersonRepo:          repos.Person,
+			StudentRepo:         repos.Student,
+			GuardianRepo:        repos.GuardianProfile,
+			GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+			RelationRepo:        repos.StudentGuardian,
+			PrivacyRepo:         repos.PrivacyConsent,
+			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			Resolver:            relationshipResolver,
 		},
 		db,
 	)

@@ -10,14 +10,15 @@ import (
 
 // InvitationRequest describes the data required to create a new invitation.
 type InvitationRequest struct {
-	Email      string
-	RoleID     int64
-	TenantID   int64
-	FirstName  *string
-	LastName   *string
-	Position   *string
-	CreatedBy  int64
-	SchoolName string // Display name of the tenant (shown in invitation email)
+	Email            string
+	RoleID           int64
+	TenantID         int64
+	FirstName        *string
+	LastName         *string
+	Position         *string
+	CaregiverEnabled bool
+	CreatedBy        int64
+	SchoolName       string // Display name of the tenant (shown in invitation email)
 }
 
 // UserRegistrationData captures the information supplied when accepting an invitation.
@@ -30,12 +31,13 @@ type UserRegistrationData struct {
 
 // InvitationValidationResult represents the public-safe view of an invitation.
 type InvitationValidationResult struct {
-	Email     string    `json:"email"`
-	RoleName  string    `json:"role_name"`
-	FirstName *string   `json:"first_name,omitempty"`
-	LastName  *string   `json:"last_name,omitempty"`
-	Position  *string   `json:"position,omitempty"`
-	ExpiresAt time.Time `json:"expires_at"`
+	Email            string    `json:"email"`
+	RoleName         string    `json:"role_name"`
+	FirstName        *string   `json:"first_name,omitempty"`
+	LastName         *string   `json:"last_name,omitempty"`
+	Position         *string   `json:"position,omitempty"`
+	CaregiverEnabled bool      `json:"caregiver_enabled"`
+	ExpiresAt        time.Time `json:"expires_at"`
 }
 
 // InvitationService defines the operations for managing invitation workflows.

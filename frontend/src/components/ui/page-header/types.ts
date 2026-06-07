@@ -183,6 +183,8 @@ export interface SearchBarProps {
   readonly onClear?: () => void;
   readonly className?: string;
   readonly size?: "sm" | "md" | "lg";
+  /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, etc.). */
+  readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }
 
 export interface FilterPanelProps {

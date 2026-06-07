@@ -8,6 +8,7 @@ import type {
   GuideTone,
 } from "./guide-data";
 import { GuidePdfButton } from "./guide-pdf-button";
+import { HelpHashScroll, HelpSearchInline } from "./help-search";
 import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
@@ -278,8 +279,15 @@ export function GuideShell({
 
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden">
+      <HelpHashScroll />
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <HelpHeader pdf={pdfByPath[activePath]} />
+
+        {/* Search sits below the sticky header in normal flow: prominent on
+            first paint, then scrolls away so the pinned bar stays compact. */}
+        <div className="mt-4 print:hidden">
+          <HelpSearchInline />
+        </div>
 
         <GuidePrintCover
           eyebrow={eyebrow}

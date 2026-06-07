@@ -328,7 +328,7 @@ func init() {
 		Label:           "Betreuungskonzept",
 		Description:     "Legt fest, ob die OGS mit einem festen Betriebsplan arbeitet oder Kinder sich frei zwischen offenen Räumen bewegen.",
 		Type:            config.FieldSelect,
-		Default:         config.CareConceptFixedSchedule,
+		Default:         config.CareConceptOpenRooms,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -397,6 +397,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyCareConcept,
+			Condition: "eq",
+			Value:     config.CareConceptOpenRooms,
+		},
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---

@@ -56,10 +56,6 @@ export function PlannedNowSection({
             <h2 className="mt-1 text-base font-semibold text-gray-900">
               Keine geplante Betreuung in Sicht
             </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Zugewiesene Betreuungsslots erscheinen hier, sobald sie im
-              heutigen Zeitfenster liegen.
-            </p>
           </div>
           <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
             <CalendarClock className="h-4 w-4" aria-hidden="true" />

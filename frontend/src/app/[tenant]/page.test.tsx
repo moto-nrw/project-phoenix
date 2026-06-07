@@ -152,6 +152,7 @@ function mockTenantAuthenticatedResponse(): typeof global.fetch {
 describe("HomePage (Login)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParamsGet.mockImplementation((_key: string) => null);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -161,11 +162,13 @@ describe("HomePage (Login)", () => {
     // Mock Element.animate globally
     Element.prototype.animate = mockAnimate;
     global.fetch = mockTenantAuthenticatedResponse();
+    window.history.pushState({}, "", "/");
   });
 
   afterEach(() => {
     vi.clearAllMocks();
     global.fetch = originalFetch;
+    window.history.pushState({}, "", "/");
   });
 
   it("renders the login form", async () => {
@@ -311,6 +314,49 @@ describe("HomePage (Login)", () => {
         refreshToken: "refresh-token",
       });
     });
+  });
+
+  it("removes stale session-expired query params before seeding the new session", async () => {
+    mockSignIn.mockResolvedValue({ error: null });
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionExpired" : null,
+    );
+    window.history.pushState(
+      {},
+      "",
+      "/?error=SessionExpired&callbackUrl=%2Fdashboard",
+    );
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("input-email"), {
+        target: { value: "test@example.com" },
+      });
+      fireEvent.change(screen.getByTestId("input-password"), {
+        target: { value: "password123" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+        redirect: false,
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
+      });
+    });
+    expect(window.location.search).toBe("");
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/");
   });
 
   it("shows error message on invalid credentials", async () => {
@@ -768,15 +814,16 @@ describe("Deliberate logout suppression", () => {
     Element.prototype.animate = mockAnimate;
     sessionStorage.clear();
     // Spy on history.replaceState to verify URL cleanup
-    Object.defineProperty(window, "history", {
-      value: { ...window.history, replaceState: replaceStateSpy },
-      writable: true,
-    });
+    vi.spyOn(window.history, "replaceState").mockImplementation(
+      replaceStateSpy,
+    );
   });
 
   afterEach(() => {
     sessionStorage.clear();
+    vi.restoreAllMocks();
     mockSearchParamsGet.mockImplementation((_key: string) => null);
+    window.history.pushState({}, "", "/");
   });
 
   it("suppresses error when deliberateLogout flag is set", async () => {
@@ -823,6 +870,11 @@ describe("Deliberate logout suppression", () => {
     sessionStorage.setItem("deliberateLogout", "1");
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "error" ? "SessionRequired" : null,
+    );
+    window.history.pushState(
+      {},
+      "",
+      "/?error=SessionRequired&callbackUrl=%2Fdashboard",
     );
 
     await act(async () => {

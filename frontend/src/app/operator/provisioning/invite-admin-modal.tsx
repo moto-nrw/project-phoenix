@@ -8,6 +8,7 @@ import {
   FormField,
   FormError,
   DeliveryStatusBadge,
+  SelectWithChevron,
 } from "./provisioning-shared";
 
 const logger = createLogger({ component: "InviteAdminModal" });
@@ -26,11 +27,15 @@ export function InviteAdminModal({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirstName, setInviteFirstName] = useState("");
   const [inviteLastName, setInviteLastName] = useState("");
+  const [position, setPosition] = useState("");
+  const [caregiverEnabled, setCaregiverEnabled] = useState(false);
   const [inviteSaving, setInviteSaving] = useState(false);
   const [inviteError, setInviteError] = useState("");
   const errorRef = useScrollToError(inviteError);
 
   const [inviteResult, setInviteResult] = useState<Invitation | null>(null);
+  const inputClasses =
+    "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none";
 
   // Reset form when opening
   useEffect(() => {
@@ -38,6 +43,8 @@ export function InviteAdminModal({
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
+      setPosition("");
+      setCaregiverEnabled(false);
       setInviteError("");
       setInviteResult(null);
     }
@@ -56,6 +63,8 @@ export function InviteAdminModal({
             email: inviteEmail.trim(),
             ...(inviteFirstName && { first_name: inviteFirstName.trim() }),
             ...(inviteLastName && { last_name: inviteLastName.trim() }),
+            ...(caregiverEnabled && { caregiver_enabled: true }),
+            ...(caregiverEnabled && position && { position: position.trim() }),
           },
         );
         setInviteResult(result);
@@ -70,7 +79,14 @@ export function InviteAdminModal({
         setInviteSaving(false);
       }
     },
-    [schoolId, inviteEmail, inviteFirstName, inviteLastName],
+    [
+      schoolId,
+      inviteEmail,
+      inviteFirstName,
+      inviteLastName,
+      caregiverEnabled,
+      position,
+    ],
   );
 
   const handleClose = useCallback(() => {
@@ -141,6 +157,12 @@ export function InviteAdminModal({
               <span className="font-medium">Status:</span>{" "}
               <DeliveryStatusBadge status={inviteResult.deliveryStatus} />
             </p>
+            {inviteResult.caregiverEnabled && (
+              <p>
+                <span className="font-medium">Einsatz:</span> Verwaltung +
+                Betreuung
+              </p>
+            )}
             {inviteResult.emailError && (
               <p className="text-red-600">
                 <span className="font-medium">Fehler:</span>{" "}
@@ -163,7 +185,7 @@ export function InviteAdminModal({
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               maxLength={255}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              className={inputClasses}
               required
             />
           </FormField>
@@ -176,7 +198,7 @@ export function InviteAdminModal({
                 value={inviteFirstName}
                 onChange={(e) => setInviteFirstName(e.target.value)}
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className={inputClasses}
               />
             </FormField>
             <FormField label="Nachname" htmlFor="invite-last-name">
@@ -187,10 +209,47 @@ export function InviteAdminModal({
                 value={inviteLastName}
                 onChange={(e) => setInviteLastName(e.target.value)}
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                className={inputClasses}
               />
             </FormField>
           </div>
+          <div className="flex items-start gap-3 rounded-lg border border-gray-200 px-4 py-3">
+            <input
+              id="invite-admin-caregiver-enabled"
+              type="checkbox"
+              checked={caregiverEnabled}
+              onChange={(e) => setCaregiverEnabled(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <div className="space-y-1">
+              <label
+                htmlFor="invite-admin-caregiver-enabled"
+                className="text-sm font-medium text-gray-900"
+              >
+                Auch als Betreuer einsetzen
+              </label>
+              <p className="text-sm text-gray-600">
+                Vergibt zusätzlich die Betreuer-Rolle und legt das nötige
+                Staff-/Teacher-Profil an.
+              </p>
+            </div>
+          </div>
+          {caregiverEnabled && (
+            <FormField label="Position" htmlFor="invite-admin-position">
+              <SelectWithChevron
+                id="invite-admin-position"
+                value={position}
+                onChange={(e) => setPosition(e.target.value)}
+              >
+                <option value="">Position auswählen...</option>
+                <option value="Pädagogische Fachkraft">
+                  Pädagogische Fachkraft
+                </option>
+                <option value="OGS-Büro">OGS-Büro</option>
+                <option value="Extern">Extern</option>
+              </SelectWithChevron>
+            </FormField>
+          )}
           {inviteError && <FormError ref={errorRef} message={inviteError} />}
         </form>
       )}

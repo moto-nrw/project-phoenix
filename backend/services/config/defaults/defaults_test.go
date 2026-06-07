@@ -149,6 +149,10 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyCareConcept, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, config.CareConceptOpenRooms, def.DependsOn.Value)
 }
 
 func TestAttendanceSetupSettings(t *testing.T) {
@@ -188,7 +192,7 @@ func TestOrganizationSetupSettings(t *testing.T) {
 	careDef := config.GetDefinition(config.KeyCareConcept)
 	require.NotNil(t, careDef, "operations.care_concept should be registered")
 	assert.Equal(t, config.FieldSelect, careDef.Type)
-	assert.Equal(t, config.CareConceptFixedSchedule, careDef.Default)
+	assert.Equal(t, config.CareConceptOpenRooms, careDef.Default)
 	assert.Equal(t, config.AccessShared, careDef.AccessPolicy)
 	assert.Equal(t, "operations", careDef.Tab)
 	assert.Equal(t, "organisation", careDef.Category)
