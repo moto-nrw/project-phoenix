@@ -246,12 +246,20 @@ func formatContactList(raw any) string {
 		if name == "" {
 			name = "Kontakt"
 		}
-		extras := make([]string, 0, 3)
+		extras := make([]string, 0, 4)
 		if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
 			extras = append(extras, rel)
 		}
 		if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
 			extras = append(extras, "Tel: "+phones)
+		}
+		// ContactEntry.Validate accepts email OR phone, so an authorised
+		// pickup/emergency contact may carry only an email address. Phone is
+		// the priority channel in an outage, so email follows it — but it must
+		// never be dropped: for an email-only contact it is the sole way to
+		// reach them.
+		if email := strings.TrimSpace(c.Email); email != "" {
+			extras = append(extras, "E-Mail: "+email)
 		}
 		flags := make([]string, 0, 2)
 		if c.CanPickup {

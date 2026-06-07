@@ -155,6 +155,47 @@ func TestFormatContactList(t *testing.T) {
 	}
 }
 
+// An authorised pickup contact may carry only an email address
+// (ContactEntry.Validate accepts email OR phone). The email is that
+// contact's only channel and must appear in the export.
+func TestFormatContactList_EmailOnlyContactKeepsEmail(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"first_name":           "Jonas",
+			"last_name":            "Berg",
+			"relationship_type":    "Onkel",
+			"email":                "jonas.berg@example.com",
+			"can_pickup":           true,
+			"is_emergency_contact": true,
+		},
+	}
+	got := formatContactList(list)
+	want := "Jonas Berg (Onkel; E-Mail: jonas.berg@example.com; abholberechtigt, Notfallkontakt)"
+	if got != want {
+		t.Errorf("email-only contact = %q, want %q", got, want)
+	}
+}
+
+// When a contact has both a phone number and an email, phone is rendered
+// first (priority channel in an outage) and the email is still kept.
+func TestFormatContactList_PhoneAndEmailBothRendered(t *testing.T) {
+	list := []any{
+		map[string]any{
+			"first_name": "Lea",
+			"last_name":  "Frey",
+			"email":      "lea@example.com",
+			"phone_numbers": []any{
+				map[string]any{"phone_number": "0151123", "phone_type": "mobile"},
+			},
+		},
+	}
+	got := formatContactList(list)
+	want := "Lea Frey (Tel: Mobil: 0151123; E-Mail: lea@example.com)"
+	if got != want {
+		t.Errorf("phone+email contact = %q, want %q", got, want)
+	}
+}
+
 func TestTimeOrEmpty(t *testing.T) {
 	if got := timeOrEmpty(nil); got != "" {
 		t.Errorf("nil = %q, want empty", got)

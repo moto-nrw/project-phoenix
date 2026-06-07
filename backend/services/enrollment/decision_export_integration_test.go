@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -38,6 +39,57 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAc
 		DataAccessLogRepo:        auditRepo,
 		Logger:                   slog.Default(),
 	})
+}
+
+// failingSchemaRepo wraps a real FormSchemaRepository but makes FindByID
+// fail, simulating a transient read error or a corrupt/orphaned
+// request.schema_id. Every other method delegates to the embedded repo.
+type failingSchemaRepo struct {
+	enrollmentModels.FormSchemaRepository
+}
+
+func (failingSchemaRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels.FormSchema, error) {
+	return nil, errors.New("schema read failed")
+}
+
+// newExportDecisionServiceFailingSchema mirrors newExportDecisionService
+// but swaps in a FormSchema repo whose FindByID always errors, so a test
+// can prove the export fails closed when a pinned schema cannot be loaded.
+func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
+	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		RequestRepo:              env.repos.Request,
+		RequestChildRepo:         env.repos.RequestChild,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		CareOfferingRepo:         env.repos.CareOffering,
+		PhaseRepo:                env.repos.Phase,
+		FormSchemaRepo:           failingSchemaRepo{env.repos.FormSchema},
+		DataAccessLogRepo:        auditRepo,
+		Logger:                   slog.Default(),
+	})
+}
+
+// A pinned schema that cannot be loaded must fail the whole export, not
+// silently drop that request's custom_data while still writing an audit
+// row. The renderer only emits answers for fields found in the loaded
+// schemas, so a missing schema would produce an incomplete-but-trusted
+// disclosure. There is no legitimate "schema deleted" state either:
+// DeleteSchema refuses to drop a schema any request still references.
+func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// The submitted request pins the phase's active schema, so the export
+	// loop will attempt to load it — and the failing repo makes that error.
+	submitOneChild(t, env, "export-schemafail@example.com", "Nora", "SchemaFail")
+
+	audit := &stubAccessLogRepo{}
+	svc := newExportDecisionServiceFailingSchema(env, audit)
+
+	data, err := svc.ExportPhase(ctx, env.sourcePhase.ID, int64(4242), "admin", "pdf", "")
+	require.Error(t, err, "an unloadable pinned schema must fail the whole export")
+	assert.Nil(t, data, "no payload may be returned when a schema could not be loaded")
+	assert.Empty(t, audit.entries, "no audit row may be written for a disclosure that never happened")
 }
 
 func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {

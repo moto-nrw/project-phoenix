@@ -513,12 +513,22 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		}
 		fs, ferr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
 		if ferr != nil {
-			// Best-effort: a missing schema just means the renderer falls
-			// back to raw custom-field keys for that request.
-			s.logger.Warn("decision: export schema lookup failed",
+			// Fail closed. The renderer only emits custom answers for fields
+			// found in the loaded schemas, so a missing schema would silently
+			// drop this request's custom_data from the file while the audit
+			// row still records a "complete" disclosure. That is worse than a
+			// hard failure for a GDPR export. There is also no legitimate way
+			// to reach this branch: DeleteSchema refuses to drop any schema
+			// version a request still references (ErrFormSchemaHasRequests),
+			// so a pinned schema behind an existing request cannot have been
+			// deleted. A FindByID error here is therefore a transient read
+			// error (a retry succeeds) or data corruption (must be loud) —
+			// never an intentionally-removed schema. Abort before any audit
+			// row is written so no incomplete disclosure is recorded.
+			s.logger.Error("decision: export schema lookup failed, aborting export",
 				slog.Int64("schema_id", *req.SchemaID),
 				slog.String("error", ferr.Error()))
-			continue
+			return nil, fmt.Errorf("decision: export load schema %d: %w", *req.SchemaID, ferr)
 		}
 		schemas[*req.SchemaID] = fs
 	}
