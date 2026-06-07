@@ -278,7 +278,7 @@ function StaffPageContent() {
               const notes = formatStaffNotes(staffMember.staffNotes, 80);
               const supervisions = staffMember.supervisions ?? [];
 
-              const cardClassName = `group relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 ${userIsAdmin ? "cursor-pointer hover:shadow-[0_8px_30px_rgb(0,0,0,0.18)]" : ""}`;
+              const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${userIsAdmin ? "cursor-pointer" : ""}`;
               const navigateToStaff = () =>
                 router.push(`/staff/${staffMember.id}`);
 
@@ -298,87 +298,100 @@ function StaffPageContent() {
                         },
                       }
                     : {})}
-                  className={`${cardClassName} moto-content-surface`}
+                  className={cardClassName}
                 >
-                  {/* Modern gradient overlay */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-br ${locationStatus.cardGradient} rounded-3xl opacity-[0.03]`}
-                  ></div>
-                  {/* Subtle inner glow */}
-                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  {/* Modern border highlight */}
-                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
+                  <div className="relative p-5 pb-4">
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
 
-                  <div className="relative p-6">
-                    {/* Header with staff name and status badge */}
-                    <div className="mb-2 flex items-start justify-between">
-                      {/* Staff Name */}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800">
-                          {staffMember.firstName}
-                        </h3>
-                        <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700">
-                          {staffMember.lastName}
-                        </p>
-                        {/* Role/Specialization in same style as "Nur zur Information" */}
-                        <p className="mt-1 text-xs text-gray-400">
-                          {staffMember.specialization ?? displayType}
-                        </p>
+                    <div className="relative flex min-h-[112px] flex-col">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                              {staffMember.firstName}
+                            </h3>
+                            {userIsAdmin && (
+                              <svg
+                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5l7 7-7 7"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="overflow-hidden text-base font-semibold text-ellipsis whitespace-nowrap text-gray-700 transition-colors duration-300 md:group-hover:text-gray-800">
+                            {staffMember.lastName}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-gray-500">
+                            {staffMember.specialization ?? displayType}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
+                          style={{
+                            backgroundColor: locationStatus.customBgColor,
+                            boxShadow: locationStatus.customShadow,
+                          }}
+                        >
+                          <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
+                          {locationStatus.label}
+                        </span>
                       </div>
 
-                      {/* Single Status Badge */}
-                      <span
-                        className={`ml-3 inline-flex items-center rounded-full px-3 py-1.5 text-xs font-bold ${locationStatus.badgeColor}`}
-                        style={{
-                          backgroundColor: locationStatus.customBgColor,
-                          boxShadow: locationStatus.customShadow,
-                        }}
-                      >
-                        <span className="mr-2 h-1.5 w-1.5 animate-pulse rounded-full bg-white/80"></span>
-                        {locationStatus.label}
-                      </span>
+                      <div className="flex-1 space-y-2">
+                        {supervisions.length > 0 && (
+                          <div className="text-sm text-gray-600">
+                            <span className="font-medium">
+                              Aktuelle Aufsicht:
+                            </span>
+                            <ul className="mt-0.5 list-inside">
+                              {supervisions.map((supervision) => (
+                                <li
+                                  key={`${supervision.roomId}-${supervision.activeGroupId}`}
+                                >
+                                  • {supervision.roomName}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {cardInfo.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {cardInfo.map((info) => (
+                              <span
+                                key={info}
+                                className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
+                              >
+                                {info}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {notes && (
+                          <p className="text-xs text-gray-500 italic transition-colors duration-300 md:group-hover:text-gray-600">
+                            {notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {userIsAdmin && (
+                        <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-gray-500">
+                          Tippen für mehr Infos
+                        </p>
+                      )}
+
+                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                     </div>
-
-                    {/* Supervision info as text (if supervising) */}
-                    {supervisions.length > 0 && (
-                      <div className="mb-2 text-sm text-gray-600">
-                        <span className="font-medium">Aktuelle Aufsicht:</span>
-                        <ul className="mt-0.5 list-inside">
-                          {supervisions.map((supervision) => (
-                            <li
-                              key={`${supervision.roomId}-${supervision.activeGroupId}`}
-                            >
-                              • {supervision.roomName}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Additional Info */}
-                    {cardInfo.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        {cardInfo.map((info) => (
-                          <span
-                            key={info}
-                            className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                          >
-                            {info}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Staff Notes (if available) */}
-                    {notes && (
-                      <p className="mt-2 text-xs text-gray-500 italic">
-                        {notes}
-                      </p>
-                    )}
-
-                    {/* Decorative elements */}
-                    <div className="absolute top-3 left-3 h-5 w-5 animate-ping rounded-full bg-white/20"></div>
-                    <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                   </div>
                 </div>
               );
