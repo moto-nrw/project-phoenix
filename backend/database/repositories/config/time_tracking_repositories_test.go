@@ -51,6 +51,42 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 	assert.Equal(t, 300, entries[0].TargetMinutes)
 }
 
+func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Invalid")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	defer cleanupStaffWorkSchedules(t, db, staff.ID)
+
+	repo := configRepo.NewStaffWorkScheduleRepository(db)
+	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+		{
+			DayOfWeek:      configModel.DayMonday,
+			TargetMinutes:  240,
+			WeekIndex:      0,
+			RotationLength: 1,
+		},
+	}))
+
+	err := repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+		{
+			DayOfWeek:      9,
+			TargetMinutes:  300,
+			WeekIndex:      0,
+			RotationLength: 1,
+		},
+	})
+	require.Error(t, err)
+
+	entries, err := repo.GetCurrentByStaffID(ctx, staff.ID)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, configModel.DayMonday, entries[0].DayOfWeek)
+	assert.Equal(t, 240, entries[0].TargetMinutes)
+}
+
 func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

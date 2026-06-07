@@ -30,6 +30,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var errScheduleValidation = errors.New("schedule validation")
+
+type scheduleValidationError struct {
+	message string
+}
+
+func (e scheduleValidationError) Error() string {
+	return e.message
+}
+
+func (e scheduleValidationError) Is(target error) bool {
+	return target == errScheduleValidation
+}
+
+func scheduleValidationErrorf(format string, args ...any) error {
+	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
+}
+
 // Resource defines the staff API resource
 type Resource struct {
 	PersonService       usersSvc.PersonService
@@ -121,31 +139,29 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/schedule", rs.updateSchedule)
 
 		// Time tracking history for a specific staff member (admin read)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 
 		// Vacation workflow admin-side (Tranche 4)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
 		// against the JWT subject; here the route guarantees the session
 		// belongs to the staff named in the URL instead.
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/time-tracking/sessions/{sessionId}/edits", rs.getStaffSessionEdits)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/sessions/{sessionId}/edits", rs.getStaffSessionEdits)
 
-		// Admin cross-staff corrections. time_tracking:manage is the gate —
-		// Betreuer with only time_tracking:own get 403 here even though they
-		// can edit their own session via /api/time-tracking/{id}.
+		// Admin cross-staff corrections. time_tracking:manage is the gate.
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/time-tracking/sessions/{sessionId}", rs.adminUpdateStaffSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/sessions", rs.adminCreateStaffSession)
 
 		// Absences for a specific staff member (admin read). The MA-Sicht uses
 		// /api/time-tracking/absences which is scoped to the caller; this route
 		// lets an admin see Krank/Urlaub for any staff in the same tenant.
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/absences", rs.getStaffAbsences)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/absences", rs.getStaffAbsences)
 
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
@@ -1597,7 +1613,11 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 		}
 	case "custom":
 		if err := rs.applyCustomSchedule(r.Context(), staff, req); err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			if errors.Is(err, errScheduleValidation) {
+				common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			} else {
+				common.RenderError(w, r, common.ErrorInternalServer(err))
+			}
 			return
 		}
 	default:
@@ -1733,40 +1753,34 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 		rotation = 1
 	}
 	if rotation < 1 || rotation > config.WorkTimeModelMaxRotation {
-		return fmt.Errorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
 	}
 
 	anchor := time.Time{}
 	if req.RotationAnchorDate != "" {
 		parsed, err := time.Parse("2006-01-02", req.RotationAnchorDate)
 		if err != nil {
-			return fmt.Errorf("invalid rotation_anchor_date: %w", err)
+			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
 		}
 		anchor = parsed
 	}
 
-	entries := make([]*config.StaffWorkSchedule, 0, len(req.Entries))
-	for _, e := range req.Entries {
-		if e.TargetMinutes <= 0 {
-			continue
+	entries, templateEntries, err := buildScheduleEntries(req.Entries, rotation)
+	if err != nil {
+		return err
+	}
+
+	if req.SaveAsTemplateName != "" {
+		if err := rs.saveCustomAsTemplate(ctx, staff, req.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+			return fmt.Errorf("save as template: %w", err)
 		}
-		if e.WeekIndex < 0 || e.WeekIndex >= rotation {
-			return fmt.Errorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
-		}
-		entries = append(entries, &config.StaffWorkSchedule{
-			WeekIndex:      e.WeekIndex,
-			RotationLength: rotation,
-			DayOfWeek:      e.DayOfWeek,
-			TargetMinutes:  e.TargetMinutes,
-		})
+		return nil
 	}
 
 	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
-	// Custom mode unbinds any previously assigned template; otherwise the
-	// resolver would still hit the template path on reads.
 	staff.WorkTimeModelID = nil
 	if !anchor.IsZero() {
 		staff.RotationAnchorDate = &anchor
@@ -1775,36 +1789,49 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 		return fmt.Errorf("unbind template: %w", err)
 	}
 
-	if req.SaveAsTemplateName != "" {
-		if err := rs.saveCustomAsTemplate(ctx, staff, req, rotation, anchor); err != nil {
-			return fmt.Errorf("save as template: %w", err)
-		}
-	}
 	return nil
 }
 
-func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, req scheduleUpdateRequest, rotation int, anchor time.Time) error {
-	if anchor.IsZero() {
-		anchor = time.Now().Truncate(24 * time.Hour)
-	}
-	model := &config.WorkTimeModel{
-		Name:               req.SaveAsTemplateName,
-		RotationLength:     rotation,
-		RotationAnchorDate: anchor,
-	}
-	entries := make([]*config.WorkTimeModelEntry, 0, len(req.Entries))
-	for _, e := range req.Entries {
+func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*config.StaffWorkSchedule, []*config.WorkTimeModelEntry, error) {
+	entries := make([]*config.StaffWorkSchedule, 0, len(reqEntries))
+	templateEntries := make([]*config.WorkTimeModelEntry, 0, len(reqEntries))
+	seenSlots := make(map[string]struct{}, len(reqEntries))
+	for _, e := range reqEntries {
 		if e.TargetMinutes <= 0 {
 			continue
 		}
-		entries = append(entries, &config.WorkTimeModelEntry{
+		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, &config.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+		templateEntries = append(templateEntries, &config.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
 		})
 	}
+	return entries, templateEntries, nil
+}
+
+func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor time.Time, entries []*config.WorkTimeModelEntry) error {
+	if anchor.IsZero() {
+		anchor = time.Now().Truncate(24 * time.Hour)
+	}
+	model := &config.WorkTimeModel{
+		Name:               name,
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor,
+	}
 	if err := rs.WorkTimeModelRepo.Create(ctx, model, entries); err != nil {
 		return err
+	}
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, nil); err != nil {
+		return fmt.Errorf("clear custom schedule: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
@@ -1812,6 +1839,24 @@ func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff
 	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
+	return nil
+}
+
+func validateScheduleEntryRequest(e ScheduleEntryRequest, rotation int, seenSlots map[string]struct{}) error {
+	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+	}
+	if e.DayOfWeek < config.DayMonday || e.DayOfWeek > config.DaySunday {
+		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
+	}
+	if e.TargetMinutes > 720 {
+		return scheduleValidationErrorf("target_minutes must be between 0 and 720")
+	}
+	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
+	if _, ok := seenSlots[slot]; ok {
+		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
+	}
+	seenSlots[slot] = struct{}{}
 	return nil
 }
 

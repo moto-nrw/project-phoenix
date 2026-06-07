@@ -97,14 +97,21 @@ type StaffWorkScheduleRepository interface {
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error
 }
 
-// WeeklyTargetFromSchedule calculates total weekly target minutes from schedule entries
-func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule) *int {
+// WeeklyTargetForRotationWeek calculates target minutes for one rotation week.
+func WeeklyTargetForRotationWeek(entries []*StaffWorkSchedule, weekIndex int) *int {
 	if len(entries) == 0 {
 		return nil
 	}
 	total := 0
+	found := false
 	for _, e := range entries {
-		total += e.TargetMinutes
+		if e.WeekIndex == weekIndex {
+			total += e.TargetMinutes
+			found = true
+		}
+	}
+	if !found {
+		return nil
 	}
 	return &total
 }

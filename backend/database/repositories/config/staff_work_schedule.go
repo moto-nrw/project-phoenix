@@ -76,6 +76,20 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 
+	for _, e := range entries {
+		e.StaffID = staffID
+		e.ValidFrom = today
+		e.ValidUntil = nil
+		e.CreatedAt = now
+		e.UpdatedAt = now
+		if tenantID > 0 {
+			e.SetTenantID(tenantID)
+		}
+		if err := e.Validate(); err != nil {
+			return fmt.Errorf("invalid schedule entry for day %d: %w", e.DayOfWeek, err)
+		}
+	}
+
 	// Close existing current entries at today, using an exclusive valid_until.
 	updateQuery := db.NewUpdate().
 		TableExpr(tableStaffWorkSchedules).
@@ -95,20 +109,6 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	// Insert new entries (only if there are any)
 	if len(entries) == 0 {
 		return nil
-	}
-
-	for _, e := range entries {
-		e.StaffID = staffID
-		e.ValidFrom = today
-		e.ValidUntil = nil
-		e.CreatedAt = now
-		e.UpdatedAt = now
-		if tenantID > 0 {
-			e.SetTenantID(tenantID)
-		}
-		if err := e.Validate(); err != nil {
-			return fmt.Errorf("invalid schedule entry for day %d: %w", e.DayOfWeek, err)
-		}
 	}
 
 	if _, err := db.NewInsert().

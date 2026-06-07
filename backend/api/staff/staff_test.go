@@ -1,6 +1,7 @@
 package staff_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,6 +47,15 @@ func setupTestContext(t *testing.T) *testContext {
 		services: svc,
 		resource: resource,
 	}
+}
+
+func cleanupStaffScheduleRows(t *testing.T, db *bun.DB, staffID int64) {
+	t.Helper()
+	_, err := db.NewDelete().
+		Table("config.staff_work_schedules").
+		Where("staff_id = ?", staffID).
+		Exec(context.Background())
+	require.NoError(t, err)
 }
 
 func assignSystemRoleToAccount(
@@ -1442,6 +1453,64 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+}
+
+func TestUpdateSchedule_SaveAsTemplateClearsActiveCustomRows(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
+
+	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+		{
+			WeekIndex:      0,
+			RotationLength: 1,
+			DayOfWeek:      configModels.DayMonday,
+			TargetMinutes:  300,
+		},
+	}))
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = []string{"users:update"}
+	token := testutil.MintTestJWT(t, claims)
+	body := map[string]any{
+		"mode":                 "custom",
+		"rotation_length":      1,
+		"rotation_anchor_date": "2026-06-01",
+		"save_as_template":     fmt.Sprintf("Saved schedule template clean %d", staff.ID),
+		"entries": []map[string]any{
+			{
+				"week_index":     0,
+				"day_of_week":    configModels.DayTuesday,
+				"target_minutes": 360,
+			},
+		},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d/schedule", staff.ID), body, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	activeRows, err := ctx.resource.ScheduleRepo.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
+	require.NoError(t, err)
+	assert.Empty(t, activeRows)
+
+	reloadedStaff, err := ctx.resource.StaffRepo.FindByID(testpkg.TenantContext(1), staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, reloadedStaff.WorkTimeModelID)
+	t.Cleanup(func() {
+		_ = ctx.resource.WorkTimeModelRepo.Delete(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	})
+
+	model, err := ctx.resource.WorkTimeModelRepo.FindByID(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	require.NoError(t, err)
+	require.Len(t, model.Entries, 1)
+	assert.Equal(t, configModels.DayTuesday, model.Entries[0].DayOfWeek)
+	assert.Equal(t, 360, model.Entries[0].TargetMinutes)
 }
 
 // =============================================================================

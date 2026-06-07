@@ -83,6 +83,11 @@ type WeeklySummary struct {
 	IsOverWeeklyMax bool `json:"is_over_weekly_max"`
 }
 
+type summaryWeekKey struct {
+	Year int
+	Week int
+}
+
 // HistoryResponse wraps session history with weekly aggregation
 type HistoryResponse struct {
 	Sessions        []*SessionResponse `json:"sessions"`
@@ -181,6 +186,7 @@ type workSessionService struct {
 	supervisorRepo activeModels.GroupSupervisorRepository
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
+	workModelRepo  configModels.WorkTimeModelRepository
 	logger         *slog.Logger
 }
 
@@ -193,8 +199,8 @@ func (s *workSessionService) getLogger() *slog.Logger {
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, logger: logger}
 }
 
 // CheckIn creates a new work session for the staff member.
@@ -871,15 +877,6 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
 	}
 
-	// Fetch weekly target minutes from work schedule
-	var targetMinutes *int
-	if s.scheduleRepo != nil {
-		target, schedErr := s.getWeeklyTargetFromSchedule(ctx, staffID)
-		if schedErr == nil {
-			targetMinutes = target
-		}
-	}
-
 	// Wrap each session in SessionResponse with calculated fields and breaks
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
@@ -898,8 +895,10 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 	}
 
+	targetsByWeek := s.getWeeklyTargetsForSummaries(ctx, staffID, responses)
+
 	// Build weekly summaries
-	weeklySummaries := s.buildWeeklySummaries(responses, targetMinutes)
+	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek)
 
 	return &HistoryResponse{
 		Sessions:        responses,
@@ -908,21 +907,21 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 }
 
 // buildWeeklySummaries aggregates session data by ISO week
-func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetMinutes *int) []WeeklySummary {
-	type weekKey struct {
-		Year int
-		Week int
-	}
-
-	weekMap := make(map[weekKey]*WeeklySummary)
-	var weekOrder []weekKey
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int) []WeeklySummary {
+	weekMap := make(map[summaryWeekKey]*WeeklySummary)
+	var weekOrder []summaryWeekKey
 
 	for _, session := range sessions {
 		year, week := session.Date.ISOWeek()
-		key := weekKey{Year: year, Week: week}
+		key := summaryWeekKey{Year: year, Week: week}
 
 		summary, exists := weekMap[key]
 		if !exists {
+			var targetMinutes *int
+			if target, ok := targetsByWeek[key]; ok {
+				targetCopy := target
+				targetMinutes = &targetCopy
+			}
 			summary = &WeeklySummary{
 				WeekNumber:    week,
 				Year:          year,
@@ -954,13 +953,139 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 	return summaries
 }
 
-// getWeeklyTargetFromSchedule fetches the current work schedule and sums weekly target minutes
-func (s *workSessionService) getWeeklyTargetFromSchedule(ctx context.Context, staffID int64) (*int, error) {
+func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, staffID int64, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if len(sessions) == 0 {
+		return nil
+	}
+	staff := s.resolveStaffForTargets(ctx, staffID)
+	if staff != nil && staff.WorkTimeModelID != nil {
+		if s.workModelRepo == nil {
+			return nil
+		}
+		model, err := s.workModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
+		if err != nil {
+			return nil
+		}
+		anchor := model.RotationAnchorDate
+		if staff.RotationAnchorDate != nil {
+			anchor = *staff.RotationAnchorDate
+		}
+		return weeklyTargetsFromModel(model, anchor, sessions)
+	}
+	if s.scheduleRepo == nil {
+		return nil
+	}
 	entries, err := s.scheduleRepo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	return configModels.WeeklyTargetFromSchedule(entries), nil
+	anchor := resolveScheduleAnchorFromStaff(staff, entries)
+	if staff == nil {
+		anchor = resolveScheduleAnchor(ctx, s.staffRepo, staffID, entries)
+	}
+	return weeklyTargetsFromSchedule(entries, anchor, sessions)
+}
+
+func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *userModels.Staff {
+	if s.staffRepo == nil {
+		return nil
+	}
+	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	if err != nil {
+		return nil
+	}
+	return staff
+}
+
+func weeklyTargetsFromSchedule(entries []*configModels.StaffWorkSchedule, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if len(entries) == 0 || len(sessions) == 0 {
+		return nil
+	}
+	rotation := scheduleRotationLength(entries)
+	targetsByRotationWeek := make(map[int]int, rotation)
+	for _, e := range entries {
+		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
+	}
+	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
+}
+
+func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
+		return nil
+	}
+	rotation := model.RotationLength
+	if rotation < 1 {
+		rotation = 1
+	}
+	targetsByRotationWeek := make(map[int]int, rotation)
+	for _, e := range model.Entries {
+		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
+	}
+	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
+}
+
+func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if len(targetsByRotationWeek) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int)
+	for _, session := range sessions {
+		year, week := session.Date.ISOWeek()
+		key := summaryWeekKey{Year: year, Week: week}
+		if _, ok := targetsByWeek[key]; ok {
+			continue
+		}
+		weekStart := isoWeekStart(session.Date)
+		rotationWeek := configModels.ResolveWeekIndex(rotation, isoWeekStart(anchor), weekStart)
+		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
+			targetsByWeek[key] = target
+		}
+	}
+	return targetsByWeek
+}
+
+func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) time.Time {
+	if staff != nil && staff.RotationAnchorDate != nil {
+		return *staff.RotationAnchorDate
+	}
+	var earliest time.Time
+	for _, e := range entries {
+		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
+			earliest = e.ValidFrom
+		}
+	}
+	return earliest
+}
+
+func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
+	rotation := 1
+	for _, e := range entries {
+		if e.RotationLength > rotation {
+			rotation = e.RotationLength
+		}
+	}
+	if rotation < 1 {
+		return 1
+	}
+	return rotation
+}
+
+func resolveScheduleAnchor(ctx context.Context, staffRepo userModels.StaffRepository, staffID int64, entries []*configModels.StaffWorkSchedule) time.Time {
+	if staffRepo != nil {
+		if staff, err := staffRepo.FindByID(ctx, staffID); err == nil && staff != nil {
+			return resolveScheduleAnchorFromStaff(staff, entries)
+		}
+	}
+	return resolveScheduleAnchorFromStaff(nil, entries)
+}
+
+func isoWeekStart(date time.Time) time.Time {
+	normalized := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	weekday := int(normalized.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return normalized.AddDate(0, 0, 1-weekday)
 }
 
 // GetSessionEdits returns the audit trail for a work session
