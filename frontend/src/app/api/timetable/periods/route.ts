@@ -1,14 +1,17 @@
 // app/api/timetable/periods/route.ts
 //
-// GET  /api/timetable/periods       — list all calendar periods for the tenant
-// POST /api/timetable/periods       — create a new calendar period
+// GET  /api/timetable/periods       - list all calendar periods for the tenant
+// POST /api/timetable/periods       - create a new calendar period
 //
 // The Go backend (api/timetable/api.go listPeriods/createPeriod) wraps
 // responses in { status, data, message }. Strip that envelope here so
 // route-wrapper does not double-wrap the payload.
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 
 export const GET = createGetHandler(
   async (_request: NextRequest, token: string) => {

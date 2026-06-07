@@ -1,0 +1,44 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { auth } from "~/server/auth";
+import { getServerApiUrl } from "~/lib/server-api-url";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "StaffPreviewRoute" });
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session?.user?.token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const formData = await request.formData();
+
+    const response = await fetch(
+      `${getServerApiUrl()}/api/import/teachers/preview`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.user.token}`,
+        },
+        body: formData,
+      },
+    );
+
+    const data = (await response.json()) as Record<string, unknown>;
+
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
+
+    return NextResponse.json(data);
+  } catch (error) {
+    logger.error("staff_preview_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}

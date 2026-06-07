@@ -33,19 +33,23 @@ import {
   updateArrivalSchedules,
 } from "~/lib/student-arrival-api";
 import { createLogger } from "~/lib/logger";
+import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ArrivalScheduleManager" });
+const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
 interface ArrivalScheduleManagerProps {
   readonly studentId: string;
   readonly readOnly?: boolean;
   readonly onUpdate?: () => void;
+  readonly statusDays?: StudentStatusDay[];
 }
 
 export function ArrivalScheduleManager({
   studentId,
   readOnly = false,
   onUpdate,
+  statusDays = EMPTY_STATUS_DAYS,
 }: ArrivalScheduleManagerProps) {
   const [arrivalData, setArrivalData] = useState<ArrivalData>({
     schedules: [],
@@ -60,6 +64,15 @@ export function ArrivalScheduleManager({
   const [editingDay, setEditingDay] = useState<ArrivalDayData | null>(null);
 
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const statusByDate = useMemo(() => {
+    const entries = new Map<string, StudentStatusDay["status"]>();
+    for (const day of statusDays) {
+      if (!day.cleared_at) {
+        entries.set(day.date, day.status);
+      }
+    }
+    return entries;
+  }, [statusDays]);
 
   const dayDataList = useMemo(
     () =>
@@ -69,6 +82,9 @@ export function ArrivalScheduleManager({
           arrivalData.schedules,
           arrivalData.exceptions,
           arrivalData.notes,
+          false,
+          false,
+          statusByDate.get(formatDateISO(date)) ?? null,
         ),
       ),
     [
@@ -76,6 +92,7 @@ export function ArrivalScheduleManager({
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
+      statusByDate,
     ],
   );
 
@@ -203,8 +220,11 @@ export function ArrivalScheduleManager({
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
+      false,
+      false,
+      statusByDate.get(formatDateISO(editingDay.date)) ?? null,
     );
-  }, [editingDay, arrivalData]);
+  }, [editingDay, arrivalData, statusByDate]);
 
   if (isLoading && arrivalData.schedules.length === 0) {
     return (
@@ -223,7 +243,7 @@ export function ArrivalScheduleManager({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
@@ -342,7 +362,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
       className={
         day.isToday
           ? "rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 px-3 py-2"
-          : "rounded-lg border border-gray-200 bg-white px-3 py-2"
+          : "moto-content-surface rounded-lg border px-3 py-2"
       }
     >
       <div className="flex items-center gap-3">
@@ -361,14 +381,18 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
           ) : null}
         </div>
         <div className="w-16 flex-shrink-0 text-sm font-semibold text-gray-900">
-          {day.isAbsent ? (
-            <span className="text-[#F78C10]">—</span>
+          {day.showSick || day.showExcused || day.isAbsent ? (
+            <span className="text-gray-300">-</span>
           ) : (
-            (day.effectiveTime ?? "—")
+            (day.effectiveTime ?? "-")
           )}
         </div>
         <div className="min-w-0 flex-1">
-          {day.isAbsent ? (
+          {day.showSick || day.showExcused ? (
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+              kommt nicht
+            </span>
+          ) : day.isAbsent ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium text-[#F78C10]">
               kommt nicht
             </span>
@@ -420,7 +444,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
       className={
         day.isToday
           ? "group relative rounded-lg border border-[#83CD2D] bg-[#83CD2D]/5 p-2 text-center"
-          : "group relative rounded-lg border border-gray-200 bg-white p-2 text-center"
+          : "group moto-content-surface relative rounded-lg border p-2 text-center"
       }
     >
       <div className="flex items-center justify-center gap-1">
@@ -449,13 +473,17 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
         <div className="text-[10px] text-[#83CD2D]">heute</div>
       ) : null}
 
-      {day.isAbsent ? (
+      {day.showSick || day.showExcused ? (
+        <div className="mt-1 inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+          kommt nicht
+        </div>
+      ) : day.isAbsent ? (
         <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#FFE8D0] px-2 py-0.5 text-xs font-medium text-[#F78C10]">
           kommt nicht
         </div>
       ) : (
         <div className="mt-1 text-sm font-semibold text-gray-900">
-          {day.effectiveTime ?? "—"}
+          {day.effectiveTime ?? "-"}
         </div>
       )}
 

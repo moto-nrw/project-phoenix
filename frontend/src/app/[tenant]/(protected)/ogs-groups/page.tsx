@@ -50,6 +50,7 @@ import {
   StudentCard,
   PickupTimeRow,
   ArrivalTimeRow,
+  StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
@@ -67,9 +68,14 @@ import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import {
   combineTimeNotes,
+  getStudentAbsence,
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
 
@@ -98,7 +104,6 @@ interface BackendStudentFromBFF {
   current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
-  sick_until?: string;
   excused?: boolean;
   excused_since?: string;
   location_since?: string;
@@ -107,6 +112,9 @@ interface BackendStudentFromBFF {
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
   // Authenticated photo URL (already rewritten by the backend response
@@ -175,6 +183,9 @@ function mapStudentForOgsPage(
       arrival_time: student.arrival_time,
       arrival_is_exception: student.arrival_is_exception,
       arrival_notes: student.arrival_notes,
+      day_planning_status: student.day_planning_status,
+      day_planning_reason: student.day_planning_reason,
+      day_planning_label: student.day_planning_label,
       actual_arrival_time: student.actual_arrival_time,
       actual_pickup_time: student.actual_pickup_time,
       // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -184,6 +195,30 @@ function mapStudentForOgsPage(
   }
 
   return student;
+}
+
+function GroupAbsenceOverview({
+  totalStudents,
+  sickCount,
+  excusedCount,
+}: Readonly<{
+  totalStudents: number;
+  sickCount: number;
+  excusedCount: number;
+}>) {
+  return (
+    <section
+      className="mb-3 flex flex-wrap items-center gap-2 text-sm"
+      aria-label="Abwesenheiten heute"
+    >
+      <span className="rounded-full border border-[#EAB308]/20 bg-[#EAB308]/10 px-3 py-1 font-medium text-gray-900">
+        {sickCount}/{totalStudents} krank
+      </span>
+      <span className="rounded-full border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-3 py-1 font-medium text-gray-900">
+        {excusedCount}/{totalStudents} entschuldigt
+      </span>
+    </section>
+  );
 }
 
 function OGSGroupPageContent() {
@@ -836,6 +871,7 @@ function OGSGroupPageContent() {
       // Pass token to skip redundant getSession() call (~600ms savings)
       const studentsResponse = await studentService.getStudents({
         groupId: selectedGroup.id,
+        includeArrivalTimes: true,
         token: session?.user?.token,
       });
       const studentsData = studentsResponse.students || [];
@@ -912,11 +948,15 @@ function OGSGroupPageContent() {
           plannedTime: timeA,
           actualTime: a.actual_pickup_time,
           now,
+          sick: a.sick,
+          excused: a.excused,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
           actualTime: b.actual_pickup_time,
           now,
+          sick: b.sick,
+          excused: b.excused,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -950,11 +990,15 @@ function OGSGroupPageContent() {
           plannedTime: timeA,
           actualTime: a.actual_arrival_time,
           now,
+          sick: a.sick,
+          excused: a.excused,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
           actualTime: b.actual_arrival_time,
           now,
+          sick: b.sick,
+          excused: b.excused,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -973,6 +1017,20 @@ function OGSGroupPageContent() {
     // Alphabetisch (Standard): Nachname, dann Vorname
     return sorted.sort(compareByName);
   }, [filteredStudents, sortMode, pickupTimes, now]);
+
+  const groupAbsenceOverview = useMemo(() => {
+    const groupStudents = Array.isArray(students) ? students : [];
+    const sickCount = groupStudents.filter((student) => student.sick).length;
+    const excusedCount = groupStudents.filter(
+      (student) => !student.sick && student.excused,
+    ).length;
+
+    return {
+      totalStudents: groupStudents.length,
+      sickCount,
+      excusedCount,
+    };
+  }, [students]);
 
   const getCardGradient = useCallback(
     (student: Student) => {
@@ -1247,6 +1305,10 @@ function OGSGroupPageContent() {
               const inGroupRoom = isStudentInGroupRoom(student, currentGroup);
               const cardGradient = getCardGradient(student);
               const studentPickup = pickupTimes.get(student.id.toString());
+              const studentAbsence = getStudentAbsence({
+                sick: student.sick,
+                excused: student.excused,
+              });
 
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
@@ -1271,13 +1333,15 @@ function OGSGroupPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={{
-                        ...student,
-                        not_arrival_today:
-                          (student.arrival_is_exception ?? false) &&
-                          !student.arrival_time,
-                        not_arrival_reason: student.arrival_notes ?? null,
-                      }}
+                      student={(() => {
+                        const badgePlanning =
+                          getStudentPresenceBadgePlanning(student);
+                        return {
+                          ...student,
+                          not_arrival_today: badgePlanning.notArrivalToday,
+                          not_arrival_reason: badgePlanning.notArrivalReason,
+                        };
+                      })()}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"
@@ -1286,31 +1350,57 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
-                      <ArrivalTimeRow
-                        arrivalTime={student.arrival_time}
-                        actualTime={student.actual_arrival_time}
-                        isException={student.arrival_is_exception ?? false}
-                        isAbsent={
-                          (student.arrival_is_exception ?? false) &&
-                          !student.arrival_time
-                        }
-                        notes={student.arrival_notes}
-                        now={now}
-                      />
-                      <PickupTimeRow
-                        pickupTime={studentPickup?.pickupTime}
-                        actualTime={student.actual_pickup_time}
-                        isException={studentPickup?.isException ?? false}
-                        notes={
-                          studentPickup
-                            ? combineTimeNotes(
-                                studentPickup.notes,
-                                studentPickup.dayNotes,
-                              )
-                            : undefined
-                        }
-                        now={now}
-                      />
+                      {studentAbsence && !student.actual_pickup_time ? (
+                        <StudentAbsenceRow label={studentAbsence.label} />
+                      ) : (
+                        (() => {
+                          const dayPlanningNotComingLabel =
+                            getDayPlanningNotComingLabel(student);
+                          if (
+                            dayPlanningNotComingLabel &&
+                            !student.actual_pickup_time
+                          ) {
+                            return (
+                              <StudentAbsenceRow
+                                label={dayPlanningNotComingLabel}
+                              />
+                            );
+                          }
+                          return (
+                            <>
+                              <ArrivalTimeRow
+                                arrivalTime={student.arrival_time}
+                                actualTime={student.actual_arrival_time}
+                                isException={
+                                  student.arrival_is_exception ?? false
+                                }
+                                isAbsent={
+                                  (student.arrival_is_exception ?? false) &&
+                                  !student.arrival_time
+                                }
+                                notes={student.arrival_notes}
+                                now={now}
+                              />
+                              <PickupTimeRow
+                                pickupTime={studentPickup?.pickupTime}
+                                actualTime={student.actual_pickup_time}
+                                isException={
+                                  studentPickup?.isException ?? false
+                                }
+                                notes={
+                                  studentPickup
+                                    ? combineTimeNotes(
+                                        studentPickup.notes,
+                                        studentPickup.dayNotes,
+                                      )
+                                    : undefined
+                                }
+                                now={now}
+                              />
+                            </>
+                          );
+                        })()
+                      )}
                       {/* Check-in-only avatar-clearance spacer — in navigation
                           mode this surface now opts into an in-flow bottom row
                           (hint + avatar), so the card grows naturally. The
@@ -1443,6 +1533,14 @@ function OGSGroupPageContent() {
             />
           </div>
         )}
+
+        {currentGroup ? (
+          <GroupAbsenceOverview
+            totalStudents={groupAbsenceOverview.totalStudents}
+            sickCount={groupAbsenceOverview.sickCount}
+            excusedCount={groupAbsenceOverview.excusedCount}
+          />
+        ) : null}
 
         {/* Student Grid. Bottom padding reserves room for the mobile
             sticky bar / tablet floating FAB so the last row of cards

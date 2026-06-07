@@ -2,10 +2,12 @@ import type { ReactNode } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { mockUpdateSchool, mockLoggerError } = vi.hoisted(() => ({
-  mockUpdateSchool: vi.fn(),
-  mockLoggerError: vi.fn(),
-}));
+const { mockUpdateSchool, mockRevalidateTenantCache, mockLoggerError } =
+  vi.hoisted(() => ({
+    mockUpdateSchool: vi.fn(),
+    mockRevalidateTenantCache: vi.fn(),
+    mockLoggerError: vi.fn(),
+  }));
 
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -32,6 +34,8 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
   operatorProvisioningService: {
     updateSchool: (...args: unknown[]) => mockUpdateSchool(...args),
   },
+  revalidateTenantCache: (...args: unknown[]) =>
+    mockRevalidateTenantCache(...args),
 }));
 
 vi.mock("~/lib/operator/provisioning-helpers", async (importOriginal) => {
@@ -160,6 +164,7 @@ describe("EditSchoolModal", () => {
 
   it("sends hidden=true when saving with visibility toggled off", async () => {
     mockUpdateSchool.mockResolvedValue(mockSchool);
+    mockRevalidateTenantCache.mockResolvedValue(undefined);
 
     render(
       <EditSchoolModal
@@ -188,6 +193,10 @@ describe("EditSchoolModal", () => {
         }),
       );
     });
+    expect(mockRevalidateTenantCache).toHaveBeenCalledWith([
+      "test-school",
+      "test-school",
+    ]);
   });
 
   it("sends hidden=false when school is visible", async () => {

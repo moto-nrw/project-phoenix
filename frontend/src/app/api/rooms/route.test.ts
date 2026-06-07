@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 import { GET, POST } from "./route";
+import { suppressConsole } from "~/test/helpers/console";
 
 // ============================================================================
 // Types
@@ -25,7 +26,7 @@ vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
 
-vi.mock("~/lib/api-helpers", () => ({
+vi.mock("~/lib/api-helpers.server", () => ({
   apiGet: mockApiGet,
   apiPost: mockApiPost,
   apiPut: vi.fn(),
@@ -92,6 +93,8 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
 // ============================================================================
 
 describe("GET /api/rooms", () => {
+  const consoleSpies = suppressConsole("warn");
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
@@ -189,6 +192,21 @@ describe("GET /api/rooms", () => {
       };
     }>(response);
     expect(json.data).toEqual([]);
+  });
+
+  it("logs rate-limited fetch failures as warnings", async () => {
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (429): Rate limit exceeded"),
+    );
+
+    const request = createMockRequest("/api/rooms");
+    const response = await GET(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    expect(consoleSpies.warn).toHaveBeenCalledWith("rooms fetch failed", {
+      error: "API error (429): Rate limit exceeded",
+      rate_limited: true,
+    });
   });
 });
 

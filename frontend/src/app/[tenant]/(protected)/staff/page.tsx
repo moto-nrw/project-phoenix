@@ -298,7 +298,7 @@ function StaffPageContent() {
                         },
                       }
                     : {})}
-                  className={cardClassName}
+                  className={`${cardClassName} moto-content-surface`}
                 >
                   {/* Modern gradient overlay */}
                   <div

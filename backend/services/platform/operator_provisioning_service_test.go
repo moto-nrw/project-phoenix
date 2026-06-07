@@ -303,11 +303,15 @@ func (m *mockInvitationService) WithTx(tx bun.Tx) interface{} { return m }
 func (m *mockInvitationService) CreateInvitation(_ context.Context, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	m.req = req
 	return &authModels.InvitationToken{
-		Model:     base.Model{ID: 10},
-		Email:     req.Email,
-		RoleID:    req.RoleID,
-		CreatedBy: nil,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
+		Model:            base.Model{ID: 10},
+		Email:            req.Email,
+		RoleID:           req.RoleID,
+		CreatedBy:        nil,
+		ExpiresAt:        time.Now().Add(24 * time.Hour),
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Position:         req.Position,
+		CaregiverEnabled: req.CaregiverEnabled,
 	}, nil
 }
 func (m *mockInvitationService) ValidateInvitation(context.Context, string) (*authSvc.InvitationValidationResult, error) {
@@ -341,6 +345,23 @@ func (m *mockAuthService) Login(context.Context, string, string) (string, string
 	return "", "", nil
 }
 func (m *mockAuthService) LoginWithAudit(context.Context, string, string, string, string, string) (string, string, error) {
+	return "", "", nil
+}
+
+// No-op stubs for the MFA-related additions (issue #1308 phases 5 + 7a).
+// The provisioning tests don't exercise these paths; the methods exist
+// solely so *mockAuthService still satisfies the AuthService interface.
+func (m *mockAuthService) IssueTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LoginWithMFAGate(context.Context, string, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
+func (m *mockAuthService) SetMFAService(authSvc.MFAService) {}
+func (m *mockAuthService) LoginParent(context.Context, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, string, string) (string, string, error) {
 	return "", "", nil
 }
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
@@ -794,11 +815,13 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 	})
 
 	invitation, err := service.InviteSchoolAdmin(context.Background(), 9, 11, net.IPv4(127, 0, 0, 1), authSvc.InvitationRequest{
-		Email: "principal@example.com",
+		Email:            "principal@example.com",
+		CaregiverEnabled: true,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, invitation)
 	require.Equal(t, int64(0), invitations.req.CreatedBy)
+	require.True(t, invitations.req.CaregiverEnabled)
 }
 
 func TestOperatorProvisioningService_CreateSchool_OrganizationNotFound(t *testing.T) {

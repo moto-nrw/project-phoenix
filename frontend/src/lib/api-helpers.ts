@@ -1,13 +1,6 @@
 // lib/api-helpers.ts
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-import { isAxiosError } from "axios";
-import api from "./api";
 import { isBrowserContext } from "./api-url";
 import { createLogger } from "~/lib/logger";
-
-// Note: Server-only imports (auth, refreshSessionTokensOnServer) are dynamically
-// imported inside functions to prevent client-side bundle from including them.
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -35,310 +28,43 @@ export interface ApiErrorResponse {
 }
 
 /**
- * HTTP methods supported by the API helpers
+ * Typed error thrown by serverFetchWithRetry / clientAxiosRequest for non-OK
+ * backend responses. Carries the HTTP status and the raw body so callers can
+ * branch on either without re-parsing `.message` strings. The `message`
+ * intentionally keeps the legacy `"API error (<status>): <body>"` shape so
+ * existing string-based parsers (handleApiError, handleDomainApiError) and
+ * any caller catching it as a plain Error continue to work unchanged.
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export class ApiResponseError extends Error {
+  readonly status: number;
+  readonly bodyText: string;
+  // Memoized parse result — `null` means "not JSON". Lazy so callers that
+  // only check status never pay the JSON.parse cost.
+  private parsedBody: unknown | undefined;
+  private parseAttempted = false;
 
-/**
- * Options for server-side fetch requests
- */
-interface ServerFetchOptions {
-  method: HttpMethod;
-  body?: unknown;
-  returnVoidOn204?: boolean;
-}
-
-/**
- * Check if the current session is authenticated
- * @returns NextResponse with error if not authenticated, null if authenticated
- */
-export async function checkAuth(): Promise<NextResponse<ApiErrorResponse> | null> {
-  const { auth } = await import("../server/auth");
-  const session = await auth();
-
-  if (!session?.user?.token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  constructor(status: number, bodyText: string, options?: ErrorOptions) {
+    super(`API error (${status}): ${bodyText}`, options);
+    this.name = "ApiResponseError";
+    this.status = status;
+    this.bodyText = bodyText;
   }
 
-  return null;
-}
-
-/**
- * Server-side fetch against the backend API.
- * Route-level 401 retry with a refreshed session happens in route-wrapper.ts.
- */
-async function serverFetchWithRetry<T>(
-  endpoint: string,
-  token: string,
-  options: ServerFetchOptions,
-): Promise<T> {
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const url = `${getServerApiUrl()}${endpoint}`;
-
-  const executeRequest = async (bearer: string) =>
-    fetch(url, {
-      method: options.method,
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        "Content-Type": "application/json",
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      cache: "no-store", // Prevent Next.js from caching API responses
-    });
-
-  const response = await executeRequest(token);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`API error (${response.status}): ${errorText}`);
-  }
-
-  if (response.status === 204) {
-    // DELETE should return void/undefined, others return empty object
-    if (options.returnVoidOn204) {
-      return undefined as T;
-    }
-    return {} as T;
-  }
-
-  return (await response.json()) as T;
-}
-
-/**
- * Client-side axios request with error handling
- * Centralized logic for all HTTP methods to eliminate duplication
- */
-async function clientAxiosRequest<T>(
-  method: HttpMethod,
-  endpoint: string,
-  token: string,
-  body?: unknown,
-  returnVoidOn204?: boolean,
-): Promise<T> {
-  try {
-    const config = {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    };
-
-    let response;
-    switch (method) {
-      case "GET":
-        response = await api.get<T>(endpoint, config);
-        break;
-      case "POST":
-        response = await api.post<T>(endpoint, body, config);
-        break;
-      case "PUT":
-        response = await api.put<T>(endpoint, body, config);
-        break;
-      case "PATCH":
-        response = await api.patch<T>(endpoint, body, config);
-        break;
-      case "DELETE":
-        response = await api.delete<T>(endpoint, config);
-        break;
-    }
-
-    // DELETE should return void/undefined for 204
-    if (returnVoidOn204 && response.status === 204) {
-      return undefined as T;
-    }
-
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error)) {
-      const status = error.response?.status ?? 500;
-      const errorText = error.response?.data
-        ? JSON.stringify(error.response.data)
-        : error.message;
-      throw new Error(`API error (${status}): ${errorText}`, { cause: error });
-    }
-    throw error;
-  }
-}
-
-/**
- * Make a GET request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @returns Promise with the response data
- */
-export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
-  if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "GET" });
-  }
-  return clientAxiosRequest<T>("GET", endpoint, token);
-}
-
-/**
- * Make a POST request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @returns Promise with the response data
- */
-export async function apiPost<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "POST", body });
-  }
-  return clientAxiosRequest<T>("POST", endpoint, token, body);
-}
-
-/**
- * Make a PUT request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @returns Promise with the response data
- */
-export async function apiPut<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "PUT", body });
-  }
-  return clientAxiosRequest<T>("PUT", endpoint, token, body);
-}
-
-/**
- * Make a PATCH request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @param body Request body
- * @returns Promise with the response data
- */
-export async function apiPatch<T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-): Promise<T> {
-  if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, { method: "PATCH", body });
-  }
-  return clientAxiosRequest<T>("PATCH", endpoint, token, body);
-}
-
-/**
- * Make a DELETE request to the API
- * @param endpoint API endpoint to request
- * @param token Authentication token
- * @returns Promise with the response data, or void for 204 No Content responses
- */
-export async function apiDelete<T>(
-  endpoint: string,
-  token: string,
-): Promise<T | void> {
-  if (globalThis.window === undefined) {
-    return serverFetchWithRetry<T>(endpoint, token, {
-      method: "DELETE",
-      returnVoidOn204: true,
-    });
-  }
-  return clientAxiosRequest<T>("DELETE", endpoint, token, undefined, true);
-}
-
-/**
- * Handler for API errors
- * @param error Error object
- * @returns NextResponse with error message and status
- */
-export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
-  // If it's an Error with a specific status code pattern, extract it
-  if (error instanceof Error) {
-    // Match both "API error: 403" and "API error (403):" formats (exactly 3 digits)
-    const regex = /API error[:\s(]+(\d{3})/;
-    const match = regex.exec(error.message);
-
-    if (match?.[1]) {
-      const status = Number.parseInt(match[1], 10);
-      // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
-      if (status >= 500) {
-        logger.error("api route error", {
-          status,
-          error: error.message,
-        });
-      } else {
-        logger.warn("api route error", {
-          status,
-          error: error.message,
-        });
+  /**
+   * Returns the parsed JSON body, or `null` if the body isn't valid JSON.
+   * Use this instead of grepping `error.message` for backend error codes.
+   */
+  body<T = unknown>(): T | null {
+    if (!this.parseAttempted) {
+      this.parseAttempted = true;
+      try {
+        this.parsedBody = JSON.parse(this.bodyText);
+      } catch {
+        this.parsedBody = null;
       }
-
-      // Try to extract structured fields from embedded backend JSON response.
-      // Mirror the wire shape: error, code, AND details — the proxy must not
-      // silently drop details, or codes like reopen_status_conflict that carry
-      // identifying fields lose them between backend and browser (Issue #1368).
-      const response: ApiErrorResponse = { error: error.message };
-      const jsonStart = error.message.indexOf("{");
-      if (jsonStart !== -1) {
-        try {
-          const parsed = JSON.parse(error.message.substring(jsonStart)) as {
-            error?: string;
-            message?: string;
-            code?: string;
-            details?: Record<string, unknown>;
-          };
-          if (parsed.error ?? parsed.message) {
-            response.error = (parsed.error ?? parsed.message) as string;
-          }
-          if (parsed.code) {
-            response.code = parsed.code;
-          }
-          if (parsed.details) {
-            response.details = parsed.details;
-          }
-        } catch {
-          // Not valid JSON, keep original error message
-        }
-      }
-
-      return NextResponse.json(response, { status });
     }
+    return (this.parsedBody ?? null) as T | null;
   }
-
-  // Unknown errors are logged as errors and return 500
-  logger.error("api route error without status", {
-    error: error instanceof Error ? error.message : String(error),
-  });
-  const errorMessage =
-    error instanceof Error ? error.message : "Internal Server Error";
-  return NextResponse.json({ error: errorMessage }, { status: 500 });
-}
-
-/**
- * Extract URL parameters from the request
- * @param request NextRequest object
- * @param params Parameter names to extract
- * @returns Object with extracted parameters
- */
-export function extractParams(
-  request: NextRequest,
-  params: Record<string, unknown>,
-): Record<string, string> {
-  const urlParams: Record<string, string> = {};
-
-  // Extract from URL params object
-  Object.keys(params).forEach((key) => {
-    if (params[key] && typeof params[key] === "string") {
-      urlParams[key] = params[key];
-    }
-  });
-
-  // Extract from query params
-  const searchParams = request.nextUrl.searchParams;
-  searchParams.forEach((value, key) => {
-    urlParams[key] = value;
-  });
-
-  return urlParams;
 }
 
 /**
@@ -548,12 +274,18 @@ export async function fetchWithRetry<T>(
       return { response: null, data: null };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
-    logger.error("api error", {
+    const logContext = {
       url,
       method,
       status: response.status,
       error_text: errorText.substring(0, 200),
-    });
+      ...(response.status === 429 && { rate_limited: true }),
+    };
+    if (response.status === 429) {
+      logger.warn("api rate limited", logContext);
+    } else {
+      logger.error("api error", logContext);
+    }
     throw new Error(`API error: ${response.status}`);
   }
 

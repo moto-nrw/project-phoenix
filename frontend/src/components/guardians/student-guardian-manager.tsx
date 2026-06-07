@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Search } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
+import GuardianPickerPanel from "./guardian-picker-panel";
 import { GuardianDeleteModal } from "./guardian-delete-modal";
 import type {
+  Guardian,
   GuardianWithRelationship,
   GuardianFormData,
   PhoneType,
@@ -45,6 +47,7 @@ export default function StudentGuardianManager({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [editingGuardian, setEditingGuardian] = useState<
     GuardianWithRelationship | undefined
   >();
@@ -53,7 +56,7 @@ export default function StudentGuardianManager({
     GuardianWithRelationship | undefined
   >();
   const [isDeleting, setIsDeleting] = useState(false);
-  const { success: toastSuccess } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   // Load guardians
   const loadGuardians = useCallback(async () => {
@@ -160,6 +163,34 @@ export default function StudentGuardianManager({
             : `${successCount} Erziehungsberechtigte erfolgreich hinzugefügt`,
         );
       }
+    }
+  };
+
+  // Link an existing guardian chosen from the picker (sibling case). Unlike the
+  // create path this never creates a profile — it only links the chosen one with
+  // the relationship flags set for THIS child.
+  const handleSelectExistingGuardian = async (
+    guardian: Guardian,
+    relationship: RelationshipFormData,
+  ) => {
+    try {
+      await linkGuardianToStudent(studentId, {
+        guardianProfileId: guardian.id,
+        ...relationship,
+      });
+      await loadGuardians();
+      onUpdate?.();
+      toastSuccess(
+        `${getGuardianFullName(guardian)} wurde erfolgreich hinzugefügt`,
+      );
+    } catch (err) {
+      // Log the technical detail; show the user a German message only (the
+      // link API throws raw, often English, backend strings).
+      logger.error("guardian_link_existing_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      toastError("Fehler beim Verknüpfen der/des Erziehungsberechtigten");
     }
   };
 
@@ -421,17 +452,42 @@ export default function StudentGuardianManager({
             </span>
           )}
           {!readOnly && (
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-              title="Erziehungsberechtigte/n hinzufügen"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Hinzufügen</span>
-            </button>
+            <>
+              <button
+                onClick={() => setIsPickerOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                title="Vorhandene/n Erziehungsberechtigte/n suchen"
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden sm:inline">Vorhandene/n suchen</span>
+              </button>
+              <button
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+                title="Erziehungsberechtigte/n hinzufügen"
+              >
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline">Hinzufügen</span>
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Existing-guardian picker (sibling case) — inline, not a modal, since a
+          search is a light lookup. "Hinzufügen" opens the heavy form modal. */}
+      {isPickerOpen && (
+        <div className="mb-3">
+          <GuardianPickerPanel
+            onSelect={(guardian, relationship) => {
+              setIsPickerOpen(false);
+              void handleSelectExistingGuardian(guardian, relationship);
+            }}
+            onCancel={() => setIsPickerOpen(false)}
+            excludeProfileIds={guardians.map((g) => g.id)}
+          />
+        </div>
+      )}
 
       {/* Guardian List */}
       <div className="space-y-3">

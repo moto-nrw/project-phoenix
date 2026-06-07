@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { apiPut } from "~/lib/api-helpers";
-import { createPutHandler } from "~/lib/route-wrapper";
+import { apiPut } from "~/lib/api-helpers.server";
+import { createPutHandler } from "~/lib/route-wrapper.server";
 
 /**
  * PUT /api/staff/[id]/time-tracking/sessions/[sessionId]

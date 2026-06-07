@@ -1,4 +1,4 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper";
+import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
 
 // Tenant-wide list of vacation requests still awaiting decision. Used by the
 // per-staff Abwesenheiten tab to count incoming requests, and (next step) by

@@ -26,7 +26,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRefresh = vi.fn();
 const mockSearchParamsGet = vi.fn((_key: string): string | null => null);
-// Stable reference — real useSearchParams returns the same object between renders.
+// Stable reference, real useSearchParams returns the same object between renders.
 // A fresh object each call causes the useEffect([searchParams]) to re-fire.
 const stableSearchParams = { get: mockSearchParamsGet };
 vi.mock("next/navigation", () => ({
@@ -125,15 +125,34 @@ import { useTenant } from "~/components/tenant/tenant-provider";
 import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 
-// Mock Element.animate for confetti effect
 const mockAnimate = vi.fn(() => ({
   onfinish: null,
   cancel: vi.fn(),
 })) as unknown as typeof Element.prototype.animate;
 
+const originalFetch = global.fetch;
+
+function mockFetchResponse(status: number, body: unknown): typeof global.fetch {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+function mockTenantAuthenticatedResponse(): typeof global.fetch {
+  return mockFetchResponse(200, {
+    status: "authenticated",
+    access_token: "access-token",
+    refresh_token: "refresh-token",
+  });
+}
+
 describe("HomePage (Login)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSearchParamsGet.mockImplementation((_key: string) => null);
     vi.mocked(useSession).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -142,33 +161,59 @@ describe("HomePage (Login)", () => {
 
     // Mock Element.animate globally
     Element.prototype.animate = mockAnimate;
+    global.fetch = mockTenantAuthenticatedResponse();
+    window.history.pushState({}, "", "/");
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    global.fetch = originalFetch;
+    window.history.pushState({}, "", "/");
   });
 
   it("renders the login form", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Willkommen bei moto!")).toBeInTheDocument();
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
     });
   });
 
-  it("displays the MOTO logo", async () => {
+  it("does not display a MOTO logo fallback", async () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByAltText("MOTO Logo")).toBeInTheDocument();
+      expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
     });
   });
 
-  it("displays tagline", async () => {
+  it("displays tenant login logo when configured", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: {
+        name: "Grundschule Musterstadt",
+        settings: {
+          loginImageUrl: "/uploads/school-logo.png",
+        },
+      } as ReturnType<typeof useTenant>["tenant"],
+    });
+
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ganztag. Digital.")).toBeInTheDocument();
+      expect(
+        screen.getByAltText("Grundschule Musterstadt Logo"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("displays login subtitle", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Melden Sie sich mit Ihrem Konto an."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -222,10 +267,10 @@ describe("HomePage (Login)", () => {
     expect(formContainer).toHaveClass("hidden");
 
     // Loading spinner is visible with checking message
-    expect(screen.getByText("Sitzung wird überprüft…")).toBeInTheDocument();
+    expect(screen.getByText("Sitzung wird überprüft...")).toBeInTheDocument();
   });
 
-  it("calls signIn with credentials on form submission", async () => {
+  it("posts to /api/auth/login then seeds session via internalRefresh (2-step MFA flow)", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
     render(<HomePage />);
@@ -248,17 +293,74 @@ describe("HomePage (Login)", () => {
     });
 
     await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123",
+            tenant_slug: "test-tenant",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        email: "test@example.com",
-        password: "password123",
         redirect: false,
-        tenantSlug: "test-tenant",
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
       });
     });
   });
 
+  it("removes stale session-expired query params before seeding the new session", async () => {
+    mockSignIn.mockResolvedValue({ error: null });
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "error" ? "SessionExpired" : null,
+    );
+    window.history.pushState(
+      {},
+      "",
+      "/?error=SessionExpired&callbackUrl=%2Fdashboard",
+    );
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("input-email"), {
+        target: { value: "test@example.com" },
+      });
+      fireEvent.change(screen.getByTestId("input-password"), {
+        target: { value: "password123" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
+        redirect: false,
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
+      });
+    });
+    expect(window.location.search).toBe("");
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/");
+  });
+
   it("shows error message on invalid credentials", async () => {
-    mockSignIn.mockResolvedValue({ error: "Invalid credentials" });
+    global.fetch = mockFetchResponse(401, { error: "Invalid credentials" });
 
     render(<HomePage />);
 
@@ -370,81 +472,6 @@ describe("HomePage (Login)", () => {
   });
 });
 
-describe("Tenant selector button", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-    Element.prototype.animate = mockAnimate;
-  });
-
-  it("renders tenant selector button", async () => {
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("navigates to tenant domain with port when port is present", async () => {
-    Object.defineProperty(window, "location", {
-      writable: true,
-      value: {
-        protocol: "http:",
-        port: "3000",
-        href: "",
-      },
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-    );
-
-    // env.NEXT_PUBLIC_TENANT_DOMAIN comes from the global mock (undefined),
-    // but the URL is constructed with the domain
-    expect(window.location.href).toContain("/");
-  });
-
-  it("navigates to tenant domain without port when port is empty", async () => {
-    Object.defineProperty(window, "location", {
-      writable: true,
-      value: {
-        protocol: "https:",
-        port: "",
-        href: "",
-      },
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: /Einrichtung wechseln/i }),
-    );
-
-    // Without port, no :port suffix should be appended
-    expect(window.location.href).not.toContain(":3000");
-  });
-});
-
 describe("Tenant name display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -495,9 +522,8 @@ describe("Tenant name display", () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Ganztag. Digital.")).toBeInTheDocument();
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
     });
-    // With empty name, the spacer div should be rendered instead
   });
 });
 
@@ -510,6 +536,11 @@ describe("Enter key form submission", () => {
       update: vi.fn(),
     });
     Element.prototype.animate = mockAnimate;
+    global.fetch = mockTenantAuthenticatedResponse();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("submits form when submit event is triggered", async () => {
@@ -535,6 +566,12 @@ describe("Enter key form submission", () => {
       fireEvent.submit(form);
     });
 
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/login",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
     await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalled();
     });
@@ -672,8 +709,12 @@ describe("Form error handling", () => {
     Element.prototype.animate = mockAnimate;
   });
 
-  it("shows generic error when signIn throws an Error", async () => {
-    mockSignIn.mockRejectedValue(new Error("Network error"));
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("shows generic error when fetch throws an Error", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<HomePage />);
 
@@ -692,8 +733,8 @@ describe("Form error handling", () => {
     });
   });
 
-  it("shows generic error when signIn throws a non-Error", async () => {
-    mockSignIn.mockRejectedValue("unknown failure");
+  it("shows generic error when fetch throws a non-Error", async () => {
+    global.fetch = vi.fn().mockRejectedValue("unknown failure");
 
     render(<HomePage />);
 
@@ -773,15 +814,16 @@ describe("Deliberate logout suppression", () => {
     Element.prototype.animate = mockAnimate;
     sessionStorage.clear();
     // Spy on history.replaceState to verify URL cleanup
-    Object.defineProperty(window, "history", {
-      value: { ...window.history, replaceState: replaceStateSpy },
-      writable: true,
-    });
+    vi.spyOn(window.history, "replaceState").mockImplementation(
+      replaceStateSpy,
+    );
   });
 
   afterEach(() => {
     sessionStorage.clear();
+    vi.restoreAllMocks();
     mockSearchParamsGet.mockImplementation((_key: string) => null);
+    window.history.pushState({}, "", "/");
   });
 
   it("suppresses error when deliberateLogout flag is set", async () => {
@@ -829,6 +871,11 @@ describe("Deliberate logout suppression", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "error" ? "SessionRequired" : null,
     );
+    window.history.pushState(
+      {},
+      "",
+      "/?error=SessionRequired&callbackUrl=%2Fdashboard",
+    );
 
     await act(async () => {
       render(<HomePage />);
@@ -839,50 +886,5 @@ describe("Deliberate logout suppression", () => {
       "",
       window.location.pathname,
     );
-  });
-});
-
-describe("Confetti effect", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
-      update: vi.fn(),
-    });
-    Element.prototype.animate = mockAnimate;
-  });
-
-  it("tests confetti color array", () => {
-    // Test the confetti colors that would be used
-    const colors = ["#FF3130", "#F78C10", "#83DC2D", "#5080D8"];
-
-    expect(colors).toHaveLength(4);
-    expect(colors[0]).toBe("#FF3130");
-  });
-
-  it("tests confetti quadrant calculation", () => {
-    // Test the quadrant-based angle calculation
-    const quadrant = 2 as number; // Bottom-left quadrant
-    let angle = 0;
-
-    switch (quadrant) {
-      case 0:
-        angle = (Math.random() * Math.PI) / 2;
-        break;
-      case 1:
-        angle = Math.PI / 2 + (Math.random() * Math.PI) / 2;
-        break;
-      case 2:
-        angle = Math.PI + (Math.random() * Math.PI) / 2;
-        break;
-      case 3:
-        angle = (3 * Math.PI) / 2 + (Math.random() * Math.PI) / 2;
-        break;
-    }
-
-    // Angle for quadrant 2 should be between π and 3π/2
-    expect(angle).toBeGreaterThanOrEqual(Math.PI);
-    expect(angle).toBeLessThanOrEqual((3 * Math.PI) / 2);
   });
 });

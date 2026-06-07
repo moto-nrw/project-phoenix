@@ -22,6 +22,7 @@ import { Loading } from "~/components/ui/loading";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -40,9 +41,11 @@ interface ActivitiesPageData {
 // page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
   return (
-    <BinaryModeGuard>
-      <ActivitiesPageContent />
-    </BinaryModeGuard>
+    <NfcModeGuard>
+      <BinaryModeGuard>
+        <ActivitiesPageContent />
+      </BinaryModeGuard>
+    </NfcModeGuard>
   );
 }
 
@@ -300,17 +303,9 @@ function ActivitiesPageContent() {
               !isMobile && (
                 <button
                   onClick={() => setIsQuickCreateOpen(true)}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-lg transition-all duration-150 hover:scale-105 hover:shadow-xl active:scale-95"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
-                    willChange: "transform, opacity",
-                    WebkitTransform: "translateZ(0)",
-                    transform: "translateZ(0)",
-                  }}
+                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950"
                   aria-label="Aktivität erstellen"
                 >
-                  <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
                   <svg
                     className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
                     fill="none"
@@ -324,7 +319,6 @@ function ActivitiesPageContent() {
                       d="M12 4.5v15m7.5-7.5h-15"
                     />
                   </svg>
-                  <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
                 </button>
               )
             }
@@ -334,17 +328,9 @@ function ActivitiesPageContent() {
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#FF3130] to-[#e02020] text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] transition-all duration-150 hover:shadow-[0_8px_40px_rgb(255,49,48,0.3)] active:scale-95 md:hidden"
-          style={{
-            background:
-              "linear-gradient(135deg, rgb(255, 49, 48) 0%, rgb(224, 32, 32) 100%)",
-            willChange: "transform, opacity",
-            WebkitTransform: "translateZ(0)",
-            transform: "translateZ(0)",
-          }}
+          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
           aria-label="Aktivität erstellen"
         >
-          <div className="absolute inset-[2px] rounded-full bg-gradient-to-br from-white/20 to-white/0 opacity-0 transition-opacity duration-150 group-hover:opacity-100"></div>
           <svg
             className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
             fill="none"
@@ -358,7 +344,6 @@ function ActivitiesPageContent() {
               d="M12 4.5v15m7.5-7.5h-15"
             />
           </svg>
-          <div className="absolute inset-0 scale-0 rounded-full bg-white/20 opacity-0 transition-transform duration-200 group-hover:scale-100 group-hover:opacity-100"></div>
         </button>
 
         {/* Error Alert */}
@@ -378,7 +363,7 @@ function ActivitiesPageContent() {
                   type="button"
                   key={activity.id}
                   onClick={handleClick}
-                  className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-red-300/50 md:hover:bg-white md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
+                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
                   style={{
                     animationName: "fadeInUp",
                     animationDuration: "0.5s",
@@ -388,18 +373,13 @@ function ActivitiesPageContent() {
                     opacity: 0,
                   }}
                 >
-                  {/* Modern gradient overlay */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-red-50/80 to-rose-100/80 opacity-[0.03]"></div>
-                  {/* Subtle inner glow */}
-                  <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                  {/* Modern border highlight */}
-                  <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-150 md:group-hover:ring-red-200/60"></div>
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
                   <div className="relative flex items-center justify-between p-5">
                     {/* Left content */}
                     <div className="min-w-0 flex-1">
                       {/* Activity Name */}
-                      <h3 className="text-lg font-semibold text-gray-900 transition-colors duration-150 md:group-hover:text-red-600">
+                      <h3 className="inline-block origin-left text-lg font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
                         {activity.name}
                       </h3>
 
@@ -422,9 +402,9 @@ function ActivitiesPageContent() {
 
                       {/* Edit icon indicator (visual only - parent button handles click) */}
                       <span className="relative" aria-hidden="true">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-all duration-200 md:group-hover:scale-110 md:group-hover:bg-red-100">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:group-hover:bg-gray-200">
                           <svg
-                            className="h-5 w-5 text-gray-600 transition-colors md:group-hover:text-red-600"
+                            className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -437,15 +417,9 @@ function ActivitiesPageContent() {
                             />
                           </svg>
                         </div>
-
-                        {/* Ripple effect on hover */}
-                        <div className="absolute inset-0 scale-0 rounded-full bg-red-200/20 transition-transform duration-300 md:group-hover:scale-100"></div>
                       </span>
                     </div>
                   </div>
-
-                  {/* Glowing border effect */}
-                  <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-red-100/30 to-transparent opacity-0 transition-opacity duration-150 md:group-hover:opacity-100"></div>
                 </button>
               );
             })}

@@ -2,12 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { BackgroundWrapper } from "./background-wrapper";
 
-// Mock AnimatedBackground
-vi.mock("./animated-background", () => ({
-  AnimatedBackground: () => <div data-testid="animated-background" />,
-}));
-
-// Mock useModal hook
 const mockIsModalOpen = vi.fn();
 vi.mock("./dashboard/modal-context", () => ({
   useModal: () => ({
@@ -26,18 +20,6 @@ describe("BackgroundWrapper", () => {
     );
 
     expect(screen.getByText("Test content")).toBeInTheDocument();
-  });
-
-  it("renders AnimatedBackground", () => {
-    mockIsModalOpen.mockReturnValue(false);
-
-    render(
-      <BackgroundWrapper>
-        <div>Content</div>
-      </BackgroundWrapper>,
-    );
-
-    expect(screen.getByTestId("animated-background")).toBeInTheDocument();
   });
 
   it("shows modal overlay when modal is open", () => {

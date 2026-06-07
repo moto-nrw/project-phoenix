@@ -1,25 +1,68 @@
-// [tenant]/page.tsx — Login page (tenant-scoped)
+// [tenant]/page.tsx, tenant-scoped login page
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Input, Alert } from "~/components/ui";
+import { Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
+import {
+  AuthShell,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
-import { launchConfetti, clearConfetti } from "~/lib/confetti";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { env } from "~/env";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import {
+  login as loginApi,
+  germanMFAErrorMessage,
+  MFAApiError,
+  type MFATokenResponse,
+} from "~/lib/mfa-api";
 
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantLoginPage" });
+
+function clearSessionErrorFromUrl() {
+  const url = new URL(window.location.href);
+  const hadSessionError =
+    url.searchParams.get("error") === "SessionRequired" ||
+    url.searchParams.get("error") === "SessionExpired";
+
+  if (!hadSessionError) return;
+
+  url.searchParams.delete("error");
+  url.searchParams.delete("callbackUrl");
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+}
+
+interface MFAStep {
+  challengeToken: string;
+  maskedEmail: string;
+  trustedDeviceEnabled: boolean;
+  trustedDeviceDays: number;
+}
+
+interface MFAEnrollmentStep {
+  // enrollmentToken is the narrow-scope JWT issued by login when MFA is
+  // required and the user has no credential yet. It only authorizes
+  // /auth/mfa/enroll/* — a full session pair is minted by the confirm
+  // endpoint and seeded via seedSessionWithTokens once enrollment succeeds.
+  enrollmentToken: string;
+  email: string;
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,10 +72,14 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [enrollmentStep, setEnrollmentStep] =
+    useState<MFAEnrollmentStep | null>(null);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
+  const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
@@ -114,7 +161,7 @@ function LoginForm() {
     void checkAndRedirect();
   }, [status, session]);
 
-  // Check for session errors in URL — but suppress after a deliberate logout.
+  // Check for session errors in URL, but suppress after a deliberate logout.
   // NextAuth's useSession({ required: true }) races the logout navigation and
   // can redirect here with ?error=SessionRequired before the page unloads.
   useEffect(() => {
@@ -129,19 +176,45 @@ function LoginForm() {
       }
       if (deliberate) {
         // Clean up NextAuth's error/callbackUrl params from the URL
-        window.history.replaceState({}, "", window.location.pathname);
+        clearSessionErrorFromUrl();
       } else {
         setError(
           "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
         );
+        clearSessionErrorFromUrl();
       }
     }
   }, [searchParams]);
 
-  const isCheckingAuth =
-    checkingAuth ||
-    status === "loading" ||
-    (awaitingRedirect && status === "authenticated");
+  const isCheckingAuth = checkingAuth || status === "loading";
+  const isSubmitting = isLoading || awaitingRedirect;
+
+  // seedSessionWithTokens hands an already-minted access/refresh pair to
+  // NextAuth via the internalRefresh credential path. Used after a
+  // successful MFA verify/enroll OR a non-MFA login — in all cases the
+  // backend has already authenticated the account, so we only seed the
+  // session.
+  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    clearSessionErrorFromUrl();
+    const result = await signIn("credentials", {
+      redirect: false,
+      internalRefresh: "true",
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+    if (result?.error) {
+      setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
+      logger.error("session_seed_failed", { error: result.error });
+      return;
+    }
+    setAwaitingRedirect(true);
+    router.refresh();
+  };
+
+  const handleMFASuccess = async (tokens: MFATokenResponse) => {
+    await seedSessionWithTokens(tokens);
+    setMfaStep(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,31 +222,45 @@ function LoginForm() {
     setError("");
 
     try {
-      // Start confetti immediately when button is clicked
-      // This creates a perception of instant response
-      launchConfetti();
-
-      const result = await signIn("credentials", {
+      const response = await loginApi("tenant", {
         email,
         password,
         tenantSlug,
-        redirect: false,
       });
 
-      if (result?.error) {
-        clearConfetti();
+      if (response.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: response.challenge_token,
+          maskedEmail: response.masked_email,
+          trustedDeviceEnabled: response.trusted_device_enabled ?? true,
+          trustedDeviceDays: response.trusted_device_days ?? 90,
+        });
+        return;
+      }
+
+      if (response.status === "mfa_enrollment_required") {
+        // Post-#1430: the response carries an enrollment-scoped JWT in
+        // access_token (no refresh_token). It only authorizes
+        // /auth/mfa/enroll/* — the real session is minted by confirm.
+        setEnrollmentStep({
+          enrollmentToken: response.access_token,
+          email,
+        });
+        return;
+      }
+
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
       } else {
-        // Set flag to indicate we're awaiting redirect
-        setAwaitingRedirect(true);
-        // Refresh the router to update session state
-        router.refresh();
+        setError(germanMFAErrorMessage(err));
       }
-    } catch (error) {
-      clearConfetti();
-      setError("Anmeldefehler. Bitte versuchen Sie es erneut.");
       logger.error("login failed", {
-        error: error instanceof Error ? error.message : String(error),
+        error: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsLoading(false);
@@ -181,165 +268,150 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="mx-auto w-full max-w-2xl rounded-2xl bg-white/80 p-10 text-center shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-white/90 hover:shadow-2xl">
-        {/* Top Bar: Tenant Selector (left) + Help (right) */}
-        <div className="absolute top-4 right-4 left-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => {
-              const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
-              const portSuffix = window.location.port
-                ? `:${window.location.port}`
-                : "";
-              window.location.href = `${window.location.protocol}//${tenantDomain}${portSuffix}/`;
-            }}
-            className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Einrichtung wechseln
-          </button>
-        </div>
-
-        {/* Logo Section */}
-        <div className="mb-8 flex justify-center">
-          {tenant?.settings?.loginImageUrl ? (
+    <>
+      <AuthShell
+        eyebrow="Ihr OGS Portal"
+        eyebrowClassName="text-[#83CD2D]"
+        title={loginTitle}
+        subtitle="Melden Sie sich mit Ihrem Konto an."
+        variant="tenant"
+        brand={
+          tenant?.settings?.loginImageUrl ? (
             <Image
               src={loginImageSrc(tenant.settings.loginImageUrl)}
               alt={`${tenant.name} Logo`}
-              width={200}
-              height={142}
-              className="max-h-[142px] w-auto object-contain"
+              width={180}
+              height={104}
+              className="max-h-[104px] w-auto object-contain"
               priority
               unoptimized
             />
-          ) : (
-            <Image
-              src="/images/moto_transparent.png"
-              alt="MOTO Logo"
-              width={200}
-              height={80}
-              priority
-            />
-          )}
-        </div>
-
-        {/* Welcome Text */}
-        <h1 className="mb-2 bg-gradient-to-r from-[#5080d8] to-[#83cd2d] bg-clip-text text-4xl font-bold text-transparent md:text-5xl">
-          Willkommen bei moto!
-        </h1>
-        <p className="text-xl text-gray-700">Ganztag. Digital.</p>
-        {tenant?.name && (
-          <p className="mt-4 mb-10 text-2xl font-semibold text-gray-800">
-            {tenant.name}
-          </p>
-        )}
-        {!tenant?.name && <div className="mb-10" />}
-
-        {/* Loading spinner while checking auth or awaiting redirect */}
+          ) : null
+        }
+      >
         {isCheckingAuth && (
           <div className="flex items-center justify-center py-12">
             <div className="flex flex-col items-center gap-4">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-              <p className="text-sm text-gray-500">
-                {awaitingRedirect
-                  ? "Sie werden weitergeleitet…"
-                  : "Sitzung wird überprüft…"}
-              </p>
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+              <p className="text-sm text-gray-500">Sitzung wird überprüft...</p>
             </div>
           </div>
         )}
 
-        {/* Login Form — fades in after auth check */}
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
-          <form onSubmit={handleSubmit} noValidate className="space-y-6">
-            {error && <Alert type="error" message={error} />}
+          {mfaStep ? (
+            <MFAChallengeForm
+              scope="tenant"
+              challengeToken={mfaStep.challengeToken}
+              maskedEmail={mfaStep.maskedEmail}
+              trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
+              trustedDeviceDays={mfaStep.trustedDeviceDays}
+              onSuccess={handleMFASuccess}
+              onCancel={() => {
+                setMfaStep(null);
+                setError("");
+                setPassword("");
+              }}
+            />
+          ) : enrollmentStep ? (
+            <MFAEnrollmentScreen
+              scope="tenant"
+              bearerToken={enrollmentStep.enrollmentToken}
+              userEmail={enrollmentStep.email}
+              onExit={() => {
+                setEnrollmentStep(null);
+                setError("");
+                setPassword("");
+              }}
+              onComplete={async (tokens) => {
+                setEnrollmentStep(null);
+                await seedSessionWithTokens({
+                  access_token: tokens.access_token,
+                  refresh_token: tokens.refresh_token,
+                });
+              }}
+            />
+          ) : (
+            <form onSubmit={handleSubmit} noValidate className="space-y-6">
+              {error && <Alert type="error" message={error} />}
 
-            <div className="space-y-4">
-              <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full"
-                  label={""}
-                />
-              </div>
-
-              <div className="text-left">
-                <label
-                  htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  Passwort
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
+              <div className="space-y-4">
+                <div className="text-left">
+                  <label
+                    htmlFor="email"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    E-Mail-Adresse
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    data-testid="input-email"
+                    autoComplete="username"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pr-10"
-                    label={""}
+                    disabled={isSubmitting}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={authInputClassName}
                   />
-                  <PasswordToggleButton
-                    showPassword={showPassword}
-                    onToggle={() => setShowPassword(!showPassword)}
-                  />
+                </div>
+
+                <div className="text-left">
+                  <label
+                    htmlFor="password"
+                    className="mb-1 block text-sm font-medium text-gray-700"
+                  >
+                    Passwort
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      data-testid="input-password"
+                      autoComplete="current-password"
+                      required
+                      disabled={isSubmitting}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`${authInputClassName} pr-10`}
+                    />
+                    <PasswordToggleButton
+                      showPassword={showPassword}
+                      onToggle={() => setShowPassword(!showPassword)}
+                    />
+                  </div>
+                </div>
+
+                {/* Forgot Password Link */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => setIsResetModalOpen(true)}
+                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  >
+                    Passwort vergessen?
+                  </button>
                 </div>
               </div>
 
-              {/* Forgot Password Link */}
-              <div className="text-center">
+              <div className="mt-2">
                 <button
-                  type="button"
-                  onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={authPrimaryButtonClassName}
                 >
-                  Passwort vergessen?
+                  <span className="relative z-10">
+                    {isSubmitting ? "Anmeldung läuft..." : "Anmelden"}
+                  </span>
                 </button>
               </div>
-            </div>
-
-            <div className="mt-2 flex justify-center">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative overflow-hidden rounded-xl bg-gray-900 px-8 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className="relative z-10">
-                  {isLoading ? "Anmeldung läuft..." : "Anmelden"}
-                </span>
-              </button>
-            </div>
-          </form>
+            </form>
+          )}
         </div>
 
         {/* Smart redirect for authenticated users */}
@@ -353,14 +425,14 @@ function LoginForm() {
               }}
             />
           )}
-      </div>
+      </AuthShell>
 
       {/* Password Reset Modal */}
       <PasswordResetModal
         isOpen={isResetModalOpen}
         onClose={() => setIsResetModalOpen(false)}
       />
-    </div>
+    </>
   );
 }
 
@@ -368,12 +440,19 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen flex-col items-center justify-center p-4">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-[#5080D8]" />
-            <p className="text-sm text-gray-500">Laden…</p>
+        <AuthShell
+          eyebrow="Ihr OGS Portal"
+          eyebrowClassName="text-[#83CD2D]"
+          title="Willkommen"
+          subtitle="Melden Sie sich mit Ihrem Konto an."
+          variant="tenant"
+          brand={null}
+        >
+          <div className="flex flex-col items-center gap-4 py-8">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+            <p className="text-sm text-gray-500">Laden...</p>
           </div>
-        </div>
+        </AuthShell>
       }
     >
       <LoginForm />

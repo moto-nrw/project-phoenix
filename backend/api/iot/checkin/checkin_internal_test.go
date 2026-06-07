@@ -188,6 +188,9 @@ func (m *mockSettingsService) ResolveBool(_ context.Context, key string) (bool, 
 	}
 	return false, nil
 }
+func (m *mockSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(context.Background(), key)
+}
 func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, error) {
 	if m.intValues != nil {
 		if v, ok := m.intValues[key]; ok {
@@ -195,6 +198,9 @@ func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, er
 		}
 	}
 	return 0, nil
+}
+func (m *mockSettingsService) ResolveIntForTenant(_ context.Context, _ int64, key string) (int, error) {
+	return m.ResolveInt(context.Background(), key)
 }
 func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
 	_, exists := m.values[key]

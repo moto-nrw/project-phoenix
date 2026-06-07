@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { RoomDetailContent, RoomDetailLoader } from "./room-detail-content";
 
 // ----------------------------------------------------------------------------
-// Mocks — keep dependencies cheap so we exercise this file's own logic
+// Mocks: keep dependencies cheap so we exercise this file's own logic
 // (useRoomDetail fetcher branches, mapping helpers, render conditionals,
 // loader states) rather than session/SSE plumbing.
 // ----------------------------------------------------------------------------
@@ -22,6 +22,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // null tenant keeps the photo feature off in this test (matching the
   // pre-feature shape the skeleton assertions were written against).
   useTenantSafe: () => ({ tenantSlug: "test-tenant", tenant: null }),
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 // The global test setup mocks `swr` to always return isLoading=true. To
@@ -40,7 +41,7 @@ vi.mock("~/lib/swr", async () => {
       const [loading, setLoading] = React.useState(true);
 
       // Hold the fetcher in a ref so the effect can depend only on `key`
-      // without lint complaints — the fetcher closure is recreated on
+      // without lint complaints. The fetcher closure is recreated on
       // every render of useRoomDetail, so re-running the effect on each
       // identity change would loop. This mirrors the dedup behavior the
       // real SWR provides via its own cache.
@@ -80,7 +81,7 @@ vi.mock("~/lib/swr", async () => {
 // Loading widget is no longer used by RoomDetailLoader (replaced with a
 // content-shaped RoomDetailSkeleton in #1323 review). The test below now
 // targets the skeleton's data-testid + role="status" instead of the old
-// "loading" testid — same business assertion (a loading state IS shown
+// "loading" testid. Same business assertion (a loading state IS shown
 // while SWR fetches), new selector that matches the new shape.
 
 vi.mock("~/components/ui/info-card", () => ({
@@ -127,14 +128,18 @@ vi.mock("~/lib/date-helpers", () => ({
   formatDuration: (m: number) => `${m}m`,
 }));
 
-vi.mock("~/lib/room-helpers", () => ({
-  formatFloor: (n: number) => `Etage ${n}`,
-  // RoomDetailContent reads category accents through this helper after
-  // the categoryColors map was lifted into room-helpers.ts. Keep the stub
-  // deterministic so the timeline cards render without hitting the real
-  // module's imports.
-  getRoomCategoryColor: () => "#6B7280",
-}));
+// Pull ROOM_HISTORY_STATUS_FEATURE_DISABLED (and any other future exports)
+// from the real module so a backend/frontend constant rename can't silently
+// desync the test. Only the formatting helpers need stubbing — keep them
+// deterministic so timeline cards render without hitting transitive imports.
+vi.mock("~/lib/room-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/room-helpers")>();
+  return {
+    ...actual,
+    formatFloor: (n: number) => `Etage ${n}`,
+    getRoomCategoryColor: () => "#6B7280",
+  };
+});
 
 // ----------------------------------------------------------------------------
 // Helpers
@@ -171,11 +176,11 @@ const notOk = (): FetchResponse => ({
 });
 
 // ----------------------------------------------------------------------------
-// useRoomDetail — exercised through the RoomDetailLoader render path.
+// useRoomDetail, exercised through the RoomDetailLoader render path.
 // ----------------------------------------------------------------------------
 
 describe("useRoomDetail (via RoomDetailLoader)", () => {
-  it("maps a room with the bare-array history shape (legacy backend)", async () => {
+  it("maps a room with the bare-array history shape (aggregated sessions)", async () => {
     mockFetch
       .mockResolvedValueOnce(
         okJson({
@@ -193,22 +198,13 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
       .mockResolvedValueOnce(
         okJson([
           {
-            id: "h1",
-            room_id: 1001,
-            timestamp: "2026-04-30T08:00:00Z",
-            entry_type: "entry",
-            group_name: "Schildkröten",
+            session_id: 7001,
+            started_at: "2026-04-30T08:00:00Z",
+            ended_at: "2026-04-30T09:00:00Z",
+            duration_minutes: 60,
             activity_name: "Freispiel",
-            category: "Sport",
+            supervisor_name: "Birgit Braun",
             student_count: 4,
-          },
-          {
-            id: "h2",
-            room_id: 1001,
-            timestamp: "2026-04-30T09:00:00Z",
-            entry_type: "exit",
-            group_name: "Schildkröten",
-            activity_name: "Freispiel",
           },
         ]),
       );
@@ -223,11 +219,11 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
       expect(screen.getAllByText("Schmetterlingsraum")[0]).toBeInTheDocument(),
     );
     expect(screen.getAllByText(/Hauptgebäude/).length).toBeGreaterThan(0);
-    // The activity-name shows up inside the rendered history card, proving
-    // the fetcher mapped + grouped + rendered the entry/exit pair.
+    // The activity name renders inside the aggregated history card.
     expect(screen.getByText("Freispiel")).toBeInTheDocument();
-    // supervisor_names took precedence over supervisor_name.
-    expect(screen.getByText(/Birgit Braun/)).toBeInTheDocument();
+    // Both the room header (supervisor_names) and the session row
+    // (supervisor_name) carry "Birgit Braun".
+    expect(screen.getAllByText(/Birgit Braun/).length).toBeGreaterThan(0);
   });
 
   it("maps a room with the wrapped history shape ({ data: [...] })", async () => {
@@ -240,12 +236,13 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
           status: "success",
           data: [
             {
-              id: 9,
-              room_id: 2002,
-              timestamp: "2026-04-29T10:00:00Z",
-              entry_type: "entry",
-              group_name: "Igel",
+              session_id: 9,
+              started_at: "2026-04-29T10:00:00Z",
+              ended_at: null,
+              duration_minutes: null,
               activity_name: "Lesen",
+              supervisor_name: "",
+              student_count: 0,
             },
           ],
         }),
@@ -260,12 +257,12 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Saal")[0]).toBeInTheDocument(),
     );
-    // Open entry without a matching exit shows the "Laufend" marker.
+    // A session without ended_at renders the "Laufend" marker.
     expect(screen.getByText("Laufend")).toBeInTheDocument();
     expect(screen.getByText("Lesen")).toBeInTheDocument();
   });
 
-  it("collapses to empty history when the wrapper carries data:null (#1374 regression guard)", async () => {
+  it("hides history when the wrapper carries data:null (#1374 regression guard)", async () => {
     mockFetch
       .mockResolvedValueOnce(
         okJson({ id: 3003, name: "Kleiner Raum", is_occupied: false }),
@@ -287,9 +284,36 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Kleiner Raum")[0]).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
+  });
+
+  it("hides history deliberately when the tenant has gdpr.attendance_log_enabled = false", async () => {
+    // Issue #1425 follow-up: the proxy route translates the backend's 403
+    // into { status: "feature_disabled", data: [] }. The hook must surface
+    // historyDisabled so the section is hidden EXPLICITLY (not just
+    // because `data` happens to be empty). A future placeholder for the
+    // empty-history case must not accidentally render here.
+    mockFetch
+      .mockResolvedValueOnce(
+        okJson({ id: 5005, name: "GDPR-Off Raum", is_occupied: false }),
+      )
+      .mockResolvedValueOnce(
+        okJson({
+          status: "feature_disabled",
+          data: [],
+        }),
+      );
+
+    render(
+      <Wrapper>
+        <RoomDetailLoader roomId="feature-disabled" />
+      </Wrapper>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getAllByText("GDPR-Off Raum")[0]).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
   it("treats a non-OK history response as empty (does not throw)", async () => {
@@ -308,9 +332,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Sporthalle")[0]).toBeInTheDocument(),
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
   it("renders the error placeholder when the room fetch fails", async () => {
@@ -349,7 +371,7 @@ describe("useRoomDetail (via RoomDetailLoader)", () => {
 });
 
 // ----------------------------------------------------------------------------
-// RoomDetailContent — render-state branches the loader-path tests don't reach.
+// RoomDetailContent, render-state branches the loader-path tests don't reach.
 // ----------------------------------------------------------------------------
 
 const baseRoom = {
@@ -366,7 +388,7 @@ describe("RoomDetailContent", () => {
       </Wrapper>,
     );
     // "Frei" renders in the StatusBadge AND in the Rauminformationen
-    // Status row — both must be present to give staff the same signal
+    // Status row, both must be present to give staff the same signal
     // wherever they look.
     expect(screen.getAllByText(/Frei/).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText("Aktuelle Aktivität")).not.toBeInTheDocument();
@@ -420,8 +442,8 @@ describe("RoomDetailContent", () => {
 
   it("hides the supervisor and student-count rows when those fields are missing", () => {
     // Defensive: if the backend doesn't report a supervisor/count yet
-    // (e.g. group is in transition), the detail block must collapse —
-    // empty rows would look like "Aktuelle Aufsicht: —" placeholders
+    // (e.g. group is in transition), the detail block must collapse.
+    // Empty rows would look like "Aktuelle Aufsicht: -" placeholders
     // which is worse UX than just not showing them.
     render(
       <Wrapper>
@@ -437,7 +459,7 @@ describe("RoomDetailContent", () => {
   });
 
   it("renders Gebäude / Etage / Kategorie rows but NOT a separate Raumname row", () => {
-    // Raumname intentionally omitted from the detail block — review
+    // Raumname intentionally omitted from the detail block. Review
     // feedback (#1323): the room name is already the h1 above the
     // detail card, so a "Raumname: …" row was pure redundancy. The
     // remaining static fields must still all render.
@@ -464,7 +486,7 @@ describe("RoomDetailContent", () => {
 
   it("does not render the legacy building · floor · category subline under the header", () => {
     // The "Hauptgebäude · Etage 2" subline that used to sit under the
-    // h1 was removed (#1323) — those values now live exclusively in
+    // h1 was removed (#1323). Those values now live exclusively in
     // the IconDetailRow list, so showing them twice was clutter.
     render(
       <Wrapper>
@@ -503,71 +525,123 @@ describe("RoomDetailContent", () => {
     expect(screen.getAllByText("Etage 3")[0]).toBeInTheDocument();
   });
 
-  it("renders the empty-history placeholder when there are no entries", () => {
+  it("hides the history section when there are no entries", () => {
     render(
       <Wrapper>
         <RoomDetailContent room={{ ...baseRoom }} history={[]} />
       </Wrapper>,
     );
-    expect(
-      screen.getByText("Keine Belegungshistorie verfügbar."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Belegungshistorie")).not.toBeInTheDocument();
   });
 
-  it("groups entry+exit pairs into a single activity card with the formatted duration", () => {
+  it("renders an aggregated session as a single card with the formatted duration", () => {
     render(
       <Wrapper>
         <RoomDetailContent
           room={{ ...baseRoom }}
           history={[
             {
-              id: "a",
-              timestamp: "2026-04-30T08:00:00Z",
-              entry_type: "entry",
-              groupName: "G",
+              sessionId: "a",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: "2026-04-30T08:45:00Z",
+              durationMinutes: 45,
               activityName: "Mathe",
-              category: "Themenraum",
               supervisorName: "Frau A",
               studentCount: 12,
-              duration_minutes: 45,
-            },
-            {
-              id: "b",
-              timestamp: "2026-04-30T08:45:00Z",
-              entry_type: "exit",
-              groupName: "G",
-              activityName: "Mathe",
             },
           ]}
         />
       </Wrapper>,
     );
     expect(screen.getByText("Mathe")).toBeInTheDocument();
-    // duration_minutes from the entry takes precedence over calculateDuration().
+    // duration_minutes from the session takes precedence over calculateDuration().
     expect(screen.getByText("45m")).toBeInTheDocument();
     expect(screen.getByText(/Frau A/)).toBeInTheDocument();
-    expect(screen.getByText(/Teilnehmer: 12/)).toBeInTheDocument();
+    expect(screen.getByText(/Kinder: 12/)).toBeInTheDocument();
     expect(screen.queryByText("Laufend")).not.toBeInTheDocument();
   });
 
-  it("marks an entry without a matching exit as 'Laufend'", () => {
+  it("marks a session without ended_at as 'Laufend'", () => {
     render(
       <Wrapper>
         <RoomDetailContent
           room={{ ...baseRoom }}
           history={[
             {
-              id: "a",
-              timestamp: "2026-04-30T08:00:00Z",
-              entry_type: "entry",
-              groupName: "G",
+              sessionId: "a",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
               activityName: "Sport",
+              supervisorName: "",
+              studentCount: 0,
             },
           ]}
         />
       </Wrapper>,
     );
     expect(screen.getByText("Laufend")).toBeInTheDocument();
+  });
+
+  it("focuses the room title when rendered as drawer content", async () => {
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{ ...baseRoom }}
+          history={[]}
+          headerAction={<button type="button">Schließen</button>}
+        />
+      </Wrapper>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Testraum" })).toHaveFocus();
+    });
+  });
+
+  it("sorts history days newest first and sessions within a day by start time DESC", () => {
+    render(
+      <Wrapper>
+        <RoomDetailContent
+          room={{ ...baseRoom }}
+          history={[
+            {
+              sessionId: "a",
+              startedAt: "2026-04-29T09:30:00Z",
+              endedAt: null,
+              durationMinutes: null,
+              activityName: "Mittag",
+              supervisorName: "",
+              studentCount: 0,
+            },
+            {
+              sessionId: "b",
+              startedAt: "2026-04-30T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
+              activityName: "Neuer Tag",
+              supervisorName: "",
+              studentCount: 0,
+            },
+            {
+              sessionId: "c",
+              startedAt: "2026-04-29T08:00:00Z",
+              endedAt: null,
+              durationMinutes: null,
+              activityName: "Morgens",
+              supervisorName: "",
+              studentCount: 0,
+            },
+          ]}
+        />
+      </Wrapper>,
+    );
+
+    const activityNames = screen
+      .getAllByRole("heading", { level: 4 })
+      .map((heading) => heading.textContent);
+    // Newest day first, within a day newest session first.
+    expect(activityNames).toEqual(["Neuer Tag", "Mittag", "Morgens"]);
   });
 });
 

@@ -14,7 +14,7 @@ import (
 func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	const tenantID int64 = 2
+	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
@@ -23,12 +23,9 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 	studentID := createTenantStudent(t, db, tenantID)
 	defer cleanupPickupTenantRepairRows(t, db, staffID, studentID)
 
-	var scheduleID, exceptionID, noteID int64
-	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
-		scheduleID = insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staffID)
-		exceptionID = insertPickupExceptionWithTenant(t, ctx, tx, 1, studentID, staffID)
-		noteID = insertPickupNoteWithTenant(t, ctx, tx, 1, studentID, staffID)
-	})
+	scheduleID := insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staffID)
+	exceptionID := insertHistoricalPickupExceptionWithTenant(t, db, 1, studentID, staffID)
+	noteID := insertHistoricalPickupNoteWithTenant(t, db, 1, studentID, staffID)
 
 	require.NoError(t, repairPickupScheduleTenantIDs(ctx, db))
 	require.NoError(t, repairPickupScheduleTenantIDs(ctx, db), "repair migration must be idempotent")
@@ -41,7 +38,7 @@ func TestRepairPickupScheduleTenantIDs(t *testing.T) {
 func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	const tenantID int64 = 2
+	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
@@ -51,9 +48,7 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer cleanupPickupTenantRepairRows(t, db, 0, studentID)
 
-	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
-		insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staff.ID)
-	})
+	insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staff.ID)
 
 	err := repairPickupScheduleTenantIDs(ctx, db)
 	require.Error(t, err)
@@ -63,7 +58,7 @@ func TestRepairPickupScheduleTenantIDsRejectsCrossTenantCreator(t *testing.T) {
 func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	const tenantID int64 = 2
+	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
@@ -72,28 +67,27 @@ func TestRepairPickupScheduleTenantIDsRejectsUniqueConflicts(t *testing.T) {
 	studentID := createTenantStudent(t, db, tenantID)
 	defer cleanupPickupTenantRepairRows(t, db, staffID, studentID)
 
-	withPickupTenantRepairConstraintsDisabled(t, db, func(ctx context.Context, tx bun.Tx) {
-		insertPickupScheduleWithTenant(t, ctx, tx, tenantID, studentID, staffID)
-		insertPickupScheduleWithTenant(t, ctx, tx, 1, studentID, staffID)
-	})
+	insertPickupScheduleWithTenant(t, db, tenantID, studentID, staffID)
+	insertHistoricalPickupScheduleWithTenant(t, db, 1, studentID, staffID)
 
 	err := repairPickupScheduleTenantIDs(ctx, db)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "would conflict")
 }
 
-func withPickupTenantRepairConstraintsDisabled(t *testing.T, db *bun.DB, fn func(context.Context, bun.Tx)) {
+func withReplicaTriggers(t *testing.T, db *bun.DB, fn func(tx bun.Tx)) {
 	t.Helper()
 
 	ctx := context.Background()
-	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = 'replica'`); err != nil {
-			return err
-		}
-		fn(ctx, tx)
-		return nil
-	})
+	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+	require.NoError(t, err)
+
+	fn(tx)
+	require.NoError(t, tx.Commit())
 }
 
 func createTenantStaff(t *testing.T, db *bun.DB, tenantID int64) int64 {
@@ -126,47 +120,68 @@ func createTenantStudent(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	return studentID
 }
 
-func insertPickupScheduleWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
+func insertPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.NewRaw(`
+	err := db.QueryRowContext(context.Background(), `
 		INSERT INTO schedule.student_pickup_schedules
 			(tenant_id, student_id, weekday, pickup_time, created_by, created_at, updated_at)
 		VALUES (?, ?, 1, ?, ?, NOW(), NOW())
 		RETURNING id
-	`, tenantID, studentID, time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC), staffID).Scan(ctx, &id)
+	`, tenantID, studentID, time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC), staffID).Scan(&id)
 	require.NoError(t, err)
 
 	return id
 }
 
-func insertPickupExceptionWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
+func insertHistoricalPickupScheduleWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.NewRaw(`
-		INSERT INTO schedule.student_pickup_exceptions
-			(tenant_id, student_id, exception_date, pickup_time, reason, created_by, created_at, updated_at)
-		VALUES (?, ?, CURRENT_DATE, ?, 'Repair test', ?, NOW(), NOW())
-		RETURNING id
-	`, tenantID, studentID, time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC), staffID).Scan(ctx, &id)
-	require.NoError(t, err)
+	withReplicaTriggers(t, db, func(tx bun.Tx) {
+		err := tx.QueryRowContext(context.Background(), `
+			INSERT INTO schedule.student_pickup_schedules
+				(tenant_id, student_id, weekday, pickup_time, created_by, created_at, updated_at)
+			VALUES (?, ?, 1, ?, ?, NOW(), NOW())
+			RETURNING id
+		`, tenantID, studentID, time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC), staffID).Scan(&id)
+		require.NoError(t, err)
+	})
 
 	return id
 }
 
-func insertPickupNoteWithTenant(t *testing.T, ctx context.Context, db bun.IDB, tenantID, studentID, staffID int64) int64 {
+func insertHistoricalPickupExceptionWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
 	t.Helper()
 
 	var id int64
-	err := db.NewRaw(`
-		INSERT INTO schedule.student_pickup_notes
-			(tenant_id, student_id, note_date, content, created_by, created_at, updated_at)
-		VALUES (?, ?, CURRENT_DATE, 'Repair note', ?, NOW(), NOW())
-		RETURNING id
-	`, tenantID, studentID, staffID).Scan(ctx, &id)
-	require.NoError(t, err)
+	withReplicaTriggers(t, db, func(tx bun.Tx) {
+		err := tx.QueryRowContext(context.Background(), `
+			INSERT INTO schedule.student_pickup_exceptions
+				(tenant_id, student_id, exception_date, pickup_time, reason, created_by, created_at, updated_at)
+			VALUES (?, ?, CURRENT_DATE, ?, 'Repair test', ?, NOW(), NOW())
+			RETURNING id
+		`, tenantID, studentID, time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC), staffID).Scan(&id)
+		require.NoError(t, err)
+	})
+
+	return id
+}
+
+func insertHistoricalPickupNoteWithTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID int64) int64 {
+	t.Helper()
+
+	var id int64
+	withReplicaTriggers(t, db, func(tx bun.Tx) {
+		err := tx.QueryRowContext(context.Background(), `
+			INSERT INTO schedule.student_pickup_notes
+				(tenant_id, student_id, note_date, content, created_by, created_at, updated_at)
+			VALUES (?, ?, CURRENT_DATE, 'Repair note', ?, NOW(), NOW())
+			RETURNING id
+		`, tenantID, studentID, staffID).Scan(&id)
+		require.NoError(t, err)
+	})
 
 	return id
 }

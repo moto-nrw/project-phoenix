@@ -261,14 +261,20 @@ func TestMapStudentRow(t *testing.T) {
 
 	t.Run("maps optional fields", func(t *testing.T) {
 		mapping := map[string]int{
-			"vorname":            0,
-			"nachname":           1,
-			"gesundheitsinfo":    2,
-			"betreuernotizen":    3,
-			"zusatzinfo":         4,
-			"abholstatus":        5,
-			"bus":                6,
-			"aufbewahrung(tage)": 7,
+			"vorname":                         0,
+			"nachname":                        1,
+			"gesundheitsinfo":                 2,
+			"betreuernotizen":                 3,
+			"zusatzinfo":                      4,
+			"abholstatus":                     5,
+			"bus":                             6,
+			"aufbewahrung(tage)":              7,
+			"einschreibung von":               8,
+			"einschreibung bis":               9,
+			"agb akzeptiert am":               10,
+			"datenverarbeitung akzeptiert am": 11,
+			"e-mail-kontakt akzeptiert am":    12,
+			"foto-einwilligung am":            13,
 		}
 		values := []string{
 			"Anna",
@@ -279,6 +285,12 @@ func TestMapStudentRow(t *testing.T) {
 			"Authorized",
 			"ja",
 			"7",
+			"2026-08-01",
+			"2027-07-31",
+			"2026-05-10",
+			"2026-05-11",
+			"2026-05-12",
+			"2026-05-13",
 		}
 		mapper := NewColumnMapper(mapping, values)
 
@@ -291,6 +303,12 @@ func TestMapStudentRow(t *testing.T) {
 		assert.Equal(t, "Authorized", row.PickupStatus)
 		assert.True(t, row.BusPermission)
 		assert.Equal(t, 7, row.DataRetentionDays)
+		assert.Equal(t, "2026-08-01", row.EnrolledFrom)
+		assert.Equal(t, "2027-07-31", row.EnrolledUntil)
+		assert.Equal(t, "2026-05-10", row.AGBAcceptedAt)
+		assert.Equal(t, "2026-05-11", row.DataProcessingAcceptedAt)
+		assert.Equal(t, "2026-05-12", row.EmailContactAcceptedAt)
+		assert.Equal(t, "2026-05-13", row.PhotoConsentGivenAt)
 	})
 
 	t.Run("returns error for invalid retention days", func(t *testing.T) {
@@ -645,6 +663,82 @@ func TestMapStudentRow_PickupSchedules(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Empty(t, row.PickupSchedules)
+	})
+}
+
+func TestMapStudentRow_ArrivalSchedules(t *testing.T) {
+	t.Run("maps all five weekdays", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":            0,
+			"nachname":           1,
+			"ankunft.mo":         2,
+			"ankunft.mo.notizen": 3,
+			"ankunft.di":         4,
+			"ankunft.di.notizen": 5,
+			"ankunft.mi":         6,
+			"ankunft.mi.notizen": 7,
+			"ankunft.do":         8,
+			"ankunft.do.notizen": 9,
+			"ankunft.fr":         10,
+			"ankunft.fr.notizen": 11,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"08:00", "Frühdienst",
+			"08:10", "",
+			"08:00", "",
+			"08:15", "",
+			"08:30", "Später Start",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.ArrivalSchedules, 5)
+
+		assert.Equal(t, 1, row.ArrivalSchedules[0].Weekday)
+		assert.Equal(t, "08:00", row.ArrivalSchedules[0].ExpectedArrival)
+		assert.Equal(t, "Frühdienst", row.ArrivalSchedules[0].Notes)
+		assert.Equal(t, 5, row.ArrivalSchedules[4].Weekday)
+		assert.Equal(t, "08:30", row.ArrivalSchedules[4].ExpectedArrival)
+		assert.Equal(t, "Später Start", row.ArrivalSchedules[4].Notes)
+	})
+
+	t.Run("skips empty days", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":    0,
+			"nachname":   1,
+			"ankunft.mo": 2,
+			"ankunft.di": 3,
+			"ankunft.mi": 4,
+		}
+		values := []string{
+			"Max", "Mustermann",
+			"08:00", "", "08:15",
+		}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		require.Len(t, row.ArrivalSchedules, 2)
+		assert.Equal(t, 1, row.ArrivalSchedules[0].Weekday)
+		assert.Equal(t, 3, row.ArrivalSchedules[1].Weekday)
+	})
+
+	t.Run("no arrival columns returns empty", func(t *testing.T) {
+		mapping := map[string]int{
+			"vorname":  0,
+			"nachname": 1,
+		}
+		values := []string{"Max", "Mustermann"}
+		mapper := NewColumnMapper(mapping, values)
+
+		row, err := MapStudentRow(mapper)
+
+		require.NoError(t, err)
+		assert.Empty(t, row.ArrivalSchedules)
 	})
 }
 

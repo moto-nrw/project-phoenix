@@ -13,7 +13,11 @@ import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import type {
+  FilterConfig,
+  ActiveFilter,
+  OverflowMenuItem,
+} from "~/components/ui/page-header";
 import {
   formatFloor,
   getRoomCategoryColor,
@@ -21,10 +25,24 @@ import {
 } from "~/lib/room-helpers";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import {
+  ArrowRight,
+  FileSpreadsheet,
+  FileText,
+  Footprints,
+} from "lucide-react";
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomDetailModal } from "~/components/rooms";
+import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
+import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
+import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import {
+  exportRoomSnapshot,
+  type RoomSnapshotExportFormat,
+} from "~/lib/room-export-api";
 
 // Room interface - entspricht der BackendRoom-Struktur aus den API-Dateien
 interface Room {
@@ -54,7 +72,7 @@ interface Room {
 // meta line, status pill, two middle rows, and the footer hint.
 function RoomCardSkeleton() {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md">
+    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md">
       <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
       <div className="relative flex min-h-[180px] flex-col p-6">
         <div className="mb-3 flex items-start justify-between">
@@ -92,6 +110,53 @@ function RoomsGridSkeleton() {
   );
 }
 
+function TransitAssignmentCard({
+  count,
+  onOpen,
+  buttonRef,
+}: {
+  readonly count: number;
+  readonly onOpen: () => void;
+  readonly buttonRef: (node: HTMLButtonElement | null) => void;
+}) {
+  return (
+    <button
+      type="button"
+      ref={buttonRef}
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      aria-controls="room-detail-panel"
+      className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+          style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
+          aria-hidden="true"
+        >
+          <Footprints
+            className="h-5 w-5"
+            style={{ color: LOCATION_COLORS.TRANSIT }}
+          />
+        </span>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+            Unterwegs
+          </h2>
+          <p className="mt-0.5 text-sm text-gray-500">
+            <span className="font-medium text-gray-900">{count}</span>{" "}
+            {count === 1 ? "Kind" : "Kinder"} ohne Raumzuweisung
+          </p>
+        </div>
+      </div>
+      <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
+        Zuweisen
+        <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
+      </span>
+    </button>
+  );
+}
+
 function RoomsPageContent() {
   const { status } = useSession({
     required: true,
@@ -109,7 +174,7 @@ function RoomsPageContent() {
 
   // Filters are local React state for snappy UI, but their initial
   // value comes from the URL so they SURVIVE a remount when the user
-  // drills /rooms → /students/X → browser back. The student page's
+  // drills through /students/X and returns with browser back. The student page's
   // BackButton pushes back to /rooms with the params we tucked into
   // ?from= (see students-in-room-section.tsx), so on remount the URL
   // re-hydrates the React state.
@@ -122,6 +187,8 @@ function RoomsPageContent() {
   const [occupiedFilter, setOccupiedFilter] = useState(
     () => searchParams.get("status") ?? "all",
   );
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -138,7 +205,7 @@ function RoomsPageContent() {
   // Mirror local filter state into the URL so the current history entry
   // always reflects the user's view. Without this, typing a filter while
   // the URL is bare /rooms means closing a just-opened room modal pops
-  // back to a URL that never carried those filters — they would survive
+  // back to a URL that never carried those filters. They would survive
   // in React state for now, but a refresh, share, or future remount
   // would silently drop them. router.replace keeps the entry count
   // unchanged, so handleSelectRoom's push and handleCloseDetail's
@@ -209,6 +276,12 @@ function RoomsPageContent() {
     },
   );
 
+  const { data: dashboardData } = useSWRAuth<DashboardAnalytics>(
+    "dashboard-analytics",
+    fetchDashboardAnalyticsClient,
+    { refreshInterval: 5 * 60 * 1000 },
+  );
+
   const error = roomsError
     ? "Fehler beim Laden der Raumdaten. Bitte versuchen Sie es später erneut."
     : null;
@@ -248,9 +321,48 @@ function RoomsPageContent() {
     return filtered;
   }, [roomsData, searchTerm, buildingFilter, occupiedFilter]);
 
+  const exportRoomIds = useMemo(() => {
+    return filteredRooms
+      .map((room) => Number.parseInt(room.id, 10))
+      .filter((id) => Number.isFinite(id));
+  }, [filteredRooms]);
+
+  const handleExport = useCallback(
+    async (format: RoomSnapshotExportFormat) => {
+      setIsExporting(true);
+      setExportError(null);
+      try {
+        await exportRoomSnapshot({
+          format,
+          title: "Wer ist wo",
+          room_ids: exportRoomIds,
+          include_transit: true,
+        });
+      } catch {
+        setExportError(
+          "Der Raum-Snapshot konnte nicht exportiert werden. Bitte versuchen Sie es erneut.",
+        );
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [exportRoomIds],
+  );
+
   // Track whether the click handler just pushed an entry. Used by the
   // effect below to stamp a marker into the resulting history entry.
   const justPushedRef = useRef(false);
+  const roomCardRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pendingFocusRoomIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const roomIdToFocus = pendingFocusRoomIdRef.current;
+    if (selectedRoomId || !roomIdToFocus) return;
+    pendingFocusRoomIdRef.current = null;
+    window.requestAnimationFrame(() => {
+      roomCardRefs.current.get(roomIdToFocus)?.focus();
+    });
+  }, [selectedRoomId]);
 
   // Open the detail modal by pushing ?room={id} as a NEW history entry
   // (not replace), so the browser Back button closes the overlay
@@ -273,9 +385,22 @@ function RoomsPageContent() {
     [router, searchParams, searchTerm, buildingFilter, occupiedFilter],
   );
 
+  const handleSelectTransitRoom = useCallback(() => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (searchTerm) next.set("search", searchTerm);
+    else next.delete("search");
+    if (buildingFilter !== "all") next.set("building", buildingFilter);
+    else next.delete("building");
+    if (occupiedFilter !== "all") next.set("status", occupiedFilter);
+    else next.delete("status");
+    next.set("room", TRANSIT_ROOM_ID);
+    justPushedRef.current = true;
+    router.push(`/rooms?${next.toString()}`);
+  }, [router, searchParams, searchTerm, buildingFilter, occupiedFilter]);
+
   // After router.push commits, mark the now-current history entry as
   // "we pushed this". Stored in window.history.state so it survives
-  // page remounts — i.e. when the user drills /rooms → /students/X and
+  // page remounts, for example when the user drills through /students/X and
   // returns via browser back, the marker is still there even though
   // the React component was unmounted in between.
   useEffect(() => {
@@ -295,6 +420,7 @@ function RoomsPageContent() {
   // got here from the student page's in-app back which pushed a fresh
   // untagged entry).
   const handleCloseDetail = useCallback(() => {
+    pendingFocusRoomIdRef.current = selectedRoomId;
     const state = typeof window !== "undefined" ? window.history.state : null;
     const wasPushedByUs =
       state &&
@@ -306,7 +432,7 @@ function RoomsPageContent() {
     } else {
       updateUrlParams({ room: null });
     }
-  }, [router, updateUrlParams]);
+  }, [router, selectedRoomId, updateUrlParams]);
 
   // Get unique values for filters
   const uniqueBuildings = useMemo(() => {
@@ -386,6 +512,46 @@ function RoomsPageContent() {
     return filters;
   }, [searchTerm, buildingFilter, occupiedFilter]);
 
+  const transitCount = dashboardData?.studentsInTransit ?? 0;
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const showTransitAssignment =
+    transitCount > 0 ||
+    (normalizedSearchTerm.length > 0 &&
+      "unterwegs".includes(normalizedSearchTerm));
+  const exportTargetCount = filteredRooms.length + 1;
+  const overflowItems = useMemo<OverflowMenuItem[]>(
+    () => [
+      {
+        label: "Wer ist wo als PDF",
+        icon: <FileText className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => {
+          handleExport("pdf").catch(() => undefined);
+        },
+      },
+      {
+        label: "Wer ist wo als Word",
+        icon: <FileText className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => {
+          handleExport("docx").catch(() => undefined);
+        },
+      },
+      {
+        label: "Wer ist wo als Excel",
+        icon: <FileSpreadsheet className="size-4" aria-hidden />,
+        badge: exportTargetCount,
+        disabled: loading || isExporting,
+        onClick: () => {
+          handleExport("xlsx").catch(() => undefined);
+        },
+      },
+    ],
+    [exportTargetCount, handleExport, isExporting, loading],
+  );
+
   // Auth-loading: nothing to render until NextAuth resolves the session
   // (the `useSession({ required: true })` callback redirects on
   // unauthenticated). Keep the existing loader for this branch.
@@ -424,6 +590,7 @@ function RoomsPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
+        overflowMenu={overflowItems}
         onClearAllFilters={() => {
           setSearchTerm("");
           setBuildingFilter("all");
@@ -437,7 +604,13 @@ function RoomsPageContent() {
         </div>
       )}
 
-      {/* Room Cards Grid — skeleton mirrors the populated grid's column
+      {exportError && (
+        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+          {exportError}
+        </div>
+      )}
+
+      {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-3xl, min-h-[180px],
           header row + meta line + status pill, middle content rows,
           footer hint) so the grid area doesn't visibly resize when real
@@ -446,125 +619,87 @@ function RoomsPageContent() {
           jumped open when rooms loaded. */}
       {loading ? (
         <RoomsGridSkeleton />
-      ) : filteredRooms.length === 0 ? (
-        <div className="py-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <svg
-              className="h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Keine Räume gefunden
-              </h3>
-              <p className="text-gray-600">
-                Versuchen Sie Ihre Suchkriterien anzupassen.
-              </p>
-            </div>
-          </div>
-        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {filteredRooms.map((room) => {
-            const handleClick = () => handleSelectRoom(room);
-            return (
-              <button
-                type="button"
-                key={room.id}
-                onClick={handleClick}
-                className="group relative w-full cursor-pointer overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 text-left shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 active:scale-[0.98] md:hover:-translate-y-0.5 md:hover:border-[#5080D8]/30 md:hover:shadow-[0_12px_40px_rgb(0,0,0,0.18)]"
-              >
-                <div className="absolute inset-0 rounded-3xl bg-[#5080D8] opacity-[0.03]"></div>
-                <div className="absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div className="absolute inset-0 rounded-3xl ring-1 ring-white/20 transition-all duration-300 md:group-hover:ring-[#5080D8]/40"></div>
+        <>
+          {showTransitAssignment ? (
+            <TransitAssignmentCard
+              count={transitCount}
+              onOpen={handleSelectTransitRoom}
+              buttonRef={(node) => {
+                if (node) {
+                  roomCardRefs.current.set(TRANSIT_ROOM_ID, node);
+                } else {
+                  roomCardRefs.current.delete(TRANSIT_ROOM_ID);
+                }
+              }}
+            />
+          ) : null}
 
-                <div className="relative flex min-h-[180px] flex-col p-6">
-                  <div className="mb-3 flex items-start justify-between">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-colors duration-300 md:group-hover:text-[#5080D8]">
-                        {room.name}
-                      </h3>
-                      {(room.building !== undefined ||
-                        room.floor !== undefined) && (
-                        <p className="mt-0.5 text-sm text-gray-500">
-                          {room.building &&
-                            room.floor !== undefined &&
-                            `${room.building} · ${formatFloor(room.floor)}`}
-                          {room.building &&
-                            room.floor === undefined &&
-                            room.building}
-                          {!room.building &&
-                            room.floor !== undefined &&
-                            formatFloor(room.floor)}
-                        </p>
-                      )}
-                    </div>
+          {filteredRooms.length === 0 && !showTransitAssignment ? (
+            <div className="py-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <svg
+                  className="h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                  />
+                </svg>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Keine Räume gefunden
+                  </h3>
+                  <p className="text-gray-600">
+                    Versuchen Sie Ihre Suchkriterien anzupassen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
-                    <span
-                      className={`ml-3 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                        room.isOccupied
-                          ? "bg-[#FF3130]/15 text-[#FF3130]"
-                          : "bg-[#83CD2D]/15 text-[#4a7a15]"
-                      }`}
-                    >
-                      <span
-                        className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                          room.isOccupied
-                            ? "animate-pulse bg-[#FF3130]"
-                            : "bg-[#83CD2D]"
-                        }`}
-                      ></span>
-                      {room.isOccupied ? "Belegt" : "Frei"}
-                    </span>
-                  </div>
+          {filteredRooms.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredRooms.map((room) => {
+                const handleClick = () => handleSelectRoom(room);
+                return (
+                  <button
+                    type="button"
+                    key={room.id}
+                    ref={(node) => {
+                      if (node) {
+                        roomCardRefs.current.set(room.id, node);
+                      } else {
+                        roomCardRefs.current.delete(room.id);
+                      }
+                    }}
+                    onClick={handleClick}
+                    aria-haspopup="dialog"
+                    aria-expanded={selectedRoomId === room.id}
+                    aria-controls={
+                      selectedRoomId === room.id
+                        ? "room-detail-panel"
+                        : undefined
+                    }
+                    className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                  >
+                    <div className="relative p-6 pb-5">
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
 
-                  {/* Middle section: Room details (grows to fill space) */}
-                  <div className="flex-1 space-y-2">
-                    {/* When occupied: Activity + Student count + Supervisor */}
-                    {room.isOccupied && room.groupName && (
-                      <div className="text-sm text-gray-700">
-                        <span className="font-medium">Aktuelle Aktivität:</span>{" "}
-                        {room.groupName}
-                      </div>
-                    )}
-                    {room.isOccupied &&
-                      ((room.studentCount !== undefined &&
-                        room.studentCount > 0) ||
-                        room.supervisorName) && (
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                          {room.studentCount !== undefined &&
-                            room.studentCount > 0 && (
-                              <span className="flex items-center gap-1">
-                                <svg
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                                  />
-                                </svg>
-                                {room.studentCount}{" "}
-                                {room.studentCount === 1 ? "Kind" : "Kinder"}
-                              </span>
-                            )}
-                          {room.supervisorName && (
-                            <span className="flex items-center gap-1">
+                      <div className="relative flex min-h-[156px] flex-col">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                                {room.name}
+                              </h3>
                               <svg
-                                className="h-4 w-4"
+                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -573,43 +708,129 @@ function RoomsPageContent() {
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
                                   strokeWidth={2}
-                                  d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                                  d="M9 5l7 7-7 7"
                                 />
                               </svg>
-                              {room.supervisorName}
-                            </span>
+                            </div>
+                            {(room.building !== undefined ||
+                              room.floor !== undefined) && (
+                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-300 md:group-hover:text-gray-600">
+                                {room.building &&
+                                  room.floor !== undefined &&
+                                  `${room.building} · ${formatFloor(room.floor)}`}
+                                {room.building &&
+                                  room.floor === undefined &&
+                                  room.building}
+                                {!room.building &&
+                                  room.floor !== undefined &&
+                                  formatFloor(room.floor)}
+                              </p>
+                            )}
+                          </div>
+
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+                              room.isOccupied
+                                ? "bg-[#FF3130]/15 text-[#FF3130]"
+                                : "bg-[#83CD2D]/15 text-[#4a7a15]"
+                            }`}
+                          >
+                            <span
+                              className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                                room.isOccupied
+                                  ? "animate-pulse bg-[#FF3130]"
+                                  : "bg-[#83CD2D]"
+                              }`}
+                            ></span>
+                            {room.isOccupied ? "Belegt" : "Frei"}
+                          </span>
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          {room.isOccupied && room.groupName && (
+                            <div className="text-sm text-gray-700">
+                              <span className="font-medium">
+                                Aktuelle Aktivität:
+                              </span>{" "}
+                              {room.groupName}
+                            </div>
+                          )}
+                          {room.isOccupied &&
+                            ((room.studentCount !== undefined &&
+                              room.studentCount > 0) ||
+                              room.supervisorName) && (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                                {room.studentCount !== undefined &&
+                                  room.studentCount > 0 && (
+                                    <span className="flex items-center gap-1">
+                                      <svg
+                                        className="h-4 w-4"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                                        />
+                                      </svg>
+                                      {room.studentCount}{" "}
+                                      {room.studentCount === 1
+                                        ? "Kind"
+                                        : "Kinder"}
+                                    </span>
+                                  )}
+                                {room.supervisorName && (
+                                  <span className="flex items-center gap-1">
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+                                      />
+                                    </svg>
+                                    {room.supervisorName}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                          {!room.isOccupied && (
+                            <>
+                              <div className="text-sm text-gray-600">
+                                Für Aktivitäten buchbar
+                              </div>
+                              {room.capacity !== undefined &&
+                                room.capacity > 0 && (
+                                  <div className="text-sm text-gray-600">
+                                    Kapazität: {room.capacity} Plätze
+                                  </div>
+                                )}
+                            </>
                           )}
                         </div>
-                      )}
 
-                    {/* When free: Placeholder text */}
-                    {!room.isOccupied && (
-                      <>
-                        <div className="text-sm text-gray-600">
-                          Für Aktivitäten buchbar
-                        </div>
-                        {room.capacity !== undefined && room.capacity > 0 && (
-                          <div className="text-sm text-gray-600">
-                            Kapazität: {room.capacity} Plätze
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                        <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+                          Tippen für mehr Infos
+                        </p>
 
-                  <p className="mt-2 text-xs text-gray-400 transition-colors duration-300 md:group-hover:text-[#5080D8]">
-                    Tippen für mehr Infos
-                  </p>
-
-                  <div className="absolute top-4 left-4 h-4 w-4 animate-ping rounded-full bg-white/20"></div>
-                  <div className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full bg-white/30"></div>
-                </div>
-
-                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent via-[#5080D8]/15 to-transparent opacity-0 transition-opacity duration-300 md:group-hover:opacity-100"></div>
-              </button>
-            );
-          })}
-        </div>
+                        <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </>
       )}
 
       <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
@@ -618,7 +839,7 @@ function RoomsPageContent() {
 }
 
 // Main component with Suspense wrapper + binary-mode 404 guard.
-// Binary-mode tenants don't track room occupancy — the concepts this page
+// Binary-mode tenants don't track room occupancy, so the concepts this page
 // surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (

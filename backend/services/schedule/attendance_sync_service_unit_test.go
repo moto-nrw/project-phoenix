@@ -53,6 +53,10 @@ func (f *fakeInstanceRepo) Create(context.Context, *scheduleModel.ActivityInstan
 	panic("unused")
 }
 
+func (f *fakeInstanceRepo) CreateTemplateBackedIfAbsent(context.Context, *scheduleModel.ActivityInstance) (bool, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceRepo) FindByID(context.Context, interface{}) (*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
@@ -136,6 +140,10 @@ func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []i
 }
 
 func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
 	panic("unused")
 }
 

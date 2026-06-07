@@ -282,4 +282,29 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, count2)
 	})
+
+	t.Run("excludes comments on hidden posts for operators", func(t *testing.T) {
+		visiblePost := createTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
+		hiddenPost := createTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
+		defer cleanupPosts(t, db, visiblePost.ID, hiddenPost.ID)
+
+		visibleComment := createTestComment(t, db, visiblePost.ID, account.ID, "Visible comment", suggestions.AuthorTypeUser)
+		hiddenComment := createTestComment(t, db, hiddenPost.ID, account.ID, "Hidden comment", suggestions.AuthorTypeUser)
+		defer cleanupComments(t, db, visibleComment.ID, hiddenComment.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("suggestions.posts").
+			Set("is_hidden = TRUE").
+			Where("id = ?", hiddenPost.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		count, err := repo.CountTotalUnread(ctx, account.ID, "operator")
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		hiddenPostCount, err := repo.CountUnreadByPost(ctx, account.ID, hiddenPost.ID, "operator")
+		require.NoError(t, err)
+		assert.Equal(t, 0, hiddenPostCount)
+	})
 }

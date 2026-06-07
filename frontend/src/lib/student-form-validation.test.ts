@@ -286,6 +286,55 @@ describe("handleStudentFormSubmit", () => {
     });
   });
 
+  it("surfaces a 4xx backend validation message to the user", async () => {
+    // Atomic student+guardian create (#1500): a duplicate guardian email comes
+    // back as an HTTP 400 with a user-facing German message. The status is
+    // attached by the CRUD service's fetch layer. The user must see the real
+    // reason, since a retry won't fix it.
+    mockValidateForm.mockReturnValue(true);
+    const error = new Error(
+      'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
+    ) as Error & { status?: number };
+    error.status = 400;
+    mockOnSubmit.mockRejectedValue(error);
+
+    await handleStudentFormSubmit(
+      mockEvent as unknown as React.FormEvent,
+      {},
+      mockValidateForm,
+      mockOnSubmit,
+      mockSetLoading,
+      mockSetErrors,
+    );
+
+    expect(mockSetErrors).toHaveBeenCalledWith({
+      submit:
+        'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
+    });
+  });
+
+  it("keeps a 5xx server error generic (no technical leak)", async () => {
+    mockValidateForm.mockReturnValue(true);
+    const error = new Error("API error: 500 - boom") as Error & {
+      status?: number;
+    };
+    error.status = 500;
+    mockOnSubmit.mockRejectedValue(error);
+
+    await handleStudentFormSubmit(
+      mockEvent as unknown as React.FormEvent,
+      {},
+      mockValidateForm,
+      mockOnSubmit,
+      mockSetLoading,
+      mockSetErrors,
+    );
+
+    expect(mockSetErrors).toHaveBeenCalledWith({
+      submit: "Fehler beim Speichern. Bitte versuchen Sie es erneut.",
+    });
+  });
+
   it("always sets loading to false in finally block", async () => {
     mockValidateForm.mockReturnValue(true);
     mockOnSubmit.mockRejectedValue(new Error("Test error"));

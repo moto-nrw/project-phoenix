@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,36 +57,48 @@ func TestRateLimiter_SetLogger(t *testing.T) {
 	assert.NotNil(t, rl.logger)
 }
 
+func TestRateLimiter_SetKeyFunc(t *testing.T) {
+	rl := NewRateLimiter(60, 10)
+	rl.SetKeyFunc(func(r *http.Request) string {
+		return "custom:" + r.Header.Get("X-Rate-Limit-Key")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Rate-Limit-Key", "abc")
+
+	assert.Equal(t, "custom:abc", rl.requestKey(req))
+}
+
 // =============================================================================
 // GetClientIP Tests
 // =============================================================================
 
-func TestGetClientIP_XRealIP(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromHeader(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
-	assert.Equal(t, "192.168.1.100", ip, "X-Real-IP should take precedence")
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromHeader("X-Real-IP"))
+	assert.Equal(t, "192.168.1.100", ip, "trusted chi client IP context should take precedence")
 }
 
-func TestGetClientIP_XForwardedFor(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromXFF(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
 	assert.Equal(t, "10.0.0.1", ip, "Should return first IP from X-Forwarded-For")
 }
 
-func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
+func TestGetClientIP_ChiClientIPFromXFF_RejectsSpoofedLeftmost(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "  10.0.0.1  ,  10.0.0.2  ")
+	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2")
 	req.RemoteAddr = "127.0.0.1:12345"
 
-	ip := GetClientIP(req)
-	assert.Equal(t, "10.0.0.1", ip, "Should trim spaces")
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
+	assert.Equal(t, "10.0.0.2", ip, "Should trust the rightmost XFF hop when no proxy CIDRs are configured")
 }
 
 func TestGetClientIP_RemoteAddr(t *testing.T) {
@@ -114,10 +127,22 @@ func TestGetClientIP_IPv6(t *testing.T) {
 
 func TestGetClientIP_IPv6_XForwardedFor(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "2001:db8::1, 2001:db8::2")
+	req.Header.Set("X-Forwarded-For", "2001:db8::1")
 
-	ip := GetClientIP(req)
+	ip := getClientIPThroughMiddleware(req, chimiddleware.ClientIPFromXFF())
 	assert.Equal(t, "2001:db8::1", ip)
+}
+
+func getClientIPThroughMiddleware(
+	req *http.Request,
+	clientIPMiddleware func(http.Handler) http.Handler,
+) string {
+	var ip string
+	handler := clientIPMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		ip = GetClientIP(r)
+	}))
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
 }
 
 // =============================================================================
@@ -237,6 +262,67 @@ func TestRateLimiter_Middleware_PerIPRateLimiting(t *testing.T) {
 	rr4 := httptest.NewRecorder()
 	r.ServeHTTP(rr4, req4)
 	assert.Equal(t, http.StatusTooManyRequests, rr4.Code)
+}
+
+func TestRateLimiter_Middleware_CustomKeySeparatesSameIP(t *testing.T) {
+	rl := NewRateLimiter(1, 1)
+	rl.SetKeyFunc(func(r *http.Request) string {
+		return "token:" + r.Header.Get("Authorization")
+	})
+
+	r := chi.NewRouter()
+	r.Use(rl.Middleware())
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req1.RemoteAddr = "192.168.1.1:12345"
+	req1.Header.Set("Authorization", "token-a")
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req2.RemoteAddr = "192.168.1.1:12345"
+	req2.Header.Set("Authorization", "token-b")
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusOK, rr2.Code)
+
+	req3 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req3.RemoteAddr = "192.168.1.1:12345"
+	req3.Header.Set("Authorization", "token-a")
+	rr3 := httptest.NewRecorder()
+	r.ServeHTTP(rr3, req3)
+	assert.Equal(t, http.StatusTooManyRequests, rr3.Code)
+}
+
+func TestRateLimiter_Middleware_EmptyCustomKeyFallsBackToIP(t *testing.T) {
+	rl := NewRateLimiter(1, 1)
+	rl.SetKeyFunc(func(r *http.Request) string {
+		return ""
+	})
+
+	r := chi.NewRouter()
+	r.Use(rl.Middleware())
+	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req1 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req1.RemoteAddr = "192.168.1.1:12345"
+	req1.Header.Set("Authorization", "token-a")
+	rr1 := httptest.NewRecorder()
+	r.ServeHTTP(rr1, req1)
+	assert.Equal(t, http.StatusOK, rr1.Code)
+
+	req2 := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req2.RemoteAddr = "192.168.1.1:12345"
+	req2.Header.Set("Authorization", "token-b")
+	rr2 := httptest.NewRecorder()
+	r.ServeHTTP(rr2, req2)
+	assert.Equal(t, http.StatusTooManyRequests, rr2.Code)
 }
 
 // =============================================================================

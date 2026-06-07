@@ -2,8 +2,8 @@
 // BFF (Backend-for-Frontend) endpoint for Active Supervisions Dashboard
 // Consolidates 8+ API calls into 1 to eliminate redundant auth() overhead
 import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 import { auth } from "~/server/auth";
 import { isAdmin } from "~/lib/auth-utils";
 
@@ -112,12 +112,34 @@ interface BackendPlannedTimetableInstance {
   start_time: string;
   end_time: string;
   room_id: number;
+  room_name?: string | null;
   status: "planned" | "active" | "completed" | "cancelled";
   is_overdue: boolean;
   minutes_until_start: number;
   expected_students_count: number;
   present_students_count: number;
   assigned_staff_ids: number[];
+  is_assigned?: boolean;
+  is_primary?: boolean;
+  is_substitute?: boolean;
+  is_absent?: boolean;
+  roster_preview?: BackendTimetableRosterRow[];
+}
+
+interface BackendTimetableRosterRow {
+  student_id: number;
+  student_name: string;
+  school_class: string;
+  group_name: string;
+  planned: boolean;
+  is_unplanned: boolean;
+  currently_present: boolean;
+  visit_id?: number | null;
+  status: "expected" | "present" | "absent";
+  substatus?: "late" | "excused" | "sick" | "field_trip" | "other" | null;
+  note?: string | null;
+  checked_in_at?: string | null;
+  visit_entry_time?: string | null;
 }
 
 interface BackendTimetableOperationCapabilities {
@@ -202,12 +224,32 @@ interface ActiveSupervisionDashboardResponse {
     startTime: string;
     endTime: string;
     roomId: string;
+    roomName: string | null;
     status: "planned" | "active" | "completed" | "cancelled";
     isOverdue: boolean;
     minutesUntilStart: number;
     expectedStudentsCount: number;
     presentStudentsCount: number;
     assignedStaffIds: string[];
+    isAssigned: boolean;
+    isPrimary: boolean;
+    isSubstitute: boolean;
+    isAbsent: boolean;
+    rosterPreview: Array<{
+      studentId: string;
+      studentName: string;
+      schoolClass: string;
+      groupName: string;
+      planned: boolean;
+      isUnplanned: boolean;
+      currentlyPresent: boolean;
+      visitId: string | null;
+      status: "expected" | "present" | "absent";
+      substatus: "late" | "excused" | "sick" | "field_trip" | "other" | null;
+      note: string | null;
+      checkedInAt: string | null;
+      visitEntryTime: string | null;
+    }>;
   }>;
 }
 
@@ -289,7 +331,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         token,
       ).catch(() => ({ data: null as BackendSchulhofStatus | null })),
       apiGet<{ data: { instances: BackendPlannedTimetableInstance[] } }>(
-        "/api/timetable/operations/planned-now",
+        "/api/timetable/operations/planned-now?horizon_minutes=480&limit=5&include_roster=true",
         token,
       ).catch(() => ({
         data: { instances: [] as BackendPlannedTimetableInstance[] },
@@ -320,12 +362,32 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       startTime: i.start_time,
       endTime: i.end_time,
       roomId: i.room_id.toString(),
+      roomName: i.room_name ?? null,
       status: i.status,
       isOverdue: i.is_overdue,
       minutesUntilStart: i.minutes_until_start,
       expectedStudentsCount: i.expected_students_count,
       presentStudentsCount: i.present_students_count,
       assignedStaffIds: i.assigned_staff_ids.map(String),
+      isAssigned: i.is_assigned ?? false,
+      isPrimary: i.is_primary ?? false,
+      isSubstitute: i.is_substitute ?? false,
+      isAbsent: i.is_absent ?? false,
+      rosterPreview: (i.roster_preview ?? []).map((row) => ({
+        studentId: row.student_id.toString(),
+        studentName: row.student_name,
+        schoolClass: row.school_class,
+        groupName: row.group_name,
+        planned: row.planned,
+        isUnplanned: row.is_unplanned,
+        currentlyPresent: row.currently_present,
+        visitId: row.visit_id?.toString() ?? null,
+        status: row.status,
+        substatus: row.substatus ?? null,
+        note: row.note ?? null,
+        checkedInAt: row.checked_in_at ?? null,
+        visitEntryTime: row.visit_entry_time ?? null,
+      })),
     }));
 
     // Transform Schulhof status to frontend format

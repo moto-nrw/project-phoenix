@@ -19,6 +19,10 @@ import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
+import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
 } from "~/lib/settings-api";
@@ -56,8 +60,9 @@ interface NavItem {
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
+  comingSoon?: boolean;
   // Additional pathname prefixes that should highlight this nav entry as
-  // active — used when one bottom-nav slot represents a group of related
+  // active, used when one bottom-nav slot represents a group of related
   // routes (e.g. the five Verwaltung pages).
   activePaths?: string[];
 }
@@ -152,9 +157,10 @@ interface AdditionalNavItem {
   hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
   comingSoon?: boolean; // Show as grayed out "coming soon" feature
   activePaths?: string[];
+  newTab?: boolean; // Open in a new browser tab (e.g. public help guide)
 }
 
-// Operator-mode overflow items — everything reachable from the sidebar on
+// Operator-mode overflow items, everything reachable from the sidebar on
 // desktop that isn't already a main bottom-nav slot. The 4 sibling Verwaltung
 // pages (Schulen/Konten/Geräte/Personen) belong here since the bottom nav has
 // only one "Verwaltung" slot that lands on /operator/organizations, and
@@ -192,6 +198,40 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   },
 ];
 
+const PARENT_MAIN_ITEMS: NavItem[] = [
+  { href: "/parents", label: "Start", iconKey: "home", alwaysShow: true },
+  {
+    href: "/parents/children",
+    label: "Meine Kinder",
+    iconKey: "group",
+    alwaysShow: true,
+  },
+  {
+    href: "#",
+    label: "Kalender",
+    iconKey: "calendar",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+];
+
+const PARENT_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
+  {
+    href: "#",
+    label: "Nachrichten",
+    iconKey: "chat",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+  {
+    href: "#",
+    label: "Kontaktdaten",
+    iconKey: "profile",
+    alwaysShow: true,
+    comingSoon: true,
+  },
+];
+
 const additionalNavItems: AdditionalNavItem[] = [
   {
     href: "/activities",
@@ -220,10 +260,35 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/admin/enrollments",
+    label: "Anmeldungen",
+    iconKey: "enrollments",
+    requiresAdmin: true,
+    activePaths: [
+      "/admin/enrollments",
+      "/enrollment-phases",
+      "/care-offerings",
+      "/enrollment-form",
+    ],
+  },
+  {
     href: "/time-tracking",
     label: "Zeiterfassung",
     iconKey: "clock",
     alwaysShow: true,
+  },
+  {
+    href: "/emergency",
+    label: "Notfall",
+    iconKey: "emergency",
+    alwaysShow: true,
+  },
+  {
+    href: "/help",
+    label: "Hilfe",
+    iconKey: "book",
+    alwaysShow: true,
+    newTab: true,
   },
   {
     href: "/suggestions",
@@ -278,6 +343,8 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
 ];
 
+const NFC_ONLY_HREFS = new Set<string>(["/activities"]);
+
 interface MobileBottomNavProps {
   readonly className?: string;
 }
@@ -312,6 +379,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Check if current path matches nav item
   const isActiveRoute = useCallback(
     (href: string, activePaths?: string[]) => {
+      if (href === "#") {
+        return false;
+      }
+      if (href === "/parents") {
+        return pathname === "/parents" || pathname === "/";
+      }
       if (href === "/dashboard") {
         return pathname === "/dashboard" || pathname === "/";
       }
@@ -335,7 +408,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   };
 
   // Compute main navigation items per role and mode
-  // operatorPath is deterministic for the page lifetime — memoize to avoid per-render churn.
+  // operatorPath is deterministic for the page lifetime, memoize to avoid per-render churn.
   // activePaths must also go through operatorPath: on the operator subdomain pathname is
   // the clean URL (e.g. /schools), so comparing against /operator/schools would never match.
   const resolvedOperatorMainItems = useMemo(
@@ -356,18 +429,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     [],
   );
   const baseMain =
-    mode === "operator"
-      ? resolvedOperatorMainItems
-      : isCaregiver(session)
-        ? STAFF_MAIN_ITEMS
-        : hasRole(session, "admin")
-          ? ADMIN_MAIN_ITEMS
-          : STAFF_MAIN_ITEMS;
+    mode === "parent"
+      ? PARENT_MAIN_ITEMS
+      : mode === "operator"
+        ? resolvedOperatorMainItems
+        : isCaregiver(session)
+          ? STAFF_MAIN_ITEMS
+          : hasRole(session, "admin")
+            ? ADMIN_MAIN_ITEMS
+            : STAFF_MAIN_ITEMS;
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
   // the admin tab when the setting is off. Dual-role teacher-admins see the
-  // tab too — the tenant setting is the explicit opt-in signal.
+  // tab too, the tenant setting is the explicit opt-in signal.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
@@ -394,8 +469,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Pre-compute permission flags to reduce complexity in filter
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivityNav = nfcEnabled && presenceMode !== "binary";
   const { data: settingsSchema } = useSWR(
-    userIsAdmin && mode !== "operator" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    userIsAdmin && mode !== "operator" && mode !== "parent"
+      ? SETTINGS_SCHEMA_SWR_KEY
+      : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
@@ -411,11 +491,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
   // Filter additional navigation items based on permissions
+  const filteredMainItemsByMode = filteredMainItems.filter(
+    (item) => showActivityNav || !NFC_ONLY_HREFS.has(item.href),
+  );
+
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
+    if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
@@ -433,14 +518,18 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Static navigation - 4 main items + overflow drawer. Operator mode uses a
   // dedicated item list (the 4 sibling Verwaltung pages + Einstellungen) since
   // the bottom nav has only one Verwaltung slot.
-  const displayMainItems: NavItem[] = filteredMainItems;
+  const displayMainItems: NavItem[] = filteredMainItemsByMode;
   const showOverflowMenu = true;
   // Avoid duplicates between main and additional
-  const mainHrefs = new Set(displayMainItems.map((i) => i.href));
+  const mainHrefs = new Set(
+    displayMainItems.filter((i) => i.href !== "#").map((i) => i.href),
+  );
   const displayAdditionalItems =
-    mode === "operator"
-      ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
-      : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
+    mode === "parent"
+      ? PARENT_ADDITIONAL_ITEMS.filter((i) => !mainHrefs.has(i.href))
+      : mode === "operator"
+        ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
+        : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>
@@ -523,7 +612,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
-                  const isActive = isActiveRoute(item.href);
+                  const isActive = isActiveRoute(item.href, item.activePaths);
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {
@@ -554,6 +643,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       key={item.href}
                       href={item.href}
                       onClick={closeOverflowMenu}
+                      {...(item.newTab
+                        ? { target: "_blank", rel: "noopener noreferrer" }
+                        : {})}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
                         isActive
                           ? "bg-gray-900 text-white"
@@ -605,6 +697,28 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {/* Main navigation items */}
               {displayMainItems.map((item, index) => {
                 const isActive = isActiveRoute(item.href, item.activePaths);
+                const iconPath =
+                  navigationIcons[item.iconKey] ?? navigationIcons.home;
+
+                if (item.comingSoon) {
+                  return (
+                    <button
+                      key={item.label}
+                      ref={(el) => {
+                        navRefs.current[index] = null;
+                        if (el) {
+                          el.dataset.navItem = item.label;
+                        }
+                      }}
+                      type="button"
+                      disabled
+                      className="relative z-10 flex min-h-[44px] cursor-not-allowed items-center justify-center gap-2.5 rounded-full px-3 py-2.5 text-gray-300 transition-colors duration-200"
+                      aria-label={`${item.label} bald verfügbar`}
+                    >
+                      <Icon path={iconPath} className="h-5 w-5 flex-shrink-0" />
+                    </button>
+                  );
+                }
 
                 return (
                   <Link
@@ -620,12 +734,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     } `}
                   >
                     {/* Icon */}
-                    <Icon
-                      path={
-                        navigationIcons[item.iconKey] ?? navigationIcons.home
-                      }
-                      className="h-5 w-5 flex-shrink-0"
-                    />
+                    <Icon path={iconPath} className="h-5 w-5 flex-shrink-0" />
 
                     {/* Label - ONLY show when active */}
                     {isActive && (

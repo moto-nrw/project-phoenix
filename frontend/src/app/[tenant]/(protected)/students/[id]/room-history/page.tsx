@@ -16,6 +16,7 @@ import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
+import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import {
   type AttendanceHistory,
@@ -156,13 +157,37 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
     () => chartData.filter((d) => d.roomDetailAvailable),
     [chartData],
   );
+  const renderDurationTick = useCallback(
+    (p: Record<string, unknown>) => (
+      <TodayTick chartData={chartData} props={p} />
+    ),
+    [chartData],
+  );
+  const renderActivityTick = useCallback(
+    (p: Record<string, unknown>) => (
+      <TodayTick chartData={activityChartData} props={p} />
+    ),
+    [activityChartData],
+  );
+  const renderDurationTooltipValue = useCallback(
+    (value: string | number) => (
+      <span className="font-medium">{value} Std</span>
+    ),
+    [],
+  );
+  const renderActivityTooltipValue = useCallback(
+    (value: string | number) => (
+      <span className="font-medium">{value} Wechsel</span>
+    ),
+    [],
+  );
 
   if (chartData.length === 0) return null;
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
       {/* Anwesenheit */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="mb-3">
             <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -189,9 +214,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                 tickMargin={8}
                 fontSize={11}
                 interval={0}
-                tick={(p: Record<string, unknown>) => (
-                  <TodayTick chartData={chartData} props={p} />
-                )}
+                tick={renderDurationTick}
               />
               <YAxis
                 tickLine={false}
@@ -204,9 +227,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(label) => `Tag: ${label}`}
-                    formatter={(value) => (
-                      <span className="font-medium">{value} Std</span>
-                    )}
+                    formatter={renderDurationTooltipValue}
                   />
                 }
               />
@@ -221,7 +242,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
       </div>
 
       {/* Aktivität (Raumwechsel) */}
-      <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="p-4 sm:p-6">
           <div className="mb-3">
             <h2 className="text-base font-bold text-gray-900 sm:text-lg">
@@ -253,9 +274,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                   tickMargin={8}
                   fontSize={11}
                   interval={0}
-                  tick={(p: Record<string, unknown>) => (
-                    <TodayTick chartData={activityChartData} props={p} />
-                  )}
+                  tick={renderActivityTick}
                 />
                 <YAxis
                   tickLine={false}
@@ -268,9 +287,7 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
                   content={
                     <ChartTooltipContent
                       labelFormatter={(label) => `Tag: ${label}`}
-                      formatter={(value) => (
-                        <span className="font-medium">{value} Wechsel</span>
-                      )}
+                      formatter={renderActivityTooltipValue}
                     />
                   }
                 />
@@ -425,7 +442,7 @@ function HistoryTable({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
       <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
         <h2 className="text-base font-bold text-gray-900 sm:text-lg">
           Anwesenheitsprotokoll
@@ -663,10 +680,8 @@ function StudentRoomHistoryPageContent() {
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
-  // Scroll to top on mount — prevents inheriting scroll position from previous page
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+  // Start at the top instead of inheriting the previous page's scroll position
+  useScrollToTop(studentId);
 
   const fetchStudent = useCallback(async (): Promise<Student | null> => {
     try {
@@ -761,8 +776,12 @@ function StudentRoomHistoryPageContent() {
 
   return (
     <div className="w-full">
-      {/* Back button (mobile only) */}
-      <BackButton referrer={`/students/${studentId}?from=${referrer}`} />
+      {/* Back button (mobile only). tab=historie returns to the originating tab
+          on the detail page (this sub-page lives under Historie, issue #1501);
+          from= still drives the detail page's own back button to the list. */}
+      <BackButton
+        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
+      />
 
       {/* Student header — matches StudentDetailHeader pattern */}
       {student && (

@@ -100,6 +100,10 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   // LocationBadge / PresenceBadge render the richer detailed variant in tests
   // unless a specific test overrides the mock.
   usePresenceMode: vi.fn(() => "detailed"),
+  // Most existing page tests exercise the NFC-capable surfaces themselves
+  // (activities/devices). Default to true so those tests keep rendering the
+  // page unless they explicitly cover the NFC-off branch.
+  useNFCEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

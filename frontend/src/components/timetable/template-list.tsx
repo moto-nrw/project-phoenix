@@ -22,15 +22,15 @@ export function TemplateList({
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-6 py-16 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
-          <CalendarDays className="h-6 w-6 text-slate-400" aria-hidden />
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/40 px-6 py-16 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+          <CalendarDays className="h-6 w-6 text-gray-400" aria-hidden />
         </div>
         <div className="flex flex-col gap-1">
-          <h3 className="text-base font-semibold text-slate-900">
+          <h3 className="text-base font-semibold text-gray-900">
             Keine Serien für diese Periode
           </h3>
-          <p className="max-w-sm text-sm text-slate-500">
+          <p className="max-w-sm text-sm text-gray-500">
             Serien sind wiederkehrende Termine, die automatisch im Kalender
             erscheinen.
           </p>
@@ -38,7 +38,7 @@ export function TemplateList({
         <button
           type="button"
           onClick={onCreate}
-          className="mt-2 inline-flex items-center gap-1 rounded-md bg-slate-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-slate-700"
+          className="mt-2 inline-flex items-center gap-1 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
         >
           + Serientermin anlegen
         </button>

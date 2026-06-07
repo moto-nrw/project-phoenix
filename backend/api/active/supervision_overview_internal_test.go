@@ -51,7 +51,13 @@ func (m *mockSettingsSvc) ResolveBool(_ context.Context, key string) (bool, erro
 	}
 	return false, fmt.Errorf("not found: %s", key)
 }
+func (m *mockSettingsSvc) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(context.Background(), key)
+}
 func (m *mockSettingsSvc) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockSettingsSvc) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return 0, nil
+}
 func (m *mockSettingsSvc) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
@@ -147,6 +153,12 @@ func (s *stubActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ 
 	return nil, nil
 }
 func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*activeModel.Visit, error) {
+	return nil, nil
+}
+func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 	return nil, nil
 }
 func (s *stubActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {

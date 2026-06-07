@@ -20,17 +20,15 @@ export function BrandLink({
 }: BrandLinkProps) {
   return (
     <Link href={href} className="group flex items-center space-x-3">
-      <div className="relative transition-transform duration-200 group-hover:scale-110">
+      <div className="transition-transform duration-200 group-hover:scale-110">
         <Image
           src="/images/moto_transparent.png"
           alt="moto"
-          width={40}
-          height={40}
-          className="h-9 w-9"
+          width={907}
+          height={646}
+          className="h-9 w-auto"
           priority
         />
-        {/* Subtle glow effect */}
-        <div className="absolute inset-0 -z-10 h-9 w-9 rounded-full bg-gradient-to-br from-[#5080d8]/20 to-[#83cd2d]/20 blur-sm" />
       </div>
 
       <div className="flex items-center space-x-3">

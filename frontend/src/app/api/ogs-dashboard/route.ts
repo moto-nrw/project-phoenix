@@ -3,9 +3,9 @@
 // Consolidates 5 API calls into 1 to eliminate redundant auth() overhead
 // and prevent sequential loading "flash" on student cards
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 const logger = createLogger({ component: "OGSDashboardRoute" });
 
@@ -32,13 +32,15 @@ interface BackendStudent {
   current_room_color?: string | null;
   sick?: boolean;
   sick_since?: string;
-  sick_until?: string;
   excused?: boolean;
   excused_since?: string;
   location_since?: string;
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
 }

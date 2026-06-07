@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Modal } from "~/components/ui/modal";
+import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -199,9 +199,10 @@ export function CalendarPeriodModal({
   };
 
   return (
-    <Modal
+    <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      size="md"
       title={isEdit ? "Kalenderperiode bearbeiten" : "Kalenderperiode anlegen"}
       footer={
         <div className="flex w-full items-center justify-between gap-2">
@@ -232,7 +233,7 @@ export function CalendarPeriodModal({
             {deleteConfirm && !deleting && (
               <button
                 type="button"
-                className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                className="text-xs font-semibold text-gray-500 hover:text-gray-700"
                 onClick={() => setDeleteConfirm(false)}
               >
                 Löschen abbrechen
@@ -284,7 +285,7 @@ export function CalendarPeriodModal({
             id="period_type"
             value={form.periodType}
             onChange={(e) => update("periodType", e.target.value as PeriodType)}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8] focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
           >
             {PERIOD_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -341,17 +342,15 @@ export function CalendarPeriodModal({
           </Field>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
           <input
             type="checkbox"
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
             className="h-4 w-4"
           />
-          <span className="font-semibold text-slate-700">
-            Periode ist aktiv
-          </span>
-          <span className="text-xs text-slate-500">
+          <span className="font-semibold text-gray-700">Periode ist aktiv</span>
+          <span className="text-xs text-gray-500">
             Nur aktive Perioden erzeugen Serientermine
           </span>
         </label>
@@ -359,13 +358,13 @@ export function CalendarPeriodModal({
         {validationError && (
           <div
             role="alert"
-            className="rounded-md border border-[#FECACA] bg-[#FEF2F2] px-3 py-2 text-xs font-semibold text-[#7F1D1D]"
+            className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
           >
             {validationError}
           </div>
         )}
       </form>
-    </Modal>
+    </FormModal>
   );
 }
 
@@ -379,7 +378,7 @@ interface FieldProps {
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (
     <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-slate-700">
+      <span className="text-xs font-semibold text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
       </span>

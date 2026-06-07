@@ -1,6 +1,6 @@
-import { createPostHandler } from "@/lib/route-wrapper";
-import { apiPost } from "@/lib/api-helpers";
-import type { ApiResponse } from "@/lib/api-helpers";
+import { createPostHandler } from "@/lib/route-wrapper.server";
+import { apiPost } from "@/lib/api-helpers.server";
+import type { ApiResponse } from "@/lib/api-helpers.server";
 import type { TrackingIndicatorsResponse } from "@/lib/active-helpers";
 
 // POST /api/active/tracking-indicators - Bulk check if students visited configured rooms/activities today

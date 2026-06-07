@@ -24,6 +24,14 @@ type Account struct {
 	PINHash        *string    `bun:"pin_hash" json:"-"`
 	PINAttempts    int        `bun:"pin_attempts,default:0" json:"-"`
 	PINLockedUntil *time.Time `bun:"pin_locked_until" json:"-"`
+	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
+	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
+	// The per-account MFA admin override no longer lives on this row.
+	// Tenant-scoped overrides + the operator's account-wide emergency
+	// override are stored in auth.mfa_overrides — see
+	// models.auth.MFAOverride. Callers go through MFAService for both
+	// reads and writes; the resolver consults the override table on
+	// every IsRequired call.
 
 	// Relations not stored in the database
 	Roles       []*Role       `bun:"-" json:"roles,omitempty"`
@@ -177,4 +185,31 @@ func (a *Account) ResetPINAttempts() {
 func (a *Account) ClearPIN() {
 	a.PINHash = nil
 	a.ResetPINAttempts()
+}
+
+// MFA-related lockout helpers (mirror PIN-Lockout pattern)
+
+// IsMFALocked reports whether the account is currently in the MFA-failure
+// cooldown window.
+func (a *Account) IsMFALocked() bool {
+	if a.MFALockedUntil == nil {
+		return false
+	}
+	return time.Now().Before(*a.MFALockedUntil)
+}
+
+// IncrementMFAAttempts records a failed MFA verification and applies the
+// 15-minute lockout once the threshold of 5 failures is hit.
+func (a *Account) IncrementMFAAttempts() {
+	a.MFAAttempts++
+	if a.MFAAttempts >= 5 {
+		lockUntil := time.Now().Add(15 * time.Minute)
+		a.MFALockedUntil = &lockUntil
+	}
+}
+
+// ResetMFAAttempts clears any in-flight MFA-failure counter and lockout.
+func (a *Account) ResetMFAAttempts() {
+	a.MFAAttempts = 0
+	a.MFALockedUntil = nil
 }

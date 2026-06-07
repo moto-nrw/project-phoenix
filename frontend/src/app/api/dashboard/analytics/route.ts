@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { fetchDashboardAnalytics } from "~/lib/dashboard-api";
-import { createGetHandler } from "~/lib/route-wrapper";
+import { fetchDashboardAnalytics } from "~/lib/dashboard-api.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Handler for GET /api/dashboard/analytics

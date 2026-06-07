@@ -6,6 +6,8 @@ import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "TeacherForm" });
+const EMPTY_RFID_CARDS: ReadonlyArray<{ id: string; label: string }> = [];
+const EMPTY_POSITIONS: readonly string[] = [];
 
 interface RoleOption {
   id: number;
@@ -37,10 +39,10 @@ export function TeacherForm({
   isLoading,
   formTitle = "Details des Personals",
   submitLabel = "Speichern",
-  rfidCards: _rfidCards = [],
+  rfidCards: _rfidCards = EMPTY_RFID_CARDS,
   wrapInCard = true,
   showRFID = false,
-  existingPositions = [],
+  existingPositions = EMPTY_POSITIONS,
 }: TeacherFormProps) {
   // Form state
   const [firstName, setFirstName] = useState(initialData.first_name ?? "");

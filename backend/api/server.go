@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
 )
@@ -16,7 +17,8 @@ import (
 // Server provides an HTTP server for the API
 type Server struct {
 	*http.Server
-	scheduler *scheduler.Scheduler
+	scheduler      *scheduler.Scheduler
+	capacityLogger *observability.CapacityLogger
 }
 
 // NewServer creates and configures a new API server
@@ -48,7 +50,8 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 			WriteTimeout: 0,
 			IdleTimeout:  0,
 		},
-		scheduler: nil, // Will be initialized if cleanup is enabled
+		scheduler:      nil, // Will be initialized if cleanup is enabled
+		capacityLogger: observability.NewCapacityLogger(api.db.DB, api.Services.RealtimeHub, api.Metrics, logger.With("component", "capacity")),
 	}
 
 	// Initialize scheduler if cleanup is enabled
@@ -74,6 +77,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.Materialization != nil {
 			srv.scheduler.SetMaterializer(api.Services.Materialization)
 		}
+		if api.Services.AutoStart != nil {
+			srv.scheduler.SetAutoStartService(api.Services.AutoStart)
+		}
 		// WP-B14: timetable GDPR cleanup. Nil service → task does not register.
 		if api.Services.TimetableCleanup != nil {
 			srv.scheduler.SetTimetableCleanup(api.Services.TimetableCleanup)
@@ -87,6 +93,25 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.repos != nil && api.Services.RealtimeHub != nil {
 			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
 		}
+		// Parent-enrollment PR 2: activate-students tick.
+		if api.repos != nil && api.repos.Student != nil {
+			srv.scheduler.SetStudentLifecycleRepo(api.repos.Student)
+		}
+		// Parent-enrollment PR 5: platform email outbox worker.
+		if api.Services.EmailOutboxWorker != nil {
+			srv.scheduler.SetOutboxWorker(api.Services.EmailOutboxWorker)
+		}
+		// Phase rollover slice 1: per-tenant deadline resolver tick.
+		// The adapter narrows the typed return value behind `any` so
+		// the scheduler doesn't import the enrollment package.
+		if api.Services.EnrollmentRollover != nil {
+			rolloverSvc := api.Services.EnrollmentRollover
+			srv.scheduler.SetRolloverDeadlineRunner(scheduler.NewRolloverDeadlineRunner(
+				func(ctx context.Context, asOf time.Time) (any, error) {
+					return rolloverSvc.RunDeadlineWorker(ctx, asOf)
+				},
+			))
+		}
 	}
 
 	return srv, nil
@@ -94,6 +119,13 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 
 // Start runs the server with graceful shutdown
 func (srv *Server) Start() {
+	capacityCtx, stopCapacityLogger := context.WithCancel(context.Background())
+	defer stopCapacityLogger()
+	if srv.capacityLogger != nil {
+		srv.capacityLogger.LogSnapshot()
+		go srv.capacityLogger.Start(capacityCtx)
+	}
+
 	// Start scheduler if initialized (includes session cleanup task)
 	if srv.scheduler != nil {
 		srv.scheduler.Start()

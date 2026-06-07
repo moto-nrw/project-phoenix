@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const { getClientForwardHeaders } = await import("~/lib/client-headers");
+    const { getClientForwardHeaders } =
+      await import("~/lib/client-headers.server");
     const response = await fetch(
       `${getServerApiUrl()}/operator/auth/email-confirm`,
       {

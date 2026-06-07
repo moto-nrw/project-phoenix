@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
-import { apiDelete, apiPut } from "~/lib/api-helpers";
+import { apiDelete, apiPut } from "~/lib/api-helpers.server";
 import {
   createDeleteHandler,
   createPutHandler,
   isStringParam,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 export const PUT = createPutHandler(
   async (_request: NextRequest, body: unknown, token: string, params) => {

@@ -3,6 +3,7 @@ package timetable
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +15,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -37,6 +40,13 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.True(t, service.lastIsAdmin)
 	assert.Equal(t, "2026-05-10", service.lastDate.Format(dateLayout))
 	assert.Contains(t, rr.Body.String(), `"instances"`)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=480&limit=5&include_roster=true", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, 480, service.lastPlannedOptions.HorizonMinutes)
+	assert.Equal(t, 5, service.lastPlannedOptions.Limit)
+	assert.True(t, service.lastPlannedOptions.IncludeRoster)
 }
 
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
@@ -48,6 +58,12 @@ func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
 	router = operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?date=bad", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=-1", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?include_roster=maybe", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -148,6 +164,111 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), `"active_group_id":341`)
 }
 
+func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
+	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
+	createdInstance.ID = 242
+	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
+	startedInstance.ID = 242
+	instanceSvc := &mockInstanceService{createRes: createdInstance}
+	groupRepo := &fakeOperationActivityGroupRepo{
+		findByNameResult: &activityModels.Group{Name: "Freispiel"},
+	}
+	groupRepo.findByNameResult.ID = 72
+	service := &fakeOperationsService{
+		start: &scheduleSvc.StartInstanceResult{
+			Instance:      startedInstance,
+			ActiveGroupID: 342,
+		},
+	}
+	res := NewResource(Dependencies{
+		InstanceService:      instanceSvc,
+		OperationsService:    service,
+		ActivityGroupRepo:    groupRepo,
+		ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{},
+		PersonService: &instMockPersonService{
+			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+				person := &userModels.Person{}
+				person.ID = 221
+				return person, nil
+			},
+			staffRepo: &instMockStaffRepo{
+				findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+					staff := &userModels.Staff{}
+					staff.ID = 321
+					return staff, nil
+				},
+			},
+		},
+		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"title":   "freispiel",
+		"room_id": int64(70),
+	})
+
+	require.Equal(t, http.StatusCreated, rr.Code)
+	require.NotNil(t, instanceSvc.lastCreate)
+	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
+	assert.Equal(t, int64(72), *instanceSvc.lastCreate.ActivityGroupID)
+	assert.Equal(t, "freispiel", groupRepo.lastFindByName)
+	assert.Nil(t, groupRepo.createdGroup, "existing activity should be reused, not recreated")
+}
+
+func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing.T) {
+	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
+	createdInstance.ID = 243
+	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
+	startedInstance.ID = 243
+	instanceSvc := &mockInstanceService{createRes: createdInstance}
+	categoryRepo := &fakeOperationActivityCategoryRepo{}
+	groupRepo := &fakeOperationActivityGroupRepo{createdID: 73}
+	service := &fakeOperationsService{
+		start: &scheduleSvc.StartInstanceResult{
+			Instance:      startedInstance,
+			ActiveGroupID: 343,
+		},
+	}
+	res := NewResource(Dependencies{
+		InstanceService:      instanceSvc,
+		OperationsService:    service,
+		ActivityGroupRepo:    groupRepo,
+		ActivityCategoryRepo: categoryRepo,
+		PersonService: &instMockPersonService{
+			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+				person := &userModels.Person{}
+				person.ID = 222
+				return person, nil
+			},
+			staffRepo: &instMockStaffRepo{
+				findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+					staff := &userModels.Staff{}
+					staff.ID = 322
+					return staff, nil
+				},
+			},
+		},
+		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"title":   "Neue Werkstatt",
+		"room_id": int64(70),
+	})
+
+	require.Equal(t, http.StatusCreated, rr.Code)
+	require.NotNil(t, categoryRepo.createdCategory)
+	assert.Equal(t, "Spontan", categoryRepo.createdCategory.Name)
+	require.NotNil(t, groupRepo.createdGroup)
+	assert.Equal(t, "Neue Werkstatt", groupRepo.createdGroup.Name)
+	assert.Equal(t, int64(910), groupRepo.createdGroup.CategoryID)
+	assert.Equal(t, int64(322), *groupRepo.createdGroup.CreatedBy)
+	require.NotNil(t, instanceSvc.lastCreate.ActivityGroupID)
+	assert.Equal(t, int64(73), *instanceSvc.lastCreate.ActivityGroupID)
+}
+
 func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 7, 5, 44, 0, time.UTC))
 
@@ -236,6 +357,31 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	assert.Nil(t, instanceSvc.lastCreate, "disabled web spontaneous activities must not create instances")
 }
 
+func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
+	instanceSvc := &mockInstanceService{}
+	res := NewResource(Dependencies{
+		InstanceService:   instanceSvc,
+		OperationsService: &fakeOperationsService{},
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+			stringValue: configModel.CareConceptFixedSchedule,
+		},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"date":       "2026-05-11",
+		"start_time": "14:00",
+		"end_time":   "15:00",
+		"title":      "Freispiel",
+		"room_id":    7,
+	})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Nil(t, instanceSvc.lastCreate, "fixed schedule must not create spontaneous instances")
+}
+
 func TestOperationsCapabilities(t *testing.T) {
 	res := NewResource(Dependencies{
 		SettingsService: &fakeOperationSettingsService{
@@ -249,6 +395,37 @@ func TestOperationsCapabilities(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
+}
+
+func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: false,
+			boolValue:   false,
+		},
+	})
+	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
+
+	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
+}
+
+func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+			stringValue: configModel.CareConceptFixedSchedule,
+		},
+	})
+	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
+
+	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":false`)
 }
 
 func TestOperationsRosterByActiveGroup(t *testing.T) {
@@ -408,13 +585,14 @@ type fakeOperationsService struct {
 	patchRow *scheduleSvc.OperationRosterRow
 	err      error
 
-	lastAccountID     int64
-	lastIsAdmin       bool
-	lastDate          time.Time
-	lastInstanceID    int64
-	lastActiveGroupID int64
-	lastStudentID     int64
-	lastPatch         schedule.AttendanceFieldPatch
+	lastAccountID      int64
+	lastIsAdmin        bool
+	lastDate           time.Time
+	lastPlannedOptions scheduleSvc.PlannedNowOptions
+	lastInstanceID     int64
+	lastActiveGroupID  int64
+	lastStudentID      int64
+	lastPatch          schedule.AttendanceFieldPatch
 }
 
 type fakeOperationActiveGroupRepo struct {
@@ -423,10 +601,62 @@ type fakeOperationActiveGroupRepo struct {
 	err             error
 }
 
+type fakeOperationActivityGroupRepo struct {
+	activityModels.GroupRepository
+	findByNameResult *activityModels.Group
+	findByNameErr    error
+	createdGroup     *activityModels.Group
+	createdID        int64
+	lastFindByName   string
+}
+
+func (r *fakeOperationActivityGroupRepo) FindByName(_ context.Context, name string) (*activityModels.Group, error) {
+	r.lastFindByName = name
+	if r.findByNameErr != nil {
+		return nil, r.findByNameErr
+	}
+	if r.findByNameResult != nil {
+		return r.findByNameResult, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (r *fakeOperationActivityGroupRepo) Create(_ context.Context, group *activityModels.Group) error {
+	r.createdGroup = group
+	if r.createdID > 0 {
+		group.ID = r.createdID
+	}
+	return nil
+}
+
+type fakeOperationActivityCategoryRepo struct {
+	activityModels.CategoryRepository
+	findByNameResult *activityModels.Category
+	findByNameErr    error
+	createdCategory  *activityModels.Category
+}
+
+func (r *fakeOperationActivityCategoryRepo) FindByName(_ context.Context, _ string) (*activityModels.Category, error) {
+	if r.findByNameErr != nil {
+		return nil, r.findByNameErr
+	}
+	if r.findByNameResult != nil {
+		return r.findByNameResult, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (r *fakeOperationActivityCategoryRepo) Create(_ context.Context, category *activityModels.Category) error {
+	r.createdCategory = category
+	category.ID = 910
+	return nil
+}
+
 type fakeOperationSettingsService struct {
 	configSvc.SettingsService
 	hasOverride bool
 	boolValue   bool
+	stringValue string
 	err         error
 }
 
@@ -444,6 +674,13 @@ func (s *fakeOperationSettingsService) ResolveBool(_ context.Context, _ string) 
 	return s.boolValue, nil
 }
 
+func (s *fakeOperationSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
+	if s.err != nil {
+		return "", s.err
+	}
+	return s.stringValue, nil
+}
+
 func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ int64, _ int64) (bool, *activeModels.Group, error) {
 	if r.err != nil {
 		return false, nil, r.err
@@ -451,10 +688,11 @@ func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ in
 	return r.hasRoomConflict, nil, nil
 }
 
-func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time) ([]scheduleSvc.OperationPlannedInstance, error) {
+func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
 	s.lastDate = date
+	s.lastPlannedOptions = opts
 	return s.planned, s.err
 }
 

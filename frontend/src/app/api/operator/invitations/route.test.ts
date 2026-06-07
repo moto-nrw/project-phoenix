@@ -12,9 +12,11 @@ vi.mock("~/server/auth/operator", () => ({
   uncachedOperatorAuth: mockUncachedAuth,
 }));
 
-vi.mock("~/lib/operator/route-wrapper", async (importOriginal) => {
+vi.mock("~/lib/operator/route-wrapper.server", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("~/lib/operator/route-wrapper")>();
+    await importOriginal<
+      typeof import("~/lib/operator/route-wrapper.server")
+    >();
   return {
     ...actual,
     operatorApiGet: mockOperatorApiGet,

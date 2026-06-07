@@ -87,6 +87,7 @@ type Scheduler struct {
 	materializer        scheduleSvc.MaterializationService
 	timetableCleanup    scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup active.TimeTrackingCleanupService
+	autoStart           scheduleSvc.AutoStartService
 	settings            SettingsResolver
 	db                  *bun.DB
 	schoolRepo          platform.SchoolRepository
@@ -122,6 +123,31 @@ type Scheduler struct {
 	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
 	overdueEmittedDay   time.Time
 	overdueEmittedDayMu sync.Mutex
+
+	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
+	// Nil → activate-students task does not register.
+	studentLifecycleRepo StudentLifecycleRepository
+
+	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
+	// Nil → outbox task does not register.
+	outboxWorker OutboxWorkerRunner
+
+	// Rollover deadline resolver (phase rollover slice 1). Wired via
+	// SetRolloverDeadlineRunner. Nil → task does not register.
+	rolloverDeadlineRunner RolloverDeadlineRunner
+}
+
+// OutboxWorkerRunner is the narrow contract the scheduler needs from the
+// platform outbox worker. Defined here so the scheduler doesn't import
+// services/platform.
+type OutboxWorkerRunner interface {
+	RunOnce(ctx context.Context, batchSize int) (int, error)
+	SetMaxAttempts(n int)
+}
+
+// SetOutboxWorker wires the outbox worker. Nil disables the outbox task.
+func (s *Scheduler) SetOutboxWorker(w OutboxWorkerRunner) {
+	s.outboxWorker = w
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -201,6 +227,13 @@ func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService)
 // task simply doesn't register in Start().
 func (s *Scheduler) SetTimeTrackingCleanup(svc active.TimeTrackingCleanupService) {
 	s.timeTrackingCleanup = svc
+}
+
+// SetAutoStartService wires the planned-instance auto-start service. When set,
+// the scheduler registers a minute-polled task gated by timetable.enabled and
+// timetable.auto_start_planned.
+func (s *Scheduler) SetAutoStartService(svc scheduleSvc.AutoStartService) {
+	s.autoStart = svc
 }
 
 // SetDB sets the database connection for tenant-aware operations.
@@ -301,6 +334,18 @@ func (s *Scheduler) Start() {
 
 	// Schedule minute-polled overdue instance tick (WP-B9)
 	s.scheduleInstanceOverdueTask()
+
+	// Schedule minute-polled automatic starts for planned instances.
+	s.scheduleAutoStartTask()
+
+	// Schedule per-tenant activate-students tick (parent-enrollment PR 2)
+	s.scheduleActivateStudentsTask()
+
+	// Schedule platform email outbox worker (parent-enrollment PR 5)
+	s.scheduleOutboxWorkerTask()
+
+	// Schedule per-tenant rollover deadline resolver (phase rollover)
+	s.scheduleRolloverDeadlineTask()
 }
 
 // Stop gracefully stops the scheduler
@@ -1680,6 +1725,111 @@ func isoWeekdayMatchesNow(wd int) bool {
 	return wd == int(today)
 }
 
+// --- Timetable auto-start tick ---
+//
+// Purpose: when a tenant enables timetable.auto_start_planned, start planned
+// activity instances whose configured time window is currently active. The
+// service remains conservative: no assigned staff or any conflict warning means
+// "do not start automatically"; staff can still start manually.
+
+func (s *Scheduler) scheduleAutoStartTask() {
+	if s.autoStart == nil {
+		s.getLogger().Info("timetable auto-start tick not configured (missing service)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "timetable-auto-start",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runAutoStartTaskPolling(task)
+}
+
+func (s *Scheduler) runAutoStartTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in timetable auto-start task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("timetable auto-start tick using minute-polling")
+
+	s.checkAndRunAutoStart(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunAutoStart(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "timetable-auto-start", func(tenantCtx context.Context, tenantID int64) error {
+		if !s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableEnabled, "", false) {
+			return nil
+		}
+		if !s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableAutoStartPlanned, "", false) {
+			return nil
+		}
+
+		result, err := s.autoStart.RunForTenant(tenantCtx, time.Now())
+		if err != nil {
+			s.getLogger().Warn("timetable auto-start failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		if result.Started > 0 || result.SkippedConflict > 0 || result.Failed > 0 {
+			s.getLogger().Info("timetable auto-start completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("checked", result.Checked),
+				slog.Int("started", result.Started),
+				slog.Int("skipped_no_staff", result.SkippedNoStaff),
+				slog.Int("skipped_conflict", result.SkippedConflict),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
 // --- Instance overdue tick (WP-B9) ---
 //
 // Purpose: emit realtime.EventInstanceOverdue once per planned instance that
@@ -1687,8 +1837,9 @@ func isoWeekdayMatchesNow(wd int) bool {
 // "Überfällig" badge in the staff "My Day" view.
 //
 // Cadence: same minute-polling shape as every other scheduler task. The tick
-// does NOT read timetable.auto_start_planned — that setting belongs to E19
-// level 3 (auto-start, WP-F10), a separate workpackage.
+// is independent of auto-start: tenants with auto-start disabled still need
+// overdue hints, and tenants with auto-start enabled still need hints for rows
+// auto-start intentionally skipped.
 //
 // Re-fire guard: an in-memory sync.Map keyed by (tenant_id, instance_id).
 // Cleared explicitly when the civil-date rolls over — do not rely on entries

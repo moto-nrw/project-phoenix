@@ -164,6 +164,28 @@ func TestAttendanceRepository_Create(t *testing.T) {
 	})
 }
 
+func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Attendance
+	ctx := testpkg.TenantContext(1)
+	data := createAttendanceTestData(t, db)
+	defer cleanupAttendanceTestData(t, db, data)
+
+	now := time.Now()
+	openAttendance := testpkg.CreateTestAttendance(t, db, data.Student1.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), nil)
+	checkOutTime := now.Add(-5 * time.Minute)
+	closedAttendance := testpkg.CreateTestAttendance(t, db, data.Student2.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), &checkOutTime)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", openAttendance.ID, closedAttendance.ID)
+
+	ids, err := repo.ListOpenStudentIDsForDate(ctx, now)
+
+	require.NoError(t, err)
+	assert.Contains(t, ids, data.Student1.ID)
+	assert.NotContains(t, ids, data.Student2.ID)
+}
+
 // TestAttendanceRepository_FindByStudentAndDate tests querying attendance records by student and date
 func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

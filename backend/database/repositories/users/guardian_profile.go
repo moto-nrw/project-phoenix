@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -181,6 +182,83 @@ func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options
 	return profiles, nil
 }
 
+// escapeLikePattern escapes the LIKE metacharacters (\, %, _) in user-supplied
+// search text so they match literally instead of acting as wildcards. Without
+// this a caller could pass "%" or "___" to defeat the picker's minimum-query-
+// length guard and match the whole guardian pool (the picker is open to all
+// staff, not just admins — see searchGuardiansForPicker). The query pairs this
+// with an explicit ESCAPE '\' clause. Backslash is escaped first so the escapes
+// added for % and _ are not themselves re-escaped.
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, "%", `\%`)
+	s = strings.ReplaceAll(s, "_", `\_`)
+	return s
+}
+
+// maxSearchTokens bounds how many whitespace-separated terms a single picker
+// search expands into, so a pathological query ("a b c d e …") can't build an
+// unbounded WHERE clause. A real name search never needs more than a handful.
+const maxSearchTokens = 10
+
+// SearchByText retrieves guardian profiles matching the search text
+// (case-insensitive substring across first name, last name, and email). Tenant
+// isolation is enforced by RLS on the ambient tenant transaction (the endpoint
+// runs under TenantTxMiddleware), mirroring the other read methods on this
+// repository. Results are capped by limit so the guardian picker payload stays
+// small.
+//
+// The search text is split into whitespace-separated tokens; EACH token must
+// match at least one column, and ALL tokens must match (AND). This is what makes
+// a full-name query like "Andrea Bauer" work even though "Andrea" lives in
+// first_name and "Bauer" in last_name — a single full-string LIKE would match
+// neither column and return nothing. Token order is irrelevant, so "Bauer
+// Andrea" matches the same person.
+//
+// LIKE metacharacters in each token are escaped (see escapeLikePattern) so they
+// match literally — the picker's enumeration guard relies on a real minimum
+// query length, which raw "%"/"_" input would otherwise bypass.
+func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText string, limit int) ([]*users.GuardianProfile, error) {
+	// strings.Fields splits on any run of whitespace and drops empties, so a
+	// query that is only spaces yields no tokens → empty result.
+	tokens := strings.Fields(strings.ToLower(searchText))
+	if len(tokens) == 0 {
+		return []*users.GuardianProfile{}, nil
+	}
+	if len(tokens) > maxSearchTokens {
+		tokens = tokens[:maxSearchTokens]
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	var profiles []*users.GuardianProfile
+
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
+
+	// One AND-ed WHERE group per token; within a group the token may match any of
+	// the three columns. The explicit parentheses keep each token's OR set
+	// isolated so the groups combine as (t1col OR …) AND (t2col OR …).
+	for _, tok := range tokens {
+		pattern := "%" + escapeLikePattern(tok) + "%"
+		query = query.Where(
+			`(LOWER("guardian_profile".first_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".last_name) LIKE ? ESCAPE '\' OR LOWER("guardian_profile".email) LIKE ? ESCAPE '\')`,
+			pattern, pattern, pattern,
+		)
+	}
+
+	if err := query.
+		Order(`last_name ASC`, `first_name ASC`).
+		Limit(limit).
+		Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to search guardian profiles: %w", err)
+	}
+
+	return profiles, nil
+}
+
 // Count returns the total number of guardian profiles
 func (r *GuardianProfileRepository) Count(ctx context.Context) (int, error) {
 	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
@@ -297,6 +375,78 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 	}
 
 	return nil
+}
+
+// LoadProfileWithChildren returns the guardian profile linked to the
+// account plus the primary phone + active-student summaries. Multi-
+// schema join (users.students_guardians → users.students →
+// users.persons) lives here so handlers/services don't reach into the
+// schema directly. Returns (nil, nil) when no profile is linked under
+// the current tenant context.
+func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context, accountID int64) (*users.GuardianProfileWithChildren, error) {
+	profile := new(users.GuardianProfile)
+	err := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(profile).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".account_id = ?`, accountID).
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to load guardian profile: %w", err)
+	}
+
+	result := &users.GuardianProfileWithChildren{Profile: profile}
+
+	var primaryPhone users.GuardianPhoneNumber
+	phoneErr := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&primaryPhone).
+		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
+		Where(`"guardian_phone_number".guardian_profile_id = ?`, profile.ID).
+		OrderExpr(`"guardian_phone_number".is_primary DESC, "guardian_phone_number".id ASC`).
+		Limit(1).
+		Scan(ctx)
+	if phoneErr != nil && !errors.Is(phoneErr, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to load primary phone: %w", phoneErr)
+	}
+	if phoneErr == nil && primaryPhone.PhoneNumber != "" {
+		result.PrimaryPhone = primaryPhone.PhoneNumber
+	}
+
+	type childRow struct {
+		StudentID   int64  `bun:"student_id"`
+		FirstName   string `bun:"first_name"`
+		LastName    string `bun:"last_name"`
+		SchoolClass string `bun:"school_class"`
+	}
+	var rows []childRow
+	childErr := repoBase.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students_guardians AS "sg"`).
+		ColumnExpr(`"s".id AS student_id`).
+		ColumnExpr(`"p".first_name`).
+		ColumnExpr(`"p".last_name`).
+		ColumnExpr(`"s".school_class`).
+		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
+		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
+		Where(`"sg".guardian_profile_id = ?`, profile.ID).
+		Where(`"s".status <> ?`, "alumnus").
+		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
+		Scan(ctx, &rows)
+	if childErr != nil && !errors.Is(childErr, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to load children: %w", childErr)
+	}
+	for _, row := range rows {
+		result.Children = append(result.Children, users.GuardianChildSummary{
+			StudentID:   row.StudentID,
+			FirstName:   row.FirstName,
+			LastName:    row.LastName,
+			SchoolClass: row.SchoolClass,
+		})
+	}
+
+	return result, nil
 }
 
 // GetStudentCount returns the number of students for a guardian

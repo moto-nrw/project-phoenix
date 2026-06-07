@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -19,7 +20,6 @@ import (
 
 var (
 	emailRegex  = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-	phoneRegex  = regexp.MustCompile(`^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$`)
 	timeRegex   = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
 	dateLayouts = []string{
 		"2006-01-02",
@@ -33,8 +33,8 @@ func isValidTimeFormat(s string) bool {
 	return timeRegex.MatchString(s)
 }
 
-// mapRelationshipType converts German relationship types to valid English types
-func mapRelationshipType(germanType string) string {
+// MapRelationshipType converts German relationship types to valid English types
+func MapRelationshipType(germanType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(germanType))
 
 	// Map German terms to English types
@@ -81,42 +81,45 @@ func mapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo         users.PersonRepository
-	studentRepo        users.StudentRepository
-	guardianRepo       users.GuardianProfileRepository
-	guardianPhoneRepo  users.GuardianPhoneNumberRepository
-	relationRepo       users.StudentGuardianRepository
-	privacyRepo        users.PrivacyConsentRepository
-	pickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
-	resolver           *RelationshipResolver
-	txHandler          *base.TxHandler
+	personRepo          users.PersonRepository
+	studentRepo         users.StudentRepository
+	guardianRepo        users.GuardianProfileRepository
+	guardianPhoneRepo   users.GuardianPhoneNumberRepository
+	relationRepo        users.StudentGuardianRepository
+	privacyRepo         users.PrivacyConsentRepository
+	arrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
+	pickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	resolver            *RelationshipResolver
+	txHandler           *base.TxHandler
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
 type StudentImportDeps struct {
-	PersonRepo         users.PersonRepository
-	StudentRepo        users.StudentRepository
-	GuardianRepo       users.GuardianProfileRepository
-	GuardianPhoneRepo  users.GuardianPhoneNumberRepository
-	RelationRepo       users.StudentGuardianRepository
-	PrivacyRepo        users.PrivacyConsentRepository
-	PickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
-	Resolver           *RelationshipResolver
+	PersonRepo          users.PersonRepository
+	StudentRepo         users.StudentRepository
+	GuardianRepo        users.GuardianProfileRepository
+	GuardianPhoneRepo   users.GuardianPhoneNumberRepository
+	RelationRepo        users.StudentGuardianRepository
+	PrivacyRepo         users.PrivacyConsentRepository
+	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
+	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	Resolver            *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:         deps.PersonRepo,
-		studentRepo:        deps.StudentRepo,
-		guardianRepo:       deps.GuardianRepo,
-		guardianPhoneRepo:  deps.GuardianPhoneRepo,
-		relationRepo:       deps.RelationRepo,
-		privacyRepo:        deps.PrivacyRepo,
-		pickupScheduleRepo: deps.PickupScheduleRepo,
-		resolver:           deps.Resolver,
-		txHandler:          base.NewTxHandler(db),
+		personRepo:          deps.PersonRepo,
+		studentRepo:         deps.StudentRepo,
+		guardianRepo:        deps.GuardianRepo,
+		guardianPhoneRepo:   deps.GuardianPhoneRepo,
+		relationRepo:        deps.RelationRepo,
+		privacyRepo:         deps.PrivacyRepo,
+		arrivalScheduleRepo: deps.ArrivalScheduleRepo,
+		pickupScheduleRepo:  deps.PickupScheduleRepo,
+		resolver:            deps.Resolver,
+		txHandler:           base.NewTxHandler(db),
 	}
 }
 
@@ -196,7 +199,8 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 
 	}
 
-	// 5b. OPTIONAL: Pickup schedule validation
+	// 5b. OPTIONAL: Arrival and pickup schedule validation
+	errors = append(errors, validateArrivalSchedules(row.ArrivalSchedules)...)
 	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
 	// 6. Birthday validation (if provided)
@@ -222,6 +226,12 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		row.Birthday = ""
 	}
 
+	// 6b. Enrollment date range validation (if provided)
+	errors = append(errors, validateEnrollmentDates(row)...)
+
+	// 6c. Consent date validation (if provided)
+	errors = append(errors, validateConsentDates(row)...)
+
 	// 7. Privacy validation
 	if row.DataRetentionDays < 1 {
 		errors = append(errors, importModels.ValidationError{
@@ -241,6 +251,113 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		row.DataRetentionDays = 31 // Cap to maximum
 	}
 
+	return errors
+}
+
+// validateEnrollmentDates validates the optional enrollment date range and
+// normalizes the row values to ISO format. Enrollment dates may legitimately
+// lie in the future, so they are parsed without the birthday future-date check.
+func validateEnrollmentDates(row *importModels.StudentImportRow) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
+	parseField := func(value *string, field, label string) *time.Time {
+		trimmed := strings.TrimSpace(*value)
+		if trimmed == "" {
+			*value = ""
+			return nil
+		}
+		parsed, err := parseDateFormats(trimmed)
+		if err != nil {
+			errors = append(errors, importModels.ValidationError{
+				Field:    field,
+				Message:  fmt.Sprintf("Ungültiges Datumsformat für '%s'. Bitte verwenden Sie JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ.", label),
+				Code:     "invalid_date_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+			return nil
+		}
+		*value = parsed.Format("2006-01-02")
+		return &parsed
+	}
+
+	from := parseField(&row.EnrolledFrom, "enrolled_from", "Einschreibung von")
+	until := parseField(&row.EnrolledUntil, "enrolled_until", "Einschreibung bis")
+
+	if from != nil && until != nil && from.After(*until) {
+		errors = append(errors, importModels.ValidationError{
+			Field:    "enrolled_until",
+			Message:  "'Einschreibung bis' darf nicht vor 'Einschreibung von' liegen.",
+			Code:     "invalid_date_range",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
+
+	return errors
+}
+
+// validateConsentDates validates the optional consent date columns (AGB, data
+// processing, email contact, photo) and normalizes them to ISO format. A
+// consent cannot have been given in the future, so future dates are rejected.
+func validateConsentDates(row *importModels.StudentImportRow) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+
+	validate := func(value *string, field, label string) {
+		trimmed := strings.TrimSpace(*value)
+		if trimmed == "" {
+			*value = ""
+			return
+		}
+		parsed, err := parseDateFormats(trimmed)
+		if err != nil {
+			errors = append(errors, importModels.ValidationError{
+				Field:    field,
+				Message:  fmt.Sprintf("Ungültiges Datumsformat für '%s'. Bitte verwenden Sie JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ.", label),
+				Code:     "invalid_date_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+			return
+		}
+		if validateBirthdayDate(parsed) != nil {
+			errors = append(errors, importModels.ValidationError{
+				Field:    field,
+				Message:  fmt.Sprintf("Einwilligungsdatum für '%s' darf nicht in der Zukunft liegen.", label),
+				Code:     "invalid_date",
+				Severity: importModels.ErrorSeverityError,
+			})
+			return
+		}
+		*value = parsed.Format("2006-01-02")
+	}
+
+	validate(&row.AGBAcceptedAt, "agb_accepted_at", "AGB akzeptiert am")
+	validate(&row.DataProcessingAcceptedAt, "data_processing_accepted_at", "Datenverarbeitung akzeptiert am")
+	validate(&row.EmailContactAcceptedAt, "email_contact_accepted_at", "E-Mail-Kontakt akzeptiert am")
+	validate(&row.PhotoConsentGivenAt, "photo_consent_given_at", "Foto-Einwilligung am")
+
+	return errors
+}
+
+// validateArrivalSchedules validates all arrival schedule entries
+func validateArrivalSchedules(schedules []importModels.ArrivalScheduleImportData) []importModels.ValidationError {
+	var errors []importModels.ValidationError
+	for _, sched := range schedules {
+		if sched.Weekday < 1 || sched.Weekday > 5 {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "arrival_schedule",
+				Message:  fmt.Sprintf("Ungültiger Wochentag %d. Erlaubt: 1 (Mo) bis 5 (Fr)", sched.Weekday),
+				Code:     "invalid_weekday",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+		if !isValidTimeFormat(sched.ExpectedArrival) {
+			errors = append(errors, importModels.ValidationError{
+				Field:    "arrival_schedule",
+				Message:  fmt.Sprintf("Ungültiges Zeitformat '%s'. Bitte HH:MM verwenden (z.B. 08:00)", sched.ExpectedArrival),
+				Code:     "invalid_time_format",
+				Severity: importModels.ErrorSeverityError,
+			})
+		}
+	}
 	return errors
 }
 
@@ -341,7 +458,7 @@ func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.Va
 func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportData, fieldPrefix string) []importModels.ValidationError {
 	var errors []importModels.ValidationError
 
-	if guardian.Phone != "" && !phoneRegex.MatchString(guardian.Phone) {
+	if guardian.Phone != "" && users.ValidateOptionalPhone(guardian.Phone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_phone", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Telefon-Format für Erziehungsberechtigten %d: %s", num, guardian.Phone),
@@ -350,7 +467,7 @@ func validateGuardianLegacyPhones(num int, guardian importModels.GuardianImportD
 		})
 	}
 
-	if guardian.MobilePhone != "" && !phoneRegex.MatchString(guardian.MobilePhone) {
+	if guardian.MobilePhone != "" && users.ValidateOptionalPhone(guardian.MobilePhone) != nil {
 		errors = append(errors, importModels.ValidationError{
 			Field:    fmt.Sprintf("%s_mobile", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Mobiltelefon-Format für Erziehungsberechtigten %d: %s", num, guardian.MobilePhone),
@@ -367,7 +484,7 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 	var errors []importModels.ValidationError
 
 	for i, phone := range phones {
-		if phone.PhoneNumber == "" || phoneRegex.MatchString(phone.PhoneNumber) {
+		if phone.PhoneNumber == "" || users.ValidateOptionalPhone(phone.PhoneNumber) == nil {
 			continue
 		}
 		label := phone.Label
@@ -431,7 +548,7 @@ func (c *StudentImportConfig) Create(ctx context.Context, row importModels.Stude
 	return c.createAllEntities(ctx, row)
 }
 
-// createAllEntities creates person, student, guardians, privacy consent, and pickup schedules.
+// createAllEntities creates person, student, guardians, privacy consent, and weekly schedules.
 func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importModels.StudentImportRow) (int64, error) {
 	person, err := c.createPersonFromRow(ctx, row)
 	if err != nil {
@@ -448,6 +565,10 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 	}
 
 	if err := c.createPrivacyConsentIfNeeded(ctx, student.ID, row); err != nil {
+		return 0, err
+	}
+
+	if err := c.createArrivalSchedules(ctx, student.ID, row.ArrivalSchedules); err != nil {
 		return 0, err
 	}
 
@@ -478,15 +599,35 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
+	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
+	enrolledUntil := parseOptionalImportDate(row.EnrolledUntil)
+
 	student := &users.Student{
-		PersonID:        personID,
-		SchoolClass:     strings.TrimSpace(row.SchoolClass),
-		GroupID:         row.GroupID,
-		ExtraInfo:       stringPtr(row.ExtraInfo),
-		SupervisorNotes: stringPtr(row.SupervisorNotes),
-		HealthInfo:      stringPtr(row.HealthInfo),
-		PickupStatus:    stringPtr(row.PickupStatus),
+		PersonID:                 personID,
+		SchoolClass:              strings.TrimSpace(row.SchoolClass),
+		GroupID:                  row.GroupID,
+		ExtraInfo:                stringPtr(row.ExtraInfo),
+		SupervisorNotes:          stringPtr(row.SupervisorNotes),
+		HealthInfo:               stringPtr(row.HealthInfo),
+		PickupStatus:             stringPtr(row.PickupStatus),
+		Bus:                      &row.BusPermission,
+		EnrolledFrom:             enrolledFrom,
+		EnrolledUntil:            enrolledUntil,
+		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
+		DataProcessingAcceptedAt: parseOptionalImportDate(row.DataProcessingAcceptedAt),
+		EmailContactAcceptedAt:   parseOptionalImportDate(row.EmailContactAcceptedAt),
+		// Photo consent date is set; "given_by" is intentionally left nil on import.
+		PhotoConsentGivenAt: parseOptionalImportDate(row.PhotoConsentGivenAt),
 	}
+
+	// A future enrollment start means the student isn't active yet. Mark them
+	// pending so the activate-students scheduler flips them to active once
+	// enrolled_from arrives (mirrors the parent-enrollment flow). Without a
+	// future start date the DB default ('active') applies.
+	if enrollmentStartsInFuture(enrolledFrom) {
+		student.Status = users.StudentStatusPending
+	}
+
 	student.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.studentRepo.Create(ctx, student); err != nil {
@@ -494,6 +635,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	}
 
 	return student, nil
+}
+
+func enrollmentStartsInFuture(enrolledFrom *time.Time) bool {
+	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayUTC())
 }
 
 // createGuardianRelationships creates all guardian relationships
@@ -516,7 +661,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 	relationship := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
-		RelationshipType:   mapRelationshipType(guardianData.RelationshipType),
+		RelationshipType:   MapRelationshipType(guardianData.RelationshipType),
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
@@ -733,28 +878,36 @@ func (c *StudentImportConfig) EntityName() string {
 // Helper functions
 
 // parseSupportedDate tries all supported import date formats in order.
-func parseSupportedDate(dateStr string) (time.Time, error) {
+// parseDateFormats parses a date string in any supported format
+// (YYYY-MM-DD, DD.MM.YYYY, DD.MM.YY) without applying semantic restrictions.
+// Use this for dates that may legitimately lie in the future (e.g. enrollment
+// start dates). Birthdays must go through parseSupportedDate instead.
+func parseDateFormats(dateStr string) (time.Time, error) {
 	var lastErr error
 	for _, layout := range dateLayouts {
 		parsed, err := time.Parse(layout, dateStr)
 		if err == nil {
-			if err := validateBirthdayDate(parsed); err != nil {
-				return time.Time{}, err
-			}
 			return parsed, nil
 		}
 		lastErr = err
 	}
 
-	shortDate, err := parseGermanShortDate(dateStr)
-	if err == nil {
-		if err := validateBirthdayDate(shortDate); err != nil {
-			return time.Time{}, err
-		}
+	if shortDate, err := parseGermanShortDate(dateStr); err == nil {
 		return shortDate, nil
 	}
 
 	return time.Time{}, lastErr
+}
+
+func parseSupportedDate(dateStr string) (time.Time, error) {
+	parsed, err := parseDateFormats(dateStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err := validateBirthdayDate(parsed); err != nil {
+		return time.Time{}, err
+	}
+	return parsed, nil
 }
 
 func parseGermanShortDate(dateStr string) (time.Time, error) {
@@ -795,6 +948,22 @@ func validateBirthdayDate(parsed time.Time) error {
 	return nil
 }
 
+// parseOptionalImportDate parses an optional date in any supported format,
+// allowing future dates. Returns nil for empty or unparseable input (format
+// errors are surfaced separately during validation). Shared by enrollment and
+// consent date columns.
+func parseOptionalImportDate(dateStr string) *time.Time {
+	trimmed := strings.TrimSpace(dateStr)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := parseDateFormats(trimmed)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
 // parseOptionalDate parses a date string or returns nil
 func parseOptionalDate(dateStr string) (*time.Time, error) {
 	trimmed := strings.TrimSpace(dateStr)
@@ -825,6 +994,36 @@ func guardianLanguagePreference(val string) string {
 		return "de"
 	}
 	return strings.ToLower(strings.TrimSpace(val))
+}
+
+// createArrivalSchedules creates weekly arrival schedule records for a student
+func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
+	if len(schedules) == 0 || c.arrivalScheduleRepo == nil {
+		return nil
+	}
+
+	for i, sched := range schedules {
+		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
+		if err != nil {
+			return fmt.Errorf("arrival schedule %d: invalid time '%s': %w", i+1, sched.ExpectedArrival, err)
+		}
+		arrivalTime := time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+
+		record := &scheduleModels.StudentArrivalSchedule{
+			StudentID:       studentID,
+			Weekday:         sched.Weekday,
+			ExpectedArrival: arrivalTime,
+			Notes:           stringPtr(sched.Notes),
+			CreatedBy:       ImporterIDFromContext(ctx),
+		}
+		record.SetTenantID(tenant.FromContext(ctx))
+
+		if err := c.arrivalScheduleRepo.Create(ctx, record); err != nil {
+			return fmt.Errorf("create arrival schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+
+	return nil
 }
 
 // createPickupSchedules creates weekly pickup schedule records for a student

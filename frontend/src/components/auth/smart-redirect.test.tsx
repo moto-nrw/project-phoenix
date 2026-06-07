@@ -41,13 +41,21 @@ vi.mock("~/lib/redirect-utils", () => ({
   })),
 }));
 
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  usePresenceMode: vi.fn(() => "detailed"),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useNFCEnabled: vi.fn(() => true),
+}));
+
 import { useSession } from "next-auth/react";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
+import { usePresenceMode } from "~/components/tenant/tenant-provider";
 
 describe("SmartRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
   it("renders nothing (returns null)", () => {
@@ -158,6 +166,19 @@ describe("SmartRedirect", () => {
         hasGroups: true,
         isSupervising: true,
       }),
+      "detailed",
+    );
+  });
+
+  it("passes binary presence mode to useSmartRedirectPath", () => {
+    vi.mocked(usePresenceMode).mockReturnValue("binary");
+
+    render(<SmartRedirect />);
+
+    expect(useSmartRedirectPath).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      "binary",
     );
   });
 });

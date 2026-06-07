@@ -1,5 +1,5 @@
 // Package realtime provides Server-Sent Events (SSE) infrastructure for real-time notifications.
-// This package is dependency-neutral to avoid circular imports between api and services layers.
+// This package stays independent from api and services layers to avoid circular imports.
 package realtime
 
 import "time"

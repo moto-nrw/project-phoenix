@@ -14,15 +14,17 @@ const (
 	FieldBoolean  FieldType = "boolean"
 	FieldNumber   FieldType = "number"
 	FieldTime     FieldType = "time"
+	FieldDate     FieldType = "date"
 	FieldText     FieldType = "text"
+	FieldTextarea FieldType = "textarea"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
 )
 
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
-	FieldBoolean: true, FieldNumber: true, FieldTime: true,
-	FieldText: true, FieldPassword: true, FieldSelect: true,
+	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
+	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true,
 }
 
 // AccessPolicy classifies which audience can read and write a setting.
@@ -110,6 +112,7 @@ type SelectOption struct {
 var TabOrder = []string{
 	"operations",
 	"devices",
+	"enrollment",
 	"gdpr",
 	"system",
 	"general",

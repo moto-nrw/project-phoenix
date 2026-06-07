@@ -168,8 +168,19 @@ func createTestOrganization(t *testing.T, db *bun.DB, name string) int64 {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
-	var id int64
 	_, err := db.NewRaw(`
+		SELECT setval(
+			pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST(
+				COALESCE((SELECT MAX(id) FROM platform.organizations), 1),
+				(SELECT last_value FROM platform.organizations_id_seq)
+			)
+		)
+	`).Exec(ctx)
+	require.NoError(t, err)
+
+	var id int64
+	_, err = db.NewRaw(`
 		INSERT INTO platform.organizations (name, slug, active, created_at, updated_at)
 		VALUES (?, ?, true, NOW(), NOW())
 		RETURNING id
@@ -193,8 +204,19 @@ func createTestSchool(t *testing.T, db *bun.DB, name string, orgID int64) int64 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	suffix := fmt.Sprintf("%d-%d", time.Now().UnixNano(), atomic.AddInt64(&schoolCounter, 1))
-	var id int64
 	_, err := db.NewRaw(`
+		SELECT setval(
+			pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST(
+				COALESCE((SELECT MAX(id) FROM platform.schools), 1),
+				(SELECT last_value FROM platform.schools_id_seq)
+			)
+		)
+	`).Exec(ctx)
+	require.NoError(t, err)
+
+	var id int64
+	_, err = db.NewRaw(`
 		INSERT INTO platform.schools (name, slug, subdomain, organization_id, active, created_at, updated_at)
 		VALUES (?, ?, ?, ?, true, NOW(), NOW())
 		RETURNING id
@@ -325,6 +347,42 @@ func publishTestAnnouncement(t *testing.T, db *bun.DB, announcementID int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := db.NewRaw(`UPDATE platform.announcements SET published_at = NOW() WHERE id = ?`, announcementID).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func publishTestAnnouncementAt(t *testing.T, db *bun.DB, announcementID int64, publishedAt time.Time) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`UPDATE platform.announcements SET published_at = ? WHERE id = ?`, publishedAt, announcementID).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func setTestAccountCreatedAt(t *testing.T, db *bun.DB, accountID int64, createdAt time.Time) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`UPDATE auth.accounts SET created_at = ? WHERE id = ?`, createdAt, accountID).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func setTestSchoolCreatedAt(t *testing.T, db *bun.DB, schoolID int64, createdAt time.Time) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`UPDATE platform.schools SET created_at = ? WHERE id = ?`, createdAt, schoolID).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func setTestAccountTenantInvitedAt(t *testing.T, db *bun.DB, accountID, tenantID int64, invitedAt time.Time) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := db.NewRaw(`
+		UPDATE auth.account_tenants
+		SET invited_at = ?, created_at = ?
+		WHERE account_id = ? AND tenant_id = ?
+	`, invitedAt, invitedAt, accountID, tenantID).Exec(ctx)
 	require.NoError(t, err)
 }
 
@@ -799,6 +857,140 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	})
 }
 
+func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	viewRepo := platform.NewAnnouncementViewRepository(db)
+
+	operator := createTestOperator(t, db, "baseline-op@test.com", "Baseline Op")
+	defer cleanupTestOperator(t, db, operator.ID)
+
+	orgID := createTestOrganization(t, db, "baseline-org")
+	defer cleanupTestOrganization(t, db, orgID)
+
+	schoolID := createTestSchool(t, db, "baseline-school", orgID)
+	defer cleanupTestSchool(t, db, schoolID)
+
+	accountID := createTestAccount(t, db, "baseline-user@test.com")
+	defer cleanupTestAccount(t, db, accountID)
+	createTestAccountTenant(t, db, accountID, schoolID)
+	defer cleanupTestAccountTenant(t, db, accountID, schoolID)
+
+	now := time.Now().UTC()
+	setTestAccountCreatedAt(t, db, accountID, now.Add(-6*time.Hour))
+	setTestAccountTenantInvitedAt(t, db, accountID, schoolID, now.Add(-5*time.Hour))
+	setTestSchoolCreatedAt(t, db, schoolID, now.Add(-4*time.Hour))
+
+	findAnnouncement := func(announcements []*platformModels.Announcement, id int64) bool {
+		for _, announcement := range announcements {
+			if announcement.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("global announcement before tenant creation is excluded", func(t *testing.T) {
+		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-old-global", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncementAt(t, db, annoID, now.Add(-5*time.Hour))
+
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.False(t, findAnnouncement(results, annoID), "announcement published before school creation should be excluded")
+	})
+
+	t.Run("global announcement after recipient baseline is visible", func(t *testing.T) {
+		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-new-global", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncementAt(t, db, annoID, now.Add(-3*time.Hour))
+
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.True(t, findAnnouncement(results, annoID), "announcement published after recipient baseline should be visible")
+	})
+
+	t.Run("tenant-targeted announcement before baseline is excluded", func(t *testing.T) {
+		annoID := createTestAnnouncementWithTargeting(t, db, "baseline-old-tenant", operator.ID, []string{}, []int64{}, []int64{schoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncementAt(t, db, annoID, now.Add(-5*time.Hour))
+
+		results, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.False(t, findAnnouncement(results, annoID), "explicit tenant targeting should still respect the recipient baseline")
+	})
+
+	t.Run("new employee does not see announcements from before tenant invitation", func(t *testing.T) {
+		newAccountID := createTestAccount(t, db, "baseline-new-employee@test.com")
+		defer cleanupTestAccount(t, db, newAccountID)
+		createTestAccountTenant(t, db, newAccountID, schoolID)
+		defer cleanupTestAccountTenant(t, db, newAccountID, schoolID)
+		setTestAccountCreatedAt(t, db, newAccountID, now.Add(-6*time.Hour))
+		setTestAccountTenantInvitedAt(t, db, newAccountID, schoolID, now.Add(-50*time.Minute))
+
+		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-before-invite", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, oldAnnoID)
+		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-2*time.Hour))
+
+		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-after-invite", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, newAnnoID)
+		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-30*time.Minute))
+
+		results, err := viewRepo.GetUnreadForUser(ctx, newAccountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.False(t, findAnnouncement(results, oldAnnoID), "announcement before membership invitation should be excluded")
+		assert.True(t, findAnnouncement(results, newAnnoID), "announcement after membership invitation should be visible")
+	})
+
+	t.Run("account creation participates in the baseline", func(t *testing.T) {
+		newAccountID := createTestAccount(t, db, "baseline-new-account@test.com")
+		defer cleanupTestAccount(t, db, newAccountID)
+		createTestAccountTenant(t, db, newAccountID, schoolID)
+		defer cleanupTestAccountTenant(t, db, newAccountID, schoolID)
+		setTestAccountCreatedAt(t, db, newAccountID, now.Add(-30*time.Minute))
+		setTestAccountTenantInvitedAt(t, db, newAccountID, schoolID, now.Add(-3*time.Hour))
+
+		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-before-account", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, oldAnnoID)
+		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-1*time.Hour))
+
+		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-after-account", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, newAnnoID)
+		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-20*time.Minute))
+
+		results, err := viewRepo.GetUnreadForUser(ctx, newAccountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.False(t, findAnnouncement(results, oldAnnoID), "announcement before account creation should be excluded")
+		assert.True(t, findAnnouncement(results, newAnnoID), "announcement after account creation should be visible")
+	})
+
+	t.Run("count unread uses the same baseline", func(t *testing.T) {
+		countAccountID := createTestAccount(t, db, "baseline-count@test.com")
+		defer cleanupTestAccount(t, db, countAccountID)
+		createTestAccountTenant(t, db, countAccountID, schoolID)
+		defer cleanupTestAccountTenant(t, db, countAccountID, schoolID)
+		setTestAccountCreatedAt(t, db, countAccountID, now.Add(-6*time.Hour))
+		setTestAccountTenantInvitedAt(t, db, countAccountID, schoolID, now.Add(-50*time.Minute))
+
+		baselineCount, err := viewRepo.CountUnread(ctx, countAccountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+
+		oldAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-count-old", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, oldAnnoID)
+		publishTestAnnouncementAt(t, db, oldAnnoID, now.Add(-2*time.Hour))
+
+		newAnnoID := createTestAnnouncementWithTargeting(t, db, "baseline-count-new", operator.ID, []string{}, []int64{}, []int64{})
+		defer cleanupTestAnnouncement(t, db, newAnnoID)
+		publishTestAnnouncementAt(t, db, newAnnoID, now.Add(-30*time.Minute))
+
+		count, err := viewRepo.CountUnread(ctx, countAccountID, []string{}, schoolID, orgID)
+		require.NoError(t, err)
+		assert.Equal(t, baselineCount+1, count, "count should include only the announcement after recipient baseline")
+	})
+}
+
 // --- Test: CountUnread ---
 
 func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
@@ -981,14 +1173,24 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	defer cleanupTestOperator(t, db, operator.ID)
 
 	t.Run("global announcement counts all accounts", func(t *testing.T) {
+		orgID := createTestOrganization(t, db, "stats-global-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		schoolID := createTestSchool(t, db, "stats-global-school", orgID)
+		defer cleanupTestSchool(t, db, schoolID)
+
+		acc := createTestAccount(t, db, "stats-global-acc@test.com")
+		defer cleanupTestAccount(t, db, acc)
+		createTestAccountTenant(t, db, acc, schoolID)
+		defer cleanupTestAccountTenant(t, db, acc, schoolID)
+
 		annoID := createTestAnnouncementWithTargeting(t, db, "stats-global", operator.ID, []string{}, []int64{}, []int64{})
 		defer cleanupTestAnnouncement(t, db, annoID)
 
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
 		assert.Equal(t, annoID, stats.AnnouncementID)
-		// TargetCount should be > 0 (counts all accounts in the system)
-		assert.Greater(t, stats.TargetCount, 0, "global announcement should target at least some accounts")
+		assert.GreaterOrEqual(t, stats.TargetCount, 1, "global announcement should target at least the test account")
 		assert.Equal(t, 0, stats.SeenCount)
 		assert.Equal(t, 0, stats.DismissedCount)
 	})
@@ -1091,6 +1293,39 @@ func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 		stats, err := viewRepo.GetStats(ctx, annoID)
 		require.NoError(t, err)
 		assert.Equal(t, 1, stats.TargetCount, "should count exactly 1 account in the tenant")
+	})
+
+	t.Run("published announcement target count respects recipient baseline", func(t *testing.T) {
+		now := time.Now().UTC()
+
+		orgID := createTestOrganization(t, db, "stats-baseline-org")
+		defer cleanupTestOrganization(t, db, orgID)
+
+		schoolID := createTestSchool(t, db, "stats-baseline-school", orgID)
+		defer cleanupTestSchool(t, db, schoolID)
+		setTestSchoolCreatedAt(t, db, schoolID, now.Add(-4*time.Hour))
+
+		beforePublish := createTestAccount(t, db, "stats-baseline-before@test.com")
+		defer cleanupTestAccount(t, db, beforePublish)
+		createTestAccountTenant(t, db, beforePublish, schoolID)
+		defer cleanupTestAccountTenant(t, db, beforePublish, schoolID)
+		setTestAccountCreatedAt(t, db, beforePublish, now.Add(-3*time.Hour))
+		setTestAccountTenantInvitedAt(t, db, beforePublish, schoolID, now.Add(-3*time.Hour))
+
+		afterPublish := createTestAccount(t, db, "stats-baseline-after@test.com")
+		defer cleanupTestAccount(t, db, afterPublish)
+		createTestAccountTenant(t, db, afterPublish, schoolID)
+		defer cleanupTestAccountTenant(t, db, afterPublish, schoolID)
+		setTestAccountCreatedAt(t, db, afterPublish, now.Add(-3*time.Hour))
+		setTestAccountTenantInvitedAt(t, db, afterPublish, schoolID, now.Add(-1*time.Hour))
+
+		annoID := createTestAnnouncementWithTargeting(t, db, "stats-baseline-target", operator.ID, []string{}, []int64{}, []int64{schoolID})
+		defer cleanupTestAnnouncement(t, db, annoID)
+		publishTestAnnouncementAt(t, db, annoID, now.Add(-2*time.Hour))
+
+		stats, err := viewRepo.GetStats(ctx, annoID)
+		require.NoError(t, err)
+		assert.Equal(t, 1, stats.TargetCount, "target count should exclude accounts invited after the announcement was published")
 	})
 
 	t.Run("combined role+org filter counts intersection", func(t *testing.T) {

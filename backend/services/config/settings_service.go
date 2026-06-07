@@ -88,6 +88,43 @@ func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID i
 	return result, nil
 }
 
+// ResolveBoolForTenant resolves a setting as a bool for a specific tenant,
+// wrapping the query in a tenant transaction to satisfy RLS. Required from
+// call sites that run outside TenantTxMiddleware (e.g. /auth/mfa/verify)
+// but already know which tenant they're acting on.
+func (s *settingsService) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {
+	var result bool
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		val, resolveErr := s.ResolveBool(txCtx, key)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		result = val
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return result, nil
+}
+
+// ResolveIntForTenant mirrors ResolveBoolForTenant but for integer settings.
+func (s *settingsService) ResolveIntForTenant(ctx context.Context, tenantID int64, key string) (int, error) {
+	var result int
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		val, resolveErr := s.ResolveInt(txCtx, key)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		result = val
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
+}
+
 // ResolveString resolves a setting as a string.
 func (s *settingsService) ResolveString(ctx context.Context, key string) (string, error) {
 	val, err := s.Resolve(ctx, key)
@@ -361,7 +398,7 @@ func validateValue(def *config.Definition, value any) error {
 			return err
 		}
 
-	case config.FieldText:
+	case config.FieldText, config.FieldTextarea:
 		if _, ok := value.(string); !ok {
 			return fmt.Errorf("expected a string")
 		}

@@ -15,6 +15,10 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 import { Loading } from "~/components/ui/loading";
 
@@ -66,6 +70,10 @@ const COLOR_THEMES: Record<string, ColorTheme> = {
   "[#EAB308]": {
     overlay: "from-amber-50/80 to-yellow-100/80",
     ring: "ring-amber-200/60",
+  },
+  "[#7C3AED]": {
+    overlay: "from-purple-50/80 to-violet-100/80",
+    ring: "ring-purple-200/60",
   },
   "orange-500": {
     overlay: "from-orange-50/80 to-orange-100/80",
@@ -124,7 +132,7 @@ const StatCard: React.FC<StatCardProps> = ({
   const theme = getColorTheme(color);
 
   const cardContent = (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div
         className={`absolute inset-0 bg-gradient-to-br ${theme.overlay} pointer-events-none rounded-3xl opacity-[0.03]`}
       ></div>
@@ -188,7 +196,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   linkText,
 }) => {
   const cardContent = (
-    <div className="relative h-full overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_40px_rgb(0,0,0,0.14)]">
+    <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03]"></div>
       <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
       <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
@@ -248,6 +256,9 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useTenantRouter();
+  const nfcEnabled = useNFCEnabled();
+  const presenceMode = usePresenceMode();
+  const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -319,8 +330,8 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Main Stats Grid (3x3) */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4">
+      {/* Main Stats Grid */}
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
         <StatCard
           title="Kinder anwesend"
           value={dashboardData?.studentsPresent ?? 0}
@@ -362,6 +373,14 @@ function DashboardContent() {
           href="/students/search?status=krank"
         />
         <StatCard
+          title="Entschuldigt"
+          value={dashboardData?.studentsExcused ?? 0}
+          icon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          color="from-[#7C3AED] to-[#5B21B6]"
+          loading={isLoading}
+          href="/students/search?status=entschuldigt"
+        />
+        <StatCard
           title="Aktive Gruppen"
           value={dashboardData?.activeOGSGroups ?? 0}
           icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
@@ -369,14 +388,16 @@ function DashboardContent() {
           loading={isLoading}
           href="/ogs-groups"
         />
-        <StatCard
-          title="Aktive Aktivitäten"
-          value={dashboardData?.activeActivities ?? 0}
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          color="from-[#FF3130] to-[#e02020]"
-          loading={isLoading}
-          href="/activities"
-        />
+        {showActivitySurfaces ? (
+          <StatCard
+            title="Aktive Aktivitäten"
+            value={dashboardData?.activeActivities ?? 0}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            color="from-[#FF3130] to-[#e02020]"
+            loading={isLoading}
+            href="/activities"
+          />
+        ) : null}
         <StatCard
           title="Freie Räume"
           value={dashboardData?.freeRooms ?? 0}
@@ -471,58 +492,59 @@ function DashboardContent() {
           })()}
         </InfoCard>
 
-        {/* Current Activities */}
-        <InfoCard
-          title="Laufende Aktivitäten"
-          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          href="/activities"
-        >
-          {(() => {
-            if (isLoading) {
+        {showActivitySurfaces ? (
+          <InfoCard
+            title="Laufende Aktivitäten"
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            href="/activities"
+          >
+            {(() => {
+              if (isLoading) {
+                return (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="h-14 animate-pulse rounded-lg bg-gray-100"
+                      ></div>
+                    ))}
+                  </div>
+                );
+              }
+              const activities = dashboardData?.currentActivities;
+              if (!activities || activities.length === 0) {
+                return (
+                  <p className="py-8 text-center text-sm text-gray-500">
+                    Keine laufenden Aktivitäten
+                  </p>
+                );
+              }
               return (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
+                <div className="space-y-2">
+                  {activities.slice(0, 5).map((activity, idx) => (
                     <div
-                      key={i}
-                      className="h-14 animate-pulse rounded-lg bg-gray-100"
-                    ></div>
+                      key={`${activity.name}-${activity.category}-${idx}`}
+                      className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-900">
+                          {activity.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {activity.category} • {activity.participants}/
+                          {activity.maxCapacity} Teilnehmer
+                        </p>
+                      </div>
+                      <div
+                        className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
+                      ></div>
+                    </div>
                   ))}
                 </div>
               );
-            }
-            const activities = dashboardData?.currentActivities;
-            if (!activities || activities.length === 0) {
-              return (
-                <p className="py-8 text-center text-sm text-gray-500">
-                  Keine laufenden Aktivitäten
-                </p>
-              );
-            }
-            return (
-              <div className="space-y-2">
-                {activities.slice(0, 5).map((activity, idx) => (
-                  <div
-                    key={`${activity.name}-${activity.category}-${idx}`}
-                    className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-gray-900">
-                        {activity.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {activity.category} • {activity.participants}/
-                        {activity.maxCapacity} Teilnehmer
-                      </p>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${getActivityStatusColor(activity.status)} ml-2 flex-shrink-0`}
-                    ></div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </InfoCard>
+            })()}
+          </InfoCard>
+        ) : null}
 
         {/* Active Groups */}
         <InfoCard

@@ -16,12 +16,26 @@ type StudentImportRow struct {
 	HealthInfo      string `json:"health_info,omitempty"`
 	PickupStatus    string `json:"pickup_status,omitempty"` // "Geht alleine nach Hause" or "Wird abgeholt"
 	BusPermission   bool   `json:"bus_permission"`
+	EnrolledFrom    string `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	EnrolledUntil   string `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+
+	// Consent dates — the explicit date each consent was given (e.g. from a
+	// signed paper form). Empty = no consent recorded. A set date asserts the
+	// consent was given on that date. Photo consent's "given_by" is left empty
+	// on import.
+	AGBAcceptedAt            string `json:"agb_accepted_at,omitempty"`
+	DataProcessingAcceptedAt string `json:"data_processing_accepted_at,omitempty"`
+	EmailContactAcceptedAt   string `json:"email_contact_accepted_at,omitempty"`
+	PhotoConsentGivenAt      string `json:"photo_consent_given_at,omitempty"`
 
 	// Multiple guardians (extensible: Erz1, Erz2, Erz3, ...)
 	Guardians []GuardianImportData `json:"guardians,omitempty"`
 
 	// Pickup schedule (weekly recurring)
 	PickupSchedules []PickupScheduleImportData `json:"pickup_schedules,omitempty"`
+
+	// Arrival schedule (weekly recurring)
+	ArrivalSchedules []ArrivalScheduleImportData `json:"arrival_schedules,omitempty"`
 
 	// Privacy consent
 	PrivacyAccepted   bool `json:"privacy_accepted"`
@@ -36,6 +50,13 @@ type PickupScheduleImportData struct {
 	Weekday    int    `json:"weekday"`         // 1-5 (Mon-Fri)
 	PickupTime string `json:"pickup_time"`     // HH:MM format
 	Notes      string `json:"notes,omitempty"` // Day-specific notes
+}
+
+// ArrivalScheduleImportData represents a weekly arrival schedule entry from CSV
+type ArrivalScheduleImportData struct {
+	Weekday         int    `json:"weekday"`          // 1-5 (Mon-Fri)
+	ExpectedArrival string `json:"expected_arrival"` // HH:MM format
+	Notes           string `json:"notes,omitempty"`  // Day-specific notes
 }
 
 // PhoneImportData represents a phone number from CSV import

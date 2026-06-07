@@ -3,6 +3,7 @@ package active_test
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -24,7 +25,12 @@ type mockBroadcaster struct {
 	allCalls []realtime.Event
 }
 
-func (m *mockBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error { return nil }
+func (m *mockBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.allCalls = append(m.allCalls, event)
+	return nil
+}
 
 func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
 	m.mu.Lock()
@@ -55,6 +61,16 @@ func (m *mockBroadcaster) hasEventType(t realtime.EventType) bool {
 		}
 	}
 	return false
+}
+
+func (m *mockBroadcaster) eventsOfType(t realtime.EventType) []realtime.Event {
+	events := make([]realtime.Event, 0)
+	for _, e := range m.getAllCalls() {
+		if e.Type == t {
+			events = append(events, e)
+		}
+	}
+	return events
 }
 
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *mockBroadcaster) {
@@ -145,6 +161,70 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 		"expected dashboard_counts_changed after EndVisit")
 	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndVisit")
+}
+
+func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+	broadcaster := &mockBroadcaster{}
+	svc := active.NewService(active.ServiceDependencies{
+		GroupRepo:          repos.ActiveGroup,
+		VisitRepo:          repos.ActiveVisit,
+		SupervisorRepo:     repos.GroupSupervisor,
+		CombinedGroupRepo:  repos.CombinedGroup,
+		GroupMappingRepo:   repos.GroupMapping,
+		AttendanceRepo:     repos.Attendance,
+		StudentRepo:        repos.Student,
+		PersonRepo:         repos.Person,
+		TeacherRepo:        repos.Teacher,
+		StaffRepo:          repos.Staff,
+		RoomRepo:           repos.Room,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		ActivityCatRepo:    repos.ActivityCategory,
+		EducationGroupRepo: repos.Group,
+		DeviceRepo:         repos.Device,
+		DB:                 db,
+		Broadcaster:        broadcaster,
+		Logger:             slog.Default(),
+	})
+
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "broadcast-move-source")
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "broadcast-move-target")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Broadcast Move Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Broadcast Move Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	student := testpkg.CreateTestStudent(t, db, "Broadcast", "Move", "4a")
+	visit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		sourceActivity.ID, targetActivity.ID,
+		sourceRoom.ID, targetRoom.ID,
+		sourceGroup.ID, targetGroup.ID,
+		student.ID, visit.ID,
+	)
+
+	broadcaster.mu.Lock()
+	broadcaster.allCalls = nil
+	broadcaster.mu.Unlock()
+
+	visit.ActiveGroupID = targetGroup.ID
+	err := svc.UpdateVisit(testpkg.TenantContext(1), visit)
+	require.NoError(t, err)
+
+	checkouts := broadcaster.eventsOfType(realtime.EventStudentCheckOut)
+	require.NotEmpty(t, checkouts, "expected student_checkout for source group")
+	assert.Equal(t, strconv.FormatInt(sourceGroup.ID, 10), checkouts[0].ActiveGroupID)
+
+	checkins := broadcaster.eventsOfType(realtime.EventStudentCheckIn)
+	require.NotEmpty(t, checkins, "expected student_checkin for target group")
+	assert.Equal(t, strconv.FormatInt(targetGroup.ID, 10), checkins[0].ActiveGroupID)
+
+	assert.True(t, broadcaster.hasEventType(realtime.EventDashboardCountsChanged),
+		"expected dashboard_counts_changed after visit move")
+	assert.True(t, broadcaster.hasEventType(realtime.EventActiveSupervisionChanged),
+		"expected active_supervision_changed after visit move")
 }
 
 func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {

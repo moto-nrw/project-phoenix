@@ -1,0 +1,519 @@
+package enrollment_test
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// uniqueSchemaName builds a per-test schema name so concurrent tests
+// don't collide on (tenant_id, name, version).
+func uniqueSchemaName(prefix string) string {
+	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+}
+
+// setupSchemaRepoTest spins up a tenant + a creator account so the
+// form_schemas FK (created_by → auth.accounts) is satisfied. Returns
+// the DB, the repo under test, the tenant id, and the creator id.
+// Cleans up the creator account on test end; schema rows are wiped
+// per-test by the caller via defer.
+func setupSchemaRepoTest(t *testing.T) (*bun.DB, enrollmentModels.FormSchemaRepository, int64, int64) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "schemarepo")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("auth.accounts").
+			Where("id = ?", account.ID).
+			Exec(context.Background())
+	})
+
+	repo := enrollmentRepo.NewFormSchemaRepository(db)
+	return db, repo, tenantID, account.ID
+}
+
+// runInTenantTx wraps a repo call in a tenant transaction so RLS +
+// tenant_id assignment fire the same way as production. Returns the
+// error from the closure unchanged.
+func runInTenantTx(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return fn(ctx)
+	})
+}
+
+// wipeSchemas removes every schema row created by the given account in
+// the given tenant. Deferred from each test so the next test starts
+// clean. Best-effort; tests don't fail on cleanup errors.
+func wipeSchemas(db *bun.DB, tenantID, createdBy int64) {
+	_, _ = db.NewDelete().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND created_by = ?", tenantID, createdBy).
+		Exec(context.Background())
+}
+
+func validFields() []enrollmentModels.FormField {
+	return []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+}
+
+// --- Create + FindByID --------------------------------------------------
+
+func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	schema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("create"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, schema)
+	})
+	require.NoError(t, err)
+	assert.NotZero(t, schema.ID, "RETURNING * must populate ID")
+	assert.Equal(t, tenantID, schema.TenantID, "EnsureTenantID must stamp tenant from ctx")
+	assert.False(t, schema.CreatedAt.IsZero(), "default current_timestamp must populate created_at")
+}
+
+func TestFormSchemaRepository_Create_RejectsInvalidSchema(t *testing.T) {
+	// Validate() runs before INSERT — missing name must surface as a
+	// wrapped validation error, not a DB constraint error.
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	schema := &enrollmentModels.FormSchema{
+		Version:   1,
+		CreatedBy: creator,
+		// Name intentionally empty.
+	}
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, schema)
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "validation failed")
+}
+
+func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	schema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("find"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, schema)
+	})
+	require.NoError(t, err)
+
+	var got *enrollmentModels.FormSchema
+	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindByID(ctx, schema.ID)
+		return fbErr
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, schema.ID, got.ID)
+	assert.Equal(t, schema.Name, got.Name)
+	require.Len(t, got.Fields, 1)
+	assert.Equal(t, "allergies", got.Fields[0].Key)
+}
+
+func TestFormSchemaRepository_FindByID_NotFound(t *testing.T) {
+	db, repo, tenantID, _ := setupSchemaRepoTest(t)
+
+	var got *enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindByID(ctx, 9_999_999)
+		return fbErr
+	})
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// --- FindActive ---------------------------------------------------------
+
+func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	active := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("findactive"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, active)
+	}))
+
+	var got *enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindActive(ctx)
+		return fbErr
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, active.ID, got.ID)
+}
+
+func TestFormSchemaRepository_FindActive_NoRowsReturnsWrappedErrNoRows(t *testing.T) {
+	// Service layer relies on errors.Is(err, sql.ErrNoRows) to map to
+	// its own ErrNoActiveSchema sentinel. The wrap must preserve that.
+	db, repo, tenantID, _ := setupSchemaRepoTest(t)
+
+	var got *enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindActive(ctx)
+		return fbErr
+	})
+	require.Error(t, err)
+	assert.Nil(t, got)
+	assert.True(t, errors.Is(err, sql.ErrNoRows),
+		"FindActive must wrap sql.ErrNoRows so the service can translate it")
+}
+
+// --- ListByTenant -------------------------------------------------------
+
+func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	name := uniqueSchemaName("list")
+	for i := 1; i <= 3; i++ {
+		s := &enrollmentModels.FormSchema{
+			Name:      name,
+			Version:   i,
+			Fields:    validFields(),
+			IsActive:  true,
+			CreatedBy: creator,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, s)
+		}))
+	}
+
+	var list []*enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByTenant(ctx)
+		return lErr
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(list), 3)
+
+	// Verify the 3 rows we inserted come back newest-first inside the
+	// returned slice (other tests in CI may have left other rows for
+	// this tenant — filter to ours).
+	var ours []int
+	for _, s := range list {
+		if s.Name == name {
+			ours = append(ours, s.Version)
+		}
+	}
+	require.Equal(t, []int{3, 2, 1}, ours, "ListByTenant must order by version DESC")
+}
+
+func TestFormSchemaRepository_ListByTenant_EmptyIsNoError(t *testing.T) {
+	db, repo, _, _ := setupSchemaRepoTest(t)
+	// Use a fresh tenant so we know no rows exist.
+	var tenantID int64 = 90001
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	var list []*enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByTenant(ctx)
+		return lErr
+	})
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
+// --- NextVersion / NextVersionForName ----------------------------------
+
+func TestFormSchemaRepository_NextVersion_StartsAt1WhenEmpty(t *testing.T) {
+	// Tenant-scoped via RLS. Use a fresh tenant id so no other test
+	// rows interfere with the MAX(version) read.
+	db, repo, _, _ := setupSchemaRepoTest(t)
+	var tenantID int64 = 90002
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	var next int
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var nErr error
+		next, nErr = repo.NextVersion(ctx)
+		return nErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, next, "no rows → next version is 1")
+}
+
+func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	name := uniqueSchemaName("bump")
+	otherName := uniqueSchemaName("other")
+	for i := 1; i <= 2; i++ {
+		s := &enrollmentModels.FormSchema{
+			Name:      name,
+			Version:   i,
+			Fields:    validFields(),
+			IsActive:  true,
+			CreatedBy: creator,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, s)
+		}))
+	}
+	// A row for *another* name must not influence NextVersionForName(name).
+	otherS := &enrollmentModels.FormSchema{
+		Name: otherName, Version: 1, Fields: validFields(), IsActive: true, CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, otherS)
+	}))
+
+	var next int
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var nErr error
+		next, nErr = repo.NextVersionForName(ctx, name)
+		return nErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 3, next, "NextVersionForName MUST scope to the same name")
+
+	// Fresh name → 1.
+	freshName := uniqueSchemaName("fresh")
+	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var nErr error
+		next, nErr = repo.NextVersionForName(ctx, freshName)
+		return nErr
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, next, "unseen name returns 1")
+}
+
+// --- DeactivatePrevious + UpdateActiveFlag -----------------------------
+
+func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	for i := 1; i <= 2; i++ {
+		s := &enrollmentModels.FormSchema{
+			Name:      uniqueSchemaName(fmt.Sprintf("deact-%d", i)),
+			Version:   1,
+			Fields:    validFields(),
+			IsActive:  true,
+			CreatedBy: creator,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, s)
+		}))
+	}
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.DeactivatePrevious(ctx)
+	})
+	require.NoError(t, err)
+
+	var list []*enrollmentModels.FormSchema
+	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByTenant(ctx)
+		return lErr
+	})
+	require.NoError(t, err)
+	for _, s := range list {
+		if s.CreatedBy != creator {
+			continue
+		}
+		assert.False(t, s.IsActive, "every active row for the tenant must be deactivated (row %d)", s.ID)
+	}
+}
+
+func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	schema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("flag"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, schema)
+	}))
+
+	// Deactivate.
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActiveFlag(ctx, schema.ID, false)
+	}))
+
+	var got *enrollmentModels.FormSchema
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindByID(ctx, schema.ID)
+		return fbErr
+	}))
+	assert.False(t, got.IsActive)
+
+	// Re-activate.
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActiveFlag(ctx, schema.ID, true)
+	}))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindByID(ctx, schema.ID)
+		return fbErr
+	}))
+	assert.True(t, got.IsActive)
+}
+
+func TestFormSchemaRepository_UpdateActiveFlag_MissingIDErrors(t *testing.T) {
+	db, repo, tenantID, _ := setupSchemaRepoTest(t)
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActiveFlag(ctx, 9_999_999, true)
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// --- DeleteByName -------------------------------------------------------
+
+func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	name := uniqueSchemaName("delall")
+	for i := 1; i <= 3; i++ {
+		s := &enrollmentModels.FormSchema{
+			Name:      name,
+			Version:   i,
+			Fields:    validFields(),
+			IsActive:  true,
+			CreatedBy: creator,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, s)
+		}))
+	}
+	// Keep a row under a *different* name to confirm it survives.
+	survivor := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("keep"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, survivor)
+	}))
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.DeleteByName(ctx, name)
+	}))
+
+	// Every version under `name` is gone.
+	count, err := db.NewSelect().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND name = ?", tenantID, name).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "DeleteByName must drop every version of the name")
+
+	// Survivor is intact.
+	count, err = db.NewSelect().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND name = ?", tenantID, survivor.Name).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "different-name rows must survive")
+}
+
+func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
+	db, repo, tenantID, _ := setupSchemaRepoTest(t)
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.DeleteByName(ctx, "no-such-schema-name-"+t.Name())
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+// --- Tenant isolation ---------------------------------------------------
+
+func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
+	// A row created under tenant A must not be visible to tenant B.
+	// This guards against accidental ModelTableExpr or query construction
+	// that bypasses the RLS predicate.
+	db, repo, _, creator := setupSchemaRepoTest(t)
+
+	var tenantA int64 = 90010
+	var tenantB int64 = 90011
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.form_schemas").
+			Where("tenant_id IN (?, ?) AND created_by = ?", tenantA, tenantB, creator).
+			Exec(context.Background())
+	})
+
+	schemaA := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("rlsA"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantA, func(ctx context.Context) error {
+		return repo.Create(ctx, schemaA)
+	}))
+
+	// Looking up the row from tenant B's session must fail (RLS hides
+	// the row entirely → "not found" via sql.ErrNoRows).
+	var got *enrollmentModels.FormSchema
+	err := runInTenantTx(t, db, tenantB, func(ctx context.Context) error {
+		var fbErr error
+		got, fbErr = repo.FindByID(ctx, schemaA.ID)
+		return fbErr
+	})
+	require.Error(t, err, "cross-tenant FindByID must NOT see the other tenant's row")
+	assert.Nil(t, got)
+}

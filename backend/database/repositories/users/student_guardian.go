@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -26,6 +27,61 @@ func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 		Repository: repo,
 		db:         db,
 	}
+}
+
+// LinkIfNotExists inserts the student↔guardian relationship, treating a
+// duplicate link (same tenant_id + student_id + guardian_profile_id) as a no-op
+// via ON CONFLICT DO NOTHING. It returns true when a new row was inserted and
+// false when the link already existed.
+//
+// Why ON CONFLICT rather than a read-then-insert check: re-linking the same
+// guardian must never raise a unique violation, and in PostgreSQL a violation
+// raised inside the request's tenant transaction would ALSO abort that
+// transaction — breaking the atomic student-create path. DO NOTHING avoids both:
+// it is race-safe (two concurrent links can't both succeed-then-500) and it
+// leaves the transaction usable. The conflict target matches the
+// UNIQUE(tenant_id, student_id, guardian_profile_id) index
+// (idx_students_guardians_tenant, migration 001014003) — NOT the legacy
+// (student_id, guardian_profile_id) constraint, which that migration dropped.
+//
+// On conflict the existing row is left UNTOUCHED: relationship flags change only
+// through the dedicated update path, never via a silent re-link upsert. Mirrors
+// base.Create's validate + tenant-autoset + ModelTableExpr insert, adding only
+// the conflict clause.
+func (r *StudentGuardianRepository) LinkIfNotExists(ctx context.Context, rel *users.StudentGuardian) (bool, error) {
+	if rel == nil {
+		return false, fmt.Errorf("student guardian cannot be nil")
+	}
+	if err := rel.Validate(); err != nil {
+		return false, err
+	}
+	if rel.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			rel.SetTenantID(tid)
+		}
+	}
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(rel).
+		ModelTableExpr(`users.students_guardians`).
+		On(`CONFLICT (tenant_id, student_id, guardian_profile_id) DO NOTHING`).
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "link guardian if not exists",
+			Err: err,
+		}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "link guardian if not exists (rows affected)",
+			Err: err,
+		}
+	}
+
+	return affected > 0, nil
 }
 
 // FindByStudentID retrieves relationships by student ID
@@ -72,6 +128,51 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 	}
 
 	return relationships, nil
+}
+
+// ListLinkedChildrenForGuardians returns every child linked to any of the given
+// guardian profiles in ONE join query (students_guardians → students → persons),
+// projecting only id + name. This is what lets the guardian picker enrich its
+// matches with linked children without a per-guardian N+1 (#1513). Tenant
+// isolation is enforced purely by RLS on the ambient tenant transaction — the
+// query carries no explicit tenant predicate, and the incoming guardian profile
+// ids are themselves already RLS-scoped (they come from SearchByText under the
+// same tenant tx). Soft-deleted persons are excluded; students carry no
+// soft-delete column.
+func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*users.GuardianLinkedChild, error) {
+	if len(guardianProfileIDs) == 0 {
+		return []*users.GuardianLinkedChild{}, nil
+	}
+
+	// Raw SQL: this three-table join (link → student → person) projecting a flat
+	// custom row doesn't fit bun's model-relation inference cleanly, and the
+	// repo conventions bless raw SQL for joins the generic shape can't express.
+	// Tenant isolation is enforced by RLS on the ambient tenant transaction,
+	// exactly like SearchByText on the guardian-profile repo.
+	const query = `
+		SELECT sg.guardian_profile_id AS guardian_profile_id,
+		       s.id                   AS student_id,
+		       p.first_name           AS first_name,
+		       p.last_name            AS last_name
+		FROM users.students_guardians AS sg
+		JOIN users.students AS s ON s.id = sg.student_id
+		JOIN users.persons  AS p ON p.id = s.person_id
+		WHERE sg.guardian_profile_id IN (?)
+		  AND p.deleted_at IS NULL
+		ORDER BY p.last_name ASC, p.first_name ASC`
+
+	// bun.List expands the slice to a comma-separated list ("1, 2, 3") with no
+	// surrounding parens, so it slots straight into the "IN (?)" placeholder
+	// above. (bun.Tuple would wrap in its own parens → "IN ((1, 2, 3))".)
+	var rows []*users.GuardianLinkedChild
+	if err := base.GetDB(ctx, r.db).NewRaw(query, bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list linked children for guardians",
+			Err: err,
+		}
+	}
+
+	return rows, nil
 }
 
 // FindPrimaryByStudentID retrieves the primary guardian for a student

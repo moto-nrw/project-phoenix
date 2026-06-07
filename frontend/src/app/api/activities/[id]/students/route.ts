@@ -1,6 +1,6 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityStudentsRoute" });
@@ -8,7 +8,7 @@ import {
   createGetHandler,
   createPostHandler,
   createPutHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 import {
   mapStudentEnrollmentsResponse,
   type BackendStudentEnrollment,

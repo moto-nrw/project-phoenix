@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 import {
-  extractParams,
-  handleApiError,
   handleDomainApiError,
   isBrowserContext,
   buildAuthHeaders,
@@ -10,13 +8,35 @@ import {
   convertToBackendRoom,
   authFetch,
   fetchWithRetry,
-  apiGet,
-  apiPost,
-  apiPut,
-  apiDelete,
-  checkAuth,
+  ApiResponseError,
 } from "./api-helpers";
+import {
+  extractParams,
+  handleApiError,
+  apiGet,
+  checkAuth,
+} from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
+
+const { mockNextHeaders } = vi.hoisted(() => ({
+  mockNextHeaders: vi.fn(),
+}));
+
+const { mockRecordBackendProxyMetric } = vi.hoisted(() => ({
+  mockRecordBackendProxyMetric: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({
+  headers: mockNextHeaders,
+}));
+
+vi.mock("~/lib/server-api-url", () => ({
+  getServerApiUrl: () => "http://backend.test",
+}));
+
+vi.mock("./backend-proxy-metrics", () => ({
+  recordBackendProxyMetric: mockRecordBackendProxyMetric,
+}));
 
 // Helper to create mock NextRequest
 function createMockNextRequest(
@@ -80,6 +100,30 @@ describe("extractParams", () => {
   });
 });
 
+describe("ApiResponseError", () => {
+  it("parses JSON response bodies lazily and memoizes the result", () => {
+    const error = new ApiResponseError(
+      403,
+      JSON.stringify({ error: "feature_disabled" }),
+    );
+
+    expect(error.status).toBe(403);
+    expect(error.body<{ error: string }>()).toEqual({
+      error: "feature_disabled",
+    });
+    expect(error.body<{ error: string }>()).toEqual({
+      error: "feature_disabled",
+    });
+  });
+
+  it("returns null for non-JSON response bodies", () => {
+    const error = new ApiResponseError(500, "plain backend failure");
+
+    expect(error.body()).toBeNull();
+    expect(error.body()).toBeNull();
+  });
+});
+
 describe("handleApiError", () => {
   const consoleSpies = suppressConsole("error", "warn");
 
@@ -117,6 +161,19 @@ describe("handleApiError", () => {
 
     expect(consoleSpies.warn).toHaveBeenCalled();
     // consoleError not called for 4xx
+  });
+
+  it("logs rate-limit responses with rate_limited context", () => {
+    const error = new Error("API error (429): Rate limit exceeded");
+
+    handleApiError(error);
+
+    expect(consoleSpies.warn).toHaveBeenCalledWith("api route rate limited", {
+      status: 429,
+      error: "API error (429): Rate limit exceeded",
+      rate_limited: true,
+    });
+    expect(consoleSpies.error).not.toHaveBeenCalled();
   });
 
   it("returns 500 for unknown error format", async () => {
@@ -648,6 +705,27 @@ describe("fetchWithRetry", () => {
     ).rejects.toThrow("API error: 400");
   });
 
+  it("logs 429 responses as rate-limit warnings", async () => {
+    mockFetchRetry.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      text: () => Promise.resolve("Rate limit exceeded"),
+    } as Response);
+
+    await expect(
+      fetchWithRetry("http://api.test/endpoint", "test-token"),
+    ).rejects.toThrow("API error: 429");
+
+    expect(consoleSpies.warn).toHaveBeenCalledWith("api rate limited", {
+      url: "http://api.test/endpoint",
+      method: "GET",
+      status: 429,
+      error_text: "Rate limit exceeded",
+      rate_limited: true,
+    });
+    expect(consoleSpies.error).not.toHaveBeenCalled();
+  });
+
   it("throws error for 5xx server errors", async () => {
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,
@@ -750,33 +828,29 @@ describe("checkAuth", () => {
   });
 });
 
-// ===== API FUNCTION TESTS (CLIENT-SIDE) =====
+// ===== API FUNCTION TESTS (SERVER-SIDE) =====
 
-// Mock api module
-vi.mock("./api", () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
-
-describe("apiGet (client-side)", () => {
+describe("apiGet (server-side)", () => {
   let originalWindow: typeof globalThis.window;
+  let originalFetch: typeof fetch;
+  let mockFetch: MockedFetch;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    // Simulate browser environment
+    mockRecordBackendProxyMetric.mockClear();
     originalWindow = globalThis.window;
+    originalFetch = globalThis.fetch;
+    mockFetch = vi.fn();
+    globalThis.fetch = mockFetch;
     Object.defineProperty(globalThis, "window", {
-      value: {},
+      value: undefined,
       writable: true,
       configurable: true,
     });
   });
 
   afterEach(() => {
+    globalThis.fetch = originalFetch;
     Object.defineProperty(globalThis, "window", {
       value: originalWindow,
       writable: true,
@@ -784,172 +858,129 @@ describe("apiGet (client-side)", () => {
     });
   });
 
-  it("makes GET request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.get).mockResolvedValueOnce({
-      data: { result: "test" },
+  it("forwards incoming client IP and user agent headers to the backend", async () => {
+    mockNextHeaders.mockResolvedValueOnce(
+      new Headers({
+        "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+        "user-agent": "Mozilla/5.0 Test Browser",
+      }),
+    );
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
 
-    const result = await apiGet<{ result: string }>("/test", "token");
+    const result = await apiGet<{ result: string }>("/api/test", "token");
 
-    expect(result).toEqual({ result: "test" });
-    expect(api.get).toHaveBeenCalledWith("/test", {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-
-  it("throws error on axios failure", async () => {
-    const api = (await import("./api")).default;
-    const error = {
-      response: { status: 404, data: { message: "Not Found" } },
-      message: "Request failed",
-      isAxiosError: true,
-    };
-    vi.mocked(api.get).mockRejectedValueOnce(error);
-
-    await expect(apiGet("/test", "token")).rejects.toThrow(
-      'API error (404): {"message":"Not Found"}',
+    expect(result).toEqual({ result: "ok" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/test",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token",
+          "Content-Type": "application/json",
+          "X-Forwarded-For": "203.0.113.10",
+          "X-Real-IP": "203.0.113.10",
+          "User-Agent": "Mozilla/5.0 Test Browser",
+        }) as HeadersInit,
+      }),
     );
   });
-});
 
-describe("apiPost (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes POST request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.post).mockResolvedValueOnce({
-      data: { id: 1 },
-      status: 201,
-      statusText: "Created",
-      headers: {},
-      config: {} as never,
-    });
-
-    const body = { name: "Test" };
-    const result = await apiPost<{ id: number }>("/test", "token", body);
-
-    expect(result).toEqual({ id: 1 });
-    expect(api.post).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-});
-
-describe("apiPut (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes PUT request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.put).mockResolvedValueOnce({
-      data: { updated: true },
+  it("falls back to X-Real-IP when X-Forwarded-For is absent", async () => {
+    mockNextHeaders.mockResolvedValueOnce(
+      new Headers({
+        "x-real-ip": "198.51.100.25",
+      }),
+    );
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
 
-    const body = { name: "Updated" };
-    const result = await apiPut<{ updated: boolean }>("/test", "token", body);
+    await apiGet<{ result: string }>("/api/test", "token");
 
-    expect(result).toEqual({ updated: true });
-    expect(api.put).toHaveBeenCalledWith("/test", body, {
-      headers: { Authorization: "Bearer token" },
-    });
-  });
-});
-
-describe("apiDelete (client-side)", () => {
-  let originalWindow: typeof globalThis.window;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    originalWindow = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: {},
-      writable: true,
-      configurable: true,
-    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/test",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer token",
+          "Content-Type": "application/json",
+          "X-Forwarded-For": "198.51.100.25",
+          "X-Real-IP": "198.51.100.25",
+        },
+      }),
+    );
   });
 
-  afterEach(() => {
-    Object.defineProperty(globalThis, "window", {
-      value: originalWindow,
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  it("makes DELETE request via axios in browser", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.delete).mockResolvedValueOnce({
-      data: {},
+  it("omits forward headers when no client IP or user agent is available", async () => {
+    mockNextHeaders.mockResolvedValueOnce(new Headers());
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
       status: 200,
-      statusText: "OK",
-      headers: {},
-      config: {} as never,
-    });
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
 
-    const result = await apiDelete("/test/1", "token");
+    await apiGet<{ result: string }>("/api/test", "token");
 
-    expect(result).toEqual({});
-    expect(api.delete).toHaveBeenCalledWith("/test/1", {
-      headers: { Authorization: "Bearer token" },
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/test",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer token",
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+  });
+
+  it("records tenant backend proxy metrics for server-side calls", async () => {
+    mockNextHeaders.mockResolvedValueOnce(new Headers());
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-length": "17" }),
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
+    const tokenPayload = Buffer.from(
+      JSON.stringify({ tenant_id: 101, scope: "" }),
+    ).toString("base64url");
+
+    await apiGet<{ result: string }>(
+      "/api/students/1234567890123456?verbose=true",
+      `header.${tokenPayload}.signature`,
+    );
+
+    expect(mockRecordBackendProxyMetric).toHaveBeenCalledWith({
+      method: "GET",
+      backendEndpoint: "/api/students/{id}",
+      status: 200,
+      durationMs: expect.any(Number),
+      outcome: "success",
+      scope: "",
     });
   });
 
-  it("returns undefined for 204 No Content", async () => {
-    const api = (await import("./api")).default;
-    vi.mocked(api.delete).mockResolvedValueOnce({
-      data: {},
-      status: 204,
-      statusText: "No Content",
-      headers: {},
-      config: {} as never,
-    });
+  it("still calls the backend when request headers are unavailable", async () => {
+    mockNextHeaders.mockRejectedValueOnce(new Error("outside request scope"));
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ result: "ok" }),
+    } as Response);
 
-    const result = await apiDelete("/test/1", "token");
+    await apiGet<{ result: string }>("/api/test", "token");
 
-    expect(result).toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://backend.test/api/test",
+      expect.objectContaining({
+        headers: {
+          Authorization: "Bearer token",
+          "Content-Type": "application/json",
+        },
+      }),
+    );
   });
 });

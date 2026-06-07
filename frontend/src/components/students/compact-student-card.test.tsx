@@ -63,7 +63,7 @@ describe("CompactStudentCard", () => {
       <CompactStudentCard studentId="42" firstName="Anna" lastName="Müller" />,
     );
 
-    // Only the name <p> should render — no second <p> for meta.
+    // Only the name <p> should render, no second <p> for meta.
     expect(container.querySelectorAll("p")).toHaveLength(1);
   });
 
@@ -89,8 +89,22 @@ describe("CompactStudentCard", () => {
       <CompactStudentCard studentId={42} firstName="Anna" lastName="Müller" />,
     );
 
+    expect(screen.getByTestId("compact-student-card-42")).toBeInTheDocument();
+  });
+
+  it("uses a button only when an onClick handler is provided", () => {
+    const onClick = vi.fn();
+    render(
+      <CompactStudentCard
+        studentId={42}
+        firstName="Anna"
+        lastName="Müller"
+        onClick={onClick}
+      />,
+    );
+
     const button = screen.getByRole("button", {
-      name: "Anna Müller – Profil öffnen",
+      name: "Anna Müller - Profil öffnen",
     });
     expect(button).toHaveAttribute("data-testid", "compact-student-card-42");
     expect(button).toHaveAttribute("type", "button");

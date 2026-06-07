@@ -179,7 +179,7 @@ export function StudentPhotoSection({
 
       <label
         htmlFor="photo-consent"
-        className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3"
+        className="moto-content-surface mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
       >
         <input
           id="photo-consent"

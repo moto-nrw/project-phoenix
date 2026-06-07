@@ -1,7 +1,10 @@
 // app/api/activities/[id]/students/[studentId]/route.ts
 import type { NextRequest } from "next/server";
-import { createGetHandler, createDeleteHandler } from "~/lib/route-wrapper";
-import { apiDelete, apiGet } from "~/lib/api-helpers";
+import {
+  createGetHandler,
+  createDeleteHandler,
+} from "~/lib/route-wrapper.server";
+import { apiDelete, apiGet } from "~/lib/api-helpers.server";
 import {
   type BackendStudentEnrollment,
   mapStudentEnrollmentsResponse,

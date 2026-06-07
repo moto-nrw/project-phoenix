@@ -9,8 +9,10 @@ import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Suspense, useState, useEffect } from "react";
 import { useIsMobile } from "~/hooks/useIsMobile";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 import { Loading } from "~/components/ui/loading";
+import { useNFCEnabled } from "~/components/tenant/tenant-provider";
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({
   path,
@@ -35,10 +37,7 @@ const baseDataSections = [
     description: "Kinderdaten verwalten und bearbeiten",
     href: "/database/students",
     icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z",
-    color: "from-[#5080D8] to-[#4070c8]",
-    ringColor: "group-hover:ring-blue-200/60",
-    glowColor: "via-blue-100/30",
-    overlayColor: "from-blue-50/80 to-cyan-100/80",
+    iconColor: LOCATION_COLORS.OTHER_ROOM,
   },
   {
     id: "teachers",
@@ -46,10 +45,7 @@ const baseDataSections = [
     description: "Personaldaten und Zuordnungen verwalten",
     href: "/database/personal",
     icon: "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222",
-    color: "from-[#F78C10] to-[#e57a00]",
-    ringColor: "group-hover:ring-orange-200/60",
-    glowColor: "via-orange-100/30",
-    overlayColor: "from-orange-50/80 to-amber-100/80",
+    iconColor: LOCATION_COLORS.SCHOOLYARD,
   },
   {
     id: "rooms",
@@ -57,10 +53,7 @@ const baseDataSections = [
     description: "Räume und Ausstattung verwalten",
     href: "/database/rooms",
     icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
-    color: "from-indigo-500 to-indigo-600",
-    ringColor: "group-hover:ring-indigo-200/60",
-    glowColor: "via-indigo-100/30",
-    overlayColor: "from-indigo-50/80 to-blue-100/80",
+    iconColor: LOCATION_COLORS.TRANSIT,
   },
   {
     id: "activities",
@@ -68,10 +61,7 @@ const baseDataSections = [
     description: "Aktivitäten und Zeitpläne verwalten",
     href: "/database/activities",
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    color: "from-[#FF3130] to-[#e02020]",
-    ringColor: "group-hover:ring-red-200/60",
-    glowColor: "via-red-100/30",
-    overlayColor: "from-red-50/80 to-rose-100/80",
+    iconColor: LOCATION_COLORS.HOME,
   },
   {
     id: "groups",
@@ -79,10 +69,7 @@ const baseDataSections = [
     description: "Gruppen und Kombinationen verwalten",
     href: "/database/groups",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
-    color: "from-[#83CD2D] to-[#70b525]",
-    ringColor: "group-hover:ring-green-200/60",
-    glowColor: "via-green-100/30",
-    overlayColor: "from-green-50/80 to-lime-100/80",
+    iconColor: LOCATION_COLORS.GROUP_ROOM,
   },
   {
     id: "roles",
@@ -90,10 +77,7 @@ const baseDataSections = [
     description: "Benutzerrollen und Berechtigungen verwalten",
     href: "/database/roles",
     icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
-    color: "from-purple-500 to-purple-600",
-    ringColor: "group-hover:ring-purple-200/60",
-    glowColor: "via-purple-100/30",
-    overlayColor: "from-purple-50/80 to-violet-100/80",
+    iconColor: LOCATION_COLORS.EXCUSED,
   },
   {
     id: "devices",
@@ -101,10 +85,7 @@ const baseDataSections = [
     description: "Terminals und IoT-Geräte verwalten",
     href: "/database/devices",
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    color: "from-amber-500 to-yellow-600",
-    ringColor: "group-hover:ring-amber-200/60",
-    glowColor: "via-amber-100/30",
-    overlayColor: "from-amber-50/80 to-yellow-100/80",
+    iconColor: LOCATION_COLORS.SICK,
   },
   {
     id: "permissions",
@@ -112,16 +93,16 @@ const baseDataSections = [
     description: "Systemberechtigungen ansehen",
     href: "/database/permissions",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z",
-    color: "from-pink-500 to-rose-500",
-    ringColor: "group-hover:ring-pink-200/60",
-    glowColor: "via-pink-100/30",
-    overlayColor: "from-pink-50/80 to-rose-100/80",
+    iconColor: LOCATION_COLORS.HOME,
   },
 ];
+
+const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
 function DatabaseContent() {
   const { data: session, status } = useSession({ required: true });
   const isMobile = useIsMobile();
+  const nfcEnabled = useNFCEnabled();
   const [counts, setCounts] = useState<{
     students: number;
     teachers: number;
@@ -279,6 +260,10 @@ function DatabaseContent() {
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {baseDataSections.map((section) => {
+            if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
+              return null;
+            }
+
             // Check permissions for this section
             const permissionKey =
               `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
@@ -298,25 +283,21 @@ function DatabaseContent() {
               <Link
                 key={section.id}
                 href={section.href}
-                className="group relative min-h-[44px] touch-manipulation overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)] backdrop-blur-md transition-all duration-150 hover:scale-[1.01] hover:shadow-[0_20px_50px_rgb(0,0,0,0.15)] active:scale-[0.98]"
+                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
               >
-                <div
-                  className={`absolute inset-0 bg-gradient-to-br ${section.overlayColor} pointer-events-none rounded-3xl opacity-[0.03]`}
-                ></div>
-                <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-                <div
-                  className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${section.ringColor} pointer-events-none transition-all duration-150`}
-                ></div>
+                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
                 <div className="relative p-6">
                   <div className="mb-4 flex items-start justify-between">
                     <div
-                      className={`rounded-2xl bg-gradient-to-br ${section.color} p-3 text-white shadow-lg transition-all duration-150 group-hover:shadow-xl`}
+                      data-testid={`database-section-icon-${section.id}`}
+                      className="rounded-2xl p-3 text-white shadow-sm transition-[box-shadow,filter] duration-300 group-hover:shadow-md group-hover:brightness-95"
+                      style={{ backgroundColor: section.iconColor }}
                     >
                       <Icon path={section.icon} className="h-6 w-6" />
                     </div>
                     <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
                         countsLoading
                           ? "animate-pulse bg-gray-200 text-gray-400"
                           : "bg-gray-100 text-gray-600"
@@ -326,7 +307,7 @@ function DatabaseContent() {
                     </span>
                   </div>
 
-                  <h3 className="mb-2 text-lg font-bold text-gray-900 transition-colors group-hover:text-gray-800">
+                  <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
                     {section.title}
                   </h3>
                   <p className="mb-4 line-clamp-2 text-sm text-gray-600">
@@ -337,14 +318,10 @@ function DatabaseContent() {
                     <span className="text-sm font-medium">Verwalten</span>
                     <Icon
                       path="M9 5l7 7-7 7"
-                      className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+                      className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
                     />
                   </div>
                 </div>
-
-                <div
-                  className={`absolute inset-0 rounded-3xl bg-gradient-to-r from-transparent opacity-0 transition-opacity duration-150 group-hover:opacity-100 ${section.glowColor} pointer-events-none to-transparent`}
-                ></div>
               </Link>
             );
           })}

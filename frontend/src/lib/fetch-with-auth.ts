@@ -1,4 +1,4 @@
-import { handleAuthFailure } from "./auth-api";
+import { handleAuthFailure } from "./auth-failure";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "FetchWithAuth" });

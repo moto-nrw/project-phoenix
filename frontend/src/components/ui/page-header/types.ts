@@ -66,7 +66,7 @@ export interface PageHeaderWithSearchProps {
    * - `"lg"` (default, 1024px): existing behaviour. Suitable for pages with
    *   ≤4 filters that fit comfortably on a tablet.
    * - `"xl"` (1280px): pages with 5+ filters where the inline row would
-   *   overflow on iPad-class viewports. The `MobileFilterPanel` covers
+   *   overflow on iPad-class viewports. The `FilterPanel` covers
    *   tablet too — matches Stripe / Airbnb / Slack / Spotify pattern.
    *
    * Pages that opt into `"xl"` should also bump their tablet-only floating
@@ -92,8 +92,40 @@ export interface PageHeaderWithSearchProps {
    */
   readonly activeFilterDisplay?: "chips" | "count";
 
+  /**
+   * Filter presentation. A single opt-in that swaps the whole filter
+   * experience — there is no use case for mixing the two axes independently.
+   *
+   * - `"default"` (default): legacy inline desktop filter row + black-pill
+   *   mobile sheet.
+   * - `"quiet"`: one Filter button opens a shared popover (desktop *and*
+   *   mobile) styled in the calm detail-modal language — softer controls and,
+   *   when {@link filterSections} is supplied, `InfoSection` cards.
+   */
+  readonly filterVariant?: "default" | "quiet";
+
+  /**
+   * Optional grouping for the quiet filter panel. Each section claims the
+   * filters whose `id` it lists; any filter not claimed lands in a trailing
+   * "Weitere" section. Omit to render a flat list. The grouping is the
+   * consumer's domain knowledge (which student/room/etc. filters belong
+   * together), so it lives here — not baked into the shared panel.
+   */
+  readonly filterSections?: readonly FilterSection[];
+
   // Layout options
   readonly className?: string;
+}
+
+/**
+ * A titled group of filters for the quiet panel. `icon` is rendered in the
+ * section header (pass a `DetailIcons.*` element); `filterIds` are matched
+ * against {@link FilterConfig.id}.
+ */
+export interface FilterSection {
+  readonly title: string;
+  readonly icon?: React.ReactNode;
+  readonly filterIds: readonly string[];
 }
 
 interface TabItem {
@@ -113,7 +145,7 @@ export interface FilterConfig {
   readonly className?: string;
 }
 
-interface FilterOption {
+export interface FilterOption {
   readonly value: string;
   readonly label: string;
   readonly icon?: string; // SVG path data for grid-style buttons
@@ -151,14 +183,47 @@ export interface SearchBarProps {
   readonly onClear?: () => void;
   readonly className?: string;
   readonly size?: "sm" | "md" | "lg";
+  /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, etc.). */
+  readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }
 
-export interface MobileFilterPanelProps {
+export interface FilterPanelProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly filters: FilterConfig[];
   readonly onApply?: () => void;
   readonly onReset?: () => void;
+  readonly applyLabel?: string;
+  readonly placement?: "mobile" | "desktop";
+  /** Initial measured trigger rect — drives the first paint (and SSR/tests). */
+  readonly anchorRect?: FilterPanelAnchor | null;
+  /**
+   * Live trigger element. When provided, the panel re-positions itself on
+   * scroll/resize so it tracks the trigger through native scroll and the
+   * topbar's height transition.
+   */
+  readonly anchorRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * Test hook on the dialog. The panel serves both the mobile sheet and the
+   * desktop popover, so callers pass a placement-specific id.
+   */
+  readonly testId?: string;
+  /**
+   * `"quiet"` renders the panel in the calmer detail-modal language (softer
+   * controls + blue-accent pills). Defaults to `"default"`, the existing look.
+   */
+  readonly variant?: "default" | "quiet";
+  /**
+   * Consumer-supplied grouping. When non-empty the panel renders the filters
+   * as titled `InfoSection` cards; omit for a flat list.
+   */
+  readonly sections?: readonly FilterSection[];
+}
+
+export interface FilterPanelAnchor {
+  readonly left: number;
+  readonly bottom: number;
+  readonly right: number;
 }
 
 export interface ActiveFilterChipsProps {

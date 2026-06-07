@@ -57,6 +57,9 @@ export interface BackendStudent {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_email?: string;
@@ -85,6 +88,12 @@ export interface BackendStudent {
   photo_consent_given?: boolean;
   photo_consent_given_at?: string;
   photo_consent_given_by?: number;
+  // Other consents the parent ticked at enrollment time. Stamped by
+  // the decision service on approval from request.consent_flags.
+  // Null/undefined = no consent recorded; ISO timestamp = consent given.
+  agb_accepted_at?: string;
+  data_processing_accepted_at?: string;
+  email_contact_accepted_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -168,6 +177,9 @@ export interface Student {
   // Excused status (kind is not attending the OGS today, only visible to supervisors/admins)
   excused?: boolean;
   excused_since?: string;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   name_lg?: string;
   contact_lg?: string;
   guardian_email?: string;
@@ -206,6 +218,9 @@ export interface Student {
   photo_consent_given?: boolean;
   photo_consent_given_at?: string;
   photo_consent_given_by?: number;
+  agb_accepted_at?: string;
+  data_processing_accepted_at?: string;
+  email_contact_accepted_at?: string;
 }
 
 // Mapping functions
@@ -242,6 +257,9 @@ export function mapStudentResponse(
     sick_since: backendStudent.sick_since,
     excused: backendStudent.excused ?? false, // Excused from attending today
     excused_since: backendStudent.excused_since,
+    day_planning_status: backendStudent.day_planning_status,
+    day_planning_reason: backendStudent.day_planning_reason,
+    day_planning_label: backendStudent.day_planning_label,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
@@ -265,6 +283,9 @@ export function mapStudentResponse(
     photo_consent_given: backendStudent.photo_consent_given,
     photo_consent_given_at: backendStudent.photo_consent_given_at,
     photo_consent_given_by: backendStudent.photo_consent_given_by,
+    agb_accepted_at: backendStudent.agb_accepted_at,
+    data_processing_accepted_at: backendStudent.data_processing_accepted_at,
+    email_contact_accepted_at: backendStudent.email_contact_accepted_at,
   };
 
   // Add scheduled checkout info if present

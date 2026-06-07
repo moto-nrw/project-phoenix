@@ -66,6 +66,31 @@ type GroupRepository interface {
 	// EndSessionsByIDs ends multiple group sessions in a single query.
 	// Returns the number of sessions ended.
 	EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error)
+
+	// AggregateRoomSessions returns one row per active.groups session in the
+	// given room that was active at any point during [start, end] — i.e.
+	// start_time <= end AND (end_time IS NULL OR end_time >= start). Sessions
+	// that began before `start` but were still occupying the room inside the
+	// window are included. Each row carries the aggregated session view
+	// (activity, supervisors, distinct student count) used by the
+	// room-history endpoint. When supervisorStaffID is non-nil the result is
+	// filtered to sessions supervised by that staff member; pass nil to see
+	// every session (admin / all_staff scope).
+	AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*RoomSessionAggregate, error)
+}
+
+// RoomSessionAggregate is one row in the per-room session timeline. It is
+// intentionally aggregated — no individual student IDs or names leave the
+// repo, only counts and the activity / supervisor metadata needed to render
+// the room occupancy history.
+type RoomSessionAggregate struct {
+	SessionID       int64      `bun:"session_id"`
+	StartedAt       time.Time  `bun:"started_at"`
+	EndedAt         *time.Time `bun:"ended_at"`
+	DurationMinutes *int       `bun:"duration_minutes"`
+	ActivityName    string     `bun:"activity_name"`
+	SupervisorName  string     `bun:"supervisor_name"`
+	StudentCount    int        `bun:"student_count"`
 }
 
 // VisitRepository defines operations for managing active visits

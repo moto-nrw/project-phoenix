@@ -3,8 +3,8 @@ import {
   createOperatorGetHandler,
   isStringParam,
   operatorApiGet,
-} from "~/lib/operator/route-wrapper";
-import { encodePathSegment } from "~/lib/route-wrapper-utils";
+} from "~/lib/operator/route-wrapper.server";
+import { encodePathSegment } from "~/lib/route-wrapper-utils.server";
 
 export const GET = createOperatorGetHandler(
   async (_request: NextRequest, token: string, params) => {

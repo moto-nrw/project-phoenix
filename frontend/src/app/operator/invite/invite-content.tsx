@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Check, Circle } from "lucide-react";
+import {
+  AuthShell,
+  OperatorBrand,
+  authInputClassName,
+  authPrimaryButtonClassName,
+} from "~/components/auth/auth-shell";
+import { Loading } from "~/components/ui/loading";
+import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { operatorPath } from "~/lib/operator-url";
 import {
   validateOperatorInvitation,
@@ -57,6 +66,8 @@ export function InviteContent() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const primaryRef = useRef<HTMLButtonElement>(null);
@@ -170,183 +181,207 @@ export function InviteContent() {
   );
 
   if (state === "loading") {
-    return null;
+    return (
+      <AuthShell
+        eyebrow="Operator"
+        title="Einladung prüfen"
+        subtitle="Wir laden die Einladung."
+        variant="operator"
+        brand={<OperatorBrand />}
+        formMaxWidth="max-w-[31rem]"
+      >
+        <Loading fullPage={false} />
+      </AuthShell>
+    );
   }
 
   if (state === "success") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <svg
-              className="h-8 w-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
+      <AuthShell
+        eyebrow="Operator"
+        title="Konto erstellt"
+        subtitle="Dein Operator-Konto wurde erfolgreich erstellt."
+        variant="operator"
+        brand={<OperatorBrand />}
+        formMaxWidth="max-w-[31rem]"
+      >
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
+            <Check className="h-9 w-9 text-[#4E7D1B]" aria-hidden="true" />
           </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            Konto erstellt
-          </h1>
-          <p className="mb-6 text-gray-600">
-            Dein Operator-Konto wurde erfolgreich erstellt. Du kannst dich jetzt
-            anmelden.
-          </p>
           <Link
             href={operatorPath("/operator/login")}
-            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
+            className={authPrimaryButtonClassName}
           >
             Zur Anmeldung
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   if (state === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-lg">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-            <svg
-              className="h-8 w-8 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+      <AuthShell
+        eyebrow="Operator"
+        title="Einladung ungültig"
+        subtitle={errorMessage}
+        variant="operator"
+        brand={<OperatorBrand />}
+        formMaxWidth="max-w-[31rem]"
+      >
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50">
+            <span className="text-2xl font-semibold text-red-600">!</span>
           </div>
-          <h1 className="mb-2 text-xl font-semibold text-gray-900">
-            Einladung ungültig
-          </h1>
-          <p className="mb-6 text-gray-600">{errorMessage}</p>
           <Link
             href={operatorPath("/operator/login")}
-            className="inline-block rounded-lg bg-gray-900 px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-700"
+            className={authPrimaryButtonClassName}
           >
             Zur Anmeldung
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-gray-100 bg-white p-8 shadow-lg">
-        <h1 className="mb-2 text-xl font-semibold text-gray-900">
-          Operator-Konto erstellen
-        </h1>
-        {invitation && (
-          <p className="mb-6 text-sm text-gray-500">
-            Einladung für <strong>{invitation.email}</strong>
-          </p>
-        )}
+    <AuthShell
+      eyebrow="Operator"
+      title="Operator-Konto erstellen"
+      subtitle="Lege dein Operator-Konto an und melde dich danach im Operator-Portal an."
+      variant="operator"
+      brand={<OperatorBrand />}
+      formMaxWidth="max-w-[32rem]"
+    >
+      {invitation && (
+        <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm text-gray-600">
+          Einladung für{" "}
+          <strong className="text-gray-900">{invitation.email}</strong>
+        </div>
+      )}
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
-          <div>
-            <label
-              htmlFor="accept-display-name"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Anzeigename *
-            </label>
-            <input
-              id="accept-display-name"
-              type="text"
-              required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Max Mustermann"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none"
-            />
-          </div>
+      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+        <div>
+          <label
+            htmlFor="accept-display-name"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Anzeigename *
+          </label>
+          <input
+            id="accept-display-name"
+            type="text"
+            required
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Max Mustermann"
+            className={authInputClassName}
+          />
+        </div>
 
-          <div>
-            <label
-              htmlFor="accept-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Passwort *
-            </label>
+        <div>
+          <label
+            htmlFor="accept-password"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Passwort *
+          </label>
+          <div className="relative">
             <input
               id="accept-password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none"
+              className={`${authInputClassName} pr-10`}
             />
-            {password.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {PASSWORD_RULES.map((rule) => {
-                  const met = rule.test(password);
-                  return (
-                    <li
-                      key={rule.label}
-                      className={`flex items-center gap-2 text-xs ${met ? "text-green-600" : "text-gray-400"}`}
-                    >
-                      <span>{met ? "\u2713" : "\u2717"}</span>
-                      {rule.label}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <PasswordToggleButton
+              showPassword={showPassword}
+              onToggle={() => setShowPassword(!showPassword)}
+            />
           </div>
+          {password.length > 0 && (
+            <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {PASSWORD_RULES.map((rule) => {
+                const met = rule.test(password);
+                return (
+                  <li
+                    key={rule.label}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <span
+                      className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${
+                        met
+                          ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5A8B1F]"
+                          : "border-gray-300 bg-white text-gray-400"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {met ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Circle className="h-3 w-3" />
+                      )}
+                    </span>
+                    <span className={met ? "text-gray-700" : "text-gray-500"}>
+                      {rule.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-          <div>
-            <label
-              htmlFor="accept-confirm-password"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Passwort bestätigen *
-            </label>
+        <div>
+          <label
+            htmlFor="accept-confirm-password"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Passwort bestätigen *
+          </label>
+          <div className="relative">
             <input
               id="accept-confirm-password"
-              type="password"
+              type={showConfirmPassword ? "text" : "password"}
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500 focus:outline-none"
+              className={`${authInputClassName} pr-10`}
             />
-            {confirmPassword.length > 0 && !passwordsMatch && (
-              <p className="mt-1 text-xs text-red-500">
-                Passwörter stimmen nicht überein
-              </p>
-            )}
+            <PasswordToggleButton
+              showPassword={showConfirmPassword}
+              onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+            />
           </div>
+          {confirmPassword.length > 0 && !passwordsMatch && (
+            <p className="mt-1 text-xs text-red-500">
+              Passwörter stimmen nicht überein
+            </p>
+          )}
+        </div>
 
-          {formError && <p className="text-sm text-red-600">{formError}</p>}
+        {formError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {formError}
+          </div>
+        )}
 
-          <button
-            ref={primaryRef}
-            type="submit"
-            disabled={
-              state === "submitting" ||
-              !allPasswordRulesMet ||
-              !passwordsMatch ||
-              !displayName.trim()
-            }
-            className="w-full rounded-lg bg-violet-600 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {state === "submitting" ? "Wird erstellt..." : "Konto erstellen"}
-          </button>
-        </form>
-      </div>
-    </div>
+        <button
+          ref={primaryRef}
+          type="submit"
+          disabled={
+            state === "submitting" ||
+            !allPasswordRulesMet ||
+            !passwordsMatch ||
+            !displayName.trim()
+          }
+          className={authPrimaryButtonClassName}
+        >
+          {state === "submitting" ? "Wird erstellt..." : "Konto erstellen"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

@@ -15,6 +15,25 @@ type AuthService interface {
 	// Existing methods
 	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
+	// IssueTokensForAuthenticatedAccount mints an access/refresh token pair for
+	// an account that has already proven its identity via a non-password channel
+	// (currently: MFA email-code or recovery-code verification). Skips credential
+	// checks but otherwise mirrors LoginWithAudit's loadMetadata → persistRefreshToken
+	// → buildClaims → genTokens flow so downstream consumers (refresh, audit,
+	// permissions) are indistinguishable from a regular login.
+	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. After a
+	// successful credential check it consults the optional MFAService and
+	// returns either a regular token pair or a short-lived challenge token
+	// the caller must redeem at /auth/mfa/verify. trustedDeviceCookie may
+	// be empty; when set and verifiable, MFA is skipped even if the account
+	// would normally require it.
+	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
+	// SetMFAService wires the optional MFA gate. Pass nil to disable the
+	// gate (login then behaves exactly as LoginWithAudit).
+	SetMFAService(svc MFAService)
+	LoginParent(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
 	ValidateToken(ctx context.Context, token string) (*auth.Account, *jwt.AppClaims, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)

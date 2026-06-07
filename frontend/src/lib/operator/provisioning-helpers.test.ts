@@ -302,6 +302,7 @@ describe("mapInvitation", () => {
       first_name: "Max",
       last_name: "Mustermann",
       position: "Schulleiter",
+      caregiver_enabled: true,
       created_by: 3,
       creator: "operator@test.de",
       delivery_status: "sent",
@@ -319,6 +320,7 @@ describe("mapInvitation", () => {
     expect(result.firstName).toBe("Max");
     expect(result.lastName).toBe("Mustermann");
     expect(result.position).toBe("Schulleiter");
+    expect(result.caregiverEnabled).toBe(true);
     expect(result.createdBy).toBe("3");
     expect(result.deliveryStatus).toBe("sent");
     expect(result.emailSentAt).toBe("2025-01-01T00:00:00Z");
@@ -341,6 +343,7 @@ describe("mapInvitation", () => {
     expect(result.firstName).toBeNull();
     expect(result.lastName).toBeNull();
     expect(result.position).toBeNull();
+    expect(result.caregiverEnabled).toBe(false);
     expect(result.roleName).toBe("");
     expect(result.creator).toBe("");
     expect(result.emailSentAt).toBeNull();

@@ -206,7 +206,7 @@ export function UnclaimedRooms({
     .join(", ");
 
   return (
-    <div className="relative mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="relative mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       {/* Dismiss badge - positioned top right corner */}
       {hasSupervisors && (
         <button
@@ -261,10 +261,10 @@ export function UnclaimedRooms({
       <button
         onClick={() => void handleClaim()}
         disabled={claiming}
-        className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-200 ${
+        className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,box-shadow] duration-200 ${
           claiming
             ? "cursor-not-allowed bg-gray-200 text-gray-500"
-            : "bg-gradient-to-br from-amber-400 to-yellow-500 text-white shadow-sm hover:scale-[1.02] hover:shadow-md hover:shadow-amber-400/20 hover:brightness-105 active:scale-95"
+            : "bg-gray-900 text-white shadow-sm hover:bg-gray-800 hover:shadow-md"
         } `}
       >
         {claiming ? (

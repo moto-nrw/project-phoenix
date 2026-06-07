@@ -26,12 +26,17 @@ describe("timetableOperationsApi", () => {
               start_time: "14:00",
               end_time: "15:00",
               room_id: 230,
+              room_name: "Lernraum",
               status: "planned",
               is_overdue: false,
               minutes_until_start: 10,
               expected_students_count: 12,
               present_students_count: 0,
               assigned_staff_ids: [330],
+              is_assigned: true,
+              is_primary: false,
+              is_substitute: true,
+              roster_preview: [],
             },
           ],
         },
@@ -49,6 +54,31 @@ describe("timetableOperationsApi", () => {
     );
     expect(result[0]?.id).toBe("130");
     expect(result[0]?.assignedStaffIds).toEqual(["330"]);
+    expect(result[0]?.roomName).toBe("Lernraum");
+    expect(result[0]?.isSubstitute).toBe(true);
+  });
+
+  it("fetches planned instances with staff horizon options", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: { instances: [] },
+      }),
+    );
+
+    await timetableOperationsApi.plannedNow({
+      horizonMinutes: 480,
+      limit: 5,
+      includeRoster: true,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/planned-now?horizon_minutes=480&limit=5&include_roster=true",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
   });
 
   it("fetches planned instances without a date query", async () => {

@@ -49,7 +49,13 @@ func (m *mockSettingsSvc) ResolveBool(_ context.Context, key string) (bool, erro
 	}
 	return false, fmt.Errorf("not found: %s", key)
 }
+func (m *mockSettingsSvc) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	return m.ResolveBool(context.Background(), key)
+}
 func (m *mockSettingsSvc) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
+func (m *mockSettingsSvc) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
+	return 0, nil
+}
 func (m *mockSettingsSvc) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
@@ -170,6 +176,12 @@ func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context
 	return 0, nil
 }
 func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {

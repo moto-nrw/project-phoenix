@@ -26,6 +26,12 @@ type ImportConfig[T any] interface {
 	EntityName() string
 }
 
+// BatchValidator can be implemented by import configs that need validation
+// across rows, such as duplicate checks within the uploaded file.
+type BatchValidator[T any] interface {
+	ValidateBatch(ctx context.Context, rows []T) map[int][]ValidationError
+}
+
 // ImportMode defines how to handle existing records
 type ImportMode string
 

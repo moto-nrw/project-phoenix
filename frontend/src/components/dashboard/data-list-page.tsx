@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { PageHeader, SectionTitle } from "@/components/dashboard";
+import { PageHeader } from "./page-header";
+import { SectionTitle } from "./section-title";
 import Link from "next/link";
 import { createLogger } from "~/lib/logger";
 
@@ -113,7 +114,7 @@ export function DataListPage<T extends BaseEntity>({
               placeholder="Suchen..."
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-all duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-4 py-3 pl-10 transition-[border-color,box-shadow] duration-200 hover:border-gray-400 focus:shadow-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               <svg
@@ -134,7 +135,7 @@ export function DataListPage<T extends BaseEntity>({
           </div>
 
           <Link href={newEntityUrl} className="w-full sm:w-auto">
-            <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-blue-600 px-4 py-3 text-white transition-all duration-200 hover:scale-[1.02] hover:from-teal-600 hover:to-blue-700 hover:shadow-lg sm:w-auto sm:justify-start">
+            <button className="group flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-white shadow-sm transition-[background-color,box-shadow] duration-200 hover:bg-gray-800 hover:shadow-md sm:w-auto sm:justify-start">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-5 w-5 transition-transform duration-200 group-hover:rotate-90"
@@ -166,7 +167,7 @@ export function DataListPage<T extends BaseEntity>({
                   ) : (
                     <button
                       type="button"
-                      className="group flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 text-left shadow-sm transition-all duration-200 hover:translate-y-[-1px] hover:border-blue-200 hover:shadow-md"
+                      className="group moto-hover-elevated flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-100 bg-white p-4 text-left shadow-sm"
                       onClick={handleClick}
                     >
                       {defaultRenderEntity(entity)}

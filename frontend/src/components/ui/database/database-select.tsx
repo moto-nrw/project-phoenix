@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { ChevronDown } from "lucide-react";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DatabaseSelect" });
@@ -106,7 +107,7 @@ export function DatabaseSelect({
 
   // Base input classes matching StudentForm styling
   const baseClasses = `
-    w-full rounded-lg border border-gray-300 px-3 py-2 md:px-4 
+    w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-10 md:px-4 md:pr-10
     text-sm md:text-base transition-all duration-200 focus:ring-2 ${focusRingColor} focus:outline-none
     ${isLoading ? "opacity-50 cursor-wait" : ""}
     ${disabled ? "bg-gray-50 cursor-not-allowed" : ""}
@@ -126,40 +127,43 @@ export function DatabaseSelect({
         </label>
       )}
 
-      <select
-        id={id ?? name}
-        name={name}
-        value={value}
-        onChange={handleChange}
-        disabled={disabled || isLoading}
-        required={required}
-        className={baseClasses}
-      >
-        {/* Empty option */}
-        {includeEmpty && (
-          <option value="">
-            {isLoading ? "Lädt..." : (emptyOptionLabel ?? placeholder)}
-          </option>
-        )}
+      <div className="relative">
+        <select
+          id={id ?? name}
+          name={name}
+          value={value}
+          onChange={handleChange}
+          disabled={disabled || isLoading}
+          required={required}
+          className={baseClasses}
+        >
+          {includeEmpty && (
+            <option value="">
+              {isLoading ? "Lädt..." : (emptyOptionLabel ?? placeholder)}
+            </option>
+          )}
 
-        {/* Render options */}
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-            disabled={option.disabled}
-          >
-            {option.label}
-          </option>
-        ))}
+          {options.map((option) => (
+            <option
+              key={option.value}
+              value={option.value}
+              disabled={option.disabled}
+            >
+              {option.label}
+            </option>
+          ))}
 
-        {/* Show message if no options available */}
-        {!isLoading && options.length === 0 && !includeEmpty && (
-          <option value="" disabled>
-            Keine Optionen verfügbar
-          </option>
-        )}
-      </select>
+          {!isLoading && options.length === 0 && !includeEmpty && (
+            <option value="" disabled>
+              Keine Optionen verfügbar
+            </option>
+          )}
+        </select>
+        <ChevronDown
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+        />
+      </div>
 
       {/* Helper text or error message */}
       {displayError && (

@@ -75,6 +75,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       1,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	config.Register(config.Definition{
@@ -88,6 +93,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       2,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyAttendanceNFCEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	minDelta := float64(0)
@@ -262,6 +272,99 @@ func init() {
 		},
 	})
 
+	// --- Anwesenheitserfassung (setup-level decisions) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyAttendanceWebEnabled,
+		Label:           "Anwesenheit über Web-App erfassen",
+		Description:     "Mitarbeitende können Kinder über die Web-App an- und abmelden oder in Aktivitäten eintragen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       43,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyAttendanceNFCEnabled,
+		Label:           "Anwesenheit über NFC-Geräte erfassen",
+		Description:     "Die OGS nutzt NFC-Armbänder oder Karten an Geräten, zum Beispiel für Räume, Schulhof oder Abmeldung.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "anwesenheit",
+		SortOrder:       44,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
+	// --- Organisationsmodell (setup-level decisions) ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyGroupMode,
+		Label:           "Arbeit mit festen Gruppen",
+		Description:     "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten.",
+		Type:            config.FieldSelect,
+		Default:         config.GroupModeFixedGroups,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       1,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Feste Gruppen", Value: config.GroupModeFixedGroups},
+				{Label: "Offene Betreuung ohne feste Gruppen", Value: config.GroupModeOpenCare},
+			},
+		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyCareConcept,
+		Label:           "Betreuungskonzept",
+		Description:     "Legt fest, ob die OGS mit einem festen Betriebsplan arbeitet oder Kinder sich frei zwischen offenen Räumen bewegen.",
+		Type:            config.FieldSelect,
+		Default:         config.CareConceptOpenRooms,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "organisation",
+		SortOrder:       2,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Fester Betriebsplan", Value: config.CareConceptFixedSchedule},
+				{Label: "Offenes Raumkonzept", Value: config.CareConceptOpenRooms},
+			},
+		},
+	})
+
+	// --- Student Activation Scheduler (parent-enrollment lifecycle) ---
+	//
+	// Controls how often the activate-students tick re-evaluates pending and
+	// active students against their enrolled_from / enrolled_until dates.
+	// Date transitions only happen on day boundaries — the interval is a
+	// safety-net for restarts and clock drift, not a precision dial.
+
+	minActivationInterval := float64(5)
+	maxActivationInterval := float64(1440)
+	config.Register(config.Definition{
+		Key:             config.KeyStudentActivationIntervalMin,
+		Label:           "Schüleraktivierung Intervall (Minuten)",
+		Description:     "Wie oft geprüft wird, ob Schüler mit Status \"ausstehend\" oder mit Abmeldedatum in der Vergangenheit ihren Status wechseln müssen.",
+		Type:            config.FieldNumber,
+		Default:         60,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "schüleraktivierung",
+		SortOrder:       50,
+		Validation:      &config.ValidationRules{Min: &minActivationInterval, Max: &maxActivationInterval},
+	})
+
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
 
 	config.Register(config.Definition{
@@ -288,12 +391,17 @@ func init() {
 		Label:           "Spontane Aktivitäten über Web/App",
 		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Stundenplan geschrieben, auch wenn die Stundenplanplanung deaktiviert ist.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyCareConcept,
+			Condition: "eq",
+			Value:     config.CareConceptOpenRooms,
+		},
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---

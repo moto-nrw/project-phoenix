@@ -9,6 +9,12 @@ on:
       run-frontend:
         type: boolean
         default: true
+      is-pr:
+        type: boolean
+        default: false
+      base_ref:
+        type: string
+        default: ""
     secrets:
       SONAR_TOKEN:
         description: "SonarCloud authentication token"
@@ -45,6 +51,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
@@ -67,36 +75,26 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          # Dummy 32+ char secret so services.NewFactory can init the MFA
+          # service in tests. NewFactory hard-fails without it (the secret
+          # is the HMAC key for trusted-device cookies). Production and
+          # staging supply this via SOPS; CI tests get a fixed test value.
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
         run: |
           gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
             --rerun-fails \
             --rerun-fails-max-failures=5 \
+            --rerun-fails-report rerun-fails.json \
             --packages="./..."
 
-      - name: Generate Go coverage
+      - name: Collect Go coverage
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-        run: |
-          set -euo pipefail
-          tmpdir="$(mktemp -d)"
-          trap 'rm -rf "$tmpdir"' EXIT
-
-          echo "mode: atomic" > coverage.out
-          go list ./... > "$tmpdir/packages.txt"
-
-          while IFS= read -r pkg; do
-            profile="$tmpdir/$(echo "$pkg" | tr '/.' '__').out"
-            if ! go test "$pkg" -coverprofile="$profile" -covermode=atomic; then
-              echo "Coverage run failed for $pkg; retrying once"
-              go test "$pkg" -coverprofile="$profile" -covermode=atomic
-            fi
-            if [ -f "$profile" ]; then
-              tail -n +2 "$profile" >> coverage.out
-            fi
-          done < "$tmpdir/packages.txt"
+          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+        run: ../.github/scripts/collect-go-coverage.sh coverage.out
 
       - name: Drop flaky retries from junit.xml
         working-directory: backend
@@ -149,10 +147,32 @@ jobs:
           PYEOF
 
       - name: Fix Go coverage paths for SonarCloud
+        if: ${{ always() && hashFiles('backend/coverage.out') != '' }}
         run: |
           # Transform Go module paths to relative paths
           # From: github.com/moto-nrw/project-phoenix/... → backend/...
           sed -i 's|github.com/moto-nrw/project-phoenix/|backend/|g' backend/coverage.out
+          python3 - <<'PYEOF'
+          from collections import OrderedDict
+
+          source = "backend/coverage.out"
+          merged = OrderedDict()
+
+          with open(source, encoding="utf-8") as fh:
+              mode = fh.readline()
+              for raw in fh:
+                  line = raw.strip()
+                  if not line:
+                      continue
+                  location, statements, count = line.rsplit(" ", 2)
+                  key = (location, statements)
+                  merged[key] = merged.get(key, 0) + int(count)
+
+          with open(source, "w", encoding="utf-8") as fh:
+              fh.write(mode)
+              for (location, statements), count in merged.items():
+                  fh.write(f"{location} {statements} {count}\n")
+          PYEOF
 
       - name: Upload backend coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -165,7 +185,7 @@ jobs:
         if: always()
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@bccf2e31636835cf0874589931c4116687171386 # v6.4.0
+        uses: mikepenz/action-junit-report@3a81627bfac62268172037048872e8ebd4207e6d # v6.4.1
         if: always()
         with:
           report_paths: backend/junit.xml
@@ -182,6 +202,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
 
       - name: Enable corepack
         run: corepack enable
@@ -197,7 +219,15 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Run frontend tests with coverage
+      - name: Run changed frontend tests with coverage
+        if: ${{ inputs.is-pr && inputs.base_ref != '' }}
+        working-directory: frontend
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: pnpm vitest run --changed "origin/${BASE_REF}" --coverage
+
+      - name: Run full frontend tests with coverage
+        if: ${{ !inputs.is-pr || inputs.base_ref == '' }}
         working-directory: frontend
         run: pnpm run test:run --coverage
 
@@ -214,7 +244,7 @@ jobs:
     permissions:
       contents: read
     needs: [test-backend, test-frontend]
-    if: always()
+    if: ${{ always() && (inputs.run-backend || inputs.run-frontend) }}
 
     steps:
       - name: Checkout code
@@ -237,6 +267,6 @@ jobs:
         continue-on-error: true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

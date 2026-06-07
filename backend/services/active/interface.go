@@ -40,6 +40,8 @@ type Service interface {
 	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	ListStudentsInTransit(ctx context.Context) ([]int64, error)
+	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -142,6 +144,22 @@ type Service interface {
 	SetSettingsService(resolver SettingsResolver)
 }
 
+// TransitAssignSkipped describes a student that was not assigned during a
+// transit bulk operation.
+type TransitAssignSkipped struct {
+	StudentID int64  `json:"student_id"`
+	Reason    string `json:"reason"`
+}
+
+// TransitAssignResult is returned when transit students are assigned to an
+// active room session.
+type TransitAssignResult struct {
+	Assigned      []int64                `json:"assigned"`
+	Skipped       []TransitAssignSkipped `json:"skipped"`
+	ActiveGroupID int64                  `json:"active_group_id"`
+	RoomID        int64                  `json:"room_id"`
+}
+
 // DashboardAnalytics represents aggregated analytics for dashboard
 type DashboardAnalytics struct {
 	// Student Overview
@@ -150,6 +168,7 @@ type DashboardAnalytics struct {
 	StudentsOnPlayground int
 	StudentsInRooms      int // Students in indoor rooms (excluding playground)
 	StudentsSick         int // Students currently flagged as sick
+	StudentsExcused      int // Students currently flagged as excused
 
 	// Activities & Rooms
 	ActiveActivities    int

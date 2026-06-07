@@ -1606,7 +1606,7 @@ function WeekChart({
   );
 
   return (
-    <div className="relative flex h-full min-h-[320px] flex-col overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-3xl border shadow-sm md:h-full md:min-h-0">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6 md:p-8">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
           <h2 className="text-base font-bold text-gray-900 sm:text-lg">

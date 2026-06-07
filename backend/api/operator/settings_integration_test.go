@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -444,43 +445,89 @@ func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *t
 // Presence-mode switch guard (must-fix #1 from review round 2)
 // =============================================================================
 
-func presenceModeAttendanceCleanup(t *testing.T, db *bun.DB) {
+func presenceModeAttendanceCleanup(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(),
-		`DELETE FROM active.attendance WHERE date = ? AND tenant_id = 1`,
+		`DELETE FROM active.attendance WHERE date = ? AND tenant_id = ?`,
 		timezone.TodayUTC(),
+		tenantID,
 	)
 	require.NoError(t, err)
 }
 
-func resetPresenceMode(t *testing.T, db *bun.DB) {
+func resetPresenceMode(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(),
-		`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = ?`,
+		`DELETE FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?`,
+		tenantID,
 		configModel.KeyPresenceMode,
 	)
 	require.NoError(t, err)
+}
+
+func createPresenceModeAttendanceForTenant(
+	t *testing.T,
+	db *bun.DB,
+	tenantID int64,
+	studentID int64,
+	staffID int64,
+	deviceID int64,
+	checkInTime time.Time,
+	checkOutTime *time.Time,
+) {
+	t.Helper()
+
+	_, err := db.ExecContext(
+		context.Background(),
+		`INSERT INTO active.attendance (
+			tenant_id,
+			student_id,
+			date,
+			check_in_time,
+			check_out_time,
+			checked_in_by,
+			device_id,
+			created_at,
+			updated_at
+		)
+		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+		tenantID,
+		studentID,
+		timezone.TodayUTC(),
+		checkInTime,
+		checkOutTime,
+		staffID,
+		deviceID,
+	)
+	require.NoError(t, err)
+}
+
+func presenceModePath(tenantID int64, suffix string) string {
+	return fmt.Sprintf("/schools/%d/settings/values/%s%s", tenantID, configModel.KeyPresenceMode, suffix)
 }
 
 func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	presenceModeAttendanceCleanup(t, ctx.db)
-	resetPresenceMode(t, ctx.db)
-	defer presenceModeAttendanceCleanup(t, ctx.db)
-	defer resetPresenceMode(t, ctx.db)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
+	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	resetPresenceMode(t, ctx.db, tenantID)
+	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	defer resetPresenceMode(t, ctx.db, tenantID)
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Block", "9a")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff")
-	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-001")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID, staff.ID, device.ID)
+	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Block", "9a")
+	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff")
+	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-001")
+	defer testpkg.CleanupActivityFixturesForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
-	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)
+	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
 
 	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode, body)
+	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, ""), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
@@ -491,21 +538,24 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(
 	ctx := setupOperatorSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	presenceModeAttendanceCleanup(t, ctx.db)
-	resetPresenceMode(t, ctx.db)
-	defer presenceModeAttendanceCleanup(t, ctx.db)
-	defer resetPresenceMode(t, ctx.db)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
+	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	resetPresenceMode(t, ctx.db, tenantID)
+	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	defer resetPresenceMode(t, ctx.db, tenantID)
 
-	student := testpkg.CreateTestStudent(t, ctx.db, "Guard", "Force", "9b")
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Guard", "Staff2")
-	device := testpkg.CreateTestDevice(t, ctx.db, "guard-device-002")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID, staff.ID, device.ID)
+	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Force", "9b")
+	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff2")
+	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-002")
+	defer testpkg.CleanupActivityFixturesForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
-	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)
+	defer presenceModeAttendanceCleanup(t, ctx.db, tenantID)
 
 	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode+"?force=true", body)
+	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, "?force=true"), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -515,12 +565,14 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_PassesWithNoOpenAttendance(t
 	ctx := setupOperatorSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	presenceModeAttendanceCleanup(t, ctx.db)
-	resetPresenceMode(t, ctx.db)
-	defer resetPresenceMode(t, ctx.db)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, ctx.db, tenantID)
+	presenceModeAttendanceCleanup(t, ctx.db, tenantID)
+	resetPresenceMode(t, ctx.db, tenantID)
+	defer resetPresenceMode(t, ctx.db, tenantID)
 
 	body := map[string]interface{}{"value": configModel.PresenceModeBinary}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/"+configModel.KeyPresenceMode, body)
+	req := newOperatorRequest(t, http.MethodPut, presenceModePath(tenantID, ""), body)
 	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)

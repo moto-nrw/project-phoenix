@@ -27,6 +27,20 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} data-testid="next-image" />
+  ),
+}));
+
+const mockUseTenant = vi.fn();
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenantSafe: () => mockUseTenant(),
+  useTenantSlugSafe: () => "demo-school",
+  useNFCEnabled: vi.fn(() => true),
+}));
+
 vi.mock("~/lib/auth-api", () => ({
   confirmPasswordReset: vi.fn(),
 }));
@@ -38,6 +52,10 @@ describe("ResetPasswordPage", () => {
     vi.clearAllMocks();
     mockToken = "valid-reset-token";
     vi.mocked(confirmPasswordReset).mockResolvedValue({ message: "success" });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "demo-school",
+      tenant: null,
+    });
   });
 
   it("renders the reset password form", () => {
@@ -45,7 +63,7 @@ describe("ResetPasswordPage", () => {
 
     expect(screen.getByText("Neues Passwort festlegen")).toBeInTheDocument();
     expect(
-      screen.getByText("Bitte geben Sie Ihr neues Passwort ein."),
+      screen.getByText("Wählen Sie ein starkes Passwort für Ihr Konto."),
     ).toBeInTheDocument();
   });
 
@@ -53,11 +71,11 @@ describe("ResetPasswordPage", () => {
     render(<ResetPasswordPage />);
 
     expect(screen.getByText("Passwort-Anforderungen:")).toBeInTheDocument();
-    expect(screen.getByText("• Mindestens 8 Zeichen lang")).toBeInTheDocument();
-    expect(screen.getByText("• Groß- und Kleinbuchstaben")).toBeInTheDocument();
-    expect(screen.getByText("• Mindestens eine Zahl")).toBeInTheDocument();
+    expect(screen.getByText("Mindestens 8 Zeichen lang")).toBeInTheDocument();
+    expect(screen.getByText("Groß- und Kleinbuchstaben")).toBeInTheDocument();
+    expect(screen.getByText("Mindestens eine Zahl")).toBeInTheDocument();
     expect(
-      screen.getByText("• Mindestens ein Sonderzeichen"),
+      screen.getByText("Mindestens ein Sonderzeichen"),
     ).toBeInTheDocument();
   });
 
@@ -213,7 +231,7 @@ describe("ResetPasswordPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Passwort erfolgreich geändert!"),
+        screen.getByText("Passwort erfolgreich geändert"),
       ).toBeInTheDocument();
     });
   });
@@ -241,7 +259,9 @@ describe("ResetPasswordPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Sie werden zur Anmeldeseite weitergeleitet..."),
+        screen.getByText(
+          "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
+        ),
       ).toBeInTheDocument();
     });
   });
@@ -436,10 +456,26 @@ describe("ResetPasswordPage", () => {
     });
   });
 
-  it("renders MOTO logo", () => {
+  it("does not render a MOTO logo fallback", () => {
     render(<ResetPasswordPage />);
 
-    expect(screen.getByAltText("MOTO Logo")).toBeInTheDocument();
+    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
+  });
+
+  it("renders tenant logo when configured", () => {
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "demo-school",
+      tenant: {
+        name: "Demo School",
+        settings: {
+          loginImageUrl: "/uploads/login-images/demo-logo.png",
+        },
+      },
+    });
+
+    render(<ResetPasswordPage />);
+
+    expect(screen.getByAltText("Demo School Logo")).toBeInTheDocument();
   });
 });
 

@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 )
 
-// RateLimiter manages rate limiting by IP address
+// RateLimiter manages rate limiting by request key.
 type RateLimiter struct {
 	visitors map[string]*visitor
 	mu       sync.RWMutex
@@ -19,9 +19,10 @@ type RateLimiter struct {
 	b        int        // burst size
 	ttl      time.Duration
 	logger   *SecurityLogger // optional security logger
+	keyFunc  func(*http.Request) string
 }
 
-// visitor tracks rate limiting for a single IP
+// visitor tracks rate limiting for a single request key.
 type visitor struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
@@ -50,15 +51,36 @@ func (rl *RateLimiter) SetLogger(logger *SecurityLogger) {
 	rl.logger = logger
 }
 
-// getVisitor returns the rate limiter for the given IP
-func (rl *RateLimiter) getVisitor(ip string) *rate.Limiter {
+// SetKeyFunc sets the request key function for the rate limiter.
+// If keyFunc returns an empty key, the limiter falls back to the client IP.
+func (rl *RateLimiter) SetKeyFunc(keyFunc func(*http.Request) string) {
+	rl.keyFunc = keyFunc
+}
+
+func defaultRateLimitKey(r *http.Request) string {
+	return "ip:" + GetClientIP(r)
+}
+
+func (rl *RateLimiter) requestKey(r *http.Request) string {
+	if rl.keyFunc == nil {
+		return defaultRateLimitKey(r)
+	}
+	key := rl.keyFunc(r)
+	if key == "" {
+		return defaultRateLimitKey(r)
+	}
+	return key
+}
+
+// getVisitor returns the rate limiter for the given request key.
+func (rl *RateLimiter) getVisitor(key string) *rate.Limiter {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	v, exists := rl.visitors[ip]
+	v, exists := rl.visitors[key]
 	if !exists {
 		limiter := rate.NewLimiter(rl.r, rl.b)
-		rl.visitors[ip] = &visitor{limiter: limiter, lastSeen: time.Now()}
+		rl.visitors[key] = &visitor{limiter: limiter, lastSeen: time.Now()}
 		return limiter
 	}
 
@@ -86,8 +108,7 @@ func (rl *RateLimiter) cleanupVisitors() {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := GetClientIP(r)
-			limiter := rl.getVisitor(ip)
+			limiter := rl.getVisitor(rl.requestKey(r))
 
 			if !limiter.Allow() {
 				w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", int(rl.r*60)))
@@ -111,22 +132,8 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 // GetClientIP extracts the real client IP address from the request
 func GetClientIP(r *http.Request) string {
-	// Check X-Real-IP header first (set by reverse proxy)
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+	if ip := chimiddleware.GetClientIP(r.Context()); ip != "" {
 		return ip
-	}
-
-	// Check X-Forwarded-For header
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Split the header value on commas and trim each entry
-		ips := strings.Split(xff, ",")
-		for i, ip := range ips {
-			ips[i] = strings.TrimSpace(ip)
-		}
-		// Return the first IP in the list
-		if len(ips) > 0 {
-			return ips[0]
-		}
 	}
 
 	// Fall back to RemoteAddr

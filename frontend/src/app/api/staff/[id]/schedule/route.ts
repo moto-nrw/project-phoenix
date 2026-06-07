@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
-import { apiGet, apiPut } from "~/lib/api-helpers";
-import { createGetHandler, createPutHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
+import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
 
 // Backend response shape; kept loose because the schedule grew rotation
 // metadata (mode, model, rotation_length, weekly_totals, anchor) and the

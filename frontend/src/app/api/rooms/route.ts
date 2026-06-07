@@ -1,7 +1,10 @@
 // app/api/rooms/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 import type { BackendRoom } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -106,9 +109,19 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      logger.error("rooms fetch failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const logContext = {
+        error: errorMessage,
+        ...(errorMessage.includes("API error (429)") && {
+          rate_limited: true,
+        }),
+      };
+      if (logContext.rate_limited) {
+        logger.warn("rooms fetch failed", logContext);
+      } else {
+        logger.error("rooms fetch failed", logContext);
+      }
       // Return empty response with pagination
       return {
         data: [],

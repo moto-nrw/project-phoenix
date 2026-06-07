@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
@@ -6,37 +6,80 @@ import { StudentsInRoomSection } from "./students-in-room-section";
 // Mocks
 // ----------------------------------------------------------------------------
 
-const mockPush = vi.fn();
+const {
+  mockPush,
+  mockUseSearchParams,
+  mockUseSWRAuth,
+  mockUseTenantMutateMatching,
+  mockGetStudentCurrentVisit,
+  mockUpdateVisit,
+  mockGetActiveGroups,
+  mockToastSuccess,
+} = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockUseSearchParams: vi.fn(() => ({
+    get: vi.fn(() => null),
+    toString: vi.fn(() => "room=42"),
+  })),
+  mockUseSWRAuth: vi.fn(),
+  mockUseTenantMutateMatching: vi.fn(),
+  mockGetStudentCurrentVisit: vi.fn(),
+  mockUpdateVisit: vi.fn(),
+  mockGetActiveGroups: vi.fn(),
+  mockToastSuccess: vi.fn(),
+}));
+
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockPush }),
 }));
 
-const mockUseSearchParams = vi.fn(() => ({
-  get: vi.fn(() => null),
-  toString: vi.fn(() => "room=42"),
-}));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
-const mockUseSWRAuth = vi.fn();
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
+  useTenantMutateMatching: (...args: unknown[]) =>
+    mockUseTenantMutateMatching(...args),
 }));
 
-// Light mocks for visual primitives — we want to assert behaviors (text,
+vi.mock("~/lib/active-service", () => ({
+  activeService: {
+    getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
+    getStudentCurrentVisit: (...args: unknown[]) =>
+      mockGetStudentCurrentVisit(...args),
+    updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
+  },
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+  }),
+}));
+
+// Light mocks for visual primitives, we want to assert behaviors (text,
 // button visibility, click handlers), not the exact rendering of every UI
 // atom imported transitively. The "Kinder im Raum" section now renders
 // its own <section aria-label> wrapper instead of going through InfoCard
-// (#1323 review — quiet section headers across the slide-over), so no
+// (#1323 review, quiet section headers across the slide-over), so no
 // info-card mock is needed.
 
 vi.mock("~/components/ui/button", () => ({
   Button: ({
     onClick,
     children,
+    isLoading: _isLoading,
+    loadingText: _loadingText,
+    variant: _variant,
+    size: _size,
     ...rest
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    isLoading?: boolean;
+    loadingText?: string;
+    variant?: string;
+    size?: string;
+  }) => (
     <button onClick={onClick} {...rest}>
       {children}
     </button>
@@ -51,7 +94,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Loading widget is no longer used here (replaced with a content-shaped
 // StudentRowSkeleton in #1323 review). Tests below assert the skeleton's
-// data-testid + role="status" instead of the old "loading" testid — same
+// data-testid + role="status" instead of the old "loading" testid, same
 // business assertion (a loading state IS shown while SWR fetches), new
 // selector that matches the new skeleton shape.
 
@@ -62,26 +105,22 @@ vi.mock("~/components/students/compact-student-card", () => ({
     lastName,
     schoolClass,
     groupName,
-    onClick,
   }: {
     studentId: string;
     firstName?: string;
     lastName?: string;
     schoolClass?: string;
     groupName?: string;
-    onClick?: () => void;
   }) => (
-    <button
-      type="button"
+    <div
       data-testid={`compact-student-card-${studentId}`}
       data-school-class={schoolClass}
       data-group-name={groupName}
-      onClick={onClick}
     >
       <span>
         {firstName} {lastName}
       </span>
-    </button>
+    </div>
   ),
 }));
 
@@ -97,6 +136,17 @@ interface MockStudent {
   group_name?: string;
 }
 
+interface MockActiveGroup {
+  id: string;
+  roomId: string;
+  isActive: boolean;
+}
+
+interface MockRoom {
+  id: string;
+  name: string;
+}
+
 const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   id: "1",
   first_name: "Anna",
@@ -106,24 +156,78 @@ const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   ...overrides,
 });
 
-const setSWR = (state: {
+let roomStudentsState: {
   data?: {
     students: MockStudent[];
     pagination?: { total_records: number };
   };
   error?: unknown;
   isLoading?: boolean;
-}) => {
-  mockUseSWRAuth.mockReturnValue({
-    data: state.data,
-    error: state.error ?? null,
-    isLoading: state.isLoading ?? false,
-  });
+};
+let activeGroupsState: { data: MockActiveGroup[] };
+let roomsState: { data: MockRoom[] };
+
+const setSWR = (state: typeof roomStudentsState) => {
+  roomStudentsState = state;
+};
+
+const setBulkData = ({
+  activeGroups = [
+    { id: "900", roomId: "9000", isActive: true },
+    { id: "901", roomId: "9001", isActive: true },
+  ],
+  rooms = [
+    { id: "9000", name: "Raum 6" },
+    { id: "9001", name: "Atelier" },
+  ],
+}: {
+  activeGroups?: MockActiveGroup[];
+  rooms?: MockRoom[];
+} = {}) => {
+  activeGroupsState = { data: activeGroups };
+  roomsState = { data: rooms };
 };
 
 beforeEach(() => {
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
+  mockUseTenantMutateMatching.mockReset();
+  mockGetStudentCurrentVisit.mockReset();
+  mockUpdateVisit.mockReset();
+  mockGetActiveGroups.mockReset();
+  mockToastSuccess.mockReset();
+  mockUseSearchParams.mockReset();
+  mockUseSearchParams.mockReturnValue({
+    get: vi.fn(() => null),
+    toString: vi.fn(() => "room=42"),
+  });
+  mockUseTenantMutateMatching.mockReturnValue(vi.fn());
+  setSWR({ data: { students: [] } });
+  setBulkData();
+  mockUseSWRAuth.mockImplementation((key: string) => {
+    if (key.startsWith("room-students-")) {
+      return {
+        data: roomStudentsState.data,
+        error: roomStudentsState.error ?? null,
+        isLoading: roomStudentsState.isLoading ?? false,
+      };
+    }
+    if (key === "room-bulk-active-groups") {
+      return {
+        data: activeGroupsState.data,
+        error: null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-rooms") {
+      return {
+        data: roomsState.data,
+        error: null,
+        isLoading: false,
+      };
+    }
+    return { data: undefined, error: null, isLoading: false };
+  });
 });
 
 // ----------------------------------------------------------------------------
@@ -156,9 +260,7 @@ describe("StudentsInRoomSection", () => {
 
       const alert = screen.getByRole("alert");
       expect(alert).toHaveTextContent(/Liste der Kinder/);
-      // Error path must not also render the empty-state placeholder —
-      // those two states are mutually exclusive and showing both would
-      // confuse the user about whether a retry would help.
+      // Error and empty states must stay mutually exclusive.
       expect(
         screen.queryByText(/Aktuell keine Kinder/),
       ).not.toBeInTheDocument();
@@ -172,9 +274,7 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByText(/Aktuell keine Kinder im Raum/),
       ).toBeInTheDocument();
-      // "In Kindersuche öffnen" must NOT render when the list is empty —
-      // otherwise the deep-link would land on an empty filtered Kindersuche
-      // with no obvious affordance for the user to recover.
+      // Do not deep-link to an empty filtered Kindersuche.
       expect(
         screen.queryByRole("button", { name: /Kindersuche/ }),
       ).not.toBeInTheDocument();
@@ -201,11 +301,7 @@ describe("StudentsInRoomSection", () => {
     });
 
     it("forwards school_class and group_name to the compact card", () => {
-      // The minimal card shows just identity (name + class + group). The
-      // section must pass those fields through unmodified — earlier
-      // versions used StudentCard with extraContent and arrival/pickup
-      // rows; that complexity is gone, but the identifiers must remain
-      // visible so staff can recognise the child.
+      // The minimal card still needs class and group identifiers.
       setSWR({
         data: {
           students: [
@@ -298,7 +394,7 @@ describe("StudentsInRoomSection", () => {
     it("renders an overflow status when total_records exceeds rendered count", () => {
       // Hard-coded pageSize=200 caps the response. When a room ever
       // exceeds it, the section must surface the gap and point at the
-      // Kindersuche escape hatch — otherwise staff can't see or open
+      // Kindersuche escape hatch, otherwise staff can't see or open
       // the missing children (#1374).
       setSWR({
         data: {
@@ -333,14 +429,258 @@ describe("StudentsInRoomSection", () => {
     });
   });
 
+  describe("bulk room move", () => {
+    it("selects multiple children and moves their current visits to the selected room", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7", first_name: "Anna" }),
+            makeStudent({ id: "8", first_name: "Ben", second_name: "Schulz" }),
+          ],
+        },
+      });
+      mockGetStudentCurrentVisit.mockImplementation((studentId: string) =>
+        Promise.resolve({
+          id: `visit-${studentId}`,
+          studentId,
+          activeGroupId: "current-group",
+          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        }),
+      );
+      mockUpdateVisit.mockResolvedValue({});
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
+        expect.arrayContaining(["rooms-list"]),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockUpdateVisit).toHaveBeenCalledTimes(2);
+      });
+      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("8");
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-7",
+        expect.objectContaining({ activeGroupId: "900", studentId: "7" }),
+      );
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-8",
+        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      );
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "2 Kinder nach Raum 6 bewegt.",
+      );
+    });
+
+    it("keeps the move action disabled when no target room is selected", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("button", { name: "In Raum setzen" }),
+      ).toBeDisabled();
+    });
+
+    it("treats a child already in the target room as a successful no-op", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      mockGetStudentCurrentVisit.mockResolvedValue({
+        id: "visit-7",
+        studentId: "7",
+        activeGroupId: "900",
+        checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+        isActive: true,
+        createdAt: new Date("2026-05-14T08:00:00.000Z"),
+        updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+      });
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "1 Kind nach Raum 6 bewegt.",
+      );
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a partial failure when a selected child has no active visit", async () => {
+      const refreshCaches = vi.fn().mockResolvedValue(undefined);
+      mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
+      setSWR({
+        data: {
+          students: [
+            makeStudent({ id: "7", first_name: "Anna" }),
+            makeStudent({ id: "8", first_name: "Ben", second_name: "Schulz" }),
+          ],
+        },
+      });
+      mockGetStudentCurrentVisit.mockImplementation((studentId: string) => {
+        if (studentId === "7") {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve({
+          id: "visit-8",
+          studentId: "8",
+          activeGroupId: "current-group",
+          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        });
+      });
+      mockUpdateVisit.mockResolvedValue({});
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Ben Schulz auswählen/ }),
+      );
+      fireEvent.change(screen.getByLabelText("Zielraum"), {
+        target: { value: "900" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toHaveTextContent(
+          "1 von 2 Kindern konnten nicht bewegt werden.",
+        );
+      });
+      expect(mockUpdateVisit).toHaveBeenCalledTimes(1);
+      expect(mockUpdateVisit).toHaveBeenCalledWith(
+        "visit-8",
+        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      );
+      expect(mockToastSuccess).not.toHaveBeenCalled();
+      expect(refreshCaches).toHaveBeenCalledTimes(1);
+    });
+
+    it("selects a child when clicking the row content without opening the profile", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      ).toBeChecked();
+    });
+
+    it("reports active selection state to the drawer wrapper", async () => {
+      const onSelectionActiveChange = vi.fn();
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+
+      render(
+        <StudentsInRoomSection
+          roomId="42"
+          roomName="OGS-Raum 1"
+          onSelectionActiveChange={onSelectionActiveChange}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),
+      );
+
+      await waitFor(() => {
+        expect(onSelectionActiveChange).toHaveBeenLastCalledWith(true);
+      });
+    });
+
+    it("excludes the current room from the target room list", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "current", roomId: "42", isActive: true },
+          { id: "target", roomId: "9000", isActive: true },
+        ],
+        rooms: [
+          { id: "42", name: "OGS-Raum 1" },
+          { id: "9000", name: "Raum 6" },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(screen.queryByRole("option", { name: "OGS-Raum 1" })).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("excludes rooms with multiple active sessions from the target room list", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "first", roomId: "9000", isActive: true },
+          { id: "second", roomId: "9000", isActive: true },
+          { id: "single", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Raum mit Konflikt" },
+          { id: "9001", name: "Raum 6" },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.queryByRole("option", { name: "Raum mit Konflikt" }),
+      ).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("navigation", () => {
     it("encodes the full URL as from= in the slide-over context (preserves filters)", () => {
       // The section now only renders inside the slide-over (legacy
       // /rooms/{id} subpage is a server-side redirect). The from= URL
-      // must carry the COMPLETE current query string — including any
-      // grid filters (search, building, status) — so the user lands
+      // must carry the complete current query string, including any
+      // grid filters (search, building, status), so the user lands
       // back on their narrowed view, not a reset grid.
-      mockUseSearchParams.mockReturnValueOnce({
+      mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
         toString: vi.fn(
           () => "search=foo&building=Main&status=occupied&room=42",
@@ -350,7 +690,9 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Anna Müller Profil öffnen/ }),
+      );
 
       // ? inside from= must be URL-encoded; & inside likewise. Without
       // encoding the outer query parser splits at the inner '?' and
@@ -363,7 +705,7 @@ describe("StudentsInRoomSection", () => {
     });
 
     it("falls back to /rooms?room={id} when no query string is present", () => {
-      mockUseSearchParams.mockReturnValueOnce({
+      mockUseSearchParams.mockReturnValue({
         get: vi.fn(() => null),
         toString: vi.fn(() => ""),
       });
@@ -371,7 +713,9 @@ describe("StudentsInRoomSection", () => {
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
-      fireEvent.click(screen.getByTestId("compact-student-card-7"));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Anna Müller Profil öffnen/ }),
+      );
 
       expect(mockPush).toHaveBeenCalledWith(
         `/students/7?from=${encodeURIComponent("/rooms?room=42")}`,
@@ -394,7 +738,7 @@ describe("StudentsInRoomSection", () => {
       expect(mockPush).toHaveBeenCalledTimes(1);
       const target = mockPush.mock.calls[0]?.[0] as string;
       expect(target).toMatch(/^\/students\/search\?/);
-      // room_name must be URL-encoded — the seed value "OGS-Raum 1" contains
+      // room_name must be URL-encoded. The seed value "OGS-Raum 1" contains
       // a space and a hyphen and would break a naive concatenation.
       expect(target).toContain("room_id=42");
       expect(target).toContain("room_name=OGS-Raum+1");

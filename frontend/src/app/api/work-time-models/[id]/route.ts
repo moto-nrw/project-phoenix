@@ -1,11 +1,11 @@
 import type { NextRequest } from "next/server";
 
-import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers";
+import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers.server";
 import {
   createDeleteHandler,
   createGetHandler,
   createPutHandler,
-} from "~/lib/route-wrapper";
+} from "~/lib/route-wrapper.server";
 
 type WorkTimeModel = Record<string, unknown>;
 type UpdateBody = Record<string, unknown>;

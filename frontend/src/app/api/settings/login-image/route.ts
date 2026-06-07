@@ -3,8 +3,11 @@ import type { NextRequest } from "next/server";
 import {
   createFileUploadHandler,
   FileValidationError,
-} from "~/lib/file-upload-wrapper";
-import { createDeleteHandler, createGetHandler } from "~/lib/route-wrapper";
+} from "~/lib/file-upload-wrapper.server";
+import {
+  createDeleteHandler,
+  createGetHandler,
+} from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 import { uncachedAuth } from "~/server/auth";
 

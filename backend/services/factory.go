@@ -12,10 +12,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/email"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -26,10 +28,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
 	"github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/services/emergency"
+	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
@@ -40,6 +46,7 @@ import (
 // Factory provides access to all services
 type Factory struct {
 	Auth                     auth.AuthService
+	MFA                      auth.MFAService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
@@ -51,6 +58,7 @@ type Factory struct {
 	Schulhof                 facilities.SchulhofService
 	WC                       facilities.WCService
 	Invitation               auth.InvitationService
+	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
@@ -63,14 +71,19 @@ type Factory struct {
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
+	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
+	GuardianProfileLoader    users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	RealtimeHub              *realtime.Hub                                               // SSE event hub (shared by services and API)
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
+	ListExport               listexport.Service
+	Emergency                emergency.Service
+	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -83,11 +96,32 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	OperatorSuggestions  platform.OperatorSuggestionsService
+	OperatorMFA          platform.OperatorMFAService
+
+	// Email outbox (parent-enrollment PR 5) - shared across features.
+	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
+	// the table on a scheduler tick; EmailTemplateRegistry holds the
+	// kind→Renderer mapping populated at startup.
+	EmailOutbox           *platform.OutboxService
+	EmailOutboxWorker     *platform.OutboxWorker
+	EmailTemplateRegistry *platform.TemplateRegistry
+
+	// Enrollment domain (parent-enrollment PR 5+).
+	EnrollmentFormSchema   enrollment.FormSchemaService
+	EnrollmentCareOffering enrollment.CareOfferingService
+	EnrollmentCaptcha      enrollment.CaptchaService
+	EnrollmentRequest      enrollment.RequestService
+	EnrollmentPhase        enrollment.PhaseService
+	EnrollmentDecision     enrollment.DecisionService
+	EnrollmentRollover     enrollment.RolloverService
+
+	// Parent (cross-tenant guardian portal - PR 9)
+	Parent parent.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
 	// (facilities at startup, students via EnableStudentPhotos). API never
-	// owns the registry — its only job is to dispatch.
+	// owns the registry - its only job is to dispatch.
 	SettingsSideEffects *sideeffects.Registry
 	// StudentPhotos is set by EnableStudentPhotos. nil until the API layer
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
@@ -132,6 +166,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	appEnv := strings.ToLower(viper.GetString("app_env"))
 	if appEnv == "production" && !strings.HasPrefix(frontendURL, "https://") {
 		return nil, fmt.Errorf("FRONTEND_URL must use https:// in production (received %q)", rawFrontendURL)
+	}
+
+	// Parents-portal URL - used for every parent-facing email link
+	// (status, decision emails, guardian invitation accept). Falls
+	// back to the staff frontendURL when unset so dev keeps working
+	// without an explicit value, but production must set it
+	// explicitly to https://parents.{TENANT_DOMAIN}.
+	rawParentsURL := viper.GetString("parents_url")
+	parentsURL := strings.TrimRight(rawParentsURL, "/")
+	if parentsURL == "" {
+		parentsURL = frontendURL
+	}
+	if appEnv == "production" && !strings.HasPrefix(parentsURL, "https://") {
+		return nil, fmt.Errorf("PARENTS_URL must use https:// in production (received %q)", rawParentsURL)
 	}
 
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
@@ -192,7 +240,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianInvitationRepo:  repos.GuardianInvitation,
+		AccountRepo:             repos.Account,
 		AccountParentRepo:       repos.AccountParent,
+		AccountTenantRepo:       repos.AccountTenant,
+		AccountRoleRepo:         repos.AccountRole,
+		RoleRepo:                repos.Role,
 		StudentRepo:             repos.Student,
 		PersonRepo:              repos.Person,
 		Mailer:                  mailer,
@@ -203,6 +255,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                      db,
 	})
 
+	// Thin loader that backs the public + parent enrollment me/profile
+	// endpoints. Pulls the multi-schema join out of the handlers (Rule 1)
+	// and into the existing GuardianProfileRepository.LoadProfileWithChildren.
+	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
+
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, activeLogger)
 
@@ -210,7 +267,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota)
 
 	// Initialize attendance sync service (WP-B10). Implements
-	// active.AttendanceSyncer — called from CreateVisit / EndVisit to mirror
+	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
 	// into schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on active.Service.
 	attendanceSyncService := schedule.NewAttendanceSyncService(
@@ -393,7 +450,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
 	// on schedule.activity_instances and its bridge to active.groups. Takes
-	// the active service as a dependency (for EndActivitySession) — when the
+	// the active service as a dependency (for EndActivitySession) - when the
 	// bridge closes, visits + supervisors close and per-student checkout SSE
 	// events fire, matching today's observable behavior for a session ending.
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
@@ -414,6 +471,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "instance-lifecycle"),
 	})
 
+	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		InstanceService:   instanceService,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		Logger:            logger.With("service", "timetable-auto-start"),
+	})
+
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
@@ -425,6 +493,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
 		EducationGroupRepo: repos.Group,
+		RoomRepo:           repos.Room,
 		PersonService:      usersService,
 		Settings:           settingsService,
 		Broadcaster:        realtimeHub,
@@ -458,6 +527,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, err
 	}
 
+	mfaTokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init mfa token auth: %w", err)
+	}
+	mfaService, err := auth.NewMFAService(auth.MFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   mfaTokenAuth,
+		Settings:    settingsService,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      authLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init mfa service: %w", err)
+	}
+	// Wire the MFA gate into the auth service so /auth/login knows to issue
+	// challenge tokens instead of token pairs when MFA is required. Done
+	// post-construction so we don't introduce a constructor cycle.
+	authService.SetMFAService(mfaService)
+
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -476,6 +568,99 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                db,
 		Logger:            authLogger,
 	})
+
+	// Email outbox (parent-enrollment PR 5). Declared here so the
+	// guardian invitation service can wire OutboxEnqueuer below.
+	emailTemplateRegistry := platform.NewTemplateRegistry()
+	emailOutboxService := platform.NewOutboxService(repos.EmailOutbox)
+	emailOutboxWorker := platform.NewOutboxWorker(platform.OutboxWorkerConfig{
+		Repo:        repos.EmailOutbox,
+		Registry:    emailTemplateRegistry,
+		Mailer:      mailer,
+		MaxAttempts: 6, // pushed by scheduler from settings each tick
+		Logger:      logger.With("service", "outbox"),
+		DB:          db,
+	})
+
+	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
+		InvitationRepo:       repos.GuardianInvitation,
+		AccountRepo:          repos.Account,
+		AccountTenantRepo:    repos.AccountTenant,
+		AccountRoleRepo:      repos.AccountRole,
+		RoleRepo:             repos.Role,
+		PersonRepo:           repos.Person,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		SchoolRepo:           repos.School,
+		Mailer:               mailer,
+		Dispatcher:           dispatcher,
+		OutboxEnqueuer:       platform.NewAuthOutboxAdapter(emailOutboxService),
+		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		SettingsResolver:     settingsService,
+		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
+		DefaultFrom:          defaultFrom,
+		FallbackExpiry:       invitationTokenExpiry,
+		DB:                   db,
+		Logger:               authLogger.With("flow", "guardian_invitation"),
+	})
+
+	// Register the guardian_invitation renderer at startup so the outbox
+	// worker can dispatch enqueued rows. PR 7 adds enrollment_submitted +
+	// enrollment_admin_notification renderers below; PR 8 will add the
+	// decision-digest renderer alongside its service wiring.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindGuardianInvitation,
+		platform.RendererFunc(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentSubmitted,
+		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentAdminNotify,
+		platform.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	// Per-status decision emails dispatched by the DecisionService
+	// (PR 8 slice 2). One renderer per kind keeps subjects + templates
+	// independent and makes future copy updates contained.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentApproved,
+		platform.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentWaitlisted,
+		platform.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRejected,
+		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	// Rollover (annual phase renewal) emails. Slice 1 reuses the
+	// submission template as a placeholder. Proper branded copy lands
+	// in a follow-up PR.
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRolloverOptIn,
+		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentRolloverOptOut,
+		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -543,18 +728,32 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
 	studentImportConfig := importService.NewStudentImportConfig(
 		importService.StudentImportDeps{
-			PersonRepo:         repos.Person,
-			StudentRepo:        repos.Student,
-			GuardianRepo:       repos.GuardianProfile,
-			GuardianPhoneRepo:  repos.GuardianPhoneNumber,
-			RelationRepo:       repos.StudentGuardian,
-			PrivacyRepo:        repos.PrivacyConsent,
-			PickupScheduleRepo: repos.StudentPickupSchedule,
-			Resolver:           relationshipResolver,
+			PersonRepo:          repos.Person,
+			StudentRepo:         repos.Student,
+			GuardianRepo:        repos.GuardianProfile,
+			GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+			RelationRepo:        repos.StudentGuardian,
+			PrivacyRepo:         repos.PrivacyConsent,
+			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			Resolver:            relationshipResolver,
 		},
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig, db)
+
+	// Staff import bulk-creates invitations (reuses the invitation service);
+	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	staffImportConfig := importService.NewStaffImportConfig(
+		importService.StaffImportDeps{
+			InvitationService: invitationService,
+			AccountRepo:       repos.Account,
+			AccountTenantRepo: repos.AccountTenant,
+			RoleRepo:          repos.Role,
+			SchoolRepo:        repos.School,
+		},
+	)
+	staffImportService := importService.NewImportService(staffImportConfig, db)
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -573,7 +772,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Operator frontend URL for invitation emails. The operator subdomain is separate
 	// from FRONTEND_URL, so we link directly to the operator host to avoid a
 	// cross-origin redirect hop that email content scanners treat as a phishing
-	// signal. Constructed conditionally — only required when actually sending
+	// signal. Constructed conditionally - only required when actually sending
 	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
 	// operatorFrontendURL.
 	var operatorFrontendURL string
@@ -604,6 +803,32 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
 	}
 
+	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
+	// the operator auth service so the login-flow integration in 7b-3 can
+	// inject it via SetMFAService.
+	operatorMFATokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
+	}
+	operatorMFAService, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
+		Repos:       repos,
+		TokenAuth:   operatorMFATokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: defaultFrom,
+		FrontendURL: frontendURL,
+		JWTSecret:   viper.GetString("auth_jwt_secret"),
+		DB:          db,
+		Logger:      platformLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init operator mfa service: %w", err)
+	}
+	// Wire the MFA gate into the operator auth service so /operator/auth/login
+	// returns challenge tokens when MFA is required (= always, hardcoded for
+	// platform scope). Done post-construction to break the
+	// OperatorAuthService ↔ OperatorMFAService cycle.
+	operatorAuthService.SetMFAService(operatorMFAService)
+
 	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
 		AnnouncementRepo:     repos.Announcement,
 		AnnouncementViewRepo: repos.AnnouncementView,
@@ -622,6 +847,100 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AuditLogRepo:    repos.OperatorAuditLog,
 		DB:              db,
 		Logger:          platformLogger,
+	})
+
+	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
+		Repo:        repos.FormSchema,
+		PhaseRepo:   repos.Phase,
+		RequestRepo: repos.Request,
+		Logger:      logger.With("service", "enrollment-form-schema"),
+	})
+
+	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
+		Repo:   repos.CareOffering,
+		Logger: logger.With("service", "enrollment-care-offering"),
+	})
+
+	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
+		Settings: settingsService,
+		Logger:   logger.With("service", "enrollment-captcha"),
+	})
+
+	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		RateLimitRepo:            repos.SubmissionRateLimit,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		Settings:                 settingsService,
+		FrontendURL:              frontendURL, // admin notification email
+		ParentsURL:               parentsURL,  // parent confirmation/status emails
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-request"),
+	})
+
+	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
+		Repo:             repos.Phase,
+		RequestRepo:      repos.Request,
+		RequestChildRepo: repos.RequestChild,
+		CareOfferingRepo: repos.CareOffering,
+		DB:               db,
+		Logger:           logger.With("service", "enrollment-phase"),
+	})
+
+	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		PhaseRepo:                repos.Phase,
+		FormSchemaRepo:           repos.FormSchema,
+		DataAccessLogRepo:        repos.DataAccessLog,
+		SchoolRepo:               repos.School,
+		PersonRepo:               repos.Person,
+		StudentRepo:              repos.Student,
+		StudentGuardianRepo:      repos.StudentGuardian,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		PickupScheduleRepo:       repos.StudentPickupSchedule,
+		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
+		StudentEnrollmentRepo:    repos.StudentEnrollment,
+		AccountRepo:              repos.Account,
+		AccountTenantRepo:        repos.AccountTenant,
+		AccountRoleRepo:          repos.AccountRole,
+		RoleRepo:                 repos.Role,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		FrontendURL:              frontendURL,
+		ParentsURL:               parentsURL,
+		Logger:                   logger.With("service", "enrollment-decision"),
+	})
+
+	// Rollover service depends on DecisionService for the
+	// rollover_auto_approve=true deadline path.
+	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
+		PhaseRepo:                repos.Phase,
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		SchoolRepo:               repos.School,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		Settings:                 settingsService,
+		DecisionService:          enrollmentDecisionService,
+		ParentsURL:               parentsURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-rollover"),
+	})
+
+	parentService := parent.NewService(parent.ServiceConfig{
+		ChildRepo:             repos.ParentChild,
+		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
+		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		DB:                    db,
+		Logger:                logger.With("service", "parent"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -643,8 +962,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:              platformLogger,
 	})
 
+	listExportService := listexport.NewService()
+	emergencyService := emergency.NewService(emergency.Dependencies{
+		AttendanceRepo: repos.Attendance,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		ActiveService:  activeService,
+		ListExport:     listExportService,
+		DB:             db,
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
+		MFA:                      mfaService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
@@ -667,22 +997,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TimetableCleanup:         timetableCleanupService,
 		TimeTrackingCleanup:      timeTrackingCleanupService,
 		Instance:                 instanceService,
+		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
+		GuardianProfileLoader:    guardianProfileLoader,
 		UserContext:              userContextService,
 		Database:                 databaseService,
 		Import:                   studentImportService, // Student import service
-		RealtimeHub:              realtimeHub,          // Expose SSE hub for API layer
+		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
+		ListExport:               listExportService,
+		Emergency:                emergencyService,
+		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
+		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
 		DefaultFrom:              defaultFrom,
 		FrontendURL:              frontendURL,
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services — OperatorAuth and OperatorInvitation both point
+		// Platform services - OperatorAuth and OperatorInvitation both point
 		// at the same concrete operatorAuthService struct, exposed through
 		// two narrower interfaces so that each handler depends only on the
 		// methods it actually calls. NewOperatorAuthService returns the
@@ -692,6 +1028,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		OperatorSuggestions:  operatorSuggestionsService,
+		OperatorMFA:          operatorMFAService,
+
+		EmailOutbox:           emailOutboxService,
+		EmailOutboxWorker:     emailOutboxWorker,
+		EmailTemplateRegistry: emailTemplateRegistry,
+
+		EnrollmentFormSchema:   enrollmentFormSchemaService,
+		EnrollmentCareOffering: enrollmentCareOfferingService,
+		EnrollmentCaptcha:      enrollmentCaptchaService,
+		EnrollmentRequest:      enrollmentRequestService,
+		EnrollmentPhase:        enrollmentPhaseService,
+		EnrollmentDecision:     enrollmentDecisionService,
+		EnrollmentRollover:     enrollmentRolloverService,
+
+		Parent: parentService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

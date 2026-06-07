@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -28,6 +29,8 @@ const seedTokenHeader = "X-Phoenix-Seed-Token"
 type ProvisioningResource struct {
 	service                    platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
+	TenantMFAService           authSvc.MFAService
+	AccountTenantRepository    authModels.AccountTenantRepository
 	db                         *bun.DB
 }
 
@@ -126,28 +129,30 @@ func (req *updateSchoolRequest) Bind(_ *http.Request) error {
 }
 
 type inviteSchoolAdminRequest struct {
-	Email     string `json:"email"`
-	FirstName string `json:"first_name,omitempty"`
-	LastName  string `json:"last_name,omitempty"`
-	Position  string `json:"position,omitempty"`
+	Email            string `json:"email"`
+	FirstName        string `json:"first_name,omitempty"`
+	LastName         string `json:"last_name,omitempty"`
+	Position         string `json:"position,omitempty"`
+	CaregiverEnabled bool   `json:"caregiver_enabled,omitempty"`
 }
 
 type operatorInvitationResponse struct {
-	ID              int64      `json:"id"`
-	Email           string     `json:"email"`
-	RoleID          int64      `json:"role_id"`
-	RoleName        string     `json:"role_name,omitempty"`
-	Token           *string    `json:"token,omitempty"`
-	ExpiresAt       time.Time  `json:"expires_at"`
-	FirstName       *string    `json:"first_name,omitempty"`
-	LastName        *string    `json:"last_name,omitempty"`
-	Position        *string    `json:"position,omitempty"`
-	CreatedBy       int64      `json:"created_by"`
-	Creator         string     `json:"creator,omitempty"`
-	DeliveryStatus  string     `json:"delivery_status"`
-	EmailSentAt     *time.Time `json:"email_sent_at,omitempty"`
-	EmailError      *string    `json:"email_error,omitempty"`
-	EmailRetryCount int        `json:"email_retry_count"`
+	ID               int64      `json:"id"`
+	Email            string     `json:"email"`
+	RoleID           int64      `json:"role_id"`
+	RoleName         string     `json:"role_name,omitempty"`
+	Token            *string    `json:"token,omitempty"`
+	ExpiresAt        time.Time  `json:"expires_at"`
+	FirstName        *string    `json:"first_name,omitempty"`
+	LastName         *string    `json:"last_name,omitempty"`
+	Position         *string    `json:"position,omitempty"`
+	CaregiverEnabled bool       `json:"caregiver_enabled"`
+	CreatedBy        int64      `json:"created_by"`
+	Creator          string     `json:"creator,omitempty"`
+	DeliveryStatus   string     `json:"delivery_status"`
+	EmailSentAt      *time.Time `json:"email_sent_at,omitempty"`
+	EmailError       *string    `json:"email_error,omitempty"`
+	EmailRetryCount  int        `json:"email_retry_count"`
 }
 
 func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
@@ -386,7 +391,10 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	invitationReq := authSvc.InvitationRequest{Email: req.Email}
+	invitationReq := authSvc.InvitationRequest{
+		Email:            req.Email,
+		CaregiverEnabled: req.CaregiverEnabled,
+	}
 	if req.FirstName != "" {
 		first := req.FirstName
 		invitationReq.FirstName = &first
@@ -405,18 +413,19 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 		return
 	}
 	resp := operatorInvitationResponse{
-		ID:              invitation.ID,
-		Email:           invitation.Email,
-		RoleID:          invitation.RoleID,
-		ExpiresAt:       invitation.ExpiresAt,
-		FirstName:       invitation.FirstName,
-		LastName:        invitation.LastName,
-		Position:        invitation.Position,
-		CreatedBy:       operatorInvitationCreatedByValue(invitation.CreatedBy),
-		DeliveryStatus:  operatorInvitationDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
-		EmailSentAt:     invitation.EmailSentAt,
-		EmailError:      invitation.EmailError,
-		EmailRetryCount: invitation.EmailRetryCount,
+		ID:               invitation.ID,
+		Email:            invitation.Email,
+		RoleID:           invitation.RoleID,
+		ExpiresAt:        invitation.ExpiresAt,
+		FirstName:        invitation.FirstName,
+		LastName:         invitation.LastName,
+		Position:         invitation.Position,
+		CaregiverEnabled: invitation.CaregiverEnabled,
+		CreatedBy:        operatorInvitationCreatedByValue(invitation.CreatedBy),
+		DeliveryStatus:   operatorInvitationDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
+		EmailSentAt:      invitation.EmailSentAt,
+		EmailError:       invitation.EmailError,
+		EmailRetryCount:  invitation.EmailRetryCount,
 	}
 	if invitation.Role != nil {
 		resp.RoleName = invitation.Role.Name

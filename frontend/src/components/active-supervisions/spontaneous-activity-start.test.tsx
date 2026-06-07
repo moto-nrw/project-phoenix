@@ -99,6 +99,55 @@ describe("SpontaneousActivityStart", () => {
     });
   });
 
+  it("accepts the raw /api/rooms array response used by the route wrapper", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        json: async () => [
+          { id: 3, name: "Mensa" },
+          { id: 4, name: "Atelier", building: "Haus A" },
+        ],
+      }),
+    );
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="4"
+        onStart={onStart}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+    );
+
+    await screen.findByTestId("modal");
+    expect(screen.getByRole("option", { name: "Mensa" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Haus A - Atelier" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      screen.getByPlaceholderText("Aktivität suchen oder neu eingeben"),
+      {
+        target: { value: "Tennis" },
+      },
+    );
+    fireEvent.change(screen.getByLabelText("Raum"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Aktivität starten" }));
+
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledWith({
+        title: "Tennis",
+        roomId: "3",
+        activityGroupId: undefined,
+        additionalStaffIds: [],
+      });
+    });
+  });
+
   it("allows a custom spontaneous activity title without template binding", async () => {
     const onStart = vi.fn();
     render(

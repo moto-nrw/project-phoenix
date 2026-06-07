@@ -1,0 +1,119 @@
+// Package parent contains repositories for the cross-tenant
+// guardian-portal endpoints. Every method MUST be invoked from inside
+// a tenant.WithAdminTx — the queries intentionally span tenant_id
+// boundaries scoped only by auth.account_tenants membership, which
+// requires BYPASSRLS to traverse.
+package parent
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+)
+
+// ChildRepository implements parentModels.ChildRepository.
+type ChildRepository struct {
+	db *bun.DB
+}
+
+// NewChildRepository wires a fresh repository.
+func NewChildRepository(db *bun.DB) parentModels.ChildRepository {
+	return &ChildRepository{db: db}
+}
+
+// ListByAccount executes the cross-tenant join from auth.account_tenants
+// down to users.students for a single account. Single SQL query, single
+// round-trip — N+1 queries (one per tenant) would be cleaner per Rule 11
+// but the only safe filter for "students this parent can see" is the
+// account_tenants membership, and that's a JOIN not a tenant context.
+//
+// Soft-deleted person rows are filtered with p.deleted_at IS NULL.
+// Inactive account_tenants are excluded so a parent who lost access to
+// a school doesn't continue seeing its children.
+//
+// Result ordering: school name, then student first/last so the dashboard
+// can render with stable grouping.
+//
+// Implementation note: the rows are scanned via bun.NewRaw(...).Scan(...)
+// rather than a plain database/sql QueryContext loop. pgdriver returns
+// Postgres `date` columns (s.enrolled_from / enrolled_until) as Go
+// strings, and database/sql can't auto-convert those into *time.Time;
+// bun's scanner handles the conversion transparently via the bun tags.
+func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("parent: account_id must be positive")
+	}
+
+	type row struct {
+		StudentID     int64      `bun:"student_id"`
+		TenantID      int64      `bun:"tenant_id"`
+		FirstName     string     `bun:"first_name"`
+		LastName      string     `bun:"last_name"`
+		SchoolClass   string     `bun:"school_class"`
+		Status        string     `bun:"status"`
+		EnrolledFrom  *time.Time `bun:"enrolled_from"`
+		EnrolledUntil *time.Time `bun:"enrolled_until"`
+		SchoolName    string     `bun:"school_name"`
+		SchoolSlug    string     `bun:"school_slug"`
+	}
+
+	const query = `
+		SELECT
+			s.id           AS student_id,
+			s.tenant_id    AS tenant_id,
+			p.first_name   AS first_name,
+			p.last_name    AS last_name,
+			COALESCE(s.school_class, '') AS school_class,
+			s.status       AS status,
+			s.enrolled_from  AS enrolled_from,
+			s.enrolled_until AS enrolled_until,
+			COALESCE(sch.name, '')  AS school_name,
+			COALESCE(sch.slug, '')  AS school_slug
+		FROM auth.account_tenants AS at
+		JOIN users.guardian_profiles AS gp
+			ON gp.account_id = at.account_id
+			AND gp.tenant_id  = at.tenant_id
+		JOIN users.students_guardians AS sg
+			ON sg.guardian_profile_id = gp.id
+			AND sg.tenant_id          = at.tenant_id
+		JOIN users.students AS s
+			ON s.id        = sg.student_id
+			AND s.tenant_id = at.tenant_id
+		JOIN users.persons AS p
+			ON p.id        = s.person_id
+			AND p.tenant_id = at.tenant_id
+		LEFT JOIN platform.schools AS sch
+			ON sch.id = at.tenant_id
+		WHERE at.account_id = ?
+		  AND at.status     = 'active'
+		  AND p.deleted_at IS NULL
+		ORDER BY school_name, first_name, last_name
+	`
+
+	var rows []row
+	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("parent: list children: %w", err)
+	}
+
+	out := make([]*parentModels.ChildSummary, 0, len(rows))
+	for _, rr := range rows {
+		out = append(out, &parentModels.ChildSummary{
+			StudentID:     rr.StudentID,
+			TenantID:      rr.TenantID,
+			FirstName:     rr.FirstName,
+			LastName:      rr.LastName,
+			SchoolClass:   rr.SchoolClass,
+			Status:        rr.Status,
+			EnrolledFrom:  rr.EnrolledFrom,
+			EnrolledUntil: rr.EnrolledUntil,
+			SchoolName:    rr.SchoolName,
+			SchoolSlug:    rr.SchoolSlug,
+		})
+	}
+	return out, nil
+}

@@ -63,6 +63,52 @@ const EMPTY_SCHEDULE: StaffSchedule = {
   validFrom: "",
 };
 
+type DistributionCenterLabelProps = {
+  readonly total: number;
+  readonly viewBox?: unknown;
+};
+
+function DistributionCenterLabel({
+  total,
+  viewBox,
+}: DistributionCenterLabelProps) {
+  const center =
+    viewBox && typeof viewBox === "object"
+      ? (viewBox as { cx?: unknown; cy?: unknown })
+      : null;
+
+  if (
+    center &&
+    typeof center.cx === "number" &&
+    typeof center.cy === "number"
+  ) {
+    return (
+      <text
+        x={center.cx}
+        y={center.cy}
+        textAnchor="middle"
+        dominantBaseline="middle"
+      >
+        <tspan
+          x={center.cx}
+          y={center.cy}
+          className="fill-gray-900 text-3xl font-bold"
+        >
+          {total}
+        </tspan>
+        <tspan
+          x={center.cx}
+          y={center.cy + 22}
+          className="fill-gray-500 text-sm"
+        >
+          Tage
+        </tspan>
+      </text>
+    );
+  }
+  return null;
+}
+
 // Long-term analytical view for a staff member. Owns three sections:
 //   A. Jahres-Header — 3 KpiCards (Saldo, Urlaub, Krank seit Jahresbeginn)
 //   B. Stundenkonto-Verlauf — shadcn AreaChart with gradient, last 12 weeks
@@ -454,40 +500,9 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                       <Cell key={d.key} fill={d.color} />
                     ))}
                   <Label
-                    content={({ viewBox }) => {
-                      if (
-                        viewBox &&
-                        "cx" in viewBox &&
-                        "cy" in viewBox &&
-                        typeof viewBox.cx === "number" &&
-                        typeof viewBox.cy === "number"
-                      ) {
-                        return (
-                          <text
-                            x={viewBox.cx}
-                            y={viewBox.cy}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                          >
-                            <tspan
-                              x={viewBox.cx}
-                              y={viewBox.cy}
-                              className="fill-gray-900 text-3xl font-bold"
-                            >
-                              {distributionTotal}
-                            </tspan>
-                            <tspan
-                              x={viewBox.cx}
-                              y={viewBox.cy + 22}
-                              className="fill-gray-500 text-sm"
-                            >
-                              Tage
-                            </tspan>
-                          </text>
-                        );
-                      }
-                      return null;
-                    }}
+                    content={
+                      <DistributionCenterLabel total={distributionTotal} />
+                    }
                   />
                 </Pie>
               </PieChart>

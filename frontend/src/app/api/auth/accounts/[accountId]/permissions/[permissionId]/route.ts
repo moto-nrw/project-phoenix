@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
-import { apiDelete, handleApiError } from "~/lib/api-helpers";
+import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
 
 export async function DELETE(
   request: NextRequest,

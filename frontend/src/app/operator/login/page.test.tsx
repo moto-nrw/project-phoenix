@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   render,
   screen,
@@ -13,6 +13,32 @@ const { mockPush, mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
   mockUseSession: vi.fn(),
 }));
+
+const originalFetch = global.fetch;
+
+function mockOperatorFetchResponse(
+  status: number,
+  body: unknown,
+): typeof global.fetch {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+function mockAuthenticatedResponse(): typeof global.fetch {
+  return mockOperatorFetchResponse(200, {
+    status: "success",
+    data: {
+      status: "authenticated",
+      access_token: "access-token",
+      refresh_token: "refresh-token",
+    },
+    message: "Login successful",
+  });
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
@@ -32,11 +58,6 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
   isOperatorSubdomain: () => false,
-}));
-
-vi.mock("~/lib/confetti", () => ({
-  launchConfetti: vi.fn(),
-  clearConfetti: vi.fn(),
 }));
 
 vi.mock("~/components/ui", () => ({
@@ -74,25 +95,30 @@ describe("OperatorLoginPage", () => {
       status: "unauthenticated",
       data: null,
     });
+    global.fetch = mockAuthenticatedResponse();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
   });
 
   it("renders login form", () => {
     render(<OperatorLoginPage />);
 
-    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
+    expect(screen.getByText("Interner Plattformzugang")).toBeInTheDocument();
     expect(screen.getByText("Operator Dashboard")).toBeInTheDocument();
     expect(screen.getByLabelText("E-Mail-Adresse")).toBeInTheDocument();
     expect(screen.getByLabelText("Passwort")).toBeInTheDocument();
   });
 
-  it("renders logo", () => {
+  it("does not render the MOTO logo", () => {
     render(<OperatorLoginPage />);
 
-    const logo = screen.getByAltText("MOTO Logo");
-    expect(logo).toBeInTheDocument();
+    expect(screen.queryByAltText("MOTO Logo")).not.toBeInTheDocument();
   });
 
-  it("submits form with email and password", async () => {
+  it("submits form with email and password (2-step MFA flow)", async () => {
     mockSignIn.mockResolvedValue({ error: null });
 
     render(<OperatorLoginPage />);
@@ -106,16 +132,33 @@ describe("OperatorLoginPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/operator/auth/login",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "include",
+          body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123",
+          }),
+        }),
+      );
+    });
+    await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
         redirect: false,
-        email: "test@example.com",
-        password: "password123",
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
       });
     });
   });
 
-  it("shows error message on login failure", async () => {
-    mockSignIn.mockResolvedValue({ error: "CredentialsSignin" });
+  it("shows error message on login failure (401)", async () => {
+    global.fetch = mockOperatorFetchResponse(401, {
+      status: "error",
+      error: "Invalid credentials",
+    });
 
     render(<OperatorLoginPage />);
 
@@ -144,6 +187,11 @@ describe("OperatorLoginPage", () => {
     );
 
     render(<OperatorLoginPage />);
+
+    const emailInput = screen.getByLabelText("E-Mail-Adresse");
+    fireEvent.change(emailInput, { target: { value: "op@example.com" } });
+    const passwordInput = screen.getByLabelText("Passwort");
+    fireEvent.change(passwordInput, { target: { value: "password123" } });
 
     const submitButton = screen.getByRole("button", { name: /Anmelden/i });
     fireEvent.click(submitButton);
@@ -204,18 +252,25 @@ describe("OperatorLoginPage", () => {
     });
 
     await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/operator/auth/login",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    await waitFor(() => {
       expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
         redirect: false,
-        email: "test@example.com",
-        password: "password123",
+        internalRefresh: "true",
+        token: "access-token",
+        refreshToken: "refresh-token",
       });
     });
   });
 
-  it("shows account_inactive error message", async () => {
-    mockSignIn.mockResolvedValue({
-      error: "CredentialsSignin",
-      code: "account_inactive",
+  it("shows account_inactive error message (HTTP 403)", async () => {
+    global.fetch = mockOperatorFetchResponse(403, {
+      status: "error",
+      error: "Account inactive",
     });
 
     render(<OperatorLoginPage />);
@@ -235,10 +290,10 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows rate_limited error message", async () => {
-    mockSignIn.mockResolvedValue({
-      error: "CredentialsSignin",
-      code: "rate_limited",
+  it("shows rate_limited error message (HTTP 429)", async () => {
+    global.fetch = mockOperatorFetchResponse(429, {
+      status: "error",
+      error: "Too many requests",
     });
 
     render(<OperatorLoginPage />);
@@ -253,8 +308,8 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows generic error when signIn throws an exception", async () => {
-    mockSignIn.mockRejectedValue(new Error("Network error"));
+  it("shows error message when fetch throws an exception", async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<OperatorLoginPage />);
 
@@ -266,8 +321,8 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows fallback error when signIn throws a non-Error", async () => {
-    mockSignIn.mockRejectedValue("unknown failure");
+  it("shows fallback error when fetch throws a non-Error", async () => {
+    global.fetch = vi.fn().mockRejectedValue("unknown failure");
 
     render(<OperatorLoginPage />);
 
@@ -290,7 +345,7 @@ describe("OperatorLoginPage", () => {
     render(<OperatorLoginPage />);
 
     expect(mockPush).not.toHaveBeenCalled();
-    expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
   });
 
   it("toggles password visibility", () => {

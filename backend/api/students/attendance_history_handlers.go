@@ -209,7 +209,7 @@ func (rs *Resource) attendanceHistoryLogger() *slog.Logger {
 // Admins always pass.
 func (rs *Resource) attendanceHistoryScopeAllows(r *http.Request, student *users.Student, scope string) bool {
 	perms := jwt.PermissionsFromCtx(r.Context())
-	if hasAdminPermissions(perms) {
+	if common.HasAdminPermissions(perms) {
 		return true
 	}
 	if scope == configModel.AttendanceLogScopeAllStaff {

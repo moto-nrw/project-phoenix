@@ -13,6 +13,8 @@ export function StudentGuardiansTab({
   student,
   onChanged,
 }: StudentGuardiansTabProps) {
+  const canWrite = student.has_write_access !== false;
+
   // Admin context: write access is assumed. If the current session lacks
   // full access to this student's data (GDPR scoping), fall back to a hint.
   if (student.has_full_access === false) {
@@ -36,8 +38,8 @@ export function StudentGuardiansTab({
     <StudentGuardianManager
       key={student.id}
       studentId={student.id}
-      readOnly={false}
-      onUpdate={onChanged}
+      readOnly={!canWrite}
+      onUpdate={canWrite ? onChanged : undefined}
     />
   );
 }

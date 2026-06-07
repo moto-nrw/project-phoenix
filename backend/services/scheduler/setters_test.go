@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,6 +58,13 @@ func TestScheduler_SetSettingsService(t *testing.T) {
 	resolver := &stubSettingsResolver{}
 	s.SetSettingsService(resolver)
 	assert.Same(t, resolver, s.settings)
+}
+
+func TestScheduler_SetAutoStartService(t *testing.T) {
+	s := &Scheduler{logger: slog.Default()}
+	autoStart := &fakeAutoStartService{}
+	s.SetAutoStartService(autoStart)
+	assert.Same(t, autoStart, s.autoStart)
 }
 
 // -----------------------------------------------------------------------------
@@ -153,6 +161,9 @@ type fakeInstanceRepo struct {
 
 func (f *fakeInstanceRepo) Create(_ context.Context, _ *scheduleModel.ActivityInstance) error {
 	return nil
+}
+func (f *fakeInstanceRepo) CreateTemplateBackedIfAbsent(_ context.Context, _ *scheduleModel.ActivityInstance) (bool, error) {
+	return false, nil
 }
 func (f *fakeInstanceRepo) FindByID(_ context.Context, _ any) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
@@ -301,6 +312,89 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 
 	// Startup check ran once before waitUntilNextMinute returned false.
 	assert.GreaterOrEqual(t, repo.calls, 1)
+}
+
+// -----------------------------------------------------------------------------
+// timetable-auto-start — optional service, gated by tenant settings.
+// -----------------------------------------------------------------------------
+
+type fakeAutoStartService struct {
+	mu     sync.Mutex
+	calls  int
+	err    error
+	result *scheduleSvc.AutoStartResult
+}
+
+func (f *fakeAutoStartService) RunForTenant(_ context.Context, _ time.Time) (*scheduleSvc.AutoStartResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	if f.result != nil {
+		return f.result, f.err
+	}
+	return &scheduleSvc.AutoStartResult{}, f.err
+}
+
+func TestScheduleAutoStartTask_MissingService(t *testing.T) {
+	s := &Scheduler{
+		logger: slog.Default(),
+		tasks:  make(map[string]*ScheduledTask),
+		done:   make(chan struct{}),
+	}
+	s.scheduleAutoStartTask()
+	assert.Empty(t, s.tasks, "no service → no task registered")
+}
+
+func TestScheduleAutoStartTask_Registers(t *testing.T) {
+	svc := &fakeAutoStartService{}
+	s := &Scheduler{
+		logger:    slog.Default(),
+		tasks:     make(map[string]*ScheduledTask),
+		done:      make(chan struct{}),
+		autoStart: svc,
+	}
+	s.scheduleAutoStartTask()
+
+	s.mu.RLock()
+	task, ok := s.tasks["timetable-auto-start"]
+	s.mu.RUnlock()
+	require.True(t, ok, "task should be registered")
+	assert.Equal(t, "1m-poll", task.Schedule)
+
+	close(s.done)
+	s.wg.Wait()
+}
+
+func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
+	svc := &fakeAutoStartService{}
+	s := &Scheduler{
+		autoStart: svc,
+		logger:    slog.Default(),
+		settings:  &stubSettingsResolver{},
+	}
+	task := &ScheduledTask{Name: "timetable-auto-start"}
+
+	s.checkAndRunAutoStart(task)
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	assert.Equal(t, 0, svc.calls, "registry default false must not auto-start")
+}
+
+func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
+	svc := &fakeAutoStartService{result: &scheduleSvc.AutoStartResult{Checked: 2, Started: 1}}
+	s := &Scheduler{
+		autoStart: svc,
+		logger:    slog.Default(),
+		settings:  &stubSettingsResolver{hasOverride: true, boolVal: true},
+	}
+	task := &ScheduledTask{Name: "timetable-auto-start"}
+
+	s.checkAndRunAutoStart(task)
+
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	assert.Equal(t, 1, svc.calls, "enabled timetable + auto-start should run once in fallback mode")
 }
 
 // emitInstanceOverdue's broadcaster-failure branch: spy with fail=true so the

@@ -17,6 +17,7 @@ const (
 
 const (
 	StudentStatusSourceManual      = "manual"
+	StudentStatusSourcePlanned     = "planned"
 	StudentStatusSourceNextCheckin = "next_checkin"
 	StudentStatusSourceEndOfDay    = "end_of_day"
 )
@@ -53,5 +54,10 @@ func (s *StudentStatusDay) TableName() string       { return tableActiveStudentS
 type StudentStatusDayRepository interface {
 	UpsertReported(ctx context.Context, entry *StudentStatusDay) error
 	MarkCleared(ctx context.Context, studentID int64, status string, date time.Time, clearedAt time.Time, source string) error
+	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
+	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []time.Time, clearedAt time.Time, source string) error
+	FindActiveByID(ctx context.Context, id int64) (*StudentStatusDay, error)
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*StudentStatusDay, error)
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentStatusDay, error)
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*StudentStatusDay, error)
 }

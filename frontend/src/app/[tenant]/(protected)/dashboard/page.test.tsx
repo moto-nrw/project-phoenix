@@ -69,6 +69,8 @@ const mockDashboardData = {
   studentsInRooms: 120,
   studentsInTransit: 20,
   studentsOnPlayground: 10,
+  studentsSick: 4,
+  studentsExcused: 3,
   activeOGSGroups: 8,
   activeActivities: 5,
   freeRooms: 12,
@@ -107,6 +109,12 @@ vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: vi.fn(),
 }));
 
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useNFCEnabled: vi.fn(() => true),
+  usePresenceMode: vi.fn(() => "detailed"),
+  useTenantSlugSafe: vi.fn(() => "test-tenant"),
+}));
+
 vi.mock("~/lib/dashboard-helpers", () => ({
   formatRecentActivityTime: vi.fn((timestamp: string) => {
     const date = new Date(timestamp);
@@ -122,6 +130,10 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+} from "~/components/tenant/tenant-provider";
 
 // Helper to create SWR mock return values
 function mockSWR(
@@ -147,6 +159,8 @@ describe("DashboardPage", () => {
     });
     vi.mocked(isAdmin).mockReturnValue(true);
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
   it("renders dashboard for admin user", async () => {
@@ -191,6 +205,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText("150")).toBeInTheDocument(); // studentsPresent
       expect(screen.getByText("120")).toBeInTheDocument(); // studentsInRooms
       expect(screen.getByText("20")).toBeInTheDocument(); // studentsInTransit
+      expect(screen.getByText("4")).toBeInTheDocument(); // studentsSick
+      expect(screen.getByText("3")).toBeInTheDocument(); // studentsExcused
       // 10 appears multiple times (studentsOnPlayground and supervisorsToday)
       expect(screen.getAllByText("10")).toHaveLength(2);
     });
@@ -204,6 +220,8 @@ describe("DashboardPage", () => {
       expect(screen.getByText("In Räumen")).toBeInTheDocument();
       expect(screen.getByText("Unterwegs")).toBeInTheDocument();
       expect(screen.getByText("Schulhof")).toBeInTheDocument();
+      expect(screen.getByText("Krank")).toBeInTheDocument();
+      expect(screen.getByText("Entschuldigt")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
       expect(screen.getByText("Aktive Aktivitäten")).toBeInTheDocument();
@@ -228,6 +246,45 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
       // "Aktive Gruppen" appears both as stat card title and info card title
       expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("hides activity dashboard surfaces when NFC is disabled", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Aktivitäten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Laufende Aktivitäten"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
+      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+    });
+  });
+
+  it("hides activity dashboard surfaces in binary presence mode", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(usePresenceMode).mockReturnValue("binary");
+
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Aktive Aktivitäten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Laufende Aktivitäten"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Laufende Aktivitäten/i }),
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByText("Aktive Gruppen")).toHaveLength(2);
+      expect(screen.getByText("Freie Räume")).toBeInTheDocument();
       expect(screen.getByText("Personal heute")).toBeInTheDocument();
     });
   });
@@ -353,6 +410,7 @@ describe("DashboardContent rendering states", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("shows empty state for recent activity when no data", async () => {
@@ -573,6 +631,7 @@ describe("StatCard component behavior", () => {
       status: "authenticated",
       update: vi.fn(),
     });
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
   });
 
   it("renders stat cards as links when href is provided", async () => {
@@ -614,6 +673,8 @@ describe("InfoCard component behavior", () => {
       update: vi.fn(),
     });
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+    vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
   it("renders info cards as links when href is provided", async () => {

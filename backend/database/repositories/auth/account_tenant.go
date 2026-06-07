@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -26,7 +27,7 @@ func NewAccountTenantRepository(db *bun.DB) auth.AccountTenantRepository {
 
 // Create inserts a new account-tenant mapping, ignoring duplicates.
 // ModelTableExpr is set explicitly because BUN's BeforeAppendModel hook does not
-// reliably schema-qualify the INSERT INTO clause — it only affects the alias.
+// reliably schema-qualify the INSERT INTO clause, it only affects the alias.
 func (r *AccountTenantRepository) Create(ctx context.Context, mapping *auth.AccountTenant) error {
 	if mapping == nil {
 		return fmt.Errorf("account tenant cannot be nil")
@@ -39,6 +40,35 @@ func (r *AccountTenantRepository) Create(ctx context.Context, mapping *auth.Acco
 		Model(mapping).
 		ModelTableExpr(accountTenantTable).
 		On("CONFLICT (account_id, tenant_id) DO NOTHING").
+		Exec(ctx)
+	return err
+}
+
+// EnsureActive creates or reactivates an account-tenant mapping.
+func (r *AccountTenantRepository) EnsureActive(ctx context.Context, mapping *auth.AccountTenant) error {
+	if mapping == nil {
+		return fmt.Errorf("account tenant cannot be nil")
+	}
+	if mapping.AccountID == 0 {
+		return fmt.Errorf("account_id is required")
+	}
+	if mapping.TenantID == 0 {
+		return fmt.Errorf("tenant_id is required")
+	}
+	mapping.Status = auth.AccountTenantStatusActive
+	if mapping.ActivatedAt == nil {
+		now := time.Now()
+		mapping.ActivatedAt = &now
+	}
+
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(mapping).
+		ModelTableExpr(accountTenantTable).
+		On(`CONFLICT (account_id, tenant_id) DO UPDATE SET
+			status = EXCLUDED.status,
+			activated_at = EXCLUDED.activated_at,
+			deactivated_at = NULL,
+			updated_at = NOW()`).
 		Exec(ctx)
 	return err
 }
@@ -178,6 +208,11 @@ func (r *AccountTenantRepository) ListAllAccounts(ctx context.Context) ([]auth.O
 }
 
 // queryOrgAccounts builds the shared org-level accounts query with an optional WHERE clause.
+//
+// Accounts whose tenant school is soft-deleted are filtered out unconditionally.
+// Schools are only soft-deletable when their organization is still active, and
+// an organization can only be soft-deleted once all its schools are in the
+// Papierkorb, so filtering on school.deleted_at also covers the org-deleted case.
 func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.IDB, whereClause string, arg interface{}) ([]auth.OrgAccountInfo, error) {
 	var accounts []auth.OrgAccountInfo
 	q := db.NewSelect().
@@ -202,7 +237,8 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
 		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id`).
 		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`)
+		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`).
+		Where(`"sch".deleted_at IS NULL`)
 	if whereClause != "" {
 		q = q.Where(whereClause, arg)
 	}
@@ -233,7 +269,8 @@ func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bu
 		ColumnExpr(`false AS is_active_caregiver`).
 		TableExpr(`auth.invitation_tokens AS "inv"`).
 		Join(`INNER JOIN platform.schools AS "sch" ON "sch".id = "inv".tenant_id`).
-		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`)
+		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "inv".role_id`).
+		Where(`"sch".deleted_at IS NULL`)
 	if whereClause != "" {
 		q = q.Where(whereClause, arg)
 	}

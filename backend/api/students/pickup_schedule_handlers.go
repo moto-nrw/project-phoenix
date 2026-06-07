@@ -132,11 +132,15 @@ func (r *PickupScheduleRequest) Bind(_ *http.Request) error {
 
 // Bind implements render.Binder
 func (r *BulkPickupScheduleRequest) Bind(_ *http.Request) error {
-	if len(r.Schedules) == 0 {
-		return errors.New("schedules array cannot be empty")
-	}
+	return validatePickupScheduleItems(r.Schedules)
+}
+
+// validatePickupScheduleItems validates weekday range, uniqueness, time format
+// and notes length for a set of weekly pickup schedule items. Shared by the
+// bulk-update endpoint and the atomic create-student flow.
+func validatePickupScheduleItems(items []PickupScheduleRequest) error {
 	seenWeekdays := make(map[int]bool)
-	for i, s := range r.Schedules {
+	for i, s := range items {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
 			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
 		}
@@ -155,6 +159,29 @@ func (r *BulkPickupScheduleRequest) Bind(_ *http.Request) error {
 		}
 	}
 	return nil
+}
+
+// toPickupScheduleModels maps request items onto schedule models stamped with
+// the student and acting staff. Shared by the bulk-update endpoint and the
+// create-student flow.
+//
+// Callers MUST run validatePickupScheduleItems first (both current callers do,
+// via their Bind): the parse error below is intentionally discarded because the
+// time format is already guaranteed valid at that point. Mapping unvalidated
+// items here would silently persist a zero time.
+func toPickupScheduleModels(items []PickupScheduleRequest, studentID, staffID int64) []*schedule.StudentPickupSchedule {
+	schedules := make([]*schedule.StudentPickupSchedule, 0, len(items))
+	for _, s := range items {
+		pickupTime, _ := parseTimeOnly(s.PickupTime)
+		schedules = append(schedules, &schedule.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    s.Weekday,
+			PickupTime: pickupTime,
+			Notes:      s.Notes,
+			CreatedBy:  staffID,
+		})
+	}
+	return schedules
 }
 
 // Bind implements render.Binder
@@ -380,17 +407,7 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	}
 
 	// Convert requests to schedule models
-	schedules := make([]*schedule.StudentPickupSchedule, 0, len(req.Schedules))
-	for _, s := range req.Schedules {
-		pickupTime, _ := parseTimeOnly(s.PickupTime)
-		schedules = append(schedules, &schedule.StudentPickupSchedule{
-			StudentID:  student.ID,
-			Weekday:    s.Weekday,
-			PickupTime: pickupTime,
-			Notes:      s.Notes,
-			CreatedBy:  staffID,
-		})
-	}
+	schedules := toPickupScheduleModels(req.Schedules, student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {

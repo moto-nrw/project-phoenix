@@ -1,7 +1,10 @@
 // app/api/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers";
-import { createGetHandler, createPostHandler } from "~/lib/route-wrapper";
+import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsRoute" });
@@ -20,6 +23,9 @@ import {
   buildStudentResponse,
   handleStudentCreationError,
 } from "~/lib/student-request-helpers";
+import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
+import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
+import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
 
 /**
  * Type definition for student response from backend
@@ -42,6 +48,9 @@ interface StudentResponseFromBackend {
   guardian_email?: string;
   guardian_phone?: string;
   group_id?: number;
+  day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
+  day_planning_label?: string;
   created_at: string;
   updated_at: string;
 }
@@ -155,9 +164,19 @@ export const GET = createGetHandler(
         },
       };
     } catch (error) {
-      logger.error("students fetch failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const logContext = {
+        error: errorMessage,
+        ...(errorMessage.includes("API error (429)") && {
+          rate_limited: true,
+        }),
+      };
+      if (logContext.rate_limited) {
+        logger.warn("students fetch failed", logContext);
+      } else {
+        logger.error("students fetch failed", logContext);
+      }
       throw error; // Re-throw to let the error handler deal with it
     }
   },
@@ -174,6 +193,9 @@ export const POST = createPostHandler<
     guardian_phone?: string;
     privacy_consent_accepted?: boolean;
     data_retention_days?: number;
+    guardians?: StudentGuardianPayload[];
+    arrival_schedules?: ArrivalScheduleFormEntry[];
+    pickup_schedules?: BackendPickupScheduleRequest[];
   }
 >(
   async (
@@ -183,6 +205,9 @@ export const POST = createPostHandler<
       guardian_phone?: string;
       privacy_consent_accepted?: boolean;
       data_retention_days?: number;
+      guardians?: StudentGuardianPayload[];
+      arrival_schedules?: ArrivalScheduleFormEntry[];
+      pickup_schedules?: BackendPickupScheduleRequest[];
     },
     token: string,
   ) => {

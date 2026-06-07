@@ -13,6 +13,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -52,7 +53,7 @@ type OperationActiveService interface {
 }
 
 type TimetableOperationsService interface {
-	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time) ([]OperationPlannedInstance, error)
+	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*OperationRoster, error)
@@ -60,6 +61,12 @@ type TimetableOperationsService interface {
 	CheckInStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	CheckOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*OperationRoster, error)
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
+}
+
+type PlannedNowOptions struct {
+	HorizonMinutes int
+	Limit          int
+	IncludeRoster  bool
 }
 
 type TimetableOperationsDependencies struct {
@@ -73,6 +80,7 @@ type TimetableOperationsDependencies struct {
 	VisitRepo          activeModel.VisitRepository
 	StudentRepo        usersModel.StudentRepository
 	EducationGroupRepo educationModel.GroupRepository
+	RoomRepo           facilitiesModel.RoomRepository
 	PersonService      OperationPersonService
 	Settings           OperationSettings
 	Broadcaster        realtime.Broadcaster
@@ -87,12 +95,18 @@ type OperationPlannedInstance struct {
 	StartTime             string                    `json:"start_time"`
 	EndTime               string                    `json:"end_time"`
 	RoomID                int64                     `json:"room_id"`
+	RoomName              *string                   `json:"room_name,omitempty"`
 	Status                string                    `json:"status"`
 	IsOverdue             bool                      `json:"is_overdue"`
 	MinutesUntilStart     int                       `json:"minutes_until_start"`
 	ExpectedStudentsCount int                       `json:"expected_students_count"`
 	PresentStudentsCount  int                       `json:"present_students_count"`
 	AssignedStaffIDs      []int64                   `json:"assigned_staff_ids"`
+	IsAssigned            bool                      `json:"is_assigned"`
+	IsPrimary             bool                      `json:"is_primary"`
+	IsSubstitute          bool                      `json:"is_substitute"`
+	IsAbsent              bool                      `json:"is_absent"`
+	RosterPreview         []OperationRosterRow      `json:"roster_preview,omitempty"`
 	Warnings              []InstanceConflictWarning `json:"warnings"`
 }
 
@@ -134,13 +148,13 @@ type timetableOperationsService struct {
 func NewTimetableOperationsService(deps TimetableOperationsDependencies) TimetableOperationsService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
 		deps.InstanceService == nil || deps.ActiveGroupRepo == nil || deps.ActiveService == nil || deps.SupervisorRepo == nil ||
-		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.PersonService == nil || deps.DB == nil {
+		deps.VisitRepo == nil || deps.StudentRepo == nil || deps.EducationGroupRepo == nil || deps.RoomRepo == nil || deps.PersonService == nil || deps.DB == nil {
 		panic("schedule.NewTimetableOperationsService: required dependency is nil")
 	}
 	return &timetableOperationsService{deps: deps}
 }
 
-func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time) ([]OperationPlannedInstance, error) {
+func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error) {
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -154,9 +168,13 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if err != nil {
 		return nil, err
 	}
+	roomNames, err := s.roomNameMap(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]OperationPlannedInstance, 0)
 	for _, inst := range instances {
-		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now) {
+		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, opts.HorizonMinutes) {
 			continue
 		}
 		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
@@ -170,7 +188,18 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, mapPlannedInstance(inst, staffRows, studentRows, now))
+		mapped := mapPlannedInstance(inst, staffRows, studentRows, now, staffID, roomNames[inst.RoomID])
+		if opts.IncludeRoster {
+			roster, err := s.buildRoster(ctx, inst.ID)
+			if err != nil {
+				return nil, err
+			}
+			mapped.RosterPreview = roster.Rows
+		}
+		out = append(out, mapped)
+		if opts.Limit > 0 && len(out) >= opts.Limit {
+			break
+		}
 	}
 	return out, nil
 }
@@ -609,16 +638,29 @@ func (s *timetableOperationsService) logger() *slog.Logger {
 	return slog.Default()
 }
 
-func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time) bool {
+func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time, horizonMinutes int) bool {
+	if horizonMinutes <= 0 {
+		horizonMinutes = 15
+	}
 	start := instanceStartAt(inst, now.Location())
-	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(15*time.Minute))) || start.Before(now)
+	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(time.Duration(horizonMinutes)*time.Minute))) || start.Before(now)
 }
 
-func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time) OperationPlannedInstance {
+func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string) OperationPlannedInstance {
 	assigned := make([]int64, 0, len(staffRows))
+	isAssigned := false
+	isPrimary := false
+	isSubstitute := false
+	isAbsent := false
 	for _, row := range staffRows {
 		if !row.IsAbsent {
 			assigned = append(assigned, row.StaffID)
+		}
+		if currentStaffID > 0 && row.StaffID == currentStaffID {
+			isAssigned = !row.IsAbsent
+			isPrimary = row.IsPrimary
+			isSubstitute = row.IsSubstitute
+			isAbsent = row.IsAbsent
 		}
 	}
 	expected, present := 0, 0
@@ -638,14 +680,35 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		StartTime:             inst.StartTime.Format("15:04"),
 		EndTime:               inst.EndTime.Format("15:04"),
 		RoomID:                inst.RoomID,
+		RoomName:              roomName,
 		Status:                inst.Status,
 		IsOverdue:             start.Before(now),
 		MinutesUntilStart:     int(start.Sub(now).Minutes()),
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
 		AssignedStaffIDs:      assigned,
+		IsAssigned:            isAssigned,
+		IsPrimary:             isPrimary,
+		IsSubstitute:          isSubstitute,
+		IsAbsent:              isAbsent,
 		Warnings:              []InstanceConflictWarning{},
 	}
+}
+
+func (s *timetableOperationsService) roomNameMap(ctx context.Context) (map[int64]*string, error) {
+	rooms, err := s.deps.RoomRepo.List(ctx, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]*string, len(rooms))
+	for _, room := range rooms {
+		if room == nil {
+			continue
+		}
+		name := room.Name
+		names[room.ID] = &name
+	}
+	return names, nil
 }
 
 func instanceStartAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {

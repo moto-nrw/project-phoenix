@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"strings"
 	"time"
 
@@ -43,6 +44,15 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		return "", "", err
 	}
 
+	// Tenant-portal policy: a guardian-only account at this tenant
+	// must use the parents portal. Refuse with a sentinel the frontend
+	// turns into "use https://parents.{TENANT_DOMAIN}/". Accounts that
+	// are also staff/admin/teacher pass through unchanged.
+	if IsGuardianOnlyForTenant(metadata.roleNames) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
+		return "", "", &AuthError{Op: "login", Err: ErrParentMustUseParentPortal}
+	}
+
 	// Create refresh token with resolved tenant ID
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
 	if err != nil {
@@ -53,6 +63,234 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
 
 	// Generate token pair and log success
+	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+}
+
+// LoginStatus discriminates the two shapes a /auth/login response can take.
+type LoginStatus string
+
+const (
+	// LoginStatusAuthenticated means credential check + (if applicable) MFA
+	// passed and the response carries a usable token pair.
+	LoginStatusAuthenticated LoginStatus = "authenticated"
+	// LoginStatusMFARequired means credentials were valid but the account
+	// must present a second factor before tokens are issued. The response
+	// carries a short-lived challenge token and (optional) UX hints.
+	LoginStatusMFARequired LoginStatus = "mfa_required"
+	// LoginStatusMFAEnrollmentRequired means credentials were valid but the
+	// tenant requires MFA and the account has no credential yet. The
+	// response carries an enrollment-scoped access token (no refresh) that
+	// authorizes only /auth/mfa/enroll/*. The full session is minted after
+	// successful enrollment.
+	LoginStatusMFAEnrollmentRequired LoginStatus = "mfa_enrollment_required"
+)
+
+// MFAEnrollmentTokenTTL is the lifetime of an enrollment-scoped JWT. Long
+// enough to fetch the emailed code and confirm enrollment in one sitting,
+// short enough that an abandoned enrollment session does not linger.
+const MFAEnrollmentTokenTTL = 15 * time.Minute
+
+// LoginResult is the discriminated response shape for LoginWithMFAGate.
+// Exactly one of (AccessToken+RefreshToken) or ChallengeToken is populated.
+// MFAEnrollmentRequired flags accounts that have a token pair *and* a
+// pending forced enrollment — the frontend uses it to redirect to the
+// enrollment screen before showing the dashboard.
+type LoginResult struct {
+	Status                LoginStatus
+	AccessToken           string
+	RefreshToken          string
+	ChallengeToken        string
+	MaskedEmail           string
+	MFAEnrollmentRequired bool
+	// TrustedDeviceEnabled is populated on the MFA-required branch only.
+	// It mirrors security.mfa_trusted_device_enabled for the tenant so the
+	// frontend can hide the "remember this device" checkbox when the admin
+	// has disabled the feature.
+	TrustedDeviceEnabled bool
+	// TrustedDeviceDays is populated on the MFA-required branch only. It
+	// mirrors security.mfa_trusted_device_days so the frontend can render
+	// the exact label ("Auf diesem Gerät N Tage merken") that matches the
+	// cookie lifetime the backend will actually issue.
+	TrustedDeviceDays int
+}
+
+// LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. The pure-
+// password LoginWithAudit stays untouched so existing callers and tests
+// don't shift; the new method is what the HTTP login handler now uses.
+func (s *Service) LoginWithMFAGate(
+	ctx context.Context,
+	email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string,
+) (*LoginResult, error) {
+	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hydrate roles on the account so MFAService.IsRequired can use
+	// account.HasRole("admin") without re-querying. We're projecting just
+	// names; the full Role objects aren't needed for this check.
+	account.Roles = make([]*auth.Role, len(metadata.roleNames))
+	for i, name := range metadata.roleNames {
+		account.Roles[i] = &auth.Role{Name: name}
+	}
+
+	// Branch 1: no MFA service wired or MFA not required for this account.
+	// On infra errors (settings DB blip etc.) IsRequired now returns
+	// ErrMFAStatusUnavailable so we refuse THIS login with 503 instead of
+	// silently dropping to "not required" — that would let an attacker who
+	// can DoS the settings table bypass MFA entirely.
+	mfaRequired := false
+	if s.mfaService != nil {
+		mfaRequired, err = s.mfaService.IsRequired(ctx, account, metadata.tenantID)
+		if err != nil {
+			return nil, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
+		}
+	}
+
+	// Branch 2: account has no MFA enrollment yet. Two cases:
+	// - MFA not required: status quo (enrolment optional)
+	// - MFA required: issue a NARROW enrollment-scoped JWT that only the
+	//   /auth/mfa/enroll/* surface accepts. The previous design returned a
+	//   full session token plus an MFAEnrollmentRequired flag, but the flag
+	//   was advisory only — middleware did not enforce it, so a direct
+	//   API client (curl) got a fully privileged token pair before ever
+	//   setting up a second factor. The enrollment token closes that gap.
+	//
+	// HasEnrollment distinguishes sql.ErrNoRows (legitimate not-enrolled)
+	// from infra errors. On infra errors we refuse this login the same way
+	// as the IsRequired branch above — otherwise an attacker who DoSes the
+	// credentials table could log a victim in without ever facing MFA.
+	enrolled := false
+	if s.mfaService != nil {
+		enrolled, err = s.mfaService.HasEnrollment(ctx, account.ID)
+		if err != nil {
+			return nil, &AuthError{Op: "check mfa enrollment", Err: ErrMFAStatusUnavailable}
+		}
+	}
+
+	if mfaRequired && !enrolled {
+		enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+			AccountID: account.ID,
+			Scope:     jwt.MFAEnrollmentScopeTenant,
+			TenantID:  metadata.tenantID,
+		}, MFAEnrollmentTokenTTL)
+		if err != nil {
+			return nil, &AuthError{Op: "issue mfa enrollment token", Err: err}
+		}
+		return &LoginResult{
+			Status:                LoginStatusMFAEnrollmentRequired,
+			AccessToken:           enrollmentToken,
+			MaskedEmail:           maskEmailForUX(account.Email),
+			MFAEnrollmentRequired: true,
+		}, nil
+	}
+
+	// Branch 3: trusted-device cookie short-circuits MFA when verifiable.
+	trustedDeviceVerified := false
+	if mfaRequired && enrolled && trustedDeviceCookie != "" && s.mfaService != nil {
+		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, account.ID, metadata.tenantID, trustedDeviceCookie)
+		trustedDeviceVerified = ok
+	}
+
+	// Decision: issue challenge ⇔ MFA required AND user is enrolled AND
+	// no valid trusted-device cookie. Anything else falls through to the
+	// existing token-pair pipeline.
+	if mfaRequired && enrolled && !trustedDeviceVerified {
+		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, parseClientIPString(ipAddress))
+		if chErr != nil {
+			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
+		}
+		return &LoginResult{
+			Status:               LoginStatusMFARequired,
+			ChallengeToken:       challenge,
+			MaskedEmail:          maskEmailForUX(account.Email),
+			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
+			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, metadata.tenantID),
+		}, nil
+	}
+
+	// Token-pair issuance (regular login or MFA-skipped via trusted device).
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
+	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoginResult{
+		Status:       LoginStatusAuthenticated,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+// maskEmailForUX renders an email address as `j***@example.com` so the
+// frontend can show the user *which* mailbox just received a code without
+// leaking the full address (e.g. in shared-screen scenarios).
+func maskEmailForUX(email string) string {
+	at := strings.IndexByte(email, '@')
+	if at <= 0 {
+		return email
+	}
+	local := email[:at]
+	domain := email[at:]
+	if len(local) <= 1 {
+		return local + "***" + domain
+	}
+	return string(local[0]) + "***" + domain
+}
+
+// parseClientIPString wraps net.ParseIP with the empty-string guard so the
+// MFA service can pass it through to the audit row without nil-dereferencing.
+func parseClientIPString(ipAddress string) net.IP {
+	if ipAddress == "" {
+		return nil
+	}
+	return net.ParseIP(ipAddress)
+}
+
+// IssueTokensForAuthenticatedAccount mints an access + refresh token pair for
+// an account whose identity was proven via a non-password channel (typically
+// MFA email-code or recovery-code verification). It skips password validation
+// but otherwise reuses the same metadata-load → token-persist → claims-build
+// → token-gen pipeline as a regular login, so the resulting session is
+// indistinguishable from one obtained via /auth/login.
+//
+// tenantID is the tenant the user is authenticating into (carried in the MFA
+// challenge JWT). Pass 0 to let loadAccountMetadataForTenant pick the user's
+// only active tenant.
+func (s *Service) IssueTokensForAuthenticatedAccount(
+	ctx context.Context,
+	accountID, tenantID int64,
+	ipAddress, userAgent string,
+) (string, string, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrAccountNotFound}
+	}
+	if !account.Active {
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrAccountInactive}
+	}
+
+	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
+	if err != nil {
+		return "", "", err
+	}
+
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	if err != nil {
+		return "", "", err
+	}
+
+	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
 	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
 }
 
@@ -598,6 +836,7 @@ func (s *Service) buildJWTClaims(
 		ID:       int(account.ID),
 		Token:    token.Token,
 		TenantID: metadata.tenantID,
+		Scope:    metadata.scope,
 	}
 
 	return appClaims, refreshClaims
@@ -1115,9 +1354,26 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// Load account metadata (roles, permissions, person info)
 	// Refresh flow preserves the tenant from the existing refresh token — never re-resolve
 	// via default fallback, which could silently switch to a different tenant for multi-tenant users.
-	metadata, err := s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
-	if err != nil {
-		return nil, err
+	//
+	// Parent-scope refresh tokens must round-trip as parent tokens.
+	// loadAccountMetadataForTenant returns tenant-scope metadata (scope="",
+	// tenant_id pinned), so a naive refresh would silently demote a parent
+	// JWT to a tenant JWT — that token then fails the parents-portal
+	// ParentMiddleware on the very next request and the parent dashboard
+	// gets stuck on the auth-guard loading state.
+	//
+	// We detect this via:
+	//   - explicit scope claim (new tokens, see RefreshClaims.Scope), OR
+	//   - backward-compat: account is guardian-only at the refresh tenant
+	//     (old in-flight refresh tokens issued before Scope was added).
+	var metadata *accountMetadata
+	if refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID) {
+		metadata = s.buildParentMetadata(account)
+	} else {
+		metadata, err = s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Build JWT claims from account and metadata

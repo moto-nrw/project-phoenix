@@ -3,8 +3,20 @@
 import type { SchemaCategory } from "~/lib/settings-api";
 import { SettingsField } from "./settings-field";
 
+// Override labels for category keys that don't capitalize cleanly via CSS
+// (acronyms read wrong when only the first letter is uppercased).
+const categoryLabelOverrides: Record<string, string> = {
+  mfa: "Zwei-Faktor-Authentifizierung",
+  pin: "PIN",
+};
+
+function displayCategoryLabel(category: SchemaCategory): string {
+  return categoryLabelOverrides[category.key] ?? category.label;
+}
+
 interface SettingsCategoryProps {
   readonly category: SchemaCategory;
+  readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
   // audience identifies who is viewing the settings page. Controls the
@@ -20,6 +32,7 @@ interface SettingsCategoryProps {
 
 export function SettingsCategory({
   category,
+  highlightKey,
   onSave,
   onReset,
   audience = "admin",
@@ -32,15 +45,16 @@ export function SettingsCategory({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
       <h3 className="mb-1 text-base font-semibold text-gray-900 capitalize">
-        {category.label}
+        {displayCategoryLabel(category)}
       </h3>
       <div className="divide-y divide-gray-100">
         {visibleItems.map((setting) => (
           <SettingsField
             key={setting.key}
             setting={setting}
+            highlighted={setting.key === highlightKey}
             onSave={onSave}
             onReset={onReset}
             audience={audience}
