@@ -571,15 +571,10 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key?.startsWith("time-tracking-own-history")) {
       return {
-        data: history.map((session) => ({
-          id: session.id ? Number(session.id) : undefined,
-          date: session.date,
-          status: session.status,
-          net_minutes: session.netMinutes,
-          check_in_time: session.checkInTime,
-          check_out_time: session.checkOutTime,
-          break_minutes: session.breakMinutes,
-        })),
+        data: {
+          sessions: history,
+          weeklySummaries: [],
+        },
         isLoading: false,
         mutate: mockMutate,
         isValidating: false,

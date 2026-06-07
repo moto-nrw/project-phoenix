@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
@@ -926,6 +927,15 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, int64(101), result.ID)
+}
+
+func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
+	now := time.Date(2026, 6, 7, 0, 30, 0, 0, timezone.Berlin)
+	yesterday := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
+	today := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+
+	assert.True(t, isBeforeLocalToday(yesterday, now))
+	assert.False(t, isBeforeLocalToday(today, now))
 }
 
 func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {

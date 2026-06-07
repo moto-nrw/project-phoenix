@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -466,7 +467,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if err != nil {
 		return nil, err
 	}
-	if dateStart.Before(time.Now().Truncate(24 * time.Hour)) {
+	if isBeforeLocalToday(dateStart, time.Now()) {
 		return nil, fmt.Errorf("vacation request must start today or in the future")
 	}
 
@@ -576,7 +577,7 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 		return fmt.Errorf("only pending or approved absences can be canceled")
 	}
 	if absence.Status == activeModels.AbsenceStatusApproved &&
-		absence.DateStart.Before(time.Now().Truncate(24*time.Hour)) {
+		isBeforeLocalToday(absence.DateStart, time.Now()) {
 		return fmt.Errorf("past absences cannot be canceled")
 	}
 	absence.Status = activeModels.AbsenceStatusCanceled
@@ -585,6 +586,10 @@ func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, 
 		return fmt.Errorf("failed to cancel absence: %w", err)
 	}
 	return nil
+}
+
+func isBeforeLocalToday(date time.Time, now time.Time) bool {
+	return date.Before(timezone.DateOf(now))
 }
 
 func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error) {

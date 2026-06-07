@@ -33,11 +33,7 @@ import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useSWRConfig } from "swr";
-import {
-  staffAbsenceService,
-  staffHistoryService,
-  staffScheduleService,
-} from "~/lib/staff-api";
+import { staffScheduleService } from "~/lib/staff-api";
 import {
   computeStaffMetrics,
   resolveAccountStartDate,
@@ -69,6 +65,45 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function adaptHistorySessionForMetrics(
+  session: WorkSessionHistory,
+): StaffHistorySession {
+  return {
+    id: session.id ? Number(session.id) : undefined,
+    date: session.date,
+    status: session.status,
+    source: undefined,
+    net_minutes: session.netMinutes,
+    check_in_time: session.checkInTime,
+    check_out_time: session.checkOutTime,
+    break_minutes: session.breakMinutes,
+    auto_checked_out: session.autoCheckedOut,
+    notes: session.notes || undefined,
+    edit_count: session.editCount,
+  };
+}
+
+function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
+  return {
+    id: Number(absence.id),
+    staff_id: Number(absence.staffId),
+    absence_type: absence.absenceType,
+    date_start: absence.dateStart,
+    date_end: absence.dateEnd,
+    half_day: absence.halfDay,
+    start_half_day: absence.startHalfDay,
+    end_half_day: absence.endHalfDay,
+    note: absence.note,
+    status: absence.status,
+    approved_by: absence.approvedBy ? Number(absence.approvedBy) : null,
+    approved_at: absence.approvedAt,
+    working_days: absence.workingDays,
+    decision_note: absence.decisionNote,
+    requested_at: absence.requestedAt,
+    duration_days: absence.durationDays,
+  };
+}
 
 function formatDateGerman(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
@@ -1274,34 +1309,11 @@ function OwnZeiterfassungSection({
   );
 
   const adaptedSessions = useMemo<readonly StaffHistorySession[]>(
-    () =>
-      tableHistory.map((h) => ({
-        id: h.id ? Number(h.id) : undefined,
-        date: h.date,
-        status: h.status,
-        source: undefined,
-        net_minutes: h.netMinutes,
-        check_in_time: h.checkInTime,
-        check_out_time: h.checkOutTime,
-        break_minutes: h.breakMinutes,
-        auto_checked_out: h.autoCheckedOut,
-        notes: h.notes || undefined,
-        edit_count: h.editCount,
-      })),
+    () => tableHistory.map(adaptHistorySessionForMetrics),
     [tableHistory],
   );
   const adaptedAbsences = useMemo<readonly StaffAbsenceRow[]>(
-    () =>
-      tableAbsences.map((a) => ({
-        id: Number(a.id),
-        staff_id: Number(a.staffId),
-        absence_type: a.absenceType,
-        date_start: a.dateStart,
-        date_end: a.dateEnd,
-        half_day: a.halfDay,
-        note: a.note,
-        status: a.status,
-      })),
+    () => tableAbsences.map(adaptAbsenceForMetrics),
     [tableAbsences],
   );
 
@@ -2807,37 +2819,39 @@ function TimeTrackingContent() {
   }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
   const accountFrom = toDateKey(accountAnchor);
   const accountTo = toDateKey(todayMidnight);
-  const { data: accountSessions } = useSWRAuth(
+  const { data: accountHistoryData } = useSWRAuth<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }>(
     ownStaffId
       ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
       : null,
-    () =>
-      staffHistoryService.getHistory(
-        ownStaffId as string,
-        accountFrom,
-        accountTo,
-      ),
+    () => timeTrackingService.getHistory(accountFrom, accountTo),
     { revalidateOnFocus: false },
   );
-  const { data: accountAbsences } = useSWRAuth(
+  const accountSessions = useMemo<StaffHistorySession[]>(
+    () =>
+      (accountHistoryData?.sessions ?? []).map(adaptHistorySessionForMetrics),
+    [accountHistoryData],
+  );
+  const { data: accountAbsenceData } = useSWRAuth<StaffAbsence[]>(
     ownStaffId
       ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
       : null,
-    () =>
-      staffAbsenceService.getAbsences(
-        ownStaffId as string,
-        accountFrom,
-        accountTo,
-      ),
+    () => timeTrackingService.getAbsences(accountFrom, accountTo),
     { revalidateOnFocus: false },
+  );
+  const accountAbsences = useMemo<StaffAbsenceRow[]>(
+    () => (accountAbsenceData ?? []).map(adaptAbsenceForMetrics),
+    [accountAbsenceData],
   );
 
   const ownMetrics = useMemo(() => {
     if (!ownSchedule) return null;
     return computeStaffMetrics(
       ownSchedule,
-      accountSessions ?? [],
-      accountAbsences ?? [],
+      accountSessions,
+      accountAbsences,
       todayMidnight,
       timeTrackingConfig?.accountStartDate,
     );
