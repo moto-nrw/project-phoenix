@@ -6,7 +6,9 @@ import {
   ArrowLeft,
   Check,
   Clock,
+  Download,
   ExternalLink,
+  FileSpreadsheet,
   Inbox,
   type LucideIcon,
   Users,
@@ -21,6 +23,10 @@ import {
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+import {
+  type EnrollmentExportFormat,
+  exportPhaseRegistrations,
+} from "~/lib/enrollment-export-api";
 import {
   DataTable,
   type DataTableColumn,
@@ -137,7 +143,30 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] =
+    useState<EnrollmentExportFormat | null>(null);
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
+
+  const handleExport = useCallback(
+    async (format: EnrollmentExportFormat) => {
+      setExportingFormat(format);
+      try {
+        // Export honours the active status filter so it matches the list
+        // the admin is looking at; "Alle" means no filter.
+        const childStatus =
+          statusFilter === ALL_STATUS_FILTER ? undefined : statusFilter;
+        await exportPhaseRegistrations(phaseId, format, childStatus);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Export fehlgeschlagen";
+        logger.error("phase_export_failed", { error: message, format });
+        toast.error("Export fehlgeschlagen. Bitte erneut versuchen.");
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [phaseId, statusFilter, toast],
+  );
 
   const overviewHref = tenantSlug
     ? `/${tenantSlug}/admin/enrollments`
@@ -357,6 +386,24 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleExport("pdf")}
+              disabled={exportingFormat !== null}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {exportingFormat === "pdf" ? "Erstelle PDF…" : "Export PDF"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExport("xlsx")}
+              disabled={exportingFormat !== null}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              {exportingFormat === "xlsx" ? "Erstelle XLSX…" : "Export XLSX"}
+            </button>
             <a
               href={`/enroll/${encodeURIComponent(phase.id)}`}
               target="_blank"

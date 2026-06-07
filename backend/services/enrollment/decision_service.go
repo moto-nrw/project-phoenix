@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -38,7 +39,24 @@ var (
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
+	// ErrExportTooLarge guards the phase export against assembling an
+	// unbounded payload in memory. At OGS scale a phase holds hundreds of
+	// requests (a few MB); this cap only trips on a pathological phase,
+	// turning "theoretically unbounded" into an explicit, mapped 400 (the
+	// handler treats an over-cap phase as a client-side limit, not a
+	// server fault).
+	ErrExportTooLarge = errors.New("phase has too many registrations for a single export")
 )
+
+// maxExportRequests is the upper bound on requests assembled into one
+// phase export. The whole document is built in memory (the PDF format
+// cannot stream — its xref table needs every object's byte offset), so
+// this ceiling caps the request count rather than the byte size: a
+// single request with many children and large custom_data still grows
+// per row, so this is a coarse runaway guard, not a hard memory bound.
+// Far above any real OGS phase; it exists to fail loudly rather than
+// OOM on a pathological phase.
+const maxExportRequests = 5000
 
 // DecisionStatus enumerates the per-child decisions an admin can apply.
 // Mirrors the request_children.status CHECK constraint subset that
@@ -127,6 +145,67 @@ type DecisionService interface {
 	// description so the admin detail page can render labels without
 	// a second per-offering fetch. Map key is request_child_id.
 	ListChildOfferings(ctx context.Context, requestID int64) (map[int64][]ChildOfferingRow, error)
+
+	// ExportPhase loads every request of a phase with its fully-resolved
+	// children + offerings + form schema(s) in a fixed handful of
+	// queries (N+1-free) AND records the GDPR access-log row in the same
+	// call, so no caller can disclose the phase's PII without leaving an
+	// audit trail. Read-only on enrollment data (no status changes, no
+	// downstream record creation); the only write is the append-only
+	// audit row. If the audit write fails the whole call fails (no trail,
+	// no disclosure). Must run inside the request's tenant transaction so
+	// both the reads and the audit row land under the correct tenant (RLS).
+	//
+	// childStatusFilter, when non-empty, keeps only children whose own
+	// status equals it (requests with no matching child are dropped) —
+	// mirroring the admin list's per-child status dropdown. Empty means
+	// "all". The audit row's counts reflect the filtered (disclosed) set.
+	ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error)
+
+	// RecordPhaseExportAudit appends one append-only row to
+	// audit.data_access_log recording that an admin exported the full
+	// PII of a phase. The caller MUST refuse the export if this returns
+	// an error (no trail, no disclosure). range_start/range_end carry
+	// the phase's service window — the temporal span of the disclosed
+	// data — and metadata carries phase_id, format, status_filter and the
+	// row counts. Must run inside the request's tenant transaction so the
+	// row lands under the correct tenant (RLS).
+	RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentModels.Phase, format, statusFilter string, requestCount, childCount int) error
+}
+
+// PhaseExport is the fully-assembled payload for the compact phase
+// export. Rows preserve ListAdmin order (newest submission first).
+// Schemas is keyed by schema_id so a renderer can resolve a custom
+// field's German label + select-option labels for any request,
+// regardless of which form-schema version it was pinned to.
+type PhaseExport struct {
+	Phase   *enrollmentModels.Phase
+	Schemas map[int64]*enrollmentModels.FormSchema
+	Rows    []ExportRequestRow
+}
+
+// Counts returns the number of requests (rows) and the total number of
+// children across them. Pure derivation from Rows — the single source
+// of truth for both the audit row's metadata (ExportPhase) and the
+// rendered document subtitle (the export handler).
+func (e *PhaseExport) Counts() (requests, children int) {
+	for _, row := range e.Rows {
+		children += len(row.Children)
+	}
+	return len(e.Rows), children
+}
+
+// ExportRequestRow is one parent submission with its resolved children.
+type ExportRequestRow struct {
+	Request  *enrollmentModels.Request
+	Children []ExportChildRow
+}
+
+// ExportChildRow is one child plus its care-offering selections,
+// resolved to offering names/days via the phase's offering catalog.
+type ExportChildRow struct {
+	Child     *enrollmentModels.RequestChild
+	Offerings []ChildOfferingRow
 }
 
 // ChildOfferingRow is one care-offering selection for a child, as
@@ -154,6 +233,7 @@ type DecisionServiceConfig struct {
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
+	DataAccessLogRepo        auditModels.DataAccessLogRepository   // append-only GDPR audit row written on phase export
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
 	StudentRepo              users.StudentRepository
@@ -180,6 +260,7 @@ type decisionService struct {
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	phaseRepo                enrollmentModels.PhaseRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
+	dataAccessLogRepo        auditModels.DataAccessLogRepository
 	schoolRepo               platformModels.SchoolRepository
 	personRepo               users.PersonRepository
 	studentRepo              users.StudentRepository
@@ -211,6 +292,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		phaseRepo:                cfg.PhaseRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
+		dataAccessLogRepo:        cfg.DataAccessLogRepo,
 		schoolRepo:               cfg.SchoolRepo,
 		personRepo:               cfg.PersonRepo,
 		studentRepo:              cfg.StudentRepo,
@@ -320,6 +402,205 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		out[child.ID] = rows
 	}
 	return out, nil
+}
+
+// ExportPhase loads the export payload (exportData) and records the
+// GDPR access-log row before returning, so the two are inseparable: a
+// caller cannot obtain the PII without the audit, and a failed audit
+// write fails the whole call. Both halves run on the caller's tenant tx.
+func (s *decisionService) ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error) {
+	data, err := s.exportData(ctx, phaseID, childStatusFilter)
+	if err != nil {
+		return nil, err
+	}
+	requestCount, childCount := data.Counts()
+	if err := s.RecordPhaseExportAudit(ctx, actorAccountID, actorRole, data.Phase, format, childStatusFilter, requestCount, childCount); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// exportData assembles the whole phase in a fixed number of queries:
+//  1. all requests of the phase            (requestRepo.ListAdmin)
+//  2. the phase row                         (phaseRepo.FindByID)
+//  3. all children of those requests        (requestChildRepo.ListByRequestIDs)
+//  4. all offering links of those children  (requestChildOfferingRepo.ListByRequestChildIDs)
+//  5. the phase's care-offering catalog     (careOfferingRepo.ListByPhase)
+//  6. each distinct form-schema version     (formSchemaRepo.FindByID, ~1×)
+//
+// Everything else is in-memory grouping — no query runs inside a loop.
+// Unexported: the only way to obtain export data is via ExportPhase,
+// which always records the GDPR audit row.
+func (s *decisionService) exportData(ctx context.Context, phaseID int64, childStatusFilter string) (*PhaseExport, error) {
+	if phaseID <= 0 {
+		return nil, fmt.Errorf("decision: export: phase_id required")
+	}
+
+	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
+	if err != nil {
+		return nil, fmt.Errorf("decision: export list requests: %w", err)
+	}
+	// Bound the in-memory payload: the renderers assemble the whole
+	// document at once, so reject a pathologically large phase up front
+	// rather than allocating an unbounded file. The cap is well above any
+	// real OGS phase.
+	if len(requests) > maxExportRequests {
+		return nil, fmt.Errorf("decision: export phase %d has %d requests (max %d): %w",
+			phaseID, len(requests), maxExportRequests, ErrExportTooLarge)
+	}
+	phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		// Map a missing/unreachable phase to the not-found sentinel so the
+		// handler can answer 404 rather than 500. Mirrors phaseService.GetByID,
+		// which collapses every FindByID error to ErrPhaseNotFound.
+		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, ErrPhaseNotFound)
+	}
+
+	reqIDs := make([]int64, 0, len(requests))
+	for _, req := range requests {
+		reqIDs = append(reqIDs, req.ID)
+	}
+
+	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export load children: %w", err)
+	}
+	childIDs := make([]int64, 0, len(children))
+	for _, c := range children {
+		childIDs = append(childIDs, c.ID)
+	}
+
+	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export load offerings: %w", err)
+	}
+
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export load care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, off := range offerings {
+		offeringByID[off.ID] = off
+	}
+
+	// Group offering links per child, resolving each to its catalog name/days.
+	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
+	for _, link := range links {
+		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		if off := offeringByID[link.CareOfferingID]; off != nil {
+			row.OfferingName = off.Name
+			row.DaysOfWeekMode = off.DaysOfWeekMode
+			row.AvailableDays = off.AvailableDays
+		}
+		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
+	}
+
+	// Group children per request.
+	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(reqIDs))
+	for _, c := range children {
+		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
+	}
+
+	// Load each distinct pinned schema version once for label resolution.
+	schemas := make(map[int64]*enrollmentModels.FormSchema)
+	for _, req := range requests {
+		if req.SchemaID == nil {
+			continue
+		}
+		if _, ok := schemas[*req.SchemaID]; ok {
+			continue
+		}
+		fs, ferr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		if ferr != nil {
+			// Fail closed. The renderer only emits custom answers for fields
+			// found in the loaded schemas, so a missing schema would silently
+			// drop this request's custom_data from the file while the audit
+			// row still records a "complete" disclosure. That is worse than a
+			// hard failure for a GDPR export. There is also no legitimate way
+			// to reach this branch: DeleteSchema refuses to drop any schema
+			// version a request still references (ErrFormSchemaHasRequests),
+			// so a pinned schema behind an existing request cannot have been
+			// deleted. A FindByID error here is therefore a transient read
+			// error (a retry succeeds) or data corruption (must be loud) —
+			// never an intentionally-removed schema. Abort before any audit
+			// row is written so no incomplete disclosure is recorded.
+			s.logger.Error("decision: export schema lookup failed, aborting export",
+				slog.Int64("schema_id", *req.SchemaID),
+				slog.String("error", ferr.Error()))
+			return nil, fmt.Errorf("decision: export load schema %d: %w", *req.SchemaID, ferr)
+		}
+		schemas[*req.SchemaID] = fs
+	}
+
+	rows := make([]ExportRequestRow, 0, len(requests))
+	for _, req := range requests {
+		kids := childrenByRequest[req.ID]
+		childRows := make([]ExportChildRow, 0, len(kids))
+		for _, c := range kids {
+			// Per-child status filter, mirroring the admin list's status
+			// dropdown (exact match on the child's own status).
+			if childStatusFilter != "" && c.Status != childStatusFilter {
+				continue
+			}
+			childRows = append(childRows, ExportChildRow{Child: c, Offerings: offeringsByChild[c.ID]})
+		}
+		// Under an active filter, a request with no matching child is omitted
+		// entirely — the list shows children, not registrations, so a request
+		// with zero matching children is invisible there too.
+		if childStatusFilter != "" && len(childRows) == 0 {
+			continue
+		}
+		rows = append(rows, ExportRequestRow{Request: req, Children: childRows})
+	}
+
+	return &PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
+}
+
+// RecordPhaseExportAudit writes the GDPR access-log row for a phase
+// export. Synchronous and blocking: the caller refuses to serve the
+// file when this errors. The DataAccessLog repo populates tenant_id
+// from the context's tenant transaction, so this must be called inside
+// one.
+func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentModels.Phase, format, statusFilter string, requestCount, childCount int) error {
+	if s.dataAccessLogRepo == nil {
+		return fmt.Errorf("decision: export audit: data access log repo not configured")
+	}
+	if phase == nil {
+		return fmt.Errorf("decision: export audit: phase required")
+	}
+	if actorAccountID <= 0 {
+		return fmt.Errorf("decision: export audit: actor account id required")
+	}
+	// actor_role is NOT NULL; the column never carries an empty string.
+	if strings.TrimSpace(actorRole) == "" {
+		actorRole = "unknown"
+	}
+	// An empty filter means the export covered every child — record it as
+	// "all" so the audit trail is explicit about the disclosed scope.
+	statusFilterLabel := statusFilter
+	if statusFilterLabel == "" {
+		statusFilterLabel = "all"
+	}
+
+	entry := &auditModels.DataAccessLog{
+		ActorAccountID: actorAccountID,
+		ActorRole:      actorRole,
+		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
+		RangeStart:     phase.ServiceStartDate,
+		RangeEnd:       phase.ServiceEndDate,
+		AccessedAt:     time.Now(),
+	}
+	entry.SetMetadata("phase_id", phase.ID)
+	entry.SetMetadata("format", format)
+	entry.SetMetadata("status_filter", statusFilterLabel)
+	entry.SetMetadata("request_count", requestCount)
+	entry.SetMetadata("child_count", childCount)
+
+	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+		return fmt.Errorf("decision: export audit write: %w", err)
+	}
+	return nil
 }
 
 // Decide updates a single child's status. When status==approved the

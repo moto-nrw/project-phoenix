@@ -1,0 +1,607 @@
+package enrollment
+
+import (
+	"bytes"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
+)
+
+func TestParsePhaseExportRequest(t *testing.T) {
+	cases := []struct {
+		name       string
+		body       string
+		query      string
+		want       listexport.Format
+		wantStatus string
+		wantErr    bool
+	}{
+		{name: "empty body defaults to pdf, no filter", body: "", want: listexport.FormatPDF},
+		{name: "lowercase body xlsx", body: `{"format":"xlsx"}`, want: listexport.FormatXLSX},
+		{name: "uppercase body normalised", body: `{"format":"PDF"}`, want: listexport.FormatPDF},
+		{name: "uppercase query normalised", query: "format=XLSX", want: listexport.FormatXLSX},
+		{name: "body wins over query", body: `{"format":"pdf"}`, query: "format=xlsx", want: listexport.FormatPDF},
+		{name: "unsupported format rejected", body: `{"format":"docx"}`, wantErr: true},
+		{name: "malformed body rejected", body: `{`, wantErr: true},
+		// child_status filter
+		{name: "valid child_status kept", body: `{"format":"xlsx","child_status":"approved"}`, want: listexport.FormatXLSX, wantStatus: "approved"},
+		{name: "child_status uppercased normalised", body: `{"child_status":"WITHDRAWN"}`, want: listexport.FormatPDF, wantStatus: "withdrawn"},
+		{name: "child_status all means no filter", body: `{"child_status":"all"}`, want: listexport.FormatPDF, wantStatus: ""},
+		{name: "child_status from query", query: "child_status=waitlisted", want: listexport.FormatPDF, wantStatus: "waitlisted"},
+		{name: "unknown child_status rejected", body: `{"child_status":"bogus"}`, wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			url := "/export"
+			if tc.query != "" {
+				url += "?" + tc.query
+			}
+			req := httptest.NewRequest("POST", url, strings.NewReader(tc.body))
+			got, status, err := parsePhaseExportRequest(req)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got format %q status %q", got, status)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("format = %q, want %q", got, tc.want)
+			}
+			if status != tc.wantStatus {
+				t.Errorf("child_status = %q, want %q", status, tc.wantStatus)
+			}
+		})
+	}
+}
+
+// sampleExport builds an in-memory PhaseExport (no DB) covering the
+// shapes the renderers must handle: guardian + child custom fields,
+// a select with an option label, consents, and an offering.
+func sampleExport() *enrollmentService.PhaseExport {
+	schema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "notes", Label: "Hinweise", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+			{Key: "bus", Label: "Buskind", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 1},
+			{Key: "meal", Label: "Essen", Type: enrollmentModels.FormFieldSelect, AppliesToCh: true, SortOrder: 2,
+				Options: []enrollmentModels.FormFieldOption{{Label: "Vegetarisch", Value: "veg"}}},
+		},
+	}
+	schema.ID = 50
+	sid := schema.ID
+
+	phone := "0151-123"
+	req := &enrollmentModels.Request{
+		SchemaID:          &sid,
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Muster",
+		GuardianEmail:     "anna@example.test",
+		GuardianPhone:     &phone,
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": false,
+		},
+		CustomData:  map[string]any{"notes": "Bitte Hintereingang"},
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+
+	grade := int16(1)
+	child := &enrollmentModels.RequestChild{
+		FirstName:        "Lina",
+		LastName:         "Muster",
+		DateOfBirth:      time.Date(2018, 5, 12, 0, 0, 0, 0, time.UTC),
+		TargetGradeLevel: &grade,
+		Status:           enrollmentModels.ChildStatusApproved,
+		ActivationMode:   enrollmentModels.ChildActivationScheduled,
+		CustomData:       map[string]any{"bus": true, "meal": "veg"},
+	}
+
+	offerings := []enrollmentService.ChildOfferingRow{
+		{OfferingName: "Kernzeit", AvailableDays: []string{"mon", "tue"}},
+	}
+
+	return &enrollmentService.PhaseExport{
+		Phase:   &enrollmentModels.Phase{Name: "Schuljahr 2026/27"},
+		Schemas: map[int64]*enrollmentModels.FormSchema{schema.ID: schema},
+		Rows: []enrollmentService.ExportRequestRow{
+			{Request: req, Children: []enrollmentService.ExportChildRow{{Child: child, Offerings: offerings}}},
+		},
+	}
+}
+
+func columnLabels(doc listexport.Document) map[listexport.ColumnID]string {
+	out := make(map[listexport.ColumnID]string, len(doc.Columns))
+	for _, c := range doc.Columns {
+		out[c.ID] = c.Label
+	}
+	return out
+}
+
+func TestBuildPhaseExportTable_FullRow(t *testing.T) {
+	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
+
+	labels := columnLabels(doc)
+	for id, wantLabel := range map[listexport.ColumnID]string{
+		"custom_g_notes": "Hinweise",
+		"custom_c_bus":   "Buskind",
+		"custom_c_meal":  "Essen",
+		"consent_photo":  "Zustimmung Foto",
+	} {
+		if labels[id] != wantLabel {
+			t.Errorf("column %q label = %q, want %q", id, labels[id], wantLabel)
+		}
+	}
+
+	if len(doc.Rows) != 1 {
+		t.Fatalf("rows = %d, want 1 (one child)", len(doc.Rows))
+	}
+	v := doc.Rows[0].Values
+	checks := map[listexport.ColumnID]string{
+		"guardian_first_name": "Anna",
+		"guardian_phone":      "0151-123",
+		"consent_agb":         "Ja",
+		"consent_photo":       "Nein",
+		"custom_g_notes":      "Bitte Hintereingang",
+		"child_first_name":    "Lina",
+		"child_grade":         "1. Klasse",
+		"child_status":        "Angenommen",
+		"custom_c_bus":        "Ja",
+		"custom_c_meal":       "Vegetarisch", // select value -> option label
+	}
+	for id, want := range checks {
+		if v[id] != want {
+			t.Errorf("value %q = %q, want %q", id, v[id], want)
+		}
+	}
+	if !strings.Contains(v["child_offerings"], "Kernzeit") {
+		t.Errorf("child_offerings = %q, want it to contain Kernzeit", v["child_offerings"])
+	}
+}
+
+// The XLSX columns must lead with the child (every child column, incl.
+// child custom fields), then the Eltern/contact block — matching the
+// child-first PDF.
+func TestBuildPhaseExportTable_ChildColumnsBeforeGuardian(t *testing.T) {
+	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
+	idx := make(map[listexport.ColumnID]int, len(doc.Columns))
+	for i, c := range doc.Columns {
+		idx[c.ID] = i
+	}
+
+	// First column is the child surname (the sort key); the guardian
+	// columns and consents all come after every child column.
+	if doc.Columns[0].ID != "child_last_name" {
+		t.Errorf("first column = %q, want child_last_name", doc.Columns[0].ID)
+	}
+	lastChild := idx["child_offerings"]
+	if c := idx["custom_c_bus"]; c > lastChild {
+		lastChild = c // child custom fields belong to the child block
+	}
+	for _, after := range []listexport.ColumnID{
+		"guardian_last_name", "guardian_email", "custom_g_notes", "consent_agb",
+	} {
+		if idx[after] < lastChild {
+			t.Errorf("column %q (index %d) must come after the child block (ends %d)", after, idx[after], lastChild)
+		}
+	}
+}
+
+// The applied child-status filter must be named in both documents'
+// header (Filters), mirroring the students export. No filter → no label.
+func TestPhaseExport_FilterLabelInHeader(t *testing.T) {
+	// PDF (RecordDocument)
+	pdf := buildPhaseExportRecords(sampleExport(), "P", "approved")
+	if len(pdf.Filters) != 1 || pdf.Filters[0] != "Status: Angenommen" {
+		t.Errorf("pdf filters = %v, want [\"Status: Angenommen\"]", pdf.Filters)
+	}
+	// XLSX (Document)
+	xlsx := buildPhaseExportTable(sampleExport(), "P", "withdrawn")
+	if len(xlsx.Filters) != 1 || xlsx.Filters[0] != "Status: Zurückgezogen" {
+		t.Errorf("xlsx filters = %v, want [\"Status: Zurückgezogen\"]", xlsx.Filters)
+	}
+	// No filter → no header label in either format.
+	if got := buildPhaseExportRecords(sampleExport(), "P", "").Filters; len(got) != 0 {
+		t.Errorf("unfiltered pdf filters = %v, want empty", got)
+	}
+	if got := buildPhaseExportTable(sampleExport(), "P", "").Filters; len(got) != 0 {
+		t.Errorf("unfiltered xlsx filters = %v, want empty", got)
+	}
+}
+
+func fieldValue(fields []listexport.Field, label string) (string, bool) {
+	for _, f := range fields {
+		if f.Label == label {
+			return f.Value, true
+		}
+	}
+	return "", false
+}
+
+// The PDF is child-first: one standalone block per child (child name as
+// the heading, no sub-records), with the guardian/contact details
+// repeated inside each block so it is self-contained for the offline
+// fallback.
+func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T) {
+	doc := buildPhaseExportRecords(sampleExport(), "Anmeldungen – Test", "")
+
+	if len(doc.Records) != 1 {
+		t.Fatalf("records = %d, want 1 (one child)", len(doc.Records))
+	}
+	rec := doc.Records[0]
+	if rec.Title != "Lina Muster" {
+		t.Errorf("record title = %q, want the child name 'Lina Muster'", rec.Title)
+	}
+	if len(rec.Subs) != 0 {
+		t.Errorf("subs = %d, want 0 (child blocks are flat, not nested)", len(rec.Subs))
+	}
+	if doc.Footer == "" {
+		t.Error("PDF record document should carry a confidentiality footer")
+	}
+	if !strings.Contains(doc.Subtitle, "1 Anmeldungen") {
+		t.Errorf("subtitle = %q, want it to report the counts", doc.Subtitle)
+	}
+
+	// Child's own data is present...
+	if v, _ := fieldValue(rec.Fields, "Geburtsdatum"); v != "12.05.2018" {
+		t.Errorf("Geburtsdatum = %q, want 12.05.2018", v)
+	}
+	if v, _ := fieldValue(rec.Fields, "Essen"); v != "Vegetarisch" {
+		t.Errorf("child custom 'Essen' = %q, want resolved label 'Vegetarisch'", v)
+	}
+	// ...and the guardian/contact block is repeated inside the child block.
+	if v, _ := fieldValue(rec.Fields, "Eltern"); v != "Anna Muster" {
+		t.Errorf("Eltern = %q, want 'Anna Muster' repeated on the child block", v)
+	}
+	if v, _ := fieldValue(rec.Fields, "E-Mail"); v != "anna@example.test" {
+		t.Errorf("guardian E-Mail = %q, want it repeated on the child block", v)
+	}
+	if v, ok := fieldValue(rec.Fields, "Zustimmungen"); !ok || v == "" {
+		t.Error("consent summary must appear on the child block")
+	}
+}
+
+// Siblings become separate blocks and the whole document is ordered by
+// child surname (case-insensitive), then first name — not by submission.
+func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
+	mk := func(first, last string) enrollmentService.ExportChildRow {
+		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+			FirstName: first, LastName: last,
+			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+		}}
+	}
+	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
+	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
+	data := &enrollmentService.PhaseExport{
+		Phase: &enrollmentModels.Phase{Name: "P"},
+		Rows: []enrollmentService.ExportRequestRow{
+			// Submission order is deliberately NOT alphabetical.
+			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+		},
+	}
+
+	doc := buildPhaseExportRecords(data, "P", "")
+	got := make([]string, 0, len(doc.Records))
+	for _, r := range doc.Records {
+		got = append(got, r.Title)
+	}
+	want := []string{"Tim Braun", "Lina Muster", "Max Muster", "Ava schmidt"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("order = %v, want %v (surname A–Z, case-insensitive, then first name)", got, want)
+	}
+}
+
+// The XLSX rows must appear in the SAME order as the PDF blocks — both
+// derive from orderedExportEntries. This regression test pins that the
+// two formats stay in lock-step (child surname A–Z, case-insensitive).
+func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
+	mk := func(first, last string) enrollmentService.ExportChildRow {
+		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+			FirstName: first, LastName: last,
+			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+		}}
+	}
+	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
+	reqB := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "B", SubmittedAt: time.Now()}
+	data := &enrollmentService.PhaseExport{
+		Phase: &enrollmentModels.Phase{Name: "P"},
+		Rows: []enrollmentService.ExportRequestRow{
+			{Request: reqB, Children: []enrollmentService.ExportChildRow{mk("Max", "Muster"), mk("Lina", "Muster")}},
+			{Request: reqA, Children: []enrollmentService.ExportChildRow{mk("Ava", "schmidt"), mk("Tim", "Braun")}},
+		},
+	}
+
+	pdf := buildPhaseExportRecords(data, "P", "")
+	xlsx := buildPhaseExportTable(data, "P", "")
+	if len(pdf.Records) != len(xlsx.Rows) {
+		t.Fatalf("record/row counts differ: pdf=%d xlsx=%d", len(pdf.Records), len(xlsx.Rows))
+	}
+	for i := range pdf.Records {
+		// PDF heading "First Last" must match the XLSX row's child name cells.
+		row := xlsx.Rows[i].Values
+		xlsxName := strings.TrimSpace(row["child_first_name"] + " " + row["child_last_name"])
+		if pdf.Records[i].Title != xlsxName {
+			t.Errorf("row %d order mismatch: pdf=%q xlsx=%q", i, pdf.Records[i].Title, xlsxName)
+		}
+	}
+	// And the order is the alphabetical-by-surname order, not submission order.
+	want := []string{"Tim Braun", "Lina Muster", "Max Muster", "Ava schmidt"}
+	for i, w := range want {
+		if pdf.Records[i].Title != w {
+			t.Errorf("position %d = %q, want %q", i, pdf.Records[i].Title, w)
+		}
+	}
+}
+
+// A registration with no child rows must still surface as a guardian-only
+// block rather than vanishing from the export.
+func TestBuildPhaseExportRecords_ChildlessRegistrationKeepsGuardian(t *testing.T) {
+	data := &enrollmentService.PhaseExport{
+		Phase: &enrollmentModels.Phase{Name: "P"},
+		Rows: []enrollmentService.ExportRequestRow{
+			{Request: &enrollmentModels.Request{
+				GuardianFirstName: "Solo", GuardianLastName: "Parent",
+				GuardianEmail: "solo@example.test", SubmittedAt: time.Now(),
+				ConsentFlags: map[string]any{},
+			}},
+		},
+	}
+	doc := buildPhaseExportRecords(data, "P", "")
+	if len(doc.Records) != 1 {
+		t.Fatalf("records = %d, want 1 guardian-only block", len(doc.Records))
+	}
+	if doc.Records[0].Title != "Solo Parent" {
+		t.Errorf("title = %q, want guardian name 'Solo Parent'", doc.Records[0].Title)
+	}
+	if v, _ := fieldValue(doc.Records[0].Fields, "E-Mail"); v != "solo@example.test" {
+		t.Errorf("guardian E-Mail = %q, want it present on the fallback block", v)
+	}
+}
+
+// A phase whose form was edited has its requests pinned to different
+// schema versions. When the same custom-field key exists in more than
+// one version, the export must use the CURRENT (newest) version's label,
+// not a stale one — an admin who renames a field expects the new name.
+func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
+	oldSchema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "notes", Label: "Alter Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+		},
+	}
+	oldSchema.ID = 10
+	newSchema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "notes", Label: "Neuer Name", Type: enrollmentModels.FormFieldText, SortOrder: 1},
+		},
+	}
+	newSchema.ID = 20
+
+	guardian, _ := collectCustomFields(map[int64]*enrollmentModels.FormSchema{
+		oldSchema.ID: oldSchema,
+		newSchema.ID: newSchema,
+	})
+	if len(guardian) != 1 {
+		t.Fatalf("guardian custom fields = %d, want 1 (deduped by key)", len(guardian))
+	}
+	if guardian[0].Label != "Neuer Name" {
+		t.Errorf("label = %q, want %q (newest schema version wins)", guardian[0].Label, "Neuer Name")
+	}
+}
+
+func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
+	// docx is intentionally not offered on the phase export endpoint;
+	// the default branch must reject it (secondary guard behind
+	// parsePhaseExportFormat).
+	if _, err := buildPhaseExportFile(nil, sampleExport(), "docx", ""); err == nil {
+		t.Error("docx must be rejected on the phase export endpoint")
+	}
+}
+
+// --- Composite reserved field rendering --------------------------------
+//
+// These fields arrive as jsonb (map[string]any / []any) in custom_data.
+// The export must render them legibly in German — the generic stringify
+// fallback produces English keys in random order, which is unusable on a
+// printed offline copy.
+
+func TestFormatCustomValue_WeekdaySchedule_GermanWeekOrder(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	// Keys deliberately out of order + one empty day, to prove fixed
+	// Mo–Fr ordering and that unset days are skipped.
+	raw := map[string]any{"thu": "08:00", "mon": "07:30", "tue": ""}
+	got := formatCustomValue(field, raw)
+	if got != "Mo 07:30, Do 08:00" {
+		t.Errorf("weekday schedule = %q, want %q", got, "Mo 07:30, Do 08:00")
+	}
+}
+
+func TestFormatCustomValue_PhoneList_LabelsAndPrimary(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldPhoneList}
+	raw := []any{
+		map[string]any{"phone_number": "0151-1", "phone_type": "mobile", "is_primary": true},
+		map[string]any{"phone_number": "0541-2", "phone_type": "home", "label": "Oma"},
+		map[string]any{"phone_number": "", "phone_type": "work"}, // empty → skipped
+	}
+	got := formatCustomValue(field, raw)
+	if got != "Mobil: 0151-1 (primär), Oma: 0541-2" {
+		t.Errorf("phone list = %q, want %q", got, "Mobil: 0151-1 (primär), Oma: 0541-2")
+	}
+}
+
+func TestFormatCustomValue_ContactList_FlagsAreVisible(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldContactList}
+	raw := []any{
+		map[string]any{
+			"first_name":           "Otto",
+			"last_name":            "Oma",
+			"relationship_type":    "Großvater",
+			"can_pickup":           true,
+			"is_emergency_contact": true,
+			"phone_numbers": []any{
+				map[string]any{"phone_number": "0170", "phone_type": "mobile"},
+			},
+		},
+	}
+	got := formatCustomValue(field, raw)
+	for _, want := range []string{"Otto Oma", "Großvater", "Tel: Mobil: 0170", "abholberechtigt", "Notfallkontakt"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("contact list = %q, want it to contain %q", got, want)
+		}
+	}
+}
+
+func TestFormatCustomValue_Composite_FallsBackOnGarbage(t *testing.T) {
+	// A value that doesn't match the expected shape must not be dropped —
+	// it falls back to the generic stringifier rather than rendering "".
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdaySchedule}
+	if got := formatCustomValue(field, "ganztags"); got != "ganztags" {
+		t.Errorf("garbage fallback = %q, want %q", got, "ganztags")
+	}
+}
+
+// --- Handler wiring (exportPhaseRegistrations) -------------------------
+//
+// Exercises the full handler path — claims → ExportPhase → renderer →
+// streamed file + headers — with db nil (runInTenantTx short-circuits to
+// the closure) so no real DB or auth middleware is needed. The unit
+// tests above cover the builders in isolation; this covers the wiring.
+
+const exportTestActorID = 4242
+
+// buildExportRouter mounts the export handler behind a middleware that
+// injects JWT claims (the production route sits behind RequiresPermission,
+// which guarantees claims are present) and lets chi populate {id}.
+func buildExportRouter(rs *Resource, claims jwt.AppClaims) chi.Router {
+	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	r.Post("/enrollment/phases/{id}/export", rs.exportPhaseRegistrations)
+	return r
+}
+
+func TestExportPhaseRegistrations_StreamsPDFAndForwardsActor(t *testing.T) {
+	mock := &mockDecisionService{exportResult: sampleExport()}
+	rs := &Resource{
+		DecisionService:   mock,
+		ListExportService: listexport.NewService(),
+		// db nil → runInTenantTx runs the closure directly.
+	}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin", "config_manager"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/phases/777/export", strings.NewReader(`{"format":"pdf"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/pdf" {
+		t.Errorf("content-type = %q, want application/pdf", ct)
+	}
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, `filename="`) || !strings.HasSuffix(strings.TrimSuffix(cd, `"`), ".pdf") {
+		t.Errorf("content-disposition = %q, want an attachment .pdf filename", cd)
+	}
+	if !bytes.HasPrefix(w.Body.Bytes(), []byte("%PDF-1.")) {
+		t.Error("body is not a PDF document")
+	}
+	if got := w.Header().Get("Content-Length"); got != "" {
+		if want := len(w.Body.Bytes()); got != strconv.Itoa(want) {
+			t.Errorf("content-length = %s, want %d", got, want)
+		}
+	}
+
+	// The actor (from claims) and format must reach the service so the
+	// GDPR audit row records who exported what.
+	if mock.exportCalls != 1 {
+		t.Fatalf("ExportPhase calls = %d, want 1", mock.exportCalls)
+	}
+	if mock.exportPhaseID != 777 {
+		t.Errorf("phase id = %d, want 777", mock.exportPhaseID)
+	}
+	if mock.exportActorID != exportTestActorID {
+		t.Errorf("actor id = %d, want %d", mock.exportActorID, exportTestActorID)
+	}
+	if mock.exportFormat != "pdf" {
+		t.Errorf("format = %q, want pdf", mock.exportFormat)
+	}
+	if !strings.Contains(mock.exportActorRole, "admin") {
+		t.Errorf("actor role = %q, want it to carry the claim roles", mock.exportActorRole)
+	}
+}
+
+func TestExportPhaseRegistrations_StreamsXLSX(t *testing.T) {
+	mock := &mockDecisionService{exportResult: sampleExport()}
+	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/phases/12/export", strings.NewReader(`{"format":"xlsx"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	// XLSX is a ZIP container — the OOXML magic bytes are "PK\x03\x04".
+	if !bytes.HasPrefix(w.Body.Bytes(), []byte("PK\x03\x04")) {
+		t.Error("body is not an XLSX (zip) document")
+	}
+	if mock.exportFormat != "xlsx" {
+		t.Errorf("format = %q, want xlsx", mock.exportFormat)
+	}
+}
+
+func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
+	mock := &mockDecisionService{exportErr: context.DeadlineExceeded}
+	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/phases/12/export", strings.NewReader(`{"format":"pdf"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// A failed ExportPhase (e.g. the mandatory audit write failed) must
+	// surface as 5xx so no file is served without a recorded disclosure.
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestExportPhaseRegistrations_InvalidPhaseIDIs400(t *testing.T) {
+	rs := &Resource{DecisionService: &mockDecisionService{}, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/phases/abc/export", strings.NewReader(`{"format":"pdf"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}

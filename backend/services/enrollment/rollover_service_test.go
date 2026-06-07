@@ -636,6 +636,14 @@ func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int
 	return nil, nil
 }
 
+func (f *fakeApproveDecisionService) ExportPhase(_ context.Context, _, _ int64, _, _, _ string) (*enrollmentService.PhaseExport, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *enrollmentModels.Phase, _, _ string, _, _ int) error {
+	return nil
+}
+
 func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
 	f.calls++
 	if err := f.repo.UpdateStatus(ctx, input.ChildID, string(input.Status), nil, 0); err != nil {
