@@ -1427,7 +1427,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
-func TestWSGetHistory_UsesTemplateTargets(t *testing.T) {
+func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	modelID := int64(2300)
@@ -1448,30 +1448,28 @@ func TestWSGetHistory_UsesTemplateTargets(t *testing.T) {
 	}
 	svc.workModelRepo = &wsMockWorkTimeModelRepository{
 		findByIDFunc: func(_ context.Context, id int64) (*configModels.WorkTimeModel, error) {
-			require.Equal(t, modelID, id)
-			return &configModels.WorkTimeModel{
-				ID:                 modelID,
-				RotationLength:     2,
-				RotationAnchorDate: anchor,
-				Entries: []*configModels.WorkTimeModelEntry{
-					{
-						WeekIndex:     0,
-						DayOfWeek:     configModels.DayMonday,
-						TargetMinutes: 25 * 60,
-					},
-					{
-						WeekIndex:     1,
-						DayOfWeek:     configModels.DayMonday,
-						TargetMinutes: 35 * 60,
-					},
-				},
-			}, nil
+			t.Fatalf("template-assigned staff with schedule snapshot must not read current model %d", id)
+			return nil, sql.ErrNoRows
 		},
 	}
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		getCurrentByStaffIDFunc: func(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
-			t.Fatal("template-assigned staff must not read custom schedule rows")
-			return nil, nil
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
+			return []*configModels.StaffWorkSchedule{
+				{
+					WeekIndex:      0,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  25 * 60,
+					ValidFrom:      anchor,
+				},
+				{
+					WeekIndex:      1,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  35 * 60,
+					ValidFrom:      anchor,
+				},
+			}, nil
 		},
 	}
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {

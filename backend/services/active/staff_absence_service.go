@@ -111,6 +111,10 @@ const defaultEntitledDays = 30.0
 
 // CreateAbsence creates a new absence record
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	if req.AbsenceType == activeModels.AbsenceTypeVacation {
+		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
+	}
+
 	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
 	if err != nil {
 		return nil, err
@@ -274,6 +278,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	}
 	if isVacationWorkflowAbsence(absence) {
 		return nil, fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
+	}
+	if req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeVacation {
+		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
 	}
 
 	// Apply updates from request

@@ -69,6 +69,7 @@ func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 		"/123/vacation/quota?year=2026",
 		"/123/time-tracking/sessions/456/edits",
 		"/123/absences?from=2026-06-01&to=2026-06-07",
+		"/123/schedule",
 	}
 	for _, path := range cases {
 		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, testutil.WithJWTBearer(token))

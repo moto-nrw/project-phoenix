@@ -47,11 +47,11 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.TenantMiddleware)
 		withTx := tenant.TenantTxMiddleware(rs.db)
 
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.list)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.get)
-		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.create)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.update)
-		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.delete)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}", rs.get)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 	})
 
 	return r

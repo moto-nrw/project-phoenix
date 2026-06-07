@@ -147,17 +147,17 @@ describe("POST /api/time-tracking/absences", () => {
 
   it("creates a new absence", async () => {
     const createRequest = {
-      absence_type: "vacation",
+      absence_type: "sick",
       date_start: "2024-01-15",
       date_end: "2024-01-20",
-      note: "Summer vacation",
+      note: "Flu",
     };
     const mockCreatedAbsence = {
       id: 99,
-      absence_type: "vacation",
+      absence_type: "sick",
       date_start: "2024-01-15",
       date_end: "2024-01-20",
-      note: "Summer vacation",
+      note: "Flu",
     };
     mockApiPost.mockResolvedValueOnce({ data: mockCreatedAbsence });
 

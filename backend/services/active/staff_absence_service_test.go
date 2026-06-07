@@ -300,6 +300,24 @@ func TestAbsCreateAbsence_Success(t *testing.T) {
 	assert.Equal(t, 3, result.DurationDays) // 10, 11, 12 = 3 days
 }
 
+func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		t.Fatal("vacation must not be created through generic absence create")
+		return nil
+	}
+
+	result, err := svc.CreateAbsence(context.Background(), int64(100), CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeVacation,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vacation flow")
+}
+
 func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
 	svc, _, _ := absSetupService()
 
@@ -520,20 +538,44 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 
 	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
 		assert.Equal(t, "Updated note", entity.Note)
-		assert.Equal(t, activeModels.AbsenceTypeVacation, entity.AbsenceType)
+		assert.Equal(t, activeModels.AbsenceTypeSick, entity.AbsenceType)
 		return nil
 	}
 
-	newType := activeModels.AbsenceTypeVacation
 	newNote := "Updated note"
 	req := UpdateAbsenceRequest{
-		AbsenceType: &newType,
-		Note:        &newNote,
+		Note: &newNote,
 	}
 
 	result, err := svc.UpdateAbsence(ctx, staffID, absenceID, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
+}
+
+func TestAbsUpdateAbsence_BlocksVacationType(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeSick,
+			Status:      activeModels.AbsenceStatusReported,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		t.Fatal("generic absence update must not convert rows to vacation")
+		return nil
+	}
+
+	newType := activeModels.AbsenceTypeVacation
+	result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{AbsenceType: &newType})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vacation flow")
 }
 
 func TestAbsUpdateAbsence_NotFound(t *testing.T) {

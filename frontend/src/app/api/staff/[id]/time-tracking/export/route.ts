@@ -6,8 +6,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "StaffTimeTrackingExportRoute" });
 
 // Admin export proxy. Streams CSV/XLSX binary from the backend as a file
-// download. Mirrors /api/time-tracking/export but for a specific staff ID;
-// requires users:read on the backend.
+// download. Mirrors /api/time-tracking/export but for a specific staff ID.
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },

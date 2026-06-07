@@ -84,7 +84,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
 
-		// Vacation workflow (Tranche 4) — MA-side
+		// Vacation workflow (Tranche 4), MA-side
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)

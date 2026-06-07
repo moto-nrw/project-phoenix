@@ -134,9 +134,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
-		// Work schedule endpoints - require users:update for write
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/schedule", rs.getSchedule)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/schedule", rs.updateSchedule)
+		// Work schedule endpoints expose contractual target hours.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/schedule", rs.getSchedule)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/schedule", rs.updateSchedule)
 
 		// Time tracking history for a specific staff member (admin read)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
@@ -1649,17 +1649,18 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 		if staff.RotationAnchorDate != nil {
 			anchor = *staff.RotationAnchorDate
 		}
-		entries := make([]ScheduleEntryResponse, 0, len(model.Entries))
-		totals := make([]int, model.RotationLength)
-		for _, e := range model.Entries {
-			entries = append(entries, ScheduleEntryResponse{
-				WeekIndex:     e.WeekIndex,
-				DayOfWeek:     e.DayOfWeek,
-				TargetMinutes: e.TargetMinutes,
-			})
-			if e.WeekIndex >= 0 && e.WeekIndex < len(totals) {
-				totals[e.WeekIndex] += e.TargetMinutes
-			}
+
+		rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+		if err != nil {
+			return nil, fmt.Errorf("load assigned schedule snapshot: %w", err)
+		}
+		rotation := model.RotationLength
+		var entries []ScheduleEntryResponse
+		var totals []int
+		if len(rows) > 0 {
+			entries, totals, rotation = scheduleRowsToResponseParts(rows)
+		} else {
+			entries, totals = modelEntriesToResponseParts(model.Entries, rotation)
 		}
 		return &ScheduleResponse{
 			Mode: "template",
@@ -1669,7 +1670,7 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 				RotationLength:     model.RotationLength,
 				RotationAnchorDate: model.RotationAnchorDate.Format("2006-01-02"),
 			},
-			RotationLength:     model.RotationLength,
+			RotationLength:     rotation,
 			RotationAnchorDate: anchor.Format("2006-01-02"),
 			Entries:            entries,
 			WeeklyTotals:       totals,
@@ -1681,27 +1682,9 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 		return nil, fmt.Errorf("load custom schedule: %w", err)
 	}
 
-	rotation := 1
-	for _, row := range rows {
-		if row.RotationLength > rotation {
-			rotation = row.RotationLength
-		}
-	}
-	if rotation < 1 {
-		rotation = 1
-	}
-	totals := make([]int, rotation)
-	entries := make([]ScheduleEntryResponse, 0, len(rows))
+	entries, totals, rotation := scheduleRowsToResponseParts(rows)
 	var earliest *time.Time
 	for _, row := range rows {
-		entries = append(entries, ScheduleEntryResponse{
-			WeekIndex:     row.WeekIndex,
-			DayOfWeek:     row.DayOfWeek,
-			TargetMinutes: row.TargetMinutes,
-		})
-		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
-			totals[row.WeekIndex] += row.TargetMinutes
-		}
 		if earliest == nil || row.ValidFrom.Before(*earliest) {
 			vf := row.ValidFrom
 			earliest = &vf
@@ -1732,10 +1715,9 @@ func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staf
 		return fmt.Errorf("template not found: %w", err)
 	}
 
-	// Archive any existing custom entries so the lookup chain stays
-	// unambiguous: template wins, custom rows are historic only.
-	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, nil); err != nil {
-		return fmt.Errorf("clear custom entries: %w", err)
+	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write assigned schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
@@ -1830,8 +1812,9 @@ func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff
 	if err := rs.WorkTimeModelRepo.Create(ctx, model, entries); err != nil {
 		return err
 	}
-	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, nil); err != nil {
-		return fmt.Errorf("clear custom schedule: %w", err)
+	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
@@ -1840,6 +1823,66 @@ func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
+}
+
+func scheduleRowsToResponseParts(rows []*config.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int) {
+	rotation := 1
+	for _, row := range rows {
+		if row.RotationLength > rotation {
+			rotation = row.RotationLength
+		}
+	}
+	if rotation < 1 {
+		rotation = 1
+	}
+	totals := make([]int, rotation)
+	entries := make([]ScheduleEntryResponse, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, ScheduleEntryResponse{
+			WeekIndex:     row.WeekIndex,
+			DayOfWeek:     row.DayOfWeek,
+			TargetMinutes: row.TargetMinutes,
+		})
+		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
+			totals[row.WeekIndex] += row.TargetMinutes
+		}
+	}
+	return entries, totals, rotation
+}
+
+func modelEntriesToResponseParts(modelEntries []*config.WorkTimeModelEntry, rotation int) ([]ScheduleEntryResponse, []int) {
+	if rotation < 1 {
+		rotation = 1
+	}
+	entries := make([]ScheduleEntryResponse, 0, len(modelEntries))
+	totals := make([]int, rotation)
+	for _, e := range modelEntries {
+		entries = append(entries, ScheduleEntryResponse{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+		})
+		if e.WeekIndex >= 0 && e.WeekIndex < rotation {
+			totals[e.WeekIndex] += e.TargetMinutes
+		}
+	}
+	return entries, totals
+}
+
+func modelEntriesToScheduleRows(modelEntries []*config.WorkTimeModelEntry, rotation int) []*config.StaffWorkSchedule {
+	rows := make([]*config.StaffWorkSchedule, 0, len(modelEntries))
+	for _, e := range modelEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		rows = append(rows, &config.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+	}
+	return rows
 }
 
 func validateScheduleEntryRequest(e ScheduleEntryRequest, rotation int, seenSlots map[string]struct{}) error {

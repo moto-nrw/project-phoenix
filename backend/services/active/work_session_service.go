@@ -958,6 +958,12 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		return nil
 	}
 	staff := s.resolveStaffForTargets(ctx, staffID)
+	if s.scheduleRepo != nil {
+		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions)
+		if len(targets) > 0 {
+			return targets
+		}
+	}
 	if staff != nil && staff.WorkTimeModelID != nil {
 		if s.workModelRepo == nil {
 			return nil
@@ -972,13 +978,7 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		}
 		return weeklyTargetsFromModel(model, anchor, sessions)
 	}
-	if s.scheduleRepo == nil {
-		return nil
-	}
-	if staff == nil {
-		staff = s.resolveStaffForTargets(ctx, staffID)
-	}
-	return s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions)
+	return nil
 }
 
 func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *userModels.Staff {

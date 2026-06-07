@@ -1455,7 +1455,7 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 }
 
-func TestUpdateSchedule_SaveAsTemplateClearsActiveCustomRows(t *testing.T) {
+func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
@@ -1475,7 +1475,7 @@ func TestUpdateSchedule_SaveAsTemplateClearsActiveCustomRows(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount("/staff", ctx.resource.Router())
 	claims := testutil.DefaultTestClaims()
-	claims.Permissions = []string{"users:update"}
+	claims.Permissions = []string{"time_tracking:manage"}
 	token := testutil.MintTestJWT(t, claims)
 	body := map[string]any{
 		"mode":                 "custom",
@@ -1497,7 +1497,9 @@ func TestUpdateSchedule_SaveAsTemplateClearsActiveCustomRows(t *testing.T) {
 
 	activeRows, err := ctx.resource.ScheduleRepo.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
 	require.NoError(t, err)
-	assert.Empty(t, activeRows)
+	require.Len(t, activeRows, 1)
+	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
+	assert.Equal(t, 360, activeRows[0].TargetMinutes)
 
 	reloadedStaff, err := ctx.resource.StaffRepo.FindByID(testpkg.TenantContext(1), staff.ID)
 	require.NoError(t, err)
