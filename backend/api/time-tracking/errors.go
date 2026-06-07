@@ -75,6 +75,7 @@ func classifyAbsenceError(err error) render.Renderer {
 		return common.ErrorForbidden(err)
 
 	case strings.HasPrefix(msg, "absence overlaps"),
+		strings.HasPrefix(msg, "dates overlap"),
 		strings.HasPrefix(msg, "updated dates overlap"):
 		return common.ErrorConflict(err)
 

@@ -305,6 +305,7 @@ export function LeaveRequestsCard() {
           loadAll();
         }}
         remainingDays={remainingDays}
+        existingVacations={vacations}
       />
 
       <ConfirmationModal

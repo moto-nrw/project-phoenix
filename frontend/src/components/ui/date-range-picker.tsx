@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DayPicker, type DateRange } from "react-day-picker";
+import { DayPicker, type DateRange, type Matcher } from "react-day-picker";
 import { addDays, addMonths, format, subMonths } from "date-fns";
 import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
@@ -147,6 +147,8 @@ interface RangeCalendarProps {
   readonly onChange: (range: DateRange | undefined) => void;
   readonly fromMin?: Date;
   readonly toMax?: Date;
+  readonly modifiers?: Record<string, Matcher | Matcher[]>;
+  readonly modifiersClassNames?: Record<string, string>;
 }
 
 export function RangeCalendarInline({
@@ -155,6 +157,8 @@ export function RangeCalendarInline({
   onChange,
   fromMin,
   toMax,
+  modifiers: extraModifiers,
+  modifiersClassNames: extraModifiersClassNames,
 }: RangeCalendarProps) {
   const [month, setMonth] = useState(value?.from ?? new Date());
   const isSingleMonth = useIsSingleMonthCalendar();
@@ -279,6 +283,7 @@ export function RangeCalendarInline({
             ...(toMax ? [{ after: toMax }] : []),
           ]}
           modifiers={{
+            ...extraModifiers,
             // Range start/end only fire when there's an actual span (from !==
             // to). A single-day or in-progress selection is handled by
             // `singlePick` so it gets a standalone rounded pill instead of a
@@ -300,6 +305,7 @@ export function RangeCalendarInline({
                 : [],
           }}
           modifiersClassNames={{
+            ...extraModifiersClassNames,
             // Half-cell gradient on the cell (light-green band only on the
             // inner half) + dark rounded pill on the button. This keeps the
             // band continuous from start to end without "tails" outside.
