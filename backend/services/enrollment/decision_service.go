@@ -795,18 +795,23 @@ func (s *decisionService) materializeEnrollments(
 			}
 			drafts[*offering.ActivityGroupID] = draft
 		}
-		if len(link.SelectedDays) == 0 {
+		days, err := effectiveOfferingDaysForEnrollment(offering, link)
+		if err != nil {
+			return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if len(days) == 0 {
 			draft.allWeekdays = true
 			continue
 		}
-		if !draft.allWeekdays {
-			for _, day := range link.SelectedDays {
-				weekday, ok := enrollmentDayToISOWeekday(day)
-				if !ok {
-					return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
-				}
-				draft.selectedWeekday[weekday] = true
+		if draft.allWeekdays {
+			continue
+		}
+		for _, day := range days {
+			weekday, ok := enrollmentDayToISOWeekday(day)
+			if !ok {
+				return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
 			}
+			draft.selectedWeekday[weekday] = true
 		}
 	}
 
@@ -828,6 +833,23 @@ func (s *decisionService) materializeEnrollments(
 		}
 	}
 	return nil
+}
+
+func effectiveOfferingDaysForEnrollment(
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+) ([]string, error) {
+	if len(link.SelectedDays) > 0 {
+		return link.SelectedDays, nil
+	}
+	switch offering.DaysOfWeekMode {
+	case enrollmentModels.DaysOfWeekModeFixed:
+		return offering.AvailableDays, nil
+	case enrollmentModels.DaysOfWeekModeParentChoice:
+		return nil, fmt.Errorf("parent-choice offering has no selected_days")
+	default:
+		return nil, fmt.Errorf("unknown days_of_week_mode %q", offering.DaysOfWeekMode)
+	}
 }
 
 func enrollmentDayToISOWeekday(day string) (int, bool) {

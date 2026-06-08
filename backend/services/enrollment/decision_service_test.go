@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -419,6 +420,85 @@ func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 	require.NotNil(t, second.Child.CreatedStudentID)
 	assert.Equal(t, firstStudentID, *second.Child.CreatedStudentID,
 		"second approve must not duplicate the student row")
+}
+
+func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollment(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
+	group := &activitiesModels.Group{
+		Name:            "Decision Fixed Days",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	defer func() {
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Fixed Tue Thu",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"tue", "thu"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	req := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Fixed",
+		GuardianEmail:     "fixed-days@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Fina",
+				LastName:         "Fixed",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	}
+	submitted, err := env.requestSvc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	var rows []activitiesModels.StudentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".student_id = ?`, *outcome.Child.CreatedStudentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Scan(ctx))
+	require.Len(t, rows, 1)
+	assert.Equal(t, []int{2, 4}, rows[0].SelectedWeekdays,
+		"fixed offering approval must constrain enrollment to available_days")
 }
 
 // ---- ListChildOfferings -------------------------------------------------

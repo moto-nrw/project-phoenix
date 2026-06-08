@@ -264,6 +264,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			COALESCE(c.name, '') AS category_name,
 			g.planned_room_id AS room_id,
 			COALESCE(r.name, '') AS room_name,
+			g.education_group_id,
+			COALESCE(eg.name, '') AS education_group_name,
 			g.is_open,
 			g.max_participants,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
@@ -286,6 +288,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
 		LEFT JOIN facilities.rooms AS r
 			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
+		LEFT JOIN education.groups AS eg
+			ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id
 			LEFT JOIN (
 				SELECT
 					activity_group_id,
@@ -340,56 +344,5 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templates := make([]templateResponse, 0)
-	byID := make(map[int64]int)
-	for _, row := range rows {
-		idx, ok := byID[row.TemplateID]
-		if !ok {
-			var roomID *int64
-			if row.RoomID.Valid {
-				id := row.RoomID.Int64
-				roomID = &id
-			}
-			var primaryStaffID *int64
-			if row.PrimaryStaffID.Valid {
-				id := row.PrimaryStaffID.Int64
-				primaryStaffID = &id
-			}
-			templates = append(templates, templateResponse{
-				ID:              row.TemplateID,
-				Name:            row.Name,
-				Type:            row.Type,
-				CategoryID:      row.CategoryID,
-				CategoryName:    row.CategoryName,
-				RoomID:          roomID,
-				RoomName:        row.RoomName.String,
-				IsOpen:          row.IsOpen,
-				MaxParticipants: row.MaxParticipants,
-				EnrollmentCount: row.EnrollmentCount,
-				SupervisorCount: row.SupervisorCount,
-				StudentIDs:      row.StudentIDs,
-				StaffIDs:        row.StaffIDs,
-				PrimaryStaffID:  primaryStaffID,
-				Schedules:       []templateScheduleResponse{},
-			})
-			idx = len(templates) - 1
-			byID[row.TemplateID] = idx
-		}
-
-		var calendarPeriodID *int64
-		if row.CalendarPeriodID.Valid {
-			id := row.CalendarPeriodID.Int64
-			calendarPeriodID = &id
-		}
-		templates[idx].Schedules = append(templates[idx].Schedules, templateScheduleResponse{
-			ID:               row.ScheduleID,
-			Weekday:          row.Weekday,
-			StartTime:        row.StartTime.String,
-			EndTime:          row.EndTime.String,
-			WeekPattern:      row.WeekPattern,
-			CalendarPeriodID: calendarPeriodID,
-		})
-	}
-
-	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: templates}, "Templates retrieved")
+	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows)}, "Templates retrieved")
 }
