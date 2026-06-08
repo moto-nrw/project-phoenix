@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	studentStatusDaysNoteVersion     = "1.15.111"
+	studentStatusDaysNoteVersion     = "1.15.113"
 	studentStatusDaysNoteDescription = "Add note column to active.student_status_days for parent-supplied sick-note reasons"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func studentStatusDaysNoteUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.111: Adding note column to active.student_status_days...")
+	fmt.Println("Migration 1.15.113: Adding note column to active.student_status_days...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -56,7 +56,7 @@ func studentStatusDaysNoteUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentStatusDaysNoteDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.111: Dropping note column from active.student_status_days...")
+	fmt.Println("Rolling back migration 1.15.113: Dropping note column from active.student_status_days...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
