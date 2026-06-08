@@ -23,6 +23,9 @@ type PublicLegalTextsResponse struct {
 	DSGVO        string `json:"dsgvo"`
 	EmailContact string `json:"email_contact"`
 	Photo        string `json:"photo"`
+	// TermsEnabled reflects enrollment.legal_terms_enabled: when false the
+	// form hides the AGB block entirely (no checkbox, not required).
+	TermsEnabled bool `json:"terms_enabled"`
 }
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
@@ -63,6 +66,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 			out.DSGVO = texts.DSGVO
 			out.EmailContact = texts.EmailContact
 			out.Photo = texts.Photo
+			out.TermsEnabled = texts.TermsEnabled
 			return nil
 		})
 	})

@@ -183,11 +183,15 @@ type RequestService interface {
 
 // LegalTexts bundles the per-tenant info texts surfaced behind each
 // consent checkbox on the public enrollment form's consent step.
+// TermsEnabled mirrors enrollment.legal_terms_enabled so the form knows
+// whether to render the AGB block at all (the AGB text alone can't carry
+// that: an enabled-but-empty AGB still needs the checkbox shown).
 type LegalTexts struct {
 	AGB          string
 	DSGVO        string
 	EmailContact string
 	Photo        string
+	TermsEnabled bool
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -559,7 +563,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	for _, key := range enrollmentModels.RequiredConsentKeys {
+	for _, key := range s.resolveRequiredConsents(ctx) {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
 			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
@@ -1080,7 +1084,36 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 		DSGVO:        strings.TrimSpace(dsgvo),
 		EmailContact: strings.TrimSpace(emailContact),
 		Photo:        strings.TrimSpace(photo),
+		TermsEnabled: s.legalTermsEnabled(ctx),
 	}, nil
+}
+
+// legalTermsEnabled reports whether the tenant has switched on the
+// AGB / Teilnahmebedingungen block. Default off (no general duty to use
+// AGB), matching the registry default for enrollment.legal_terms_enabled.
+func (s *requestService) legalTermsEnabled(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentLegalTermsEnabled); err == nil && has {
+		if v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled); err == nil {
+			return v
+		}
+	}
+	return false
+}
+
+// resolveRequiredConsents returns the consent keys the parent must accept
+// for this tenant: the unconditional base set (Datenschutz-Kenntnisnahme)
+// plus AGB when the tenant has enabled the terms block. Keeping this in
+// the service - rather than a static model slice - lets a Träger without
+// standard terms submit without an AGB checkbox the form never showed.
+func (s *requestService) resolveRequiredConsents(ctx context.Context) []string {
+	required := append([]string(nil), enrollmentModels.BaseRequiredConsentKeys...)
+	if s.legalTermsEnabled(ctx) {
+		required = append(required, enrollmentModels.ConsentKeyAGB)
+	}
+	return required
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

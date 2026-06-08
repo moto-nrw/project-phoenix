@@ -1610,13 +1610,16 @@ func (s *decisionService) applyTargetedFields(
 	// and the dedicated guardian_phone input), but their values still
 	// need to land in the right downstream rows on approval.
 	//
-	// All four consent flags get copied onto the student row so staff
-	// looking at a single child see the consent state without joining
-	// back to enrollment.requests. AGB / Datenschutz / E-Mail are
-	// required at submission and will always be true here; photo is
-	// optional. Each stamp records the approval moment, not the parent
-	// submission moment — the parent submission timestamp lives on
-	// enrollment.requests if a more precise audit is ever needed.
+	// All present consent flags get copied onto the student row so staff
+	// looking at a single child see the consent state without joining back
+	// to enrollment.requests. Datenschutz-Kenntnisnahme and E-Mail contact
+	// are always true here; AGB is only true when the tenant enabled the
+	// terms block (enrollment.legal_terms_enabled); photo is optional. Each
+	// stamp is conditional on the flag being true, so a tenant without AGB
+	// simply leaves AGBAcceptedAt null. Each stamp records the approval
+	// moment, not the parent submission moment — the parent submission
+	// timestamp lives on enrollment.requests if a more precise audit is
+	// ever needed.
 	if request.ConsentFlags != nil {
 		now := time.Now()
 		if photo, ok := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); ok && photo {

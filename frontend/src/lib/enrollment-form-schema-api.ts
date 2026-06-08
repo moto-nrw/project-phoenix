@@ -305,6 +305,12 @@ export interface PublicLegalTexts {
   dsgvo: string;
   email_contact: string;
   photo: string;
+  /**
+   * Mirrors enrollment.legal_terms_enabled. When false the form hides the
+   * AGB block entirely (no checkbox, not required) — a Träger without
+   * standard terms must not be shown a mandatory "AGB akzeptieren" box.
+   */
+  terms_enabled: boolean;
 }
 
 /**

@@ -201,9 +201,13 @@ function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("Klassenstufe *"), {
     target: { value: "2" },
   });
+  // AGB checkbox only renders when the tenant enabled the terms block
+  // (default mock sets terms_enabled: true). Datenschutz is an
+  // acknowledgement; e-mail contact is now a notice with no checkbox.
   fireEvent.click(screen.getByText(/AGB/));
-  fireEvent.click(screen.getByText(/Verarbeitung der angegebenen Daten/));
-  fireEvent.click(screen.getByText(/E-Mail kontaktieren/));
+  fireEvent.click(
+    screen.getByText(/Datenschutzinformation der Schule zur Kenntnis/),
+  );
 }
 
 describe("EnrollmentForm", () => {
@@ -228,6 +232,9 @@ describe("EnrollmentForm", () => {
       dsgvo: "",
       email_contact: "",
       photo: "",
+      // Terms block on so the AGB checkbox renders for the submit-payload
+      // tests (fillRequiredFields ticks it). Tenants default to false.
+      terms_enabled: true,
     });
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),

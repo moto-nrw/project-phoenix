@@ -53,14 +53,21 @@ const (
 	ConsentKeyPhoto          = "photo"
 )
 
-// RequiredConsentKeys lists the consents a parent must accept for any
-// submission to be valid. Photo consent is intentionally excluded - it
+// BaseRequiredConsentKeys lists the consents a parent must accept for
+// EVERY submission, regardless of tenant configuration. Only the
+// Datenschutz acknowledgement is unconditional: enrollment data is
+// processed on a contractual / legal basis, so the parent confirms they
+// have taken note of the Datenschutzinformation (Kenntnisnahme), they do
+// not grant a revocable consent.
+//
+// AGB (ConsentKeyAGB) is conditionally required - only when the tenant
+// turns on enrollment.legal_terms_enabled - so it is NOT in this base
+// list; the request service appends it per tenant. E-Mail contact is a
+// notice (contract performance), not a gating consent, and photo consent
 // is optional. Enforced server-side in the submit flow as
 // defense-in-depth on top of the public form's client-side validation.
-var RequiredConsentKeys = []string{
-	ConsentKeyAGB,
+var BaseRequiredConsentKeys = []string{
 	ConsentKeyDataProcessing,
-	ConsentKeyEmailContact,
 }
 
 // RequestStatus values - derived, not stored. Documented here as the
