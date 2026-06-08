@@ -610,6 +610,32 @@ func TestCreateStudent(t *testing.T) {
 		// Invalid birthday format should fail
 		assert.NotEqual(t, http.StatusCreated, rr.Code)
 	})
+
+	t.Run("bad_request_invalid_bus_days_weekday", func(t *testing.T) {
+		body := map[string]interface{}{
+			"first_name":   "Invalid",
+			"last_name":    "BusDays",
+			"school_class": "2c",
+			"bus_days": map[string]bool{
+				"sat": true,
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "sat")
+
+		var count int
+		err := tc.db.NewSelect().
+			TableExpr(`users.persons AS "person"`).
+			ColumnExpr(`count(*)`).
+			Where(`"person".first_name = ?`, "Invalid").
+			Where(`"person".last_name = ?`, "BusDays").
+			Scan(testpkg.TenantContext(1), &count)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+	})
 }
 
 func TestCreateStudent_WithGroupID(t *testing.T) {
@@ -1103,6 +1129,47 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayThursday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayMonday])
+	})
+
+	t.Run("invalid_bus_days_update_is_rejected_without_changing_state", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Reject", "BDX1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		existing := usersModel.BusDays{
+			usersModel.BusDayMonday: true,
+		}
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students AS "student"`).
+			Set(`bus = ?`, true).
+			Set(`bus_days = ?`, existing).
+			Where(`"student".id = ?`, student.ID).
+			Exec(testpkg.TenantContext(1))
+		require.NoError(t, err)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"bus_days": map[string]bool{
+				"sat": true,
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "sat")
+
+		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, fresh.Bus)
+		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayTuesday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayWednesday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayThursday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayFriday])
 	})
 
 	t.Run("update_guardian_contact", func(t *testing.T) {

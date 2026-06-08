@@ -115,6 +115,10 @@ func (s *Student) Validate() error {
 		return err
 	}
 
+	if err := s.BusDays.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

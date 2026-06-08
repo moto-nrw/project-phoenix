@@ -744,7 +744,7 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 		}
 	}
 	if req.BusDays != nil {
-		student.BusDays = req.BusDays.Normalize()
+		student.BusDays = *req.BusDays
 		b := student.BusDays.HasAny()
 		student.Bus = &b
 	}
@@ -1098,7 +1098,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 		}
 	}
 	if req.BusDays != nil {
-		student.BusDays = req.BusDays.Normalize()
+		student.BusDays = *req.BusDays
 		b := student.BusDays.HasAny()
 		student.Bus = &b
 	}

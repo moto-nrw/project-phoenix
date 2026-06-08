@@ -423,6 +423,9 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 	require.NoError(t, err, "imported student should exist in the database")
 	require.NotNil(t, student.Bus, "Bus must be persisted, not left nil")
 	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
+	for _, day := range users.BusDayOrder {
+		assert.True(t, student.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
+	}
 }
 
 // TestImportStudents_PersistsEnrollmentDatesAndStatus verifies that the

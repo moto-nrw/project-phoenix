@@ -3,6 +3,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // studentPhotoFeatureLockClass is the pg_advisory_xact_lock class id used
@@ -296,7 +298,10 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 
 func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.Student) error {
 	if student.BusDays == nil {
-		return nil
+		if student.Bus == nil {
+			return nil
+		}
+		student.BusDays = users.BusDaysFromLegacyFlag(*student.Bus)
 	}
 	normalized := student.BusDays.Normalize()
 	query := base.GetDB(ctx, r.db).NewUpdate().
@@ -313,7 +318,7 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 		// Migration tests exercise historical schemas with the current model.
 		// Before 1.15.112 the column legitimately does not exist; let the
 		// legacy bus flag continue to cover those test/database states.
-		if strings.Contains(err.Error(), "bus_days") {
+		if isUndefinedBusDaysColumn(err) {
 			return nil
 		}
 		return &modelBase.DatabaseError{
@@ -323,6 +328,11 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 	}
 	student.BusDays = normalized
 	return base.AssertRowsAffected(result, 1, "update student bus days")
+}
+
+func isUndefinedBusDaysColumn(err error) bool {
+	var pgErr pgdriver.Error
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "42703"
 }
 
 // Legacy method to maintain compatibility with old interface

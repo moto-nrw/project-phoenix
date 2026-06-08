@@ -59,6 +59,24 @@ func cleanupStudentRecords(t *testing.T, db *bun.DB, studentIDs ...int64) {
 	}
 }
 
+func requireStudentsBusDaysColumn(t *testing.T, db *bun.DB) {
+	t.Helper()
+	var exists bool
+	err := db.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'bus_days'
+		)
+	`).Scan(testpkg.TenantContext(1), &exists)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("users.students.bus_days column is not present in this test database")
+	}
+}
+
 // cleanupEducationData removes education groups and group-teacher assignments
 func cleanupEducationData(t *testing.T, db *bun.DB, groupIDs []int64, teacherIDs []int64) {
 	t.Helper()
@@ -202,6 +220,55 @@ func TestStudentRepository_Create(t *testing.T) {
 		cleanupStudentRecords(t, db, student.ID)
 	})
 
+	t.Run("derives all bus days from legacy bus true", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, db)
+
+		person := testpkg.CreateTestPerson(t, db, "LegacyBus", "True")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		bus := true
+		student := &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: "2c",
+			Bus:         &bus,
+		}
+
+		err := repo.Create(ctx, student)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		for _, day := range users.BusDayOrder {
+			assert.True(t, found.BusDays[day], "legacy bus=true should enable %s", day)
+		}
+
+		cleanupStudentRecords(t, db, student.ID)
+	})
+
+	t.Run("derives empty bus days from legacy bus false", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, db)
+
+		person := testpkg.CreateTestPerson(t, db, "LegacyBus", "False")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		bus := false
+		student := &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: "2d",
+			Bus:         &bus,
+		}
+
+		err := repo.Create(ctx, student)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.False(t, found.BusDays.HasAny())
+		assert.Empty(t, found.BusDays.Normalize())
+
+		cleanupStudentRecords(t, db, student.ID)
+	})
+
 	t.Run("fails with nil student", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		require.Error(t, err)
@@ -236,6 +303,24 @@ func TestStudentRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, student)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "guardian email")
+	})
+
+	t.Run("fails with invalid bus days before persistence", func(t *testing.T) {
+		person := testpkg.CreateTestPerson(t, db, "Invalid", "BusDays")
+		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+		student := &users.Student{
+			PersonID:    person.ID,
+			SchoolClass: "1a",
+			BusDays: users.BusDays{
+				"sat": true,
+			},
+		}
+
+		err := repo.Create(ctx, student)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `weekday "sat"`)
+		assert.Zero(t, student.ID)
 	})
 }
 
