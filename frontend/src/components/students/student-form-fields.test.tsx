@@ -11,6 +11,7 @@ import {
   AdditionalInfoSection,
   PrivacyConsentSection,
   BusStatusSection,
+  EnrollmentConsentsSection,
   PickupStatusSection,
 } from "./student-form-fields";
 import type { Student } from "@/lib/api";
@@ -257,6 +258,39 @@ describe("BusStatusSection", () => {
     fireEvent.click(checkbox);
 
     expect(onChange).toHaveBeenCalledWith({ mon: true });
+  });
+});
+
+describe("EnrollmentConsentsSection", () => {
+  it("renders nothing when no enrollment consents are stamped", () => {
+    const { container } = render(<EnrollmentConsentsSection />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders stamped and missing enrollment consents", () => {
+    render(
+      <EnrollmentConsentsSection
+        agbAcceptedAt="2026-01-02T10:00:00Z"
+        dataProcessingAcceptedAt="2026-01-03T10:00:00Z"
+        emailContactAcceptedAt={null}
+        photoConsentGivenAt="2026-01-04T10:00:00Z"
+      />,
+    );
+
+    expect(
+      screen.getByText("Einwilligungen bei Anmeldung"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("AGB")).toBeInTheDocument();
+    expect(screen.getByText("Datenverarbeitung (DSGVO)")).toBeInTheDocument();
+    expect(screen.getByText("E-Mail-Kontakt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Fotos bei Schulveranstaltungen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nicht erteilt")).toBeInTheDocument();
+    expect(screen.getByText("02.01.2026")).toBeInTheDocument();
+    expect(screen.getByText("03.01.2026")).toBeInTheDocument();
+    expect(screen.getByText("04.01.2026")).toBeInTheDocument();
   });
 });
 

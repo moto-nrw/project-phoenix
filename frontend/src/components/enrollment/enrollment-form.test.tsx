@@ -562,6 +562,36 @@ describe("EnrollmentForm", () => {
     });
   });
 
+  it("requires at least one selected weekday for required weekday boolean fields", async () => {
+    const requiredBusDays = schema();
+    requiredBusDays.fields = requiredBusDays.fields.map((field) =>
+      field.key === "bus_days" ? { ...field, required: true } : field,
+    );
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredBusDays);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte mindestens einen Wochentag auswählen."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("pre-selects and locks a mandatory offering and submits it for every child", async () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
     mockFetchPublicCareOfferings.mockResolvedValue({
