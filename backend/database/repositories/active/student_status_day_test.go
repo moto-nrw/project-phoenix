@@ -166,3 +166,59 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
+
+// TestStudentStatusDayRepository_NoteOnReReport pins the upsert's note
+// handling: an active re-report with no reason keeps the prior note, but
+// reactivating a previously-cleared row with no reason must NOT resurrect
+// the stale note from the superseded report.
+func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentStatusDay
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	date := timezone.DateOfUTC(time.Now().AddDate(0, 0, 5))
+	reason := "Fieber"
+
+	// 1. Report sick with a reason.
+	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       date,
+		Status:     active.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     active.StudentStatusSourceParent,
+		Note:       &reason,
+	}))
+
+	// 2. Active re-report without a reason — note must be preserved.
+	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       date,
+		Status:     active.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     active.StudentStatusSourceParent,
+	}))
+	rows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.NotNil(t, rows[0].Note, "active re-report without a reason must keep the prior note")
+	assert.Equal(t, reason, *rows[0].Note)
+
+	// 3. Clear the day, then re-report sick with NO reason.
+	require.NoError(t, repo.MarkCleared(ctx, student.ID, active.StudentStatusDaySick, date, time.Now(), active.StudentStatusSourceNextCheckin))
+	require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       date,
+		Status:     active.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     active.StudentStatusSourceParent,
+	}))
+
+	rows, err = repo.FindActiveByStudentAndDateRange(ctx, student.ID, date, date)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Nil(t, rows[0].Note, "reactivating a cleared row without a reason must not resurrect the old note")
+}

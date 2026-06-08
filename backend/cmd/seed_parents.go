@@ -45,8 +45,8 @@ Usage:
   SEED_PARENT_PASSWORD='<password>' docker compose run server ./main seed-parents
   docker compose run server ./main seed-parents --count 8 --password '<password>'`,
 	Run: func(cmd *cobra.Command, _ []string) {
-		if strings.EqualFold(os.Getenv("APP_ENV"), "production") {
-			log.Fatal("seed-parents is dev-only and must never run with APP_ENV=production")
+		if err := assertLocalDevEnv(); err != nil {
+			log.Fatal(err)
 		}
 
 		count, _ := cmd.Flags().GetInt("count")
@@ -68,6 +68,24 @@ Usage:
 			log.Fatalf("seed-parents: %v", err)
 		}
 	},
+}
+
+// assertLocalDevEnv refuses to run anywhere but an explicitly local/dev/test
+// environment. Unset APP_ENV (the local-dev default) is allowed; staging,
+// production, or any unrecognised value is rejected via an allow-list so the
+// command can never create loginable guardian accounts against a deployed
+// database. It writes through DB_DSN, so refusing by APP_ENV alone is the
+// only signal available before connecting.
+func assertLocalDevEnv() error {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV"))) {
+	case "", "local", "development", "dev", "test":
+		return nil
+	default:
+		return fmt.Errorf(
+			"seed-parents is dev-only; refusing to run with APP_ENV=%q (allowed: development, test, local, or unset)",
+			os.Getenv("APP_ENV"),
+		)
+	}
 }
 
 func init() {

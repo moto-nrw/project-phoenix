@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -127,8 +128,10 @@ func (rs *Resource) listSickDays(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseSickDayRange(r *http.Request) (time.Time, time.Time, error) {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	// Default to the current Berlin school day (as UTC midnight, matching the
+	// DATE-column comparison). Raw time.Now().UTC() would roll to "yesterday"
+	// in the first hours after Berlin midnight.
+	today := timezone.TodayUTC()
 
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")

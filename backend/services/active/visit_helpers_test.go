@@ -354,6 +354,53 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	assert.Nil(t, reloaded.ExcusedSince)
 }
 
+// TestCreateVisit_ClearsParentStatusForToday covers the parent sick-note
+// case: a guardian reported a future day sick (source=parent) without the
+// live flag ever being set; once that day arrives and the child checks in,
+// the next-checkin clear must drop the still-active parent row — otherwise
+// status reads keep treating the child as sick after they showed up.
+func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	repoFactory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "parent-clear-test")
+	room := testpkg.CreateTestRoom(t, db, "Parent Clear Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Parent", "Clear", "4e")
+	staff := testpkg.CreateTestStaff(t, db, "Parent", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PRC-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	// No live sick flag set — this is the future-reported path the live-flag
+	// clear does not cover.
+	now := time.Now()
+	today := timezone.DateOfUTC(now)
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       today,
+		Status:     activeModels.StudentStatusDaySick,
+		ReportedAt: now,
+		Source:     activeModels.StudentStatusSourceParent,
+	}))
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+	visit := &activeModels.Visit{
+		StudentID:     student.ID,
+		ActiveGroupID: activeGroup.ID,
+		EntryTime:     now,
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+	activeRows, err := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, today, today)
+	require.NoError(t, err)
+	assert.Empty(t, activeRows, "parent-sourced sick day must be cleared on check-in")
+}
+
 // =============================================================================
 // WebManualDeviceCode Constant Test
 // =============================================================================

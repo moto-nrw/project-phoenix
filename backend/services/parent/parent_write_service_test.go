@@ -274,3 +274,39 @@ func TestListParentNotes_NotOwned(t *testing.T) {
 	_, err := svc.ListParentNotes(context.Background(), 555555, 444444, 3)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
+
+// TestSubmitSickNote_NonContiguousExcludesUnrelatedRows guards the response
+// filter: a non-contiguous submission (Mon + Wed) must not return an
+// unrelated active excused row that falls on Tuesday inside the min..max
+// range.
+func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	tctx := testpkg.TenantContext(1)
+
+	base := timezone.DateOfUTC(time.Now().AddDate(0, 0, 7))
+	mon := base
+	tue := base.AddDate(0, 0, 1)
+	wed := base.AddDate(0, 0, 2)
+
+	// Pre-existing excused row on Tuesday (between the two sick days).
+	require.NoError(t, statusRepo.UpsertReported(tctx, &activeModels.StudentStatusDay{
+		StudentID:  chain.StudentID,
+		Date:       tue,
+		Status:     activeModels.StudentStatusDayExcused,
+		ReportedAt: time.Now(),
+		Source:     activeModels.StudentStatusSourceManual,
+	}))
+
+	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]time.Time{mon, wed}, "")
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "only the two submitted sick days, not the Tuesday excused row")
+	for _, r := range rows {
+		assert.Equal(t, activeModels.StudentStatusDaySick, r.Status)
+		assert.NotEqual(t, tue, timezone.DateOfUTC(r.Date), "Tuesday excused row must be excluded")
+	}
+}

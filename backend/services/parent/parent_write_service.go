@@ -22,6 +22,9 @@ import (
 // the staff card then has to render. Generous for a "kurze Nachricht".
 const maxParentNoteLen = 2000
 
+// dateKeyLayout keys a status-day by its calendar date for set membership.
+const dateKeyLayout = "2006-01-02"
+
 // Sentinel errors the HTTP layer maps to stable status codes. They are
 // part of the package contract — handlers switch on them via errors.Is.
 var (
@@ -148,7 +151,26 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		if err != nil {
 			return err
 		}
-		result = rows
+		// Return only the sick days the parent actually submitted. The range
+		// query spans min..max, so for a non-contiguous submission (e.g. Mon
+		// + Wed) it can also return an unrelated active row in between (a
+		// Tuesday excused day) which must not be surfaced to the parent as a
+		// sick day.
+		dateSet := make(map[string]struct{}, len(normalized))
+		for _, d := range normalized {
+			dateSet[d.Format(dateKeyLayout)] = struct{}{}
+		}
+		filtered := make([]*activeModels.StudentStatusDay, 0, len(normalized))
+		for _, r := range rows {
+			if r.Status != activeModels.StudentStatusDaySick {
+				continue
+			}
+			if _, ok := dateSet[timezone.DateOfUTC(r.Date).Format(dateKeyLayout)]; !ok {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		result = filtered
 
 		capturedTenant := child.tenantID
 		tenant.RegisterAfterCommit(txCtx, func() {
