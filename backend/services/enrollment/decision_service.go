@@ -163,6 +163,9 @@ type DecisionServiceConfig struct {
 	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
+	ActivityGroupRepo        activities.GroupRepository
+	ActivityScheduleRepo     activities.ScheduleRepository
+	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	AccountRepo              authModels.AccountRepository
 	AccountTenantRepo        authModels.AccountTenantRepository
 	AccountRoleRepo          authModels.AccountRoleRepository
@@ -189,6 +192,9 @@ type decisionService struct {
 	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
 	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
 	studentEnrollmentRepo    activities.StudentEnrollmentRepository
+	activityGroupRepo        activities.GroupRepository
+	activityScheduleRepo     activities.ScheduleRepository
+	calendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	accountRepo              authModels.AccountRepository
 	accountTenantRepo        authModels.AccountTenantRepository
 	accountRoleRepo          authModels.AccountRoleRepository
@@ -220,6 +226,9 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		pickupScheduleRepo:       cfg.PickupScheduleRepo,
 		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
 		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
+		activityGroupRepo:        cfg.ActivityGroupRepo,
+		activityScheduleRepo:     cfg.ActivityScheduleRepo,
+		calendarPeriodRepo:       cfg.CalendarPeriodRepo,
 		accountRepo:              cfg.AccountRepo,
 		accountTenantRepo:        cfg.AccountTenantRepo,
 		accountRoleRepo:          cfg.AccountRoleRepo,
@@ -769,9 +778,10 @@ func (s *decisionService) materializeEnrollments(
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
 	type enrollmentDraft struct {
-		activityGroupID int64
-		selectedWeekday map[int]bool
-		allWeekdays     bool
+		activityGroupID  int64
+		calendarPeriodID int64
+		selectedWeekday  map[int]bool
+		allWeekdays      bool
 	}
 	drafts := make(map[int64]*enrollmentDraft)
 
@@ -787,13 +797,27 @@ func (s *decisionService) materializeEnrollments(
 			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
+		period, err := resolveCareOfferingTemplatePeriod(ctx, careOfferingTemplateDeps{
+			activityGroupRepo:    s.activityGroupRepo,
+			activityScheduleRepo: s.activityScheduleRepo,
+			calendarPeriodRepo:   s.calendarPeriodRepo,
+		}, *offering.ActivityGroupID)
+		if err != nil {
+			return fmt.Errorf("decision: validate linked timetable template for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+			return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
+		}
 		draft := drafts[*offering.ActivityGroupID]
 		if draft == nil {
 			draft = &enrollmentDraft{
-				activityGroupID: *offering.ActivityGroupID,
-				selectedWeekday: make(map[int]bool),
+				activityGroupID:  *offering.ActivityGroupID,
+				calendarPeriodID: period.ID,
+				selectedWeekday:  make(map[int]bool),
 			}
 			drafts[*offering.ActivityGroupID] = draft
+		} else if draft.calendarPeriodID != period.ID {
+			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
 		}
 		days, err := effectiveOfferingDaysForEnrollment(offering, link)
 		if err != nil {
@@ -816,11 +840,13 @@ func (s *decisionService) materializeEnrollments(
 	}
 
 	for _, draft := range drafts {
+		calendarPeriodID := draft.calendarPeriodID
 		row := &activities.StudentEnrollment{
-			StudentID:       studentID,
-			ActivityGroupID: draft.activityGroupID,
-			ValidFrom:       validFrom,
-			ValidUntil:      &validUntil,
+			StudentID:        studentID,
+			ActivityGroupID:  draft.activityGroupID,
+			ValidFrom:        validFrom,
+			ValidUntil:       &validUntil,
+			CalendarPeriodID: &calendarPeriodID,
 		}
 		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
 			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)

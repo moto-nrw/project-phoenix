@@ -846,8 +846,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:   repos.CareOffering,
-		Logger: logger.With("service", "enrollment-care-offering"),
+		Repo:                 repos.CareOffering,
+		ActivityGroupRepo:    repos.ActivityGroup,
+		ActivityScheduleRepo: repos.ActivitySchedule,
+		CalendarPeriodRepo:   repos.CalendarPeriod,
+		PhaseRepo:            repos.Phase,
+		Logger:               logger.With("service", "enrollment-care-offering"),
 	})
 
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
@@ -897,6 +901,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupScheduleRepo:       repos.StudentPickupSchedule,
 		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repos.StudentEnrollment,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityScheduleRepo:     repos.ActivitySchedule,
+		CalendarPeriodRepo:       repos.CalendarPeriod,
 		AccountRepo:              repos.Account,
 		AccountTenantRepo:        repos.AccountTenant,
 		AccountRoleRepo:          repos.AccountRole,

@@ -144,22 +144,58 @@ function templateLabel(template: TimetableTemplate): string {
   return `${template.name} (${days || "keine Tage"}, ${time})`;
 }
 
-function selectedTemplateHasMissingDays(
+function linkedTemplateWarnings(
   draft: CareOfferingInput,
   templates: TimetableTemplate[],
-): boolean {
-  if (!draft.activity_group_id) return false;
+): string[] {
+  if (!draft.activity_group_id) return [];
   const template = templates.find(
     (item) => item.id === draft.activity_group_id?.toString(),
   );
-  if (!template) return false;
+  if (!template)
+    return ["Die ausgewählte Vorlage konnte nicht geladen werden."];
+  const warnings: string[] = [];
+  if (template.schedules.length === 0) {
+    warnings.push("Die ausgewählte Vorlage hat noch keine Slots.");
+    return warnings;
+  }
   const templateDays = new Set(
     template.schedules.map((schedule) => schedule.weekday),
   );
-  return draft.available_days.some((day) => {
-    const iso = CARE_DAY_TO_ISO[day];
-    return iso !== undefined && !templateDays.has(iso);
-  });
+  const offeringDays = new Set(
+    draft.available_days
+      .map((day) => CARE_DAY_TO_ISO[day])
+      .filter((day): day is number => day !== undefined),
+  );
+  if (
+    draft.available_days.some((day) => {
+      const iso = CARE_DAY_TO_ISO[day];
+      return iso !== undefined && !templateDays.has(iso);
+    })
+  ) {
+    warnings.push(
+      "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+    );
+  }
+  if ([...templateDays].some((day) => !offeringDays.has(day))) {
+    warnings.push(
+      "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+    );
+  }
+  const periodIds = new Set(
+    template.schedules
+      .map((schedule) => schedule.calendarPeriodId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (
+    periodIds.size !== 1 ||
+    template.schedules.some((schedule) => !schedule.calendarPeriodId)
+  ) {
+    warnings.push(
+      "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
+    );
+  }
+  return warnings;
 }
 
 export function CareOfferingsEditor() {
@@ -875,10 +911,7 @@ function CareOfferingForm({
 }: CareOfferingFormProps) {
   const update = (patch: Partial<CareOfferingInput>) =>
     onChange({ ...draft, ...patch });
-  const linkedTemplateHasMissingDays = selectedTemplateHasMissingDays(
-    draft,
-    templates,
-  );
+  const templateWarnings = linkedTemplateWarnings(draft, templates);
   const toggleDay = (day: string) => {
     const nextDays = new Set(draft.available_days);
     if (nextDays.has(day)) nextDays.delete(day);
@@ -971,14 +1004,15 @@ function CareOfferingForm({
           </select>
         </label>
         <p className="mt-2 text-xs text-gray-600">
-          Genehmigte Anmeldungen werden in diese Vorlage übernommen und nur an
-          den ausgewählten Tagen materialisiert.
+          Genehmigte Anmeldungen werden in diese Vorlage übernommen und an den
+          ausgewählten Angebotstagen erwartet.
         </p>
-        {linkedTemplateHasMissingDays ? (
-          <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
-            Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen
-            Slot hat.
-          </p>
+        {templateWarnings.length > 0 ? (
+          <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+            {templateWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
         ) : null}
       </section>
 

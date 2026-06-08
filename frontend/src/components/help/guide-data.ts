@@ -641,13 +641,13 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
-          "Unter `Stundenplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen automatisch im Stundenplan erwartet werden sollen.",
+          "Unter `Stundenplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
         callout: {
           title: "Anmeldung und Stundenplan verbinden",
-          body: "Eltern wählen weiterhin nur Angebot und Tage. Die genaue Betreuung entsteht später aus genehmigter Anmeldung plus verknüpfter Stundenplan-Vorlage. Phoenix zeigt Hinweise, wenn Angebotstage, Vorlage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
+          body: "Eltern wählen weiterhin nur Angebot und Tage. Phoenix übernimmt genehmigte Kinder in die verknüpfte Stundenplan-Vorlage und materialisiert sie dort an den passenden Angebotstagen. Hinweise zeigen, wenn Angebotstage, Vorlage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
           tone: "blue",
         },
         screenshot:

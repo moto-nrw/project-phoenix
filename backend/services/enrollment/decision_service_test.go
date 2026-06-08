@@ -54,6 +54,9 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 		PickupScheduleRepo:       repoFactory.StudentPickupSchedule,
 		ArrivalScheduleRepo:      repoFactory.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repoFactory.StudentEnrollment,
+		ActivityGroupRepo:        repoFactory.ActivityGroup,
+		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
 		AccountRepo:              repoFactory.Account,
 		AccountTenantRepo:        repoFactory.AccountTenant,
 		AccountRoleRepo:          repoFactory.AccountRole,
@@ -434,10 +437,20 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		CategoryID:      category.ID,
 		MaxParticipants: 20,
 		IsOpen:          true,
+		IsTemplate:      true,
 	}
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
 	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.schedules").
+			Where("activity_group_id = ?", group.ID).
+			Exec(ctx)
 		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
 		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
 	}()
@@ -499,6 +512,8 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	require.Len(t, rows, 1)
 	assert.Equal(t, []int{2, 4}, rows[0].SelectedWeekdays,
 		"fixed offering approval must constrain enrollment to available_days")
+	require.NotNil(t, rows[0].CalendarPeriodID)
+	assert.Equal(t, period.ID, *rows[0].CalendarPeriodID)
 }
 
 // ---- ListChildOfferings -------------------------------------------------
