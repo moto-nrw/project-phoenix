@@ -253,7 +253,9 @@ describe("small timetable components", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Monat" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Monat" }), {
+      button: 0,
+    });
     fireEvent.click(screen.getByLabelText("Vorheriger Zeitraum"));
     fireEvent.click(screen.getByLabelText("Nächster Zeitraum"));
     fireEvent.click(screen.getByRole("button", { name: "Heute" }));

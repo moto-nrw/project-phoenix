@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 export type TimetableView = "week" | "month" | "year" | "series";
 
@@ -89,33 +90,24 @@ export function TimetableToolbar({
   const showDensity = view === "week" && density && onDensityChange;
 
   return (
-    <div className="flex flex-col gap-3 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
-      {/* Segmented view tabs */}
-      <div
-        role="tablist"
-        aria-label="Ansicht wählen"
-        className="grid w-full grid-cols-4 rounded-md bg-gray-100 p-0.5 sm:inline-flex sm:w-auto sm:items-center lg:self-auto"
+    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
+      {/* Segmented view tabs — reuses the shared kit Tabs (default/pill variant) */}
+      <Tabs
+        value={view}
+        onValueChange={(next) => onViewChange(next as TimetableView)}
+        className="w-full sm:w-auto lg:self-auto"
       >
-        {VIEW_TABS.map((tab) => {
-          const isActive = view === tab.id;
-          return (
-            <button
-              key={tab.id}
-              role="tab"
-              type="button"
-              aria-selected={isActive}
-              onClick={() => onViewChange(tab.id)}
-              className={`rounded px-2 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-3 sm:py-1 ${
-                isActive
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
+        <TabsList
+          aria-label="Ansicht wählen"
+          className="grid w-full grid-cols-4 sm:inline-flex sm:w-auto"
+        >
+          {VIEW_TABS.map((tab) => (
+            <TabsTrigger key={tab.id} value={tab.id}>
               {tab.label}
-            </button>
-          );
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {showRangeNav && (
         <div className="grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-x-2 gap-y-2 sm:flex sm:gap-3">
