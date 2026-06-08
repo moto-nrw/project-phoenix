@@ -4,17 +4,18 @@ import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
   StaffAbsence,
+  WeeklySummary,
   WorkSession,
   WorkSessionBreak,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapHistoryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
   mapWorkSessionEditResponse,
-  mapWorkSessionHistoryResponse,
 } from "./time-tracking-helpers";
 
 /**
@@ -38,6 +39,7 @@ export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
  * Update session request body
  */
 export interface UpdateSessionRequest {
+  date?: string;
   status?: "present" | "home_office";
   checkInTime?: string;
   checkOutTime?: string;
@@ -66,6 +68,14 @@ export interface UpdateAbsenceRequest {
   date_end?: string;
   half_day?: boolean;
   note?: string;
+}
+
+interface TimeTrackingConfig {
+  accountStartDate: string;
+}
+
+interface BackendTimeTrackingConfig {
+  account_start_date?: string;
 }
 
 /**
@@ -153,16 +163,30 @@ class TimeTrackingService {
     return result.data ? mapWorkSessionResponse(result.data as never) : null;
   }
 
-  async getHistory(from: string, to: string): Promise<WorkSessionHistory[]> {
-    const params = new URLSearchParams({ from, to });
-    const result = await this.request<WorkSessionHistory[]>(
-      `/history?${params}`,
+  async getConfig(): Promise<TimeTrackingConfig> {
+    const result = await this.request<BackendTimeTrackingConfig>(
+      "/config",
       "GET",
-      "Failed to get history",
+      "Failed to get time tracking config",
     );
-    return (result.data ?? []).map((session) =>
-      mapWorkSessionHistoryResponse(session as never),
-    );
+    return {
+      accountStartDate: result.data?.account_start_date ?? "",
+    };
+  }
+
+  async getHistory(
+    from: string,
+    to: string,
+  ): Promise<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<{
+      sessions: unknown[];
+      weekly_summaries: unknown[];
+    }>(`/history?${params}`, "GET", "Failed to get history");
+    return mapHistoryResponse(result.data as never);
   }
 
   async updateSession(
@@ -262,6 +286,53 @@ class TimeTrackingService {
       "Failed to delete absence",
     );
   }
+
+  async requestVacation(req: VacationRequestPayload): Promise<StaffAbsence> {
+    const result = await this.request<StaffAbsence>(
+      "/vacation/request",
+      "POST",
+      "Urlaubsantrag konnte nicht erstellt werden",
+      req,
+    );
+    return mapStaffAbsenceResponse(result.data as never);
+  }
+
+  async cancelAbsence(id: string): Promise<void> {
+    await this.requestVoid(
+      `/absences/${id}/cancel`,
+      "POST",
+      "Antrag konnte nicht storniert werden",
+    );
+  }
+
+  async getVacationQuota(year?: number): Promise<VacationQuotaSummary> {
+    const params = year ? `?year=${year}` : "";
+    const result = await this.request<VacationQuotaSummary>(
+      `/vacation/quota${params}`,
+      "GET",
+      "Urlaubskontingent konnte nicht geladen werden",
+    );
+    return result.data;
+  }
+}
+
+interface VacationRequestPayload {
+  date_start: string;
+  date_end: string;
+  start_half_day: boolean;
+  end_half_day: boolean;
+  note?: string;
+  substitute_staff_id?: number;
+}
+
+export interface VacationQuotaSummary {
+  staff_id: number;
+  year: number;
+  entitled_days: number;
+  carryover_days: number;
+  taken_days: number;
+  reserved_days: number;
+  remaining_days: number;
 }
 
 export const timeTrackingService = new TimeTrackingService();

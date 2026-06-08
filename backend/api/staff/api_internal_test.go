@@ -3,11 +3,14 @@ package staff
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,6 +51,44 @@ func TestResource_Router(t *testing.T) {
 
 	router := (&Resource{}).Router()
 	require.NotNil(t, router)
+}
+
+func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
+	testutil.SeedTestJWTConfig()
+	resource := &Resource{}
+	router := resource.Router()
+	claims := testutil.DefaultTestClaims()
+	claims.Roles = []string{"user"}
+	claims.Permissions = []string{"users:read"}
+	claims.IsAdmin = false
+	token := testutil.MintTestJWT(t, claims)
+
+	cases := []string{
+		"/123/time-tracking/history?from=2026-06-01&to=2026-06-07",
+		"/123/time-tracking/export?from=2026-06-01&to=2026-06-07&format=csv",
+		"/absences/pending",
+		"/123/vacation/quota?year=2026",
+		"/123/time-tracking/sessions/456/edits",
+		"/123/absences?from=2026-06-01&to=2026-06-07",
+		"/123/schedule",
+	}
+	for _, path := range cases {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, testutil.WithJWTBearer(token))
+		rr := testutil.ExecuteRequest(router, req)
+		testutil.AssertForbidden(t, rr)
+	}
+}
+
+func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
+	employmentType := users.EmploymentTypePartTime
+	response := newStaffResponse(&users.Staff{
+		Model:          base.Model{ID: 42},
+		PersonID:       420,
+		EmploymentType: &employmentType,
+	}, false, false, "", "", "", "", "")
+
+	require.NotNil(t, response.EmploymentType)
+	assert.Equal(t, users.EmploymentTypePartTime, *response.EmploymentType)
 }
 
 func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *testing.T) {

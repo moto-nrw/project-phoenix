@@ -53,7 +53,7 @@ func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	service := setupActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(987654)
 
 	ids, err := service.ListStudentsInTransit(ctx)
 

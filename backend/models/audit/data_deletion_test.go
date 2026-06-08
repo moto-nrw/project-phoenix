@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+// int64Ptr wraps the value in a pointer so test fixtures can populate the
+// nullable StudentID / StaffID fields without temporary variables. Mirrors
+// what NewDataDeletion / NewStaffDataDeletion do internally.
+func int64Ptr(v int64) *int64 { return &v }
+
 func TestDataDeletion_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -14,7 +19,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "valid data deletion",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeVisitRetention,
 				RecordsDeleted: 10,
 				DeletedBy:      "system",
@@ -24,7 +29,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "valid with manual deletion type",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeManual,
 				RecordsDeleted: 5,
 				DeletedBy:      "admin@example.com",
@@ -35,7 +40,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "valid with GDPR request",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeGDPRRequest,
 				RecordsDeleted: 100,
 				DeletedBy:      "admin@example.com",
@@ -46,7 +51,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "valid with zero records deleted",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeVisitRetention,
 				RecordsDeleted: 0,
 				DeletedBy:      "system",
@@ -54,9 +59,19 @@ func TestDataDeletion_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "valid staff-scoped deletion",
+			dd: &DataDeletion{
+				StaffID:        int64Ptr(1),
+				DeletionType:   DeletionTypeTimeTrackingRetention,
+				RecordsDeleted: 12,
+				DeletedBy:      "system",
+			},
+			wantErr: false,
+		},
+		{
 			name: "zero student ID",
 			dd: &DataDeletion{
-				StudentID:      0,
+				StudentID:      int64Ptr(0),
 				DeletionType:   DeletionTypeManual,
 				RecordsDeleted: 10,
 				DeletedBy:      "system",
@@ -66,7 +81,27 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "negative student ID",
 			dd: &DataDeletion{
-				StudentID:      -1,
+				StudentID:      int64Ptr(-1),
+				DeletionType:   DeletionTypeManual,
+				RecordsDeleted: 10,
+				DeletedBy:      "system",
+			},
+			wantErr: true,
+		},
+		{
+			name: "both student and staff set",
+			dd: &DataDeletion{
+				StudentID:      int64Ptr(1),
+				StaffID:        int64Ptr(1),
+				DeletionType:   DeletionTypeManual,
+				RecordsDeleted: 10,
+				DeletedBy:      "system",
+			},
+			wantErr: true,
+		},
+		{
+			name: "neither student nor staff set",
+			dd: &DataDeletion{
 				DeletionType:   DeletionTypeManual,
 				RecordsDeleted: 10,
 				DeletedBy:      "system",
@@ -76,7 +111,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "empty deletion type",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   "",
 				RecordsDeleted: 10,
 				DeletedBy:      "system",
@@ -86,7 +121,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "invalid deletion type",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   "unknown_type",
 				RecordsDeleted: 10,
 				DeletedBy:      "system",
@@ -96,7 +131,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "negative records deleted",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeManual,
 				RecordsDeleted: -1,
 				DeletedBy:      "system",
@@ -106,7 +141,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 		{
 			name: "empty deleted by",
 			dd: &DataDeletion{
-				StudentID:      1,
+				StudentID:      int64Ptr(1),
 				DeletionType:   DeletionTypeManual,
 				RecordsDeleted: 10,
 				DeletedBy:      "",
@@ -127,7 +162,7 @@ func TestDataDeletion_Validate(t *testing.T) {
 
 func TestDataDeletion_Validate_SetsDefaultDeletedAt(t *testing.T) {
 	dd := &DataDeletion{
-		StudentID:      1,
+		StudentID:      int64Ptr(1),
 		DeletionType:   DeletionTypeManual,
 		RecordsDeleted: 5,
 		DeletedBy:      "system",
@@ -216,8 +251,11 @@ func TestNewDataDeletion(t *testing.T) {
 	dd := NewDataDeletion(123, DeletionTypeGDPRRequest, 50, "admin@example.com")
 	after := time.Now()
 
-	if dd.StudentID != 123 {
+	if dd.StudentID == nil || *dd.StudentID != 123 {
 		t.Errorf("NewDataDeletion().StudentID = %v, want 123", dd.StudentID)
+	}
+	if dd.StaffID != nil {
+		t.Errorf("NewDataDeletion().StaffID = %v, want nil", dd.StaffID)
 	}
 
 	if dd.DeletionType != DeletionTypeGDPRRequest {
@@ -255,6 +293,9 @@ func TestDeletionTypeConstants(t *testing.T) {
 	if DeletionTypeTimetableRetention != "timetable_retention" {
 		t.Errorf("DeletionTypeTimetableRetention = %q, want timetable_retention", DeletionTypeTimetableRetention)
 	}
+	if DeletionTypeTimeTrackingRetention != "time_tracking_retention" {
+		t.Errorf("DeletionTypeTimeTrackingRetention = %q, want time_tracking_retention", DeletionTypeTimeTrackingRetention)
+	}
 }
 
 // TestDataDeletion_Validate_AcceptsTimetableRetentionType ensures the new
@@ -264,5 +305,20 @@ func TestDataDeletion_Validate_AcceptsTimetableRetentionType(t *testing.T) {
 	dd := NewDataDeletion(42, DeletionTypeTimetableRetention, 1, "system")
 	if err := dd.Validate(); err != nil {
 		t.Fatalf("Validate() with timetable_retention type failed: %v", err)
+	}
+}
+
+// Same guard for the staff-scoped time_tracking_retention type and the
+// NewStaffDataDeletion constructor.
+func TestNewStaffDataDeletion(t *testing.T) {
+	dd := NewStaffDataDeletion(7, DeletionTypeTimeTrackingRetention, 3, "system")
+	if dd.StaffID == nil || *dd.StaffID != 7 {
+		t.Errorf("NewStaffDataDeletion().StaffID = %v, want 7", dd.StaffID)
+	}
+	if dd.StudentID != nil {
+		t.Errorf("NewStaffDataDeletion().StudentID = %v, want nil", dd.StudentID)
+	}
+	if err := dd.Validate(); err != nil {
+		t.Fatalf("Validate() on staff-scoped deletion failed: %v", err)
 	}
 }

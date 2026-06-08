@@ -65,23 +65,19 @@ func (r *CommentReadRepository) GetLastReadAt(ctx context.Context, accountID, po
 	return &cr.LastReadAt, nil
 }
 
-// CountUnreadByPost counts comments on a post created after the reader's last read time.
-// For ReaderTypeUser, hidden posts return 0 as a defensive measure.
+// CountUnreadByPost counts comments on a visible post created after the reader's last read time.
 func (r *CommentReadRepository) CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.comments AS c").
 		Join("JOIN suggestions.posts AS p ON p.id = c.post_id").
 		Where("c.post_id = ?", postID).
+		Where("p.is_hidden = FALSE").
 		Where("c.deleted_at IS NULL").
 		Where(`c.created_at > COALESCE(
 			(SELECT cr.last_read_at FROM suggestions.comment_reads cr
 			 WHERE cr.account_id = ? AND cr.post_id = ? AND cr.reader_type = ?),
 			'1970-01-01'::timestamptz
 		)`, accountID, postID, readerType)
-
-	if readerType == "user" {
-		query = query.Where("p.is_hidden = FALSE")
-	}
 
 	count, err := query.Count(ctx)
 	if err != nil {
@@ -90,22 +86,18 @@ func (r *CommentReadRepository) CountUnreadByPost(ctx context.Context, accountID
 	return count, nil
 }
 
-// CountTotalUnread counts all unread comments across all posts for a reader.
-// For ReaderTypeUser, hidden posts are excluded so their comments don't inflate the badge.
+// CountTotalUnread counts all unread comments across visible posts for a reader.
 func (r *CommentReadRepository) CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("suggestions.comments AS c").
 		Join("JOIN suggestions.posts AS p ON p.id = c.post_id").
+		Where("p.is_hidden = FALSE").
 		Where("c.deleted_at IS NULL").
 		Where(`c.created_at > COALESCE(
 			(SELECT cr.last_read_at FROM suggestions.comment_reads cr
 			 WHERE cr.account_id = ? AND cr.post_id = c.post_id AND cr.reader_type = ?),
 			'1970-01-01'::timestamptz
 		)`, accountID, readerType)
-
-	if readerType == "user" {
-		query = query.Where("p.is_hidden = FALSE")
-	}
 
 	count, err := query.Count(ctx)
 	if err != nil {

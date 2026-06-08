@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,67 @@ func (m *absStaffAbsenceRepoMock) GetTodayAbsenceMap(ctx context.Context) (map[i
 		return m.getTodayAbsenceMapFunc(ctx)
 	}
 	return nil, nil
+}
+
+// ListByStaffAndStatuses + ListByStatus are part of the StaffAbsenceRepository
+// interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
+// tests that don't exercise the vacation inbox still satisfy the interface.
+func (m *absStaffAbsenceRepoMock) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
+func (m *absStaffAbsenceRepoMock) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
+type absVacationQuotaRepoMock struct {
+	getByStaffAndYearFunc func(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationQuota, error)
+	upsertFunc            func(ctx context.Context, quota *activeModels.StaffVacationQuota) error
+}
+
+func (m *absVacationQuotaRepoMock) Create(context.Context, *activeModels.StaffVacationQuota) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) FindByID(context.Context, any) (*activeModels.StaffVacationQuota, error) {
+	return nil, errors.New("not found")
+}
+
+func (m *absVacationQuotaRepoMock) Update(context.Context, *activeModels.StaffVacationQuota) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) Delete(context.Context, any) error {
+	return nil
+}
+
+func (m *absVacationQuotaRepoMock) List(context.Context, *base.QueryOptions) ([]*activeModels.StaffVacationQuota, error) {
+	return nil, nil
+}
+
+func (m *absVacationQuotaRepoMock) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationQuota, error) {
+	if m.getByStaffAndYearFunc != nil {
+		return m.getByStaffAndYearFunc(ctx, staffID, year)
+	}
+	return nil, nil
+}
+
+func (m *absVacationQuotaRepoMock) Upsert(ctx context.Context, quota *activeModels.StaffVacationQuota) error {
+	if m.upsertFunc != nil {
+		return m.upsertFunc(ctx, quota)
+	}
+	return nil
+}
+
+type absStaffAbsenceAuditRepoMock struct {
+	createFunc func(ctx context.Context, audit *activeModels.StaffAbsenceAudit) error
+}
+
+func (m *absStaffAbsenceAuditRepoMock) Create(ctx context.Context, audit *activeModels.StaffAbsenceAudit) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, audit)
+	}
+	return nil
 }
 
 // ============================================================================
@@ -201,9 +263,13 @@ func (m *absWorkSessionRepoMock) UpdateBreakMinutes(ctx context.Context, id int6
 func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWorkSessionRepoMock) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	workRepo := &absWorkSessionRepoMock{}
+	quotaRepo := &absVacationQuotaRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{
 		absenceRepo:     absRepo,
 		workSessionRepo: workRepo,
+		quotaRepo:       quotaRepo,
+		auditRepo:       auditRepo,
 	}
 	return svc, absRepo, workRepo
 }
@@ -247,6 +313,24 @@ func TestAbsCreateAbsence_Success(t *testing.T) {
 	assert.Equal(t, 3, result.DurationDays) // 10, 11, 12 = 3 days
 }
 
+func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		t.Fatal("vacation must not be created through generic absence create")
+		return nil
+	}
+
+	result, err := svc.CreateAbsence(context.Background(), int64(100), CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeVacation,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vacation flow")
+}
+
 func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
 	svc, _, _ := absSetupService()
 
@@ -288,6 +372,7 @@ func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeVacation,
 				DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusApproved,
 			},
 		}, nil
 	}
@@ -355,6 +440,7 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeSick,
 				DateStart:   time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusReported,
 			},
 			{
 				Model:       base.Model{ID: 61},
@@ -362,6 +448,7 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 				AbsenceType: activeModels.AbsenceTypeSick,
 				DateStart:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
 				DateEnd:     time.Date(2026, 2, 14, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusReported,
 			},
 		}, nil
 	}
@@ -464,20 +551,44 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 
 	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
 		assert.Equal(t, "Updated note", entity.Note)
-		assert.Equal(t, activeModels.AbsenceTypeVacation, entity.AbsenceType)
+		assert.Equal(t, activeModels.AbsenceTypeSick, entity.AbsenceType)
 		return nil
 	}
 
-	newType := activeModels.AbsenceTypeVacation
 	newNote := "Updated note"
 	req := UpdateAbsenceRequest{
-		AbsenceType: &newType,
-		Note:        &newNote,
+		Note: &newNote,
 	}
 
 	result, err := svc.UpdateAbsence(ctx, staffID, absenceID, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
+}
+
+func TestAbsUpdateAbsence_BlocksVacationType(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeSick,
+			Status:      activeModels.AbsenceStatusReported,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		t.Fatal("generic absence update must not convert rows to vacation")
+		return nil
+	}
+
+	newType := activeModels.AbsenceTypeVacation
+	result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{AbsenceType: &newType})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "vacation flow")
 }
 
 func TestAbsUpdateAbsence_NotFound(t *testing.T) {
@@ -564,6 +675,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 		AbsenceType: activeModels.AbsenceTypeSick,
 		DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
 		DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		Status:      activeModels.AbsenceStatusReported,
 	}
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -578,6 +690,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 				StaffID:   staffID,
 				DateStart: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
 				DateEnd:   time.Date(2026, 2, 17, 0, 0, 0, 0, time.UTC),
+				Status:    activeModels.AbsenceStatusReported,
 			},
 		}, nil
 	}
@@ -589,6 +702,41 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "overlap")
+}
+
+func TestAbsUpdateAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusApproved,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: absenceID},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+			absRepo.updateFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+				t.Fatal("workflow vacation must not be updated through generic absence update")
+				return nil
+			}
+
+			note := "changed"
+			result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{Note: &note})
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.Contains(t, err.Error(), "vacation flow")
+		})
+	}
 }
 
 // ============================================================================
@@ -663,6 +811,39 @@ func TestAbsDeleteAbsence_RepoError(t *testing.T) {
 	err := svc.DeleteAbsence(context.Background(), staffID, 100)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to delete absence")
+}
+
+func TestAbsDeleteAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	absenceID := int64(100)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusApproved,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: absenceID},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+			absRepo.deleteFunc = func(_ context.Context, _ any) error {
+				t.Fatal("workflow vacation must not be deleted through generic absence delete")
+				return nil
+			}
+
+			err := svc.DeleteAbsence(context.Background(), staffID, absenceID)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "vacation flow")
+		})
+	}
 }
 
 // ============================================================================
@@ -743,6 +924,7 @@ func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 			Model:       base.Model{ID: 100},
 			StaffID:     staffID,
 			AbsenceType: activeModels.AbsenceTypeSick,
+			Status:      activeModels.AbsenceStatusReported,
 		}, nil
 	}
 
@@ -778,4 +960,269 @@ func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
 	assert.False(t, has)
 	assert.Nil(t, absence)
 	assert.Contains(t, err.Error(), "failed to check absence")
+}
+
+func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+	date := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)
+
+	for _, status := range []string{
+		activeModels.AbsenceStatusRequested,
+		activeModels.AbsenceStatusDeclined,
+		activeModels.AbsenceStatusCanceled,
+	} {
+		t.Run(status, func(t *testing.T) {
+			absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+				return &activeModels.StaffAbsence{
+					Model:       base.Model{ID: 100},
+					StaffID:     staffID,
+					AbsenceType: activeModels.AbsenceTypeVacation,
+					Status:      status,
+				}, nil
+			}
+
+			has, absence, err := svc.HasAbsenceOnDate(context.Background(), staffID, date)
+			require.NoError(t, err)
+			assert.False(t, has)
+			assert.Nil(t, absence)
+		})
+	}
+}
+
+func TestAbsCountWorkingDays_HalfDayOnWeekendDoesNotGoNegative(t *testing.T) {
+	saturday := time.Date(2027, 2, 13, 0, 0, 0, 0, time.UTC)
+	sunday := time.Date(2027, 2, 14, 0, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, 0.0, countWorkingDays(saturday, sunday, true, true))
+}
+
+func TestAbsRequestVacation_RejectsWeekendOnlyHalfDayRange(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+
+	result, err := svc.RequestVacation(context.Background(), staffID, RequestVacationRequest{
+		DateStart:    "2027-02-13",
+		DateEnd:      "2027-02-14",
+		StartHalfDay: true,
+		EndHalfDay:   true,
+		Note:         "weekend",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "no working days")
+}
+
+func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
+	svc, absRepo, _ := absSetupService()
+	staffID := int64(100)
+
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{
+			{
+				Model:       base.Model{ID: 100},
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeVacation,
+				DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
+				DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusDeclined,
+			},
+		}, nil
+	}
+	absRepo.createFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		require.NotNil(t, entity.WorkingDays)
+		assert.Equal(t, 2.0, *entity.WorkingDays)
+		entity.ID = 101
+		return nil
+	}
+
+	result, err := svc.RequestVacation(context.Background(), staffID, RequestVacationRequest{
+		DateStart: "2027-02-15",
+		DateEnd:   "2027-02-16",
+		Note:      "retry",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int64(101), result.ID)
+}
+
+func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	absenceID := int64(1000)
+	actorAccountID := int64(2000)
+	decidedByStaffID := int64(3000)
+
+	absRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.StaffAbsence, error) {
+		assert.Equal(t, absenceID, id)
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     int64(4000),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusApproved, entity.Status)
+		require.NotNil(t, entity.ApprovedBy)
+		assert.Equal(t, decidedByStaffID, *entity.ApprovedBy)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		assert.Equal(t, absenceID, audit.AbsenceID)
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusApproved, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Equal(t, "ok", audit.Note)
+		return nil
+	}
+
+	result, err := svc.ApproveAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "ok")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, activeModels.AbsenceStatusApproved, result.Status)
+}
+
+func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	absenceID := int64(1001)
+	actorAccountID := int64(2001)
+	decidedByStaffID := int64(3001)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     int64(4001),
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 3, 2, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusRequested,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusDeclined, entity.Status)
+		require.NotNil(t, entity.ApprovedBy)
+		assert.Equal(t, decidedByStaffID, *entity.ApprovedBy)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusRequested, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusDeclined, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Equal(t, "no", audit.Note)
+		return nil
+	}
+
+	result, err := svc.DenyAbsence(context.Background(), absenceID, actorAccountID, decidedByStaffID, "no")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, activeModels.AbsenceStatusDeclined, result.Status)
+}
+
+func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		auditRepo:   auditRepo,
+	}
+	staffID := int64(4002)
+	absenceID := int64(1002)
+	actorAccountID := int64(2002)
+
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return &activeModels.StaffAbsence{
+			Model:       base.Model{ID: absenceID},
+			StaffID:     staffID,
+			AbsenceType: activeModels.AbsenceTypeVacation,
+			DateStart:   time.Date(2027, 4, 1, 0, 0, 0, 0, time.UTC),
+			DateEnd:     time.Date(2027, 4, 2, 0, 0, 0, 0, time.UTC),
+			Status:      activeModels.AbsenceStatusApproved,
+		}, nil
+	}
+	absRepo.updateFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, activeModels.AbsenceStatusCanceled, entity.Status)
+		return nil
+	}
+	auditRepo.createFunc = func(_ context.Context, audit *activeModels.StaffAbsenceAudit) error {
+		require.NotNil(t, audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusApproved, *audit.FromStatus)
+		assert.Equal(t, activeModels.AbsenceStatusCanceled, audit.ToStatus)
+		assert.Equal(t, actorAccountID, audit.ActorID)
+		assert.Empty(t, audit.Note)
+		return nil
+	}
+
+	err := svc.CancelAbsence(context.Background(), staffID, actorAccountID, absenceID)
+
+	require.NoError(t, err)
+}
+
+func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
+	now := time.Date(2026, 6, 7, 0, 30, 0, 0, timezone.Berlin)
+	yesterday := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
+	today := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+
+	assert.True(t, isBeforeLocalToday(yesterday, now))
+	assert.False(t, isBeforeLocalToday(today, now))
+}
+
+func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
+	absRepo := &absStaffAbsenceRepoMock{}
+	quotaRepo := &absVacationQuotaRepoMock{}
+	svc := &staffAbsenceService{
+		absenceRepo: absRepo,
+		quotaRepo:   quotaRepo,
+	}
+	staffID := int64(100)
+	workingDays := 5.0
+
+	quotaRepo.getByStaffAndYearFunc = func(_ context.Context, _ int64, _ int) (*activeModels.StaffVacationQuota, error) {
+		return &activeModels.StaffVacationQuota{
+			StaffID:       staffID,
+			Year:          2026,
+			EntitledDays:  30,
+			CarryoverDays: 0,
+		}, nil
+	}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{
+			{
+				Model:       base.Model{ID: 100},
+				StaffID:     staffID,
+				AbsenceType: activeModels.AbsenceTypeVacation,
+				DateStart:   time.Date(2025, 12, 29, 0, 0, 0, 0, time.UTC),
+				DateEnd:     time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				Status:      activeModels.AbsenceStatusApproved,
+				WorkingDays: &workingDays,
+			},
+		}, nil
+	}
+
+	summary, err := svc.GetVacationQuotaSummary(context.Background(), staffID, 2026)
+	require.NoError(t, err)
+	require.NotNil(t, summary)
+	assert.Equal(t, 2.0, summary.TakenDays)
+	assert.Equal(t, 28.0, summary.RemainingDays)
 }

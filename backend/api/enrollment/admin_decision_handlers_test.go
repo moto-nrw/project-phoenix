@@ -41,6 +41,18 @@ type mockDecisionService struct {
 	decideInput  enrollmentService.DecideInput
 	decideResult *enrollmentService.DecideOutcome
 	decideErr    error
+
+	// ExportPhase: records the args the handler forwards (so a handler
+	// test can assert the format + actor were threaded through) and
+	// replays a canned payload/error.
+	exportPhaseID     int64
+	exportActorID     int64
+	exportActorRole   string
+	exportFormat      string
+	exportChildStatus string
+	exportCalls       int
+	exportResult      *enrollmentService.PhaseExport
+	exportErr         error
 }
 
 func (m *mockDecisionService) List(_ context.Context, f enrollmentService.RequestFilters) ([]*enrollmentService.RequestSummary, error) {
@@ -61,6 +73,20 @@ func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.
 
 func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
 	return m.listChildOffResult, m.listChildOffErr
+}
+
+func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*enrollmentService.PhaseExport, error) {
+	m.exportCalls++
+	m.exportPhaseID = phaseID
+	m.exportActorID = actorAccountID
+	m.exportActorRole = actorRole
+	m.exportFormat = format
+	m.exportChildStatus = childStatusFilter
+	return m.exportResult, m.exportErr
+}
+
+func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *enrollmentModels.Phase, _, _ string, _, _ int) error {
+	return nil
 }
 
 func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router {

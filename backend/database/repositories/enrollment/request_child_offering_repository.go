@@ -53,6 +53,27 @@ func (r *RequestChildOfferingRepository) ListByRequestChildID(ctx context.Contex
 	return rows, nil
 }
 
+// ListByRequestChildIDs returns every offering link across the given
+// children in a single query, sorted by request_child_id, id. Powers
+// the phase export's N+1-free load. Empty input short-circuits to an
+// empty slice. Tenant-scoped via RLS.
+func (r *RequestChildOfferingRepository) ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*enrollment.RequestChildOffering, error) {
+	if len(requestChildIDs) == 0 {
+		return nil, nil
+	}
+	var rows []*enrollment.RequestChildOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(requestChildOfferingTableExpr).
+		Where(`"request_child_offering".request_child_id IN (?)`, bun.List(requestChildIDs)).
+		OrderExpr(`"request_child_offering".request_child_id, "request_child_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list request child offerings by child ids: %w", err)
+	}
+	return rows, nil
+}
+
 // CountActiveByCareOffering returns the count of children currently
 // holding (or competing for) a slot in the given care offering. Joins
 // to enrollment.request_children and filters out terminal statuses

@@ -196,6 +196,21 @@ func init() {
 		SortOrder:       1,
 	})
 
+	// --- Zeiterfassung ---
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingAccountStartDate,
+		Label:           "Stundenkonto ab Datum berechnen",
+		Description:     "Legt fest, ab welchem Datum das Stundenkonto neu berechnet wird. Wenn kein Datum gesetzt ist, startet die Berechnung am 1. Januar des aktuellen Jahres.",
+		Type:            config.FieldDate,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       1,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 
@@ -328,7 +343,7 @@ func init() {
 		Label:           "Betreuungskonzept",
 		Description:     "Legt fest, ob die OGS mit einem festen Betriebsplan arbeitet oder Kinder sich frei zwischen offenen Räumen bewegen.",
 		Type:            config.FieldSelect,
-		Default:         config.CareConceptFixedSchedule,
+		Default:         config.CareConceptOpenRooms,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -397,6 +412,11 @@ func init() {
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyCareConcept,
+			Condition: "eq",
+			Value:     config.CareConceptOpenRooms,
+		},
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---

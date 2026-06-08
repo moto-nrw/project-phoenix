@@ -165,6 +165,85 @@ func TestRenderXLSXWritesTable(t *testing.T) {
 	}
 }
 
+func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() { _ = workbook.Close() }()
+
+	layout, err := workbook.GetPageLayout("Export")
+	if err != nil {
+		t.Fatalf("get page layout error = %v", err)
+	}
+	if layout.Orientation == nil || *layout.Orientation != "landscape" {
+		t.Errorf("orientation = %v, want landscape", layout.Orientation)
+	}
+	if layout.FitToWidth == nil || *layout.FitToWidth != 1 {
+		t.Errorf("fit to width = %v, want 1", layout.FitToWidth)
+	}
+
+	// Header row must be registered as a repeating print title.
+	var sawPrintTitles bool
+	for _, dn := range workbook.GetDefinedName() {
+		if dn.Name == "_xlnm.Print_Titles" {
+			sawPrintTitles = true
+		}
+	}
+	if !sawPrintTitles {
+		t.Error("expected _xlnm.Print_Titles defined name for repeating header row")
+	}
+}
+
+func TestRenderXLSXStampsConfidentialityFooter(t *testing.T) {
+	doc := sampleDocument()
+	doc.Footer = "Vertraulich – nach Gebrauch sicher vernichten."
+	file, err := NewService().Render(doc, FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() { _ = workbook.Close() }()
+
+	hf, err := workbook.GetHeaderFooter("Export")
+	if err != nil {
+		t.Fatalf("get header/footer error = %v", err)
+	}
+	// The same full PII leaves the system as in the PDF, so the printed
+	// XLSX must carry the same handling instruction on every page.
+	if hf == nil || !strings.Contains(hf.OddFooter, "Vertraulich") {
+		t.Errorf("odd footer = %+v, want it to contain the confidentiality note", hf)
+	}
+}
+
+func TestRenderXLSXNoFooterWhenUnset(t *testing.T) {
+	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() { _ = workbook.Close() }()
+
+	hf, err := workbook.GetHeaderFooter("Export")
+	if err != nil {
+		t.Fatalf("get header/footer error = %v", err)
+	}
+	// sampleDocument() carries no footer — no footer must be stamped.
+	if hf != nil && hf.OddFooter != "" {
+		t.Errorf("odd footer = %q, want empty when Document.Footer is unset", hf.OddFooter)
+	}
+}
+
 func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
 	catalog := ColumnCatalog()
 	blocked := []ColumnID{"room", "homeroom", "identifier", "internal_identifier"}

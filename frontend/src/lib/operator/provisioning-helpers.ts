@@ -201,6 +201,7 @@ export interface BackendInvitation {
   first_name?: string | null;
   last_name?: string | null;
   position?: string | null;
+  caregiver_enabled?: boolean;
   created_by: number;
   creator?: string;
   delivery_status: string;
@@ -249,6 +250,7 @@ export interface Invitation {
   firstName: string | null;
   lastName: string | null;
   position: string | null;
+  caregiverEnabled: boolean;
   createdBy: string;
   creator: string;
   deliveryStatus: string;
@@ -351,6 +353,7 @@ export interface InviteAdminRequest {
   first_name?: string;
   last_name?: string;
   position?: string;
+  caregiver_enabled?: boolean;
 }
 
 export interface CreateAccountRequest {
@@ -411,6 +414,7 @@ export function mapInvitation(data: BackendInvitation): Invitation {
     firstName: data.first_name ?? null,
     lastName: data.last_name ?? null,
     position: data.position ?? null,
+    caregiverEnabled: data.caregiver_enabled ?? false,
     createdBy: data.created_by.toString(),
     creator: data.creator ?? "",
     deliveryStatus: data.delivery_status,

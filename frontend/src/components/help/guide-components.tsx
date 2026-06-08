@@ -8,6 +8,7 @@ import type {
   GuideTone,
 } from "./guide-data";
 import { GuidePdfButton } from "./guide-pdf-button";
+import { HelpHashScroll, HelpSearchInline } from "./help-search";
 import { HelpBackButton, helpBackButtonClassName } from "./help-back-button";
 
 type ActivePath = "ersteinrichtung" | "funktionen" | "nfc";
@@ -60,14 +61,6 @@ const coverByPath: Record<
     chips: ["Tablet", "Armbänder", "Check-in"],
   },
 };
-
-const setupPrintBreakBeforeChapterIndexes = new Set([1, 3]);
-const appPrintBreakBeforeChapterIndexes = new Set([1, 2, 3]);
-const nfcPrintBreakBeforeChapterIndexes = new Set(
-  Array.from({ length: 9 }, (_, index) => index + 1),
-);
-const printPageBreakBeforeClassName =
-  "print:[break-before:page] print:[page-break-before:always]";
 
 const nextLinks: Record<
   ActivePath,
@@ -286,8 +279,15 @@ export function GuideShell({
 
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden">
+      <HelpHashScroll />
       <div className="relative mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8 print:max-w-none print:px-0 print:py-0">
         <HelpHeader pdf={pdfByPath[activePath]} />
+
+        {/* Search sits below the sticky header in normal flow: prominent on
+            first paint, then scrolls away so the pinned bar stays compact. */}
+        <div className="mt-4 print:hidden">
+          <HelpSearchInline />
+        </div>
 
         <GuidePrintCover
           eyebrow={eyebrow}
@@ -367,14 +367,6 @@ export function GuideShell({
                 index={index}
                 startIndex={chapterStartIndex[index] ?? 0}
                 numbered={numbered}
-                breakBefore={
-                  (activePath === "ersteinrichtung" &&
-                    setupPrintBreakBeforeChapterIndexes.has(index)) ||
-                  (activePath === "funktionen" &&
-                    appPrintBreakBeforeChapterIndexes.has(index)) ||
-                  (activePath === "nfc" &&
-                    nfcPrintBreakBeforeChapterIndexes.has(index))
-                }
               />
             ))}
           </div>
@@ -521,23 +513,18 @@ function ChapterBlock({
   index,
   startIndex,
   numbered,
-  breakBefore,
 }: {
   readonly chapter: GuideChapter;
   readonly index: number;
   readonly startIndex: number;
   readonly numbered: boolean;
-  readonly breakBefore: boolean;
 }) {
   const tone = toneClasses[chapter.tone];
   const Icon = chapter.icon;
 
   return (
-    <section
-      id={chapter.id}
-      className={`scroll-mt-6 ${breakBefore ? printPageBreakBeforeClassName : ""}`}
-    >
-      <div className="mb-5 flex items-start gap-4 print:[break-inside:avoid]">
+    <section id={chapter.id} className="scroll-mt-6">
+      <div className="mb-5 flex items-start gap-4 print:[break-inside:avoid] print:[break-after:avoid]">
         <div
           className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${tone.soft} ${tone.text} print:border print:border-gray-300 print:bg-white print:text-gray-900`}
         >
@@ -585,9 +572,11 @@ function StepCard({
   return (
     <article
       id={item.id}
-      className={`moto-content-surface scroll-mt-24 rounded-2xl border p-5 shadow-sm sm:p-6 print:[break-inside:avoid] print:border-gray-300 print:shadow-none ${compactPrint ? "print:p-3" : "print:p-4"}`}
+      className={`moto-content-surface scroll-mt-24 rounded-2xl border p-5 shadow-sm sm:p-6 print:border-0 print:bg-transparent print:p-0 print:shadow-none ${compactPrint ? "print:[break-inside:avoid]" : ""}`}
     >
-      <div className={`flex gap-4 ${compactPrint ? "print:gap-3" : ""}`}>
+      <div
+        className={`flex gap-4 print:rounded-2xl print:border print:border-gray-300 print:bg-white print:shadow-none ${compactPrint ? "print:gap-3 print:p-3" : "print:p-4"} print:[break-inside:avoid]`}
+      >
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-bold ${toneClass.soft} ${toneClass.text} print:border print:border-gray-300 print:bg-white print:text-gray-900`}
         >
@@ -629,20 +618,15 @@ function StepCard({
           {item.callout ? (
             <Callout callout={item.callout} compactPrint={compactPrint} />
           ) : null}
-
-          {item.gallery ? (
-            <ScreenshotGallery
-              items={item.gallery}
-              compactPrint={compactPrint}
-            />
-          ) : (
-            <Screenshot
-              image={item.image}
-              caption={item.screenshot}
-              compactPrint={compactPrint}
-            />
-          )}
         </div>
+      </div>
+
+      <div className="sm:ml-14 print:ml-0">
+        {item.gallery ? (
+          <ScreenshotGallery items={item.gallery} compactPrint={compactPrint} />
+        ) : (
+          <Screenshot image={item.image} caption={item.screenshot} />
+        )}
       </div>
     </article>
   );
@@ -696,25 +680,27 @@ function Callout({
 function Screenshot({
   image,
   caption,
-  compactPrint,
 }: {
   readonly image?: string;
   readonly caption: string;
-  readonly compactPrint?: boolean;
 }) {
   // No image: render nothing. The `caption` still serves as documentation /
   // alt text in the data, but image-less steps show no placeholder box.
   if (!image) {
     return null;
   }
+  const trimRightEdge =
+    !image.includes("/nfc-") ||
+    image.includes("/nfc-geraete-pruefen") ||
+    image.includes("/nfc-einstellungen");
   return (
-    <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:border-gray-300 print:shadow-none">
+    <figure className="mt-4 overflow-hidden rounded-xl border border-gray-200 shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={image}
         alt={caption}
         loading="lazy"
-        className={`block w-full print:mx-auto print:w-auto print:object-contain ${compactPrint ? "print:max-h-[205px]" : "print:max-h-[250px]"}`}
+        className={`block w-full print:max-h-none print:object-contain ${trimRightEdge ? "print:w-[102%] print:max-w-none" : "print:w-full"}`}
       />
     </figure>
   );
@@ -744,7 +730,7 @@ function ScreenshotGallery({
             src={item.image}
             alt={item.caption}
             loading="lazy"
-            className={`block w-full print:mx-auto print:w-auto print:object-contain ${compactPrint ? "print:max-h-[135px]" : "print:max-h-[160px]"}`}
+            className="block w-full print:max-h-none print:w-full print:object-contain"
           />
           <figcaption
             className={`border-t border-gray-100 px-3 py-2 text-xs leading-5 text-gray-500 print:border-gray-200 ${compactPrint ? "print:py-1.5 print:leading-4" : ""}`}

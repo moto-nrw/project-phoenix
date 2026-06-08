@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -140,8 +140,8 @@ type mockWorkSessionService struct {
 	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
 	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error)
-	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error)
+	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
 	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
 	exportSessionsFn     func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
@@ -189,13 +189,19 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error) {
+func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
 	if m.getHistoryFn != nil {
 		return m.getHistoryFn(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (m *mockWorkSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
+	if m.getSessionEditsFn != nil {
+		return m.getSessionEditsFn(ctx, staffID, sessionID)
+	}
+	return nil, nil
+}
+func (m *mockWorkSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
 	if m.getSessionEditsFn != nil {
 		return m.getSessionEditsFn(ctx, staffID, sessionID)
 	}
@@ -222,6 +228,16 @@ func (m *mockWorkSessionService) AutoEndExpiredBreaks(ctx context.Context) (int,
 		return m.autoEndExpiredBreaks(ctx)
 	}
 	return 0, nil
+}
+
+// UpdateSessionAsAdmin + CreateSessionAsAdmin are part of the WorkSessionService
+// interface added for Tranche 1b (admin nachtragen / edit). No-op defaults so
+// the MA-side tests still satisfy the interface.
+func (m *mockWorkSessionService) UpdateSessionAsAdmin(_ context.Context, _, _, _ int64, _ activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (m *mockWorkSessionService) CreateSessionAsAdmin(_ context.Context, _, _ int64, _ activeSvc.AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
+	return nil, nil
 }
 
 // --- Mock StaffAbsenceService ---
@@ -265,6 +281,81 @@ func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID 
 	return false, nil, nil
 }
 
+// Vacation workflow methods (Tranche 4): no-op defaults so MA-side tests
+// satisfy the StaffAbsenceService interface without exercising the flow.
+func (m *mockStaffAbsenceService) RequestVacation(_ context.Context, _ int64, _ activeSvc.RequestVacationRequest) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) ApproveAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) DenyAbsence(_ context.Context, _ int64, _ int64, _ int64, _ string) (*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) CancelAbsence(_ context.Context, _ int64, _ int64, _ int64) error {
+	return nil
+}
+func (m *mockStaffAbsenceService) GetVacationQuotaSummary(_ context.Context, _ int64, _ int) (*activeSvc.VacationQuotaSummary, error) {
+	return nil, nil
+}
+func (m *mockStaffAbsenceService) UpsertVacationQuota(_ context.Context, _ int64, _ int, _, _ float64) error {
+	return nil
+}
+func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*activeSvc.StaffAbsenceResponse, error) {
+	return nil, nil
+}
+
+type mockSettingsService struct {
+	stringVal string
+	stringErr error
+}
+
+func (m *mockSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockSettingsService) Resolve(context.Context, string) (any, error) {
+	return m.stringVal, m.stringErr
+}
+func (m *mockSettingsService) ResolveString(context.Context, string) (string, error) {
+	return m.stringVal, m.stringErr
+}
+func (m *mockSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
+	return m.stringVal, m.stringErr
+}
+func (m *mockSettingsService) ResolveBool(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (m *mockSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return false, nil
+}
+func (m *mockSettingsService) ResolveInt(context.Context, string) (int, error) {
+	return 0, nil
+}
+func (m *mockSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
+	return 0, nil
+}
+func (m *mockSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
+	return m.stringVal != "", nil
+}
+func (m *mockSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
+	return nil
+}
+func (m *mockSettingsService) ResetValue(context.Context, string, *int64, []string) error {
+	return nil
+}
+func (m *mockSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
+	return "", nil
+}
+func (m *mockSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
+	return "", nil
+}
+func (m *mockSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
+	return "", nil
+}
+
 // --- Test helpers ---
 
 func defaultPersonSvc() *mockPersonService {
@@ -285,7 +376,7 @@ func defaultPersonSvc() *mockPersonService {
 }
 
 func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *mockPersonService, db *bun.DB) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc, db)
+	return NewResource(wsSvc, absSvc, pSvc, nil, db)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -352,11 +443,12 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)
 	assert.NotNil(t, rs.PersonService)
+	assert.NotNil(t, rs.SettingsService)
 }
 
 // --- Router ---
@@ -668,15 +760,66 @@ func TestGetCurrent_ServiceError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+// --- getConfig handler ---
+
+func TestGetConfig_EmptyDefault(t *testing.T) {
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/config", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.getConfig(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	resp := parseAPIResponse(t, w)
+	var data ConfigResponse
+	require.NoError(t, json.Unmarshal(resp.Data, &data))
+	assert.Equal(t, "", data.AccountStartDate)
+}
+
+func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+	rs.SettingsService = &mockSettingsService{stringVal: "2026-08-01"}
+
+	r := httptest.NewRequest(http.MethodGet, "/config", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.getConfig(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	resp := parseAPIResponse(t, w)
+	var data ConfigResponse
+	require.NoError(t, json.Unmarshal(resp.Data, &data))
+	assert.Equal(t, "2026-08-01", data.AccountStartDate)
+}
+
+func TestGetConfig_SettingsError(t *testing.T) {
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+	rs.SettingsService = &mockSettingsService{stringErr: errors.New("settings unavailable")}
+
+	r := httptest.NewRequest(http.MethodGet, "/config", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.getConfig(w, r)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 // --- getHistory handler ---
 
 func TestGetHistory_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, staffID int64, from, to time.Time) ([]*activeSvc.SessionResponse, error) {
+		getHistoryFn: func(_ context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "2026-01-01", from.Format("2006-01-02"))
 			assert.Equal(t, "2026-01-31", to.Format("2006-01-02"))
-			return []*activeSvc.SessionResponse{}, nil
+			return &activeSvc.HistoryResponse{
+				Sessions:        []*activeSvc.SessionResponse{},
+				WeeklySummaries: []activeSvc.WeeklySummary{},
+			}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
@@ -724,7 +867,7 @@ func TestGetHistory_InvalidToDate(t *testing.T) {
 
 func TestGetHistory_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, _ int64, _, _ time.Time) ([]*activeSvc.SessionResponse, error) {
+		getHistoryFn: func(_ context.Context, _ int64, _, _ time.Time) (*activeSvc.HistoryResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -979,10 +1122,10 @@ func TestGetBreaks_ServiceError(t *testing.T) {
 
 func TestGetSessionEdits_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getSessionEditsFn: func(_ context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+		getSessionEditsFn: func(_ context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error) {
 			assert.Equal(t, int64(100), staffID) // from defaultPersonSvc
 			assert.Equal(t, int64(42), sessionID)
-			return []*auditModels.WorkSessionEdit{}, nil
+			return []*activeSvc.WorkSessionEditView{}, nil
 		},
 	}
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)

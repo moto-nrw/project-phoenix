@@ -80,10 +80,10 @@ type CommentReadRepository interface {
 	// GetLastReadAt returns when a reader last read comments on a post (nil if never)
 	GetLastReadAt(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error)
 
-	// CountUnreadByPost counts comments on a post created after the reader's last read time
+	// CountUnreadByPost counts comments on a visible post created after the reader's last read time
 	CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error)
 
-	// CountTotalUnread counts all unread comments across all posts for a reader
+	// CountTotalUnread counts all unread comments across visible posts for a reader
 	CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error)
 }
 
@@ -96,6 +96,6 @@ type PostReadRepository interface {
 	// IsViewed checks if a reader has viewed a post
 	IsViewed(ctx context.Context, accountID, postID int64, readerType string) (bool, error)
 
-	// CountUnviewed counts posts that a reader has not yet viewed
+	// CountUnviewed counts visible posts that a reader has not yet viewed
 	CountUnviewed(ctx context.Context, accountID int64, readerType string) (int, error)
 }

@@ -104,16 +104,18 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup      activeModels.GroupRepository
-	ActiveVisit      activeModels.VisitRepository
-	GroupSupervisor  activeModels.GroupSupervisorRepository
-	CombinedGroup    activeModels.CombinedGroupRepository
-	GroupMapping     activeModels.GroupMappingRepository
-	Attendance       activeModels.AttendanceRepository
-	StudentStatusDay activeModels.StudentStatusDayRepository
-	WorkSession      activeModels.WorkSessionRepository
-	WorkSessionBreak activeModels.WorkSessionBreakRepository
-	StaffAbsence     activeModels.StaffAbsenceRepository
+	ActiveGroup        activeModels.GroupRepository
+	ActiveVisit        activeModels.VisitRepository
+	GroupSupervisor    activeModels.GroupSupervisorRepository
+	CombinedGroup      activeModels.CombinedGroupRepository
+	GroupMapping       activeModels.GroupMappingRepository
+	Attendance         activeModels.AttendanceRepository
+	StudentStatusDay   activeModels.StudentStatusDayRepository
+	WorkSession        activeModels.WorkSessionRepository
+	WorkSessionBreak   activeModels.WorkSessionBreakRepository
+	StaffAbsence       activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit  activeModels.StaffAbsenceAuditRepository
+	StaffVacationQuota activeModels.StaffVacationQuotaRepository
 
 	// Feedback domain
 	FeedbackEntry feedbackModels.EntryRepository
@@ -122,8 +124,10 @@ type Factory struct {
 	Device iotModels.DeviceRepository
 
 	// Config domain
-	SettingValue configModels.SettingValueRepository
-	SettingAudit configModels.SettingAuditRepository
+	SettingValue      configModels.SettingValueRepository
+	SettingAudit      configModels.SettingAuditRepository
+	StaffWorkSchedule configModels.StaffWorkScheduleRepository
+	WorkTimeModel     configModels.WorkTimeModelRepository
 
 	// Suggestions domain
 	SuggestionPost        suggestionsModels.PostRepository
@@ -243,16 +247,18 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:      active.NewGroupRepository(db),
-		ActiveVisit:      active.NewVisitRepository(db),
-		GroupSupervisor:  active.NewGroupSupervisorRepository(db),
-		CombinedGroup:    active.NewCombinedGroupRepository(db),
-		GroupMapping:     active.NewGroupMappingRepository(db),
-		Attendance:       active.NewAttendanceRepository(db),
-		StudentStatusDay: active.NewStudentStatusDayRepository(db),
-		WorkSession:      active.NewWorkSessionRepository(db),
-		WorkSessionBreak: active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:     active.NewStaffAbsenceRepository(db),
+		ActiveGroup:        active.NewGroupRepository(db),
+		ActiveVisit:        active.NewVisitRepository(db),
+		GroupSupervisor:    active.NewGroupSupervisorRepository(db),
+		CombinedGroup:      active.NewCombinedGroupRepository(db),
+		GroupMapping:       active.NewGroupMappingRepository(db),
+		Attendance:         active.NewAttendanceRepository(db),
+		StudentStatusDay:   active.NewStudentStatusDayRepository(db),
+		WorkSession:        active.NewWorkSessionRepository(db),
+		WorkSessionBreak:   active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:       active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:  active.NewStaffAbsenceAuditRepository(db),
+		StaffVacationQuota: active.NewStaffVacationQuotaRepository(db),
 
 		// Feedback repositories
 		FeedbackEntry: feedback.NewEntryRepository(db),
@@ -261,8 +267,10 @@ func NewFactory(db *bun.DB) *Factory {
 		Device: iot.NewDeviceRepository(db),
 
 		// Config repositories
-		SettingValue: config.NewSettingValueRepository(db),
-		SettingAudit: config.NewSettingAuditRepository(db),
+		SettingValue:      config.NewSettingValueRepository(db),
+		SettingAudit:      config.NewSettingAuditRepository(db),
+		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
+		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
 
 		// Suggestions repositories
 		SuggestionPost:        suggestionsRepo.NewPostRepository(db),

@@ -10,6 +10,7 @@ export function SearchBar({
   onClear,
   className = "",
   size = "md",
+  inputProps,
 }: Readonly<SearchBarProps>) {
   const sizeClasses = {
     sm: "py-2 pl-9 pr-3 text-sm",
@@ -40,6 +41,7 @@ export function SearchBar({
       </svg>
 
       <input
+        {...inputProps}
         type="text"
         placeholder={placeholder}
         value={value}

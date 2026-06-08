@@ -210,4 +210,24 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
+
+	t.Run("excludes hidden posts for operators", func(t *testing.T) {
+		visiblePost := createTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
+		hiddenPost := createTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
+		defer cleanupPosts(t, db, visiblePost.ID, hiddenPost.ID)
+
+		_, err := db.NewUpdate().
+			TableExpr("suggestions.posts").
+			Set("is_hidden = TRUE").
+			Where("id = ?", hiddenPost.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		err = repo.MarkViewed(ctx, account.ID, visiblePost.ID, "operator")
+		require.NoError(t, err)
+
+		count, err := repo.CountUnviewed(ctx, account.ID, "operator")
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
 }

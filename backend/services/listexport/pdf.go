@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 type pdfObject struct {
@@ -195,6 +198,10 @@ func writePDFEncodedRune(b *strings.Builder, r rune) {
 		b.WriteByte(0xFC)
 	case 'ß':
 		b.WriteByte(0xDF)
+	case '–': // en dash (U+2013) → WinAnsi 0x96
+		b.WriteByte(0x96)
+	case '—': // em dash (U+2014) → WinAnsi 0x97
+		b.WriteByte(0x97)
 	case 'é':
 		b.WriteByte(0xE9)
 	case 'è':
@@ -216,8 +223,56 @@ func writePDFEncodedRune(b *strings.Builder, r rune) {
 			b.WriteRune(r)
 			return
 		}
+		// The base-14 Helvetica font is WinAnsi-encoded, so it cannot
+		// render arbitrary Unicode. Rather than drop a non-German name to
+		// '?', transliterate it to its nearest ASCII form (ş→s, ğ→g, ą→a,
+		// ł→l, ñ→n, …) so the print fallback stays legible for the diverse
+		// families an OGS enrolls. Only genuinely unrepresentable runes
+		// (CJK, Cyrillic, emoji) fall through to '?'.
+		if repl, ok := transliterateRune(r); ok {
+			for _, rr := range repl {
+				writePDFEncodedRune(b, rr)
+			}
+			return
+		}
 		b.WriteByte('?')
 	}
+}
+
+// nonDecomposingTranslit covers Latin letters that NFD does NOT split
+// into base+accent (so accent-stripping alone can't reach ASCII).
+var nonDecomposingTranslit = map[rune]string{
+	'ł': "l", 'Ł': "L",
+	'đ': "d", 'Đ': "D",
+	'ø': "o", 'Ø': "O",
+	'æ': "ae", 'Æ': "Ae",
+	'œ': "oe", 'Œ': "Oe",
+	'þ': "th", 'Þ': "Th",
+	'ð': "d", 'Ð': "D",
+	'ı': "i", 'İ': "I", // Turkish dotless/dotted i (do not NFD-decompose to ASCII)
+}
+
+// transliterateRune maps a non-WinAnsi rune to its nearest ASCII form,
+// reporting ok=false when no reasonable mapping exists (caller emits
+// '?'). Strategy: explicit table first, then NFD decomposition with
+// combining marks stripped (ş→s, ç→c, ą→a, …). The returned string is
+// always ASCII, so the caller's recursion terminates in one step.
+func transliterateRune(r rune) (string, bool) {
+	if s, ok := nonDecomposingTranslit[r]; ok {
+		return s, true
+	}
+	var b strings.Builder
+	for _, c := range norm.NFD.String(string(r)) {
+		if unicode.Is(unicode.Mn, c) { // drop combining accents
+			continue
+		}
+		b.WriteRune(c)
+	}
+	out := b.String()
+	if out == "" || out == string(r) {
+		return "", false
+	}
+	return out, true
 }
 
 func wrapPDFText(text string, width float64) []string {

@@ -3,6 +3,7 @@ import { apiPut } from "~/lib/api-helpers.server";
 import { createPutHandler, isStringParam } from "~/lib/route-wrapper.server";
 
 interface UpdateSessionRequest {
+  date?: string;
   status?: "present" | "home_office";
   checkInTime?: string;
   checkOutTime?: string;
@@ -28,6 +29,7 @@ export const PUT = createPutHandler<unknown, UpdateSessionRequest>(
 
     // Convert camelCase to snake_case for backend
     const backendBody: Record<string, unknown> = {
+      date: body.date,
       check_in_time: body.checkInTime,
       check_out_time: body.checkOutTime,
       break_minutes: body.breakMinutes,

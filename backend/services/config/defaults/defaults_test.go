@@ -67,6 +67,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.care_concept",
+		"operations.time_tracking_account_start_date",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -152,6 +153,10 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "anwesenheit", def.Category)
 	assert.Equal(t, "config:manage", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyCareConcept, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, config.CareConceptOpenRooms, def.DependsOn.Value)
 }
 
 func TestAttendanceSetupSettings(t *testing.T) {
@@ -191,7 +196,7 @@ func TestOrganizationSetupSettings(t *testing.T) {
 	careDef := config.GetDefinition(config.KeyCareConcept)
 	require.NotNil(t, careDef, "operations.care_concept should be registered")
 	assert.Equal(t, config.FieldSelect, careDef.Type)
-	assert.Equal(t, config.CareConceptFixedSchedule, careDef.Default)
+	assert.Equal(t, config.CareConceptOpenRooms, careDef.Default)
 	assert.Equal(t, config.AccessShared, careDef.AccessPolicy)
 	assert.Equal(t, "operations", careDef.Tab)
 	assert.Equal(t, "organisation", careDef.Category)
@@ -200,6 +205,17 @@ func TestOrganizationSetupSettings(t *testing.T) {
 	careValues := []any{careDef.Options.Static[0].Value, careDef.Options.Static[1].Value}
 	assert.Contains(t, careValues, config.CareConceptFixedSchedule)
 	assert.Contains(t, careValues, config.CareConceptOpenRooms)
+}
+
+func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingAccountStartDate)
+	require.NotNil(t, def, "operations.time_tracking_account_start_date should be registered")
+	assert.Equal(t, config.FieldDate, def.Type)
+	assert.Equal(t, "", def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {

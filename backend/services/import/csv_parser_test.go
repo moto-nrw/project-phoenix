@@ -426,6 +426,25 @@ Max,Mustermann,1A,16:00,Hort,15:30,,16:00,,15:30,,14:00,Frühschluss`
 	assert.Equal(t, "Frühschluss", rows[0].PickupSchedules[4].Notes)
 }
 
+func TestCSVParser_ParseStudents_ArrivalSchedule(t *testing.T) {
+	csvData := `Vorname,Nachname,Klasse,Ankunft.Mo,Ankunft.Mo.Notizen,Ankunft.Di,Ankunft.Di.Notizen,Ankunft.Mi,Ankunft.Mi.Notizen,Ankunft.Do,Ankunft.Do.Notizen,Ankunft.Fr,Ankunft.Fr.Notizen
+Max,Mustermann,1A,08:00,Frühdienst,08:10,,08:00,,08:15,,08:30,Später Start`
+
+	parser := NewCSVParser()
+	rows, err := parser.ParseStudents(strings.NewReader(csvData))
+
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Len(t, rows[0].ArrivalSchedules, 5)
+
+	assert.Equal(t, 1, rows[0].ArrivalSchedules[0].Weekday)
+	assert.Equal(t, "08:00", rows[0].ArrivalSchedules[0].ExpectedArrival)
+	assert.Equal(t, "Frühdienst", rows[0].ArrivalSchedules[0].Notes)
+	assert.Equal(t, 5, rows[0].ArrivalSchedules[4].Weekday)
+	assert.Equal(t, "08:30", rows[0].ArrivalSchedules[4].ExpectedArrival)
+	assert.Equal(t, "Später Start", rows[0].ArrivalSchedules[4].Notes)
+}
+
 func TestCSVParser_ParseStudents_PickupSchedulePartial(t *testing.T) {
 	csvData := `Vorname,Nachname,Klasse,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Di,Abholung.Di.Notizen,Abholung.Mi,Abholung.Mi.Notizen,Abholung.Do,Abholung.Do.Notizen,Abholung.Fr,Abholung.Fr.Notizen
 Max,Mustermann,1A,16:00,,,,,,,,,`
@@ -453,8 +472,8 @@ Max,Mustermann,1A`
 }
 
 func TestCSVParser_ParseStudents_FullRowWithAllNewFields(t *testing.T) {
-	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Hauptansprechpartner,Erz1.Notfall,Erz1.Abholberechtigt,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Notizen,Erz1.Sprache,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Fr,Abholung.Fr.Notizen
-Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Musterstr. 1,Köln,50667,Allergien,de,16:00,Hort,14:00,Frühschluss`
+	csvData := `Vorname,Nachname,Klasse,Erz1.Vorname,Erz1.Nachname,Erz1.Email,Erz1.Telefon,Erz1.Verhältnis,Erz1.Hauptansprechpartner,Erz1.Notfall,Erz1.Abholberechtigt,Erz1.Straße,Erz1.Stadt,Erz1.PLZ,Erz1.Notizen,Erz1.Sprache,Ankunft.Mo,Ankunft.Mo.Notizen,Ankunft.Fr,Ankunft.Fr.Notizen,Abholung.Mo,Abholung.Mo.Notizen,Abholung.Fr,Abholung.Fr.Notizen
+Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Musterstr. 1,Köln,50667,Allergien,de,08:00,Frühdienst,08:30,Später Start,16:00,Hort,14:00,Frühschluss`
 
 	parser := NewCSVParser()
 	rows, err := parser.ParseStudents(strings.NewReader(csvData))
@@ -475,6 +494,14 @@ Max,Mustermann,1A,Maria,Müller,maria@example.com,0123-456789,Mutter,Ja,Ja,Ja,Mu
 	assert.Equal(t, "50667", g.AddressPostalCode)
 	assert.Equal(t, "Allergien", g.Notes)
 	assert.Equal(t, "de", g.LanguagePreference)
+
+	require.Len(t, rows[0].ArrivalSchedules, 2)
+	assert.Equal(t, 1, rows[0].ArrivalSchedules[0].Weekday)
+	assert.Equal(t, "08:00", rows[0].ArrivalSchedules[0].ExpectedArrival)
+	assert.Equal(t, "Frühdienst", rows[0].ArrivalSchedules[0].Notes)
+	assert.Equal(t, 5, rows[0].ArrivalSchedules[1].Weekday)
+	assert.Equal(t, "08:30", rows[0].ArrivalSchedules[1].ExpectedArrival)
+	assert.Equal(t, "Später Start", rows[0].ArrivalSchedules[1].Notes)
 
 	// Pickup schedules
 	require.Len(t, rows[0].PickupSchedules, 2)
