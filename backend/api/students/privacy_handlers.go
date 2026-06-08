@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -51,7 +51,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 			PolicyVersion:     "1.0",
 			Accepted:          false,
 			RenewalRequired:   true,
-			DataRetentionDays: 30, // Default 30 days
+			DataRetentionDays: users.DefaultDataRetentionDays,
 		}
 		common.Respond(w, r, http.StatusOK, response, "No privacy consent found, returning defaults")
 		return
@@ -75,17 +75,21 @@ func findOrCreateConsent(consents []*users.PrivacyConsent, studentID int64, poli
 	return consent
 }
 
-// applyConsentUpdates updates consent fields from the request
-func applyConsentUpdates(consent *users.PrivacyConsent, req *PrivacyConsentRequest) {
+// applyConsentUpdates updates consent fields from the request. Acceptance
+// stamping and expiry derivation are delegated to the privacy-consent service
+// (issue #586, Rule 12: the consent lifecycle no longer lives on the model).
+func (rs *Resource) applyConsentUpdates(consent *users.PrivacyConsent, req *PrivacyConsentRequest) {
 	consent.PolicyVersion = req.PolicyVersion
 	consent.Accepted = req.Accepted
 	consent.DurationDays = req.DurationDays
 	consent.DataRetentionDays = req.DataRetentionDays
 	consent.Details = req.Details
 
+	consentSvc := userService.NewPrivacyConsentService(rs.SettingsService, rs.Logger)
 	if req.Accepted && consent.AcceptedAt == nil {
-		now := time.Now()
-		consent.AcceptedAt = &now
+		consentSvc.Accept(consent, rs.Now())
+	} else {
+		consentSvc.DeriveExpiry(consent)
 	}
 }
 
@@ -114,7 +118,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	}
 
 	consent := findOrCreateConsent(consents, student.ID, req.PolicyVersion)
-	applyConsentUpdates(consent, req)
+	rs.applyConsentUpdates(consent, req)
 
 	if err := consent.Validate(); err != nil {
 		renderError(w, r, ErrorInvalidRequest(err))

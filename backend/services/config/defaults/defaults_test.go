@@ -77,6 +77,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Account brute-force lockout policy (issue #586): threshold + duration.
 		"security.account_lockout_threshold",
 		"security.account_lockout_duration_minutes",
+		// Privacy-consent visit-data retention default (issue #586, Rule 12).
+		"gdpr.privacy_consent_retention_days",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.

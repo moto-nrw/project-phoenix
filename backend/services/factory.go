@@ -719,10 +719,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	databaseService := database.NewService(repos, databaseLogger)
 
 	// Initialize cleanup service
+	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
+		privacyConsentService,
 		db,
 	)
 

@@ -8,6 +8,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Data-retention bounds and default for privacy consents (GDPR visit-data
+// retention window). The default is also registered as the per-tenant setting
+// gdpr.privacy_consent_retention_days; these consts are the single in-package
+// source for the bounds and the fallback default. Issue #586 (Rule 12): the
+// numeric policy no longer lives as bare literals inside model methods.
+const (
+	MinDataRetentionDays     = 1
+	MaxDataRetentionDays     = 31
+	DefaultDataRetentionDays = 30
+)
+
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
 	base.Model `bun:"schema:users,table:privacy_consents"`
@@ -41,7 +52,10 @@ func (pc *PrivacyConsent) TableName() string {
 	return "users.privacy_consents"
 }
 
-// Validate ensures privacy consent data is valid
+// Validate ensures privacy consent data is valid. It performs pure field
+// validation only and never mutates the entity. Acceptance/expiry derivation
+// is a business decision owned by the privacy-consent service (issue #586,
+// Rule 12: models hold data, not decisions).
 func (pc *PrivacyConsent) Validate() error {
 	if pc.StudentID <= 0 {
 		return errors.New("student ID is required")
@@ -52,23 +66,11 @@ func (pc *PrivacyConsent) Validate() error {
 	}
 
 	// Validate data retention days
-	if pc.DataRetentionDays < 1 || pc.DataRetentionDays > 31 {
+	if pc.DataRetentionDays < MinDataRetentionDays || pc.DataRetentionDays > MaxDataRetentionDays {
 		return errors.New("data retention days must be between 1 and 31")
 	}
 
-	// If consent is accepted, accepted_at must be set
-	if pc.Accepted && pc.AcceptedAt == nil {
-		now := time.Now()
-		pc.AcceptedAt = &now
-	}
-
-	// If duration days is set but expires_at is not, calculate expires_at
-	if pc.DurationDays != nil && *pc.DurationDays > 0 && pc.ExpiresAt == nil && pc.AcceptedAt != nil {
-		expiresAt := pc.AcceptedAt.AddDate(0, 0, *pc.DurationDays)
-		pc.ExpiresAt = &expiresAt
-	}
-
-	// Validate expires_at is in the future if set
+	// Validate expires_at is after acceptance if both set
 	if pc.ExpiresAt != nil && pc.AcceptedAt != nil {
 		if pc.ExpiresAt.Before(*pc.AcceptedAt) {
 			return errors.New("expiration date must be after acceptance date")
@@ -79,47 +81,9 @@ func (pc *PrivacyConsent) Validate() error {
 	return nil
 }
 
-// IsValid checks if the consent is currently valid (accepted and not expired)
-func (pc *PrivacyConsent) IsValid() bool {
-	if !pc.Accepted {
-		return false
-	}
-
-	if pc.ExpiresAt != nil && time.Now().After(*pc.ExpiresAt) {
-		return false
-	}
-
-	return true
-}
-
-// IsExpired checks if the consent has expired
-func (pc *PrivacyConsent) IsExpired() bool {
-	if pc.ExpiresAt == nil {
-		return false
-	}
-
-	return time.Now().After(*pc.ExpiresAt)
-}
-
 // NeedsRenewal checks if consent needs renewal based on renewal_required flag
 func (pc *PrivacyConsent) NeedsRenewal() bool {
 	return pc.RenewalRequired
-}
-
-// GetTimeToExpiry returns the duration until expiry or nil if no expiry
-func (pc *PrivacyConsent) GetTimeToExpiry() *time.Duration {
-	if pc.ExpiresAt == nil {
-		return nil
-	}
-
-	if time.Now().After(*pc.ExpiresAt) {
-		// Already expired
-		duration := time.Duration(0)
-		return &duration
-	}
-
-	duration := time.Until(*pc.ExpiresAt)
-	return &duration
 }
 
 // SetStudent links this privacy consent to a student
@@ -144,24 +108,6 @@ func (pc *PrivacyConsent) UpdateDetails(details map[string]interface{}) error {
 	return nil
 }
 
-// Accept marks the consent as accepted with current timestamp
-func (pc *PrivacyConsent) Accept() {
-	pc.Accepted = true
-	now := time.Now()
-	pc.AcceptedAt = &now
-
-	// If duration days is set, calculate expires_at
-	if pc.DurationDays != nil && *pc.DurationDays > 0 {
-		expiresAt := now.AddDate(0, 0, *pc.DurationDays)
-		pc.ExpiresAt = &expiresAt
-	}
-}
-
-// Revoke revokes the consent
-func (pc *PrivacyConsent) Revoke() {
-	pc.Accepted = false
-}
-
 // GetID implements the base.Entity interface
 func (pc *PrivacyConsent) GetID() interface{} {
 	return pc.ID
@@ -175,22 +121,4 @@ func (pc *PrivacyConsent) GetCreatedAt() time.Time {
 // GetUpdatedAt implements the base.Entity interface
 func (pc *PrivacyConsent) GetUpdatedAt() time.Time {
 	return pc.UpdatedAt
-}
-
-// GetDataRetentionDays returns the number of days to retain visit data
-func (pc *PrivacyConsent) GetDataRetentionDays() int {
-	// If DataRetentionDays is not set (0), default to 30 days
-	if pc.DataRetentionDays == 0 {
-		return 30
-	}
-	return pc.DataRetentionDays
-}
-
-// SetDataRetentionDays sets the data retention days with validation
-func (pc *PrivacyConsent) SetDataRetentionDays(days int) error {
-	if days < 1 || days > 31 {
-		return errors.New("data retention days must be between 1 and 31")
-	}
-	pc.DataRetentionDays = days
-	return nil
 }
