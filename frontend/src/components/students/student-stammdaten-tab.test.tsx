@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import type { Student } from "~/lib/student-helpers";
+import type { BusDays, Student } from "~/lib/student-helpers";
 
 const {
   handleStudentFormSubmitMock,
@@ -106,15 +106,17 @@ vi.mock("./student-form-fields", () => ({
   ),
   BusStatusSection: ({
     value,
+    days,
     onChange,
   }: {
     value?: boolean;
-    onChange: (v: boolean) => void;
+    days?: BusDays | null;
+    onChange: (v: BusDays) => void;
   }) => (
     <button
       type="button"
       data-testid="bus-toggle"
-      onClick={() => onChange(!value)}
+      onClick={() => onChange({ ...days, mon: !days?.mon })}
     >
       bus:{String(value)}
     </button>
@@ -431,7 +433,7 @@ describe("StudentStammdatenTab", () => {
   it("toggles the bus value", () => {
     render(
       <StudentStammdatenTab
-        student={makeStudent({ bus: false })}
+        student={makeStudent({ bus: false, bus_days: {} })}
         groups={[]}
         onSave={vi.fn()}
       />,

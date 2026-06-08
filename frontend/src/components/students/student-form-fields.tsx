@@ -4,7 +4,16 @@
  */
 
 import { useId } from "react";
+import { Bus } from "lucide-react";
 import type { Student } from "@/lib/api";
+import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import {
+  BUS_WEEKDAYS,
+  busDaysHaveAny,
+  formatBusDays,
+  normalizeBusDays,
+  type BusDays,
+} from "~/lib/student-helpers";
 
 interface SelectOption {
   value: string;
@@ -31,7 +40,7 @@ export function PersonalInfoSection({
   formData: Partial<Student>;
   onChange: (
     field: keyof Student,
-    value: string | boolean | number | null,
+    value: string | boolean | number | BusDays | null,
   ) => void;
   errors: Record<string, string>;
   groups?: SelectOption[];
@@ -356,7 +365,7 @@ export function PrivacyConsentSection({
   formData: Partial<Student>;
   onChange: (
     field: keyof Student,
-    value: string | boolean | number | null,
+    value: string | boolean | number | BusDays | null,
   ) => void;
   errors: Record<string, string>;
 }>) {
@@ -441,44 +450,67 @@ export function PrivacyConsentSection({
  */
 export function BusStatusSection({
   value,
+  days,
   onChange,
 }: Readonly<{
   value: boolean | undefined | null;
-  onChange: (value: boolean) => void;
+  days?: BusDays | null;
+  onChange: (value: BusDays) => void;
 }>) {
+  const normalized = normalizeBusDays(days);
+  const anySelected = busDaysHaveAny(normalized) || Boolean(value);
   return (
-    <div className="rounded-xl border border-orange-200 bg-orange-50 p-4">
-      <label
-        htmlFor="bus-status"
-        className="group flex cursor-pointer items-center gap-3"
-      >
-        <input
-          id="bus-status"
-          type="checkbox"
-          checked={value ?? false}
-          onChange={(e) => onChange(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-600"
-          aria-label="Fährt mit dem Bus"
-        />
-        <div className="flex items-center gap-2" aria-hidden="true">
-          <svg
-            className="h-5 w-5 text-orange-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-          <span className="text-sm font-medium text-orange-900">
-            Fährt mit dem Bus
+    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+      <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
+        <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+          <Bus
+            className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
+            style={{ color: GROUP_ROOM_SHADES.text }}
+          />
+          Buskind
+        </h3>
+        {anySelected && (
+          <span className="shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15]">
+            {formatBusDays(normalized)}
           </span>
-        </div>
-      </label>
+        )}
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        {anySelected
+          ? "Tage auswählen, an denen das Kind mit dem Bus fährt."
+          : "Keine Bustage ausgewählt."}
+      </p>
+      <div className="grid grid-cols-5 gap-2">
+        {BUS_WEEKDAYS.map((day) => {
+          const checked = Boolean(normalized[day.key]);
+          return (
+            <label
+              key={day.key}
+              className={`flex h-9 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
+                checked
+                  ? "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(event) =>
+                  onChange({ ...normalized, [day.key]: event.target.checked })
+                }
+                className="sr-only"
+                aria-label={`${day.label} Buskind`}
+              />
+              {day.label.slice(0, 2)}
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        {anySelected
+          ? "Das Kind gilt in Listen und Filtern weiterhin als Buskind."
+          : "Ohne ausgewählten Tag gilt das Kind nicht als Buskind."}
+      </p>
     </div>
   );
 }

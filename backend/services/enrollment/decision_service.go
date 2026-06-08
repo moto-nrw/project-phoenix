@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -226,6 +227,13 @@ type ChildOfferingRow struct {
 // the new tenant directly to the parent's existing portal account
 // instead of mailing an invite that would overwrite their password
 // on accept.
+// DecisionSettingsResolver is the narrow contract the decision service
+// needs from the platform settings service. Only the activation-mode
+// lookup is required today, so the interface stays minimal.
+type DecisionSettingsResolver interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -251,8 +259,9 @@ type DecisionServiceConfig struct {
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           OutboxEnqueuer
-	FrontendURL              string // not used by parent-facing emails today; kept for future admin links
-	ParentsURL               string // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	FrontendURL              string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL               string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings                 DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
 	Logger                   *slog.Logger
 }
 
@@ -283,6 +292,7 @@ type decisionService struct {
 	outboxEnqueuer           OutboxEnqueuer
 	frontendURL              string
 	parentsURL               string
+	settings                 DecisionSettingsResolver
 	logger                   *slog.Logger
 }
 
@@ -324,7 +334,8 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 			}
 			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 		}(),
-		logger: logger,
+		settings: cfg.Settings,
+		logger:   logger,
 	}
 }
 
@@ -730,6 +741,34 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 //
 // Returns a PendingGuardianInvite when the guardian needs an invitation
 // (no existing portal account) so the handler can fire it post-commit.
+// resolveActivationMode reads enrollment.default_activation_mode for the
+// tenant in context. The setting was registered from the start with a
+// registry default of "scheduled", so a plain ResolveString (tenant
+// override → registry default) is correct — there is no env-var fallback.
+//
+// Any resolve error or empty/unknown value falls back to the safe
+// "scheduled" default rather than failing the approval: an unconfigured
+// or momentarily-unreadable setting must never block a school from
+// approving a child.
+func (s *decisionService) resolveActivationMode(ctx context.Context) string {
+	if s.settings == nil {
+		return configModel.EnrollmentActivationModeScheduled
+	}
+	mode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
+	if err != nil {
+		s.logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
+			slog.String("key", configModel.KeyEnrollmentDefaultActivationMode),
+			slog.String("error", err.Error()),
+		)
+		return configModel.EnrollmentActivationModeScheduled
+	}
+	if mode == configModel.EnrollmentActivationModeImmediate {
+		return configModel.EnrollmentActivationModeImmediate
+	}
+	// Empty (unconfigured) or any unknown value normalizes to scheduled.
+	return configModel.EnrollmentActivationModeScheduled
+}
+
 func (s *decisionService) applyApproval(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -812,19 +851,34 @@ func (s *decisionService) applyApproval(
 		return nil, fmt.Errorf("decision: create person: %w", err)
 	}
 
-	// 3. Student row pinned to the phase's service window. Status
-	// 'pending' lets the activate-students scheduler flip to 'active'
-	// when ServiceStartDate arrives.
+	// 3. Student row pinned to the phase's service window. The
+	// enrollment.default_activation_mode setting decides the initial
+	// status:
+	//   - "scheduled" (default): status 'pending' lets the
+	//     activate-students scheduler flip to 'active' once enrolled_from
+	//     (ServiceStartDate) arrives.
+	//   - "immediate": status 'active' right away, so the child appears
+	//     in lists/attendance/check-in immediately.
+	//
+	// enrolled_from stays the phase's ServiceStartDate in BOTH modes — it
+	// is the official, consistent start date (not the arbitrary approval
+	// day) and is no longer read once a student is active; only
+	// enrolled_until drives later deactivation.
 	schoolClass := s.gradeToClass(child.TargetGradeLevel)
 	enrolledFrom := phase.ServiceStartDate
 	enrolledUntil := phase.ServiceEndDate
 	guardianEmail := request.GuardianEmail
 	guardianPhone := request.GuardianPhone
 
+	studentStatus := users.StudentStatusPending
+	if s.resolveActivationMode(ctx) == configModel.EnrollmentActivationModeImmediate {
+		studentStatus = users.StudentStatusActive
+	}
+
 	student := &users.Student{
 		PersonID:      person.ID,
 		SchoolClass:   schoolClass,
-		Status:        users.StudentStatusPending,
+		Status:        studentStatus,
 		EnrolledFrom:  &enrolledFrom,
 		EnrolledUntil: &enrolledUntil,
 		GuardianEmail: &guardianEmail,
@@ -854,9 +908,10 @@ func (s *decisionService) applyApproval(
 	}
 
 	// 4b. Dispatch every targeted form field onto the right downstream
-	// record. Scalar targets (health_info, extra_info, bus, photo_
+	// record. Scalar targets (health_info, extra_info, photo_
 	// consent, pickup_status) update the Student row in place;
-	// structured targets (phone_list, weekday_schedule, contact_list)
+	// structured targets (bus weekday flags, phone_list,
+	// weekday_schedule, contact_list)
 	// create association rows. Failures inside one field don't abort
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
@@ -1521,7 +1576,11 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentBus:
-			if b, ok := raw.(bool); ok {
+			if days, err := decodeBusDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				b := days.HasAny()
+				student.BusDays = days
 				student.Bus = &b
 				studentDirty = true
 			}
@@ -1610,6 +1669,26 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func decodeBusDays(raw any) (users.BusDays, error) {
+	if enabled, ok := raw.(bool); ok {
+		return users.BusDaysFromLegacyFlag(enabled), nil
+	}
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(raw, &days); err != nil {
+		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
+	}
+	if err := days.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.BusDays{}
+	for _, day := range users.BusDayOrder {
+		if days[day] {
+			out[day] = true
+		}
+	}
+	return out, nil
 }
 
 // readFieldValue pulls the submission value for a field. Guardian-level

@@ -83,6 +83,24 @@ func TestWeekdaySchedule_Validate_AcceptsEmptyDayValueAsSkip(t *testing.T) {
 	assert.NoError(t, WeekdaySchedule{"mon": "", "tue": " "}.Validate())
 }
 
+// ---- WeekdayBoolean -----------------------------------------------------
+
+func TestWeekdayBoolean_Validate_AcceptsKnownWeekdays(t *testing.T) {
+	days := WeekdayBoolean{"mon": true, "wed": false, "fri": true}
+	assert.NoError(t, days.Validate())
+	assert.True(t, days.HasAny())
+}
+
+func TestWeekdayBoolean_Validate_RejectsUnknownWeekday(t *testing.T) {
+	err := WeekdayBoolean{"sat": true}.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sat")
+}
+
+func TestWeekdayBoolean_HasAny_FalseWhenNoSelectedDay(t *testing.T) {
+	assert.False(t, WeekdayBoolean{"mon": false, "fri": false}.HasAny())
+}
+
 // ---- ContactEntry -------------------------------------------------------
 
 func TestContactEntry_Validate_RequiresName(t *testing.T) {
