@@ -1618,6 +1618,9 @@ func (s *decisionService) applyTargetedFields(
 }
 
 func decodeBusDays(raw any) (users.BusDays, error) {
+	if enabled, ok := raw.(bool); ok {
+		return users.BusDaysFromLegacyFlag(enabled), nil
+	}
 	var days enrollmentModels.WeekdayBoolean
 	if err := decodeStructured(raw, &days); err != nil {
 		return nil, fmt.Errorf("decode weekday_boolean: %w", err)

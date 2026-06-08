@@ -76,6 +76,20 @@ func TestDecodeBusDays_NormalizesSelectedWeekdays(t *testing.T) {
 	assert.True(t, out.HasAny())
 }
 
+func TestDecodeBusDays_AcceptsLegacyBoolean(t *testing.T) {
+	enabled, err := decodeBusDays(true)
+	require.NoError(t, err)
+	assert.True(t, enabled["mon"])
+	assert.True(t, enabled["tue"])
+	assert.True(t, enabled["wed"])
+	assert.True(t, enabled["thu"])
+	assert.True(t, enabled["fri"])
+
+	disabled, err := decodeBusDays(false)
+	require.NoError(t, err)
+	assert.False(t, disabled.HasAny())
+}
+
 func TestDecodeBusDays_RejectsUnknownWeekday(t *testing.T) {
 	_, err := decodeBusDays(map[string]any{"sat": true})
 	require.Error(t, err)

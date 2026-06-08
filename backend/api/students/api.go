@@ -737,7 +737,11 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	}
 	if req.Bus != nil {
 		student.Bus = req.Bus
-		student.BusDays = users.BusDaysFromLegacyFlag(*req.Bus)
+		if !*req.Bus {
+			student.BusDays = users.BusDays{}
+		} else if !student.BusDays.HasAny() {
+			student.BusDays = users.BusDaysFromLegacyFlag(true)
+		}
 	}
 	if req.BusDays != nil {
 		student.BusDays = req.BusDays.Normalize()
@@ -1087,7 +1091,11 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	}
 	if req.Bus != nil {
 		student.Bus = req.Bus
-		student.BusDays = users.BusDaysFromLegacyFlag(*req.Bus)
+		if !*req.Bus {
+			student.BusDays = users.BusDays{}
+		} else if !student.BusDays.HasAny() {
+			student.BusDays = users.BusDaysFromLegacyFlag(true)
+		}
 	}
 	if req.BusDays != nil {
 		student.BusDays = req.BusDays.Normalize()

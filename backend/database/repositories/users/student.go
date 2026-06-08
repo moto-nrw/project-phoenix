@@ -812,7 +812,36 @@ func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*u
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
 	}
+	hasBusDays, err := r.hasBusDaysColumn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if hasBusDays {
+		if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
+			return nil, err
+		}
+	}
 	return student, nil
+}
+
+func (r *StudentRepository) hasBusDaysColumn(ctx context.Context) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'bus_days'
+		)
+	`).Scan(ctx, &exists)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "check students bus_days column",
+			Err: err,
+		}
+	}
+	return exists, nil
 }
 
 // PurgeAllPhotos clears photo_path for every row visible in the current

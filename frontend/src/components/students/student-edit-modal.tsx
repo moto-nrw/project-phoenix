@@ -57,6 +57,7 @@ export function StudentEditModal({
         privacy_consent_accepted: student.privacy_consent_accepted ?? false,
         data_retention_days: student.data_retention_days ?? 30,
         bus: student.bus ?? false,
+        bus_days: normalizeBusDays(student.bus_days),
         pickup_status: student.pickup_status ?? "",
       });
       setErrors({});

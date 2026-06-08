@@ -39,6 +39,24 @@ func decodeStudentsByID(t *testing.T, body []byte) map[int64]studentDayPlanningT
 	return byID
 }
 
+func requireStudentsBusDaysColumn(t *testing.T, tc *testContext) {
+	t.Helper()
+	var exists bool
+	err := tc.db.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'bus_days'
+		)
+	`).Scan(context.Background(), &exists)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("users.students.bus_days column is not present in this test database")
+	}
+}
+
 // =============================================================================
 // List Students with Pickup Times Tests
 // =============================================================================
@@ -1022,6 +1040,69 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("legacy_bus_true_preserves_existing_bus_days", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Preserve", "BDP1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		existing := usersModel.BusDays{
+			usersModel.BusDayMonday:    true,
+			usersModel.BusDayWednesday: true,
+		}
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students AS "student"`).
+			Set(`bus = ?`, true).
+			Set(`bus_days = ?`, existing).
+			Where(`"student".id = ?`, student.ID).
+			Exec(testpkg.TenantContext(1))
+		require.NoError(t, err)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"bus": true,
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
+		assert.True(t, fresh.BusDays[usersModel.BusDayWednesday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayTuesday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayThursday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayFriday])
+	})
+
+	t.Run("bus_days_update_derives_bus_flag", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "BusDays", "Replace", "BDR1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"bus_days": map[string]bool{
+				"tue": true,
+				"thu": true,
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, fresh.Bus)
+		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
+		assert.True(t, fresh.BusDays[usersModel.BusDayThursday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayMonday])
 	})
 
 	t.Run("update_guardian_contact", func(t *testing.T) {
