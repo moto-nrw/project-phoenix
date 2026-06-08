@@ -20,6 +20,7 @@ export type FormFieldType =
   | "information"
   | "phone_list"
   | "weekday_schedule"
+  | "weekday_boolean"
   | "contact_list";
 
 /**
@@ -90,7 +91,7 @@ export const RESERVED_TARGETS: Record<
     label: "Hinweise an die Betreuung",
   },
   "student.bus": {
-    type: "boolean",
+    type: "weekday_boolean",
     appliesToChild: true,
     label: "Buskind",
   },

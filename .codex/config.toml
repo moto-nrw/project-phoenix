@@ -9,16 +9,3 @@ MAX_THINKING_TOKENS = "10000"
 USE_BUILTIN_RIPGREP = "1"
 BASH_DEFAULT_TIMEOUT_MS = "120000"
 BASH_MAX_OUTPUT_LENGTH = "50000"
-
-[mcp_servers.sonarqube]
-command = "docker"
-args = [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "SONARQUBE_TOKEN",
-    "-e",
-    "SONARQUBE_ORG",
-    "mcp/sonarqube",
-]

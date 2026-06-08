@@ -6,6 +6,10 @@ import type {
   UpdateStudentRequest,
 } from "./student-helpers";
 import {
+  busDaysHaveAny,
+  formatBusDays,
+  getSchoolYear,
+  normalizeBusDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
   mapStudentsResponse,
@@ -64,6 +68,50 @@ describe("SCHOOL_YEAR_FILTER_OPTIONS", () => {
     expect(values).toContain("2");
     expect(values).toContain("3");
     expect(values).toContain("4");
+  });
+});
+
+describe("bus day helpers", () => {
+  it("normalizes only enabled known weekdays", () => {
+    const result = normalizeBusDays({
+      mon: true,
+      tue: false,
+      wed: true,
+      sat: true,
+    } as Parameters<typeof normalizeBusDays>[0] & { sat: boolean });
+
+    expect(result).toEqual({ mon: true, wed: true });
+  });
+
+  it("normalizes null and undefined to an empty object", () => {
+    expect(normalizeBusDays(null)).toEqual({});
+    expect(normalizeBusDays(undefined)).toEqual({});
+  });
+
+  it("detects any enabled known weekday", () => {
+    expect(busDaysHaveAny({ fri: true })).toBe(true);
+    expect(busDaysHaveAny({ mon: false, thu: false })).toBe(false);
+    expect(busDaysHaveAny(null)).toBe(false);
+    expect(busDaysHaveAny(undefined)).toBe(false);
+  });
+
+  it("formats selected weekdays or the empty label", () => {
+    expect(formatBusDays({ mon: true, wed: true, fri: true })).toBe(
+      "Mo, Mi, Fr",
+    );
+    expect(formatBusDays({ tue: false })).toBe("Keine Bus-Tage");
+    expect(formatBusDays(null)).toBe("Keine Bus-Tage");
+  });
+});
+
+describe("getSchoolYear", () => {
+  it("extracts the first number from class labels", () => {
+    expect(getSchoolYear("Klasse 3a")).toBe("3");
+    expect(getSchoolYear("2b")).toBe("2");
+  });
+
+  it("returns null when the class label has no number", () => {
+    expect(getSchoolYear("unknown")).toBeNull();
   });
 });
 

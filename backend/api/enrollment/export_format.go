@@ -140,6 +140,8 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 		return val
 	case enrollmentModels.FormFieldWeekdaySchedule:
 		return formatWeekdaySchedule(raw)
+	case enrollmentModels.FormFieldWeekdayBoolean:
+		return formatWeekdayBoolean(raw)
 	case enrollmentModels.FormFieldPhoneList:
 		return formatPhoneList(raw)
 	case enrollmentModels.FormFieldContactList:
@@ -147,6 +149,24 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 	default:
 		return stringifyValue(raw)
 	}
+}
+
+func formatWeekdayBoolean(raw any) string {
+	var days enrollmentModels.WeekdayBoolean
+	if !decodeComposite(raw, &days) {
+		return stringifyValue(raw)
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		if days[day] {
+			label := dayLabelsDE[day]
+			if label == "" {
+				label = day
+			}
+			parts = append(parts, label)
+		}
+	}
+	return strings.Join(parts, ", ")
 }
 
 // decodeComposite re-decodes a jsonb value (already unmarshalled into

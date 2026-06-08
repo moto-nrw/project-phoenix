@@ -39,11 +39,12 @@ type Student struct {
 	SupervisorNotes *string       `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
 	HealthInfo      *string       `bun:"health_info" json:"health_info,omitempty"`
 	PickupStatus    *string       `bun:"pickup_status" json:"pickup_status,omitempty"`
-	Bus             *bool         `bun:"bus" json:"bus,omitempty"`                     // Administrative permission flag (Buskind)
-	Sick            *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
-	SickSince       *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
-	Excused         *bool         `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
-	ExcusedSince    *time.Time    `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	Bus             *bool         `bun:"bus" json:"bus,omitempty"`                               // Administrative permission flag (Buskind)
+	BusDays         BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"` // Weekdays on which the child is a Buskind
+	Sick            *bool         `bun:"sick" json:"sick,omitempty"`                             // true = currently sick
+	SickSince       *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`                 // When sickness was reported
+	Excused         *bool         `bun:"excused" json:"excused,omitempty"`                       // true = currently excused (not attending today)
+	ExcusedSince    *time.Time    `bun:"excused_since" json:"excused_since,omitempty"`           // When excused status was reported
 	Status          StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
 	EnrolledFrom    *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
 	EnrolledUntil   *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
@@ -111,6 +112,10 @@ func (s *Student) Validate() error {
 		return err
 	}
 	if err := validatePtrPhone(s.GuardianPhone, "guardian phone"); err != nil {
+		return err
+	}
+
+	if err := s.BusDays.Validate(); err != nil {
 		return err
 	}
 

@@ -6,6 +6,7 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/stretchr/testify/assert"
 )
 
 // These are pure-function regression tests for the leaf value-formatters
@@ -126,6 +127,12 @@ func TestFormatWeekdaySchedule_FallsBackOnGarbage(t *testing.T) {
 	if got := formatWeekdaySchedule(sched); got != "Mo 07:30, Mi 08:00" {
 		t.Errorf("schedule = %q, want 'Mo 07:30, Mi 08:00'", got)
 	}
+}
+
+func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean}
+	raw := map[string]any{"fri": true, "mon": true, "wed": false}
+	assert.Equal(t, "Mo, Fr", formatCustomValue(field, raw))
 }
 
 func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {
