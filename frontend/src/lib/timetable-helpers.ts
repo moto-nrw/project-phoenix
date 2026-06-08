@@ -610,10 +610,15 @@ const MIN_BLOCK_HEIGHT_PX = 24;
 export function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   if (
+    time.split(":").length !== 2 ||
     typeof h !== "number" ||
     typeof m !== "number" ||
     Number.isNaN(h) ||
-    Number.isNaN(m)
+    Number.isNaN(m) ||
+    h < 0 ||
+    h > 23 ||
+    m < 0 ||
+    m > 59
   ) {
     return NaN;
   }

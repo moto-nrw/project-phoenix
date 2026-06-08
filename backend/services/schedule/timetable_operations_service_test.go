@@ -864,6 +864,8 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
+	assert.Equal(t, "timetable attendance validation failed", (&TimetableAttendanceValidationError{}).Error())
+
 	assert.Panics(t, func() {
 		NewTimetableOperationsService(TimetableOperationsDependencies{})
 	})
@@ -883,6 +885,12 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	deps.instanceRepo.err = sql.ErrNoRows
 	inst, err := deps.service.(*timetableOperationsService).loadInstance(context.Background(), 415)
+	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
+	assert.Nil(t, inst)
+
+	deps.instanceRepo.err = nil
+	deps.instanceRepo.byID[416] = nil
+	inst, err = deps.service.(*timetableOperationsService).loadInstance(context.Background(), 416)
 	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
 	assert.Nil(t, inst)
 }

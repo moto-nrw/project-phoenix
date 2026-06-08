@@ -649,3 +649,52 @@ func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(100)
+	require.NoError(t, db.Close())
+
+	_, err := repo.FindByStudentID(ctx, 900100)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by student ID")
+
+	_, err = repo.FindByGroupID(ctx, 900200)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by group ID")
+
+	_, err = repo.CountByGroupID(ctx, 900300)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "count by group ID")
+
+	from := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(0, 0, 1)
+	_, err = repo.FindByValidFromRange(ctx, from, to)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by valid_from date range")
+
+	status := activities.AttendancePresent
+	err = repo.UpdateAttendanceStatus(ctx, 900400, &status)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update attendance status")
+
+	enrollment := &activities.StudentEnrollment{
+		StudentID:       900500,
+		ActivityGroupID: 900600,
+		ValidFrom:       from,
+	}
+	enrollment.SetTenantID(100)
+	err = repo.Create(ctx, enrollment)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create")
+
+	enrollment.ID = 900700
+	err = repo.Update(ctx, enrollment)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update")
+
+	_, err = repo.List(ctx, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "list")
+}

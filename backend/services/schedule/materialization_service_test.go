@@ -119,6 +119,12 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 		want   bool
 	}{
 		{
+			name:   "nil enrollment → invalid",
+			e:      nil,
+			period: p100,
+			want:   false,
+		},
+		{
 			name: "unbounded, no period scope → valid",
 			e: &activities.StudentEnrollment{
 				ValidFrom: d(2026, time.January, 1),
@@ -418,6 +424,10 @@ func TestPeriodSelection(t *testing.T) {
 			[]*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
 		assert.Nil(t, got)
 	})
+
+	t.Run("nil schedule has no pinned period", func(t *testing.T) {
+		assert.Nil(t, schedulePinnedPeriodID(&activities.Group{}, nil))
+	})
 }
 
 // -----------------------------------------------------------------------------
@@ -454,43 +464,63 @@ func TestIsoWeekday(t *testing.T) {
 type materializationFakeGroupRepo struct {
 	activities.GroupRepository
 	templates []*activities.Group
+	err       error
 }
 
 func (r materializationFakeGroupRepo) FindAllTemplates(context.Context) ([]*activities.Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return r.templates, nil
 }
 
 type materializationFakeScheduleRepo struct {
 	activities.ScheduleRepository
 	schedules []*activities.Schedule
+	err       error
 }
 
 func (r materializationFakeScheduleRepo) FindByGroupID(context.Context, int64) ([]*activities.Schedule, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return r.schedules, nil
 }
 
 type materializationFakeEnrollmentRepo struct {
 	activities.StudentEnrollmentRepository
+	err error
 }
 
 func (r materializationFakeEnrollmentRepo) FindByGroupID(context.Context, int64) ([]*activities.StudentEnrollment, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return nil, nil
 }
 
 type materializationFakeSupervisorRepo struct {
 	activities.SupervisorPlannedRepository
+	err error
 }
 
 func (r materializationFakeSupervisorRepo) FindByGroupID(context.Context, int64) ([]*activities.SupervisorPlanned, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return nil, nil
 }
 
 type materializationFakePeriodRepo struct {
 	schedule.CalendarPeriodRepository
 	periods []*schedule.CalendarPeriod
+	err     error
 }
 
 func (r materializationFakePeriodRepo) FindActiveByTenantID(context.Context) ([]*schedule.CalendarPeriod, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return r.periods, nil
 }
 
@@ -498,9 +528,13 @@ type materializationFakeInstanceRepo struct {
 	schedule.ActivityInstanceRepository
 	inserted bool
 	err      error
+	findErr  error
 }
 
 func (r materializationFakeInstanceRepo) FindByTenantAndDateRange(context.Context, time.Time, time.Time) ([]*schedule.ActivityInstance, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
 	return nil, nil
 }
 
@@ -526,18 +560,26 @@ func (r materializationFakeStudentRepo) Create(context.Context, *schedule.Instan
 
 type materializationFakeExceptionRepo struct {
 	schedule.ActivityExceptionRepository
+	err error
 }
 
 func (r materializationFakeExceptionRepo) FindByDateRange(context.Context, time.Time, time.Time) ([]*schedule.ActivityException, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return nil, nil
 }
 
 type materializationFakeTimeframeRepo struct {
 	schedule.TimeframeRepository
 	timeframes []*schedule.Timeframe
+	err        error
 }
 
 func (r materializationFakeTimeframeRepo) List(context.Context, *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return r.timeframes, nil
 }
 
@@ -666,6 +708,159 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 		assert.Equal(t, MaterializationWarningCodeNoTemplates, result.Warnings[0].Code)
 		assert.Zero(t, result.InstancesCreated)
 	})
+}
+
+func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
+	date := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	period := &schedule.CalendarPeriod{
+		StartDate: date.AddDate(0, -1, 0),
+		EndDate:   date.AddDate(0, 1, 0),
+		IsActive:  true,
+		Model:     modelBase.Model{ID: 405},
+	}
+	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
+	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
+	tfID := int64(406)
+	roomID := int64(407)
+	template := &activities.Group{Name: "Lernzeit", PlannedRoomID: &roomID, Model: modelBase.Model{ID: 408}}
+	scheduleRow := &activities.Schedule{Weekday: 1, TimeframeID: &tfID}
+	timeframe := &schedule.Timeframe{StartTime: start, EndTime: &end, Model: modelBase.Model{ID: tfID}}
+
+	makeSvc := func(
+		groupRepo materializationFakeGroupRepo,
+		scheduleRepo materializationFakeScheduleRepo,
+		enrollmentRepo materializationFakeEnrollmentRepo,
+		supervisorRepo materializationFakeSupervisorRepo,
+		periodRepo materializationFakePeriodRepo,
+		instanceRepo materializationFakeInstanceRepo,
+		exceptionRepo materializationFakeExceptionRepo,
+		timeframeRepo materializationFakeTimeframeRepo,
+	) MaterializationService {
+		return NewMaterializationService(
+			groupRepo,
+			scheduleRepo,
+			enrollmentRepo,
+			supervisorRepo,
+			periodRepo,
+			instanceRepo,
+			materializationFakeStaffRepo{},
+			materializationFakeStudentRepo{},
+			exceptionRepo,
+			timeframeRepo,
+			materializationAllowCalendarService{},
+			nil,
+			slog.Default(),
+		)
+	}
+
+	baseGroup := materializationFakeGroupRepo{templates: []*activities.Group{template}}
+	baseSchedule := materializationFakeScheduleRepo{schedules: []*activities.Schedule{scheduleRow}}
+	basePeriod := materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{period}}
+	baseInstance := materializationFakeInstanceRepo{inserted: true}
+	baseTimeframe := materializationFakeTimeframeRepo{timeframes: []*schedule.Timeframe{timeframe}}
+
+	cases := []struct {
+		name           string
+		groupRepo      materializationFakeGroupRepo
+		scheduleRepo   materializationFakeScheduleRepo
+		enrollmentRepo materializationFakeEnrollmentRepo
+		supervisorRepo materializationFakeSupervisorRepo
+		periodRepo     materializationFakePeriodRepo
+		instanceRepo   materializationFakeInstanceRepo
+		exceptionRepo  materializationFakeExceptionRepo
+		timeframeRepo  materializationFakeTimeframeRepo
+		want           string
+	}{
+		{
+			name:          "period repository error",
+			groupRepo:     baseGroup,
+			scheduleRepo:  baseSchedule,
+			periodRepo:    materializationFakePeriodRepo{err: errors.New("periods failed")},
+			instanceRepo:  baseInstance,
+			timeframeRepo: baseTimeframe,
+			want:          "load periods",
+		},
+		{
+			name:          "template repository error",
+			groupRepo:     materializationFakeGroupRepo{err: errors.New("templates failed")},
+			scheduleRepo:  baseSchedule,
+			periodRepo:    basePeriod,
+			instanceRepo:  baseInstance,
+			timeframeRepo: baseTimeframe,
+			want:          "load templates",
+		},
+		{
+			name:          "existing instance repository error",
+			groupRepo:     baseGroup,
+			scheduleRepo:  baseSchedule,
+			periodRepo:    basePeriod,
+			instanceRepo:  materializationFakeInstanceRepo{findErr: errors.New("existing failed")},
+			timeframeRepo: baseTimeframe,
+			want:          "load existing instances",
+		},
+		{
+			name:          "exception repository error",
+			groupRepo:     baseGroup,
+			scheduleRepo:  baseSchedule,
+			periodRepo:    basePeriod,
+			instanceRepo:  baseInstance,
+			exceptionRepo: materializationFakeExceptionRepo{err: errors.New("exceptions failed")},
+			timeframeRepo: baseTimeframe,
+			want:          "load exceptions",
+		},
+		{
+			name:          "timeframe repository error",
+			groupRepo:     baseGroup,
+			scheduleRepo:  baseSchedule,
+			periodRepo:    basePeriod,
+			instanceRepo:  baseInstance,
+			timeframeRepo: materializationFakeTimeframeRepo{err: errors.New("timeframes failed")},
+			want:          "load timeframes",
+		},
+		{
+			name:          "schedule repository error",
+			groupRepo:     baseGroup,
+			scheduleRepo:  materializationFakeScheduleRepo{err: errors.New("schedules failed")},
+			periodRepo:    basePeriod,
+			instanceRepo:  baseInstance,
+			timeframeRepo: baseTimeframe,
+			want:          "load schedules",
+		},
+		{
+			name:           "enrollment repository error",
+			groupRepo:      baseGroup,
+			scheduleRepo:   baseSchedule,
+			enrollmentRepo: materializationFakeEnrollmentRepo{err: errors.New("enrollments failed")},
+			periodRepo:     basePeriod,
+			instanceRepo:   baseInstance,
+			timeframeRepo:  baseTimeframe,
+			want:           "load enrollments",
+		},
+		{
+			name:           "supervisor repository error",
+			groupRepo:      baseGroup,
+			scheduleRepo:   baseSchedule,
+			supervisorRepo: materializationFakeSupervisorRepo{err: errors.New("supervisors failed")},
+			periodRepo:     basePeriod,
+			instanceRepo:   baseInstance,
+			timeframeRepo:  baseTimeframe,
+			want:           "load supervisors",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := makeSvc(tc.groupRepo, tc.scheduleRepo, tc.enrollmentRepo, tc.supervisorRepo, tc.periodRepo, tc.instanceRepo, tc.exceptionRepo, tc.timeframeRepo)
+
+			result, err := svc.MaterializeForTenant(context.Background(), date, date, MaterializationSourceManual)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			if result != nil {
+				assert.Zero(t, result.InstancesCreated)
+			}
+		})
+	}
 }
 
 func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {

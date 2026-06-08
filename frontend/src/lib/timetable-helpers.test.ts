@@ -79,6 +79,10 @@ describe("parseTimeToMinutes", () => {
   it("returns NaN for malformed input", () => {
     expect(Number.isNaN(parseTimeToMinutes("not-a-time"))).toBe(true);
     expect(Number.isNaN(parseTimeToMinutes(""))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("12:30:45"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("24:00"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("09:60"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("-1:30"))).toBe(true);
   });
 });
 
