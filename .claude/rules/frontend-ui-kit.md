@@ -19,6 +19,30 @@ This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and
 
 Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`); importing the other components by their file path is correct and expected.
 
+## Study these first — canonical reference screens
+
+Prose cannot transfer taste, density, spacing judgment, or restraint. Examples can. **Before building or changing any UI, open the relevant file(s) below and match their structure, density, spacing, color use, component choice, and restraint.** These are the bar for "looks like the rest of the app."
+
+| Pattern | File | Why it's canonical |
+|---|---|---|
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
+| Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
+| Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
+| Card primitive | `frontend/src/components/ui/info-card.tsx` | the canonical card surface |
+| Table primitive | `frontend/src/components/ui/data-table.tsx` | the canonical table |
+
+Keep this list current: if a reference is deleted or substantially rewritten, replace it with the new canonical example.
+
+## New UI is suspicious by default
+
+Writing a new component is the exception, not the default. Every new card/button/table/modal/empty-state that could have reused the kit is drift. Before building one:
+
+1. Search `ui/` and the canonical screens above for an existing fit.
+2. If something fits, reuse it (extend via props/className, don't fork).
+3. If nothing fits, STOP and state in the PR description **why** reuse doesn't fit and **what you added to the kit** instead of inlining a one-off.
+
+An unexplained bespoke component is a review failure, not a style preference.
+
 ## Need X → use Y (do not hand-roll)
 
 | You need… | Use | Import from |
@@ -93,6 +117,22 @@ rg -n "from ['\"]@moto-nrw/design-system['\"]" frontend/src -g '*.tsx' -g '*.ts'
 # Generic Tailwind brand-color utilities — prefer LOCATION_COLORS hex or a kit component
 rg -n "(text|bg|border)-(red|green|blue|orange|purple|amber|yellow|emerald)-[0-9]" frontend/src -g '*.tsx'
 ```
+
+## Mandatory visual check — do not skip
+
+Code can be correct and the UI still feel wrong (spacing, density, decoration). For any change a school user would see, **run the app locally and look at the actual screen before calling the work done** — do not rely on the diff or on tests passing. Use the project's browser-verification setup (the `verify` / agent-browser flow against `{slug}.localhost:3000`), screenshot the changed screen, and compare it side by side with the nearest canonical screen above. If it doesn't sit naturally next to that screen, it isn't done.
+
+## Design-review checklist
+
+Apply before marking any UI work complete (and reviewers: before approving):
+
+- [ ] Reuses kit components; any new component is justified in the PR description
+- [ ] Colors come from `LOCATION_COLORS` / kit components — no generic Tailwind hues
+- [ ] Radius, spacing, and density match the canonical screens (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`)
+- [ ] No marketing-style hero / decorative cards — it reads as an operational school tool
+- [ ] Works on mobile
+- [ ] Dense enough for daily operational use (not airy / landing-page)
+- [ ] Visually verified: ran the app, screenshotted the changed screen, compared against a canonical screen
 
 ## When to deviate
 
