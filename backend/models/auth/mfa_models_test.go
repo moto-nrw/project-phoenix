@@ -170,41 +170,8 @@ func TestMFATrustedDevice_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testing
 	assert.NoError(t, d.BeforeAppendModel(&bun.SelectQuery{}))
 }
 
-// --- Account MFA lockout helpers ---
-
-func TestAccount_IsMFALocked_NilPointerMeansUnlocked(t *testing.T) {
-	a := &Account{MFALockedUntil: nil}
-	assert.False(t, a.IsMFALocked())
-}
-
-func TestAccount_IsMFALocked_HonorsLockoutWindow(t *testing.T) {
-	past := time.Now().Add(-time.Minute)
-	future := time.Now().Add(time.Minute)
-	assert.False(t, (&Account{MFALockedUntil: &past}).IsMFALocked(),
-		"past timestamp means the lockout already expired")
-	assert.True(t, (&Account{MFALockedUntil: &future}).IsMFALocked(),
-		"future timestamp means the lockout window is still active")
-}
-
-func TestAccount_IncrementMFAAttempts_LocksAtFifthFailure(t *testing.T) {
-	a := &Account{MFAAttempts: 4}
-	a.IncrementMFAAttempts()
-	assert.Equal(t, 5, a.MFAAttempts)
-	require := assert.NotNil
-	require(t, a.MFALockedUntil, "5th failed attempt must set the lockout window")
-	assert.True(t, a.MFALockedUntil.After(time.Now()))
-
-	// Sub-threshold increments leave the lockout untouched.
-	b := &Account{MFAAttempts: 1}
-	b.IncrementMFAAttempts()
-	assert.Equal(t, 2, b.MFAAttempts)
-	assert.Nil(t, b.MFALockedUntil)
-}
-
-func TestAccount_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
-	now := time.Now().Add(15 * time.Minute)
-	a := &Account{MFAAttempts: 5, MFALockedUntil: &now}
-	a.ResetMFAAttempts()
-	assert.Equal(t, 0, a.MFAAttempts)
-	assert.Nil(t, a.MFALockedUntil)
-}
+// The Account MFA lockout helpers (IsMFALocked / IncrementMFAAttempts /
+// ResetMFAAttempts) moved off the model in issue #586 (Rule 12). The decision
+// is now services/auth mfaService.isMFALocked (clock injected) and the atomic
+// counter mutations are database/repositories/auth AccountRepository
+// (covered by account_mfa_atomic_test.go).

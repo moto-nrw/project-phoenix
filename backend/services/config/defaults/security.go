@@ -87,4 +87,38 @@ func init() {
 		},
 	})
 
+	// --- Account brute-force lockout policy (issue #586) ---
+
+	lockoutThresholdMin := float64(1)
+	lockoutThresholdMax := float64(20)
+	config.Register(config.Definition{
+		Key:             config.KeyAccountLockoutThreshold,
+		Label:           "Konto-Sperre: Fehlversuche",
+		Description:     "Anzahl fehlgeschlagener PIN- oder 2FA-Versuche, nach denen ein Konto vorübergehend gesperrt wird.",
+		Type:            config.FieldNumber,
+		Default:         5,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "security",
+		Category:        "lockout",
+		SortOrder:       30,
+		Validation:      &config.ValidationRules{Min: &lockoutThresholdMin, Max: &lockoutThresholdMax},
+	})
+
+	lockoutDurationMin := float64(1)
+	lockoutDurationMax := float64(1440)
+	config.Register(config.Definition{
+		Key:             config.KeyAccountLockoutDurationMinutes,
+		Label:           "Konto-Sperre: Dauer (Minuten)",
+		Description:     "Wie lange ein Konto nach Überschreiten der Fehlversuche gesperrt bleibt, bevor wieder Versuche möglich sind.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "security",
+		Category:        "lockout",
+		SortOrder:       31,
+		Validation:      &config.ValidationRules{Min: &lockoutDurationMin, Max: &lockoutDurationMax},
+	})
+
 }

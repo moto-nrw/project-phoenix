@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -14,6 +15,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// PIN brute-force lockout policy (issue #586 — extracted from the model).
+// After PINLockoutThreshold failed PIN entries the account is locked for
+// PINLockoutDuration. These mirror the MFA lockout policy in services/auth.
+// Per-tenant overrides live behind security.account_lockout_* settings keys.
+const (
+	PINLockoutThreshold = 5
+	PINLockoutDuration  = 15 * time.Minute
+)
+
+// isPINLocked reports whether the account is inside its PIN-failure lockout
+// window relative to now. The decision lives in the service (clock injected)
+// rather than on the model (issue #586, Rule 12). The account row holds only
+// the pin_locked_until fact.
+func isPINLocked(account *auth.Account, now time.Time) bool {
+	return account.PINLockedUntil != nil && now.Before(*account.PINLockedUntil)
+}
 
 const (
 	// opGetPerson is the operation name for Get operations
@@ -571,7 +589,7 @@ func (s *personService) ValidateStaffPIN(ctx context.Context, pin string) (*user
 // Returns (nil, nil) if PIN is invalid or account has no staff record
 // Returns (nil, error) if repository operations fail
 func (s *personService) tryValidatePINForAccount(ctx context.Context, account *auth.Account, pin string) (*userModels.Staff, error) {
-	if !account.HasPIN() || account.IsPINLocked() {
+	if !account.HasPIN() || isPINLocked(account, time.Now()) {
 		return nil, nil
 	}
 
@@ -621,16 +639,26 @@ func (s *personService) findStaffByAccount(ctx context.Context, account *auth.Ac
 	return staff, nil
 }
 
-// handleSuccessfulPINAuth resets PIN attempts after successful authentication
+// handleSuccessfulPINAuth resets PIN attempts after successful authentication.
+// Uses the atomic repo reset so a concurrent failed verify's increment is not
+// clobbered by a stale full-row Update (issue #586).
 func (s *personService) handleSuccessfulPINAuth(ctx context.Context, account *auth.Account) {
-	account.ResetPINAttempts()
-	_ = s.accountRepo.Update(ctx, account)
+	if err := s.accountRepo.ResetPINAttempts(ctx, account.ID); err == nil {
+		account.PINAttempts = 0
+		account.PINLockedUntil = nil
+	}
 }
 
-// handleFailedPINAttempt increments PIN attempts after failed authentication
+// handleFailedPINAttempt increments PIN attempts after failed authentication.
+// The atomic repo increment replaces the previous read-modify-write
+// (Account.IncrementPINAttempts + Update), which let concurrent failures
+// share an attempt budget (issue #586).
 func (s *personService) handleFailedPINAttempt(ctx context.Context, account *auth.Account) {
-	account.IncrementPINAttempts()
-	_ = s.accountRepo.Update(ctx, account)
+	result, err := s.accountRepo.IncrementPINAttempts(ctx, account.ID, PINLockoutThreshold, PINLockoutDuration)
+	if err == nil {
+		account.PINAttempts = result.Attempts
+		account.PINLockedUntil = result.LockedUntil
+	}
 }
 
 // ValidateStaffPINForSpecificStaff validates a PIN for a specific staff member
@@ -675,27 +703,19 @@ func (s *personService) ValidateStaffPINForSpecificStaff(ctx context.Context, st
 	if !account.HasPIN() {
 		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("staff member has no PIN set")}
 	}
-	if account.IsPINLocked() {
+	if isPINLocked(account, time.Now()) {
 		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: errors.New("account is locked")}
 	}
 
 	// Verify the PIN
 	if !account.VerifyPIN(pin) {
-		// Increment failed attempts
-		account.IncrementPINAttempts()
-		if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-			// Log error but don't fail the authentication check
-			_ = updateErr
-		}
+		// Atomically increment failed attempts (no read-modify-write race).
+		s.handleFailedPINAttempt(ctx, account)
 		return nil, &UsersError{Op: opValidateStaffPINSpecific, Err: ErrInvalidPIN}
 	}
 
-	// PIN is valid - reset attempts
-	account.ResetPINAttempts()
-	if updateErr := s.accountRepo.Update(ctx, account); updateErr != nil {
-		// Log error but don't fail authentication
-		_ = updateErr
-	}
+	// PIN is valid - atomically reset attempts.
+	s.handleSuccessfulPINAuth(ctx, account)
 
 	// Load the person relation for the authenticated staff
 	staff.Person = person

@@ -169,6 +169,86 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
+// IncrementPINAttempts atomically bumps pin_attempts by one and sets
+// pin_locked_until = now() + lockoutDuration when the post-increment count
+// is >= threshold. Returns the post-update counter and lock timestamp so the
+// caller can detect the lockout transition (exact threshold equality means
+// *this* call crossed the line).
+//
+// This replaces the old model-level Account.IncrementPINAttempts() +
+// accountRepo.Update() read-modify-write, which was racy: two concurrent
+// failed PIN entries both read pin_attempts=N and both wrote N+1, advancing
+// the counter by only 1 and letting an attacker double their attempt budget.
+// A single SQL statement removes the race (issue #586, mirrors the MFA fix).
+func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (auth.PINAttemptResult, error) {
+	type incrementRow struct {
+		PINAttempts    int        `bun:"pin_attempts"`
+		PINLockedUntil *time.Time `bun:"pin_locked_until"`
+	}
+	row := new(incrementRow)
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("pin_attempts = pin_attempts + 1").
+		Set(
+			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN now() + (? * interval '1 second') ELSE pin_locked_until END",
+			threshold, int64(lockoutDuration.Seconds()),
+		).
+		Where(whereID, id).
+		Returning("pin_attempts, pin_locked_until").
+		Exec(ctx, row)
+	if err != nil {
+		return auth.PINAttemptResult{}, &modelBase.DatabaseError{
+			Op:  "increment pin attempts",
+			Err: err,
+		}
+	}
+	return auth.PINAttemptResult{
+		Attempts:    row.PINAttempts,
+		LockedUntil: row.PINLockedUntil,
+	}, nil
+}
+
+// ResetPINAttempts atomically clears pin_attempts and pin_locked_until after a
+// successful PIN verify so a stale in-memory Account.Update can't re-set a
+// concurrent racer's incremented counter.
+func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("pin_attempts = 0").
+		Set("pin_locked_until = NULL").
+		Where(whereID, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "reset pin attempts",
+			Err: err,
+		}
+	}
+	return nil
+}
+
+// ClearPIN atomically removes the PIN credential and resets the PIN lockout
+// counter in a single UPDATE.
+func (r *AccountRepository) ClearPIN(ctx context.Context, id int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("pin_hash = NULL").
+		Set("pin_attempts = 0").
+		Set("pin_locked_until = NULL").
+		Where(whereID, id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "clear pin",
+			Err: err,
+		}
+	}
+	return nil
+}
+
 // SetActive toggles only the active flag for an account. Targeted update so
 // it does not clobber password_hash or other in-memory stale fields.
 func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {

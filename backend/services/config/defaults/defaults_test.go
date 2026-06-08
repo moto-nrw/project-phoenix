@@ -74,6 +74,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
 		"security.mfa_trusted_device_days",
+		// Account brute-force lockout policy (issue #586): threshold + duration.
+		"security.account_lockout_threshold",
+		"security.account_lockout_duration_minutes",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.
