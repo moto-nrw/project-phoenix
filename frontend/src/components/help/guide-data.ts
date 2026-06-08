@@ -222,9 +222,9 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "aktivitaeten-anlegen",
         title: "Aktivitäten anlegen",
         summary:
-          "Wiederkehrende Angebote vorbereiten. Dieser Schritt ist vor allem für Einrichtungen relevant, die mit NFC oder Tablets arbeiten.",
+          "Wiederkehrende Angebote vorbereiten. Dieser Schritt ist nur für Einrichtungen relevant, die mit NFC oder Tablets arbeiten.",
         steps: [
-          "`Datenverwaltung` öffnen und `Aktivitäten` wählen.",
+          "Falls Ihre Einrichtung mit NFC oder Tablets arbeitet: `Datenverwaltung` öffnen und `Aktivitäten` wählen.",
           "Neue Aktivität anlegen.",
           "`Name` kurz und verständlich eintragen.",
           "`Kategorie` wählen.",
@@ -232,9 +232,9 @@ export const setupChapters: readonly GuideChapter[] = [
           "Speichern.",
         ],
         callout: {
-          title: "Optional ohne NFC",
-          body: "Wenn Ihre Einrichtung nicht mit NFC oder Tablets arbeitet, können Sie diesen Schritt für die Ersteinrichtung zunächst überspringen und Aktivitäten später ergänzen.",
-          tone: "gray",
+          title: "Nur bei NFC-/Tablet-Nutzung sichtbar",
+          body: "Wenn Ihre Einrichtung kein NFC oder keine Tablets nutzt, wird der Bereich `Aktivitäten` in der Datenverwaltung nicht angezeigt. In diesem Fall können Angebote je nach Freischaltung später im Alltag über `Aktuelle Aufsicht` oder den `Stundenplan` entstehen (siehe `Die App im Alltag` -> `Aktuelle Aufsicht` und `Stundenplan`).",
+          tone: "blue",
         },
         screenshot:
           "Aktivitätsformular mit Name, Kategorie und maximale Teilnehmer.",
@@ -444,7 +444,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Aktivitäten",
         icon: Activity,
         summary:
-          "Liste aller Aktivitäten mit Suche und Filter; hier legst du neue Angebote an.",
+          "Liste aller Aktivitäten mit Suche und Filter; hier legst du neue Angebote an. Dieser Bereich ist nur bei Einrichtungen mit NFC-/Tablet-Nutzung sichtbar.",
         steps: [
           "`Aktivitäten` öffnen.",
           "Nach Name suchen oder nach `Kategorie` und `Meine Aktivitäten` filtern.",
@@ -566,10 +566,11 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Datenverwaltung",
         icon: Database,
         summary:
-          "Der Admin-Bereich für alle Stammdaten: Kinder, Personal, Räume, Aktivitäten, Gruppen, Rollen, Geräte und Berechtigungen.",
+          "Der Admin-Bereich für alle Stammdaten: Kinder, Personal, Räume, Gruppen, Rollen und Berechtigungen. `Aktivitäten` und `Geräte` werden zusätzlich angezeigt, wenn Ihre Einrichtung mit NFC oder Tablets arbeitet.",
         steps: [
           "`Datenverwaltung` öffnen.",
-          "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Aktivitäten`, `Gruppen`, `Rollen`, `Geräte` oder `Berechtigungen`.",
+          "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen` oder `Berechtigungen`.",
+          "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Einträge anlegen, bearbeiten oder prüfen.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
