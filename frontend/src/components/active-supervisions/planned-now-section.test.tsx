@@ -96,6 +96,70 @@ describe("PlannedNowSection", () => {
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
   });
 
+  it("renders roster planning warnings", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            rosterPreview: [
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                warnings: [
+                  {
+                    kind: "arrival_after_slot_start",
+                    message:
+                      "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+                    expectedArrival: "14:30",
+                    slotStart: "14:00",
+                    expectedGroupId: "12",
+                    expectedGroupName: "Klasse 2a",
+                    currentEducationGroupId: "13",
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("1 Planungs-Hinweis")).toHaveAttribute(
+      "title",
+      "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+    );
+    expect(
+      screen.getByText(
+        "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not crash when a roster preview row has no warnings array", () => {
+    const legacyInstance = {
+      ...plannedInstance,
+      rosterPreview: [
+        {
+          ...plannedInstance.rosterPreview[0]!,
+          warnings: undefined,
+        },
+      ],
+    } as unknown as PlannedTimetableInstance;
+
+    render(
+      <PlannedNowSection
+        plannedNow={[legacyInstance]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Mia Bauer")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Planungs-Hinweis/)).toBeNull();
+  });
+
   it("keeps future-only slots collapsed until opened", () => {
     render(
       <PlannedNowSection

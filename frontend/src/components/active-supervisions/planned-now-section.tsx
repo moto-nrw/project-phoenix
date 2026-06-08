@@ -379,9 +379,10 @@ function SummaryPill({
 }
 
 function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
+  const warnings = row.warnings ?? [];
   const warningLabel =
-    row.warnings.length > 0
-      ? row.warnings.map((warning) => warning.message).join("\n")
+    warnings.length > 0
+      ? warnings.map((warning) => warning.message).join("\n")
       : null;
   return (
     <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
@@ -400,7 +401,7 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
             <span
               className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F3B63F]/20 text-[#A66F00]"
               title={warningLabel}
-              aria-label={`${row.warnings.length} Planungs-Hinweis`}
+              aria-label={`${warnings.length} Planungs-Hinweis`}
             >
               <CircleAlert className="h-4 w-4" aria-hidden="true" />
             </span>
@@ -415,10 +416,8 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
           </span>
         </div>
       </div>
-      {row.warnings.length > 0 ? (
-        <p className="mt-2 text-xs text-[#A66F00]">
-          {row.warnings[0]?.message}
-        </p>
+      {warnings.length > 0 ? (
+        <p className="mt-2 text-xs text-[#A66F00]">{warnings[0]?.message}</p>
       ) : null}
     </div>
   );
