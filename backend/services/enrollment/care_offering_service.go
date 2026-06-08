@@ -39,8 +39,10 @@ type CareOfferingService interface {
 	// Clone copies an existing offering into a new row scoped to a
 	// target phase. All offering-level fields (capacity, days, lunch,
 	// price, etc.) are preserved; the source row's ID is reset and
-	// phase_id is set to the target. Use case: cloning last year's
-	// catalog into this year's phase, then editing what changed.
+	// phase_id is set to the target. When cloning across phases, linked
+	// timetable templates are cleared so admins can relink a template for
+	// the new phase. Use case: cloning last year's catalog into this year's
+	// phase, then editing what changed.
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
 }
 
@@ -158,6 +160,13 @@ type careOfferingTemplateDeps struct {
 	calendarPeriodRepo   scheduleModels.CalendarPeriodRepository
 }
 
+func (d careOfferingTemplateDeps) validateActivityGroupLookup() error {
+	if d.activityGroupRepo == nil {
+		return errors.New("activity group validation dependency is not configured")
+	}
+	return nil
+}
+
 func (d careOfferingTemplateDeps) validate() error {
 	if d.activityGroupRepo == nil || d.activityScheduleRepo == nil || d.calendarPeriodRepo == nil {
 		return errors.New("template validation dependencies are not configured")
@@ -216,6 +225,33 @@ func resolveCareOfferingTemplatePeriod(
 		return nil, fmt.Errorf("calendar period for timetable template not found")
 	}
 	return period, nil
+}
+
+func resolveCareOfferingLinkedGroupPeriod(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	activityGroupID int64,
+) (*activitiesModels.Group, *scheduleModels.CalendarPeriod, error) {
+	if activityGroupID <= 0 {
+		return nil, nil, errors.New("activity_group_id must be positive when set")
+	}
+	if err := deps.validateActivityGroupLookup(); err != nil {
+		return nil, nil, err
+	}
+
+	group, err := deps.activityGroupRepo.FindByID(ctx, activityGroupID)
+	if err != nil || group == nil {
+		return nil, nil, fmt.Errorf("activity_group_id does not reference a group in this tenant")
+	}
+	if !group.IsTemplate {
+		return group, nil, nil
+	}
+
+	period, err := resolveCareOfferingTemplatePeriod(ctx, deps, activityGroupID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return group, period, nil
 }
 
 func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *scheduleModels.CalendarPeriod) error {
@@ -306,8 +342,9 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 }
 
 // Clone copies a care offering into a new row scoped to a target phase.
-// All offering-level fields are preserved; ID is reset so the DB
-// assigns a fresh BIGSERIAL, and phase_id is repointed at the target.
+// Offering-level fields are preserved except cross-phase timetable template
+// links; ID is reset so the DB assigns a fresh BIGSERIAL, and phase_id is
+// repointed at the target.
 func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error) {
 	if sourceID <= 0 {
 		return nil, fmt.Errorf("source id must be positive")
@@ -324,9 +361,8 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	clone := *source
 	clone.ID = 0 // BIGSERIAL - let the DB assign
 	clone.PhaseID = targetPhaseID
-
-	if err := s.validateLinkedTemplate(ctx, &clone); err != nil {
-		return nil, fmt.Errorf("clone: validate linked template: %w", err)
+	if source.PhaseID != targetPhaseID && clone.ActivityGroupID != nil {
+		clone.ActivityGroupID = nil
 	}
 	if err := s.checkGroupRuleConsistency(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: check selection group consistency: %w", err)

@@ -367,6 +367,51 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	assert.Equal(t, []string{"mon", "tue"}, clone.AvailableDays)
 }
 
+func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T) {
+	db, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := createCareOfferingTestPeriod(t, db, "care-clone-source-period",
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+	group := createCareOfferingTemplateGroup(t, db, "care-clone-source-template")
+	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
+
+	source := baseLinkedOffering(phase.ID, group.ID)
+	created, err := svc.Create(ctx, source)
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(db)
+	target := &enrollmentModels.Phase{
+		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
+		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
+		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		IsActive:         true,
+		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+	}
+	target.SetTenantID(1)
+	require.NoError(t, repoFactory.Phase.Create(ctx, target))
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.care_offerings").
+			Where("phase_id = ?", target.ID).
+			Exec(bg)
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.phases").
+			Where("id = ?", target.ID).
+			Exec(bg)
+	})
+
+	clone, err := svc.Clone(ctx, created.ID, target.ID)
+	require.NoError(t, err)
+	require.NotZero(t, clone.ID)
+	assert.Equal(t, target.ID, clone.PhaseID)
+	assert.Nil(t, clone.ActivityGroupID)
+}
+
 func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()

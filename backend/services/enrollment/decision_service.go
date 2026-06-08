@@ -760,7 +760,7 @@ func (s *decisionService) materializeEnrollments(
 	phase *enrollmentModels.Phase,
 ) error {
 	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
-		s.studentEnrollmentRepo == nil {
+		s.studentEnrollmentRepo == nil || s.activityGroupRepo == nil {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
 		// activity groups later via the activity admin UI.
@@ -779,7 +779,7 @@ func (s *decisionService) materializeEnrollments(
 	validUntil := phase.ServiceEndDate
 	type enrollmentDraft struct {
 		activityGroupID  int64
-		calendarPeriodID int64
+		calendarPeriodID *int64
 		selectedWeekday  map[int]bool
 		allWeekdays      bool
 	}
@@ -797,27 +797,41 @@ func (s *decisionService) materializeEnrollments(
 			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
-		period, err := resolveCareOfferingTemplatePeriod(ctx, careOfferingTemplateDeps{
+		group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, careOfferingTemplateDeps{
 			activityGroupRepo:    s.activityGroupRepo,
 			activityScheduleRepo: s.activityScheduleRepo,
 			calendarPeriodRepo:   s.calendarPeriodRepo,
 		}, *offering.ActivityGroupID)
 		if err != nil {
-			return fmt.Errorf("decision: validate linked timetable template for care offering %d: %w", link.CareOfferingID, err)
+			return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
 		}
-		if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
-			return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
+		if group.IsTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
+			return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
+		}
+		if period != nil {
+			if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+				return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
+			}
+		}
+		var periodID *int64
+		if period != nil {
+			periodID = &period.ID
+		}
+		if draft := drafts[*offering.ActivityGroupID]; draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
+			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
 		}
 		draft := drafts[*offering.ActivityGroupID]
 		if draft == nil {
 			draft = &enrollmentDraft{
 				activityGroupID:  *offering.ActivityGroupID,
-				calendarPeriodID: period.ID,
+				calendarPeriodID: periodID,
 				selectedWeekday:  make(map[int]bool),
 			}
 			drafts[*offering.ActivityGroupID] = draft
-		} else if draft.calendarPeriodID != period.ID {
-			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
+		}
+		if !group.IsTemplate {
+			draft.allWeekdays = true
+			continue
 		}
 		days, err := effectiveOfferingDaysForEnrollment(offering, link)
 		if err != nil {
@@ -840,13 +854,12 @@ func (s *decisionService) materializeEnrollments(
 	}
 
 	for _, draft := range drafts {
-		calendarPeriodID := draft.calendarPeriodID
 		row := &activities.StudentEnrollment{
 			StudentID:        studentID,
 			ActivityGroupID:  draft.activityGroupID,
 			ValidFrom:        validFrom,
 			ValidUntil:       &validUntil,
-			CalendarPeriodID: &calendarPeriodID,
+			CalendarPeriodID: draft.calendarPeriodID,
 		}
 		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
 			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
@@ -859,6 +872,13 @@ func (s *decisionService) materializeEnrollments(
 		}
 	}
 	return nil
+}
+
+func sameOptionalInt64(left, right *int64) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func effectiveOfferingDaysForEnrollment(

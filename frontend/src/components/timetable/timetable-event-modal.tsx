@@ -310,7 +310,7 @@ export function TimetableEventModal({
           });
           return [] as ActivityCategory[];
         }),
-      fetch("/api/groups", { credentials: "include" })
+      fetch("/api/groups?page_size=1000", { credentials: "include" })
         .then((r) => r.json() as Promise<BackendGroupsEnvelope>)
         .then((j): GroupOption[] =>
           (j.data ?? []).map((group) => ({
