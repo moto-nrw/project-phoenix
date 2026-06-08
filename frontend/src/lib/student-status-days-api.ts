@@ -82,7 +82,11 @@ export async function createStudentStatusDays(
   const response = await fetch(`/api/students/${studentId}/status-days`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, dates, reason: reason ?? "" }),
+    // Only include the reason when one is supplied so the default request
+    // shape is unchanged (the backend treats an absent reason as no note).
+    body: JSON.stringify(
+      reason ? { status, dates, reason } : { status, dates },
+    ),
   });
   if (!response.ok) {
     throw new Error("Geplante Einträge konnten nicht gespeichert werden");
