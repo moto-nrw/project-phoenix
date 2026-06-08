@@ -925,6 +925,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
+		Settings:                 settingsService,
 		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 
