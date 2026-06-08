@@ -564,6 +564,33 @@ func TestCreateStudent(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, rr.Code)
 	})
 
+	t.Run("success_creates_student_with_bus_days", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		body := map[string]interface{}{
+			"first_name":   "BusDays",
+			"last_name":    "Create",
+			"school_class": "2b",
+			"bus_days": map[string]bool{
+				"mon": true,
+				"wed": true,
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.True(t, resp.Data.Bus)
+		assert.True(t, resp.Data.BusDays[usersModel.BusDayMonday])
+		assert.True(t, resp.Data.BusDays[usersModel.BusDayWednesday])
+		assert.False(t, resp.Data.BusDays[usersModel.BusDayTuesday])
+	})
+
 	t.Run("bad_request_missing_first_name", func(t *testing.T) {
 		body := map[string]interface{}{
 			"last_name":    "NoFirst",

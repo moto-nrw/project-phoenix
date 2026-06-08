@@ -423,8 +423,10 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 	require.NoError(t, err, "imported student should exist in the database")
 	require.NotNil(t, student.Bus, "Bus must be persisted, not left nil")
 	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
+	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	require.NoError(t, err, "imported student should be readable through the repository")
 	for _, day := range users.BusDayOrder {
-		assert.True(t, student.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
+		assert.True(t, hydrated.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
 	}
 }
 
