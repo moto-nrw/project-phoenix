@@ -104,7 +104,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     points: [
       "Kindersuche, Aufsicht, Räume, Mitarbeiter",
       "Vertretungen, Stundenplan, Zeiterfassung",
-      "Datenverwaltung, Anmeldungen, Feedback",
+      "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
     ],
   },
   {
@@ -365,9 +365,16 @@ export const appChapters: readonly GuideChapter[] = [
           "`Kindersuche` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
           "Bei Bedarf nach Gruppe, Stufe oder Status filtern.",
+          "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
-        screenshot: "Kindersuche mit Suchfeld, Filtern und Status-Badges.",
+        callout: {
+          title: "Keine Mensa-/Hausaufgaben-Hinweise sichtbar?",
+          body: "Die `Aktivitäts-Indikatoren` erscheinen nur, wenn ein Admin sie eingeschaltet hat. Ist die Funktion aus, fehlen die Haken auf den Karten ganz. Das ist kein Fehler. Aktivieren und benennen lässt sie sich unter `Einstellungen` -> `Betrieb` -> `Aktivitäts-Indikatoren` (siehe Kapitel `Einstellungen`).",
+          tone: "blue",
+        },
+        screenshot:
+          "Kindersuche mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
         image: "/help/screens/kindersuche.webp",
       },
       {
@@ -709,6 +716,68 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
         image: "/help/screens/feedback.webp",
+      },
+    ],
+  },
+  {
+    id: "einstellungen",
+    title: "Einstellungen",
+    description:
+      "Hier stellen Admins ein, wie sich die App im Alltag verhält. Viele Funktionen (etwa der Stundenplan, die Online-Anmeldung oder die Aktivitäts-Indikatoren) sind erst sichtbar, wenn sie hier eingeschaltet wurden.",
+    icon: SlidersHorizontal,
+    tone: "gray",
+    steps: [
+      {
+        id: "einstellungen-ueberblick",
+        title: "Einstellungen im Überblick",
+        icon: SlidersHorizontal,
+        summary:
+          "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema. Änderungen werden automatisch gespeichert.",
+        steps: [
+          "In der Seitenleiste `Einstellungen` öffnen.",
+          "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Stundenplan oder Aktivitäts-Indikatoren), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
+          "Schalter (an/aus) und Auswahlfelder werden sofort gespeichert; Text-, Zahl- und Zeitfelder kurz nach der Eingabe. Ein grüner Rahmen bestätigt das Speichern, ein roter weist auf einen Fehler hin.",
+          "Steht neben einer Einstellung das Abzeichen `Standard`, ist noch der voreingestellte Wert aktiv. Nach einer Änderung erscheint `Zurücksetzen`, um wieder den Standard herzustellen.",
+        ],
+        screenshot:
+          "Einstellungen mit der Reiter-Leiste (Betrieb, Geräte, Anmeldung, Datenschutz, System, Sicherheit, Personalisierung) und der Sektion Aktivitäts-Indikatoren im Reiter Betrieb.",
+        image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-indikatoren",
+        title: "Aktivitäts-Indikatoren einrichten",
+        icon: ClipboardCheck,
+        summary:
+          "Aktivitäts-Indikatoren zeigen in der `Kindersuche` und in den Gruppenansichten mit einem Haken, ob ein Kind heute bereits in einem bestimmten Bereich war, zum Beispiel in der Mensa oder bei den Hausaufgaben. Standardmäßig ist die Funktion aus.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Indikatoren` scrollen.",
+          "`Aktivitäts-Indikatoren` einschalten.",
+          "In `Indikator 1` bis `Indikator 3` jeweils einen Suchbegriff eintragen, z. B. `Mensa` und `Hausaufgaben`. Bis zu drei Begriffe sind möglich.",
+          "Der Begriff wird mit den Namen der heute besuchten Räume und Aktivitäten abgeglichen: passt er, erscheint auf der Kinderkarte ein grüner Haken, sonst ein grauer Kreis.",
+        ],
+        callout: {
+          title: "Begriff muss zum Namen passen",
+          body: "Der Haken erscheint nur, wenn der Indikator-Begriff im Namen eines heute besuchten Raums oder einer Aktivität vorkommt. Damit `Hausaufgaben` greift, muss es also einen entsprechend benannten Raum oder eine Aktivität geben. Ist die Funktion ausgeschaltet, werden auf den Karten gar keine Indikatoren angezeigt.",
+          tone: "blue",
+        },
+        screenshot:
+          "Sektion Indikatoren im Reiter Betrieb mit eingeschalteten Aktivitäts-Indikatoren und den Begriffen Mensa und Hausaufgaben.",
+        image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-zustaendigkeit",
+        title: "Wer ändert welche Einstellungen?",
+        icon: KeyRound,
+        summary:
+          "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
+        steps: [
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen gearbeitet wird, die Geräte-PIN und die Tablet-Buttons.",
+          "Was das moto-Team betreut: technische und schulübergreifende Einstellungen. Diese sind für Schul-Admins ausgeblendet.",
+          "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
+          "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",
+        ],
+        screenshot:
+          "Reiter System aus Admin-Sicht: nur die Datenbereinigung ist sichtbar, vom moto-Team betreute Optionen sind ausgeblendet.",
       },
     ],
   },
