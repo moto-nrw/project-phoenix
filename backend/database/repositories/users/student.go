@@ -54,6 +54,18 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 	}
 }
 
+// FindByID retrieves a student by their ID.
+func (r *StudentRepository) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
+	student, err := r.Repository.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
+		return nil, err
+	}
+	return student, nil
+}
+
 // FindByPersonID retrieves a student by their person ID
 func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Student, error) {
 	student := new(users.Student)
@@ -106,6 +118,9 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	result := make(map[int64]*users.Student, len(students))
 	for _, student := range students {
 		result[student.ID] = student
+	}
+	if err := r.hydrateBusDaysIfPresent(ctx, students); err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -812,16 +827,21 @@ func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*u
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
 	}
-	hasBusDays, err := r.hasBusDaysColumn(ctx)
-	if err != nil {
+	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
 		return nil, err
 	}
-	if hasBusDays {
-		if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
-			return nil, err
-		}
-	}
 	return student, nil
+}
+
+func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, students []*users.Student) error {
+	hasBusDays, err := r.hasBusDaysColumn(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasBusDays {
+		return nil
+	}
+	return r.hydrateBusDaysForStudents(ctx, students)
 }
 
 func (r *StudentRepository) hasBusDaysColumn(ctx context.Context) (bool, error) {
