@@ -314,39 +314,6 @@ func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
 }
 
-// AGB is only required when the tenant turned on the terms block. With it
-// off (the default), a submission that omits the AGB flag must still
-// succeed — a Träger without standard terms never shows the checkbox.
-func TestRequestService_Submit_AGBNotRequiredWhenTermsDisabled(t *testing.T) {
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
-	ctx := testpkg.TenantContext(1)
-
-	req := validSubmission(env.phaseID)
-	// Drop AGB entirely; Datenschutz-Kenntnisnahme stays the only required
-	// consent. terms toggle is unset → defaults off.
-	req.ConsentFlags = map[string]any{"data_processing": true}
-	_, err := env.svc.Submit(ctx, req)
-	require.NoError(t, err)
-}
-
-// With the terms block enabled, a submission missing the AGB acceptance
-// must be rejected — the checkbox was shown and is mandatory for that
-// tenant.
-func TestRequestService_Submit_AGBRequiredWhenTermsEnabled(t *testing.T) {
-	env, cleanup := setupRequestTest(t)
-	defer cleanup()
-	ctx := testpkg.TenantContext(1)
-
-	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
-
-	req := validSubmission(env.phaseID)
-	req.ConsentFlags = map[string]any{"data_processing": true, "agb": false}
-	_, err := env.svc.Submit(ctx, req)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
-}
-
 // Regression for issue #1465: a guardian phone that fails the canonical
 // student phone format (e.g. "12345") must be rejected at submit with
 // ErrInvalidGuardianPhone, instead of being stored and later blocking

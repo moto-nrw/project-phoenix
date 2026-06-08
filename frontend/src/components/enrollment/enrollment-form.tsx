@@ -74,15 +74,13 @@ const DAY_LABELS: Record<string, string> = {
   sun: "So",
 };
 
-// The legal blocks that can carry a per-tenant info text, openable in the
-// modal. Keys match the PublicLegalTexts fields and the modal title
-// lookup. AGB + Datenschutz + Foto sit behind checkboxes; e-mail contact
-// is a notice (no checkbox) but can still open its explanatory text.
+// The four consent checkboxes that can carry a per-tenant info text.
+// Keys match the PublicLegalTexts fields and the modal title lookup.
 type LegalDocKey = "agb" | "dsgvo" | "email_contact" | "photo";
 
 const LEGAL_DOC_TITLES: Record<LegalDocKey, string> = {
-  agb: "AGB / Teilnahmebedingungen",
-  dsgvo: "Datenschutzinformation",
+  agb: "Allgemeine Geschäftsbedingungen",
+  dsgvo: "Datenschutzerklärung",
   email_contact: "E-Mail-Kontakt",
   photo: "Fotoeinwilligung",
 };
@@ -178,12 +176,9 @@ export function EnrollmentForm({
   const [guardianLastName, setGuardianLastName] = useState("");
   const [guardianEmail, setGuardianEmail] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
-  // AGB acceptance — only collected when the tenant enabled the terms
-  // block (legalTexts.terms_enabled). dataConsent is the Datenschutz
-  // *acknowledgement* (Kenntnisnahme), always required. Email contact is
-  // no longer a consent checkbox — it's a notice (contract performance).
   const [agbConsent, setAgbConsent] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
+  const [emailConsent, setEmailConsent] = useState(false);
   const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
   // Request-level custom fields (applies_to_child=false). Stored
@@ -512,16 +507,17 @@ export function EnrollmentForm({
     }
     // Required consents are collected into the same pass so a missing one is
     // marked (red checkbox) together with any other missing field, instead of
-    // only showing in the banner. AGB is only required when the tenant
-    // enabled the terms block; the Datenschutz acknowledgement is always
-    // required. E-mail contact is a notice (no checkbox to validate).
-    if (legalTexts?.terms_enabled && !agbConsent) {
-      newFieldErrors.consent_agb =
-        "Bitte den AGB / Teilnahmebedingungen zustimmen.";
+    // only showing in the banner.
+    if (!agbConsent) {
+      newFieldErrors.consent_agb = "Bitte den AGB zustimmen.";
     }
     if (!dataConsent) {
       newFieldErrors.consent_data_processing =
-        "Bitte die Kenntnisnahme der Datenschutzinformation bestätigen.";
+        "Bitte der Datenverarbeitung zustimmen.";
+    }
+    if (!emailConsent) {
+      newFieldErrors.consent_email_contact =
+        "Bitte dem E-Mail-Kontakt zustimmen.";
     }
     // Offering validation runs in the SAME pass as the field checks above
     // so a missing care-offering day and a missing core field (e.g. phone)
@@ -691,15 +687,9 @@ export function EnrollmentForm({
         guardian_email: guardianEmail.trim().toLowerCase(),
         guardian_phone: guardianPhone.trim() || undefined,
         consent_flags: {
-          // AGB only meaningful when the terms block was shown; otherwise
-          // false (the backend doesn't require it for this tenant).
-          agb: legalTexts?.terms_enabled ? agbConsent : false,
+          agb: agbConsent,
           data_processing: dataConsent,
-          // E-mail contact is a notice the parent acknowledges by
-          // submitting (contract performance), so it's always true here —
-          // this keeps the student EmailContactAcceptedAt stamp + the
-          // admin export column working without a separate checkbox.
-          email_contact: true,
+          email_contact: emailConsent,
           photo: photoConsent === true,
         },
         custom_data: visibleAnswerData(
@@ -1146,16 +1136,22 @@ export function EnrollmentForm({
       <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
         <SectionHeading
           kicker="Schritt 3"
-          title="Zustimmungen & Hinweise"
-          description="Bitte lesen Sie die folgenden Punkte sorgfältig. Erforderliche Bestätigungen müssen aktiv ausgewählt werden."
+          title="Zustimmungen"
+          description="Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."
         />
-        {/* Datenschutz is an acknowledgement (Kenntnisnahme), not a consent:
-            enrollment data is processed on a contractual/legal basis, so the
-            parent confirms they have taken note of the information rather than
-            granting a revocable DSGVO-Einwilligung. */}
+        <Consent
+          name="consent_agb"
+          label="Ich akzeptiere die AGB der Schule."
+          checked={agbConsent}
+          onChange={setAgbConsent}
+          required
+          error={fieldErrors.consent_agb}
+          legalText={legalTexts?.agb}
+          onViewLegal={() => setOpenLegalDoc("agb")}
+        />
         <Consent
           name="consent_data_processing"
-          label="Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen."
+          label="Ich willige in die Verarbeitung der angegebenen Daten gemäß DSGVO ein."
           checked={dataConsent}
           onChange={setDataConsent}
           required
@@ -1163,34 +1159,23 @@ export function EnrollmentForm({
           legalText={legalTexts?.dsgvo}
           onViewLegal={() => setOpenLegalDoc("dsgvo")}
         />
-        {/* AGB / Teilnahmebedingungen are opt-in per Träger — only shown and
-            required when the school has enabled the terms block. */}
-        {legalTexts?.terms_enabled && (
-          <Consent
-            name="consent_agb"
-            label="Ich akzeptiere die AGB / Teilnahmebedingungen der Schule."
-            checked={agbConsent}
-            onChange={setAgbConsent}
-            required
-            error={fieldErrors.consent_agb}
-            legalText={legalTexts?.agb}
-            onViewLegal={() => setOpenLegalDoc("agb")}
-          />
-        )}
+        <Consent
+          name="consent_email_contact"
+          label="Die Schule darf mich per E-Mail kontaktieren (Rückfragen, Statusbenachrichtigungen)."
+          checked={emailConsent}
+          onChange={setEmailConsent}
+          required
+          error={fieldErrors.consent_email_contact}
+          legalText={legalTexts?.email_contact}
+          onViewLegal={() => setOpenLegalDoc("email_contact")}
+        />
         <Consent
           name="consent_photo"
-          label="Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar."
+          label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
           checked={photoConsent === true}
           onChange={(checked) => setPhotoConsent(checked)}
           legalText={legalTexts?.photo}
           onViewLegal={() => setOpenLegalDoc("photo")}
-        />
-        {/* E-Mail contact is a notice, not a consent gate: the school needs
-            the address to run the enrollment (Rückfragen, Status-Link), which
-            is contract performance — no separate checkbox. */}
-        <EmailContactNotice
-          text={legalTexts?.email_contact}
-          onViewLegal={() => setOpenLegalDoc("email_contact")}
         />
       </section>
 
@@ -1784,41 +1769,6 @@ function Consent({
         )}
       </label>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
-    </div>
-  );
-}
-
-/**
- * Informational notice for the e-mail contact. Unlike the consent rows
- * this carries NO checkbox: the school needs the e-mail address to run
- * the enrollment (Rückfragen, Status-Link), which is contract
- * performance, not a consent the parent could decline and still enrol.
- * When the tenant configured an explanatory text it gains a "Mehr
- * anzeigen" link that opens it in the shared legal modal.
- */
-function EmailContactNotice({
-  text,
-  onViewLegal,
-}: {
-  readonly text?: string;
-  readonly onViewLegal?: () => void;
-}) {
-  const hasLink = Boolean(text && text.trim() && onViewLegal);
-  return (
-    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-600">
-      <span>
-        Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und
-        Status-Benachrichtigungen zu dieser Anmeldung.
-      </span>{" "}
-      {hasLink && (
-        <button
-          type="button"
-          onClick={onViewLegal}
-          className="font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
-        >
-          Mehr anzeigen
-        </button>
-      )}
     </div>
   );
 }

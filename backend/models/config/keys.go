@@ -173,12 +173,6 @@ const (
 	KeyEnrollmentLegalDSGVOText        = "enrollment.legal_dsgvo_text"
 	KeyEnrollmentLegalEmailContactText = "enrollment.legal_email_contact_text"
 	KeyEnrollmentLegalPhotoText        = "enrollment.legal_photo_text"
-	// Whether the AGB/Teilnahmebedingungen block is shown and required on
-	// the public form. Default off: NRW imposes no general duty to use
-	// AGB, so a Träger without standard terms must not be forced to show a
-	// mandatory "AGB akzeptieren" checkbox. Schools that incorporate terms
-	// switch this on and fill in enrollment.legal_agb_text.
-	KeyEnrollmentLegalTermsEnabled = "enrollment.legal_terms_enabled"
 )
 
 // Enrollment select-option values.
