@@ -1515,6 +1515,57 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	assert.Equal(t, 360, model.Entries[0].TargetMinutes)
 }
 
+func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
+
+	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+		{
+			WeekIndex:      0,
+			RotationLength: 1,
+			DayOfWeek:      configModels.DayMonday,
+			TargetMinutes:  300,
+		},
+	}))
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", staff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	ownStaff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
+	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleOther", "Denied")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, otherStaff.ID, ownStaff.ID)
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", otherStaff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
 // =============================================================================
 // GET STAFF GROUPS - INVALID ID TEST
 // =============================================================================

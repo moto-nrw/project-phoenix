@@ -53,7 +53,7 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
 		Where("staff_id = ?", staffID).
 		Where("valid_from <= ?", date).
-		Where("valid_until IS NULL OR valid_until > ?", date).
+		Where("(valid_until IS NULL OR valid_until > ?)", date).
 		OrderExpr("day_of_week ASC")
 
 	tenantID := tenant.FromContext(ctx)

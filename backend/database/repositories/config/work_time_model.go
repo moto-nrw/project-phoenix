@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -182,6 +183,85 @@ func (r *WorkTimeModelRepository) Update(ctx context.Context, model *config.Work
 	}
 	if _, err := db.NewInsert().Model(&entries).ModelTableExpr(tableWorkTimeModelEntries).Exec(ctx); err != nil {
 		return fmt.Errorf("insert entries: %w", err)
+	}
+	return nil
+}
+
+func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error {
+	model, err := r.FindByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("load model for assigned schedule refresh: %w", err)
+	}
+
+	db := repoBase.GetDB(ctx, r.db)
+	tenantID := tenant.FromContext(ctx)
+	var staffIDs []int64
+	assignedQuery := db.NewSelect().
+		TableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id`).
+		Where(`"staff".work_time_model_id = ?`, modelID)
+	if tenantID > 0 {
+		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
+	}
+	if err := assignedQuery.Scan(ctx, &staffIDs); err != nil {
+		return fmt.Errorf("load assigned staff: %w", err)
+	}
+	if len(staffIDs) == 0 {
+		return nil
+	}
+
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	closeQuery := db.NewUpdate().
+		TableExpr(tableStaffWorkSchedules).
+		Set("valid_until = ?", today).
+		Set("updated_at = ?", now).
+		Where("staff_id IN (?)", bun.List(staffIDs)).
+		Where("valid_until IS NULL")
+	if tenantID > 0 {
+		closeQuery = closeQuery.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := closeQuery.Exec(ctx); err != nil {
+		return fmt.Errorf("close assigned schedule snapshots: %w", err)
+	}
+
+	updateStaffQuery := db.NewUpdate().
+		TableExpr(`users.staff`).
+		Set("rotation_anchor_date = ?", model.RotationAnchorDate).
+		Where("id IN (?)", bun.List(staffIDs)).
+		Where("work_time_model_id = ?", modelID)
+	if tenantID > 0 {
+		updateStaffQuery = updateStaffQuery.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := updateStaffQuery.Exec(ctx); err != nil {
+		return fmt.Errorf("update assigned staff rotation anchor: %w", err)
+	}
+
+	if len(model.Entries) == 0 {
+		return nil
+	}
+	rows := make([]*config.StaffWorkSchedule, 0, len(staffIDs)*len(model.Entries))
+	for _, staffID := range staffIDs {
+		for _, entry := range model.Entries {
+			row := &config.StaffWorkSchedule{
+				StaffID:        staffID,
+				WeekIndex:      entry.WeekIndex,
+				RotationLength: model.RotationLength,
+				DayOfWeek:      entry.DayOfWeek,
+				TargetMinutes:  entry.TargetMinutes,
+				ValidFrom:      today,
+				ValidUntil:     nil,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+			if tenantID > 0 {
+				row.SetTenantID(tenantID)
+			}
+			rows = append(rows, row)
+		}
+	}
+	if _, err := db.NewInsert().Model(&rows).ModelTableExpr(tableStaffWorkSchedules).Exec(ctx); err != nil {
+		return fmt.Errorf("insert assigned schedule snapshots: %w", err)
 	}
 	return nil
 }

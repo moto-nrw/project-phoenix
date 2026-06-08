@@ -494,7 +494,7 @@ func countOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cuto
 	return r.Cnt, err
 }
 
-func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, _ time.Time) (*time.Time, error) {
+func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (*time.Time, error) {
 	type row struct {
 		Date *time.Time `bun:"date"`
 	}
@@ -503,6 +503,7 @@ func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, _ time.T
 		TableExpr("active.work_sessions").
 		ColumnExpr("MIN(date) AS date").
 		Where("tenant_id = ?", tenantID).
+		Where("date < ?", cutoff).
 		Scan(ctx, &r)
 	if err != nil {
 		return nil, err
@@ -510,7 +511,7 @@ func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, _ time.T
 	return r.Date, nil
 }
 
-func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, _ time.Time) (*time.Time, error) {
+func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (*time.Time, error) {
 	type row struct {
 		DateEnd *time.Time `bun:"date_end"`
 	}
@@ -519,6 +520,7 @@ func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, _ time.
 		TableExpr("active.staff_absences").
 		ColumnExpr("MIN(date_end) AS date_end").
 		Where("tenant_id = ?", tenantID).
+		Where("date_end < ?", cutoff).
 		Scan(ctx, &r)
 	if err != nil {
 		return nil, err

@@ -170,6 +170,10 @@ func (m *wsMockWorkTimeModelRepository) Update(ctx context.Context, model *confi
 	return nil
 }
 
+func (m *wsMockWorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error {
+	return nil
+}
+
 func (m *wsMockWorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }

@@ -127,6 +127,32 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	assert.Empty(t, findStaffDeletionRows(t, db, staff.ID))
 }
 
+func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Cleanup", "PreviewFresh")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	purgeOldRowsInTenant(t, db, 1)
+
+	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
+	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
+	defer cleanupTimeTrackingRows(t, db, freshSessionID, freshAbsenceID)
+
+	repos := repoFactory.NewFactory(db)
+	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+
+	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, preview.SessionsToDelete)
+	assert.Equal(t, 0, preview.AbsencesToDelete)
+	assert.Nil(t, preview.OldestSession)
+	assert.Nil(t, preview.OldestAbsence)
+	assert.True(t, sessionExists(t, db, freshSessionID))
+	assert.True(t, absenceExists(t, db, freshAbsenceID))
+}
+
 func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -372,6 +398,20 @@ func cleanupDeletionRows(t *testing.T, db *bun.DB, staffID int64) {
 	_, err := db.NewDelete().
 		Table("audit.data_deletions").
 		Where("staff_id = ?", staffID).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func cleanupTimeTrackingRows(t *testing.T, db *bun.DB, sessionID, absenceID int64) {
+	t.Helper()
+	_, err := db.NewDelete().
+		Table("active.staff_absences").
+		Where("id = ?", absenceID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	_, err = db.NewDelete().
+		Table("active.work_sessions").
+		Where("id = ?", sessionID).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

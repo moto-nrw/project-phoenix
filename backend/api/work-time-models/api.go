@@ -6,6 +6,7 @@ package worktimemodels
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -160,6 +161,10 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	if err := rs.Repo.RefreshAssignedStaffSchedules(r.Context(), id); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	saved, err := rs.Repo.FindByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -201,15 +206,28 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 		RotationAnchorDate: anchor,
 	}
 	entries := make([]*config.WorkTimeModelEntry, 0, len(req.Entries))
+	seenSlots := make(map[string]struct{}, len(req.Entries))
 	for _, e := range req.Entries {
-		if e.TargetMinutes <= 0 {
+		if e.TargetMinutes == 0 {
 			continue
 		}
-		entries = append(entries, &config.WorkTimeModelEntry{
+		entry := &config.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
-		})
+		}
+		if err := entry.Validate(); err != nil {
+			return nil, nil, err
+		}
+		if entry.WeekIndex >= req.RotationLength {
+			return nil, nil, errors.New("entry week_index outside rotation_length")
+		}
+		slot := fmt.Sprintf("%d:%d", entry.WeekIndex, entry.DayOfWeek)
+		if _, exists := seenSlots[slot]; exists {
+			return nil, nil, errors.New("duplicate entry for week_index and day_of_week")
+		}
+		seenSlots[slot] = struct{}{}
+		entries = append(entries, entry)
 	}
 	return model, entries, nil
 }

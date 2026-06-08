@@ -135,7 +135,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
 		// Work schedule endpoints expose contractual target hours.
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/schedule", rs.getSchedule)
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/schedule", rs.getSchedule)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/schedule", rs.updateSchedule)
 
 		// Time tracking history for a specific staff member (admin read)
@@ -1558,6 +1558,10 @@ func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if !rs.canReadSchedule(r.Context(), staffID) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to read schedule")))
+		return
+	}
 
 	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
 	if err != nil {
@@ -1572,6 +1576,29 @@ func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Schedule retrieved successfully")
+}
+
+func (rs *Resource) canReadSchedule(ctx context.Context, staffID int64) bool {
+	userPermissions := jwt.PermissionsFromCtx(ctx)
+	if authorize.HasPermission(permissions.TimeTrackingManage, userPermissions) {
+		return true
+	}
+	if !authorize.HasPermission(permissions.TimeTrackingOwn, userPermissions) {
+		return false
+	}
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return false
+	}
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil {
+		return false
+	}
+	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		return false
+	}
+	return staff.ID == staffID
 }
 
 // updateSchedule handles PUT /api/staff/{id}/schedule

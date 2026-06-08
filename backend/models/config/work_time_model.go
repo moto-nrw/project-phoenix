@@ -130,5 +130,6 @@ type WorkTimeModelRepository interface {
 	FindByID(ctx context.Context, id int64) (*WorkTimeModel, error)
 	Create(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
 	Update(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
+	RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error
 	Delete(ctx context.Context, id int64) error
 }
