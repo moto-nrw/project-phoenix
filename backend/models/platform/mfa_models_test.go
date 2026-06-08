@@ -164,36 +164,9 @@ func TestOperatorMFATrustedDevice_BeforeAppendModel(t *testing.T) {
 	assert.NoError(t, d.BeforeAppendModel(&bun.SelectQuery{}))
 }
 
-// --- Operator MFA lockout helpers ---
-
-func TestOperator_IsMFALocked(t *testing.T) {
-	o := &Operator{MFALockedUntil: nil}
-	assert.False(t, o.IsMFALocked())
-
-	past := time.Now().Add(-time.Minute)
-	future := time.Now().Add(time.Minute)
-	assert.False(t, (&Operator{MFALockedUntil: &past}).IsMFALocked())
-	assert.True(t, (&Operator{MFALockedUntil: &future}).IsMFALocked())
-}
-
-func TestOperator_IncrementMFAAttempts_LocksAtFifthFailure(t *testing.T) {
-	o := &Operator{MFAAttempts: 4}
-	o.IncrementMFAAttempts()
-	assert.Equal(t, 5, o.MFAAttempts)
-	assert.NotNil(t, o.MFALockedUntil, "5th failed attempt must set the lockout window")
-	assert.True(t, o.MFALockedUntil.After(time.Now()))
-
-	// Sub-threshold increment leaves the lockout alone.
-	b := &Operator{MFAAttempts: 1}
-	b.IncrementMFAAttempts()
-	assert.Equal(t, 2, b.MFAAttempts)
-	assert.Nil(t, b.MFALockedUntil)
-}
-
-func TestOperator_ResetMFAAttempts(t *testing.T) {
-	now := time.Now().Add(15 * time.Minute)
-	o := &Operator{MFAAttempts: 5, MFALockedUntil: &now}
-	o.ResetMFAAttempts()
-	assert.Equal(t, 0, o.MFAAttempts)
-	assert.Nil(t, o.MFALockedUntil)
-}
+// The operator MFA lockout decision (IsMFALocked) and the counter mutations
+// (Increment/Reset) moved off the model in issue #586 (Rule 12). Their tests
+// followed the logic to its new home: the decision is covered by
+// services/platform.TestOperatorMFAService_isMFALocked, and the atomic counter
+// mutations by the OperatorRepository tests in
+// database/repositories/platform/operator_mfa_atomic_test.go.

@@ -12,6 +12,13 @@ import (
 // tablePlatformOperators is the schema-qualified table name
 const tablePlatformOperators = "platform.operators"
 
+// Field-length caps for Operator.Validate (storage/business bounds, named so
+// the rule lives in a constant rather than as inline literals — issue #586).
+const (
+	maxOperatorEmailLen       = 255
+	maxOperatorDisplayNameLen = 100
+)
+
 // Operator represents a platform operator (moto DevOps team member)
 type Operator struct {
 	base.Model   `bun:"schema:platform,table:operators"`
@@ -21,34 +28,13 @@ type Operator struct {
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
 
-	// MFA-Lockout fields (operator MFA is hardcoded mandatory; lockout mirrors auth.accounts)
+	// MFA-Lockout fields (operator MFA is hardcoded mandatory; lockout mirrors auth.accounts).
+	// The lockout decision (IsMFALocked) and the counter mutations
+	// (Increment/Reset) live in the operator MFA service / atomic repository,
+	// not on the model — see services/platform/operator_mfa_service.go and the
+	// OperatorRepository (issue #586, Rule 12).
 	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
-}
-
-// IsMFALocked reports whether the operator is currently in the MFA-failure
-// cooldown window.
-func (o *Operator) IsMFALocked() bool {
-	if o.MFALockedUntil == nil {
-		return false
-	}
-	return time.Now().Before(*o.MFALockedUntil)
-}
-
-// IncrementMFAAttempts records a failed MFA verification and applies the
-// 15-minute lockout once the threshold of 5 failures is hit.
-func (o *Operator) IncrementMFAAttempts() {
-	o.MFAAttempts++
-	if o.MFAAttempts >= 5 {
-		lockUntil := time.Now().Add(15 * time.Minute)
-		o.MFALockedUntil = &lockUntil
-	}
-}
-
-// ResetMFAAttempts clears any in-flight MFA-failure counter and lockout.
-func (o *Operator) ResetMFAAttempts() {
-	o.MFAAttempts = 0
-	o.MFALockedUntil = nil
 }
 
 func (o *Operator) BeforeAppendModel(query any) error {
@@ -74,7 +60,7 @@ func (o *Operator) Validate() error {
 	if o.Email == "" {
 		return errors.New("email is required")
 	}
-	if len(o.Email) > 255 {
+	if len(o.Email) > maxOperatorEmailLen {
 		return errors.New("email must not exceed 255 characters")
 	}
 	if !strings.Contains(o.Email, "@") {
@@ -83,7 +69,7 @@ func (o *Operator) Validate() error {
 	if o.DisplayName == "" {
 		return errors.New("display name is required")
 	}
-	if len(o.DisplayName) > 100 {
+	if len(o.DisplayName) > maxOperatorDisplayNameLen {
 		return errors.New("display name must not exceed 100 characters")
 	}
 	return nil
