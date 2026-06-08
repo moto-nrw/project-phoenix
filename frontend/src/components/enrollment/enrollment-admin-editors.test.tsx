@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   updateCareOffering: vi.fn(),
   updatePhase: vi.fn(),
   updateSchema: vi.fn(),
+  getTemplates: vi.fn(),
   searchParams: new URLSearchParams(),
   toast: {
     success: vi.fn(),
@@ -108,6 +109,12 @@ vi.mock("~/lib/care-offering-api", () => ({
     exactly_one: "Genau eines (Pflicht)",
     at_least_one: "Mindestens eines (Pflicht)",
     at_most_one: "Höchstens eines",
+  },
+}));
+
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: {
+    getTemplates: mocks.getTemplates,
   },
 }));
 
@@ -211,6 +218,8 @@ beforeEach(() => {
   mocks.updateCareOffering.mockReset();
   mocks.updatePhase.mockReset();
   mocks.updateSchema.mockReset();
+  mocks.getTemplates.mockReset();
+  mocks.getTemplates.mockResolvedValue({ templates: [] });
   mocks.toast.success.mockReset();
   mocks.toast.error.mockReset();
   mocks.searchParams = new URLSearchParams();

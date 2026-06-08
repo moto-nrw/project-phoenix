@@ -74,6 +74,7 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           visitEntryTime: null,
+          warnings: [],
         },
       ],
     });
@@ -143,6 +144,7 @@ describe("timetable operation mappers", () => {
           note: "kam nach",
           checkedInAt: "2026-05-10T12:00:00Z",
           visitEntryTime: "2026-05-10T12:01:00Z",
+          warnings: [],
         },
         {
           studentId: "421",
@@ -158,6 +160,7 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           visitEntryTime: null,
+          warnings: [],
         },
       ],
     });
@@ -217,6 +220,7 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           visitEntryTime: null,
+          warnings: [],
         },
       ],
     });

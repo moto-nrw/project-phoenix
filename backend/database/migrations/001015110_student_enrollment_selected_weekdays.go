@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studentEnrollmentSelectedWeekdaysVersion     = "1.15.101"
+	studentEnrollmentSelectedWeekdaysVersion     = "1.15.110"
 	studentEnrollmentSelectedWeekdaysDescription = "Add selected weekdays to activity student enrollments"
 )
 
@@ -33,7 +33,7 @@ func init() {
 }
 
 func studentEnrollmentSelectedWeekdaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.101: Adding selected_weekdays to activities.student_enrollments...")
+	fmt.Println("Migration 1.15.110: Adding selected_weekdays to activities.student_enrollments...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
@@ -59,7 +59,7 @@ func studentEnrollmentSelectedWeekdaysUp(ctx context.Context, db *bun.DB) error 
 }
 
 func studentEnrollmentSelectedWeekdaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.101: Removing selected_weekdays from activities.student_enrollments...")
+	fmt.Println("Rolling back migration 1.15.110: Removing selected_weekdays from activities.student_enrollments...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
