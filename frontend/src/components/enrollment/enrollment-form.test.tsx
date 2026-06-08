@@ -255,6 +255,28 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("renders custom field help texts so parents see the admin's guidance", async () => {
+    // Regression guard: help_text was stored, served, and shown in the form
+    // editor, but never rendered in the actual enrollment form (CustomFieldInput
+    // and the structured field renderers dropped it). Cover both render paths:
+    // a simple field via labelEl (textarea) and a structured one
+    // (weekday_schedule), which render help_text independently.
+    const withHelp = schema();
+    withHelp.fields[0]!.help_text = "Bitte gewünschte Abholung beschreiben.";
+    withHelp.fields[3]!.help_text = "Pro Tag die Uhrzeit eintragen.";
+    mockFetchPublicActiveSchema.mockResolvedValue(withHelp);
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.getByText("Bitte gewünschte Abholung beschreiben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Pro Tag die Uhrzeit eintragen."),
+    ).toBeInTheDocument();
+  });
+
   it("fails closed when the legal texts cannot be loaded", async () => {
     // A real load failure (settings/DB/JSON error) must reject the whole
     // form load so the parent never submits legally relevant consent

@@ -1855,10 +1855,17 @@ function CustomFieldInput({
   error,
 }: CustomFieldInputProps) {
   const labelEl = (
-    <span className="block text-sm font-semibold text-gray-700">
-      {field.label}
-      {field.required && <span className="text-[#FF3130]"> *</span>}
-    </span>
+    <>
+      <span className="block text-sm font-semibold text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </span>
+      {field.help_text && (
+        <span className="mt-1 block text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </span>
+      )}
+    </>
   );
   const valueStr = typeof value === "string" ? value : "";
 
@@ -2039,6 +2046,11 @@ function PhoneListInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch keine Nummer eingetragen.
@@ -2156,6 +2168,11 @@ function WeekdayScheduleInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       <p className="text-xs text-gray-500">
         Leere Felder bedeuten: an diesem Tag keine Angabe.
       </p>
@@ -2227,6 +2244,11 @@ function ContactListInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch kein zusätzlicher Kontakt eingetragen.
