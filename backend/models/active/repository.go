@@ -298,6 +298,27 @@ type StaffAbsenceRepository interface {
 	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
 	// Priority order when multiple absences exist: sick > training > vacation > other
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
+
+	// ListByStatus returns all absences with the given status (used for inbox view)
+	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
+
+	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
+	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
+}
+
+type StaffAbsenceAuditRepository interface {
+	Create(ctx context.Context, audit *StaffAbsenceAudit) error
+}
+
+// StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
+type StaffVacationQuotaRepository interface {
+	base.Repository[*StaffVacationQuota]
+
+	// GetByStaffAndYear returns the quota row for a specific staff/year, or nil
+	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationQuota, error)
+
+	// Upsert creates or updates the quota for a staff/year combination
+	Upsert(ctx context.Context, quota *StaffVacationQuota) error
 }
 
 // WorkSessionBreakRepository defines operations for managing work session breaks

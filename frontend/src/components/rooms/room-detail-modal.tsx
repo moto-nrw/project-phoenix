@@ -121,7 +121,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
           </SlideOverHeader>
           <div
             data-modal-content="true"
-            className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-h-0 flex-1 overflow-auto pb-6"
+            className="min-h-0 flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent overflow-auto pb-6"
           >
             {roomId === TRANSIT_ROOM_ID ? (
               <TransitDetailContent
@@ -179,7 +179,7 @@ export function RoomDetailModal({ roomId, onClose }: RoomDetailModalProps) {
         </DrawerHeader>
         <div
           data-modal-content="true"
-          className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent min-h-0 flex-1 overflow-auto pb-6"
+          className="min-h-0 flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent overflow-auto pb-6"
         >
           {/* min-h-[60vh] keeps the mobile bottom sheet from collapsing
               when the loader / error fallback returns a tiny payload.

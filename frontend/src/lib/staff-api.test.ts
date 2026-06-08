@@ -29,7 +29,15 @@ vi.mock("./session-cache", () => {
 
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
-import { staffService } from "./staff-api";
+import {
+  staffAbsenceService,
+  staffHistoryService,
+  staffScheduleService,
+  staffService,
+  staffSessionEditsService,
+  staffSessionService,
+  workTimeModelService,
+} from "./staff-api";
 
 // Type for mocked functions
 const mockedGetSession = vi.mocked(getCachedSession);
@@ -1117,6 +1125,491 @@ describe("staff-api", () => {
       expect(result).toHaveLength(1);
       expect(result[0]?.isSupervising).toBe(false);
       expect(result[0]?.currentLocation).toBe("Abwesend");
+    });
+  });
+
+  describe("staffService.getStaffById", () => {
+    it("fetches and maps a single staff member", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...sampleBackendStaff,
+              employment_type: "mini_job",
+              work_status: "present",
+            },
+          }),
+      } as Response);
+
+      const result = await staffService.getStaffById("1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1",
+        expect.any(Object),
+      );
+      expect(result.id).toBe("1");
+      expect(result.currentLocation).toBe("Anwesend");
+      expect(result.employmentType).toBe("mini_job");
+    });
+
+    it("throws when the staff member request fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Not Found",
+      } as Response);
+
+      await expect(staffService.getStaffById("404")).rejects.toThrow(
+        "Failed to fetch staff member: Not Found",
+      );
+    });
+  });
+
+  describe("staffScheduleService", () => {
+    const backendSchedule = {
+      mode: "template" as const,
+      model: {
+        id: 5,
+        name: "Vollzeit",
+        rotation_length: 2,
+        rotation_anchor_date: "2026-06-01",
+      },
+      rotation_length: 2,
+      rotation_anchor_date: "2026-06-01",
+      entries: [{ week_index: 0, day_of_week: 0, target_minutes: 480 }],
+      weekly_totals: [2400, 1800],
+      valid_from: "2026-06-01T00:00:00Z",
+    };
+
+    it("loads and maps a staff schedule", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: backendSchedule }),
+      } as Response);
+
+      const result = await staffScheduleService.getSchedule("1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/schedule",
+        expect.any(Object),
+      );
+      expect(result.model?.id).toBe("5");
+      expect(result.entries[0]?.targetMinutes).toBe(480);
+      expect(result.validFrom).toBe("2026-06-01");
+    });
+
+    it("sends template updates with numeric model id", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: backendSchedule }),
+      } as Response);
+
+      await staffScheduleService.updateSchedule("1", {
+        mode: "template",
+        modelId: "5",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/schedule",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ mode: "template", model_id: 5 }),
+        }),
+      );
+    });
+
+    it("sends custom updates with mapped entries", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...backendSchedule, mode: "custom", model: null },
+          }),
+      } as Response);
+
+      const result = await staffScheduleService.updateSchedule("1", {
+        mode: "custom",
+        rotationLength: 1,
+        rotationAnchorDate: "2026-06-01",
+        entries: [{ weekIndex: 0, dayOfWeek: 1, targetMinutes: 360 }],
+        saveAsTemplate: "Teilzeit",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/schedule",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            mode: "custom",
+            rotation_length: 1,
+            rotation_anchor_date: "2026-06-01",
+            entries: [{ week_index: 0, day_of_week: 1, target_minutes: 360 }],
+            save_as_template: "Teilzeit",
+          }),
+        }),
+      );
+      expect(result.model).toBeNull();
+    });
+  });
+
+  describe("workTimeModelService", () => {
+    it("lists and maps work time models", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 9,
+                name: "Halbtag",
+                rotation_length: 1,
+                rotation_anchor_date: "2026-06-01",
+                entries: [
+                  { week_index: 0, day_of_week: 0, target_minutes: 240 },
+                ],
+                weekly_totals: [1200],
+              },
+            ],
+          }),
+      } as Response);
+
+      const result = await workTimeModelService.list();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/work-time-models",
+        expect.any(Object),
+      );
+      expect(result[0]?.id).toBe("9");
+      expect(result[0]?.entries[0]?.targetMinutes).toBe(240);
+    });
+  });
+
+  describe("staffHistoryService", () => {
+    it("loads staff history for a date range", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              sessions: [
+                {
+                  date: "2026-06-01",
+                  status: "present",
+                  net_minutes: 480,
+                  check_in_time: "08:00",
+                  check_out_time: "16:00",
+                  break_minutes: 0,
+                },
+              ],
+            },
+          }),
+      } as Response);
+
+      const result = await staffHistoryService.getHistory(
+        "1",
+        "2026-06-01",
+        "2026-06-07",
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/time-tracking/history?from=2026-06-01&to=2026-06-07",
+        expect.any(Object),
+      );
+      expect(result).toHaveLength(1);
+    });
+
+    it("throws when staff history fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Bad Gateway",
+      } as Response);
+
+      await expect(
+        staffHistoryService.getHistory("1", "2026-06-01", "2026-06-07"),
+      ).rejects.toThrow("Failed to fetch staff history: Bad Gateway");
+    });
+  });
+
+  describe("staffAbsenceService", () => {
+    const quota = {
+      staff_id: 1,
+      year: 2026,
+      entitled_days: 30,
+      carryover_days: 1,
+      taken_days: 10,
+      reserved_days: 2,
+      remaining_days: 19,
+    };
+
+    it("loads absences and returns an empty array for null data", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: null }),
+      } as Response);
+
+      const result = await staffAbsenceService.getAbsences(
+        "1",
+        "2026-06-01",
+        "2026-06-07",
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/absences?from=2026-06-01&to=2026-06-07",
+        expect.any(Object),
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("throws when loading absences fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(
+        staffAbsenceService.getAbsences("1", "2026-06-01", "2026-06-07"),
+      ).rejects.toThrow("Failed to fetch staff absences: Forbidden");
+    });
+
+    it("loads vacation quota with and without year", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: quota }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: quota }),
+        } as Response);
+
+      await staffAbsenceService.getVacationQuota("1", 2026);
+      const result = await staffAbsenceService.getVacationQuota("1");
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/1/vacation/quota?year=2026",
+        expect.any(Object),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/staff/1/vacation/quota",
+        expect.any(Object),
+      );
+      expect(result.remaining_days).toBe(19);
+    });
+
+    it("throws when vacation quota fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Not Found",
+      } as Response);
+
+      await expect(staffAbsenceService.getVacationQuota("1")).rejects.toThrow(
+        "Failed to fetch quota: Not Found",
+      );
+    });
+
+    it("saves vacation quota", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: quota }),
+      } as Response);
+
+      const payload = {
+        year: 2026,
+        entitled_days: 30,
+        carryover_days: 1,
+      };
+      const result = await staffAbsenceService.setVacationQuota("1", payload);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/vacation/quota",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }),
+      );
+      expect(result.entitled_days).toBe(30);
+    });
+
+    it("throws when saving vacation quota fails", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Conflict",
+      } as Response);
+
+      await expect(
+        staffAbsenceService.setVacationQuota("1", {
+          year: 2026,
+          entitled_days: 30,
+          carryover_days: 1,
+        }),
+      ).rejects.toThrow("Failed to save quota: Conflict");
+    });
+
+    it("approves and denies absences with decision notes", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({ ok: true } as Response)
+        .mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.approve(7, "Passt");
+      await staffAbsenceService.deny(8, "Begründung");
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/absences/7/approve",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ decision_note: "Passt" }),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/staff/absences/8/deny",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ decision_note: "Begründung" }),
+        }),
+      );
+    });
+
+    it("uses response text for approve and deny errors", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Quota exceeded"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Missing reason"),
+        } as Response);
+
+      await expect(staffAbsenceService.approve(7)).rejects.toThrow(
+        "Quota exceeded",
+      );
+      await expect(staffAbsenceService.deny(8, "")).rejects.toThrow(
+        "Missing reason",
+      );
+    });
+  });
+
+  describe("staffSessionEditsService", () => {
+    it("loads and maps session edits", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 3,
+                session_id: 4,
+                staff_id: 1,
+                edited_by: 2,
+                field_name: "notes",
+                old_value: null,
+                new_value: "Updated",
+                notes: null,
+                created_at: "2026-06-01T08:00:00Z",
+              },
+            ],
+          }),
+      } as Response);
+
+      const result = await staffSessionEditsService.getEdits("1", "4");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/time-tracking/sessions/4/edits",
+        expect.any(Object),
+      );
+      expect(result[0]?.fieldName).toBe("notes");
+    });
+
+    it("throws when session edits fail", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Unauthorized",
+      } as Response);
+
+      await expect(staffSessionEditsService.getEdits("1", "4")).rejects.toThrow(
+        "Failed to fetch session edits: Unauthorized",
+      );
+    });
+  });
+
+  describe("staffSessionService", () => {
+    const payload = {
+      date: "2026-06-01",
+      check_in_time: "2026-06-01T08:00:00Z",
+      check_out_time: "2026-06-01T16:00:00Z",
+      break_minutes: 30,
+      status: "present" as const,
+      notes: "Nachgetragen",
+    };
+
+    it("updates and creates staff sessions", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({ ok: true } as Response)
+        .mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffSessionService.updateSession("1", "4", payload);
+      await staffSessionService.createSession("1", payload);
+
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/staff/1/time-tracking/sessions/4",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/staff/1/time-tracking/sessions",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+      );
+    });
+
+    it("uses response bodies for update and create errors", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve("Invalid update"),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Bad Request",
+          text: () => Promise.resolve(""),
+        } as Response);
+
+      await expect(
+        staffSessionService.updateSession("1", "4", payload),
+      ).rejects.toThrow("Invalid update");
+      await expect(
+        staffSessionService.createSession("1", payload),
+      ).rejects.toThrow("Failed to create session: Bad Request");
     });
   });
 });

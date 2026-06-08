@@ -1,0 +1,589 @@
+"use client";
+
+import { ChevronRight, SquarePen } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
+
+import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
+import { createLogger } from "~/lib/logger";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
+import { staffSessionEditsService } from "~/lib/staff-api";
+import {
+  resolveTargetForDate,
+  toIsoDayOfWeek,
+} from "~/lib/staff-metrics-helpers";
+import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
+import { formatDuration } from "~/lib/time-tracking-helpers";
+
+import {
+  AdminSessionEditModal,
+  type AdminEditMode,
+} from "./admin-session-edit-modal";
+import { formatSignedDuration } from "./staff-time-views";
+
+const logger = createLogger({ component: "StaffSessionTable" });
+
+// Number of columns in the table — the inline edit-history row spans all
+// of them. Keep in sync with the <thead> below.
+const COLUMN_COUNT = 11;
+
+const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+
+// Day-row table for the Zeiterfassung tab. Industry-standard layout: one
+// row per calendar day, comparing Check-in, Check-out, Pause, Soll, Ist
+// and Saldo. Status/Quelle/Hinweis pills carry the rest of the per-day
+// metadata. Anomalies (auto-closed sessions, future ArbZG flags) are
+// colour-coded so the admin can spot corrections at a glance.
+//
+// Rows with audit history (edit_count > 0) are clickable and expand
+// inline to reveal an EditHistoryAccordion — same component and UX as
+// the MA-side /time-tracking page.
+//
+// MVP Limitation tracker:
+//   - admin edit-in-place (SquarePen action column) — Tranche 1b
+//   - ArbZG warning chips - Tranche 3 (#896)
+export function StaffSessionTable({
+  staffId,
+  from,
+  to,
+  sessions,
+  absences,
+  schedule,
+  today,
+  isAdminView,
+  onEditDay,
+}: {
+  readonly staffId: string;
+  readonly from: Date;
+  readonly to: Date;
+  readonly sessions: readonly StaffHistorySession[];
+  readonly absences?: readonly StaffAbsenceRow[];
+  readonly schedule: StaffSchedule | null;
+  readonly today: Date;
+  readonly isAdminView: boolean;
+  // Optional external edit handler. When provided, the SquarePen click
+  // delegates to the caller instead of opening the bundled
+  // AdminSessionEditModal. Used by /time-tracking where the MA-side modal
+  // also handles absences (which the admin modal does not).
+  readonly onEditDay?: (
+    date: Date,
+    session: StaffHistorySession | null,
+    absence: StaffAbsenceRow | null,
+  ) => void;
+}) {
+  const sessionsByDate = useMemo(() => {
+    const map = new Map<string, StaffHistorySession>();
+    for (const session of sessions) {
+      // Normalise to YYYY-MM-DD; sessions can come back as either bare dates
+      // or ISO timestamps depending on the backend serializer.
+      map.set(session.date.slice(0, 10), session);
+    }
+    return map;
+  }, [sessions]);
+
+  // Absences arrive as date ranges; expand to a per-day lookup so each row in
+  // the table can ask "is this date covered by Krank/Urlaub/etc?". Mirrors the
+  // MA-side logic in time-tracking/page.tsx (absenceMap).
+  const absencesByDate = useMemo(() => {
+    const map = new Map<string, StaffAbsenceRow>();
+    if (!absences) return map;
+    for (const absence of absences) {
+      const start = absence.date_start.slice(0, 10);
+      const end = absence.date_end.slice(0, 10);
+      const startDate = new Date(`${start}T00:00:00`);
+      const endDate = new Date(`${end}T00:00:00`);
+      const dayCount =
+        Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      for (let offset = 0; offset < dayCount; offset++) {
+        const cursor = new Date(startDate);
+        cursor.setDate(cursor.getDate() + offset);
+        const key = toDateKey(cursor);
+        // Existing entries win — the first absence for a day owns the badge.
+        if (!map.has(key)) {
+          map.set(key, absence);
+        }
+      }
+    }
+    return map;
+  }, [absences]);
+
+  const days = useMemo(() => {
+    const result: Date[] = [];
+    const start = new Date(from);
+    const dayCount =
+      Math.floor((to.getTime() - start.getTime()) / 86_400_000) + 1;
+    for (let i = 0; i < dayCount; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      if (toIsoDayOfWeek(d) >= 5) continue;
+      result.push(d);
+    }
+    return result;
+  }, [from, to]);
+
+  // Inline-expandable row: clicking a row toggles an EditHistoryAccordion in
+  // a second <tr> directly below. Mirrors the MA-side /time-tracking page so
+  // the audit-trail UX is identical for both audiences. We deliberately avoid
+  // a modal here — all per-day numbers (Soll, Ist, Saldo, …) are already
+  // visible in the row, so a modal would only duplicate them.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  // Edit/nachtragen modal state. Lifted into the table because both the
+  // SquarePen action button and the "Weitere Änderung vornehmen" button
+  // inside the expanded audit accordion open the same modal.
+  const [editModal, setEditModal] = useState<{
+    mode: AdminEditMode;
+    date: Date;
+    session: StaffHistorySession | null;
+  } | null>(null);
+
+  // SWR mutate — used after a successful save to refresh both the visible
+  // window (week/month table) and the cumulative range (KpiCards). useSWRAuth
+  // prefixes keys with the tenant slug ("phoenix:staff-history-…"), so a
+  // plain startsWith match would never fire — we use includes instead.
+  const { mutate } = useSWRConfig();
+  const handleSaved = () => {
+    void mutate(
+      (key) =>
+        typeof key === "string" &&
+        (key.includes("staff-history-") || key.includes("staff-absences-")),
+    );
+  };
+
+  return (
+    <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
+      <table className="w-full min-w-[960px] text-left text-sm">
+        <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+          <tr>
+            <th className="px-4 py-3">Datum</th>
+            <th className="px-4 py-3">Tag</th>
+            <th className="px-4 py-3 tabular-nums">Check-in</th>
+            <th className="px-4 py-3 tabular-nums">Check-out</th>
+            <th className="px-4 py-3 text-right tabular-nums">Pause</th>
+            <th className="px-4 py-3 text-right tabular-nums">Soll</th>
+            <th className="px-4 py-3 text-right tabular-nums">Ist</th>
+            <th className="px-4 py-3 text-right tabular-nums">Saldo</th>
+            <th className="px-4 py-3">Status</th>
+            <th className="px-4 py-3">Quelle</th>
+            <th className="px-4 py-3">Hinweis</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {days.map((day) => {
+            const key = toDateKey(day);
+            const dow = toIsoDayOfWeek(day);
+            const session = sessionsByDate.get(key);
+            const absence = absencesByDate.get(key);
+            const target = schedule ? resolveTargetForDate(schedule, day) : 0;
+            const isFuture = day > today;
+            const isToday = sameDay(day, today);
+            const ist = session?.net_minutes ?? 0;
+            const delta = session && target > 0 ? ist - target : 0;
+            const status = computeRowStatus(session, absence, target, isFuture);
+            const isExpanded = expandedKey === key;
+            const hasEdits = (session?.edit_count ?? 0) > 0;
+            // Only rows with audit history are interactive — clicking an
+            // unchanged row should not toggle anything since there is
+            // nothing to reveal.
+            const canExpand = hasEdits && session != null;
+            // Edit / nachtragen is available for workdays in the past or
+            // present, regardless of whether a session already exists. The
+            // SquarePen action lands on Tranche 1b — for now the wiring is
+            // in place and the click is a no-op + logger entry. Weekends,
+            // future days and absence-only days don't get the action.
+            const isWorkday = dow < 5;
+            const canEdit =
+              isAdminView && isWorkday && !isFuture && absence == null;
+            return (
+              <Fragment key={key}>
+                <tr
+                  onClick={() => {
+                    if (!canExpand) return;
+                    setExpandedKey((prev) => (prev === key ? null : key));
+                  }}
+                  className={`${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${
+                    isExpanded ? "bg-gray-50" : isToday ? "bg-amber-50/40" : ""
+                  } ${isFuture ? "opacity-40" : ""}`}
+                >
+                  <td className="px-4 py-3 text-gray-700 tabular-nums">
+                    <div className="flex items-center gap-1.5">
+                      {canExpand ? (
+                        <ChevronRight
+                          className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${
+                            isExpanded ? "rotate-90" : ""
+                          }`}
+                        />
+                      ) : (
+                        <span className="inline-block h-3.5 w-3.5 shrink-0" />
+                      )}
+                      {formatShortDate(day)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">{dayLabels[dow]}</td>
+                  <td className="px-4 py-3 text-gray-700 tabular-nums">
+                    {session?.check_in_time
+                      ? formatTimeOnly(session.check_in_time)
+                      : "–"}
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 tabular-nums">
+                    {session?.check_out_time ? (
+                      formatTimeOnly(session.check_out_time)
+                    ) : session ? (
+                      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+                        <span className="mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-[#83CD2D]" />
+                        eingestempelt
+                      </span>
+                    ) : (
+                      "–"
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                    {session ? formatDuration(session.break_minutes) : "–"}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                    {target > 0 ? formatDuration(target) : "–"}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-700 tabular-nums">
+                    {session ? formatDuration(ist) : "–"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {session && target > 0 ? (
+                      <span className={deltaClass(delta)}>
+                        {formatSignedDuration(delta)}
+                      </span>
+                    ) : (
+                      "–"
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {status && <StatusBadge status={status} />}
+                  </td>
+                  <td className="px-4 py-3">
+                    <SourceBadge session={session} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <HintBadges session={session} />
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onEditDay) {
+                              onEditDay(day, session ?? null, absence ?? null);
+                            } else {
+                              setEditModal({
+                                mode: session == null ? "nachtragen" : "edit",
+                                date: day,
+                                session: session ?? null,
+                              });
+                            }
+                          }}
+                          aria-label={
+                            session == null
+                              ? "Eintrag nachtragen"
+                              : "Eintrag bearbeiten"
+                          }
+                          title={
+                            session == null
+                              ? "Eintrag nachtragen"
+                              : "Eintrag bearbeiten"
+                          }
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                        >
+                          <SquarePen className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+                {isExpanded && session && (
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <td colSpan={COLUMN_COUNT} className="px-4 py-3">
+                      <SessionEditHistory
+                        staffId={staffId}
+                        sessionId={session.id}
+                        onEdit={
+                          isAdminView
+                            ? () => {
+                                if (onEditDay) {
+                                  onEditDay(day, session, absence ?? null);
+                                } else {
+                                  setEditModal({
+                                    mode: "edit",
+                                    date: day,
+                                    session,
+                                  });
+                                }
+                              }
+                            : undefined
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      {!isAdminView && (
+        <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
+          Eigene Arbeitszeiten können in der Zeiterfassung-Seite bearbeitet
+          werden.
+        </p>
+      )}
+      {!onEditDay && editModal && (
+        <AdminSessionEditModal
+          isOpen
+          mode={editModal.mode}
+          staffId={staffId}
+          date={editModal.date}
+          session={editModal.session}
+          onClose={() => setEditModal(null)}
+          onSaved={handleSaved}
+        />
+      )}
+    </div>
+  );
+}
+
+// Lazy-loads the audit trail for one session when expanded. Kept in its own
+// component so the fetch is scoped to the row and reset cleanly when the user
+// expands a different day.
+function SessionEditHistory({
+  staffId,
+  sessionId,
+  onEdit,
+}: {
+  readonly staffId: string;
+  readonly sessionId: number | undefined;
+  readonly onEdit?: () => void;
+}) {
+  const [edits, setEdits] = useState<WorkSessionEdit[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (sessionId == null) return;
+    let cancelled = false;
+    setIsLoading(true);
+    setEdits([]);
+    staffSessionEditsService
+      .getEdits(staffId, String(sessionId))
+      .then((result) => {
+        if (!cancelled) setEdits(result);
+      })
+      .catch((error: unknown) => {
+        logger.error("session_edits_fetch_failed", {
+          staff_id: staffId,
+          session_id: sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [staffId, sessionId]);
+
+  return (
+    <EditHistoryAccordion edits={edits} isLoading={isLoading} onEdit={onEdit} />
+  );
+}
+
+// Row-Status drückt den Arbeitsmodus oder ein Fehlen aus. Vor Ort vs.
+// Homeoffice ist Mitarbeiter-Intent. Krank/Urlaub/Fortbildung kommen aus
+// active.staff_absences und überschreiben "Nicht erfasst", wenn der Tag durch
+// eine Abwesenheit abgedeckt ist. "Nicht erfasst" bleibt für Werktage ohne
+// Session UND ohne Absence (echte Lücke im Audit-Trail). Auto-Close- und
+// Edit-Hinweise gehören NICHT hier rein — die fließen in die Quelle-Spalte
+// (Issue #1368).
+type RowStatus =
+  | { kind: "present" }
+  | { kind: "home-office" }
+  | { kind: "absence"; absenceType: string }
+  | { kind: "missing" };
+
+function computeRowStatus(
+  session: StaffHistorySession | undefined,
+  absence: StaffAbsenceRow | undefined,
+  target: number,
+  isFuture: boolean,
+): RowStatus | null {
+  if (session) {
+    if (session.status === "home_office") {
+      return { kind: "home-office" };
+    }
+    return { kind: "present" };
+  }
+  // Absence wins over "missing" so an admin sees Krank/Urlaub instead of a
+  // misleading "Nicht erfasst" badge (the MA-side already does this).
+  if (absence) {
+    return { kind: "absence", absenceType: absence.absence_type };
+  }
+  if (target > 0 && !isFuture) {
+    return { kind: "missing" };
+  }
+  return null;
+}
+
+// German labels for the absence_type enum. Mirrors absenceTypeLabels in
+// time-tracking-helpers.ts so the admin staff detail view shows the same
+// wording as the MA-Sicht.
+const absenceTypeLabel: Record<string, string> = {
+  sick: "Krank",
+  vacation: "Urlaub",
+  training: "Fortbildung",
+  other: "Abwesend",
+};
+
+// Tailwind classes per absence_type. Sick = red, vacation = blue,
+// training = green, other = purple (matches absenceTypeColors in
+// time-tracking-helpers.ts).
+const absenceTypeBadge: Record<string, string> = {
+  sick: "bg-red-100 text-red-800",
+  vacation: "bg-blue-100 text-blue-800",
+  training: "bg-green-100 text-green-800",
+  other: "bg-purple-100 text-purple-800",
+};
+
+function StatusBadge({ status }: { readonly status: RowStatus }) {
+  if (status.kind === "home-office") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+        Homeoffice
+      </span>
+    );
+  }
+  if (status.kind === "present") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#70b525]">
+        OGS
+      </span>
+    );
+  }
+  if (status.kind === "absence") {
+    const label =
+      absenceTypeLabel[status.absenceType] ?? absenceTypeLabel.other!;
+    const classes =
+      absenceTypeBadge[status.absenceType] ?? absenceTypeBadge.other!;
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}
+      >
+        {label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-500">
+      Nicht erfasst
+    </span>
+  );
+}
+
+// Quelle-Badge ist der reine Origin der Session: über welchen Kanal sie
+// entstanden ist (mutually exclusive). Korrekturen und Auto-Checkouts sind
+// orthogonal und landen in der Hinweis-Spalte (HintBadges), damit z.B. eine
+// NFC-Session mit nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt.
+function SourceBadge({
+  session,
+}: {
+  readonly session: StaffHistorySession | undefined;
+}) {
+  if (!session) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  if (session.source === "nfc") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+        NFC
+      </span>
+    );
+  }
+  if (session.source === "unknown") {
+    // Pre-Migration Legacy-Row (Tristan PR #1398).
+    return <span className="text-xs text-gray-400">–</span>;
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      App
+    </span>
+  );
+}
+
+// Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
+// Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
+// UND nachträglicher Korrektur).
+function HintBadges({
+  session,
+}: {
+  readonly session: StaffHistorySession | undefined;
+}) {
+  if (!session) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  const pills: { key: string; label: string }[] = [];
+  if ((session.edit_count ?? 0) > 0) {
+    pills.push({ key: "edited", label: "Manuell korrigiert" });
+  }
+  if (session.auto_checked_out) {
+    pills.push({ key: "auto-checkout", label: "Auto-Checkout" });
+  }
+  if (pills.length === 0) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {pills.map((pill) => (
+        <span
+          key={pill.key}
+          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+        >
+          {pill.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function deltaClass(delta: number): string {
+  if (delta > 0) return "font-medium text-amber-600";
+  if (delta < -15) return "font-medium text-red-600";
+  if (delta < 0) return "font-medium text-gray-500";
+  return "font-medium text-green-600";
+}
+
+function toDateKey(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function formatShortDate(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.`;
+}
+
+function formatTimeOnly(iso: string): string {
+  const date = new Date(iso);
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}

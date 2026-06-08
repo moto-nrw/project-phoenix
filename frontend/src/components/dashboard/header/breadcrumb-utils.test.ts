@@ -378,6 +378,7 @@ describe("breadcrumb-utils", () => {
         const expected: PageTypeInfo = {
           isStudentDetailPage: false,
           isStudentHistoryPage: false,
+          isStaffDetailPage: false,
           isRoomDetailPage: false,
           isActivityDetailPage: false,
           isDatabaseSubPage: false,

@@ -11,6 +11,8 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -116,6 +118,119 @@ func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id
 		return m.updateBreakMinutesFunc(ctx, id, breakMinutes)
 	}
 	return nil
+}
+
+type wsMockStaffWorkScheduleRepository struct {
+	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
+	getByStaffIDAndDateFunc func(ctx context.Context, staffID int64, date time.Time) ([]*configModels.StaffWorkSchedule, error)
+	replaceScheduleFunc     func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule) error
+}
+
+func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error) {
+	if m.getCurrentByStaffIDFunc != nil {
+		return m.getCurrentByStaffIDFunc(ctx, staffID)
+	}
+	return nil, nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date time.Time) ([]*configModels.StaffWorkSchedule, error) {
+	if m.getByStaffIDAndDateFunc != nil {
+		return m.getByStaffIDAndDateFunc(ctx, staffID, date)
+	}
+	return nil, nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule) error {
+	if m.replaceScheduleFunc != nil {
+		return m.replaceScheduleFunc(ctx, staffID, entries)
+	}
+	return nil
+}
+
+type wsMockWorkTimeModelRepository struct {
+	findByIDFunc func(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
+}
+
+func (m *wsMockWorkTimeModelRepository) List(ctx context.Context) ([]*configModels.WorkTimeModel, error) {
+	return nil, nil
+}
+
+func (m *wsMockWorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (m *wsMockWorkTimeModelRepository) Create(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {
+	return nil
+}
+
+func (m *wsMockWorkTimeModelRepository) Update(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {
+	return nil
+}
+
+func (m *wsMockWorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error {
+	return nil
+}
+
+func (m *wsMockWorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
+	return nil
+}
+
+type wsMockStaffRepository struct {
+	findByIDFunc func(ctx context.Context, id interface{}) (*userModels.Staff, error)
+}
+
+func (m *wsMockStaffRepository) Create(ctx context.Context, staff *userModels.Staff) error {
+	return nil
+}
+
+func (m *wsMockStaffRepository) FindByID(ctx context.Context, id interface{}) (*userModels.Staff, error) {
+	if m.findByIDFunc != nil {
+		return m.findByIDFunc(ctx, id)
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (m *wsMockStaffRepository) FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (m *wsMockStaffRepository) Update(ctx context.Context, staff *userModels.Staff) error {
+	return nil
+}
+
+func (m *wsMockStaffRepository) Delete(ctx context.Context, id interface{}) error {
+	return nil
+}
+
+func (m *wsMockStaffRepository) List(ctx context.Context, filters map[string]interface{}) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffRepository) ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
+	return nil
+}
+
+func (m *wsMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (m *wsMockStaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
 }
 
 // ============================================================================
@@ -320,6 +435,17 @@ func (m *wsMockStaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (
 	if m.getTodayAbsenceMapFunc != nil {
 		return m.getTodayAbsenceMapFunc(ctx)
 	}
+	return nil, nil
+}
+
+// ListByStaffAndStatuses + ListByStatus are part of the StaffAbsenceRepository
+// interface added in the Tranche 4 vacation-workflow spike. No-op defaults so
+// work-session tests still satisfy the interface.
+func (m *wsMockStaffAbsenceRepository) ListByStaffAndStatuses(_ context.Context, _ int64, _ []string) ([]*activeModels.StaffAbsence, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) ListByStatus(_ context.Context, _ string) ([]*activeModels.StaffAbsence, error) {
 	return nil, nil
 }
 
@@ -1139,10 +1265,257 @@ func TestWSGetHistory_Success(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{}, nil
 	}
 
-	responses, err := svc.GetHistory(context.Background(), staffID, from, to)
+	historyResp, err := svc.GetHistory(context.Background(), staffID, from, to)
 	require.NoError(t, err)
-	require.Len(t, responses, 1)
-	assert.Equal(t, 2, responses[0].EditCount)
+	require.Len(t, historyResp.Sessions, 1)
+	assert.Equal(t, 2, historyResp.Sessions[0].EditCount)
+	require.Len(t, historyResp.WeeklySummaries, 1)
+}
+
+func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	wednesdayWeekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
+	mondayWeekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
+	checkOutWeekZero := wednesdayWeekZero.Add(20 * time.Hour)
+	checkOutWeekOne := mondayWeekOne.Add(30 * time.Hour)
+
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
+			validFrom := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+			return []*configModels.StaffWorkSchedule{
+				{
+					StaffID:        staffID,
+					WeekIndex:      0,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  20 * 60,
+					ValidFrom:      validFrom,
+				},
+				{
+					StaffID:        staffID,
+					WeekIndex:      1,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  30 * 60,
+					ValidFrom:      validFrom,
+				},
+			}, nil
+		},
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:          base.Model{ID: 1},
+				StaffID:        staffID,
+				Date:           wednesdayWeekZero,
+				CheckInTime:    wednesdayWeekZero,
+				CheckOutTime:   &checkOutWeekZero,
+				BreakMinutes:   0,
+				Status:         activeModels.WorkSessionStatusPresent,
+				Source:         activeModels.WorkSessionSourceApp,
+				CreatedBy:      staffID,
+				AutoCheckedOut: false,
+			},
+			{
+				Model:          base.Model{ID: 2},
+				StaffID:        staffID,
+				Date:           mondayWeekOne,
+				CheckInTime:    mondayWeekOne,
+				CheckOutTime:   &checkOutWeekOne,
+				BreakMinutes:   0,
+				Status:         activeModels.WorkSessionStatusPresent,
+				Source:         activeModels.WorkSessionSourceApp,
+				CreatedBy:      staffID,
+				AutoCheckedOut: false,
+			},
+		}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, wednesdayWeekZero, mondayWeekOne)
+	require.NoError(t, err)
+	require.Len(t, historyResp.WeeklySummaries, 2)
+	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
+	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
+	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
+}
+
+func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	oldWeek := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
+	newWeek := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
+	checkOutOldWeek := oldWeek.Add(20 * time.Hour)
+	checkOutNewWeek := newWeek.Add(30 * time.Hour)
+	changeDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		getCurrentByStaffIDFunc: func(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
+			t.Fatal("history targets must use date-valid schedule rows")
+			return nil, nil
+		},
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, date time.Time) ([]*configModels.StaffWorkSchedule, error) {
+			if date.Before(changeDate) {
+				return []*configModels.StaffWorkSchedule{
+					{
+						StaffID:        staffID,
+						WeekIndex:      0,
+						RotationLength: 1,
+						DayOfWeek:      configModels.DayWednesday,
+						TargetMinutes:  20 * 60,
+						ValidFrom:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+					},
+				}, nil
+			}
+			return []*configModels.StaffWorkSchedule{
+				{
+					StaffID:        staffID,
+					WeekIndex:      0,
+					RotationLength: 1,
+					DayOfWeek:      configModels.DayWednesday,
+					TargetMinutes:  30 * 60,
+					ValidFrom:      changeDate,
+				},
+			}, nil
+		},
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 2401},
+				StaffID:      staffID,
+				Date:         oldWeek,
+				CheckInTime:  oldWeek,
+				CheckOutTime: &checkOutOldWeek,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+			{
+				Model:        base.Model{ID: 2402},
+				StaffID:      staffID,
+				Date:         newWeek,
+				CheckInTime:  newWeek,
+				CheckOutTime: &checkOutNewWeek,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+		}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, oldWeek, newWeek)
+
+	require.NoError(t, err)
+	require.Len(t, historyResp.WeeklySummaries, 2)
+	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
+	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 20*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
+	assert.Equal(t, 30*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
+}
+
+func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	modelID := int64(2300)
+	anchor := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	weekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
+	weekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
+	checkOutWeekZero := weekZero.Add(25 * time.Hour)
+	checkOutWeekOne := weekOne.Add(35 * time.Hour)
+
+	svc.staffRepo = &wsMockStaffRepository{
+		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Staff, error) {
+			return &userModels.Staff{
+				Model:              base.Model{ID: staffID},
+				WorkTimeModelID:    &modelID,
+				RotationAnchorDate: &anchor,
+			}, nil
+		},
+	}
+	svc.workModelRepo = &wsMockWorkTimeModelRepository{
+		findByIDFunc: func(_ context.Context, id int64) (*configModels.WorkTimeModel, error) {
+			t.Fatalf("template-assigned staff with schedule snapshot must not read current model %d", id)
+			return nil, sql.ErrNoRows
+		},
+	}
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
+			return []*configModels.StaffWorkSchedule{
+				{
+					WeekIndex:      0,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  25 * 60,
+					ValidFrom:      anchor,
+				},
+				{
+					WeekIndex:      1,
+					RotationLength: 2,
+					DayOfWeek:      configModels.DayMonday,
+					TargetMinutes:  35 * 60,
+					ValidFrom:      anchor,
+				},
+			}, nil
+		},
+	}
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 2301},
+				StaffID:      staffID,
+				Date:         weekZero,
+				CheckInTime:  weekZero,
+				CheckOutTime: &checkOutWeekZero,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+			{
+				Model:        base.Model{ID: 2302},
+				StaffID:      staffID,
+				Date:         weekOne,
+				CheckInTime:  weekOne,
+				CheckOutTime: &checkOutWeekOne,
+				Status:       activeModels.WorkSessionStatusPresent,
+				Source:       activeModels.WorkSessionSourceApp,
+				CreatedBy:    staffID,
+			},
+		}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, weekZero, weekOne)
+	require.NoError(t, err)
+	require.Len(t, historyResp.WeeklySummaries, 2)
+	require.NotNil(t, historyResp.WeeklySummaries[0].TargetMinutes)
+	require.NotNil(t, historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 25*60, *historyResp.WeeklySummaries[0].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[0].DeltaMinutes)
+	assert.Equal(t, 35*60, *historyResp.WeeklySummaries[1].TargetMinutes)
+	assert.Equal(t, 0, *historyResp.WeeklySummaries[1].DeltaMinutes)
 }
 
 func TestWSGetHistory_RepoError(t *testing.T) {
@@ -1152,9 +1525,9 @@ func TestWSGetHistory_RepoError(t *testing.T) {
 		return nil, errors.New("database error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
+	historyResp, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
 	require.Error(t, err)
-	assert.Nil(t, responses)
+	assert.Nil(t, historyResp)
 }
 
 // ============================================================================

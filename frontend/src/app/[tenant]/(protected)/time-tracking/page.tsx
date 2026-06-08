@@ -8,11 +8,9 @@ import React, {
   Suspense,
   useRef,
 } from "react";
-import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { ChevronLeft, ChevronRight, Download, SquarePen } from "lucide-react";
 import { Loading } from "~/components/ui/loading";
 import {
   type ChartConfig,
@@ -23,27 +21,43 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Modal } from "~/components/ui/modal";
+import {
+  formatSignedDuration,
+  ViewToggle,
+  type ViewMode,
+} from "~/components/staff/staff-time-views";
+import { StaffSessionTable } from "~/components/staff/staff-session-table";
+import { StaffExportButton } from "~/components/staff/staff-export-button";
+import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
+import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
+import { useSWRConfig } from "swr";
+import { staffScheduleService } from "~/lib/staff-api";
+import {
+  computeStaffMetrics,
+  resolveAccountStartDate,
+  startOfYear,
+  toDateKey,
+} from "~/lib/staff-metrics-helpers";
 import {
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
+import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
-  type WorkSessionEdit,
+  type WeeklySummary,
   type WorkSessionHistory,
   absenceTypeLabels,
-  absenceTypeColors,
   formatDuration,
   formatTime,
   getWeekDays,
   getWeekNumber,
-  getComplianceWarnings,
   calculateNetMinutes,
 } from "~/lib/time-tracking-helpers";
 import { createLogger } from "~/lib/logger";
@@ -51,6 +65,45 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function adaptHistorySessionForMetrics(
+  session: WorkSessionHistory,
+): StaffHistorySession {
+  return {
+    id: session.id ? Number(session.id) : undefined,
+    date: session.date,
+    status: session.status,
+    source: undefined,
+    net_minutes: session.netMinutes,
+    check_in_time: session.checkInTime,
+    check_out_time: session.checkOutTime,
+    break_minutes: session.breakMinutes,
+    auto_checked_out: session.autoCheckedOut,
+    notes: session.notes || undefined,
+    edit_count: session.editCount,
+  };
+}
+
+function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
+  return {
+    id: Number(absence.id),
+    staff_id: Number(absence.staffId),
+    absence_type: absence.absenceType,
+    date_start: absence.dateStart,
+    date_end: absence.dateEnd,
+    half_day: absence.halfDay,
+    start_half_day: absence.startHalfDay,
+    end_half_day: absence.endHalfDay,
+    note: absence.note,
+    status: absence.status,
+    approved_by: absence.approvedBy ? Number(absence.approvedBy) : null,
+    approved_at: absence.approvedAt,
+    working_days: absence.workingDays,
+    decision_note: absence.decisionNote,
+    requested_at: absence.requestedAt,
+    duration_days: absence.durationDays,
+  };
+}
 
 function formatDateGerman(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
@@ -63,15 +116,6 @@ function formatDateShort(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${day}.${month}`;
-}
-
-function formatDateTime(date: Date): string {
-  const d = date.getDate().toString().padStart(2, "0");
-  const m = (date.getMonth() + 1).toString().padStart(2, "0");
-  const y = date.getFullYear();
-  const h = date.getHours().toString().padStart(2, "0");
-  const min = date.getMinutes().toString().padStart(2, "0");
-  return `${d}.${m}.${y}, ${h}:${min}`;
 }
 
 function toISODate(date: Date): string {
@@ -87,12 +131,6 @@ function isSameDay(a: Date, b: Date): boolean {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
-}
-
-function isBeforeDay(a: Date, b: Date): boolean {
-  const aDate = new Date(a.getFullYear(), a.getMonth(), a.getDate());
-  const bDate = new Date(b.getFullYear(), b.getMonth(), b.getDate());
-  return aDate.getTime() < bDate.getTime();
 }
 
 // Extracts error message string from unknown error types
@@ -163,12 +201,6 @@ function extractTimeFromISO(isoString: string): string {
 }
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
-
-function formatHMM(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h}:${m.toString().padStart(2, "0")}`;
-}
 
 function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
@@ -418,7 +450,7 @@ function renderTimerContent(
   return (
     <>
       <span className="text-4xl font-light text-gray-900 tabular-nums">
-        {formatHMM(displayMinutes)}
+        {formatDuration(displayMinutes)}
       </span>
       {breakWarning && (
         <span className="mt-0.5 text-xs font-medium text-amber-600">
@@ -438,6 +470,7 @@ function ClockInCard({
   onEndBreak,
   weeklyMinutes,
   onAddAbsence,
+  metrics,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -447,6 +480,7 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
+  readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -470,12 +504,15 @@ function ClockInCard({
   const activeBreak = breaks.find((b) => !b.endedAt) ?? null;
   const isOnBreak = activeBreak !== null;
 
-  // Tick every second during break (for countdown), every 30s otherwise
+  // Tick every second during break (for the seconds countdown) and every
+  // 15s otherwise. 15s is fast enough that the "5h 29min" timer flips to
+  // "5h 30min" within seconds of the actual minute change, but slow enough
+  // to avoid pointless re-renders.
   useEffect(() => {
     if (!isCheckedIn) return;
     const interval = setInterval(
       () => setTick((t) => t + 1),
-      isOnBreak ? 1000 : 30000,
+      isOnBreak ? 1000 : 15000,
     );
     return () => clearInterval(interval);
   }, [isCheckedIn, isOnBreak]);
@@ -602,7 +639,7 @@ function ClockInCard({
   };
 
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm">
+    <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="relative p-5 sm:p-6 md:p-8">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
@@ -622,7 +659,7 @@ function ClockInCard({
         {!isCheckedIn && !isCheckedOut && (
           <div className="flex flex-col items-center gap-5">
             {/* Mode toggle */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => setMode("present")}
                 className={getModeToggleClassName("present", mode)}
@@ -748,7 +785,7 @@ function ClockInCard({
                           setBreakMenuOpen(false);
                       }}
                     />
-                    <div className="moto-content-surface absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border p-2 shadow-lg">
+                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
                       {BREAK_OPTIONS.map((mins) => (
                         <button
                           key={mins}
@@ -844,27 +881,126 @@ function ClockInCard({
           </div>
         )}
 
-        {/* Today/Week footer */}
-        <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
-          <span>
-            Heute:{" "}
-            <span className="font-medium text-gray-600">
-              {getTodayDisplayValue(
-                isCheckedIn,
-                isCheckedOut,
-                netMinutes,
-                checkedOutNet,
-              )}
+        {/* Stats footer — three compact inline stats (Diese Woche / Monat /
+            Saldo). Falls metrics fehlt, fallback auf die alte Heute/Woche-Zeile
+            damit die Card defensiv lesbar bleibt. */}
+        {metrics ? (
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <ClockInStatsStrip metrics={metrics} />
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
+            <span>
+              Heute:{" "}
+              <span className="font-medium text-gray-600">
+                {getTodayDisplayValue(
+                  isCheckedIn,
+                  isCheckedOut,
+                  netMinutes,
+                  checkedOutNet,
+                )}
+              </span>
             </span>
-          </span>
-          <span>
-            Woche:{" "}
-            <span className="font-medium text-gray-600">
-              {formatDuration(weeklyMinutes + (isCheckedIn ? netMinutes : 0))}
+            <span>
+              Woche:{" "}
+              <span className="font-medium text-gray-600">
+                {formatDuration(weeklyMinutes + (isCheckedIn ? netMinutes : 0))}
+              </span>
             </span>
-          </span>
-        </div>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function ClockInStatsStrip({
+  metrics,
+}: {
+  readonly metrics: ReturnType<typeof computeStaffMetrics>;
+}) {
+  const weekPct =
+    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
+  const monthPct =
+    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+
+  const accountTone: StatusTone =
+    metrics.accountBalance > 0
+      ? "amber"
+      : metrics.accountBalance < -60
+        ? "gray"
+        : "green";
+
+  return (
+    <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
+      <InlineStat
+        label="Diese Woche"
+        primary={formatDuration(metrics.weekIst)}
+        secondary={`von ${formatDuration(metrics.weekSoll)}`}
+        progressPct={weekPct}
+        tone="green"
+      />
+      <InlineStat
+        label="Dieser Monat"
+        primary={formatDuration(metrics.monthIst)}
+        secondary={`von ${formatDuration(metrics.monthSoll)}`}
+        progressPct={monthPct}
+        tone="green"
+      />
+      <InlineStat
+        label="Stundenkonto"
+        primary={formatSignedDuration(metrics.accountBalance)}
+        secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+          day: "numeric",
+          month: "short",
+        })}`}
+        tone={accountTone}
+      />
+    </div>
+  );
+}
+
+function InlineStat({
+  label,
+  primary,
+  secondary,
+  progressPct,
+  tone,
+}: {
+  readonly label: string;
+  readonly primary: string;
+  readonly secondary?: string;
+  readonly progressPct?: number;
+  readonly tone: StatusTone;
+}) {
+  return (
+    <div className="text-center">
+      <div className="flex items-baseline justify-center gap-2">
+        <span className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase sm:text-[11px]">
+          {label}
+        </span>
+        {progressPct !== undefined && (
+          <span className="text-[10px] text-gray-400">
+            {Math.round(progressPct)}%
+          </span>
+        )}
+      </div>
+      <p className={`mt-1 text-base font-bold sm:text-lg ${STATUS_TEXT[tone]}`}>
+        {primary}
+      </p>
+      {secondary && (
+        <p className="mt-0.5 text-[10px] text-gray-500 sm:text-[11px]">
+          {secondary}
+        </p>
+      )}
+      {progressPct !== undefined && (
+        <div className="mx-auto mt-1.5 h-1 max-w-[180px] overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full rounded-full transition-all ${STATUS_BAR[tone]}`}
+            style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -1078,6 +1214,289 @@ function BreakActivityLog({
   );
 }
 
+// ─── StaffStatusPanel ────────────────────────────────────────────────────────
+// Kompakte Status-Sidebar neben der Stempeluhr. Eine Card mit drei Zeilen
+// statt drei einzelner Karten: Diese Woche / Dieser Monat / Stundenkonto.
+
+type StatusTone = "green" | "amber" | "gray";
+
+const STATUS_TEXT: Record<StatusTone, string> = {
+  green: "text-[#83CD2D]",
+  amber: "text-amber-600",
+  gray: "text-gray-700",
+};
+
+const STATUS_BAR: Record<StatusTone, string> = {
+  green: "bg-[#83CD2D]",
+  amber: "bg-amber-500",
+  gray: "bg-gray-400",
+};
+
+// OwnZeiterfassungSection — wrappt die StaffSessionTable mit RangeNav und
+// Card-Chrome, in derselben Struktur wie auf /staff/[id]. Drift zwischen
+// MA-Sicht und Admin-Sicht wird so eliminiert. Die externe onEditDay-Logik
+// bleibt aktiv damit der existing EditSessionModal (inkl. Absence-Edit)
+// weiter genutzt wird.
+function OwnZeiterfassungSection({
+  ownStaffId,
+  schedule,
+  onEditDay,
+}: {
+  readonly ownStaffId: string | null;
+  readonly schedule: import("~/lib/staff-api").StaffSchedule | null;
+  readonly onEditDay: (
+    date: Date,
+    session: WorkSessionHistory | null,
+    absence: StaffAbsence | null,
+  ) => void;
+}) {
+  const today = useMemo(() => new Date(), []);
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
+    const d = new Date();
+    const day = (d.getDay() + 6) % 7; // Mon = 0
+    d.setDate(d.getDate() - day);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  const visibleFrom = useMemo(() => {
+    if (viewMode === "month") {
+      return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
+    }
+    return new Date(weekAnchor);
+  }, [viewMode, monthAnchor, weekAnchor]);
+
+  const visibleTo = useMemo(() => {
+    if (viewMode === "month") {
+      return new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+    }
+    const e = new Date(weekAnchor);
+    e.setDate(e.getDate() + 6);
+    return e;
+  }, [viewMode, monthAnchor, weekAnchor]);
+
+  const visibleFromKey = toISODate(visibleFrom);
+  const visibleToKey = toISODate(visibleTo);
+
+  // Dedicated table-range fetches. Independent from the WeekChart's
+  // 10-workday history fetch, so navigating the table (especially in
+  // month mode) does not enlarge the chart's data window.
+  const { data: tableData, isLoading: tableLoading } = useSWRAuth<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }>(
+    `time-tracking-table-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getHistory(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
+
+  const { data: tableAbsenceData } = useSWRAuth<StaffAbsence[]>(
+    `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+  const tableAbsences = useMemo(
+    () => tableAbsenceData ?? [],
+    [tableAbsenceData],
+  );
+
+  const adaptedSessions = useMemo<readonly StaffHistorySession[]>(
+    () => tableHistory.map(adaptHistorySessionForMetrics),
+    [tableHistory],
+  );
+  const adaptedAbsences = useMemo<readonly StaffAbsenceRow[]>(
+    () => tableAbsences.map(adaptAbsenceForMetrics),
+    [tableAbsences],
+  );
+
+  const handleEdit = (date: Date) => {
+    const dateKey = toISODate(date);
+    const session = tableHistory.find((h) => h.date === dateKey) ?? null;
+    const absence =
+      tableAbsences.find(
+        (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
+      ) ?? null;
+    onEditDay(date, session, absence);
+  };
+
+  const handlePrev = () => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() - 7);
+        return d;
+      });
+    }
+  };
+  const handleNext = () => {
+    if (viewMode === "month") {
+      setMonthAnchor(
+        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+      );
+    } else {
+      setWeekAnchor((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() + 7);
+        return d;
+      });
+    }
+  };
+  const handleToday = () => {
+    if (viewMode === "month") {
+      setMonthAnchor(new Date(today.getFullYear(), today.getMonth(), 1));
+    } else {
+      const d = new Date(today);
+      const day = (d.getDay() + 6) % 7;
+      d.setDate(d.getDate() - day);
+      d.setHours(0, 0, 0, 0);
+      setWeekAnchor(d);
+    }
+  };
+  const isOnCurrent = useMemo(() => {
+    if (viewMode === "month") {
+      return (
+        monthAnchor.getFullYear() === today.getFullYear() &&
+        monthAnchor.getMonth() === today.getMonth()
+      );
+    }
+    const cur = new Date(today);
+    const day = (cur.getDay() + 6) % 7;
+    cur.setDate(cur.getDate() - day);
+    cur.setHours(0, 0, 0, 0);
+    return cur.getTime() === weekAnchor.getTime();
+  }, [viewMode, monthAnchor, weekAnchor, today]);
+
+  const labelRange = useMemo(() => {
+    if (viewMode === "month") {
+      return monthAnchor.toLocaleDateString("de-DE", {
+        month: "long",
+        year: "numeric",
+      });
+    }
+    const weekNum = getWeekNumber(visibleFrom);
+    const start = visibleFrom.toLocaleDateString("de-DE", {
+      day: "numeric",
+      month: "short",
+    });
+    const end = visibleTo.toLocaleDateString("de-DE", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return `KW ${weekNum}: ${start} bis ${end}`;
+  }, [viewMode, monthAnchor, visibleFrom, visibleTo]);
+
+  const todayLabel = viewMode === "month" ? "Diesen Monat" : "Diese Woche";
+
+  return (
+    <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6 md:p-8">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+          Zeiterfassung
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle value={viewMode} onChange={setViewMode} />
+          {ownStaffId && (
+            <StaffExportButton
+              staffId={ownStaffId}
+              yearStart={startOfYear(today)}
+            />
+          )}
+        </div>
+      </div>
+      <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
+        <div className="hidden sm:block" />
+        <div className="flex min-w-0 items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrev}
+            aria-label={
+              viewMode === "month" ? "Vorheriger Monat" : "Vorherige Woche"
+            }
+            className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+          <h3 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
+            {labelRange}
+          </h3>
+          <button
+            type="button"
+            onClick={handleNext}
+            aria-label={
+              viewMode === "month" ? "Nächster Monat" : "Nächste Woche"
+            }
+            className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="flex justify-center sm:justify-end">
+          <button
+            type="button"
+            onClick={handleToday}
+            disabled={isOnCurrent}
+            className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {todayLabel}
+          </button>
+        </div>
+      </div>
+      {tableLoading && tableHistory.length === 0 ? (
+        <div className="py-10 text-center text-sm text-gray-400">...</div>
+      ) : (
+        <StaffSessionTable
+          staffId={ownStaffId ?? ""}
+          from={visibleFrom}
+          to={visibleTo}
+          sessions={adaptedSessions}
+          absences={adaptedAbsences}
+          schedule={schedule}
+          today={today}
+          isAdminView={ownStaffId !== null}
+          onEditDay={(date) => handleEdit(date)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── WeekChart ───────────────────────────────────────────────────────────────
 
 const weekChartConfig = {
@@ -1126,7 +1545,15 @@ function WeekChart({
     }
 
     return allDays.map((day) => {
-      if (!day) return { day: "", label: "", netMinutes: 0, breakMinutes: 0 };
+      if (!day) {
+        return {
+          dayKey: "",
+          dayShort: "",
+          label: "",
+          netMinutes: 0,
+          breakMinutes: 0,
+        };
+      }
 
       const dateKey = toISODate(day);
       const session = sessionMap.get(dateKey);
@@ -1151,9 +1578,14 @@ function WeekChart({
         breakMins = session.breakMinutes;
       }
 
+      const dayShort = DAY_NAMES[dayIndex] ?? "";
       return {
-        day: DAY_NAMES[dayIndex] ?? "",
-        label: `${DAY_NAMES[dayIndex] ?? ""} ${formatDateShort(day)}`,
+        // dayKey is the unique X-axis category. Two weeks worth of bars
+        // would otherwise collide on day names like "Mo"/"Di" and Recharts
+        // would route every hover for that category to the first bar.
+        dayKey: dateKey,
+        dayShort,
+        label: `${dayShort} ${formatDateShort(day)}`,
         netMinutes: netMins,
         breakMinutes: breakMins,
       };
@@ -1217,12 +1649,16 @@ function WeekChart({
           >
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="day"
+              dataKey="dayKey"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               fontSize={isMobile ? 10 : 11}
               interval={0}
+              tickFormatter={(value: string) => {
+                const found = chartData.find((entry) => entry.dayKey === value);
+                return found?.dayShort ?? "";
+              }}
             />
             <YAxis
               tickLine={false}
@@ -1262,1203 +1698,19 @@ function WeekChart({
 
 // ─── ExportDropdown ───────────────────────────────────────────────────────────
 
-function ExportDropdown({ weekDays }: { readonly weekDays: (Date | null)[] }) {
-  const monday = weekDays[0];
-  const sunday = weekDays[6];
-  const [rangeFrom, setRangeFrom] = useState<Date | null>(null);
-  const [rangeTo, setRangeTo] = useState<Date | null>(null);
-  const [open, setOpen] = useState(false);
-  const [viewMonth, setViewMonth] = useState(() => new Date());
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Pre-fill with current week when dropdown opens
-  useEffect(() => {
-    if (open && monday && sunday) {
-      setRangeFrom(monday);
-      setRangeTo(sunday);
-      setViewMonth(new Date(monday));
-    }
-  }, [open, monday, sunday]);
-
-  // Close on outside click or scroll
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      const target = e.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
-      )
-        return;
-      setOpen(false);
-    }
-    function handleScroll() {
-      setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    window.addEventListener("scroll", handleScroll, true);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("scroll", handleScroll, true);
-    };
-  }, [open]);
-
-  const handleExport = (format: "csv" | "xlsx") => {
-    if (!rangeFrom || !rangeTo) return;
-    const from = toISODate(rangeFrom);
-    const to = toISODate(rangeTo);
-    globalThis.location.href = `/api/time-tracking/export?from=${from}&to=${to}&format=${format}`;
-    setOpen(false);
-  };
-
-  const handleDayClick = (day: Date) => {
-    if (!rangeFrom || (rangeFrom && rangeTo)) {
-      // Start a new range
-      setRangeFrom(day);
-      setRangeTo(null);
-    } else if (isBeforeDay(day, rangeFrom)) {
-      // Complete the range (selected day is before start)
-      setRangeTo(rangeFrom);
-      setRangeFrom(day);
-    } else {
-      // Complete the range (selected day is after start)
-      setRangeTo(day);
-    }
-  };
-
-  const hasRange = rangeFrom && rangeTo;
-
-  // Position the portal panel below the trigger button
-  // Using position: fixed, so coordinates are relative to viewport (no scrollY/scrollX needed)
-  const [pos, setPos] = useState({ top: 0, right: 0 });
-  useEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    setPos({
-      top: rect.top,
-      right: globalThis.window.innerWidth - rect.left + 8,
-    });
-  }, [open]);
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-        aria-label="Export"
-      >
-        <Download className="h-5 w-5" />
-      </button>
-      {open &&
-        createPortal(
-          <div
-            ref={panelRef}
-            style={{ top: pos.top, right: pos.right }}
-            className="moto-content-surface fixed z-50 w-[320px] rounded-xl border shadow-lg"
-          >
-            <div className="p-4 pb-2">
-              <p className="text-sm font-medium text-gray-700">
-                Zeitraum exportieren
-              </p>
-              {(() => {
-                if (hasRange) {
-                  return (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {formatDateGerman(rangeFrom)} –{" "}
-                      {formatDateGerman(rangeTo)}
-                    </p>
-                  );
-                }
-                if (rangeFrom) {
-                  return (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {formatDateGerman(rangeFrom)} – …
-                    </p>
-                  );
-                }
-                return null;
-              })()}
-            </div>
-            <MiniCalendar
-              viewMonth={viewMonth}
-              onViewMonthChange={setViewMonth}
-              rangeFrom={rangeFrom}
-              rangeTo={rangeTo}
-              onDayClick={handleDayClick}
-            />
-            <div className="flex gap-2 border-t border-gray-100 p-4 pt-3">
-              <button
-                onClick={() => handleExport("csv")}
-                disabled={!hasRange}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-              >
-                CSV
-              </button>
-              <button
-                onClick={() => handleExport("xlsx")}
-                disabled={!hasRange}
-                className="flex-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-              >
-                Excel
-              </button>
-            </div>
-          </div>,
-          document.body,
-        )}
-    </>
-  );
-}
-
-// ─── MiniCalendar ─────────────────────────────────────────────────────────────
-
-const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const MONTH_NAMES = [
-  "Januar",
-  "Februar",
-  "März",
-  "April",
-  "Mai",
-  "Juni",
-  "Juli",
-  "August",
-  "September",
-  "Oktober",
-  "November",
-  "Dezember",
-];
-
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-/** Monday-based day-of-week (0=Mon … 6=Sun) */
-function mondayIndex(date: Date): number {
-  return (date.getDay() + 6) % 7;
-}
-
-function MiniCalendar({
-  viewMonth,
-  onViewMonthChange,
-  rangeFrom,
-  rangeTo,
-  onDayClick,
-}: {
-  readonly viewMonth: Date;
-  readonly onViewMonthChange: (d: Date) => void;
-  readonly rangeFrom: Date | null;
-  readonly rangeTo: Date | null;
-  readonly onDayClick: (d: Date) => void;
-}) {
-  const today = new Date();
-  const year = viewMonth.getFullYear();
-  const month = viewMonth.getMonth();
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDayOffset = mondayIndex(new Date(year, month, 1));
-
-  const prevMonth = () => onViewMonthChange(new Date(year, month - 1, 1));
-  const nextMonth = () => onViewMonthChange(new Date(year, month + 1, 1));
-
-  // Build grid cells: leading blanks + day numbers
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDayOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const isInRange = (day: Date) => {
-    if (!rangeFrom) return false;
-    if (!rangeTo) return isSameDay(day, rangeFrom);
-    return (
-      (isSameDay(day, rangeFrom) || isBeforeDay(rangeFrom, day)) &&
-      (isSameDay(day, rangeTo) || isBeforeDay(day, rangeTo))
-    );
-  };
-
-  const isRangeStart = (day: Date) => rangeFrom && isSameDay(day, rangeFrom);
-  const isRangeEnd = (day: Date) => rangeTo && isSameDay(day, rangeTo);
-  const isFuture = (day: Date) => isBeforeDay(today, day);
-
-  return (
-    <div className="px-4 pb-2">
-      {/* Month navigation */}
-      <div className="mb-2 flex items-center justify-between">
-        <button
-          onClick={prevMonth}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Vorheriger Monat"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-medium text-gray-800">
-          {MONTH_NAMES[month]} {year}
-        </span>
-        <button
-          onClick={nextMonth}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-          aria-label="Nächster Monat"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Weekday header */}
-      <div className="grid grid-cols-7">
-        {WEEKDAY_LABELS.map((label) => (
-          <div
-            key={label}
-            className="flex h-9 items-center justify-center text-xs font-medium text-gray-400"
-          >
-            {label}
-          </div>
-        ))}
-
-        {/* Day cells */}
-        {cells.map((dayNum, idx) => {
-          if (dayNum === null) {
-            return <div key={`blank-${String(idx)}`} className="h-9" />;
-          }
-
-          const date = new Date(year, month, dayNum);
-          const disabled = isFuture(date);
-          const inRange = isInRange(date);
-          const isStart = isRangeStart(date);
-          const isEnd = isRangeEnd(date);
-          const isToday = isSameDay(date, today);
-
-          let cellBg = "";
-          if (isStart || isEnd) {
-            cellBg = "bg-gray-900 text-white";
-          } else if (inRange) {
-            cellBg = "bg-gray-100 text-gray-800";
-          }
-
-          // Rounding for range edges
-          let rounding = "rounded-md";
-          if (isStart && !isEnd) rounding = "rounded-l-md";
-          else if (isEnd && !isStart) rounding = "rounded-r-md";
-          else if (inRange && !isStart && !isEnd) rounding = "rounded-none";
-
-          // Determine text/hover styles
-          let interactionClass = "";
-          if (disabled) {
-            interactionClass = "cursor-not-allowed text-gray-300";
-          } else if (!inRange) {
-            interactionClass = "text-gray-700 hover:bg-gray-100";
-          }
-
-          return (
-            <button
-              key={dayNum}
-              type="button"
-              disabled={disabled}
-              onClick={() => onDayClick(date)}
-              className={`flex h-9 items-center justify-center text-sm transition-colors ${rounding} ${cellBg} ${interactionClass} ${isToday && !isStart && !isEnd ? "font-bold" : ""}`}
-            >
-              {dayNum}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── WeekTable Helpers ────────────────────────────────────────────────────────
 
 /** Pre-computed data for rendering a single day in the week table */
-interface DayRenderData {
-  day: Date;
-  dateKey: string;
-  session: WorkSessionHistory | undefined;
-  absence: StaffAbsence | undefined;
-  isToday: boolean;
-  isPast: boolean;
-  isFuture: boolean;
-  dayName: string;
-  isActive: boolean;
-  canEdit: boolean;
-  hasEdits: boolean;
-  netDisplay: string;
-  warnings: string[];
-}
 
 /** Compute all derived values for a day cell */
-function computeDayData(
-  day: Date,
-  index: number,
-  sessionMap: Map<string, WorkSessionHistory>,
-  absenceMap: Map<string, StaffAbsence>,
-  today: Date,
-  currentSession: WorkSession | null,
-  liveBreakMins: number,
-): DayRenderData {
-  const dateKey = toISODate(day);
-  const session = sessionMap.get(dateKey);
-  const absence = absenceMap.get(dateKey);
-  const isToday = isSameDay(day, today);
-  const isPast = isBeforeDay(day, today);
-  const isFuture = !isToday && !isPast;
-  const dayName = DAY_NAMES[index] ?? "";
-  const isActive =
-    isToday && currentSession !== null && currentSession.checkOutTime === null;
-  const canEdit = session !== undefined && (isPast || (isToday && !isActive));
-  const hasEdits = (session?.editCount ?? 0) > 0;
-
-  // Calculate net display
-  let netDisplay = "--";
-  if (session) {
-    if (session.checkOutTime) {
-      netDisplay = formatDuration(session.netMinutes);
-    } else if (isActive) {
-      const live = calculateNetMinutes(
-        session.checkInTime,
-        new Date().toISOString(),
-        liveBreakMins,
-      );
-      netDisplay = live == null ? "--" : formatDuration(live);
-    }
-  }
-
-  const warnings = session ? getComplianceWarnings(session) : [];
-
-  return {
-    day,
-    dateKey,
-    session,
-    absence,
-    isToday,
-    isPast,
-    isFuture,
-    dayName,
-    isActive,
-    canEdit,
-    hasEdits,
-    netDisplay,
-    warnings,
-  };
-}
 
 /** Get session status badge styling for week table (mobile) */
-function getWeekTableBadge(
-  session: WorkSessionHistory,
-  isActive: boolean,
-): { className: string; label: string } {
-  if (isActive)
-    return { className: "bg-green-100 text-green-700", label: "aktiv" };
-  if (session.status === "home_office")
-    return { className: "bg-sky-100 text-sky-700", label: "HO" };
-  return { className: "bg-gray-100 text-gray-600", label: "OGS" };
-}
 
 /** Get checkout time display for desktop table */
-function getCheckoutTimeDisplay(
-  session: WorkSessionHistory | undefined,
-  isActive: boolean,
-): string {
-  if (!session) return "--:--";
-  if (session.checkOutTime) return formatTime(session.checkOutTime);
-  if (isActive) return "···";
-  return "--:--";
-}
 
 /** Get row background class based on state */
-function getRowBackgroundClass(isExpanded: boolean, isToday: boolean): string {
-  if (isExpanded) return "bg-gray-50";
-  if (isToday) return "bg-blue-50/50";
-  return "";
-}
 
 /** Render desktop edit actions cell */
-function renderDesktopEditActions(
-  hasEdits: boolean,
-  canEdit: boolean,
-  session: WorkSessionHistory | undefined,
-  day: Date,
-  absence: StaffAbsence | undefined,
-  onEditDay: (
-    day: Date,
-    session: WorkSessionHistory,
-    absence: StaffAbsence | null,
-  ) => void,
-): React.ReactNode {
-  if (hasEdits && session) {
-    return (
-      <span className="text-xs text-gray-500">
-        Zuletzt geändert {formatDateTime(new Date(session.updatedAt))}
-      </span>
-    );
-  }
-  if (canEdit && session) {
-    return (
-      <div className="flex items-center justify-center">
-        <span className="text-xs text-gray-300 group-hover/row:hidden">–</span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditDay(day, session, absence ?? null);
-          }}
-          className="hidden group-hover/row:block"
-          aria-label="Eintrag bearbeiten"
-        >
-          <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="flex items-center justify-center">
-      <span className="text-xs text-gray-300">–</span>
-    </div>
-  );
-}
-
-/** Render desktop status badge (full labels) */
-function renderDesktopStatusBadge(
-  session: WorkSessionHistory | undefined,
-  isActive: boolean,
-  isFuture: boolean,
-): React.ReactNode {
-  if (!session) {
-    if (isFuture) return null;
-    return <span className="text-gray-300">—</span>;
-  }
-  const badgeStyles = isActive
-    ? "bg-green-100 text-green-700"
-    : session.status === "home_office"
-      ? "bg-sky-100 text-sky-700"
-      : "bg-gray-100 text-gray-600";
-  const label = isActive
-    ? "aktiv"
-    : session.status === "home_office"
-      ? "Homeoffice"
-      : "In der OGS";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyles}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-// ─── WeekTable ────────────────────────────────────────────────────────────────
-
-function WeekTable({
-  weekOffset,
-  onWeekChange,
-  history,
-  absences,
-  isLoading,
-  onEditDay,
-  currentSession,
-  currentBreaks,
-  expandedSessionId,
-  onToggleExpand,
-  expandedEdits,
-  editsLoading,
-}: {
-  readonly weekOffset: number;
-  readonly onWeekChange: (offset: number) => void;
-  readonly history: WorkSessionHistory[];
-  readonly absences: StaffAbsence[];
-  readonly isLoading: boolean;
-  readonly onEditDay: (
-    date: Date,
-    session: WorkSessionHistory | null,
-    absence: StaffAbsence | null,
-  ) => void;
-  readonly currentSession: WorkSession | null;
-  readonly currentBreaks: WorkSessionBreak[];
-  readonly expandedSessionId: string | null;
-  readonly onToggleExpand: (sessionId: string) => void;
-  readonly expandedEdits: WorkSessionEdit[];
-  readonly editsLoading: boolean;
-}) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  const today = new Date();
-  const referenceDate = new Date(today);
-  referenceDate.setDate(referenceDate.getDate() + weekOffset * 7);
-  const weekDays = getWeekDays(referenceDate);
-  const weekNum = getWeekNumber(referenceDate);
-  const mondayDate = weekDays[0];
-  const sundayDate = weekDays[6];
-
-  // Build session map by date string
-  const sessionMap = new Map<string, WorkSessionHistory>();
-  for (const session of history) {
-    sessionMap.set(session.date, session);
-  }
-
-  // Build absence map: for each date in the week, check if an absence covers it
-  const absenceMap = new Map<string, StaffAbsence>();
-  for (const day of weekDays) {
-    if (!day) continue;
-    const dateKey = toISODate(day);
-    const absence = absences.find(
-      (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
-    );
-    if (absence) {
-      absenceMap.set(dateKey, absence);
-    }
-  }
-
-  // Live break minutes for active session (cached + active break elapsed)
-  const activeBreak = currentBreaks.find((b) => !b.endedAt);
-  const liveBreakMins = (() => {
-    if (!currentSession || currentSession.checkOutTime) return 0;
-    const cached = currentSession.breakMinutes;
-    if (!activeBreak) return cached;
-    const elapsed = Math.max(
-      0,
-      Math.floor(
-        (Date.now() - new Date(activeBreak.startedAt).getTime()) / 60000,
-      ),
-    );
-    return cached + elapsed;
-  })();
-
-  // Calculate weekly total (only sessions in the current week)
-  const weekDateKeys = new Set(
-    weekDays.filter(Boolean).map((d) => toISODate(d)),
-  );
-  const weeklyNetMinutes = history
-    .filter((s) => weekDateKeys.has(s.date))
-    .reduce((sum, s) => {
-      if (s.checkOutTime) return sum + s.netMinutes;
-      // For active session, calculate live with real break time
-      if (currentSession && !currentSession.checkOutTime) {
-        const live = calculateNetMinutes(
-          s.checkInTime,
-          new Date().toISOString(),
-          liveBreakMins,
-        );
-        return sum + (live ?? 0);
-      }
-      return sum;
-    }, 0);
-
-  return (
-    <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
-      {/* Week navigation header */}
-      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-        <button
-          onClick={() => onWeekChange(weekOffset - 1)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 sm:p-2"
-          aria-label="Vorherige Woche"
-        >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-        <span className="text-sm font-bold text-gray-900 sm:text-base md:text-lg">
-          KW {weekNum}: {mondayDate ? formatDateGerman(mondayDate) : ""} –{" "}
-          {sundayDate ? formatDateGerman(sundayDate) : ""}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onWeekChange(weekOffset + 1)}
-            disabled={weekOffset >= 0}
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 disabled:hover:bg-transparent sm:p-2"
-            aria-label="Nächste Woche"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-          {/* Hide on mobile - Excel export not useful on small screens */}
-          <div className="hidden md:block">
-            <ExportDropdown weekDays={weekDays} />
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile card layout */}
-      {isMobile ? (
-        <div className="divide-y divide-gray-100 px-4 py-2">
-          {weekDays.map((day, index) => {
-            if (!day) return null;
-            if (day.getDay() === 0 || day.getDay() === 6) return null;
-
-            const d = computeDayData(
-              day,
-              index,
-              sessionMap,
-              absenceMap,
-              today,
-              currentSession,
-              liveBreakMins,
-            );
-            const {
-              dateKey,
-              session,
-              absence,
-              isToday,
-              isFuture,
-              dayName,
-              isActive,
-              canEdit,
-              hasEdits,
-              netDisplay,
-              warnings,
-            } = d;
-
-            // Absence-only card — clickable to open edit modal
-            if (absence && session == null) {
-              const colorClass =
-                absenceTypeColors[absence.absenceType] ??
-                "bg-gray-100 text-gray-600";
-              return (
-                <button
-                  key={dateKey}
-                  type="button"
-                  onClick={() => onEditDay(day, null, absence)}
-                  className={`w-full cursor-pointer py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "rounded-lg bg-blue-50/50" : ""}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">
-                      {dayName} {formatDateShort(day)}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}
-                      >
-                        {absenceTypeLabels[absence.absenceType]}
-                      </span>
-                      <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-                    </div>
-                  </div>
-                </button>
-              );
-            }
-
-            // Regular day card
-            return (
-              <div
-                key={dateKey}
-                className={`overflow-hidden py-3 ${isToday ? "rounded-lg bg-blue-50/50 px-2" : ""} ${isFuture ? "opacity-40" : ""}`}
-              >
-                {/* Header: day name + status badge */}
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      {dayName} {formatDateShort(day)}
-                    </span>
-                    {absence && (
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
-                      >
-                        {absenceTypeLabels[absence.absenceType]}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      if (!session) return null;
-                      const b = getWeekTableBadge(session, isActive);
-                      return (
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${b.className}`}
-                        >
-                          {b.label}
-                        </span>
-                      );
-                    })()}
-                    {canEdit && session && (
-                      <button
-                        type="button"
-                        onClick={() => onEditDay(day, session, absence ?? null)}
-                        aria-label="Eintrag bearbeiten"
-                      >
-                        <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2x2 data grid */}
-                {session ? (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                    <div>
-                      <span className="text-gray-400">Start</span>
-                      <p className="font-medium text-gray-600 tabular-nums">
-                        {formatTime(session.checkInTime)}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Ende</span>
-                      <p className="font-medium text-gray-600 tabular-nums">
-                        {(() => {
-                          if (session.checkOutTime)
-                            return formatTime(session.checkOutTime);
-                          if (isActive) return "···";
-                          return "--:--";
-                        })()}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Pause</span>
-                      <p className="font-medium text-gray-600 tabular-nums">
-                        {session.breakMinutes > 0
-                          ? `${session.breakMinutes} Min`
-                          : "--"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Netto</span>
-                      <p className="flex items-center gap-1 font-medium text-gray-700 tabular-nums">
-                        {netDisplay}
-                        {warnings.length > 0 && (
-                          <span
-                            className="cursor-help text-amber-500"
-                            title={warnings.join("\n")}
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  !isFuture && (
-                    <p className="text-xs text-gray-300">Kein Eintrag</p>
-                  )
-                )}
-
-                {/* Edit history footer */}
-                {hasEdits && session && (
-                  <button
-                    type="button"
-                    onClick={() => onToggleExpand(session.id)}
-                    className="mt-2 flex w-full items-center gap-1 border-t border-gray-50 pt-2 text-[10px] text-gray-400"
-                  >
-                    <ChevronRight
-                      className={`h-3 w-3 transition-transform ${expandedSessionId === session.id ? "rotate-90" : ""}`}
-                    />
-                    Geändert {formatDateTime(new Date(session.updatedAt))}
-                  </button>
-                )}
-                {expandedSessionId === session?.id && session && (
-                  <div className="mt-2 overflow-hidden rounded-lg bg-gray-50 p-3">
-                    <EditHistoryAccordion
-                      edits={expandedEdits}
-                      isLoading={editsLoading}
-                      onEdit={
-                        canEdit
-                          ? () => onEditDay(day, session, absence ?? null)
-                          : undefined
-                      }
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Weekly total card */}
-          <div className="flex items-center justify-between py-3">
-            <span className="text-sm font-medium text-gray-500">
-              Woche gesamt
-            </span>
-            <span className="text-sm font-bold text-gray-700">
-              {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
-            </span>
-          </div>
-        </div>
-      ) : (
-        /* Desktop table */
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-left text-xs font-medium tracking-wide text-gray-400 uppercase">
-                <th className="py-3 pr-6 pl-[46px]">Tag</th>
-                <th className="px-4 py-3 text-center">Start</th>
-                <th className="px-4 py-3 text-center">Ende</th>
-                <th className="px-4 py-3 text-center">Pause</th>
-                <th className="px-4 py-3 text-center">Netto</th>
-                <th className="px-4 py-3 text-center">Ort</th>
-                <th className="px-4 py-3 text-center">Änderung</th>
-              </tr>
-            </thead>
-            <tbody>
-              {weekDays.map((day, index) => {
-                if (!day) return null;
-                if (day.getDay() === 0 || day.getDay() === 6) return null;
-
-                const d = computeDayData(
-                  day,
-                  index,
-                  sessionMap,
-                  absenceMap,
-                  today,
-                  currentSession,
-                  liveBreakMins,
-                );
-                const {
-                  dateKey,
-                  session,
-                  absence,
-                  isToday,
-                  isFuture,
-                  dayName,
-                  isActive,
-                  canEdit,
-                  hasEdits,
-                  netDisplay,
-                  warnings,
-                } = d;
-                const isExpanded = expandedSessionId === session?.id;
-
-                const handleRowClick = () => {
-                  if (!canEdit && !hasEdits) return;
-                  if (hasEdits && session) {
-                    onToggleExpand(session.id);
-                  } else if (canEdit && session) {
-                    onEditDay(day, session, absence ?? null);
-                  }
-                };
-
-                if (absence && session == null) {
-                  const colorClass =
-                    absenceTypeColors[absence.absenceType] ??
-                    "bg-gray-100 text-gray-600";
-                  return (
-                    <tr
-                      key={dateKey}
-                      onClick={() => onEditDay(day, null, absence)}
-                      className={`group/row cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
-                    >
-                      <td className="px-6 py-3 font-medium text-gray-700">
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-block h-4 w-4 shrink-0" />
-                          {dayName} {formatDateShort(day)}
-                        </div>
-                      </td>
-                      <td colSpan={5} className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${colorClass}`}
-                        >
-                          {absenceTypeLabels[absence.absenceType]}
-                          {absence.halfDay && " (halber Tag)"}
-                          {absence.note && (
-                            <span
-                              className="cursor-help opacity-60"
-                              title={absence.note}
-                            >
-                              ℹ
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditDay(day, null, absence);
-                          }}
-                          aria-label={`${absenceTypeLabels[absence.absenceType]} am ${dayName} ${formatDateShort(day)} bearbeiten`}
-                          className="inline-flex opacity-0 transition-opacity group-hover/row:opacity-100 focus:opacity-100"
-                        >
-                          <SquarePen className="h-3.5 w-3.5 text-gray-300" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                return (
-                  <React.Fragment key={dateKey}>
-                    <tr
-                      onClick={canEdit || hasEdits ? handleRowClick : undefined}
-                      className={`group/row border-b border-gray-50 transition-colors ${getRowBackgroundClass(isExpanded, isToday)} ${canEdit || hasEdits ? "cursor-pointer hover:bg-gray-50" : ""} ${
-                        isFuture ? "opacity-40" : ""
-                      }`}
-                    >
-                      <td className="px-6 py-3 font-medium text-gray-700">
-                        <div className="flex items-center gap-1.5">
-                          {hasEdits ? (
-                            <ChevronRight
-                              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                            />
-                          ) : (
-                            <span className="inline-block h-4 w-4 shrink-0" />
-                          )}
-                          {dayName} {formatDateShort(day)}
-                          {absence && (
-                            <span
-                              className={`ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${absenceTypeColors[absence.absenceType] ?? "bg-gray-100 text-gray-600"}`}
-                            >
-                              {absenceTypeLabels[absence.absenceType]}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">
-                        {session ? formatTime(session.checkInTime) : "--:--"}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">
-                        {getCheckoutTimeDisplay(session, isActive)}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-600">
-                        {session && session.breakMinutes > 0
-                          ? `${session.breakMinutes}`
-                          : "--"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="font-medium text-gray-700">
-                          {netDisplay}
-                        </span>
-                        {warnings.length > 0 && (
-                          <span
-                            className="ml-1 cursor-help text-amber-500"
-                            title={warnings.join("\n")}
-                          >
-                            ⚠
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {renderDesktopStatusBadge(session, isActive, isFuture)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {renderDesktopEditActions(
-                          hasEdits,
-                          canEdit,
-                          session,
-                          day,
-                          absence,
-                          onEditDay,
-                        )}
-                      </td>
-                    </tr>
-                    {isExpanded && session && (
-                      <tr className="border-b border-gray-50 bg-gray-50/50">
-                        <td colSpan={7} className="py-3 pr-6 pl-[46px]">
-                          <EditHistoryAccordion
-                            edits={expandedEdits}
-                            isLoading={editsLoading}
-                            onEdit={
-                              canEdit
-                                ? () => onEditDay(day, session, absence ?? null)
-                                : undefined
-                            }
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="border-t border-gray-200 bg-gray-50/50">
-                <td
-                  colSpan={4}
-                  className="px-6 py-3 text-right text-sm font-medium text-gray-500"
-                >
-                  Woche gesamt
-                </td>
-                <td className="px-4 py-3 text-center text-sm font-bold text-gray-700">
-                  {isLoading ? "..." : formatDuration(weeklyNetMinutes)}
-                </td>
-                <td colSpan={3} />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── EditHistoryAccordion ──────────────────────────────────────────────────────
-
-const FIELD_LABELS: Record<string, string> = {
-  check_in_time: "Start",
-  check_out_time: "Ende",
-  break_minutes: "Pause",
-  break_duration: "Pausendauer",
-  status: "Ort",
-  notes: "Notiz",
-};
-
-function formatEditValue(fieldName: string, value: string | null): string {
-  if (value === null || value === "") return "–";
-  if (fieldName === "check_in_time" || fieldName === "check_out_time") {
-    return formatTime(value);
-  }
-  if (fieldName === "break_minutes" || fieldName === "break_duration") {
-    return `${value} min`;
-  }
-  if (fieldName === "status") {
-    return value === "home_office" ? "Homeoffice" : "In der OGS";
-  }
-  return value;
-}
-
-function EditHistoryAccordion({
-  edits,
-  isLoading,
-  onEdit,
-}: {
-  readonly edits: WorkSessionEdit[];
-  readonly isLoading: boolean;
-  readonly onEdit?: () => void;
-}) {
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-3">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-transparent" />
-        <span className="ml-2 text-xs text-gray-400">Laden...</span>
-      </div>
-    );
-  }
-
-  if (edits.length === 0) {
-    return (
-      <p className="py-2 text-xs text-gray-400">Keine Änderungen vorhanden.</p>
-    );
-  }
-
-  // Group edits by createdAt timestamp (edits from same save action share the same timestamp)
-  const grouped = new Map<string, WorkSessionEdit[]>();
-  for (const edit of edits) {
-    const key = edit.createdAt;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.push(edit);
-    } else {
-      grouped.set(key, [edit]);
-    }
-  }
-
-  // Flatten into rows: one row per edit group (same timestamp)
-  const rows = Array.from(grouped.entries()).map(([timestamp, group]) => {
-    const date = new Date(timestamp);
-    const dateStr = `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}.${date.getFullYear()}, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-    const fieldEdits = group.filter((e) => e.fieldName !== "notes");
-    const notes = group[0]?.notes;
-    return { timestamp, dateStr, fieldEdits, notes };
-  });
-
-  return (
-    <div>
-      {/* Mobile: Compact card layout */}
-      <div className="space-y-2 md:hidden">
-        {rows.map(({ timestamp, dateStr, fieldEdits, notes }) => (
-          <div
-            key={timestamp}
-            className="rounded-lg border border-gray-100 bg-white p-2.5"
-          >
-            <div className="mb-1.5 text-[10px] text-gray-400">{dateStr}</div>
-            <div className="space-y-1">
-              {fieldEdits.map((edit) => (
-                <div key={edit.id} className="flex items-center gap-2 text-xs">
-                  <span className="w-12 shrink-0 text-gray-500">
-                    {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
-                  </span>
-                  <span className="text-red-400 line-through">
-                    {formatEditValue(edit.fieldName, edit.oldValue)}
-                  </span>
-                  <span className="text-gray-300">→</span>
-                  <span className="font-medium text-[#83cd2d]">
-                    {formatEditValue(edit.fieldName, edit.newValue)}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {notes && (
-              <p className="mt-1.5 text-[10px] text-gray-400 italic">
-                &ldquo;{notes}&rdquo;
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop: Table layout */}
-      <table className="hidden w-full text-xs md:table">
-        <thead>
-          <tr className="border-b border-gray-100 text-left text-[10px] font-medium tracking-wide text-gray-400 uppercase">
-            <th className="pr-4 pb-2">Datum</th>
-            <th className="pr-4 pb-2">Feld</th>
-            <th className="pr-4 pb-2">Vorher</th>
-            <th className="pr-4 pb-2" />
-            <th className="pr-4 pb-2">Nachher</th>
-            <th className="pb-2">Grund</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ dateStr, fieldEdits, notes }) =>
-            fieldEdits.map((edit, idx) => (
-              <tr
-                key={edit.id}
-                className="border-b border-gray-50 last:border-b-0"
-              >
-                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-500">
-                  {idx === 0 ? dateStr : ""}
-                </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-gray-600">
-                  {FIELD_LABELS[edit.fieldName] ?? edit.fieldName}
-                </td>
-                <td className="py-1.5 pr-4 whitespace-nowrap text-red-400 line-through">
-                  {formatEditValue(edit.fieldName, edit.oldValue)}
-                </td>
-                <td className="py-1.5 pr-4 text-gray-300">&rarr;</td>
-                <td className="py-1.5 pr-4 font-medium whitespace-nowrap text-[#83cd2d]">
-                  {formatEditValue(edit.fieldName, edit.newValue)}
-                </td>
-                <td className="py-1.5 text-gray-400 italic">
-                  {idx === 0 && notes ? (
-                    <span>&ldquo;{notes}&rdquo;</span>
-                  ) : null}
-                </td>
-              </tr>
-            )),
-          )}
-        </tbody>
-      </table>
-      {onEdit && (
-        <button
-          type="button"
-          onClick={onEdit}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-1.5 text-xs text-gray-400 transition-colors hover:border-gray-400 hover:bg-gray-50 hover:text-gray-600"
-        >
-          <SquarePen className="h-3.5 w-3.5" />
-          Weitere Änderung vornehmen
-        </button>
-      )}
-    </div>
-  );
-}
 
 // ─── EditModal ────────────────────────────────────────────────────────────────
 
@@ -2747,7 +1999,7 @@ function EditSessionModal({
 
   // Footer: tab-aware for dual-section, standard for single-section
   const sessionFooter = (
-    <div className="flex w-full gap-3">
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2765,7 +2017,7 @@ function EditSessionModal({
   );
 
   const absenceFooter = (
-    <div className="flex w-full gap-3">
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -2828,7 +2080,7 @@ function EditSessionModal({
         {/* ── Session section ──────────────────────────────────────────── */}
         {hasSession && (!hasBoth || activeTab === "session") && (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="edit-start"
@@ -2861,7 +2113,7 @@ function EditSessionModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Break section */}
               <div>
                 {hasIndividualBreaks ? (
@@ -3086,7 +2338,7 @@ function EditSessionModal({
             </div>
 
             {/* Date range */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="edit-abs-start"
@@ -3252,7 +2504,7 @@ function CreateAbsenceModal({
       onClose={onClose}
       title="Abwesenheit melden"
       footer={
-        <div className="flex w-full gap-3">
+        <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
           <button
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3308,7 +2560,7 @@ function CreateAbsenceModal({
         </div>
 
         {/* Date range */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label
               htmlFor="absence-start"
@@ -3395,18 +2647,16 @@ function TimeTrackingContent() {
   });
 
   const toast = useToast();
-  const [weekOffset, setWeekOffset] = useState(0);
+  // WeekChart shows trailing 10 workdays from today; no UI to navigate it
+  // anymore (the table owns its own range state). Kept as a constant so the
+  // chart's data window stays anchored at "now".
+  const weekOffset = 0;
   const [editModal, setEditModal] = useState<{
     date: Date;
     session: WorkSessionHistory | null;
     absence: StaffAbsence | null;
   } | null>(null);
   const [currentBreaks, setCurrentBreaks] = useState<WorkSessionBreak[]>([]);
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
-    null,
-  );
-  const [expandedEdits, setExpandedEdits] = useState<WorkSessionEdit[]>([]);
-  const [editsLoading, setEditsLoading] = useState(false);
   const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
   const handleCloseEditModal = useCallback(() => setEditModal(null), []);
   const handleCloseAbsenceModal = useCallback(
@@ -3448,18 +2698,23 @@ function TimeTrackingContent() {
 
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
-  // - WeekView shows calendar week containing reference date
+  // - WeekView shows calendar week containing reference date, so the
+  //   fetch must include up to the Sunday of that week (otherwise days
+  //   after `ref` in the same week are never fetched and the table
+  //   silently drops them)
   const { toDate, chartFromDate, weekFromDate } = (() => {
     const ref = new Date();
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
+    const sunday = days[6] ?? ref;
+    const fetchEnd = sunday.getTime() > ref.getTime() ? sunday : ref;
 
     // Chart needs ~14 days back to cover 10 workdays (worst case)
     const chartStart = new Date(ref);
     chartStart.setDate(chartStart.getDate() - 14);
 
     return {
-      toDate: toISODate(ref), // Reference date (today or offset)
+      toDate: toISODate(fetchEnd), // Sunday of reference week or today
       chartFromDate: toISODate(chartStart), // 14 days before reference
       weekFromDate: days[0] ? toISODate(days[0]) : "", // Monday of reference week
     };
@@ -3473,12 +2728,24 @@ function TimeTrackingContent() {
       { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
     );
 
+  // Pattern-mutate helper — refreshes both the WeekChart's history fetch
+  // and the OwnZeiterfassungSection's dedicated table fetches after an
+  // edit, so the table updates without a manual refresh.
+  const { mutate: swrMutate } = useSWRConfig();
+  const refreshTableData = useCallback(
+    () =>
+      swrMutate(
+        (key) =>
+          typeof key === "string" && key.startsWith("time-tracking-table"),
+      ),
+    [swrMutate],
+  );
+
   // Fetch history covering 2 weeks (chart needs prev + current week)
-  const {
-    data: historyData,
-    isLoading: historyLoading,
-    mutate: mutateHistory,
-  } = useSWRAuth<WorkSessionHistory[]>(
+  const { data: historyData, mutate: mutateHistory } = useSWRAuth<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }>(
     chartFromDate && toDate
       ? `time-tracking-history-${chartFromDate}-${toDate}`
       : null,
@@ -3486,7 +2753,7 @@ function TimeTrackingContent() {
     { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
   );
 
-  const history = historyData ?? [];
+  const history = useMemo(() => historyData?.sessions ?? [], [historyData]);
 
   // Fetch absences for the same date range
   const { data: absencesData, mutate: mutateAbsences } = useSWRAuth<
@@ -3506,6 +2773,95 @@ function TimeTrackingContent() {
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
+
+  // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
+  //
+  // The user's own staff id comes from the user-context endpoint; we then
+  // fetch the staff-scoped schedule/history/absence endpoints over the
+  // cumulative range and feed them into
+  // computeStaffMetrics, the same helper the admin staff-detail view uses.
+  // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
+  //
+  // Note: history is already fetched up there for the chart, but only over
+  // 2 weeks. The Stundenkonto card needs the full account range.
+  // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
+  // dedupes anything that overlaps.
+  const todayMidnight = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const { data: ownStaff } = useSWRAuth(
+    "time-tracking-own-staff",
+    () => userContextService.getCurrentStaff(),
+    { revalidateOnFocus: false },
+  );
+  const ownStaffId = ownStaff?.id ?? null;
+
+  const { data: ownSchedule } = useSWRAuth(
+    ownStaffId ? `time-tracking-own-schedule-${ownStaffId}` : null,
+    () => staffScheduleService.getSchedule(ownStaffId as string),
+    { revalidateOnFocus: false },
+  );
+
+  const { data: timeTrackingConfig } = useSWRAuth(
+    "time-tracking-config",
+    () => timeTrackingService.getConfig(),
+    { revalidateOnFocus: false },
+  );
+
+  const accountAnchor = useMemo(() => {
+    return resolveAccountStartDate(
+      todayMidnight,
+      timeTrackingConfig?.accountStartDate,
+    );
+  }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
+  const accountFrom = toDateKey(accountAnchor);
+  const accountTo = toDateKey(todayMidnight);
+  const { data: accountHistoryData } = useSWRAuth<{
+    sessions: WorkSessionHistory[];
+    weeklySummaries: WeeklySummary[];
+  }>(
+    ownStaffId
+      ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
+      : null,
+    () => timeTrackingService.getHistory(accountFrom, accountTo),
+    { revalidateOnFocus: false },
+  );
+  const accountSessions = useMemo<StaffHistorySession[]>(
+    () =>
+      (accountHistoryData?.sessions ?? []).map(adaptHistorySessionForMetrics),
+    [accountHistoryData],
+  );
+  const { data: accountAbsenceData } = useSWRAuth<StaffAbsence[]>(
+    ownStaffId
+      ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
+      : null,
+    () => timeTrackingService.getAbsences(accountFrom, accountTo),
+    { revalidateOnFocus: false },
+  );
+  const accountAbsences = useMemo<StaffAbsenceRow[]>(
+    () => (accountAbsenceData ?? []).map(adaptAbsenceForMetrics),
+    [accountAbsenceData],
+  );
+
+  const ownMetrics = useMemo(() => {
+    if (!ownSchedule) return null;
+    return computeStaffMetrics(
+      ownSchedule,
+      accountSessions,
+      accountAbsences,
+      todayMidnight,
+      timeTrackingConfig?.accountStartDate,
+    );
+  }, [
+    ownSchedule,
+    accountSessions,
+    accountAbsences,
+    todayMidnight,
+    timeTrackingConfig?.accountStartDate,
+  ]);
 
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
@@ -3546,17 +2902,21 @@ function TimeTrackingContent() {
   const hasTodayEditedSession = useMemo(
     () =>
       !currentSession &&
-      (historyData ?? []).some(
+      history.some(
         (s) => s.date === todayISO && s.checkOutTime && s.editCount > 0,
       ),
-    [currentSession, historyData, todayISO],
+    [currentSession, history, todayISO],
   );
 
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
         await timeTrackingService.checkIn(status);
-        await Promise.all([mutateCurrentSession(), mutateHistory()]);
+        await Promise.all([
+          mutateCurrentSession(),
+          mutateHistory(),
+          refreshTableData(),
+        ]);
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
         const apiErr = err as ApiError;
@@ -3613,7 +2973,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Einstempeln"));
       }
     },
-    [mutateCurrentSession, mutateHistory, toast],
+    [mutateCurrentSession, mutateHistory, refreshTableData, toast],
   );
 
   // Confirm path: reopen the session at its existing status, then route
@@ -3646,7 +3006,11 @@ function TimeTrackingContent() {
         status: pending.requestedStatus,
         notes: reason,
       });
-      await Promise.all([mutateCurrentSession(), mutateHistory()]);
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
       toast.success("Status geändert");
       setPendingReopenStatusChange(null);
       setReopenStatusChangeReason("");
@@ -3659,7 +3023,11 @@ function TimeTrackingContent() {
       if (reopenSucceeded) {
         // Refresh so the UI shows the now-active session at the old status,
         // then close the modal so the user can act on it via the edit flow.
-        await Promise.all([mutateCurrentSession(), mutateHistory()]);
+        await Promise.all([
+          mutateCurrentSession(),
+          mutateHistory(),
+          refreshTableData(),
+        ]);
         toast.error(
           "Sitzung wurde wiedereröffnet, aber der Statuswechsel ist fehlgeschlagen. Bitte den Status über „Sitzung bearbeiten“ ändern.",
         );
@@ -3677,6 +3045,7 @@ function TimeTrackingContent() {
     reopenStatusChangeReason,
     mutateCurrentSession,
     mutateHistory,
+    refreshTableData,
     toast,
   ]);
 
@@ -3699,7 +3068,11 @@ function TimeTrackingContent() {
     try {
       await timeTrackingService.checkOut();
       setCurrentBreaks([]);
-      await Promise.all([mutateCurrentSession(), mutateHistory()]);
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
       logger.error("check_out_failed", {
@@ -3707,7 +3080,7 @@ function TimeTrackingContent() {
       });
       toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
-  }, [mutateCurrentSession, mutateHistory, toast]);
+  }, [mutateCurrentSession, mutateHistory, refreshTableData, toast]);
 
   const handleStartBreak = useCallback(
     async (durationMinutes: number) => {
@@ -3757,28 +3130,11 @@ function TimeTrackingContent() {
           notes: updates.notes,
           breaks: updates.breaks,
         });
-        await Promise.all([mutateCurrentSession(), mutateHistory()]);
-        // Refresh accordion edits if this session is currently expanded
-        if (expandedSessionId === id) {
-          try {
-            const edits = await timeTrackingService.getSessionEdits(id);
-            setExpandedEdits(edits);
-          } catch {
-            // keep stale edits on refresh failure
-          }
-        } else {
-          // Auto-expand to show the new edit
-          setExpandedSessionId(id);
-          setEditsLoading(true);
-          try {
-            const edits = await timeTrackingService.getSessionEdits(id);
-            setExpandedEdits(edits);
-          } catch {
-            setExpandedEdits([]);
-          } finally {
-            setEditsLoading(false);
-          }
-        }
+        await Promise.all([
+          mutateCurrentSession(),
+          mutateHistory(),
+          refreshTableData(),
+        ]);
         toast.success("Eintrag gespeichert");
       } catch (err) {
         logger.error("session_edit_failed", {
@@ -3788,33 +3144,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Speichern"));
       }
     },
-    [expandedSessionId, mutateCurrentSession, mutateHistory, toast],
-  );
-
-  const handleToggleExpand = useCallback(
-    async (sessionId: string) => {
-      if (expandedSessionId === sessionId) {
-        setExpandedSessionId(null);
-        setExpandedEdits([]);
-        return;
-      }
-      setExpandedSessionId(sessionId);
-      setExpandedEdits([]);
-      setEditsLoading(true);
-      try {
-        const edits = await timeTrackingService.getSessionEdits(sessionId);
-        setExpandedEdits(edits);
-      } catch (err) {
-        logger.debug("load_session_edits_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          session_id: sessionId,
-        });
-        setExpandedEdits([]);
-      } finally {
-        setEditsLoading(false);
-      }
-    },
-    [expandedSessionId],
+    [mutateCurrentSession, mutateHistory, refreshTableData, toast],
   );
 
   const handleCreateAbsence = useCallback(
@@ -3904,7 +3234,9 @@ function TimeTrackingContent() {
         Zeiterfassung
       </h1>
 
-      {/* Clock-in card + Week chart */}
+      {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
+          50/50 nebeneinander. Drunter eine Placeholder-Section für den
+          Urlaubs-Workflow (kommt in eigenem Chat). */}
       <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
@@ -3915,6 +3247,7 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
+          metrics={ownMetrics ?? null}
         />
         <WeekChart
           history={history}
@@ -3923,22 +3256,20 @@ function TimeTrackingContent() {
         />
       </div>
 
-      {/* Week table */}
-      <WeekTable
-        weekOffset={weekOffset}
-        onWeekChange={setWeekOffset}
-        history={history}
-        absences={absences}
-        isLoading={historyLoading}
+      <div className="mb-4 md:mb-6">
+        <LeaveRequestsCard />
+      </div>
+
+      {/* Zeiterfassung — gleiche Struktur wie auf /staff/[id], damit es
+          zwischen Admin-Sicht und MA-Sicht keinen Drift gibt. Die externe
+          onEditDay-Logik bleibt aktiv, damit der existing EditSessionModal
+          (inkl. Absence-Handling) genutzt werden kann. */}
+      <OwnZeiterfassungSection
+        ownStaffId={ownStaffId}
+        schedule={ownSchedule ?? null}
         onEditDay={(date, session, absence) =>
           setEditModal({ date, session, absence })
         }
-        currentSession={currentSession ?? null}
-        currentBreaks={currentBreaks}
-        expandedSessionId={expandedSessionId}
-        onToggleExpand={handleToggleExpand}
-        expandedEdits={expandedEdits}
-        editsLoading={editsLoading}
       />
 
       {/* Edit modal */}
@@ -3964,9 +3295,9 @@ function TimeTrackingContent() {
       <Modal
         isOpen={pendingManualEditCheckIn !== null}
         onClose={handleClosePendingManualEditCheckIn}
-        title="Session manuell bearbeitet"
+        title="Arbeitszeit manuell bearbeitet"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={() => setPendingManualEditCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
@@ -4009,8 +3340,9 @@ function TimeTrackingContent() {
             </svg>
           </div>
           <p className="mt-2 text-gray-600">
-            Du hast diese Session manuell bearbeitet. Beim erneuten Einstempeln
-            wird die Ausstempelzeit zurückgesetzt. Trotzdem einstempeln?
+            Du hast diese Arbeitszeit manuell bearbeitet. Beim erneuten
+            Einstempeln wird die Ausstempelzeit zurückgesetzt. Trotzdem
+            einstempeln?
           </p>
         </div>
       </Modal>
@@ -4021,7 +3353,7 @@ function TimeTrackingContent() {
         onClose={handleClosePendingCheckIn}
         title="Abwesenheit eingetragen"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={() => setPendingCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
@@ -4074,7 +3406,7 @@ function TimeTrackingContent() {
         onClose={handleClosePendingReopenStatusChange}
         title="Status für heute ändern"
         footer={
-          <div className="flex w-full gap-3">
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
               onClick={handleClosePendingReopenStatusChange}
               disabled={reopenStatusChangeSubmitting}

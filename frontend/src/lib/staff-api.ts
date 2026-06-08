@@ -21,6 +21,7 @@ export interface BackendStaffResponse {
   updated_at: string;
   staff_id?: string;
   teacher_id?: string;
+  employment_type?: string | null;
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
@@ -64,6 +65,7 @@ export interface Staff {
   specialization?: string;
   qualifications?: string;
   staffNotes?: string;
+  employmentType?: string; // full_time, part_time, minijob
   hasRfid: boolean;
   isTeacher: boolean;
   // Supervision status
@@ -376,6 +378,48 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
+  // Get a single staff member by ID
+  async getStaffById(id: string): Promise<Staff> {
+    const response = await sessionFetch(`/api/staff/${id}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff member: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: BackendStaffResponse & { employment_type?: string | null };
+    };
+    const staff = json.data;
+    const { currentLocation, supervisionRole } = getSupervisionInfo(
+      staff.staff_id,
+      {},
+      staff.was_present_today,
+      staff.work_status,
+      staff.absence_type,
+    );
+    return {
+      id: staff.id,
+      name: staff.name,
+      firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
+      lastName:
+        staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
+      email: undefined,
+      role: staff.role ?? undefined,
+      accountRole: staff.account_role ?? undefined,
+      specialization: staff.specialization?.trim() ?? undefined,
+      qualifications: staff.qualifications ?? undefined,
+      staffNotes: staff.staff_notes ?? undefined,
+      employmentType: staff.employment_type ?? undefined,
+      hasRfid: !!staff.tag_id,
+      isTeacher: !!staff.teacher_id,
+      isSupervising: false,
+      currentLocation,
+      supervisionRole,
+      supervisions: [],
+      wasPresentToday: staff.was_present_today,
+      workStatus: staff.work_status,
+      absenceType: staff.absence_type,
+    };
+  }
+
   // Get active supervisions for a specific staff member
   async getStaffSupervisions(
     staffId: string,
@@ -417,4 +461,439 @@ class StaffService {
   }
 }
 
+// Work Schedule types and service
+interface ScheduleEntry {
+  weekIndex: number;
+  dayOfWeek: number;
+  targetMinutes: number;
+}
+
+interface ScheduleModelInfo {
+  id: string;
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
+}
+
+export interface StaffSchedule {
+  mode: "template" | "custom";
+  model: ScheduleModelInfo | null;
+  rotationLength: number;
+  rotationAnchorDate: string;
+  entries: ScheduleEntry[];
+  weeklyTotals: number[];
+  // Earliest date on which any version of this schedule was in effect.
+  // Anchored as YYYY-MM-DD. Empty string when no schedule rows exist.
+  validFrom: string;
+}
+
+interface BackendScheduleEntry {
+  week_index: number;
+  day_of_week: number;
+  target_minutes: number;
+}
+
+interface BackendScheduleModel {
+  id: number;
+  name: string;
+  rotation_length: number;
+  rotation_anchor_date: string;
+}
+
+interface BackendScheduleResponse {
+  mode: "template" | "custom";
+  model: BackendScheduleModel | null;
+  rotation_length: number;
+  rotation_anchor_date: string;
+  entries: BackendScheduleEntry[];
+  weekly_totals: number[];
+  valid_from?: string;
+}
+
+function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
+  return {
+    mode: data.mode ?? "custom",
+    model: data.model
+      ? {
+          id: data.model.id.toString(),
+          name: data.model.name,
+          rotationLength: data.model.rotation_length,
+          rotationAnchorDate: data.model.rotation_anchor_date,
+        }
+      : null,
+    rotationLength: data.rotation_length ?? 1,
+    rotationAnchorDate: data.rotation_anchor_date ?? "",
+    entries: (data.entries ?? []).map((e) => ({
+      weekIndex: e.week_index,
+      dayOfWeek: e.day_of_week,
+      targetMinutes: e.target_minutes,
+    })),
+    weeklyTotals: data.weekly_totals ?? [],
+    validFrom: (data.valid_from ?? "").slice(0, 10),
+  };
+}
+
+interface UpdateScheduleCustomRequest {
+  mode: "custom";
+  rotationLength: number;
+  rotationAnchorDate?: string;
+  entries: Array<{
+    weekIndex: number;
+    dayOfWeek: number;
+    targetMinutes: number;
+  }>;
+  saveAsTemplate?: string;
+}
+
+interface UpdateScheduleTemplateRequest {
+  mode: "template";
+  modelId: string;
+}
+
+export type UpdateScheduleRequest =
+  | UpdateScheduleCustomRequest
+  | UpdateScheduleTemplateRequest;
+
+class StaffScheduleService {
+  async getSchedule(staffId: string): Promise<StaffSchedule> {
+    const response = await sessionFetch(`/api/staff/${staffId}/schedule`);
+    const json = (await response.json()) as {
+      data: BackendScheduleResponse;
+    };
+    return mapScheduleResponse(json.data);
+  }
+
+  async updateSchedule(
+    staffId: string,
+    update: UpdateScheduleRequest,
+  ): Promise<StaffSchedule> {
+    const body =
+      update.mode === "template"
+        ? { mode: "template", model_id: Number.parseInt(update.modelId, 10) }
+        : {
+            mode: "custom",
+            rotation_length: update.rotationLength,
+            rotation_anchor_date: update.rotationAnchorDate,
+            entries: update.entries.map((e) => ({
+              week_index: e.weekIndex,
+              day_of_week: e.dayOfWeek,
+              target_minutes: e.targetMinutes,
+            })),
+            save_as_template: update.saveAsTemplate,
+          };
+    const response = await sessionFetch(`/api/staff/${staffId}/schedule`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = (await response.json()) as {
+      data: BackendScheduleResponse;
+    };
+    return mapScheduleResponse(json.data);
+  }
+}
+
+// Work Time Models (tenant templates)
+interface WorkTimeModelEntry {
+  weekIndex: number;
+  dayOfWeek: number;
+  targetMinutes: number;
+}
+
+export interface WorkTimeModel {
+  id: string;
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
+  entries: WorkTimeModelEntry[];
+  weeklyTotals: number[];
+}
+
+interface BackendWorkTimeModel {
+  id: number;
+  name: string;
+  rotation_length: number;
+  rotation_anchor_date: string;
+  entries: BackendScheduleEntry[];
+  weekly_totals: number[];
+}
+
+function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
+  return {
+    id: m.id.toString(),
+    name: m.name,
+    rotationLength: m.rotation_length,
+    rotationAnchorDate: m.rotation_anchor_date,
+    entries: (m.entries ?? []).map((e) => ({
+      weekIndex: e.week_index,
+      dayOfWeek: e.day_of_week,
+      targetMinutes: e.target_minutes,
+    })),
+    weeklyTotals: m.weekly_totals ?? [],
+  };
+}
+
+class WorkTimeModelService {
+  async list(): Promise<WorkTimeModel[]> {
+    const response = await sessionFetch(`/api/work-time-models`);
+    const json = (await response.json()) as { data: BackendWorkTimeModel[] };
+    return (json.data ?? []).map(mapWorkTimeModel);
+  }
+}
+
+// Staff history types (reuses time-tracking-helpers types)
+export interface StaffHistorySession {
+  id?: number;
+  date: string;
+  status?: "present" | "home_office";
+  // Channel the row was created on. `app` = self-service Web/App,
+  // `nfc` = kiosk auto-stamp, `unknown` = pre-migration legacy row.
+  // Comes from active.work_sessions.source (Issue #1368).
+  source?: "app" | "nfc" | "unknown";
+  net_minutes: number;
+  check_in_time: string;
+  check_out_time: string | null;
+  break_minutes: number;
+  auto_checked_out?: boolean;
+  notes?: string;
+  edit_count?: number;
+}
+
+class StaffHistoryService {
+  async getHistory(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffHistorySession[]> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/history?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff history: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: { sessions: StaffHistorySession[] };
+    };
+    return json.data.sessions ?? [];
+  }
+}
+
+// Admin counterpart to /api/time-tracking/absences (which is self-scoped).
+// Backend response shape matches BackendStaffAbsence in time-tracking-helpers.ts.
+export interface StaffAbsenceRow {
+  id: number;
+  staff_id: number;
+  absence_type: string;
+  date_start: string;
+  date_end: string;
+  half_day: boolean;
+  start_half_day?: boolean;
+  end_half_day?: boolean;
+  note: string;
+  status: string;
+  approved_by?: number | null;
+  approved_at?: string | null;
+  decision_note?: string;
+  working_days?: number | null;
+  requested_at?: string;
+  duration_days?: number;
+}
+
+export interface StaffVacationQuotaSummary {
+  staff_id: number;
+  year: number;
+  entitled_days: number;
+  carryover_days: number;
+  taken_days: number;
+  reserved_days: number;
+  remaining_days: number;
+}
+
+class StaffAbsenceService {
+  async getAbsences(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffAbsenceRow[]> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/absences?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch staff absences: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffAbsenceRow[] | null;
+    };
+    return json.data ?? [];
+  }
+
+  async getVacationQuota(
+    staffId: string,
+    year?: number,
+  ): Promise<StaffVacationQuotaSummary> {
+    const qs = year ? `?year=${year}` : "";
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/quota${qs}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch quota: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffVacationQuotaSummary;
+    };
+    return json.data;
+  }
+
+  async setVacationQuota(
+    staffId: string,
+    payload: {
+      year: number;
+      entitled_days: number;
+      carryover_days: number;
+    },
+  ): Promise<StaffVacationQuotaSummary> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/vacation/quota`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to save quota: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: StaffVacationQuotaSummary;
+    };
+    return json.data;
+  }
+
+  async approve(absenceId: number, decisionNote?: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${absenceId}/approve`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision_note: decisionNote ?? "" }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Genehmigung fehlgeschlagen");
+    }
+  }
+
+  async deny(absenceId: number, decisionNote: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/absences/${absenceId}/deny`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision_note: decisionNote }),
+      },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Ablehnung fehlgeschlagen");
+    }
+  }
+}
+
+// Admin counterpart to timeTrackingService.getSessionEdits (which checks
+// ownership against the JWT subject). Routes via /api/staff/{id}/.../edits
+// so an admin can pull the audit trail for any staff member's session in
+// the tenant.
+import {
+  mapWorkSessionEditResponse,
+  type BackendWorkSessionEdit,
+  type WorkSessionEdit,
+} from "./time-tracking-helpers";
+
+// Payload shape for admin edits and nachgetragene sessions. The backend
+// keys (date / check_in_time / ...) match SessionUpdateRequest and
+// AdminCreateSessionRequest one-to-one. The route handler decides which
+// it is via the HTTP verb (PUT vs POST). Notes is required for both flows.
+interface AdminSessionPayload {
+  date: string; // YYYY-MM-DD
+  check_in_time: string; // ISO 8601
+  check_out_time: string; // ISO 8601
+  break_minutes: number;
+  status: "present" | "home_office";
+  notes: string;
+}
+
+class StaffSessionEditsService {
+  async getEdits(
+    staffId: string,
+    sessionId: string,
+  ): Promise<WorkSessionEdit[]> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions/${sessionId}/edits`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch session edits: ${response.statusText}`);
+    }
+    const json = (await response.json()) as {
+      data: BackendWorkSessionEdit[] | null;
+    };
+    return (json.data ?? []).map(mapWorkSessionEditResponse);
+  }
+}
+
+class StaffSessionService {
+  // PUT corrects an existing session on behalf of the named staff member.
+  // Backend route: /api/staff/{staffId}/time-tracking/sessions/{sessionId}
+  async updateSession(
+    staffId: string,
+    sessionId: string,
+    payload: AdminSessionPayload,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions/${sessionId}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        body || `Failed to update session: ${response.statusText}`,
+      );
+    }
+  }
+
+  // POST admin "nachträgt" a session for a staff member who forgot to
+  // stamp. Backend route: /api/staff/{staffId}/time-tracking/sessions
+  async createSession(
+    staffId: string,
+    payload: AdminSessionPayload,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/sessions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        body || `Failed to create session: ${response.statusText}`,
+      );
+    }
+  }
+}
+
 export const staffService = new StaffService();
+export const staffScheduleService = new StaffScheduleService();
+export const workTimeModelService = new WorkTimeModelService();
+export const staffHistoryService = new StaffHistoryService();
+export const staffAbsenceService = new StaffAbsenceService();
+export const staffSessionEditsService = new StaffSessionEditsService();
+export const staffSessionService = new StaffSessionService();

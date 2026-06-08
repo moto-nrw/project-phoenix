@@ -67,6 +67,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.care_concept",
+		"operations.time_tracking_account_start_date",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -201,6 +202,17 @@ func TestOrganizationSetupSettings(t *testing.T) {
 	careValues := []any{careDef.Options.Static[0].Value, careDef.Options.Static[1].Value}
 	assert.Contains(t, careValues, config.CareConceptFixedSchedule)
 	assert.Contains(t, careValues, config.CareConceptOpenRooms)
+}
+
+func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingAccountStartDate)
+	require.NotNil(t, def, "operations.time_tracking_account_start_date should be registered")
+	assert.Equal(t, config.FieldDate, def.Type)
+	assert.Equal(t, "", def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {

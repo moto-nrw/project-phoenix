@@ -32,8 +32,24 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   net_minutes: number;
   is_overtime: boolean;
   is_break_compliant: boolean;
+  rest_period_warning: string | null;
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
+}
+
+interface BackendWeeklySummary {
+  week_number: number;
+  year: number;
+  total_net_minutes: number;
+  target_minutes: number | null;
+  delta_minutes: number | null;
+  session_count: number;
+  is_over_weekly_max: boolean;
+}
+
+export interface BackendHistoryResponse {
+  sessions: BackendWorkSessionHistory[];
+  weekly_summaries: BackendWeeklySummary[];
 }
 
 export interface BackendWorkSessionEdit {
@@ -46,6 +62,11 @@ export interface BackendWorkSessionEdit {
   new_value: string | null;
   notes: string | null;
   created_at: string;
+  // Decorated by the service layer (WorkSessionEditView). Older clients of
+  // the audit endpoint may still see absent fields; we tolerate missing
+  // values for backwards compatibility.
+  editor_name?: string;
+  is_self_edit?: boolean;
 }
 
 // Backend absence response type (snake_case)
@@ -56,6 +77,8 @@ export interface BackendStaffAbsence {
   date_start: string;
   date_end: string;
   half_day: boolean;
+  start_half_day?: boolean;
+  end_half_day?: boolean;
   note: string;
   status: string;
   approved_by: number | null;
@@ -64,6 +87,10 @@ export interface BackendStaffAbsence {
   created_at: string;
   updated_at: string;
   duration_days: number;
+  working_days?: number | null;
+  decision_note?: string;
+  requested_at?: string;
+  substitute_staff_id?: number | null;
 }
 
 // Frontend absence type
@@ -76,6 +103,8 @@ export interface StaffAbsence {
   dateStart: string;
   dateEnd: string;
   halfDay: boolean;
+  startHalfDay: boolean;
+  endHalfDay: boolean;
   note: string;
   status: string;
   approvedBy: string | null;
@@ -84,6 +113,10 @@ export interface StaffAbsence {
   createdAt: string;
   updatedAt: string;
   durationDays: number;
+  workingDays: number | null;
+  decisionNote: string;
+  requestedAt: string;
+  substituteStaffId: string | null;
 }
 
 export const absenceTypeLabels: Record<AbsenceType, string> = {
@@ -91,13 +124,6 @@ export const absenceTypeLabels: Record<AbsenceType, string> = {
   vacation: "Urlaub",
   training: "Fortbildung",
   other: "Sonstige",
-};
-
-export const absenceTypeColors: Record<AbsenceType, string> = {
-  sick: "bg-red-100 text-red-800",
-  vacation: "bg-blue-100 text-blue-800",
-  training: "bg-green-100 text-green-800",
-  other: "bg-purple-100 text-purple-800",
 };
 
 export function mapStaffAbsenceResponse(
@@ -110,6 +136,8 @@ export function mapStaffAbsenceResponse(
     dateStart: data.date_start.split("T")[0] ?? data.date_start,
     dateEnd: data.date_end.split("T")[0] ?? data.date_end,
     halfDay: data.half_day,
+    startHalfDay: data.start_half_day ?? data.half_day,
+    endHalfDay: data.end_half_day ?? data.half_day,
     note: data.note ?? "",
     status: data.status,
     approvedBy: data.approved_by?.toString() ?? null,
@@ -118,6 +146,10 @@ export function mapStaffAbsenceResponse(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     durationDays: data.duration_days,
+    workingDays: data.working_days ?? null,
+    decisionNote: data.decision_note ?? "",
+    requestedAt: data.requested_at ?? data.created_at,
+    substituteStaffId: data.substitute_staff_id?.toString() ?? null,
   };
 }
 
@@ -151,8 +183,19 @@ export interface WorkSessionHistory extends WorkSession {
   netMinutes: number;
   isOvertime: boolean;
   isBreakCompliant: boolean;
+  restPeriodWarning: string | null;
   breaks: WorkSessionBreak[];
   editCount: number;
+}
+
+export interface WeeklySummary {
+  weekNumber: number;
+  year: number;
+  totalNetMinutes: number;
+  targetMinutes: number | null;
+  deltaMinutes: number | null;
+  sessionCount: number;
+  isOverWeeklyMax: boolean;
 }
 
 export interface WorkSessionEdit {
@@ -165,6 +208,12 @@ export interface WorkSessionEdit {
   newValue: string | null;
   notes: string | null;
   createdAt: string;
+  // Decorated server-side (WorkSessionEditView). Both fields are optional so
+  // existing test fixtures and older API responses keep type-checking; the
+  // mapper fills them in from the backend response and falls back to a
+  // self-edit when the backend didn't decorate.
+  editorName?: string;
+  isSelfEdit?: boolean;
 }
 
 /**
@@ -215,8 +264,39 @@ export function mapWorkSessionHistoryResponse(
     netMinutes: data.net_minutes,
     isOvertime: data.is_overtime,
     isBreakCompliant: data.is_break_compliant,
+    restPeriodWarning: data.rest_period_warning ?? null,
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
+  };
+}
+
+/**
+ * Maps backend weekly summary to frontend type
+ */
+function mapWeeklySummaryResponse(data: BackendWeeklySummary): WeeklySummary {
+  return {
+    weekNumber: data.week_number,
+    year: data.year,
+    totalNetMinutes: data.total_net_minutes,
+    targetMinutes: data.target_minutes ?? null,
+    deltaMinutes: data.delta_minutes ?? null,
+    sessionCount: data.session_count,
+    isOverWeeklyMax: data.is_over_weekly_max,
+  };
+}
+
+/**
+ * Maps the full history response (sessions + weekly summaries)
+ */
+export function mapHistoryResponse(data: BackendHistoryResponse): {
+  sessions: WorkSessionHistory[];
+  weeklySummaries: WeeklySummary[];
+} {
+  return {
+    sessions: (data.sessions ?? []).map(mapWorkSessionHistoryResponse),
+    weeklySummaries: (data.weekly_summaries ?? []).map(
+      mapWeeklySummaryResponse,
+    ),
   };
 }
 
@@ -236,6 +316,10 @@ export function mapWorkSessionEditResponse(
     newValue: data.new_value ?? null,
     notes: data.notes ?? null,
     createdAt: data.created_at,
+    editorName: data.editor_name ?? "",
+    // Older responses without is_self_edit are treated as self-edits to keep
+    // legacy audit rows from being mislabeled as "vom Admin geändert".
+    isSelfEdit: data.is_self_edit ?? data.edited_by === data.staff_id,
   };
 }
 
@@ -335,6 +419,10 @@ export function getWeekNumber(date: Date): number {
  */
 export function getComplianceWarnings(session: WorkSessionHistory): string[] {
   const warnings: string[] = [];
+
+  if (session.restPeriodWarning) {
+    warnings.push(session.restPeriodWarning);
+  }
 
   if (!session.isBreakCompliant && session.netMinutes > 0) {
     if (session.netMinutes > 540 && session.breakMinutes < 45) {

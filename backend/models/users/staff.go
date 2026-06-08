@@ -8,12 +8,22 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Employment type constants
+const (
+	EmploymentTypeFullTime = "full_time"
+	EmploymentTypePartTime = "part_time"
+	EmploymentTypeMinijob  = "minijob"
+)
+
 // Staff represents a staff member in the system
 type Staff struct {
 	base.Model `bun:"schema:users,table:staff"`
 	base.TenantModel
-	PersonID   int64  `bun:"person_id,notnull" json:"person_id"`
-	StaffNotes string `bun:"staff_notes" json:"staff_notes,omitempty"`
+	PersonID           int64      `bun:"person_id,notnull" json:"person_id"`
+	StaffNotes         string     `bun:"staff_notes" json:"staff_notes,omitempty"`
+	EmploymentType     *string    `bun:"employment_type" json:"employment_type,omitempty"`
+	WorkTimeModelID    *int64     `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
+	RotationAnchorDate *time.Time `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
@@ -40,7 +50,21 @@ func (s *Staff) Validate() error {
 		return errors.New("person ID is required")
 	}
 
+	if s.EmploymentType != nil {
+		switch *s.EmploymentType {
+		case EmploymentTypeFullTime, EmploymentTypePartTime, EmploymentTypeMinijob:
+			// valid
+		default:
+			return errors.New("employment_type must be 'full_time', 'part_time', or 'minijob'")
+		}
+	}
+
 	return nil
+}
+
+// IsMinijob returns true if this staff member is a Minijob employee
+func (s *Staff) IsMinijob() bool {
+	return s.EmploymentType != nil && *s.EmploymentType == EmploymentTypeMinijob
 }
 
 // SetPerson links this staff member to a person

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -27,6 +30,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
+var errScheduleValidation = errors.New("schedule validation")
+
+type scheduleValidationError struct {
+	message string
+}
+
+func (e scheduleValidationError) Error() string {
+	return e.message
+}
+
+func (e scheduleValidationError) Is(target error) bool {
+	return target == errScheduleValidation
+}
+
+func scheduleValidationErrorf(format string, args ...any) error {
+	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
+}
+
 // Resource defines the staff API resource
 type Resource struct {
 	PersonService       usersSvc.PersonService
@@ -36,7 +57,10 @@ type Resource struct {
 	AuthService         authSvc.AuthService
 	GroupSupervisorRepo active.GroupSupervisorRepository
 	WorkSessionService  activeSvc.WorkSessionService
+	StaffAbsenceService activeSvc.StaffAbsenceService
 	AbsenceRepo         active.StaffAbsenceRepository
+	ScheduleRepo        config.StaffWorkScheduleRepository
+	WorkTimeModelRepo   config.WorkTimeModelRepository
 	db                  *bun.DB
 	logger              *slog.Logger
 }
@@ -48,7 +72,10 @@ func NewResource(
 	authService authSvc.AuthService,
 	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
+	staffAbsenceService activeSvc.StaffAbsenceService,
 	absenceRepo active.StaffAbsenceRepository,
+	scheduleRepo config.StaffWorkScheduleRepository,
+	workTimeModelRepo config.WorkTimeModelRepository,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
@@ -60,7 +87,10 @@ func NewResource(
 		AuthService:         authService,
 		GroupSupervisorRepo: groupSupervisorRepo,
 		WorkSessionService:  workSessionService,
+		StaffAbsenceService: staffAbsenceService,
 		AbsenceRepo:         absenceRepo,
+		ScheduleRepo:        scheduleRepo,
+		WorkTimeModelRepo:   workTimeModelRepo,
 		db:                  db,
 		logger:              logger,
 	}
@@ -104,6 +134,35 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStaff)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 
+		// Work schedule endpoints expose contractual target hours.
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/schedule", rs.getSchedule)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/schedule", rs.updateSchedule)
+
+		// Time tracking history for a specific staff member (admin read)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+
+		// Vacation workflow admin-side (Tranche 4)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
+		// Audit trail of a single work session, admin-facing. The MA-side
+		// /api/time-tracking/{id}/edits enforces session-staff ownership
+		// against the JWT subject; here the route guarantees the session
+		// belongs to the staff named in the URL instead.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/sessions/{sessionId}/edits", rs.getStaffSessionEdits)
+
+		// Admin cross-staff corrections. time_tracking:manage is the gate.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/time-tracking/sessions/{sessionId}", rs.adminUpdateStaffSession)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/sessions", rs.adminCreateStaffSession)
+
+		// Absences for a specific staff member (admin read). The MA-Sicht uses
+		// /api/time-tracking/absences which is scoped to the caller; this route
+		// lets an admin see Krank/Urlaub for any staff in the same tenant.
+		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/absences", rs.getStaffAbsences)
+
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
 		r.With(withTx).Put("/pin", rs.updatePIN)
@@ -136,6 +195,7 @@ type StaffResponse struct {
 	WorkStatus      string          `json:"work_status,omitempty"`
 	AbsenceType     string          `json:"absence_type,omitempty"`
 	AccountRole     string          `json:"account_role,omitempty"`
+	EmploymentType  *string         `json:"employment_type,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 }
@@ -303,6 +363,7 @@ func newStaffResponse(staff *users.Staff, isTeacher bool, wasPresentToday bool, 
 		WorkStatus:      workStatus,
 		AbsenceType:     absenceType,
 		AccountRole:     accountRole,
+		EmploymentType:  staff.EmploymentType,
 		CreatedAt:       staff.CreatedAt,
 		UpdatedAt:       staff.UpdatedAt,
 	}
@@ -540,18 +601,31 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Resolve presence/work-status/absence to keep detail consistent with the list view.
+	// These maps cover all staff today; we just look up our single ID.
+	wasPresentToday := false
+	if presentIDs, presentErr := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(r.Context()); presentErr == nil {
+		wasPresentToday = slices.Contains(presentIDs, staff.ID)
+	} else {
+		rs.getLogger().Warn("failed to fetch present staff IDs",
+			slog.Int64("staff_id", staff.ID),
+			slog.String("error", presentErr.Error()))
+	}
+	workStatus := rs.loadWorkStatusMap(r.Context())[staff.ID]
+	absenceType := rs.loadAbsenceMap(r.Context())[staff.ID]
+
 	// Check if this staff member is also a teacher
 	isTeacher := false
 	var teacher *users.Teacher
 
 	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
-		response := newTeacherResponse(staff, teacher, false, "", "", accountRole, accountEmail, accountAvatar)
+		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, isTeacher, false, "", "", accountRole, accountEmail, accountAvatar)
+	response := newStaffResponse(staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -788,7 +862,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveStaffAvatar serves the avatar image for a staff member.
-// Requires users:read permission — any authenticated user in the same tenant can view staff avatars.
+// Requires users:read permission, any authenticated user in the same tenant can view staff avatars.
 func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
@@ -1421,3 +1495,891 @@ func (rs *Resource) GetPINStatusHandler() http.HandlerFunc { return rs.getPINSta
 
 // UpdatePINHandler returns the updatePIN handler for testing.
 func (rs *Resource) UpdatePINHandler() http.HandlerFunc { return rs.updatePIN }
+
+// ============================================================================
+// Work Schedule Handlers
+// ============================================================================
+
+// ScheduleEntryRequest represents a single day in the schedule
+type ScheduleEntryRequest struct {
+	WeekIndex     int `json:"week_index"`
+	DayOfWeek     int `json:"day_of_week"`
+	TargetMinutes int `json:"target_minutes"`
+}
+
+// ScheduleEntryResponse represents a single day in the schedule response
+type ScheduleEntryResponse struct {
+	WeekIndex     int `json:"week_index"`
+	DayOfWeek     int `json:"day_of_week"`
+	TargetMinutes int `json:"target_minutes"`
+}
+
+// ScheduleModelInfo describes the assigned work-time template, when there is one.
+type ScheduleModelInfo struct {
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	RotationLength     int    `json:"rotation_length"`
+	RotationAnchorDate string `json:"rotation_anchor_date"`
+}
+
+// ScheduleResponse wraps the resolved schedule with rotation metadata.
+type ScheduleResponse struct {
+	Mode               string                  `json:"mode"`
+	Model              *ScheduleModelInfo      `json:"model,omitempty"`
+	RotationLength     int                     `json:"rotation_length"`
+	RotationAnchorDate string                  `json:"rotation_anchor_date"`
+	Entries            []ScheduleEntryResponse `json:"entries"`
+	WeeklyTotals       []int                   `json:"weekly_totals"`
+	ValidFrom          string                  `json:"valid_from,omitempty"`
+}
+
+// scheduleUpdateRequest is the union body for PUT /api/staff/{id}/schedule.
+//
+// Mode "template": only ModelID is required. Existing custom entries are
+// archived and the staff is bound to the template.
+// Mode "custom":   RotationLength + Entries describe a per-staff pattern.
+//
+//	Entries that exceed the rotation are rejected.
+//	SaveAsTemplateName is optional; when set we additionally
+//	create a tenant template from the same payload and bind it.
+type scheduleUpdateRequest struct {
+	Mode               string                 `json:"mode"`
+	ModelID            *int64                 `json:"model_id,omitempty"`
+	RotationLength     int                    `json:"rotation_length,omitempty"`
+	RotationAnchorDate string                 `json:"rotation_anchor_date,omitempty"`
+	Entries            []ScheduleEntryRequest `json:"entries"`
+	SaveAsTemplateName string                 `json:"save_as_template,omitempty"`
+}
+
+// getSchedule handles GET /api/staff/{id}/schedule
+func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if !rs.canReadSchedule(r.Context(), staffID) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to read schedule")))
+		return
+	}
+
+	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	resp, err := rs.buildScheduleResponse(r.Context(), staff)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Schedule retrieved successfully")
+}
+
+func (rs *Resource) canReadSchedule(ctx context.Context, staffID int64) bool {
+	userPermissions := jwt.PermissionsFromCtx(ctx)
+	if authorize.HasPermission(permissions.TimeTrackingManage, userPermissions) {
+		return true
+	}
+	if !authorize.HasPermission(permissions.TimeTrackingOwn, userPermissions) {
+		return false
+	}
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return false
+	}
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil {
+		return false
+	}
+	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		return false
+	}
+	return staff.ID == staffID
+}
+
+// updateSchedule handles PUT /api/staff/{id}/schedule
+func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	var req scheduleUpdateRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	mode := req.Mode
+	if mode == "" {
+		// Backwards compatibility: missing mode + flat entries means the
+		// caller still uses the single-week, no-rotation contract.
+		mode = "custom"
+		if req.RotationLength == 0 {
+			req.RotationLength = 1
+		}
+	}
+
+	switch mode {
+	case "template":
+		if req.ModelID == nil || *req.ModelID == 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("model_id is required for mode=template")))
+			return
+		}
+		if err := rs.assignTemplateToStaff(r.Context(), staff, *req.ModelID); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+	case "custom":
+		if err := rs.applyCustomSchedule(r.Context(), staff, req); err != nil {
+			if errors.Is(err, errScheduleValidation) {
+				common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			} else {
+				common.RenderError(w, r, common.ErrorInternalServer(err))
+			}
+			return
+		}
+	default:
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid mode %q", mode)))
+		return
+	}
+
+	refreshed, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp, err := rs.buildScheduleResponse(r.Context(), refreshed)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, resp, "Schedule updated successfully")
+}
+
+func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
+	if staff.WorkTimeModelID != nil && *staff.WorkTimeModelID > 0 {
+		model, err := rs.WorkTimeModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
+		if err != nil {
+			return nil, fmt.Errorf("load assigned model: %w", err)
+		}
+		anchor := model.RotationAnchorDate
+		if staff.RotationAnchorDate != nil {
+			anchor = *staff.RotationAnchorDate
+		}
+
+		rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+		if err != nil {
+			return nil, fmt.Errorf("load assigned schedule snapshot: %w", err)
+		}
+		rotation := model.RotationLength
+		var entries []ScheduleEntryResponse
+		var totals []int
+		if len(rows) > 0 {
+			entries, totals, rotation = scheduleRowsToResponseParts(rows)
+		} else {
+			entries, totals = modelEntriesToResponseParts(model.Entries, rotation)
+		}
+		return &ScheduleResponse{
+			Mode: "template",
+			Model: &ScheduleModelInfo{
+				ID:                 model.ID,
+				Name:               model.Name,
+				RotationLength:     model.RotationLength,
+				RotationAnchorDate: model.RotationAnchorDate.Format("2006-01-02"),
+			},
+			RotationLength:     rotation,
+			RotationAnchorDate: anchor.Format("2006-01-02"),
+			Entries:            entries,
+			WeeklyTotals:       totals,
+		}, nil
+	}
+
+	rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load custom schedule: %w", err)
+	}
+
+	entries, totals, rotation := scheduleRowsToResponseParts(rows)
+	var earliest *time.Time
+	for _, row := range rows {
+		if earliest == nil || row.ValidFrom.Before(*earliest) {
+			vf := row.ValidFrom
+			earliest = &vf
+		}
+	}
+	anchor := time.Time{}
+	if staff.RotationAnchorDate != nil {
+		anchor = *staff.RotationAnchorDate
+	} else if earliest != nil {
+		anchor = *earliest
+	}
+	resp := &ScheduleResponse{
+		Mode:               "custom",
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor.Format("2006-01-02"),
+		Entries:            entries,
+		WeeklyTotals:       totals,
+	}
+	if earliest != nil {
+		resp.ValidFrom = earliest.Format("2006-01-02")
+	}
+	return resp, nil
+}
+
+func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staff, modelID int64) error {
+	model, err := rs.WorkTimeModelRepo.FindByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("template not found: %w", err)
+	}
+
+	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write assigned schedule snapshot: %w", err)
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	anchor := model.RotationAnchorDate
+	staff.RotationAnchorDate = &anchor
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("bind template to staff: %w", err)
+	}
+	return nil
+}
+
+func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff, req scheduleUpdateRequest) error {
+	rotation := req.RotationLength
+	if rotation == 0 {
+		rotation = 1
+	}
+	if rotation < 1 || rotation > config.WorkTimeModelMaxRotation {
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
+	}
+
+	anchor := time.Time{}
+	if req.RotationAnchorDate != "" {
+		parsed, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+		if err != nil {
+			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
+		}
+		anchor = parsed
+	}
+
+	entries, templateEntries, err := buildScheduleEntries(req.Entries, rotation)
+	if err != nil {
+		return err
+	}
+
+	if req.SaveAsTemplateName != "" {
+		if err := rs.saveCustomAsTemplate(ctx, staff, req.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+			return fmt.Errorf("save as template: %w", err)
+		}
+		return nil
+	}
+
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write custom schedule: %w", err)
+	}
+
+	staff.WorkTimeModelID = nil
+	if !anchor.IsZero() {
+		staff.RotationAnchorDate = &anchor
+	}
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("unbind template: %w", err)
+	}
+
+	return nil
+}
+
+func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*config.StaffWorkSchedule, []*config.WorkTimeModelEntry, error) {
+	entries := make([]*config.StaffWorkSchedule, 0, len(reqEntries))
+	templateEntries := make([]*config.WorkTimeModelEntry, 0, len(reqEntries))
+	seenSlots := make(map[string]struct{}, len(reqEntries))
+	for _, e := range reqEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, &config.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+		templateEntries = append(templateEntries, &config.WorkTimeModelEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+		})
+	}
+	return entries, templateEntries, nil
+}
+
+func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor time.Time, entries []*config.WorkTimeModelEntry) error {
+	if anchor.IsZero() {
+		anchor = time.Now().Truncate(24 * time.Hour)
+	}
+	model := &config.WorkTimeModel{
+		Name:               name,
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor,
+	}
+	if err := rs.WorkTimeModelRepo.Create(ctx, model, entries); err != nil {
+		return err
+	}
+	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
+	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+		return fmt.Errorf("write saved template schedule snapshot: %w", err)
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	staff.RotationAnchorDate = &anchor
+	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("bind freshly created template: %w", err)
+	}
+	return nil
+}
+
+func scheduleRowsToResponseParts(rows []*config.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int) {
+	rotation := 1
+	for _, row := range rows {
+		if row.RotationLength > rotation {
+			rotation = row.RotationLength
+		}
+	}
+	if rotation < 1 {
+		rotation = 1
+	}
+	totals := make([]int, rotation)
+	entries := make([]ScheduleEntryResponse, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, ScheduleEntryResponse{
+			WeekIndex:     row.WeekIndex,
+			DayOfWeek:     row.DayOfWeek,
+			TargetMinutes: row.TargetMinutes,
+		})
+		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
+			totals[row.WeekIndex] += row.TargetMinutes
+		}
+	}
+	return entries, totals, rotation
+}
+
+func modelEntriesToResponseParts(modelEntries []*config.WorkTimeModelEntry, rotation int) ([]ScheduleEntryResponse, []int) {
+	if rotation < 1 {
+		rotation = 1
+	}
+	entries := make([]ScheduleEntryResponse, 0, len(modelEntries))
+	totals := make([]int, rotation)
+	for _, e := range modelEntries {
+		entries = append(entries, ScheduleEntryResponse{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+		})
+		if e.WeekIndex >= 0 && e.WeekIndex < rotation {
+			totals[e.WeekIndex] += e.TargetMinutes
+		}
+	}
+	return entries, totals
+}
+
+func modelEntriesToScheduleRows(modelEntries []*config.WorkTimeModelEntry, rotation int) []*config.StaffWorkSchedule {
+	rows := make([]*config.StaffWorkSchedule, 0, len(modelEntries))
+	for _, e := range modelEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		rows = append(rows, &config.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+	}
+	return rows
+}
+
+func validateScheduleEntryRequest(e ScheduleEntryRequest, rotation int, seenSlots map[string]struct{}) error {
+	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+	}
+	if e.DayOfWeek < config.DayMonday || e.DayOfWeek > config.DaySunday {
+		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
+	}
+	if e.TargetMinutes > 720 {
+		return scheduleValidationErrorf("target_minutes must be between 0 and 720")
+	}
+	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
+	if _, ok := seenSlots[slot]; ok {
+		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
+	}
+	seenSlots[slot] = struct{}{}
+	return nil
+}
+
+// getStaffHistory handles GET /api/staff/{id}/time-tracking/history?from=YYYY-MM-DD&to=YYYY-MM-DD
+func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	// Verify staff exists
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	// Parse date range from query parameters
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff history",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, historyResp, "Staff session history retrieved successfully")
+}
+
+// exportStaffSessions handles GET /api/staff/{id}/time-tracking/export?from=...&to=...&format=csv|xlsx
+func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format != "csv" && format != "xlsx" {
+		format = "csv"
+	}
+
+	fileBytes, filename, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from, to, format)
+	if err != nil {
+		rs.getLogger().Error("failed to export staff sessions",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	switch format {
+	case "xlsx":
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	default:
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	}
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(fileBytes)))
+	if _, err := w.Write(fileBytes); err != nil {
+		rs.getLogger().Error("failed to write export response", "error", err.Error())
+	}
+}
+
+// listPendingAbsenceRequests handles GET /api/staff/absences/pending
+func (rs *Resource) listPendingAbsenceRequests(w http.ResponseWriter, r *http.Request) {
+	resp, err := rs.StaffAbsenceService.ListPendingRequests(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Pending absence requests retrieved")
+}
+
+// approveAbsence handles POST /api/staff/absences/{absenceId}/approve
+func (rs *Resource) approveAbsence(w http.ResponseWriter, r *http.Request) {
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	decidedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	var req activeSvc.VacationDecisionRequest
+	if r.ContentLength > 0 {
+		if err := render.DecodeJSON(r.Body, &req); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+	}
+	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, int64(claims.ID), decidedBy, req.DecisionNote)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence approved")
+}
+
+// denyAbsence handles POST /api/staff/absences/{absenceId}/deny
+func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	decidedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	var req activeSvc.VacationDecisionRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	resp, err := rs.StaffAbsenceService.DenyAbsence(r.Context(), absenceID, int64(claims.ID), decidedBy, req.DecisionNote)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Absence declined")
+}
+
+// getStaffVacationQuota handles GET /api/staff/{id}/vacation/quota?year=YYYY
+func (rs *Resource) getStaffVacationQuota(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	year, err := parseYearQuery(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota retrieved")
+}
+
+// setStaffVacationQuota handles PUT /api/staff/{id}/vacation/quota
+func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var body struct {
+		Year          int     `json:"year"`
+		EntitledDays  float64 `json:"entitled_days"`
+		CarryoverDays float64 `json:"carryover_days"`
+	}
+	if err := render.DecodeJSON(r.Body, &body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if body.Year == 0 {
+		body.Year = time.Now().Year()
+	}
+	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, body.Year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota saved")
+}
+
+func parseInt64Param(r *http.Request, name string) (int64, error) {
+	str := chi.URLParam(r, name)
+	v, err := strconv.ParseInt(str, 10, 64)
+	if err != nil {
+		return 0, errors.New("invalid " + name + " parameter")
+	}
+	return v, nil
+}
+
+func parseYearQuery(r *http.Request) (int, error) {
+	yearStr := r.URL.Query().Get("year")
+	if yearStr == "" {
+		return time.Now().Year(), nil
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return 0, errors.New("invalid year parameter")
+	}
+	return year, nil
+}
+
+// resolveEditorStaffID maps the JWT account id to a staff id, the staff
+// record of the admin currently making the request. Lands in
+// audit.work_session_edits.edited_by so the audit trail can name a real
+// person, not an opaque account.
+func (rs *Resource) resolveEditorStaffID(ctx context.Context) (int64, error) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return 0, errors.New("invalid token")
+	}
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil {
+		return 0, fmt.Errorf("person not found for account: %w", err)
+	}
+	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("staff not found for editor account: %w", err)
+	}
+	return staff.ID, nil
+}
+
+// adminUpdateStaffSession handles PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
+// Admin counterpart to /api/time-tracking/{id}, gated on
+// time_tracking:manage at the router level, so a Betreuer with only
+// time_tracking:own gets 403 before reaching the handler.
+func (rs *Resource) adminUpdateStaffSession(w http.ResponseWriter, r *http.Request) {
+	targetStaffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	var updates activeSvc.SessionUpdateRequest
+	if err := render.DecodeJSON(r.Body, &updates); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	session, err := rs.WorkSessionService.UpdateSessionAsAdmin(r.Context(), editorStaffID, targetStaffID, sessionID, updates)
+	if err != nil {
+		rs.getLogger().Error("admin session update failed",
+			"target_staff_id", targetStaffID,
+			"editor_staff_id", editorStaffID,
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, classifyAdminEditError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, session, "Session updated")
+}
+
+// adminCreateStaffSession handles POST /api/staff/{id}/time-tracking/sessions
+// the "nachtragen" flow when an MA forgot to stamp.
+func (rs *Resource) adminCreateStaffSession(w http.ResponseWriter, r *http.Request) {
+	targetStaffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	var req activeSvc.AdminCreateSessionRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	session, err := rs.WorkSessionService.CreateSessionAsAdmin(r.Context(), editorStaffID, targetStaffID, req)
+	if err != nil {
+		rs.getLogger().Error("admin session create failed",
+			"target_staff_id", targetStaffID,
+			"editor_staff_id", editorStaffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, classifyAdminEditError(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, session, "Session created")
+}
+
+// classifyAdminEditError maps service errors to HTTP responses. Validation
+// problems (notes missing, range invalid) land as 400; ownership mismatches
+// and "not found" as 404 to avoid leaking session existence.
+func classifyAdminEditError(err error) render.Renderer {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "notes required"),
+		strings.Contains(msg, "must be"),
+		strings.Contains(msg, "must not"),
+		strings.Contains(msg, "is required"):
+		return common.ErrorInvalidRequest(err)
+	case strings.Contains(msg, "session not found"),
+		strings.Contains(msg, "does not belong"):
+		return common.ErrorNotFound(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
+// getStaffSessionEdits handles GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
+// Admin-facing counterpart to /api/time-tracking/{id}/edits. The MA endpoint
+// verifies the session belongs to the JWT subject; here we verify it belongs
+// to the staff named in the URL (RLS still scopes the tenant).
+func (rs *Resource) getStaffSessionEdits(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	sessionIDStr := chi.URLParam(r, "sessionId")
+	sessionID, err := strconv.ParseInt(sessionIDStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session ID")))
+		return
+	}
+
+	edits, err := rs.WorkSessionService.GetSessionEditsForStaff(r.Context(), staffID, sessionID)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff session edits",
+			"staff_id", staffID,
+			"session_id", sessionID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, edits, "Session edits retrieved successfully")
+}
+
+// getStaffAbsences handles GET /api/staff/{id}/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Admin-facing counterpart to /api/time-tracking/absences (which is scoped to
+// the caller). Lets the staff-detail view render Krank/Urlaub badges for any
+// staff in the tenant.
+func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return
+	}
+
+	from, err := time.Parse(common.DateFormatISO, fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	to, err := time.Parse(common.DateFormatISO, toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+
+	absences, err := rs.StaffAbsenceService.GetAbsencesForRange(r.Context(), staffID, from, to)
+	if err != nil {
+		rs.getLogger().Error("failed to get staff absences",
+			"staff_id", staffID,
+			"error", err.Error(),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, absences, "Staff absences retrieved successfully")
+}

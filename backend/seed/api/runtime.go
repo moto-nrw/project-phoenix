@@ -1,6 +1,8 @@
 package api
 
-import "github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+import (
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+)
 
 type Runtime struct {
 	Adapter          *phoenixapi.Adapter

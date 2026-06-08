@@ -15,7 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -29,15 +31,17 @@ type Resource struct {
 	WorkSessionService  activeSvc.WorkSessionService
 	StaffAbsenceService activeSvc.StaffAbsenceService
 	PersonService       usersSvc.PersonService
+	SettingsService     configSvc.SettingsService
 	db                  *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, db *bun.DB) *Resource {
 	return &Resource{
 		WorkSessionService:  workSessionService,
 		StaffAbsenceService: staffAbsenceService,
 		PersonService:       personService,
+		SettingsService:     settingsService,
 		db:                  db,
 	}
 }
@@ -61,6 +65,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/config", rs.getConfig)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
@@ -79,6 +84,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/absences/{id}", rs.updateAbsence)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Delete("/absences/{id}", rs.deleteAbsence)
 
+		// Vacation workflow (Tranche 4), MA-side
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/vacation/request", rs.requestVacation)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
+
 		// Presence map - for internal use by staff page
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
 	})
@@ -89,6 +99,10 @@ func (rs *Resource) Router() chi.Router {
 // CheckInRequest represents a check-in request
 type CheckInRequest struct {
 	Status string `json:"status"` // "present" or "home_office"
+}
+
+type ConfigResponse struct {
+	AccountStartDate string `json:"account_start_date"`
 }
 
 // Bind validates the check-in request
@@ -222,6 +236,21 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, session, "Current session retrieved successfully")
 }
 
+// getConfig handles GET /api/time-tracking/config
+func (rs *Resource) getConfig(w http.ResponseWriter, r *http.Request) {
+	accountStartDate := ""
+	if rs.SettingsService != nil {
+		value, err := rs.SettingsService.ResolveString(r.Context(), configModels.KeyTimeTrackingAccountStartDate)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		accountStartDate = value
+	}
+
+	common.Respond(w, r, http.StatusOK, ConfigResponse{AccountStartDate: accountStartDate}, "Time tracking config retrieved successfully")
+}
+
 // getHistory handles GET /api/time-tracking/history?from=2026-01-01&to=2026-01-31
 func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 	// Get staff ID from JWT claims
@@ -237,14 +266,14 @@ func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get history
-	sessions, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Get history with weekly aggregation
+	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, sessions, "Session history retrieved successfully")
+	common.Respond(w, r, http.StatusOK, historyResp, "Session history retrieved successfully")
 }
 
 // updateSession handles PUT /api/time-tracking/{id}
@@ -563,6 +592,92 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondNoContent(w, r)
+}
+
+// requestVacation handles POST /api/time-tracking/vacation/request
+func (rs *Resource) requestVacation(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	var req activeSvc.RequestVacationRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	tenantID := tenant.FromContext(r.Context())
+	var resp *activeSvc.StaffAbsenceResponse
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		var txErr error
+		resp, txErr = rs.StaffAbsenceService.RequestVacation(ctx, staffID, req)
+		return txErr
+	})
+	if err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, resp, "Vacation request created")
+}
+
+// cancelAbsence handles POST /api/time-tracking/absences/{id}/cancel
+func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	idStr := chi.URLParam(r, "id")
+	absenceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, int64(userClaims.ID), absenceID)
+	}); err != nil {
+		common.RenderError(w, r, classifyAbsenceError(err))
+		return
+	}
+	common.RespondNoContent(w, r)
+}
+
+// getOwnVacationQuota handles GET /api/time-tracking/vacation/quota?year=YYYY
+func (rs *Resource) getOwnVacationQuota(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	year, err := parseYearParam(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	summary, err := rs.StaffAbsenceService.GetVacationQuotaSummary(r.Context(), staffID, year)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, summary, "Vacation quota retrieved")
+}
+
+func parseYearParam(r *http.Request) (int, error) {
+	yearStr := r.URL.Query().Get("year")
+	if yearStr == "" {
+		return time.Now().Year(), nil
+	}
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return 0, errors.New("invalid year parameter, expected 2000-2100")
+	}
+	return year, nil
 }
 
 // getPresenceMap handles GET /api/time-tracking/presence-map

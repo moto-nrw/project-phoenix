@@ -926,10 +926,11 @@ func TestCleanupCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "sessions")
 	assert.Contains(t, names, "supervisors")
 	assert.Contains(t, names, "timetable") // WP-B14
+	assert.Contains(t, names, "time-tracking")
 }
 
 func TestCleanupCmd_SubcommandCount(t *testing.T) {
-	assert.Len(t, cleanupCmd.Commands(), 10, "cleanupCmd should have exactly 10 subcommands")
+	assert.Len(t, cleanupCmd.Commands(), 11, "cleanupCmd should have exactly 11 subcommands")
 }
 
 func TestCleanupVisitsCmd_Metadata(t *testing.T) {

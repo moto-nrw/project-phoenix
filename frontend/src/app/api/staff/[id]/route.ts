@@ -22,6 +22,11 @@ interface BackendStaffResponse {
   specialization?: string;
   role?: string;
   qualifications?: string;
+  employment_type?: string;
+  account_role?: string;
+  was_present_today?: boolean;
+  work_status?: string;
+  absence_type?: string;
   person?: {
     id: number;
     first_name: string;
@@ -112,6 +117,15 @@ export const GET = createGetHandler(
         // Include both IDs for debugging
         staff_id: String(staff.id),
         teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
+        // Include employment type
+        employment_type: staff.employment_type ?? null,
+        // Forward presence/work-status/absence so the location badge on the
+        // detail page matches the staff list. Without these the client falls
+        // back to "Abwesend" even when the staff is checked in.
+        account_role: staff.account_role ?? null,
+        was_present_today: staff.was_present_today ?? false,
+        work_status: staff.work_status ?? null,
+        absence_type: staff.absence_type ?? null,
         // Include person object if available
         person: staff.person,
       };

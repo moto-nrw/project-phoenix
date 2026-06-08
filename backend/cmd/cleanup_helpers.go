@@ -36,11 +36,12 @@ const (
 // Note: Context should be passed as a parameter to methods that need it,
 // rather than stored in the struct (per Go best practices).
 type cleanupContext struct {
-	DB                      *bun.DB
-	RepoFactory             *repositories.Factory
-	ServiceFactory          *services.Factory
-	CleanupService          active.CleanupService
-	TimetableCleanupService schedule.TimetableCleanupService
+	DB                         *bun.DB
+	RepoFactory                *repositories.Factory
+	ServiceFactory             *services.Factory
+	CleanupService             active.CleanupService
+	TimetableCleanupService    schedule.TimetableCleanupService
+	TimeTrackingCleanupService active.TimeTrackingCleanupService
 }
 
 // newCleanupContext initializes database and repository factory.
@@ -111,6 +112,24 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 		auditRepo.NewDataDeletionRepository(ctx.DB),
 		ctx.ServiceFactory.Settings,
 		slog.Default().With("service", "timetable-cleanup-cli"),
+	)
+	return ctx, nil
+}
+
+// newCleanupContextWithTimeTrackingCleanup initializes database + time-tracking
+// retention cleanup service (Tranche 0b). Reuses the same audit repo and
+// settings service the scheduler version uses so CLI and cron stay in lock-
+// step. Caller must Close().
+func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
+	ctx, err := newCleanupContextWithServices()
+	if err != nil {
+		return nil, err
+	}
+	ctx.TimeTrackingCleanupService = active.NewTimeTrackingCleanupService(
+		ctx.DB,
+		auditRepo.NewDataDeletionRepository(ctx.DB),
+		ctx.ServiceFactory.Settings,
+		slog.Default().With("service", "time-tracking-cleanup-cli"),
 	)
 	return ctx, nil
 }
