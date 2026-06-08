@@ -544,6 +544,12 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           ? String(template.room_id)
           : undefined,
       roomName: template.room_name,
+      educationGroupId:
+        template.education_group_id !== undefined &&
+        template.education_group_id !== null
+          ? String(template.education_group_id)
+          : undefined,
+      educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
       enrollmentCount: template.enrollment_count,
@@ -604,10 +610,15 @@ const MIN_BLOCK_HEIGHT_PX = 24;
 export function parseTimeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   if (
+    time.split(":").length !== 2 ||
     typeof h !== "number" ||
     typeof m !== "number" ||
     Number.isNaN(h) ||
-    Number.isNaN(m)
+    Number.isNaN(m) ||
+    h < 0 ||
+    h > 23 ||
+    m < 0 ||
+    m > 59
   ) {
     return NaN;
   }

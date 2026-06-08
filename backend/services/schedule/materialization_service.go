@@ -423,7 +423,21 @@ func (s *materializationService) materializeTemplate(
 
 			inserted, err := s.instanceRepo.CreateTemplateBackedIfAbsent(ctx, instance)
 			if err != nil {
-				return &ScheduleError{Op: "materialize template: create instance", Err: err}
+				return &ScheduleError{
+					Op: "materialize template: create instance",
+					Err: fmt.Errorf(
+						"tenant_id=%d template_id=%d schedule_id=%d date=%s period_id=%d room_id=%d start_time=%s end_time=%s: %w",
+						tenant.FromContext(ctx),
+						tmpl.ID,
+						sch.ID,
+						date.Format("2006-01-02"),
+						period.ID,
+						effective.RoomID,
+						formatTimeOfDay(effective.StartTime),
+						formatTimeOfDay(effective.EndTime),
+						err,
+					),
+				}
 			}
 			if !inserted {
 				result.CandidatesRaced++
@@ -610,6 +624,7 @@ func resolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time) {
 //   - valid_until IS NULL OR valid_until > date  (end is exclusive; a row
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
+//   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
 func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, periodID int64) bool {
 	if e == nil {
 		return false
@@ -622,6 +637,15 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, period
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
+		return false
+	}
+	if len(e.SelectedWeekdays) > 0 {
+		weekday := isoWeekday(d)
+		for _, selected := range e.SelectedWeekdays {
+			if selected == weekday {
+				return true
+			}
+		}
 		return false
 	}
 	return true

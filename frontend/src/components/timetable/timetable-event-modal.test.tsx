@@ -143,6 +143,11 @@ function setupRefs() {
         json: async () => ({
           data: [{ id: "2", name: "AG" }],
         }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => ({
+          data: [{ id: 31, name: "Klasse 1a" }],
+        }),
       }),
   );
   mockFetchStudents.mockResolvedValue({

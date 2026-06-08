@@ -6,11 +6,14 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 func newTestQueryHook(t *testing.T) (*QueryHook, *bytes.Buffer) {
@@ -66,6 +69,24 @@ func TestQueryHookAfterQuery_LogsNonNoRowsErrorsAtError(t *testing.T) {
 	}
 }
 
+func TestQueryHookAfterQuery_LogsPostgresErrorMetadata(t *testing.T) {
+	hook, buf := newTestQueryHook(t)
+
+	hook.AfterQuery(context.Background(), &bun.QueryEvent{
+		Query:     `INSERT INTO schedule.activity_instances (...) VALUES (...)`,
+		StartTime: time.Now(),
+		Err:       newPgErrorWithConstraint("23505", "idx_activity_instances_template_unique"),
+	})
+
+	output := buf.String()
+	if !strings.Contains(output, `"sqlstate":"23505"`) {
+		t.Fatalf("expected sqlstate in log, got %q", output)
+	}
+	if !strings.Contains(output, `"constraint":"idx_activity_instances_template_unique"`) {
+		t.Fatalf("expected constraint in log, got %q", output)
+	}
+}
+
 func TestQueryHookAfterQuery_LogsSlowQueriesAtWarn(t *testing.T) {
 	hook, buf := newTestQueryHook(t)
 
@@ -84,4 +105,13 @@ func TestQueryHookAfterQuery_LogsSlowQueriesAtWarn(t *testing.T) {
 	if !strings.Contains(output, `"slow_query":true`) {
 		t.Fatalf("expected slow_query marker, got %q", output)
 	}
+}
+
+func newPgErrorWithConstraint(code, constraintName string) error {
+	pgErr := pgdriver.Error{}
+	v := reflect.ValueOf(&pgErr).Elem()
+	mField := v.FieldByName("m")
+	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
+	*(*map[byte]string)(ptr) = map[byte]string{'C': code, 'n': constraintName}
+	return pgErr
 }

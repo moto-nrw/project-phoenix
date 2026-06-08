@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   updateCareOffering: vi.fn(),
   updatePhase: vi.fn(),
   updateSchema: vi.fn(),
+  getTemplates: vi.fn(),
   searchParams: new URLSearchParams(),
   toast: {
     success: vi.fn(),
@@ -111,6 +112,12 @@ vi.mock("~/lib/care-offering-api", () => ({
   },
 }));
 
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: {
+    getTemplates: mocks.getTemplates,
+  },
+}));
+
 import { CareOfferingsEditor } from "./care-offerings-editor";
 import { EnrollmentFormEditor } from "./enrollment-form-editor";
 import { PhasesEditor } from "./phases-editor";
@@ -197,6 +204,11 @@ function selectByName(name: string): HTMLSelectElement {
   return document.querySelector(`select[name="${name}"]`) as HTMLSelectElement;
 }
 
+async function waitForInputByName(name: string): Promise<HTMLInputElement> {
+  await waitFor(() => expect(inputByName(name)).toBeInTheDocument());
+  return inputByName(name);
+}
+
 beforeEach(() => {
   mocks.createCareOffering.mockReset();
   mocks.createPhase.mockReset();
@@ -211,6 +223,8 @@ beforeEach(() => {
   mocks.updateCareOffering.mockReset();
   mocks.updatePhase.mockReset();
   mocks.updateSchema.mockReset();
+  mocks.getTemplates.mockReset();
+  mocks.getTemplates.mockResolvedValue({ templates: [] });
   mocks.toast.success.mockReset();
   mocks.toast.error.mockReset();
   mocks.searchParams = new URLSearchParams();
@@ -247,7 +261,7 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
-    fireEvent.change(inputByName("name"), {
+    fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
     fireEvent.change(textareaByName("description"), {
@@ -313,6 +327,72 @@ describe("CareOfferingsEditor", () => {
         }),
       );
     });
+  });
+
+  it("shows warnings for timetable template mismatches", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          studentIds: [],
+          staffIds: [],
+          schedules: [
+            {
+              id: "sch-1",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-1",
+            },
+            {
+              id: "sch-2",
+              weekday: 6,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    await waitForInputByName("name");
+    fireEvent.change(screen.getByLabelText("Stundenplan-Vorlage"), {
+      target: { value: "8" },
+    });
+
+    expect(
+      screen.getByText(
+        "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows empty and error states", async () => {

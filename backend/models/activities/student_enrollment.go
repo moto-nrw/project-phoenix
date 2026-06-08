@@ -31,6 +31,7 @@ type StudentEnrollment struct {
 	ValidFrom        time.Time  `bun:"valid_from,notnull" json:"valid_from"`
 	ValidUntil       *time.Time `bun:"valid_until" json:"valid_until,omitempty"`
 	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	SelectedWeekdays []int      `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
 	AttendanceStatus *string    `bun:"attendance_status" json:"attendance_status,omitempty"`
 
 	// Relations - populated when using the ORM's relations
@@ -98,6 +99,17 @@ func (se *StudentEnrollment) Validate() error {
 
 	if se.AttendanceStatus != nil && !IsValidAttendanceStatus(*se.AttendanceStatus) {
 		return errors.New("invalid attendance status")
+	}
+
+	seenWeekdays := make(map[int]bool, len(se.SelectedWeekdays))
+	for _, weekday := range se.SelectedWeekdays {
+		if weekday < 1 || weekday > 7 {
+			return errors.New("selected weekdays must be between 1 and 7")
+		}
+		if seenWeekdays[weekday] {
+			return errors.New("selected weekdays must not contain duplicates")
+		}
+		seenWeekdays[weekday] = true
 	}
 
 	return nil

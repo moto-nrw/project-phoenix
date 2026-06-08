@@ -243,6 +243,9 @@ type DecisionServiceConfig struct {
 	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
+	ActivityGroupRepo        activities.GroupRepository
+	ActivityScheduleRepo     activities.ScheduleRepository
+	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	AccountRepo              authModels.AccountRepository
 	AccountTenantRepo        authModels.AccountTenantRepository
 	AccountRoleRepo          authModels.AccountRoleRepository
@@ -270,6 +273,9 @@ type decisionService struct {
 	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
 	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
 	studentEnrollmentRepo    activities.StudentEnrollmentRepository
+	activityGroupRepo        activities.GroupRepository
+	activityScheduleRepo     activities.ScheduleRepository
+	calendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	accountRepo              authModels.AccountRepository
 	accountTenantRepo        authModels.AccountTenantRepository
 	accountRoleRepo          authModels.AccountRoleRepository
@@ -302,6 +308,9 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		pickupScheduleRepo:       cfg.PickupScheduleRepo,
 		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
 		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
+		activityGroupRepo:        cfg.ActivityGroupRepo,
+		activityScheduleRepo:     cfg.ActivityScheduleRepo,
+		calendarPeriodRepo:       cfg.CalendarPeriodRepo,
 		accountRepo:              cfg.AccountRepo,
 		accountTenantRepo:        cfg.AccountTenantRepo,
 		accountRoleRepo:          cfg.AccountRoleRepo,
@@ -1032,7 +1041,7 @@ func (s *decisionService) materializeEnrollments(
 	phase *enrollmentModels.Phase,
 ) error {
 	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
-		s.studentEnrollmentRepo == nil {
+		s.studentEnrollmentRepo == nil || s.activityGroupRepo == nil {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
 		// activity groups later via the activity admin UI.
@@ -1049,6 +1058,13 @@ func (s *decisionService) materializeEnrollments(
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
+	type enrollmentDraft struct {
+		activityGroupID  int64
+		calendarPeriodID *int64
+		selectedWeekday  map[int]bool
+		allWeekdays      bool
+	}
+	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
 		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
@@ -1062,11 +1078,72 @@ func (s *decisionService) materializeEnrollments(
 			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
+		group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, careOfferingTemplateDeps{
+			activityGroupRepo:    s.activityGroupRepo,
+			activityScheduleRepo: s.activityScheduleRepo,
+			calendarPeriodRepo:   s.calendarPeriodRepo,
+		}, *offering.ActivityGroupID)
+		if err != nil {
+			return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if group.IsTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
+			return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
+		}
+		if period != nil {
+			if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+				return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
+			}
+		}
+		var periodID *int64
+		if period != nil {
+			periodID = &period.ID
+		}
+		if draft := drafts[*offering.ActivityGroupID]; draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
+			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
+		}
+		draft := drafts[*offering.ActivityGroupID]
+		if draft == nil {
+			draft = &enrollmentDraft{
+				activityGroupID:  *offering.ActivityGroupID,
+				calendarPeriodID: periodID,
+				selectedWeekday:  make(map[int]bool),
+			}
+			drafts[*offering.ActivityGroupID] = draft
+		}
+		if !group.IsTemplate {
+			draft.allWeekdays = true
+			continue
+		}
+		days, err := effectiveOfferingDaysForEnrollment(offering, link)
+		if err != nil {
+			return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if len(days) == 0 {
+			draft.allWeekdays = true
+			continue
+		}
+		if draft.allWeekdays {
+			continue
+		}
+		for _, day := range days {
+			weekday, ok := enrollmentDayToISOWeekday(day)
+			if !ok {
+				return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
+			}
+			draft.selectedWeekday[weekday] = true
+		}
+	}
+
+	for _, draft := range drafts {
 		row := &activities.StudentEnrollment{
-			StudentID:       studentID,
-			ActivityGroupID: *offering.ActivityGroupID,
-			ValidFrom:       validFrom,
-			ValidUntil:      &validUntil,
+			StudentID:        studentID,
+			ActivityGroupID:  draft.activityGroupID,
+			ValidFrom:        validFrom,
+			ValidUntil:       &validUntil,
+			CalendarPeriodID: draft.calendarPeriodID,
+		}
+		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
+			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
 		}
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
@@ -1076,6 +1153,61 @@ func (s *decisionService) materializeEnrollments(
 		}
 	}
 	return nil
+}
+
+func sameOptionalInt64(left, right *int64) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func effectiveOfferingDaysForEnrollment(
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+) ([]string, error) {
+	if len(link.SelectedDays) > 0 {
+		return link.SelectedDays, nil
+	}
+	switch offering.DaysOfWeekMode {
+	case enrollmentModels.DaysOfWeekModeFixed:
+		return offering.AvailableDays, nil
+	case enrollmentModels.DaysOfWeekModeParentChoice:
+		return nil, fmt.Errorf("parent-choice offering has no selected_days")
+	default:
+		return nil, fmt.Errorf("unknown days_of_week_mode %q", offering.DaysOfWeekMode)
+	}
+}
+
+func enrollmentDayToISOWeekday(day string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(day)) {
+	case "mon":
+		return 1, true
+	case "tue":
+		return 2, true
+	case "wed":
+		return 3, true
+	case "thu":
+		return 4, true
+	case "fri":
+		return 5, true
+	case "sat":
+		return 6, true
+	case "sun":
+		return 7, true
+	default:
+		return 0, false
+	}
+}
+
+func sortedWeekdaySet(days map[int]bool) []int {
+	out := make([]int, 0, len(days))
+	for day := 1; day <= 7; day++ {
+		if days[day] {
+			out = append(out, day)
+		}
+	}
+	return out
 }
 
 // linkCreatedStudent stamps request_children.created_student_id so the
