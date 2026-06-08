@@ -36,9 +36,11 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 			g.type,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
-			g.planned_room_id AS room_id,
-			COALESCE(r.name, '') AS room_name,
-			g.is_open,
+				g.planned_room_id AS room_id,
+				COALESCE(r.name, '') AS room_name,
+				g.education_group_id,
+				COALESCE(eg.name, '') AS education_group_name,
+				g.is_open,
 			g.max_participants,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
 			COALESCE(supervisors.count, 0) AS supervisor_count,
@@ -58,8 +60,10 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
 		LEFT JOIN activities.categories AS c
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
-		LEFT JOIN facilities.rooms AS r
-			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
+			LEFT JOIN facilities.rooms AS r
+				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
+			LEFT JOIN education.groups AS eg
+				ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id
 			LEFT JOIN (
 				SELECT
 					activity_group_id,
@@ -128,21 +132,23 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 				primaryStaffID = &id
 			}
 			templates = append(templates, templateResponse{
-				ID:              row.TemplateID,
-				Name:            row.Name,
-				Type:            row.Type,
-				CategoryID:      row.CategoryID,
-				CategoryName:    row.CategoryName,
-				RoomID:          roomID,
-				RoomName:        row.RoomName.String,
-				IsOpen:          row.IsOpen,
-				MaxParticipants: row.MaxParticipants,
-				EnrollmentCount: row.EnrollmentCount,
-				SupervisorCount: row.SupervisorCount,
-				StudentIDs:      row.StudentIDs,
-				StaffIDs:        row.StaffIDs,
-				PrimaryStaffID:  primaryStaffID,
-				Schedules:       []templateScheduleResponse{},
+				ID:                 row.TemplateID,
+				Name:               row.Name,
+				Type:               row.Type,
+				CategoryID:         row.CategoryID,
+				CategoryName:       row.CategoryName,
+				RoomID:             roomID,
+				RoomName:           row.RoomName.String,
+				EducationGroupID:   educationGroupIDFromRow(row),
+				EducationGroupName: row.EducationGroupName.String,
+				IsOpen:             row.IsOpen,
+				MaxParticipants:    row.MaxParticipants,
+				EnrollmentCount:    row.EnrollmentCount,
+				SupervisorCount:    row.SupervisorCount,
+				StudentIDs:         row.StudentIDs,
+				StaffIDs:           row.StaffIDs,
+				PrimaryStaffID:     primaryStaffID,
+				Schedules:          []templateScheduleResponse{},
 			})
 			idx = len(templates) - 1
 			byID[row.TemplateID] = idx
@@ -165,22 +171,32 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 	return templates
 }
 
+func educationGroupIDFromRow(row templateRow) *int64 {
+	if !row.EducationGroupID.Valid {
+		return nil
+	}
+	id := row.EducationGroupID.Int64
+	return &id
+}
+
 type templateResponse struct {
-	ID              int64                      `json:"id"`
-	Name            string                     `json:"name"`
-	Type            string                     `json:"type"`
-	CategoryID      int64                      `json:"category_id"`
-	CategoryName    string                     `json:"category_name"`
-	RoomID          *int64                     `json:"room_id,omitempty"`
-	RoomName        string                     `json:"room_name,omitempty"`
-	IsOpen          bool                       `json:"is_open"`
-	MaxParticipants int                        `json:"max_participants"`
-	EnrollmentCount int                        `json:"enrollment_count"`
-	SupervisorCount int                        `json:"supervisor_count"`
-	StudentIDs      []int64                    `json:"student_ids"`
-	StaffIDs        []int64                    `json:"staff_ids"`
-	PrimaryStaffID  *int64                     `json:"primary_staff_id,omitempty"`
-	Schedules       []templateScheduleResponse `json:"schedules"`
+	ID                 int64                      `json:"id"`
+	Name               string                     `json:"name"`
+	Type               string                     `json:"type"`
+	CategoryID         int64                      `json:"category_id"`
+	CategoryName       string                     `json:"category_name"`
+	RoomID             *int64                     `json:"room_id,omitempty"`
+	RoomName           string                     `json:"room_name,omitempty"`
+	EducationGroupID   *int64                     `json:"education_group_id,omitempty"`
+	EducationGroupName string                     `json:"education_group_name,omitempty"`
+	IsOpen             bool                       `json:"is_open"`
+	MaxParticipants    int                        `json:"max_participants"`
+	EnrollmentCount    int                        `json:"enrollment_count"`
+	SupervisorCount    int                        `json:"supervisor_count"`
+	StudentIDs         []int64                    `json:"student_ids"`
+	StaffIDs           []int64                    `json:"staff_ids"`
+	PrimaryStaffID     *int64                     `json:"primary_staff_id,omitempty"`
+	Schedules          []templateScheduleResponse `json:"schedules"`
 }
 
 type listTemplatesResponse struct {
@@ -188,26 +204,28 @@ type listTemplatesResponse struct {
 }
 
 type templateRow struct {
-	TemplateID       int64          `bun:"template_id"`
-	Name             string         `bun:"name"`
-	Type             string         `bun:"type"`
-	CategoryID       int64          `bun:"category_id"`
-	CategoryName     string         `bun:"category_name"`
-	RoomID           sql.NullInt64  `bun:"room_id"`
-	RoomName         sql.NullString `bun:"room_name"`
-	IsOpen           bool           `bun:"is_open"`
-	MaxParticipants  int            `bun:"max_participants"`
-	EnrollmentCount  int            `bun:"enrollment_count"`
-	SupervisorCount  int            `bun:"supervisor_count"`
-	StudentIDs       []int64        `bun:"student_ids,array"`
-	StaffIDs         []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID   sql.NullInt64  `bun:"primary_staff_id"`
-	ScheduleID       int64          `bun:"schedule_id"`
-	Weekday          int            `bun:"weekday"`
-	StartTime        sql.NullString `bun:"start_time"`
-	EndTime          sql.NullString `bun:"end_time"`
-	WeekPattern      int            `bun:"week_pattern"`
-	CalendarPeriodID sql.NullInt64  `bun:"calendar_period_id"`
+	TemplateID         int64          `bun:"template_id"`
+	Name               string         `bun:"name"`
+	Type               string         `bun:"type"`
+	CategoryID         int64          `bun:"category_id"`
+	CategoryName       string         `bun:"category_name"`
+	RoomID             sql.NullInt64  `bun:"room_id"`
+	RoomName           sql.NullString `bun:"room_name"`
+	EducationGroupID   sql.NullInt64  `bun:"education_group_id"`
+	EducationGroupName sql.NullString `bun:"education_group_name"`
+	IsOpen             bool           `bun:"is_open"`
+	MaxParticipants    int            `bun:"max_participants"`
+	EnrollmentCount    int            `bun:"enrollment_count"`
+	SupervisorCount    int            `bun:"supervisor_count"`
+	StudentIDs         []int64        `bun:"student_ids,array"`
+	StaffIDs           []int64        `bun:"staff_ids,array"`
+	PrimaryStaffID     sql.NullInt64  `bun:"primary_staff_id"`
+	ScheduleID         int64          `bun:"schedule_id"`
+	Weekday            int            `bun:"weekday"`
+	StartTime          sql.NullString `bun:"start_time"`
+	EndTime            sql.NullString `bun:"end_time"`
+	WeekPattern        int            `bun:"week_pattern"`
+	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
 }
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
@@ -246,6 +264,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			COALESCE(c.name, '') AS category_name,
 			g.planned_room_id AS room_id,
 			COALESCE(r.name, '') AS room_name,
+			g.education_group_id,
+			COALESCE(eg.name, '') AS education_group_name,
 			g.is_open,
 			g.max_participants,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
@@ -268,6 +288,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
 		LEFT JOIN facilities.rooms AS r
 			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
+		LEFT JOIN education.groups AS eg
+			ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id
 			LEFT JOIN (
 				SELECT
 					activity_group_id,
@@ -322,56 +344,5 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	templates := make([]templateResponse, 0)
-	byID := make(map[int64]int)
-	for _, row := range rows {
-		idx, ok := byID[row.TemplateID]
-		if !ok {
-			var roomID *int64
-			if row.RoomID.Valid {
-				id := row.RoomID.Int64
-				roomID = &id
-			}
-			var primaryStaffID *int64
-			if row.PrimaryStaffID.Valid {
-				id := row.PrimaryStaffID.Int64
-				primaryStaffID = &id
-			}
-			templates = append(templates, templateResponse{
-				ID:              row.TemplateID,
-				Name:            row.Name,
-				Type:            row.Type,
-				CategoryID:      row.CategoryID,
-				CategoryName:    row.CategoryName,
-				RoomID:          roomID,
-				RoomName:        row.RoomName.String,
-				IsOpen:          row.IsOpen,
-				MaxParticipants: row.MaxParticipants,
-				EnrollmentCount: row.EnrollmentCount,
-				SupervisorCount: row.SupervisorCount,
-				StudentIDs:      row.StudentIDs,
-				StaffIDs:        row.StaffIDs,
-				PrimaryStaffID:  primaryStaffID,
-				Schedules:       []templateScheduleResponse{},
-			})
-			idx = len(templates) - 1
-			byID[row.TemplateID] = idx
-		}
-
-		var calendarPeriodID *int64
-		if row.CalendarPeriodID.Valid {
-			id := row.CalendarPeriodID.Int64
-			calendarPeriodID = &id
-		}
-		templates[idx].Schedules = append(templates[idx].Schedules, templateScheduleResponse{
-			ID:               row.ScheduleID,
-			Weekday:          row.Weekday,
-			StartTime:        row.StartTime.String,
-			EndTime:          row.EndTime.String,
-			WeekPattern:      row.WeekPattern,
-			CalendarPeriodID: calendarPeriodID,
-		})
-	}
-
-	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: templates}, "Templates retrieved")
+	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows)}, "Templates retrieved")
 }

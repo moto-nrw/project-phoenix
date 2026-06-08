@@ -88,6 +88,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student_enrollment".valid_from AS "student_enrollment__valid_from"`).
 		ColumnExpr(`"student_enrollment".valid_until AS "student_enrollment__valid_until"`).
 		ColumnExpr(`"student_enrollment".calendar_period_id AS "student_enrollment__calendar_period_id"`).
+		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
 		ColumnExpr(`"student".id AS "student__id"`).
 		ColumnExpr(`"student".created_at AS "student__created_at"`).
@@ -218,19 +219,36 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 	return base.AssertRowsAffected(result, 1, "update attendance status")
 }
 
-// Create overrides the base Create method to handle validation
+// Create overrides the base Create method to handle validation. Template
+// rosters usually apply on every template weekday, so they leave
+// selected_weekdays empty; omit the column in that case.
 func (r *StudentEnrollmentRepository) Create(ctx context.Context, enrollment *activities.StudentEnrollment) error {
 	if enrollment == nil {
 		return fmt.Errorf("student enrollment cannot be nil")
 	}
 
-	// Validate enrollment
 	if err := enrollment.Validate(); err != nil {
 		return err
 	}
+	if enrollment.GetTenantID() == 0 {
+		if tid := tenant.FromContext(ctx); tid != 0 {
+			enrollment.SetTenantID(tid)
+		}
+	}
 
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, enrollment)
+	query := base.GetDB(ctx, r.db).NewInsert().
+		Model(enrollment).
+		ModelTableExpr(tableActivitiesStudentEnrollments)
+	if len(enrollment.SelectedWeekdays) == 0 {
+		query = query.ExcludeColumn("selected_weekdays")
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "create",
+			Err: err,
+		}
+	}
+	return nil
 }
 
 // Update overrides the base Update method to handle validation

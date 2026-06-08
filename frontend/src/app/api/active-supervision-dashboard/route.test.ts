@@ -164,6 +164,18 @@ describe("GET /api/active-supervision-dashboard", () => {
                   is_unplanned: false,
                   currently_present: false,
                   status: "expected",
+                  warnings: [
+                    {
+                      kind: "arrival_after_slot_start",
+                      message:
+                        "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+                      expected_arrival: "14:30",
+                      slot_start: "14:00",
+                      expected_group_id: 12,
+                      expected_group_name: "Klasse 2a",
+                      current_education_group_id: 13,
+                    },
+                  ],
                 },
               ],
             },
@@ -186,7 +198,19 @@ describe("GET /api/active-supervision-dashboard", () => {
           id: string;
           roomName: string | null;
           isPrimary: boolean;
-          rosterPreview: Array<{ studentId: string; studentName: string }>;
+          rosterPreview: Array<{
+            studentId: string;
+            studentName: string;
+            warnings: Array<{
+              kind: string;
+              message: string;
+              expectedArrival: string | null;
+              slotStart: string | null;
+              expectedGroupId: string | null;
+              expectedGroupName: string | null;
+              currentEducationGroupId: string | null;
+            }>;
+          }>;
         }>;
       }>
     >(response);
@@ -199,6 +223,17 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.plannedNow[0]?.rosterPreview[0]).toMatchObject({
       studentId: "99",
       studentName: "Mia Bauer",
+      warnings: [
+        {
+          kind: "arrival_after_slot_start",
+          message: "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
+          expectedArrival: "14:30",
+          slotStart: "14:00",
+          expectedGroupId: "12",
+          expectedGroupName: "Klasse 2a",
+          currentEducationGroupId: "13",
+        },
+      ],
     });
   });
 

@@ -482,13 +482,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 
+	// Initialize arrival schedule service
+	arrivalScheduleService := schedule.NewArrivalScheduleService(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		db,
+		logger.With("service", "arrival-schedule"),
+	)
+
 	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
 		InstanceService:    instanceService,
 		ActiveGroupRepo:    repos.ActiveGroup,
+		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
+		ArrivalService:     arrivalScheduleService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
@@ -500,17 +513,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
 	})
-
-	// Initialize arrival schedule service
-	arrivalScheduleService := schedule.NewArrivalScheduleService(
-		repos.StudentArrivalSchedule,
-		repos.StudentArrivalException,
-		repos.StudentArrivalNote,
-		repos.Student,
-		repos.Person,
-		db,
-		logger.With("service", "arrival-schedule"),
-	)
 
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
@@ -857,8 +859,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:   repos.CareOffering,
-		Logger: logger.With("service", "enrollment-care-offering"),
+		Repo:                 repos.CareOffering,
+		ActivityGroupRepo:    repos.ActivityGroup,
+		ActivityScheduleRepo: repos.ActivitySchedule,
+		CalendarPeriodRepo:   repos.CalendarPeriod,
+		PhaseRepo:            repos.Phase,
+		Logger:               logger.With("service", "enrollment-care-offering"),
 	})
 
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
@@ -909,6 +915,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupScheduleRepo:       repos.StudentPickupSchedule,
 		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repos.StudentEnrollment,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityScheduleRepo:     repos.ActivitySchedule,
+		CalendarPeriodRepo:       repos.CalendarPeriod,
 		AccountRepo:              repos.Account,
 		AccountTenantRepo:        repos.AccountTenant,
 		AccountRoleRepo:          repos.AccountRole,

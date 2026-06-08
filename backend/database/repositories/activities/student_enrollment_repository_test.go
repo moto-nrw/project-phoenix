@@ -1,6 +1,7 @@
 package activities_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -89,6 +90,66 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 
 		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
 	})
+
+	t.Run("creates enrollment with tenant from context and selected weekdays", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Weekday", "Student", "1a")
+		group := testpkg.CreateTestActivityGroup(t, db, "WeekdayGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		enrollment := &activities.StudentEnrollment{
+			StudentID:        student.ID,
+			ActivityGroupID:  group.ID,
+			ValidFrom:        time.Now(),
+			SelectedWeekdays: []int{1, 3, 5},
+		}
+
+		err := repo.Create(ctx, enrollment)
+		require.NoError(t, err)
+		assert.NotZero(t, enrollment.ID)
+		assert.EqualValues(t, 1, enrollment.GetTenantID())
+
+		found, err := repo.FindByID(ctx, enrollment.ID)
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 3, 5}, found.SelectedWeekdays)
+
+		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+	})
+
+	t.Run("creates enrollment with explicit tenant outside tenant context", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "ExplicitTenant", "Student", "1a")
+		group := testpkg.CreateTestActivityGroup(t, db, "ExplicitTenantGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		enrollment := &activities.StudentEnrollment{
+			StudentID:       student.ID,
+			ActivityGroupID: group.ID,
+			ValidFrom:       time.Now(),
+		}
+		enrollment.SetTenantID(1)
+
+		err := repo.Create(context.Background(), enrollment)
+		require.NoError(t, err)
+		assert.NotZero(t, enrollment.ID)
+
+		testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+	})
+
+	t.Run("rejects invalid selected weekdays before insert", func(t *testing.T) {
+		enrollment := &activities.StudentEnrollment{
+			StudentID:        106,
+			ActivityGroupID:  206,
+			ValidFrom:        time.Now(),
+			SelectedWeekdays: []int{9},
+		}
+		enrollment.SetTenantID(1)
+
+		err := repo.Create(ctx, enrollment)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "between 1 and 7")
+	})
 }
 
 func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
@@ -158,6 +219,55 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, found.AttendanceStatus)
 		assert.Equal(t, activities.AttendanceAbsent, *found.AttendanceStatus)
+	})
+
+	t.Run("rejects invalid selected weekdays before update", func(t *testing.T) {
+		enrollment := &activities.StudentEnrollment{
+			StudentID:        101,
+			ActivityGroupID:  201,
+			ValidFrom:        time.Now(),
+			SelectedWeekdays: []int{1, 1},
+		}
+		enrollment.ID = 301
+
+		err := repo.Update(ctx, enrollment)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "duplicates")
+	})
+
+	t.Run("updates with explicit tenant when context has no tenant", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "NoTenant", "Update", "1a")
+		group := testpkg.CreateTestActivityGroup(t, db, "NoTenantUpdateGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		enrollment := createEnrollment(t, db, student.ID, group.ID, time.Now(), nil)
+		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+
+		status := activities.AttendanceExcused
+		enrollment.AttendanceStatus = &status
+		err := repo.Update(context.Background(), enrollment)
+		require.NoError(t, err)
+
+		found, err := repo.FindByID(ctx, enrollment.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.AttendanceStatus)
+		assert.Equal(t, activities.AttendanceExcused, *found.AttendanceStatus)
+	})
+
+	t.Run("returns error when no row is updated", func(t *testing.T) {
+		enrollment := &activities.StudentEnrollment{
+			StudentID:       105,
+			ActivityGroupID: 205,
+			ValidFrom:       time.Now(),
+		}
+		enrollment.ID = 305
+		enrollment.SetTenantID(1)
+
+		err := repo.Update(ctx, enrollment)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "update student_enrollment")
 	})
 }
 
@@ -512,6 +622,15 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid attendance status")
 	})
+
+	t.Run("returns error when no enrollment row is updated", func(t *testing.T) {
+		status := activities.AttendancePresent
+
+		err := repo.UpdateAttendanceStatus(ctx, int64(999999), &status)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "update attendance status")
+	})
 }
 
 // ============================================================================
@@ -529,4 +648,53 @@ func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
 		require.NoError(t, err)
 	})
+}
+
+func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(100)
+	require.NoError(t, db.Close())
+
+	_, err := repo.FindByStudentID(ctx, 900100)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by student ID")
+
+	_, err = repo.FindByGroupID(ctx, 900200)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by group ID")
+
+	_, err = repo.CountByGroupID(ctx, 900300)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "count by group ID")
+
+	from := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
+	to := from.AddDate(0, 0, 1)
+	_, err = repo.FindByValidFromRange(ctx, from, to)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find by valid_from date range")
+
+	status := activities.AttendancePresent
+	err = repo.UpdateAttendanceStatus(ctx, 900400, &status)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update attendance status")
+
+	enrollment := &activities.StudentEnrollment{
+		StudentID:       900500,
+		ActivityGroupID: 900600,
+		ValidFrom:       from,
+	}
+	enrollment.SetTenantID(100)
+	err = repo.Create(ctx, enrollment)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create")
+
+	enrollment.ID = 900700
+	err = repo.Update(ctx, enrollment)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update")
+
+	_, err = repo.List(ctx, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "list")
 }

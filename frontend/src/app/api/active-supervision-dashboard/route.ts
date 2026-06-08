@@ -140,6 +140,17 @@ interface BackendTimetableRosterRow {
   note?: string | null;
   checked_in_at?: string | null;
   visit_entry_time?: string | null;
+  warnings?: BackendTimetableRosterWarning[];
+}
+
+interface BackendTimetableRosterWarning {
+  kind: string;
+  message: string;
+  expected_arrival?: string | null;
+  slot_start?: string | null;
+  expected_group_id?: number | null;
+  expected_group_name?: string | null;
+  current_education_group_id?: number | null;
 }
 
 interface BackendTimetableOperationCapabilities {
@@ -387,6 +398,16 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         note: row.note ?? null,
         checkedInAt: row.checked_in_at ?? null,
         visitEntryTime: row.visit_entry_time ?? null,
+        warnings: (row.warnings ?? []).map((warning) => ({
+          kind: warning.kind,
+          message: warning.message,
+          expectedArrival: warning.expected_arrival ?? null,
+          slotStart: warning.slot_start ?? null,
+          expectedGroupId: warning.expected_group_id?.toString() ?? null,
+          expectedGroupName: warning.expected_group_name ?? null,
+          currentEducationGroupId:
+            warning.current_education_group_id?.toString() ?? null,
+        })),
       })),
     }));
 
