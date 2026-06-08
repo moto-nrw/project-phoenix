@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -11,7 +12,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -34,7 +37,30 @@ type decisionTestEnv struct {
 	decision enrollmentService.DecisionService
 }
 
+// stubActivationSettings is a fake DecisionSettingsResolver returning a
+// fixed enrollment.default_activation_mode, so the immediate/scheduled
+// approval paths can be exercised without writing config.setting_values
+// rows. Any other key resolves to "" (registry-default behaviour).
+type stubActivationSettings struct {
+	mode string
+}
+
+func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModel.KeyEnrollmentDefaultActivationMode {
+		return s.mode, nil
+	}
+	return "", nil
+}
+
 func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
+	// nil Settings exercises the safe default (scheduled).
+	return setupDecisionTestWithSettings(t, nil)
+}
+
+func setupDecisionTestWithSettings(
+	t *testing.T,
+	settings enrollmentService.DecisionSettingsResolver,
+) (*decisionTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
@@ -64,6 +90,7 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 		OutboxEnqueuer:           env.outbox,
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
+		Settings:                 settings,
 		Logger:                   slog.Default(),
 	})
 	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
@@ -365,6 +392,71 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, student)
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
+}
+
+// ---- Decide: activation mode (enrollment.default_activation_mode) -------
+
+// Default / "scheduled": an approved child becomes a PENDING student
+// pinned to the phase's service-start date, so the activate-students
+// scheduler flips it to active when that date arrives. Uses the nil-
+// Settings setup, which must behave identically to an explicit
+// "scheduled" override (the safe default).
+func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-scheduled@example.com", "Sched", "Uled")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+		"scheduled mode must create the student as pending")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must be pinned to the phase service-start date")
+}
+
+// "immediate": an approved child becomes an ACTIVE student right away so
+// it appears in lists/attendance/check-in immediately. enrolled_from is
+// still pinned to the phase's service-start date (the mode changes only
+// the status, never the dates).
+func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		mode: configModel.EnrollmentActivationModeImmediate,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-immediate@example.com", "Immo", "Diate")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, student.Status,
+		"immediate mode must activate the student on approval")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must stay the phase service-start date even in immediate mode")
 }
 
 func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
