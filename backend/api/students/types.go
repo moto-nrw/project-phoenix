@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Constants for date formats
@@ -16,42 +17,43 @@ const (
 
 // StudentResponse represents a student response
 type StudentResponse struct {
-	ID                 int64      `json:"id"`
-	PersonID           int64      `json:"person_id"`
-	FirstName          string     `json:"first_name"`
-	LastName           string     `json:"last_name"`
-	TagID              string     `json:"tag_id,omitempty"`
-	Birthday           string     `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
-	SchoolClass        string     `json:"school_class"`
-	Location           string     `json:"current_location"`
-	LocationSince      *time.Time `json:"location_since,omitempty"`     // When student entered current location
-	RoomColor          *string    `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
-	GuardianName       string     `json:"guardian_name,omitempty"`
-	GuardianContact    string     `json:"guardian_contact,omitempty"`
-	GuardianEmail      string     `json:"guardian_email,omitempty"`
-	GuardianPhone      string     `json:"guardian_phone,omitempty"`
-	GroupID            int64      `json:"group_id,omitempty"`
-	GroupName          string     `json:"group_name,omitempty"`
-	ExtraInfo          string     `json:"extra_info,omitempty"`
-	HealthInfo         string     `json:"health_info,omitempty"`
-	SupervisorNotes    string     `json:"supervisor_notes,omitempty"`
-	PickupStatus       string     `json:"pickup_status,omitempty"`
-	PickupTime         *string    `json:"pickup_time,omitempty"`          // Today's effective pickup time (HH:MM)
-	PickupIsException  bool       `json:"pickup_is_exception,omitempty"`  // True if today's pickup time is an exception
-	PickupNotes        string     `json:"pickup_notes,omitempty"`         // Exception reason or schedule notes
-	ArrivalTime        *string    `json:"arrival_time,omitempty"`         // Today's effective arrival time (HH:MM)
-	ArrivalIsException bool       `json:"arrival_is_exception,omitempty"` // True if today's arrival time is an exception
-	ArrivalNotes       string     `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
-	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
-	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
-	Bus                bool       `json:"bus"`
-	Sick               bool       `json:"sick"`
-	SickSince          *time.Time `json:"sick_since,omitempty"`
-	Excused            bool       `json:"excused"`
-	ExcusedSince       *time.Time `json:"excused_since,omitempty"`
-	DayPlanningStatus  string     `json:"day_planning_status,omitempty"`
-	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
+	ID                 int64         `json:"id"`
+	PersonID           int64         `json:"person_id"`
+	FirstName          string        `json:"first_name"`
+	LastName           string        `json:"last_name"`
+	TagID              string        `json:"tag_id,omitempty"`
+	Birthday           string        `json:"birthday,omitempty"` // Date in YYYY-MM-DD format
+	SchoolClass        string        `json:"school_class"`
+	Location           string        `json:"current_location"`
+	LocationSince      *time.Time    `json:"location_since,omitempty"`     // When student entered current location
+	RoomColor          *string       `json:"current_room_color,omitempty"` // Hex of the current room when set; nil for status-only locations or rooms without override
+	GuardianName       string        `json:"guardian_name,omitempty"`
+	GuardianContact    string        `json:"guardian_contact,omitempty"`
+	GuardianEmail      string        `json:"guardian_email,omitempty"`
+	GuardianPhone      string        `json:"guardian_phone,omitempty"`
+	GroupID            int64         `json:"group_id,omitempty"`
+	GroupName          string        `json:"group_name,omitempty"`
+	ExtraInfo          string        `json:"extra_info,omitempty"`
+	HealthInfo         string        `json:"health_info,omitempty"`
+	SupervisorNotes    string        `json:"supervisor_notes,omitempty"`
+	PickupStatus       string        `json:"pickup_status,omitempty"`
+	PickupTime         *string       `json:"pickup_time,omitempty"`          // Today's effective pickup time (HH:MM)
+	PickupIsException  bool          `json:"pickup_is_exception,omitempty"`  // True if today's pickup time is an exception
+	PickupNotes        string        `json:"pickup_notes,omitempty"`         // Exception reason or schedule notes
+	ArrivalTime        *string       `json:"arrival_time,omitempty"`         // Today's effective arrival time (HH:MM)
+	ArrivalIsException bool          `json:"arrival_is_exception,omitempty"` // True if today's arrival time is an exception
+	ArrivalNotes       string        `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
+	ActualArrivalTime  *string       `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
+	ActualPickupTime   *string       `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
+	Bus                bool          `json:"bus"`
+	BusDays            users.BusDays `json:"bus_days,omitempty"`
+	Sick               bool          `json:"sick"`
+	SickSince          *time.Time    `json:"sick_since,omitempty"`
+	Excused            bool          `json:"excused"`
+	ExcusedSince       *time.Time    `json:"excused_since,omitempty"`
+	DayPlanningStatus  string        `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string        `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel   string        `json:"day_planning_label,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -141,12 +143,13 @@ type StudentRequest struct {
 	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
-	GroupID         *int64  `json:"group_id,omitempty"`
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
-	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
-	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+	GroupID         *int64         `json:"group_id,omitempty"`
+	ExtraInfo       *string        `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	HealthInfo      *string        `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes *string        `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	PickupStatus    *string        `json:"pickup_status,omitempty"`    // How the child gets home
+	Bus             *bool          `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+	BusDays         *users.BusDays `json:"bus_days,omitempty"`         // Weekdays on which the child is a Buskind
 
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
@@ -211,19 +214,20 @@ type UpdateStudentRequest struct {
 	TagID     *string `json:"tag_id,omitempty"`
 
 	// Student-specific details (optional for update)
-	SchoolClass     *string `json:"school_class,omitempty"`
-	GuardianName    *string `json:"guardian_name,omitempty"`
-	GuardianContact *string `json:"guardian_contact,omitempty"`
-	GuardianEmail   *string `json:"guardian_email,omitempty"`
-	GuardianPhone   *string `json:"guardian_phone,omitempty"`
-	GroupID         *int64  `json:"group_id,omitempty"`
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	PickupStatus    *string `json:"pickup_status,omitempty"`    // How the child gets home
-	Bus             *bool   `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
-	Sick            *bool   `json:"sick,omitempty"`             // true = currently sick
-	Excused         *bool   `json:"excused,omitempty"`          // true = currently excused (not attending today)
+	SchoolClass     *string        `json:"school_class,omitempty"`
+	GuardianName    *string        `json:"guardian_name,omitempty"`
+	GuardianContact *string        `json:"guardian_contact,omitempty"`
+	GuardianEmail   *string        `json:"guardian_email,omitempty"`
+	GuardianPhone   *string        `json:"guardian_phone,omitempty"`
+	GroupID         *int64         `json:"group_id,omitempty"`
+	HealthInfo      *string        `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes *string        `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	ExtraInfo       *string        `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	PickupStatus    *string        `json:"pickup_status,omitempty"`    // How the child gets home
+	Bus             *bool          `json:"bus,omitempty"`              // Administrative permission flag (Buskind)
+	BusDays         *users.BusDays `json:"bus_days,omitempty"`         // Weekdays on which the child is a Buskind
+	Sick            *bool          `json:"sick,omitempty"`             // true = currently sick
+	Excused         *bool          `json:"excused,omitempty"`          // true = currently excused (not attending today)
 
 	// PhotoConsentGiven: documented parental photo-consent flag. The handler
 	// records who set it and when (photo_consent_given_at/_by columns) on a
@@ -309,6 +313,13 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
 		return err
 	}
+	if req.BusDays != nil {
+		if err := req.BusDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.BusDays.Normalize()
+		req.BusDays = &normalized
+	}
 
 	return nil
 }
@@ -324,6 +335,13 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	}
 	if req.SchoolClass != nil && *req.SchoolClass == "" {
 		return errors.New("school class cannot be empty")
+	}
+	if req.BusDays != nil {
+		if err := req.BusDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.BusDays.Normalize()
+		req.BusDays = &normalized
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler

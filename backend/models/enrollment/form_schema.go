@@ -46,6 +46,7 @@ const (
 	// Each pairs with a specific FormField.Target (see ReservedTargets).
 	FormFieldPhoneList       FormFieldType = "phone_list"       // 0..N labelled phone numbers
 	FormFieldWeekdaySchedule FormFieldType = "weekday_schedule" // mon..fri → HH:MM, optional per day
+	FormFieldWeekdayBoolean  FormFieldType = "weekday_boolean"  // mon..fri → bool, optional per day
 	FormFieldContactList     FormFieldType = "contact_list"     // 0..N people (name + phones + flags)
 )
 
@@ -60,6 +61,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldInfo:            true,
 	FormFieldPhoneList:       true,
 	FormFieldWeekdaySchedule: true,
+	FormFieldWeekdayBoolean:  true,
 	FormFieldContactList:     true,
 }
 
@@ -270,7 +272,7 @@ const (
 var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
-	TargetStudentBus:          {Type: FormFieldBoolean, AppliesToChild: true, Label: "Buskind"},
+	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentPickupStatus: {Type: FormFieldSelect, AppliesToChild: true, Label: "Abholregelung"},
 	TargetSchedulePickup:      {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
 	TargetScheduleArrival:     {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
@@ -411,7 +413,7 @@ func (f *FormField) validateQuestion() error {
 // renderer and decision service treat these specially.
 func isStructuredFieldType(t FormFieldType) bool {
 	switch t {
-	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldContactList:
+	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldContactList:
 		return true
 	default:
 		return false
@@ -459,6 +461,10 @@ func (p *PhoneEntry) Validate() error {
 // strings. Missing or empty days are skipped on approval.
 type WeekdaySchedule map[string]string
 
+// WeekdayBoolean is the value of a FormFieldWeekdayBoolean field.
+// Keys are weekday names (mon/tue/wed/thu/fri); true means selected.
+type WeekdayBoolean map[string]bool
+
 // ValidWeekdays mirrors the keys WeekdaySchedule accepts; aligns
 // with how schedule.student_pickup_schedules / arrival_schedules
 // encode their per-day rows.
@@ -481,6 +487,27 @@ func (w WeekdaySchedule) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (w WeekdayBoolean) Validate() error {
+	for day := range w {
+		if !ValidWeekdays[day] {
+			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
+		}
+	}
+	return nil
+}
+
+func (w WeekdayBoolean) HasAny() bool {
+	for day, selected := range w {
+		if !ValidWeekdays[day] {
+			continue
+		}
+		if selected {
+			return true
+		}
+	}
+	return false
 }
 
 // ContactEntry is one row of a FormFieldContactList submission. The

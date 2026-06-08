@@ -854,9 +854,10 @@ func (s *decisionService) applyApproval(
 	}
 
 	// 4b. Dispatch every targeted form field onto the right downstream
-	// record. Scalar targets (health_info, extra_info, bus, photo_
+	// record. Scalar targets (health_info, extra_info, photo_
 	// consent, pickup_status) update the Student row in place;
-	// structured targets (phone_list, weekday_schedule, contact_list)
+	// structured targets (bus weekday flags, phone_list,
+	// weekday_schedule, contact_list)
 	// create association rows. Failures inside one field don't abort
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
@@ -1521,7 +1522,11 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentBus:
-			if b, ok := raw.(bool); ok {
+			if days, err := decodeBusDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				b := days.HasAny()
+				student.BusDays = days
 				student.Bus = &b
 				studentDirty = true
 			}
@@ -1610,6 +1615,23 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func decodeBusDays(raw any) (users.BusDays, error) {
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(raw, &days); err != nil {
+		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
+	}
+	if err := days.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.BusDays{}
+	for _, day := range users.BusDayOrder {
+		if days[day] {
+			out[day] = true
+		}
+	}
+	return out, nil
 }
 
 // readFieldValue pulls the submission value for a field. Guardian-level

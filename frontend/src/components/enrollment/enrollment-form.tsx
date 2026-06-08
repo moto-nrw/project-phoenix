@@ -1790,6 +1790,10 @@ function customValueMissing(
     const schedule = asScheduleObject(value);
     return !Object.values(schedule).some((time) => time.trim() !== "");
   }
+  if (field.type === "weekday_boolean") {
+    const days = asWeekdayBooleanObject(value);
+    return !Object.values(days).some(Boolean);
+  }
   return typeof value !== "string" || value.trim() === "";
 }
 
@@ -1834,6 +1838,9 @@ function requiredMessageForField(
   }
   if (field.type === "weekday_schedule") {
     return "Bitte mindestens eine Uhrzeit angeben.";
+  }
+  if (field.type === "weekday_boolean") {
+    return "Bitte mindestens einen Wochentag auswählen.";
   }
   if (field.type === "select") {
     return "Bitte eine Option auswählen.";
@@ -1956,6 +1963,16 @@ function CustomFieldInput({
   if (field.type === "weekday_schedule") {
     return (
       <WeekdayScheduleInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
+  if (field.type === "weekday_boolean") {
+    return (
+      <WeekdayBooleanInput
         field={field}
         value={value}
         onChange={onChange}
@@ -2152,6 +2169,16 @@ function asScheduleObject(v: unknown): Record<string, string> {
   return out;
 }
 
+function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, boolean> = {};
+  for (const w of WEEKDAYS) {
+    const raw = (v as Record<string, unknown>)[w.key];
+    if (typeof raw === "boolean") out[w.key] = raw;
+  }
+  return out;
+}
+
 function WeekdayScheduleInput({
   field,
   value,
@@ -2188,6 +2215,60 @@ function WeekdayScheduleInput({
             />
           </label>
         ))}
+      </div>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+    </fieldset>
+  );
+}
+
+function WeekdayBooleanInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
+  const days = asWeekdayBooleanObject(value);
+  return (
+    <fieldset
+      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
+      <p className="text-xs text-gray-500">
+        Wähle die Tage aus, an denen das Kind mit dem Bus fährt.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-5">
+        {WEEKDAYS.map((w) => {
+          const checked = Boolean(days[w.key]);
+          return (
+            <label
+              key={w.key}
+              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ${
+                checked
+                  ? "border-gray-900 bg-gray-900 text-white"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) =>
+                  onChange({ ...days, [w.key]: e.target.checked })
+                }
+                className="sr-only"
+              />
+              {w.label.slice(0, 2)}
+            </label>
+          );
+        })}
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>

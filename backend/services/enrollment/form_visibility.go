@@ -241,11 +241,24 @@ func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) b
 		return contactListSatisfiesRequired(value)
 	case enrollmentModels.FormFieldWeekdaySchedule:
 		return scheduleHasAnyTime(value)
+	case enrollmentModels.FormFieldWeekdayBoolean:
+		return weekdayBooleanHasAnySelected(value)
 	case enrollmentModels.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
 	default:
 		return stringValue(value) != ""
 	}
+}
+
+func weekdayBooleanHasAnySelected(value any) bool {
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(value, &days); err != nil {
+		return false
+	}
+	if err := days.Validate(); err != nil {
+		return false
+	}
+	return days.HasAny()
 }
 
 func phoneListSatisfiesRequired(value any) bool {

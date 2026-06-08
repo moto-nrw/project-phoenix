@@ -231,22 +231,32 @@ describe("PrivacyConsentSection", () => {
 });
 
 describe("BusStatusSection", () => {
-  it("renders bus status checkbox", () => {
+  it("renders selected bus weekdays", () => {
     const onChange = vi.fn();
-    render(<BusStatusSection value={true} onChange={onChange} />);
+    render(
+      <BusStatusSection
+        value={true}
+        days={{ mon: true, wed: true }}
+        onChange={onChange}
+      />,
+    );
 
-    const checkbox = screen.getByRole("checkbox");
-    expect(checkbox).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Montag Buskind" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Mittwoch Buskind" }),
+    ).toBeChecked();
   });
 
-  it("calls onChange when checkbox toggled", () => {
+  it("calls onChange with weekday map when toggled", () => {
     const onChange = vi.fn();
-    render(<BusStatusSection value={false} onChange={onChange} />);
+    render(<BusStatusSection value={false} days={{}} onChange={onChange} />);
 
-    const checkbox = screen.getByRole("checkbox");
+    const checkbox = screen.getByRole("checkbox", { name: "Montag Buskind" });
     fireEvent.click(checkbox);
 
-    expect(onChange).toHaveBeenCalledWith(true);
+    expect(onChange).toHaveBeenCalledWith({ mon: true });
   });
 });
 

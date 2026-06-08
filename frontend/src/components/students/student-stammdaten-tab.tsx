@@ -19,6 +19,11 @@ import {
   uploadStudentPhoto,
 } from "~/lib/student-api";
 import { createLogger } from "~/lib/logger";
+import {
+  busDaysHaveAny,
+  normalizeBusDays,
+  type BusDays,
+} from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
 const logger = createLogger({ component: "StudentStammdatenTab" });
@@ -46,6 +51,18 @@ interface StudentStammdatenTabProps {
 // always render unchecked and saving would overwrite the real consent.
 type ServerConsent = { accepted: boolean; dataRetentionDays: number };
 
+function busDaysEqual(a?: BusDays | null, b?: BusDays | null): boolean {
+  const left = normalizeBusDays(a);
+  const right = normalizeBusDays(b);
+  return (
+    Boolean(left.mon) === Boolean(right.mon) &&
+    Boolean(left.tue) === Boolean(right.tue) &&
+    Boolean(left.wed) === Boolean(right.wed) &&
+    Boolean(left.thu) === Boolean(right.thu) &&
+    Boolean(left.fri) === Boolean(right.fri)
+  );
+}
+
 function buildDraft(
   student: Student,
   photosEnabled: boolean,
@@ -65,6 +82,7 @@ function buildDraft(
     data_retention_days:
       consent?.dataRetentionDays ?? student.data_retention_days ?? 30,
     bus: student.bus ?? false,
+    bus_days: normalizeBusDays(student.bus_days),
     pickup_status: student.pickup_status ?? "",
   };
   // Only mirror consent state into the form when the photo feature is
@@ -242,11 +260,19 @@ export function StudentStammdatenTab({
     if (pendingPhotoBlob !== null) return true;
     if (pendingPhotoRemoved) return true;
     const keys = Object.keys(originalDraft) as Array<keyof Student>;
-    return keys.some((key) => originalDraft[key] !== formData[key]);
+    return keys.some((key) => {
+      if (key === "bus_days") {
+        return !busDaysEqual(originalDraft.bus_days, formData.bus_days);
+      }
+      return originalDraft[key] !== formData[key];
+    });
   }, [originalDraft, formData, pendingPhotoBlob, pendingPhotoRemoved]);
 
   const handleChange = useCallback(
-    (field: keyof Student, value: string | boolean | number | null) => {
+    (
+      field: keyof Student,
+      value: string | boolean | number | BusDays | null,
+    ) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
       if (errors[field]) {
         setErrors((prev) => {
@@ -457,7 +483,15 @@ export function StudentStammdatenTab({
 
       <BusStatusSection
         value={formData.bus}
-        onChange={(value) => handleChange("bus", value)}
+        days={formData.bus_days}
+        onChange={(value) => {
+          const normalized = normalizeBusDays(value);
+          setFormData((prev) => ({
+            ...prev,
+            bus_days: normalized,
+            bus: busDaysHaveAny(normalized),
+          }));
+        }}
       />
 
       <EnrollmentConsentsSection

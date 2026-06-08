@@ -58,6 +58,30 @@ func TestDecodeStructured_DecodesWeekdaySchedule(t *testing.T) {
 	assert.Equal(t, "10:30", out["fri"])
 }
 
+func TestDecodeStructured_DecodesWeekdayBoolean(t *testing.T) {
+	raw := map[string]any{"mon": true, "fri": false}
+	var out enrollmentModels.WeekdayBoolean
+	require.NoError(t, decodeStructured(raw, &out))
+	assert.True(t, out["mon"])
+	assert.False(t, out["fri"])
+}
+
+func TestDecodeBusDays_NormalizesSelectedWeekdays(t *testing.T) {
+	raw := map[string]any{"mon": true, "tue": false, "fri": true}
+	out, err := decodeBusDays(raw)
+	require.NoError(t, err)
+	assert.True(t, out["mon"])
+	assert.True(t, out["fri"])
+	assert.False(t, out["tue"])
+	assert.True(t, out.HasAny())
+}
+
+func TestDecodeBusDays_RejectsUnknownWeekday(t *testing.T) {
+	_, err := decodeBusDays(map[string]any{"sat": true})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sat")
+}
+
 func TestDecodeStructured_DecodesContactList(t *testing.T) {
 	raw := []any{
 		map[string]any{

@@ -43,7 +43,7 @@ func TestFormField_Validate_KnownTargetWithWrongTypeRejected(t *testing.T) {
 	f := &FormField{
 		Key:       "bus",
 		Label:     "Bus",
-		Type:      FormFieldText, // ReservedTargets requires boolean
+		Type:      FormFieldText, // ReservedTargets requires weekday_boolean
 		SortOrder: 0,
 		Target:    TargetStudentBus,
 	}
@@ -119,10 +119,11 @@ func TestFormField_Validate_SelectWithoutOptionsRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "select")
 }
 
-func TestIsStructuredFieldType_RecognisesAllThree(t *testing.T) {
+func TestIsStructuredFieldType_RecognisesAllStructuredTypes(t *testing.T) {
 	for _, ft := range []FormFieldType{
 		FormFieldPhoneList,
 		FormFieldWeekdaySchedule,
+		FormFieldWeekdayBoolean,
 		FormFieldContactList,
 	} {
 		assert.True(t, isStructuredFieldType(ft), "type %q must be structured", ft)

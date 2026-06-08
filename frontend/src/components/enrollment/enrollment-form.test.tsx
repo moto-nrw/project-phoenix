@@ -99,6 +99,14 @@ function schema(): PublicFormSchema {
         applies_to_child: true,
         sort_order: 5,
       },
+      {
+        key: "bus_days",
+        label: "Buskind",
+        type: "weekday_boolean",
+        required: false,
+        applies_to_child: true,
+        sort_order: 6,
+      },
     ],
   };
 }
@@ -529,6 +537,29 @@ describe("EnrollmentForm", () => {
     expect(payload.captcha_token).toBeUndefined();
     expect(payload.children[0]?.offering_ids).toEqual([12]);
     expect(onSubmitted).toHaveBeenCalledWith("/parents/status/1");
+  });
+
+  it("submits selected bus weekdays for weekday boolean fields", async () => {
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Fr" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.bus_days).toEqual({
+      mon: true,
+      fri: true,
+    });
   });
 
   it("pre-selects and locks a mandatory offering and submits it for every child", async () => {

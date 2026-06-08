@@ -13,6 +13,11 @@ import {
   validateStudentForm,
   handleStudentFormSubmit,
 } from "~/lib/student-form-validation";
+import {
+  busDaysHaveAny,
+  normalizeBusDays,
+  type BusDays,
+} from "~/lib/student-helpers";
 
 interface StudentEditModalProps {
   readonly isOpen: boolean;
@@ -81,7 +86,7 @@ export function StudentEditModal({
 
   const handleChange = (
     field: keyof Student,
-    value: string | boolean | number | null,
+    value: string | boolean | number | BusDays | null,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error for this field
@@ -199,7 +204,15 @@ export function StudentEditModal({
           {/* Bus Status */}
           <BusStatusSection
             value={formData.bus}
-            onChange={(v) => handleChange("bus", v)}
+            days={formData.bus_days}
+            onChange={(value) => {
+              const normalized = normalizeBusDays(value);
+              setFormData((prev) => ({
+                ...prev,
+                bus_days: normalized,
+                bus: busDaysHaveAny(normalized),
+              }));
+            }}
           />
 
           {/* Action Buttons */}
