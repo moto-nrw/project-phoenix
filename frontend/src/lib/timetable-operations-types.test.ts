@@ -166,6 +166,110 @@ describe("timetable operation mappers", () => {
     });
   });
 
+  it("maps planned instance defaults when backend omits nullable flags and preview", () => {
+    const result = mapPlannedInstance({
+      id: 124,
+      title: "Freispiel",
+      date: "2026-05-11",
+      start_time: "15:00",
+      end_time: "16:00",
+      room_id: 225,
+      status: "planned",
+      is_overdue: false,
+      minutes_until_start: 30,
+      expected_students_count: 0,
+      present_students_count: 0,
+      assigned_staff_ids: [],
+    });
+
+    expect(result).toEqual({
+      id: "124",
+      title: "Freispiel",
+      date: "2026-05-11",
+      startTime: "15:00",
+      endTime: "16:00",
+      roomId: "225",
+      roomName: null,
+      status: "planned",
+      isOverdue: false,
+      minutesUntilStart: 30,
+      expectedStudentsCount: 0,
+      presentStudentsCount: 0,
+      assignedStaffIds: [],
+      isAssigned: false,
+      isPrimary: false,
+      isSubstitute: false,
+      isAbsent: false,
+      rosterPreview: [],
+    });
+  });
+
+  it("maps roster warnings and normalizes nullable warning ids", () => {
+    const raw: BackendTimetableRoster = {
+      instance: {
+        id: 125,
+        title: "Lernzeit",
+        status: "active",
+        active_group_id: 226,
+        room_id: 227,
+        room_name: null,
+      },
+      rows: [
+        {
+          student_id: 423,
+          student_name: "Warn Kind",
+          school_class: "3d",
+          group_name: "OGS Rot",
+          planned: true,
+          is_unplanned: false,
+          currently_present: false,
+          status: "expected",
+          warnings: [
+            {
+              kind: "arrival_after_slot_start",
+              message: "zu spät",
+              expected_arrival: "14:30",
+              slot_start: "14:00",
+              expected_group_id: 700,
+              expected_group_name: "Klasse 3d",
+              current_education_group_id: 701,
+            },
+            {
+              kind: "missing_arrival_schedule",
+              message: "kein Plan",
+              expected_arrival: null,
+              slot_start: null,
+              expected_group_id: null,
+              expected_group_name: null,
+              current_education_group_id: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(mapRoster(raw).rows[0]!.warnings).toEqual([
+      {
+        kind: "arrival_after_slot_start",
+        message: "zu spät",
+        expectedArrival: "14:30",
+        slotStart: "14:00",
+        expectedGroupId: "700",
+        expectedGroupName: "Klasse 3d",
+        currentEducationGroupId: "701",
+      },
+      {
+        kind: "missing_arrival_schedule",
+        message: "kein Plan",
+        expectedArrival: null,
+        slotStart: null,
+        expectedGroupId: null,
+        expectedGroupName: null,
+        currentEducationGroupId: null,
+      },
+    ]);
+  });
+
   it("maps nullable roster instance fields", () => {
     const raw: BackendTimetableRoster = {
       instance: {

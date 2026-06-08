@@ -186,6 +186,33 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 			period: p100,
 			want:   true,
 		},
+		{
+			name: "selected weekdays empty matches any weekday",
+			e: &activities.StudentEnrollment{
+				ValidFrom:        d(2026, time.January, 1),
+				SelectedWeekdays: nil,
+			},
+			period: p100,
+			want:   true,
+		},
+		{
+			name: "selected weekdays includes target weekday",
+			e: &activities.StudentEnrollment{
+				ValidFrom:        d(2026, time.January, 1),
+				SelectedWeekdays: []int{1, 3},
+			},
+			period: p100,
+			want:   true,
+		},
+		{
+			name: "selected weekdays excludes target weekday",
+			e: &activities.StudentEnrollment{
+				ValidFrom:        d(2026, time.January, 1),
+				SelectedWeekdays: []int{2, 3},
+			},
+			period: p100,
+			want:   false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -580,6 +607,170 @@ func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
 	assert.Contains(t, err.Error(), "materialize template: create instance")
 	assert.Zero(t, result.InstancesCreated)
 	assert.Zero(t, result.CandidatesRaced)
+}
+
+func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
+	date := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+
+	t.Run("warns and no-ops without active periods", func(t *testing.T) {
+		svc := NewMaterializationService(
+			materializationFakeGroupRepo{templates: []*activities.Group{{Name: "Lernzeit"}}},
+			materializationFakeScheduleRepo{},
+			materializationFakeEnrollmentRepo{},
+			materializationFakeSupervisorRepo{},
+			materializationFakePeriodRepo{},
+			materializationFakeInstanceRepo{inserted: true},
+			materializationFakeStaffRepo{},
+			materializationFakeStudentRepo{},
+			materializationFakeExceptionRepo{},
+			materializationFakeTimeframeRepo{},
+			materializationAllowCalendarService{},
+			nil,
+			slog.Default(),
+		)
+
+		result, err := svc.MaterializeForTenant(context.Background(), date, date, MaterializationSourceManual)
+
+		require.NoError(t, err)
+		require.Len(t, result.Warnings, 1)
+		assert.Equal(t, MaterializationWarningCodeNoActivePeriod, result.Warnings[0].Code)
+		assert.Zero(t, result.InstancesCreated)
+	})
+
+	t.Run("warns and no-ops without templates", func(t *testing.T) {
+		svc := NewMaterializationService(
+			materializationFakeGroupRepo{},
+			materializationFakeScheduleRepo{},
+			materializationFakeEnrollmentRepo{},
+			materializationFakeSupervisorRepo{},
+			materializationFakePeriodRepo{periods: []*schedule.CalendarPeriod{{
+				StartDate: date.AddDate(0, -1, 0),
+				EndDate:   date.AddDate(0, 1, 0),
+				IsActive:  true,
+				Model:     modelBase.Model{ID: 401},
+			}}},
+			materializationFakeInstanceRepo{inserted: true},
+			materializationFakeStaffRepo{},
+			materializationFakeStudentRepo{},
+			materializationFakeExceptionRepo{},
+			materializationFakeTimeframeRepo{},
+			materializationAllowCalendarService{},
+			nil,
+			slog.Default(),
+		)
+
+		result, err := svc.MaterializeForTenant(context.Background(), date, date, MaterializationSourceManual)
+
+		require.NoError(t, err)
+		require.Len(t, result.Warnings, 1)
+		assert.Equal(t, MaterializationWarningCodeNoTemplates, result.Warnings[0].Code)
+		assert.Zero(t, result.InstancesCreated)
+	})
+}
+
+func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
+	date := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	periodID := int64(400)
+
+	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
+		svc, _ := newMaterializationBranchService(materializationFakeInstanceRepo{inserted: false})
+
+		from, to := svc.ResolveWindow(time.Date(2026, time.April, 22, 12, 0, 0, 0, time.UTC), 1)
+
+		assert.Equal(t, time.Date(2026, time.April, 27, 0, 0, 0, 0, time.UTC), from)
+		assert.Equal(t, time.Date(2026, time.May, 3, 0, 0, 0, 0, time.UTC), to)
+	})
+
+	t.Run("nil logger falls back to slog default", func(t *testing.T) {
+		svc := &materializationService{}
+
+		assert.NotNil(t, svc.getLogger())
+	})
+
+	t.Run("copy enrollments skips invalid and duplicate students", func(t *testing.T) {
+		studentRepo := &materializationCountingStudentRepo{}
+		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
+		valid := &activities.StudentEnrollment{StudentID: 501, ValidFrom: date}
+		duplicate := &activities.StudentEnrollment{StudentID: 501, ValidFrom: date}
+		wrongWeekday := &activities.StudentEnrollment{StudentID: 502, ValidFrom: date, SelectedWeekdays: []int{2}}
+		result := &MaterializationResult{}
+
+		err := svc.copyEnrollments(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, date, periodID, result)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.InstanceStudentsCreated)
+		require.Len(t, studentRepo.rows, 1)
+		assert.Equal(t, int64(501), studentRepo.rows[0].StudentID)
+	})
+
+	t.Run("copy enrollments wraps create errors", func(t *testing.T) {
+		studentRepo := &materializationCountingStudentRepo{err: errors.New("insert student failed")}
+		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
+		result := &MaterializationResult{}
+
+		err := svc.copyEnrollments(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: date}}, date, periodID, result)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "copy enrollment")
+		assert.Zero(t, result.InstanceStudentsCreated)
+	})
+
+	t.Run("copy supervisors skips invalid and duplicate staff", func(t *testing.T) {
+		staffRepo := &materializationCountingStaffRepo{}
+		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
+		valid := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: date, IsPrimary: true}
+		duplicate := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: date}
+		future := &activities.SupervisorPlanned{StaffID: 702, ValidFrom: date.AddDate(0, 0, 1)}
+		result := &MaterializationResult{}
+
+		err := svc.copySupervisors(context.Background(), 603, []*activities.SupervisorPlanned{valid, duplicate, future}, date, periodID, result)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.InstanceStaffCreated)
+		require.Len(t, staffRepo.rows, 1)
+		assert.Equal(t, int64(701), staffRepo.rows[0].StaffID)
+		assert.True(t, staffRepo.rows[0].IsPrimary)
+	})
+
+	t.Run("copy supervisors wraps create errors", func(t *testing.T) {
+		staffRepo := &materializationCountingStaffRepo{err: errors.New("insert staff failed")}
+		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
+		result := &MaterializationResult{}
+
+		err := svc.copySupervisors(context.Background(), 604, []*activities.SupervisorPlanned{{StaffID: 703, ValidFrom: date}}, date, periodID, result)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "copy supervisor")
+		assert.Zero(t, result.InstanceStaffCreated)
+	})
+}
+
+type materializationCountingStudentRepo struct {
+	schedule.InstanceStudentRepository
+	rows []*schedule.InstanceStudent
+	err  error
+}
+
+func (r *materializationCountingStudentRepo) Create(_ context.Context, row *schedule.InstanceStudent) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.rows = append(r.rows, row)
+	return nil
+}
+
+type materializationCountingStaffRepo struct {
+	schedule.InstanceStaffRepository
+	rows []*schedule.InstanceStaff
+	err  error
+}
+
+func (r *materializationCountingStaffRepo) Create(_ context.Context, row *schedule.InstanceStaff) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.rows = append(r.rows, row)
+	return nil
 }
 
 func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (MaterializationService, time.Time) {

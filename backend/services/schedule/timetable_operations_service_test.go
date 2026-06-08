@@ -186,6 +186,20 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		require.EqualError(t, err, "student query failed")
 		assert.Nil(t, result)
 	})
+
+	t.Run("propagates room lookup errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 629, 435, 228, 339)
+		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+			instanceWithTimes(339, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour)),
+		}
+		deps.rooms.err = errors.New("room query failed")
+
+		result, err := deps.service.PlannedNow(context.Background(), 629, false, now, now, PlannedNowOptions{})
+
+		require.EqualError(t, err, "room query failed")
+		assert.Nil(t, result)
+	})
 }
 
 func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
@@ -319,6 +333,48 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	assert.Equal(t, expectedGroupID, *roster.Rows[0].Warnings[1].ExpectedGroupID)
 	assert.Equal(t, "Klasse 2a", *roster.Rows[0].Warnings[1].ExpectedGroupName)
 	assert.Equal(t, actualGroupID, *roster.Rows[0].Warnings[1].CurrentEducationGroup)
+}
+
+func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
+	instanceID := int64(362)
+	activeGroupID := int64(262)
+	studentID := int64(533)
+
+	t.Run("missing arrival schedule warning is skipped for exceptions", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 652, 452, 242, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+			{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 463, SchoolClass: "3c"}
+		deps.personService.people[463] = &usersModel.Person{FirstName: "Kai", LastName: "Kurz"}
+		deps.arrivalService.byStudent[studentID] = &EffectiveArrivalTime{IsException: true}
+
+		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
+
+		require.NoError(t, err)
+		require.Len(t, roster.Rows, 1)
+		assert.Empty(t, roster.Rows[0].Warnings)
+	})
+
+	t.Run("arrival lookup errors do not break roster building", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 653, 453, 243, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+			{StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected},
+		}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 464, SchoolClass: "3c"}
+		deps.personService.people[464] = &usersModel.Person{FirstName: "Eli", LastName: "Error"}
+		deps.arrivalService.err = errors.New("arrival failed")
+
+		roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
+
+		require.NoError(t, err)
+		require.Len(t, roster.Rows, 1)
+		assert.Empty(t, roster.Rows[0].Warnings)
+	})
 }
 
 func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing.T) {
@@ -621,6 +677,16 @@ func TestTimetableOperationsCheckOutBranches(t *testing.T) {
 	require.ErrorIs(t, err, ErrTimetableOperationNotFound)
 }
 
+func TestTimetableOperationsActiveVisitLookupPropagatesErrors(t *testing.T) {
+	deps := newTimetableOpsDeps()
+	deps.visitRepo.err = errors.New("visit query failed")
+
+	visit, err := deps.service.(*timetableOperationsService).findActiveVisitForInstanceStudent(context.Background(), 305, 567)
+
+	require.EqualError(t, err, "visit query failed")
+	assert.Nil(t, visit)
+}
+
 func TestTimetableOperationsPatchAttendanceBranches(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	instanceID := int64(413)
@@ -746,6 +812,16 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 		require.EqualError(t, err, "db down")
 		assert.Nil(t, inst)
 	})
+
+	t.Run("complete returns permission errors before delegation", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+
+		result, err := deps.service.Complete(context.Background(), 0, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Nil(t, result)
+		assert.Empty(t, deps.instanceService.completed)
+	})
 }
 
 func TestTimetableOperationsBroadcastBranches(t *testing.T) {
@@ -775,6 +851,15 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
 		require.Len(t, deps.broadcaster.events, 1)
+	})
+
+	t.Run("logs and skips when instance lookup fails", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.instanceRepo.err = errors.New("instance failed")
+
+		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
+
+		assert.Empty(t, deps.broadcaster.events)
 	})
 }
 
@@ -814,6 +899,56 @@ func TestTimetableOperationHelpers(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, int64(556), planned.StudentID)
 	assert.False(t, isNoRows(errors.New("ordinary error")))
+}
+
+func TestTimetableOperationDirectHelperBranches(t *testing.T) {
+	t.Run("load roster template group ignores missing and unbound groups", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		svc := deps.service.(*timetableOperationsService)
+
+		group, err := svc.loadRosterTemplateGroup(context.Background(), nil)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+
+		zero := int64(0)
+		group, err = svc.loadRosterTemplateGroup(context.Background(), &zero)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+
+		missing := int64(599)
+		group, err = svc.loadRosterTemplateGroup(context.Background(), &missing)
+		require.NoError(t, err)
+		assert.Nil(t, group)
+	})
+
+	t.Run("load roster template group propagates ordinary errors", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.activityGroups.err = errors.New("group failed")
+		groupID := int64(600)
+
+		group, err := deps.service.(*timetableOperationsService).loadRosterTemplateGroup(context.Background(), &groupID)
+
+		require.EqualError(t, err, "group failed")
+		assert.Nil(t, group)
+	})
+
+	t.Run("room name map skips nil rooms", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.rooms.rooms = append(deps.rooms.rooms, nil)
+
+		names, err := deps.service.(*timetableOperationsService).roomNameMap(context.Background())
+
+		require.NoError(t, err)
+		require.NotNil(t, names[810])
+		assert.Equal(t, "Lernraum", *names[810])
+	})
+
+	t.Run("logger falls back to default", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.service.(*timetableOperationsService).deps.Logger = nil
+
+		assert.NotNil(t, deps.service.(*timetableOperationsService).logger())
+	})
 }
 
 func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID, instanceID int64) {
@@ -1098,9 +1233,13 @@ type fakeOpsVisitRepo struct {
 	activeModel.VisitRepository
 	byActiveGroup    map[int64][]*activeModel.Visit
 	currentByStudent map[int64]*activeModel.Visit
+	err              error
 }
 
 func (r *fakeOpsVisitRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
 	return r.byActiveGroup[activeGroupID], nil
 }
 
