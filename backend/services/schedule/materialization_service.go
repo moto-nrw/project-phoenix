@@ -423,7 +423,21 @@ func (s *materializationService) materializeTemplate(
 
 			inserted, err := s.instanceRepo.CreateTemplateBackedIfAbsent(ctx, instance)
 			if err != nil {
-				return &ScheduleError{Op: "materialize template: create instance", Err: err}
+				return &ScheduleError{
+					Op: "materialize template: create instance",
+					Err: fmt.Errorf(
+						"tenant_id=%d template_id=%d schedule_id=%d date=%s period_id=%d room_id=%d start_time=%s end_time=%s: %w",
+						tenant.FromContext(ctx),
+						tmpl.ID,
+						sch.ID,
+						date.Format("2006-01-02"),
+						period.ID,
+						effective.RoomID,
+						formatTimeOfDay(effective.StartTime),
+						formatTimeOfDay(effective.EndTime),
+						err,
+					),
+				}
 			}
 			if !inserted {
 				result.CandidatesRaced++

@@ -578,6 +578,14 @@ func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, result)
 	assert.Contains(t, err.Error(), "materialize template: create instance")
+	assert.Contains(t, err.Error(), "tenant_id=300")
+	assert.Contains(t, err.Error(), "template_id=500")
+	assert.Contains(t, err.Error(), "schedule_id=800")
+	assert.Contains(t, err.Error(), "date=2026-04-20")
+	assert.Contains(t, err.Error(), "period_id=400")
+	assert.Contains(t, err.Error(), "room_id=700")
+	assert.Contains(t, err.Error(), "start_time=14:00:00")
+	assert.Contains(t, err.Error(), "end_time=15:00:00")
 	assert.Zero(t, result.InstancesCreated)
 	assert.Zero(t, result.CandidatesRaced)
 }
@@ -598,6 +606,7 @@ func newMaterializationBranchService(instanceRepo materializationFakeInstanceRep
 			Model:         modelBase.Model{ID: templateID},
 		}}},
 		materializationFakeScheduleRepo{schedules: []*activities.Schedule{{
+			Model:           modelBase.Model{ID: 800},
 			ActivityGroupID: templateID,
 			Weekday:         activities.WeekdayMonday,
 			TimeframeID:     &timeframeID,
