@@ -138,6 +138,44 @@ func init() {
 		},
 	})
 
+	// --- Zeiterfassung Aufbewahrung (ArbZG + DSGVO retention window) ---
+	//
+	// §16 Abs. 2 ArbZG mandates at least 2 years for working-time records.
+	// §41 EStG (Lohnkonto-Belege) requires 6 years once the data feeds
+	// payroll. §147 AO / §257 HGB cap the legally defensible window at
+	// 8 years. Persisted as days (730/1095/.../2920) so the cleanup
+	// service stays day-precise, but exposed as a year-dropdown in the
+	// admin UI — the original number input made it tempting to type
+	// arbitrary day counts that don't map to legal milestones.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRTimeTrackingRetentionDays,
+		Label:           "Aufbewahrungsdauer Zeiterfassung",
+		Description:     "Wie lange Arbeitszeit-Daten (Stempelzeiten, Pausen, Korrekturen, Abwesenheiten) aufbewahrt werden, bevor sie automatisch gelöscht werden. Mindestens 2 Jahre.",
+		Type:            config.FieldSelect,
+		Default:         730,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "zeiterfassung",
+		SortOrder:       40,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "2 Jahre", Value: 730},
+				{Label: "3 Jahre", Value: 1095},
+				{Label: "4 Jahre", Value: 1460},
+				{Label: "5 Jahre", Value: 1825},
+				{Label: "6 Jahre", Value: 2190},
+				{Label: "7 Jahre", Value: 2555},
+				{Label: "8 Jahre", Value: 2920},
+			},
+		},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyDataCleanupEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	// --- Schülerdaten-Zugriff (who can read full student profile data) ---
 
 	config.Register(config.Definition{

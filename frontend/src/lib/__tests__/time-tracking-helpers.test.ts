@@ -131,6 +131,7 @@ describe("mapWorkSessionHistoryResponse", () => {
     net_minutes: 450,
     is_overtime: false,
     is_break_compliant: true,
+    rest_period_warning: null,
     breaks: [
       {
         id: 1,
@@ -423,6 +424,7 @@ describe("getComplianceWarnings", () => {
     netMinutes: 450,
     isOvertime: false,
     isBreakCompliant: true,
+    restPeriodWarning: null,
     breaks: [],
     editCount: 0,
     ...overrides,

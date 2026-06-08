@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Clock3,
   Database,
+  Download,
   Eye,
   FileText,
   KeyRound,
@@ -403,6 +404,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Meine Gruppen` aufklappen.",
           "Die gewünschte Gruppe wählen.",
           "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
+          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen.",
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
@@ -605,6 +607,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
+      },
+      {
+        id: "anmeldungen-exportieren",
+        title: "Anmeldungen exportieren",
+        icon: Download,
+        summary:
+          "Alle Anmeldungen einer Phase kompakt als Datei sichern, zum Ausdrucken oder als Archiv, damit die wichtigsten Angaben auch bei WLAN- oder Systemausfall offline verfügbar sind.",
+        steps: [
+          "Eine `Anmeldephase` öffnen - oben rechts findest du `Export PDF` und `Export XLSX`.",
+          "`Export PDF` erzeugt eine druckoptimierte Datei mit einem Block pro Kind (alphabetisch nach Nachname), inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
+          "`Export XLSX` erzeugt eine Tabelle mit einer Zeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
+          "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
+        ],
+        callout: {
+          title: "Vertrauliche Daten - sorgsam aufbewahren",
+          body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
+          tone: "orange",
+        },
+        screenshot:
+          "Anmeldephase mit den Schaltflächen Export PDF und Export XLSX sowie dem Status-Filter.",
+        image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
         id: "anmeldephasen",

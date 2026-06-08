@@ -188,6 +188,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/users/student_photo_service_broadcast_test.go", // Pure unit tests for broadcast helpers + side-effect registry binding; tenant IDs are pass-through arguments, no DB
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
+		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {

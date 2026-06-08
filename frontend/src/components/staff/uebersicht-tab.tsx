@@ -1,0 +1,895 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { DateRange } from "react-day-picker";
+
+import {
+  buildDefaultPresets,
+  DateRangePicker,
+} from "~/components/ui/date-range-picker";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Label,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts";
+
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "~/components/ui/chart";
+import { Loading } from "~/components/ui/loading";
+import {
+  staffAbsenceService,
+  staffHistoryService,
+  staffScheduleService,
+} from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
+import {
+  computeStaffMetrics,
+  endOfWeek,
+  getDeltaStatus,
+  resolveTargetForDate,
+  resolveAccountStartDate,
+  startOfWeek,
+  toDateKey,
+  toIsoDayOfWeek,
+} from "~/lib/staff-metrics-helpers";
+import { useSWRAuth } from "~/lib/swr";
+import { timeTrackingService } from "~/lib/time-tracking-api";
+
+import { formatSignedDuration, KpiCard } from "./staff-time-views";
+
+const EMPTY_SCHEDULE: StaffSchedule = {
+  mode: "custom",
+  model: null,
+  rotationLength: 1,
+  rotationAnchorDate: "",
+  entries: [],
+  weeklyTotals: [],
+  validFrom: "",
+};
+
+type DistributionCenterLabelProps = {
+  readonly total: number;
+  readonly viewBox?: unknown;
+};
+
+type ConcreteDateRange = {
+  readonly from: Date;
+  readonly to: Date;
+};
+
+function DistributionCenterLabel({
+  total,
+  viewBox,
+}: DistributionCenterLabelProps) {
+  const center =
+    viewBox && typeof viewBox === "object"
+      ? (viewBox as { cx?: unknown; cy?: unknown })
+      : null;
+
+  if (
+    center &&
+    typeof center.cx === "number" &&
+    typeof center.cy === "number"
+  ) {
+    return (
+      <text
+        x={center.cx}
+        y={center.cy}
+        textAnchor="middle"
+        dominantBaseline="middle"
+      >
+        <tspan
+          x={center.cx}
+          y={center.cy}
+          className="fill-gray-900 text-3xl font-bold"
+        >
+          {total}
+        </tspan>
+        <tspan
+          x={center.cx}
+          y={center.cy + 22}
+          className="fill-gray-500 text-sm"
+        >
+          Tage
+        </tspan>
+      </text>
+    );
+  }
+  return null;
+}
+
+// Long-term analytical view for a staff member. Owns three sections:
+//   A. Jahres-Header — 3 KpiCards (Saldo, Urlaub, Krank seit Jahresbeginn)
+//   B. Stundenkonto-Verlauf — shadcn AreaChart with gradient, last 12 weeks
+//   C. Zeitverteilung — shadcn Donut with centered total, OGS/HO/Urlaub/...
+//
+// Period-bound KPIs (this week, this month) live on the Zeiterfassung tab.
+export function UebersichtTab({ staffId }: { readonly staffId: string }) {
+  const today = useMemo(() => new Date(), []);
+
+  const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
+    `staff-schedule-${staffId}`,
+    () => staffScheduleService.getSchedule(staffId),
+  );
+
+  const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
+    timeTrackingService.getConfig(),
+  );
+
+  const accountAnchor = useMemo(() => {
+    return resolveAccountStartDate(today, timeTrackingConfig?.accountStartDate);
+  }, [timeTrackingConfig?.accountStartDate, today]);
+
+  const accountStartKey = toDateKey(accountAnchor);
+  const yearEndKey = toDateKey(today);
+  const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
+    StaffHistorySession[]
+  >(`staff-history-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
+    staffHistoryService.getHistory(staffId, accountStartKey, yearEndKey),
+  );
+  const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
+    StaffAbsenceRow[]
+  >(`staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
+    staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
+  );
+
+  const metrics = useMemo(
+    () =>
+      computeStaffMetrics(
+        schedule ?? EMPTY_SCHEDULE,
+        accountSessions ?? [],
+        accountAbsences ?? [],
+        today,
+        timeTrackingConfig?.accountStartDate,
+      ),
+    [
+      schedule,
+      accountSessions,
+      accountAbsences,
+      today,
+      timeTrackingConfig?.accountStartDate,
+    ],
+  );
+
+  // Three independent date-range states — each chart has its own picker so the
+  // user can compare timeframes (e.g. "Mai" in the donut vs "letzte 12 Wochen"
+  // in the saldo) on the same screen.
+  // Unified default: last 60 days. Compromise between readable Tagesvergleich
+  // (~42 working days, dots get tight but not unreadable) and meaningful
+  // Saldo trend (~8.5 weekly buckets). Donut shows a 2-month distribution.
+  // Users can shrink to 7/30 or expand to 90/year/total per chart via picker.
+  const [donutRange, setDonutRange] = useState<DateRange | undefined>(() => ({
+    from: addDaysSafe(today, -59),
+    to: today,
+  }));
+  const [saldoRange, setSaldoRange] = useState<DateRange | undefined>(() => ({
+    from: addDaysSafe(today, -59),
+    to: today,
+  }));
+  const [dailyRange, setDailyRange] = useState<DateRange | undefined>(() => ({
+    from: addDaysSafe(today, -59),
+    to: today,
+  }));
+
+  const clampedDonutRange = clampDateRange(donutRange, accountAnchor, today);
+  const clampedSaldoRange = clampDateRange(saldoRange, accountAnchor, today);
+  const clampedDailyRange = clampDateRange(dailyRange, accountAnchor, today);
+  const donutFrom = clampedDonutRange.from;
+  const donutTo = clampedDonutRange.to;
+  const saldoFrom = clampedSaldoRange.from;
+  const saldoTo = clampedSaldoRange.to;
+  const dailyFrom = clampedDailyRange.from;
+  const dailyTo = clampedDailyRange.to;
+
+  const absenceDays = useMemo(
+    () => countAbsenceDays(accountAbsences ?? [], donutFrom, donutTo),
+    [accountAbsences, donutFrom, donutTo],
+  );
+  const sessionDays = useMemo(
+    () => countSessionDaysInRange(accountSessions ?? [], donutFrom, donutTo),
+    [accountSessions, donutFrom, donutTo],
+  );
+
+  const distributionData = useMemo(
+    () => buildDistribution(sessionDays, absenceDays),
+    [sessionDays, absenceDays],
+  );
+  const distributionTotal = useMemo(
+    () => distributionData.reduce((acc, x) => acc + x.value, 0),
+    [distributionData],
+  );
+
+  const weeklyTrendData = useMemo(
+    () =>
+      buildWeeklyBalanceSeriesRange(
+        schedule ?? EMPTY_SCHEDULE,
+        accountSessions ?? [],
+        accountAbsences ?? [],
+        saldoFrom,
+        saldoTo,
+      ),
+    [schedule, accountSessions, accountAbsences, saldoFrom, saldoTo],
+  );
+
+  const dailyTrendData = useMemo(
+    () =>
+      buildDailyIstSollSeriesRange(
+        schedule ?? EMPTY_SCHEDULE,
+        accountSessions ?? [],
+        accountAbsences ?? [],
+        dailyFrom,
+        dailyTo,
+      ),
+    [schedule, accountSessions, accountAbsences, dailyFrom, dailyTo],
+  );
+
+  const hasAnyTrendData =
+    (accountSessions?.length ?? 0) + (accountAbsences?.length ?? 0) > 0;
+
+  if (scheduleLoading || sessionsLoading || absencesLoading) {
+    return <Loading fullPage={false} />;
+  }
+
+  const yearStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const accountColor = getDeltaStatus(metrics.accountBalance);
+
+  return (
+    <div className="space-y-5">
+      {/* A — Jahres-Header (KpiCards, gleiches Layout wie Zeiterfassung) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard
+          label="Stundenkonto"
+          primary={formatSignedDuration(metrics.accountBalance)}
+          secondary={
+            metrics.accountBalance === 0
+              ? `Soll und Ist ausgeglichen seit ${yearStartLabel}`
+              : `seit ${yearStartLabel}`
+          }
+          color={accountColor}
+        />
+        <KpiCard
+          label="Urlaubstage"
+          primary={`${absenceDays.vacation}`}
+          secondary={`genommen seit ${yearStartLabel}`}
+          color="gray"
+        />
+        <KpiCard
+          label="Krankheitstage"
+          primary={`${absenceDays.sick}`}
+          secondary={`seit ${yearStartLabel}`}
+          color="gray"
+        />
+      </div>
+
+      {/* B — Zwei Charts side-by-side */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {/* B1 — Tagesvergleich Ist/Soll */}
+        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
+              Tagesvergleich Ist / Soll
+            </h3>
+            <DateRangePicker
+              value={clampedDailyRange}
+              onChange={setDailyRange}
+              presets={buildDefaultPresets(accountAnchor, today)}
+              fromMin={accountAnchor}
+              toMax={today}
+            />
+          </div>
+          {!hasAnyTrendData || dailyTrendData.length < 2 ? (
+            <p className="py-10 text-center text-sm text-gray-400">
+              {hasAnyTrendData
+                ? "Noch zu wenige Werktage erfasst — sobald ein zweiter Tag dazukommt, erscheint der Vergleich."
+                : "Noch keine Daten — sobald die erste Arbeitszeit erfasst ist, erscheint der Vergleich."}
+            </p>
+          ) : (
+            <ChartContainer
+              config={dailyConfig}
+              className="!aspect-auto h-64 w-full"
+            >
+              <LineChart
+                accessibilityLayer
+                data={dailyTrendData}
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="dayLabel"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  fontSize={11}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tickFormatter={(v) => formatHoursCompact(Number(v))}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={4}
+                  fontSize={11}
+                  width={56}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      labelFormatter={(_l, payload) => {
+                        const p = payload?.[0]?.payload as
+                          | { fullLabel?: string }
+                          | undefined;
+                        return p?.fullLabel ?? "";
+                      }}
+                      formatter={(value) => formatSignedDuration(Number(value))}
+                    />
+                  }
+                />
+                <Line
+                  dataKey="soll"
+                  name="Soll"
+                  type="monotone"
+                  stroke="var(--color-soll)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  dataKey="ist"
+                  name="Ist"
+                  type="monotone"
+                  stroke="var(--color-ist)"
+                  strokeWidth={2.5}
+                  dot={{ fill: "var(--color-ist)", r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ChartContainer>
+          )}
+        </div>
+
+        {/* B2 — Saldo-Verlauf kumulativ */}
+        <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
+              Saldo-Verlauf
+            </h3>
+            <DateRangePicker
+              value={clampedSaldoRange}
+              onChange={setSaldoRange}
+              presets={buildDefaultPresets(accountAnchor, today)}
+              fromMin={accountAnchor}
+              toMax={today}
+            />
+          </div>
+          {!hasAnyTrendData || weeklyTrendData.length < 2 ? (
+            <p className="py-10 text-center text-sm text-gray-400">
+              {hasAnyTrendData
+                ? "Noch zu wenige Wochen für einen Verlauf — sobald eine zweite Woche dazukommt, erscheint der Saldo."
+                : "Noch keine Daten — der Saldo erscheint, sobald die erste Woche erfasst ist."}
+            </p>
+          ) : (
+            <ChartContainer
+              config={trendConfig}
+              className="!aspect-auto h-64 w-full"
+            >
+              <AreaChart
+                accessibilityLayer
+                data={weeklyTrendData}
+                margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="fillBalance" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor="var(--color-balance)"
+                      stopOpacity={0.18}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--color-balance)"
+                      stopOpacity={0.02}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="weekLabel"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  fontSize={11}
+                />
+                <YAxis
+                  tickFormatter={(v) => formatHoursCompact(Number(v))}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={4}
+                  fontSize={11}
+                  width={56}
+                />
+                <ReferenceLine
+                  y={0}
+                  stroke="#9CA3AF"
+                  strokeDasharray="3 3"
+                  strokeWidth={1}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      formatter={(value) => formatSignedDuration(Number(value))}
+                    />
+                  }
+                />
+                <Area
+                  dataKey="balance"
+                  type="natural"
+                  stroke="var(--color-balance)"
+                  strokeWidth={2.5}
+                  fill="url(#fillBalance)"
+                />
+              </AreaChart>
+            </ChartContainer>
+          )}
+        </div>
+      </div>
+
+      {/* C — Zeitverteilung (shadcn Donut + vollständige Legende rechts) */}
+      <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold tracking-wide text-gray-400 uppercase">
+            Zeitverteilung
+          </h3>
+          <DateRangePicker
+            value={clampedDonutRange}
+            onChange={setDonutRange}
+            presets={buildDefaultPresets(accountAnchor, today)}
+            fromMin={accountAnchor}
+            toMax={today}
+          />
+        </div>
+        {distributionTotal === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-400">
+            Noch keine Tage erfasst.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 items-center gap-6 md:grid-cols-2">
+            <ChartContainer
+              config={distributionConfig}
+              className="mx-auto aspect-square h-64 w-full max-w-[18rem]"
+            >
+              <PieChart>
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      formatter={(value, _name, item) => {
+                        const days = Number(value);
+                        const labelMaybe = item?.payload?.label;
+                        const label =
+                          typeof labelMaybe === "string" ? labelMaybe : "";
+                        return `${label}: ${days} ${days === 1 ? "Tag" : "Tage"}`;
+                      }}
+                    />
+                  }
+                />
+                <Pie
+                  data={distributionData.filter((d) => d.value > 0)}
+                  dataKey="value"
+                  nameKey="key"
+                  innerRadius={60}
+                  outerRadius={95}
+                  strokeWidth={3}
+                >
+                  {distributionData
+                    .filter((d) => d.value > 0)
+                    .map((d) => (
+                      <Cell key={d.key} fill={d.color} />
+                    ))}
+                  <Label
+                    content={
+                      <DistributionCenterLabel total={distributionTotal} />
+                    }
+                  />
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+
+            <div className="flex flex-col gap-2">
+              {distributionData.map((d) => {
+                const isZero = d.value === 0;
+                const pct =
+                  distributionTotal > 0
+                    ? Math.round((d.value / distributionTotal) * 100)
+                    : 0;
+                return (
+                  <div
+                    key={d.key}
+                    className={`flex items-center justify-between gap-3 text-sm ${
+                      isZero ? "opacity-40" : ""
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 text-gray-700">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ backgroundColor: d.color }}
+                      />
+                      {d.label}
+                    </span>
+                    <span className="text-gray-500 tabular-nums">
+                      {d.value} {d.value === 1 ? "Tag" : "Tage"}
+                      <span className="ml-2 text-gray-400">({pct}%)</span>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Chart configs ───────────────────────────────────────────────────────────
+
+// Compact Y-axis label for the Stundenkonto-Verlauf chart. Shows whole hours
+// only (e.g. "+12h", "−466h") so the value fits one line — the full precision
+// stays in the tooltip via formatSignedDuration.
+function formatHoursCompact(minutes: number): string {
+  if (minutes === 0) return "0h";
+  const sign = minutes > 0 ? "+" : "−";
+  const hours = Math.round(Math.abs(minutes) / 60);
+  return `${sign}${hours}h`;
+}
+
+const trendConfig = {
+  balance: { label: "Saldo", color: "#83CD2D" },
+} satisfies ChartConfig;
+
+const dailyConfig = {
+  ist: { label: "Ist", color: "#83CD2D" },
+  soll: { label: "Soll", color: "#9CA3AF" },
+} satisfies ChartConfig;
+
+// Categories aligned to LOCATION_COLORS where the semantics match. Absence
+// types pick distinct hues from the rest of the brand palette so the donut
+// stays readable even when 5+ segments are visible.
+const distributionConfig = {
+  ogs: { label: "OGS", color: "#83CD2D" },
+  homeoffice: { label: "Homeoffice", color: "#5080D8" },
+  urlaub: { label: "Urlaub", color: "#F78C10" },
+  krank: { label: "Krank", color: "#EAB308" },
+  fortbildung: { label: "Fortbildung", color: "#7C3AED" },
+  sonstige: { label: "Sonstige", color: "#6B7280" },
+} satisfies ChartConfig;
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+interface AbsenceDayCounts {
+  vacation: number;
+  sick: number;
+  training: number;
+  other: number;
+}
+
+function countAbsenceDays(
+  absences: readonly StaffAbsenceRow[],
+  from: Date,
+  to: Date,
+): AbsenceDayCounts {
+  const counts: AbsenceDayCounts = {
+    vacation: 0,
+    sick: 0,
+    training: 0,
+    other: 0,
+  };
+  const fromKey = toDateKey(from);
+  const toKey = toDateKey(to);
+  for (const a of absences) {
+    if (a.status !== "reported" && a.status !== "approved") continue;
+    const startKey = a.date_start.slice(0, 10);
+    const endKey = a.date_end.slice(0, 10);
+    const clippedStart = startKey < fromKey ? fromKey : startKey;
+    const clippedEnd = endKey > toKey ? toKey : endKey;
+    if (clippedStart > clippedEnd) continue;
+    const startDate = new Date(`${clippedStart}T00:00:00`);
+    const endDate = new Date(`${clippedEnd}T00:00:00`);
+    const days =
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    const bucket =
+      a.absence_type === "sick"
+        ? "sick"
+        : a.absence_type === "vacation"
+          ? "vacation"
+          : a.absence_type === "training"
+            ? "training"
+            : "other";
+    counts[bucket] += days;
+  }
+  return counts;
+}
+
+function countSessionDaysInRange(
+  sessions: readonly StaffHistorySession[],
+  from: Date,
+  to: Date,
+): { present: number; homeOffice: number } {
+  const fromKey = toDateKey(from);
+  const toKey = toDateKey(to);
+  let present = 0;
+  let homeOffice = 0;
+  for (const s of sessions) {
+    const key = s.date.slice(0, 10);
+    if (key < fromKey || key > toKey) continue;
+    if (s.status === "home_office") homeOffice += 1;
+    else present += 1;
+  }
+  return { present, homeOffice };
+}
+
+function addDaysSafe(d: Date, days: number): Date {
+  const result = new Date(d);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function clampDateRange(
+  range: DateRange | undefined,
+  accountAnchor: Date,
+  today: Date,
+): ConcreteDateRange {
+  const minimum = accountAnchor > today ? today : accountAnchor;
+  const fallbackFrom = addDaysSafe(today, -59);
+  const fromCandidate = range?.from ?? fallbackFrom;
+  const toCandidate = range?.to ?? today;
+  const from = fromCandidate < minimum ? minimum : fromCandidate;
+  const to = toCandidate < from ? from : toCandidate;
+  return { from, to };
+}
+
+interface DistributionBucket {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+}
+
+function buildDistribution(
+  sessionDays: { present: number; homeOffice: number },
+  absenceDays: AbsenceDayCounts,
+): DistributionBucket[] {
+  return [
+    { key: "ogs", label: "OGS", value: sessionDays.present, color: "#83CD2D" },
+    {
+      key: "homeoffice",
+      label: "Homeoffice",
+      value: sessionDays.homeOffice,
+      color: "#5080D8",
+    },
+    {
+      key: "urlaub",
+      label: "Urlaub",
+      value: absenceDays.vacation,
+      color: "#F78C10",
+    },
+    { key: "krank", label: "Krank", value: absenceDays.sick, color: "#EAB308" },
+    {
+      key: "fortbildung",
+      label: "Fortbildung",
+      value: absenceDays.training,
+      color: "#7C3AED",
+    },
+    {
+      key: "sonstige",
+      label: "Sonstige",
+      value: absenceDays.other,
+      color: "#6B7280",
+    },
+  ];
+}
+
+interface TrendPoint {
+  weekLabel: string;
+  balance: number;
+}
+
+// Cumulative weekly balance series over [from, to]. Running total starts at 0
+// at the first week of `from` — caller can shift the anchor by widening the
+// range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
+function buildWeeklyBalanceSeriesRange(
+  schedule: StaffSchedule,
+  sessions: readonly StaffHistorySession[],
+  absences: readonly StaffAbsenceRow[],
+  from: Date,
+  to: Date,
+): TrendPoint[] {
+  const points: TrendPoint[] = [];
+  const sessionsByDate = new Map<string, StaffHistorySession>();
+  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+
+  const absenceByDate = new Map<string, StaffAbsenceRow>();
+  for (const a of absences) {
+    const start = a.date_start.slice(0, 10);
+    const end = a.date_end.slice(0, 10);
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    const days =
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    for (let i = 0; i < days; i++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + i);
+      const key = toDateKey(cursor);
+      if (!absenceByDate.has(key)) absenceByDate.set(key, a);
+    }
+  }
+
+  const firstWeekStart = startOfWeek(from);
+  const lastWeekStart = startOfWeek(to);
+  const weekCount = Math.min(
+    104,
+    Math.floor(
+      (lastWeekStart.getTime() - firstWeekStart.getTime()) / (7 * 86_400_000),
+    ) + 1,
+  );
+  let running = 0;
+  for (let i = 0; i < weekCount; i++) {
+    const weekStart = new Date(firstWeekStart);
+    weekStart.setDate(weekStart.getDate() + i * 7);
+    const weekEnd = endOfWeek(weekStart);
+    const clippedStart = weekStart < from ? from : weekStart;
+    const clippedEnd = weekEnd > to ? to : weekEnd;
+    const weekDelta = computeWeekDelta(
+      schedule,
+      sessionsByDate,
+      absenceByDate,
+      clippedStart,
+      clippedEnd,
+    );
+    running += weekDelta;
+    points.push({
+      weekLabel: `KW ${isoWeekNumber(weekStart)}`,
+      balance: running,
+    });
+  }
+  return points;
+}
+
+function computeWeekDelta(
+  schedule: StaffSchedule,
+  sessionsByDate: Map<string, StaffHistorySession>,
+  absenceByDate: Map<string, StaffAbsenceRow>,
+  weekStart: Date,
+  weekEnd: Date,
+): number {
+  let soll = 0;
+  let ist = 0;
+  const dayCount =
+    Math.floor((weekEnd.getTime() - weekStart.getTime()) / 86_400_000) + 1;
+  for (let i = 0; i < dayCount; i++) {
+    const day = new Date(weekStart);
+    day.setDate(day.getDate() + i);
+    const key = toDateKey(day);
+    const dayTarget = resolveTargetForDate(schedule, day);
+    soll += dayTarget;
+    const session = sessionsByDate.get(key);
+    if (session) {
+      ist += session.net_minutes;
+    } else if (absenceByDate.has(key)) {
+      ist += dayTarget;
+    }
+  }
+  return ist - soll;
+}
+
+function isoWeekNumber(d: Date): number {
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayNr = (target.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  const firstThursday = new Date(target.getFullYear(), 0, 4);
+  const diff = target.getTime() - firstThursday.getTime();
+  return (
+    1 +
+    Math.round((diff / 86_400_000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7)
+  );
+}
+
+interface DailyTrendPoint {
+  dayLabel: string;
+  fullLabel: string;
+  ist: number;
+  soll: number;
+}
+
+// Per-working-day Ist vs Soll across [from, to]. Same absence-credit semantics
+// as the weekly series: Krank/Urlaub/Fortbildung credit the day's Soll so the
+// Ist line stays meaningful during legitimate absences.
+function buildDailyIstSollSeriesRange(
+  schedule: StaffSchedule,
+  sessions: readonly StaffHistorySession[],
+  absences: readonly StaffAbsenceRow[],
+  from: Date,
+  to: Date,
+): DailyTrendPoint[] {
+  const sessionsByDate = new Map<string, StaffHistorySession>();
+  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+
+  const absenceByDate = new Map<string, StaffAbsenceRow>();
+  for (const a of absences) {
+    const start = a.date_start.slice(0, 10);
+    const end = a.date_end.slice(0, 10);
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    const days =
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    for (let i = 0; i < days; i++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + i);
+      const key = toDateKey(cursor);
+      if (!absenceByDate.has(key)) absenceByDate.set(key, a);
+    }
+  }
+
+  const result: DailyTrendPoint[] = [];
+  // Cap at 120 entries to keep the chart readable; wider ranges get truncated.
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  const totalDays =
+    Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  for (let i = 0; i < totalDays && result.length < 120; i++) {
+    const day = new Date(start);
+    day.setDate(day.getDate() + i);
+    const dow = toIsoDayOfWeek(day);
+    if (dow < 5) {
+      const key = toDateKey(day);
+      const soll = resolveTargetForDate(schedule, day);
+      const session = sessionsByDate.get(key);
+      let ist = 0;
+      if (session) {
+        ist = session.net_minutes;
+      } else if (absenceByDate.has(key)) {
+        ist = soll;
+      }
+      result.push({
+        dayLabel: day.toLocaleDateString("de-DE", {
+          day: "2-digit",
+          month: "2-digit",
+        }),
+        fullLabel: day.toLocaleDateString("de-DE", {
+          weekday: "short",
+          day: "numeric",
+          month: "long",
+        }),
+        ist,
+        soll,
+      });
+    }
+  }
+  return result;
+}

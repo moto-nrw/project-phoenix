@@ -119,6 +119,14 @@ type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
+
+	// ListByRequestIDs is the batched form of ListByRequestID: one
+	// query for every child across the given requests, sorted by
+	// request_id, sort_order, id. Lets the phase export load all
+	// children in a single round-trip instead of per-request (avoids
+	// N+1). Empty input returns an empty slice without a query.
+	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
+
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 

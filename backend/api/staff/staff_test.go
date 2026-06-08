@@ -1,6 +1,7 @@
 package staff_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -17,7 +18,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,13 +40,22 @@ func setupTestContext(t *testing.T) *testContext {
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, repoFactory.StaffAbsence, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, svc.StaffAbsence, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, slog.Default())
 
 	return &testContext{
 		db:       db,
 		services: svc,
 		resource: resource,
 	}
+}
+
+func cleanupStaffScheduleRows(t *testing.T, db *bun.DB, staffID int64) {
+	t.Helper()
+	_, err := db.NewDelete().
+		Table("config.staff_work_schedules").
+		Where("staff_id = ?", staffID).
+		Exec(context.Background())
+	require.NoError(t, err)
 }
 
 func assignSystemRoleToAccount(
@@ -300,6 +312,76 @@ func TestGetStaff_InvalidID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+// TestGetStaff_WorkStatusConsistentWithList covers the regression where the
+// detail endpoint returned an empty work_status while the list endpoint
+// resolved it correctly, making the location badge flip-flop between views.
+func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	tenantCtx := testpkg.TenantContext(tenantID)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	session := &active.WorkSession{
+		StaffID:     staff.ID,
+		Date:        today,
+		Status:      active.WorkSessionStatusPresent,
+		CheckInTime: time.Now(),
+		CreatedBy:   staff.ID,
+	}
+	session.SetTenantID(tenantID)
+	_, err := ctx.db.NewInsert().Model(session).Exec(tenantCtx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, ctx.db, "active.work_sessions", session.ID)
+
+	router := chi.NewRouter()
+	router.Get("/staff", ctx.resource.ListStaffHandler())
+	router.Get("/staff/{id}", ctx.resource.GetStaffHandler())
+
+	listReq := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+	listRR := testutil.ExecuteRequest(router, listReq)
+	testutil.AssertSuccessResponse(t, listRR, http.StatusOK)
+
+	listResp := testutil.ParseJSONResponse(t, listRR.Body.Bytes())
+	listData, ok := listResp["data"].([]interface{})
+	require.True(t, ok, "list response should contain data array")
+
+	var listWorkStatus string
+	for _, item := range listData {
+		entry, _ := item.(map[string]interface{})
+		idFloat, _ := entry["id"].(float64)
+		if int64(idFloat) == staff.ID {
+			if ws, hasWS := entry["work_status"].(string); hasWS {
+				listWorkStatus = ws
+			}
+			break
+		}
+	}
+	require.Equal(t, string(active.WorkSessionStatusPresent), listWorkStatus,
+		"list endpoint should expose the open work session as present")
+
+	detailReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithPermissions("users:read"),
+	)
+	detailRR := testutil.ExecuteRequest(router, detailReq)
+	testutil.AssertSuccessResponse(t, detailRR, http.StatusOK)
+
+	detailResp := testutil.ParseJSONResponse(t, detailRR.Body.Bytes())
+	detailData, ok := detailResp["data"].(map[string]interface{})
+	require.True(t, ok, "detail response should contain data object")
+
+	detailWorkStatus, _ := detailData["work_status"].(string)
+	assert.Equal(t, listWorkStatus, detailWorkStatus,
+		"detail endpoint must report the same work_status as the list endpoint")
 }
 
 // =============================================================================
@@ -1371,6 +1453,117 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+}
+
+func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
+
+	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+		{
+			WeekIndex:      0,
+			RotationLength: 1,
+			DayOfWeek:      configModels.DayMonday,
+			TargetMinutes:  300,
+		},
+	}))
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = []string{"time_tracking:manage"}
+	token := testutil.MintTestJWT(t, claims)
+	body := map[string]any{
+		"mode":                 "custom",
+		"rotation_length":      1,
+		"rotation_anchor_date": "2026-06-01",
+		"save_as_template":     fmt.Sprintf("Saved schedule template clean %d", staff.ID),
+		"entries": []map[string]any{
+			{
+				"week_index":     0,
+				"day_of_week":    configModels.DayTuesday,
+				"target_minutes": 360,
+			},
+		},
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d/schedule", staff.ID), body, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	activeRows, err := ctx.resource.ScheduleRepo.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
+	require.NoError(t, err)
+	require.Len(t, activeRows, 1)
+	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
+	assert.Equal(t, 360, activeRows[0].TargetMinutes)
+
+	reloadedStaff, err := ctx.resource.StaffRepo.FindByID(testpkg.TenantContext(1), staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, reloadedStaff.WorkTimeModelID)
+	t.Cleanup(func() {
+		_ = ctx.resource.WorkTimeModelRepo.Delete(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	})
+
+	model, err := ctx.resource.WorkTimeModelRepo.FindByID(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	require.NoError(t, err)
+	require.Len(t, model.Entries, 1)
+	assert.Equal(t, configModels.DayTuesday, model.Entries[0].DayOfWeek)
+	assert.Equal(t, 360, model.Entries[0].TargetMinutes)
+}
+
+func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
+
+	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+		{
+			WeekIndex:      0,
+			RotationLength: 1,
+			DayOfWeek:      configModels.DayMonday,
+			TargetMinutes:  300,
+		},
+	}))
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", staff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	ownStaff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
+	otherStaff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleOther", "Denied")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, otherStaff.ID, ownStaff.ID)
+
+	router := chi.NewRouter()
+	router.Mount("/staff", ctx.resource.Router())
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.Permissions = []string{"time_tracking:own"}
+	token := testutil.MintTestJWT(t, claims)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d/schedule", otherStaff.ID), nil, testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 }
 
 // =============================================================================

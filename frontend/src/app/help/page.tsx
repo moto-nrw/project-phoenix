@@ -1,5 +1,6 @@
 import { EntryPointCard, HelpHeader } from "~/components/help/guide-components";
 import { guideEntryPoints } from "~/components/help/guide-data";
+import { HelpSearchInline } from "~/components/help/help-search";
 
 export const metadata = {
   title: "moto Anleitung",
@@ -25,6 +26,10 @@ export default function HelpLandingPage() {
               Wählen Sie einen Bereich. Jede Anleitung führt Schritt für Schritt
               durch die Aufgabe und lässt sich als PDF herunterladen.
             </p>
+          </div>
+
+          <div className="mt-8">
+            <HelpSearchInline />
           </div>
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">

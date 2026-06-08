@@ -46,6 +46,7 @@ settings.
 | `operations.per_student_checkout_enabled` | boolean | `false` | — |
 | `operations.per_student_checkout_delta_minutes` | number | `15` (min:0, max:120) | per_student_checkout_enabled eq true |
 | `operations.admin_supervision_overview` | boolean | `false` | — |
+| `operations.time_tracking_account_start_date` | date | `""` | none |
 | `operations.status_flag_clear_time` | time | `"18:00"` | — |
 | `operations.sick_clear_mode` | select | `"next_checkin"` | — |
 | `operations.excused_clear_mode` | select | `"end_of_day"` | — |

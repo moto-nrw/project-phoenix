@@ -15,6 +15,11 @@ export function getPageTitle(pathname: string): string {
     return getStudentPageTitle(pathname);
   }
 
+  // Handle staff detail pages
+  if (pathname.startsWith("/staff/") && pathname !== "/staff") {
+    return "Mitarbeiter Details";
+  }
+
   // Handle room detail pages
   if (pathname.startsWith("/rooms/") && pathname !== "/rooms") {
     return "Raum Details";
@@ -145,6 +150,7 @@ export function getHistoryType(pathname: string): string {
 export interface PageTypeInfo {
   isStudentDetailPage: boolean;
   isStudentHistoryPage: boolean;
+  isStaffDetailPage: boolean;
   isRoomDetailPage: boolean;
   isActivityDetailPage: boolean;
   isDatabaseSubPage: boolean;
@@ -168,6 +174,9 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
       pathname.includes("/mensa_history") ||
       pathname.includes("/room-history"));
 
+  const isStaffDetailPage =
+    pathname.startsWith("/staff/") && pathname !== "/staff";
+
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";
 
@@ -183,6 +192,7 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
   return {
     isStudentDetailPage,
     isStudentHistoryPage,
+    isStaffDetailPage,
     isRoomDetailPage,
     isActivityDetailPage,
     isDatabaseSubPage,

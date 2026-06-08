@@ -126,6 +126,8 @@ export default function OperatorSuggestionDetailPage() {
         { revalidate: false },
       );
       await globalMutate("operator-suggestions");
+      window.dispatchEvent(new CustomEvent(UNREAD_REFRESH_EVENT));
+      window.dispatchEvent(new CustomEvent(UNVIEWED_REFRESH_EVENT));
     } catch (error) {
       logger.error("suggestion_hide_toggle_failed", {
         error: error instanceof Error ? error.message : String(error),

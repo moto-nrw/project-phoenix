@@ -65,6 +65,27 @@ func (r *RequestChildRepository) ListByRequestID(ctx context.Context, requestID 
 	return children, nil
 }
 
+// ListByRequestIDs returns every child across the given requests in a
+// single query, sorted by request_id, sort_order, id so the caller can
+// group rows by request without re-sorting. Tenant-scoped via RLS.
+// Empty input short-circuits to an empty slice (no query, no IN ()).
+func (r *RequestChildRepository) ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*enrollment.RequestChild, error) {
+	if len(requestIDs) == 0 {
+		return nil, nil
+	}
+	var children []*enrollment.RequestChild
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&children).
+		ModelTableExpr(requestChildTableExpr).
+		Where(`"request_child".request_id IN (?)`, bun.List(requestIDs)).
+		OrderExpr(`"request_child".request_id, "request_child".sort_order, "request_child".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list request children by request ids: %w", err)
+	}
+	return children, nil
+}
+
 // UpdateStatus transitions a single child to a new status. PR 8's
 // decision service is the primary caller; PR 5 ships this so the schema
 // and shape are pinned.

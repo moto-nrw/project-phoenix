@@ -127,6 +127,52 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(
 	require.Len(t, list, 2)
 }
 
+func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+
+	// Two offering links for the one child.
+	offering2Repo := enrollmentRepo.NewCareOfferingRepository(db)
+	var first *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var fbErr error
+		first, fbErr = offering2Repo.FindByID(ctx, offeringID)
+		return fbErr
+	}))
+	o2 := makeOffering(first.PhaseID, uniqueOfferingName("batch"))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offering2Repo.Create(ctx, o2)
+	}))
+	for _, oid := range []int64{offeringID, o2.ID} {
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+				RequestChildID: childID,
+				CareOfferingID: oid,
+			})
+		}))
+	}
+
+	var list []*enrollmentModels.RequestChildOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestChildIDs(ctx, []int64{childID})
+		return lErr
+	}))
+	require.Len(t, list, 2)
+	assert.Equal(t, childID, list[0].RequestChildID)
+}
+
+func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {
+	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	var list []*enrollmentModels.RequestChildOffering
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestChildIDs(ctx, nil)
+		return lErr
+	})
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
 func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
 	var list []*enrollmentModels.RequestChildOffering

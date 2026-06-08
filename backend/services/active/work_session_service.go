@@ -17,6 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
 )
@@ -36,6 +38,7 @@ type BreakDurationUpdate struct {
 
 // SessionUpdateRequest defines the structure for updating a work session
 type SessionUpdateRequest struct {
+	Date         *time.Time            `json:"date"`
 	CheckInTime  *time.Time            `json:"check_in_time"`
 	CheckOutTime *time.Time            `json:"check_out_time"`
 	BreakMinutes *int                  `json:"break_minutes"`
@@ -44,14 +47,62 @@ type SessionUpdateRequest struct {
 	Breaks       []BreakDurationUpdate `json:"breaks"`
 }
 
+// AdminCreateSessionRequest is the body for the admin nachtragen flow:
+// POST /api/staff/{id}/time-tracking/sessions. The admin sets the wall-
+// clock times directly, no Anwesenheit, no kiosk involvement. Status and
+// Notes are mandatory; everything else is optional with sensible defaults
+// (break_minutes defaults to 0).
+type AdminCreateSessionRequest struct {
+	Date         time.Time `json:"date"`
+	CheckInTime  time.Time `json:"check_in_time"`
+	CheckOutTime time.Time `json:"check_out_time"`
+	BreakMinutes int       `json:"break_minutes"`
+	Status       string    `json:"status"`
+	Notes        string    `json:"notes"`
+}
+
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
-	NetMinutes       int                              `json:"net_minutes"`
-	IsOvertime       bool                             `json:"is_overtime"`
-	IsBreakCompliant bool                             `json:"is_break_compliant"`
-	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
-	EditCount        int                              `json:"edit_count"`
+	NetMinutes        int                              `json:"net_minutes"`
+	IsOvertime        bool                             `json:"is_overtime"`
+	IsBreakCompliant  bool                             `json:"is_break_compliant"`
+	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
+	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
+	EditCount         int                              `json:"edit_count"`
+}
+
+// WeeklySummary aggregates work session data per ISO week
+type WeeklySummary struct {
+	WeekNumber      int  `json:"week_number"`
+	Year            int  `json:"year"`
+	TotalNetMinutes int  `json:"total_net_minutes"`
+	TargetMinutes   *int `json:"target_minutes,omitempty"`
+	DeltaMinutes    *int `json:"delta_minutes,omitempty"`
+	SessionCount    int  `json:"session_count"`
+	IsOverWeeklyMax bool `json:"is_over_weekly_max"`
+}
+
+type summaryWeekKey struct {
+	Year int
+	Week int
+}
+
+// HistoryResponse wraps session history with weekly aggregation
+type HistoryResponse struct {
+	Sessions        []*SessionResponse `json:"sessions"`
+	WeeklySummaries []WeeklySummary    `json:"weekly_summaries"`
+}
+
+// WorkSessionEditView decorates an audit row with the editor's display name
+// and a "selbst geändert" flag. We compute IsSelfEdit on the server because
+// audit.work_session_edits.edited_by stores a staff_id, not a role. The
+// frontend would otherwise need to fetch the session separately to learn
+// whether edited_by == session.staff_id.
+type WorkSessionEditView struct {
+	*auditModels.WorkSessionEdit
+	EditorName string `json:"editor_name"`
+	IsSelfEdit bool   `json:"is_self_edit"`
 }
 
 // ReopenStatusConflictError is returned by CheckIn when the staff member
@@ -92,9 +143,27 @@ type WorkSessionService interface {
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
+	// the staff record of the admin performing the edit (lands in
+	// audit.work_session_edits.edited_by). targetStaffID is the owner of the
+	// session. We verify session.StaffID == targetStaffID so the route can't
+	// be used to leak edits across staff in the same tenant. Notes are always
+	// required (BAG "Verlässlichkeit" for foreign edits).
+	UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error)
+	// CreateSessionAsAdmin records a session an admin nachträgt for another
+	// staff member, typically because that staff member forgot to stamp.
+	// Notes are required to preserve the audit trail's "Verlässlichkeit".
+	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error)
-	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
+	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
+	// GetSessionEditsForStaff returns the audit trail of a session for a
+	// specific staff id. The caller is expected to have an admin-level
+	// permission (users:read or time_tracking:manage), no ownership check
+	// against the JWT subject. We still verify that the session actually
+	// belongs to the target staff so the URL can't be used to leak edits
+	// across staff members in the same tenant.
+	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
 	// EnsureCheckedIn opens today's session if the staff member has no active
@@ -115,6 +184,9 @@ type workSessionService struct {
 	auditRepo      auditModels.WorkSessionEditRepository
 	absenceRepo    activeModels.StaffAbsenceRepository
 	supervisorRepo activeModels.GroupSupervisorRepository
+	staffRepo      userModels.StaffRepository
+	scheduleRepo   configModels.StaffWorkScheduleRepository
+	workModelRepo  configModels.WorkTimeModelRepository
 	logger         *slog.Logger
 }
 
@@ -127,12 +199,12 @@ func (s *workSessionService) getLogger() *slog.Logger {
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, logger: logger}
 }
 
 // CheckIn creates a new work session for the staff member.
-// Status must be explicitly chosen — empty values are rejected so the caller
+// Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
@@ -202,7 +274,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // audit-relevant facts, and overwriting either on reopen would silently
 // drop the signal with no audit edit. CheckIn rejects the call with
 // ReopenStatusConflictError before this point if the requested status
-// differs from the existing one — the caller is expected to follow up
+// differs from the existing one. The caller is expected to follow up
 // with UpdateSession (which gates on a notes reason).
 func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
 	session.CheckOutTime = nil
@@ -459,7 +531,9 @@ func (uc *sessionUpdateContext) addAuditEdit(field string, oldVal, newVal *strin
 	})
 }
 
-// UpdateSession updates a work session with the provided fields and creates audit entries
+// UpdateSession updates a work session with the provided fields and creates
+// audit entries. Self-edit path: the requesting staff must own the session.
+// Notes are only required when changing status (Vor Ort ↔ Homeoffice).
 func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -471,7 +545,7 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	}
 
 	// A status change (Vor Ort ↔ Homeoffice) carries audit weight and must be
-	// justified — otherwise the audit trail loses meaning. Requires the caller
+	// justified. Otherwise the audit trail loses meaning. Requires the caller
 	// to send the reason in `notes` on the same request.
 	if updates.Status != nil && *updates.Status != session.Status {
 		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
@@ -479,26 +553,56 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		}
 	}
 
+	return s.applySessionUpdate(ctx, staffID, session, updates)
+}
+
+// UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
+// admin doing the edit (goes into edited_by). targetStaffID is the owner of
+// the session we expect to mutate, verified against session.StaffID so the
+// route can't be used to leak edits across staff in the same tenant.
+//
+// Notes are unconditionally required: BAG demands "Verlässlichkeit" of the
+// audit trail, and any foreign edit needs a reason. We're stricter than
+// self-edit on purpose.
+func (s *workSessionService) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, s.handleSessionNotFoundError(err)
+	}
+
+	if session.StaffID != targetStaffID {
+		return nil, fmt.Errorf("session does not belong to staff %d", targetStaffID)
+	}
+
+	if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+		return nil, fmt.Errorf("notes required for admin edits")
+	}
+
+	return s.applySessionUpdate(ctx, editorStaffID, session, updates)
+}
+
+// applySessionUpdate is the shared body used by both self-edit and admin
+// edit. editorStaffID lands in audit.work_session_edits.edited_by so the
+// MA-side can distinguish "ich selbst" from "Florian (Admin)" without an
+// extra column.
+func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaffID int64, session *activeModels.WorkSession, updates SessionUpdateRequest) (*activeModels.WorkSession, error) {
 	uc := &sessionUpdateContext{
 		session:   session,
-		sessionID: sessionID,
-		staffID:   staffID,
+		sessionID: session.ID,
+		staffID:   editorStaffID,
 		now:       time.Now(),
 		notes:     updates.Notes,
 	}
 
-	// Apply time field updates
 	s.applyTimeFieldUpdates(uc, updates)
 
-	// Apply break updates (either individual breaks or break_minutes)
 	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
 		return nil, err
 	}
 
-	// Apply simple field updates
 	s.applySimpleFieldUpdates(uc, updates)
 
-	session.UpdatedBy = &staffID
+	session.UpdatedBy = &editorStaffID
 	session.UpdatedAt = uc.now
 
 	if err := session.Validate(); err != nil {
@@ -521,6 +625,89 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	return session, nil
 }
 
+// CreateSessionAsAdmin records a "nachgetragene" session for another staff
+// member. Each field that ends up on the new row is also captured as an
+// audit edit (old_value = NULL, new_value = field) so the MA-side audit log
+// shows the create as a series of explicit "field war leer → field ist jetzt
+// X" entries. Notes are stored both on the session and on every audit row
+// (consistent with edit semantics).
+func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
+	if targetStaffID <= 0 {
+		return nil, fmt.Errorf("target staff id is required")
+	}
+	if strings.TrimSpace(req.Notes) == "" {
+		return nil, fmt.Errorf("notes required for admin-created sessions")
+	}
+	if req.CheckInTime.IsZero() || req.CheckOutTime.IsZero() {
+		return nil, fmt.Errorf("check-in and check-out are required")
+	}
+	if !req.CheckOutTime.After(req.CheckInTime) {
+		return nil, fmt.Errorf("check_out_time must be after check_in_time")
+	}
+	if req.Status == "" {
+		req.Status = activeModels.WorkSessionStatusPresent
+	}
+	if req.BreakMinutes < 0 {
+		return nil, fmt.Errorf("break_minutes must not be negative")
+	}
+
+	checkOut := req.CheckOutTime
+	session := &activeModels.WorkSession{
+		StaffID:      targetStaffID,
+		Date:         req.Date,
+		Status:       req.Status,
+		Source:       activeModels.WorkSessionSourceApp,
+		CheckInTime:  req.CheckInTime,
+		CheckOutTime: &checkOut,
+		BreakMinutes: req.BreakMinutes,
+		Notes:        req.Notes,
+		CreatedBy:    editorStaffID,
+		UpdatedBy:    &editorStaffID,
+	}
+	session.SetTenantID(tenant.FromContext(ctx))
+
+	if err := session.Validate(); err != nil {
+		return nil, fmt.Errorf(errInvalidSessionData, err)
+	}
+
+	if err := s.repo.Create(ctx, session); err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Audit trail: one entry per field so the EditHistoryAccordion can render
+	// the create as a normal change list with empty "Vorher" values.
+	now := time.Now()
+	notesPtr := req.Notes
+	strPtr := func(s string) *string { return &s }
+	tenantID := tenant.FromContext(ctx)
+	baseEdit := func(field string, newVal string) *auditModels.WorkSessionEdit {
+		e := &auditModels.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   targetStaffID,
+			EditedBy:  editorStaffID,
+			FieldName: field,
+			OldValue:  nil,
+			NewValue:  strPtr(newVal),
+			Notes:     &notesPtr,
+			CreatedAt: now,
+		}
+		e.SetTenantID(tenantID)
+		return e
+	}
+	edits := []*auditModels.WorkSessionEdit{
+		baseEdit(auditModels.FieldDate, req.Date.Format("2006-01-02")),
+		baseEdit(auditModels.FieldCheckInTime, req.CheckInTime.Format(time.RFC3339)),
+		baseEdit(auditModels.FieldCheckOutTime, req.CheckOutTime.Format(time.RFC3339)),
+		baseEdit(auditModels.FieldBreakMinutes, fmt.Sprintf("%d", req.BreakMinutes)),
+		baseEdit(auditModels.FieldStatus, req.Status),
+	}
+	if err := s.auditRepo.CreateBatch(ctx, edits); err != nil {
+		return nil, fmt.Errorf("failed to create audit entries: %w", err)
+	}
+
+	return session, nil
+}
+
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("session not found")
@@ -530,6 +717,18 @@ func (s *workSessionService) handleSessionNotFoundError(err error) error {
 
 func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {
 	strPtr := func(str string) *string { return &str }
+
+	if updates.Date != nil {
+		// Compare DATE portion only; the underlying column is a DATE so any
+		// time-of-day in the incoming pointer is ignored.
+		const dateFmt = "2006-01-02"
+		oldDate := uc.session.Date.Format(dateFmt)
+		newDate := updates.Date.Format(dateFmt)
+		if oldDate != newDate {
+			uc.addAuditEdit(auditModels.FieldDate, strPtr(oldDate), strPtr(newDate))
+			uc.session.Date = *updates.Date
+		}
+	}
 
 	if updates.CheckInTime != nil {
 		// Compare actual time points, not string representations (timezone-safe)
@@ -659,8 +858,8 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 	return session, nil
 }
 
-// GetHistory returns work sessions for a staff member in a date range
-func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) ([]*SessionResponse, error) {
+// GetHistory returns work sessions for a staff member in a date range with weekly aggregation
+func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
@@ -696,11 +895,236 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 	}
 
-	return responses, nil
+	targetsByWeek := s.getWeeklyTargetsForSummaries(ctx, staffID, responses)
+
+	// Build weekly summaries
+	weeklySummaries := s.buildWeeklySummaries(responses, targetsByWeek)
+
+	return &HistoryResponse{
+		Sessions:        responses,
+		WeeklySummaries: weeklySummaries,
+	}, nil
+}
+
+// buildWeeklySummaries aggregates session data by ISO week
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int) []WeeklySummary {
+	weekMap := make(map[summaryWeekKey]*WeeklySummary)
+	var weekOrder []summaryWeekKey
+
+	for _, session := range sessions {
+		year, week := session.Date.ISOWeek()
+		key := summaryWeekKey{Year: year, Week: week}
+
+		summary, exists := weekMap[key]
+		if !exists {
+			var targetMinutes *int
+			if target, ok := targetsByWeek[key]; ok {
+				targetCopy := target
+				targetMinutes = &targetCopy
+			}
+			summary = &WeeklySummary{
+				WeekNumber:    week,
+				Year:          year,
+				TargetMinutes: targetMinutes,
+			}
+			weekMap[key] = summary
+			weekOrder = append(weekOrder, key)
+		}
+
+		summary.TotalNetMinutes += session.NetMinutes
+		summary.SessionCount++
+	}
+
+	// Convert to sorted slice and compute derived fields
+	const maxWeeklyMinutes = 48 * 60 // §3 ArbZG
+	summaries := make([]WeeklySummary, 0, len(weekOrder))
+	for _, key := range weekOrder {
+		ws := weekMap[key]
+		ws.IsOverWeeklyMax = ws.TotalNetMinutes > maxWeeklyMinutes
+
+		if ws.TargetMinutes != nil {
+			delta := ws.TotalNetMinutes - *ws.TargetMinutes
+			ws.DeltaMinutes = &delta
+		}
+
+		summaries = append(summaries, *ws)
+	}
+
+	return summaries
+}
+
+func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, staffID int64, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if len(sessions) == 0 {
+		return nil
+	}
+	staff := s.resolveStaffForTargets(ctx, staffID)
+	if s.scheduleRepo != nil {
+		targets := s.weeklyTargetsFromDateValidSchedule(ctx, staffID, staff, sessions)
+		if len(targets) > 0 {
+			return targets
+		}
+	}
+	if staff != nil && staff.WorkTimeModelID != nil {
+		if s.workModelRepo == nil {
+			return nil
+		}
+		model, err := s.workModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
+		if err != nil {
+			return nil
+		}
+		anchor := model.RotationAnchorDate
+		if staff.RotationAnchorDate != nil {
+			anchor = *staff.RotationAnchorDate
+		}
+		return weeklyTargetsFromModel(model, anchor, sessions)
+	}
+	return nil
+}
+
+func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID int64) *userModels.Staff {
+	if s.staffRepo == nil {
+		return nil
+	}
+	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	if err != nil {
+		return nil
+	}
+	return staff
+}
+
+func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
+	ctx context.Context,
+	staffID int64,
+	staff *userModels.Staff,
+	sessions []*SessionResponse,
+) map[summaryWeekKey]int {
+	targetsByWeek := make(map[summaryWeekKey]int)
+	seen := make(map[summaryWeekKey]bool)
+	for _, session := range sessions {
+		year, week := session.Date.ISOWeek()
+		key := summaryWeekKey{Year: year, Week: week}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		target, ok := s.weeklyTargetFromDateValidSchedule(ctx, staffID, staff, isoWeekStart(session.Date))
+		if ok {
+			targetsByWeek[key] = target
+		}
+	}
+	if len(targetsByWeek) == 0 {
+		return nil
+	}
+	return targetsByWeek
+}
+
+func (s *workSessionService) weeklyTargetFromDateValidSchedule(
+	ctx context.Context,
+	staffID int64,
+	staff *userModels.Staff,
+	weekStart time.Time,
+) (int, bool) {
+	total := 0
+	found := false
+	for offset := 0; offset < 7; offset++ {
+		date := weekStart.AddDate(0, 0, offset)
+		entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, date)
+		if err != nil || len(entries) == 0 {
+			continue
+		}
+		anchor := resolveScheduleAnchorFromStaff(staff, entries)
+		rotationWeek := configModels.ResolveWeekIndex(scheduleRotationLength(entries), isoWeekStart(anchor), isoWeekStart(date))
+		dayIndex := isoDayIndex(date)
+		for _, entry := range entries {
+			if entry.WeekIndex == rotationWeek && entry.DayOfWeek == dayIndex {
+				total += entry.TargetMinutes
+				found = true
+			}
+		}
+	}
+	return total, found
+}
+
+func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
+		return nil
+	}
+	rotation := model.RotationLength
+	if rotation < 1 {
+		rotation = 1
+	}
+	targetsByRotationWeek := make(map[int]int, rotation)
+	for _, e := range model.Entries {
+		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
+	}
+	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
+}
+
+func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+	if len(targetsByRotationWeek) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int)
+	for _, session := range sessions {
+		year, week := session.Date.ISOWeek()
+		key := summaryWeekKey{Year: year, Week: week}
+		if _, ok := targetsByWeek[key]; ok {
+			continue
+		}
+		weekStart := isoWeekStart(session.Date)
+		rotationWeek := configModels.ResolveWeekIndex(rotation, isoWeekStart(anchor), weekStart)
+		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
+			targetsByWeek[key] = target
+		}
+	}
+	return targetsByWeek
+}
+
+func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) time.Time {
+	if staff != nil && staff.RotationAnchorDate != nil {
+		return *staff.RotationAnchorDate
+	}
+	var earliest time.Time
+	for _, e := range entries {
+		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
+			earliest = e.ValidFrom
+		}
+	}
+	return earliest
+}
+
+func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
+	rotation := 1
+	for _, e := range entries {
+		if e.RotationLength > rotation {
+			rotation = e.RotationLength
+		}
+	}
+	if rotation < 1 {
+		return 1
+	}
+	return rotation
+}
+
+func isoWeekStart(date time.Time) time.Time {
+	normalized := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	weekday := int(normalized.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return normalized.AddDate(0, 0, 1-weekday)
+}
+
+func isoDayIndex(date time.Time) int {
+	weekday := int(date.Weekday())
+	if weekday == 0 {
+		return configModels.DaySunday
+	}
+	return weekday - 1
 }
 
 // GetSessionEdits returns the audit trail for a work session
-func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*auditModels.WorkSessionEdit, error) {
+func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
 	// Verify ownership: session must belong to requesting staff
 	session, err := s.repo.FindByID(ctx, sessionID)
 	if err != nil {
@@ -710,11 +1134,77 @@ func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessi
 		return nil, fmt.Errorf("session does not belong to requesting staff")
 	}
 
+	return s.loadSessionEditsView(ctx, session, sessionID)
+}
+
+// GetSessionEditsForStaff is the admin-facing counterpart. The session must
+// belong to the staff member named in the URL. Without that check an admin
+// could load any session's edits by guessing IDs (within the tenant, RLS
+// still applies). Permission gating happens at the route level.
+func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {
+	session, err := s.repo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, s.handleSessionNotFoundError(err)
+	}
+	if session.StaffID != staffID {
+		return nil, fmt.Errorf("session does not belong to staff %d", staffID)
+	}
+
+	return s.loadSessionEditsView(ctx, session, sessionID)
+}
+
+// loadSessionEditsView is the shared body that loads edits and decorates
+// them with editor display names. Names are resolved through a single batch
+// staff+person query so we never N+1 the audit log.
+func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *activeModels.WorkSession, sessionID int64) ([]*WorkSessionEditView, error) {
 	edits, err := s.auditRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session edits: %w", err)
 	}
-	return edits, nil
+	if len(edits) == 0 {
+		return []*WorkSessionEditView{}, nil
+	}
+
+	// Collect editor staff IDs and resolve them to names in one shot.
+	editorIDSet := make(map[int64]struct{}, len(edits))
+	for _, e := range edits {
+		editorIDSet[e.EditedBy] = struct{}{}
+	}
+	editorIDs := make([]int64, 0, len(editorIDSet))
+	for id := range editorIDSet {
+		editorIDs = append(editorIDs, id)
+	}
+
+	staffMap := map[int64]*userModels.Staff{}
+	if s.staffRepo != nil {
+		var err error
+		staffMap, err = s.staffRepo.FindWithPersonByIDs(ctx, editorIDs)
+		if err != nil {
+			if s.logger != nil {
+				s.logger.Warn("failed to resolve editor names for audit view",
+					slog.String("error", err.Error()),
+				)
+			}
+			staffMap = map[int64]*userModels.Staff{}
+		}
+	}
+	if staffMap == nil {
+		staffMap = map[int64]*userModels.Staff{}
+	}
+
+	views := make([]*WorkSessionEditView, len(edits))
+	for i, e := range edits {
+		name := ""
+		if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
+			name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
+		}
+		views[i] = &WorkSessionEditView{
+			WorkSessionEdit: e,
+			EditorName:      name,
+			IsSelfEdit:      e.EditedBy == session.StaffID,
+		}
+	}
+	return views, nil
 }
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
@@ -810,7 +1300,7 @@ type exportRow struct {
 
 // ExportSessions generates a CSV or XLSX export of work sessions and absences
 func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
-	sessions, err := s.GetHistory(ctx, staffID, from, to)
+	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
 	}
@@ -825,7 +1315,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	}
 
 	// Build merged rows sorted by date
-	rows := s.buildExportRows(sessions, absences)
+	rows := s.buildExportRows(historyResp.Sessions, absences)
 
 	fromStr := from.Format("2006-01-02")
 	toStr := to.Format("2006-01-02")
@@ -860,6 +1350,10 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 
 	// Add absence rows (one row per day in the absence range)
 	for _, absence := range absences {
+		if absence.Status != activeModels.AbsenceStatusReported &&
+			absence.Status != activeModels.AbsenceStatusApproved {
+			continue
+		}
 		label := germanAbsenceTypeLabels[absence.AbsenceType]
 		if label == "" {
 			label = absence.AbsenceType
@@ -872,9 +1366,9 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 			// Column layout must match the export header (9 cells):
 			// Datum, Wochentag, Start, Ende, Pause, Netto, Status, Quelle, Bemerkungen.
 			// Absences have no Quelle (the staff member did not stamp at all),
-			// so that cell stays empty rather than borrowing the "—" sentinel
+			// so that cell stays empty rather than borrowing the "-" sentinel
 			// already used by quelleLabel for legacy work_sessions of unknown
-			// channel — those are two different facts and must read distinctly.
+			// channel. Those are two different facts and must read distinctly.
 			rows = append(rows, exportRow{
 				Date: d,
 				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, "", absence.Note},
@@ -992,7 +1486,7 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	netto := fmt.Sprintf("%dh %02dmin", h, m)
 
 	// Status carries the underlying work mode and is never overwritten by
-	// system events — the OGS-Leitung must always be able to see whether
+	// system events. The OGS-Leitung must always be able to see whether
 	// the row was Vor Ort or Homeoffice, even if the session was later
 	// auto-closed or manually corrected.
 	status := "Vor Ort"
@@ -1017,8 +1511,8 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.
-// 'unknown' marks rows that pre-date migration 1.15.54 — no channel was ever
-// recorded, so we render "—" rather than guess. Anything else falls through
+// 'unknown' marks rows that pre-date migration 1.15.54. No channel was ever
+// recorded, so we render "-" rather than guess. Anything else falls through
 // to App, matching the DB column default for in-flight rows that may exist
 // briefly between migration and new-server boot.
 func quelleLabel(source string) string {
@@ -1026,7 +1520,7 @@ func quelleLabel(source string) string {
 	case activeModels.WorkSessionSourceNFC:
 		return "NFC"
 	case activeModels.WorkSessionSourceUnknown:
-		return "—"
+		return "-"
 	default:
 		return "App"
 	}

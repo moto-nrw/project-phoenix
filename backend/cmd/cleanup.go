@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
+	"github.com/uptrace/bun"
 )
 
 var (
@@ -58,6 +59,33 @@ var cleanupTimetablePreviewCmd = &cobra.Command{
 	Short: "Preview timetable cleanup without deleting",
 	Long:  `Count activity_instances, activity_exceptions, and distinct affected students per tenant.`,
 	RunE:  runCleanupTimetablePreview,
+}
+
+// cleanupTimeTrackingCmd is the Tranche-0b counterpart to the timetable
+// cleanup. Deletes active.work_sessions + active.staff_absences older than
+// the tenant-configured retention window (default 730 days). CASCADE removes
+// the children (work_session_breaks, audit.work_session_edits).
+var cleanupTimeTrackingCmd = &cobra.Command{
+	Use:   "time-tracking",
+	Short: "Apply GDPR retention to time-tracking tables",
+	Long: `Deletes work sessions and absences older than the configured retention window for each tenant.
+
+Retention is read from setting gdpr.time_tracking_retention_days. The data_cleanup_enabled toggle is NOT consulted here — that gate only applies to the automatic scheduler run. CLI invocations always execute.
+
+Use --dry-run to preview without deleting.`,
+	RunE: runCleanupTimeTracking,
+}
+
+var cleanupTimeTrackingPreviewCmd = &cobra.Command{
+	Use:   "preview",
+	Short: "Preview time-tracking cleanup without deleting",
+	RunE:  runCleanupTimeTrackingPreview,
+}
+
+var cleanupTimeTrackingStatsCmd = &cobra.Command{
+	Use:   "stats",
+	Short: "Show current time-tracking table sizes and oldest rows",
+	RunE:  runCleanupTimeTrackingStats,
 }
 
 // cleanupTimetableStatsCmd shows table totals and oldest dates.
@@ -166,11 +194,21 @@ func init() {
 	cleanupTimetableCmd.AddCommand(cleanupTimetablePreviewCmd)
 	cleanupTimetableCmd.AddCommand(cleanupTimetableStatsCmd)
 
+	cleanupCmd.AddCommand(cleanupTimeTrackingCmd)
+	cleanupTimeTrackingCmd.AddCommand(cleanupTimeTrackingPreviewCmd)
+	cleanupTimeTrackingCmd.AddCommand(cleanupTimeTrackingStatsCmd)
+
 	// Flags for timetable commands
 	cleanupTimetableCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
 	cleanupTimetableCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupTimetablePreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 	cleanupTimetableStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+
+	// Flags for time-tracking cleanup commands (Tranche 0b)
+	cleanupTimeTrackingCmd.Flags().BoolVar(&dryRun, flagDryRun, false, flagDescDryRun)
+	cleanupTimeTrackingCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimeTrackingPreviewCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
+	cleanupTimeTrackingStatsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, flagDescShowDetails)
 
 	// Flags for cleanup visits command
 	cleanupVisitsCmd.Flags().BoolVar(&dryRun, flagDryRun, false, "Show what would be deleted without deleting")
@@ -848,6 +886,211 @@ func printTimetableStatsLine(tenantID int64, s *schedule.TimetableCleanupStats) 
 	}
 	if s.OldestException != nil {
 		fmt.Printf(" oldest_exception=%s", s.OldestException.Format(dateFormat))
+	}
+	fmt.Println()
+}
+
+// --- Time-tracking GDPR cleanup (Tranche 0b) -----------------------------
+//
+// Mirrors the timetable trio: top-level command toggles between cleanup and
+// dry-run via the --dry-run flag, the "preview" subcommand is the explicit
+// dry-run alias, and "stats" reads the current row counts. All three iterate
+// the same tenant.ForEachActive helper the scheduler uses, so CLI and cron
+// agree on tenant ordering and isolation.
+
+func runCleanupTimeTracking(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimeTrackingCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+	if dryRun {
+		return forEachTenantTimeTrackingPreview(ctx)
+	}
+	return forEachTenantTimeTrackingCleanup(ctx)
+}
+
+func runCleanupTimeTrackingPreview(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimeTrackingCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+	return forEachTenantTimeTrackingPreview(ctx)
+}
+
+func runCleanupTimeTrackingStats(_ *cobra.Command, _ []string) error {
+	ctx, err := newCleanupContextWithTimeTrackingCleanup()
+	if err != nil {
+		return err
+	}
+	defer ctx.Close()
+	return forEachTenantTimeTrackingStats(ctx)
+}
+
+// listActiveTenantIDsForCLI returns the IDs of all active, non-deleted tenants
+// via a direct SQL query against platform.schools. We bypass
+// tenant.ForEachActive on purpose: that helper drives a bun.Relation() join
+// which mis-resolves the search_path in the CLI context and produces
+// "relation organizations does not exist". The same bug bites the timetable
+// CLI today — fixing it cleanly is out of scope for Tranche 0b.
+func listActiveTenantIDsForCLI(ctx context.Context, cc *cleanupContext) ([]int64, error) {
+	var ids []int64
+	err := tenant.WithAdminTx(ctx, cc.DB, func(txCtx context.Context, tx bun.Tx) error {
+		rows, err := tx.QueryContext(txCtx, `
+			SELECT id FROM platform.schools
+			WHERE active = true AND deleted_at IS NULL
+			ORDER BY name
+		`)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				return err
+			}
+			ids = append(ids, id)
+		}
+		return rows.Err()
+	})
+	return ids, err
+}
+
+func forEachTenantTimeTrackingCleanup(cc *cleanupContext) error {
+	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+
+	totalSessions, totalAbsences, totalStaff := 0, 0, 0
+	errs := make([]error, 0)
+
+	for _, tenantID := range tenantIDs {
+		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
+			func(txCtx context.Context, _ bun.Tx) error {
+				result, err := cc.TimeTrackingCleanupService.CleanupExpiredTimeTrackingData(txCtx)
+				if err != nil {
+					return err
+				}
+				totalSessions += result.SessionsDeleted
+				totalAbsences += result.AbsencesDeleted
+				totalStaff += result.StaffAffected
+				printTimeTrackingCleanupLine(tenantID, result)
+				return nil
+			})
+		if txErr != nil {
+			errs = append(errs, fmt.Errorf("tenant %d: %w", tenantID, txErr))
+		}
+	}
+
+	fmt.Println("\nTime-Tracking Cleanup Summary")
+	fmt.Println("=============================")
+	fmt.Printf("Tenants processed:    %d\n", len(tenantIDs))
+	fmt.Printf("Sessions deleted:     %d\n", totalSessions)
+	fmt.Printf("Absences deleted:     %d\n", totalAbsences)
+	fmt.Printf("Staff affected:       %d\n", totalStaff)
+	fmt.Printf("Errors:               %d\n", len(errs))
+	if verbose {
+		for _, e := range errs {
+			fmt.Printf("  - %s\n", e.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%d tenant(s) failed; see output above", len(errs))
+	}
+	return nil
+}
+
+func forEachTenantTimeTrackingPreview(cc *cleanupContext) error {
+	fmt.Println("DRY RUN MODE - No data will be deleted")
+	fmt.Println("\nTime-Tracking Cleanup Preview")
+	fmt.Println("=============================")
+
+	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+
+	totalSessions, totalAbsences, totalStaff := 0, 0, 0
+	for _, tenantID := range tenantIDs {
+		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
+			func(txCtx context.Context, _ bun.Tx) error {
+				p, err := cc.TimeTrackingCleanupService.PreviewExpiredTimeTrackingData(txCtx)
+				if err != nil {
+					return err
+				}
+				totalSessions += p.SessionsToDelete
+				totalAbsences += p.AbsencesToDelete
+				totalStaff += p.StaffAffected
+				printTimeTrackingPreviewLine(tenantID, p)
+				return nil
+			})
+		if txErr != nil {
+			fmt.Printf("[tenant %d] error: %s\n", tenantID, txErr.Error())
+		}
+	}
+
+	fmt.Printf("\nTOTAL: %d sessions, %d absences, %d staff across all tenants\n",
+		totalSessions, totalAbsences, totalStaff)
+	return nil
+}
+
+func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
+	fmt.Println("Time-Tracking Retention Statistics")
+	fmt.Println("==================================")
+
+	tenantIDs, err := listActiveTenantIDsForCLI(context.Background(), cc)
+	if err != nil {
+		return fmt.Errorf("list active tenants: %w", err)
+	}
+
+	for _, tenantID := range tenantIDs {
+		txErr := tenant.WithTenantTx(context.Background(), cc.DB, tenantID,
+			func(txCtx context.Context, _ bun.Tx) error {
+				stats, err := cc.TimeTrackingCleanupService.GetStats(txCtx)
+				if err != nil {
+					return err
+				}
+				printTimeTrackingStatsLine(tenantID, stats)
+				return nil
+			})
+		if txErr != nil {
+			fmt.Printf("[tenant %d] error: %s\n", tenantID, txErr.Error())
+		}
+	}
+	return nil
+}
+
+func printTimeTrackingCleanupLine(tenantID int64, r *active.TimeTrackingCleanupResult) {
+	fmt.Printf("[tenant %d] sessions=%d absences=%d staff=%d retention=%dd cutoff=%s duration_ms=%d\n",
+		tenantID, r.SessionsDeleted, r.AbsencesDeleted, r.StaffAffected,
+		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
+}
+
+func printTimeTrackingPreviewLine(tenantID int64, p *active.TimeTrackingCleanupPreview) {
+	fmt.Printf("[tenant %d] would-delete sessions=%d absences=%d staff=%d retention=%dd cutoff=%s",
+		tenantID, p.SessionsToDelete, p.AbsencesToDelete, p.StaffAffected,
+		p.RetentionDays, p.CutoffDate.Format(dateFormat))
+	if p.OldestSession != nil {
+		fmt.Printf(" oldest_session=%s", p.OldestSession.Format(dateFormat))
+	}
+	if p.OldestAbsence != nil {
+		fmt.Printf(" oldest_absence=%s", p.OldestAbsence.Format(dateFormat))
+	}
+	fmt.Println()
+}
+
+func printTimeTrackingStatsLine(tenantID int64, s *active.TimeTrackingCleanupStats) {
+	fmt.Printf("[tenant %d] sessions_total=%d absences_total=%d retention=%dd cutoff=%s",
+		tenantID, s.TotalSessions, s.TotalAbsences,
+		s.RetentionDays, s.CutoffDate.Format(dateFormat))
+	if s.OldestSession != nil {
+		fmt.Printf(" oldest_session=%s", s.OldestSession.Format(dateFormat))
+	}
+	if s.OldestAbsence != nil {
+		fmt.Printf(" oldest_absence=%s", s.OldestAbsence.Format(dateFormat))
 	}
 	fmt.Println()
 }

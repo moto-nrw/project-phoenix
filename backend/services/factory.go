@@ -69,6 +69,7 @@ type Factory struct {
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
 	TimetableCleanup         schedule.TimetableCleanupService
+	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
@@ -260,10 +261,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, activeLogger)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, activeLogger)
 
 	// Initialize staff absence service
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession)
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
 
 	// Initialize attendance sync service (WP-B10). Implements
 	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
@@ -433,6 +434,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
+	)
+
+	// Initialize time-tracking GDPR cleanup service (Tranche 0b). Deletes
+	// active.work_sessions (CASCADE → work_session_breaks +
+	// audit.work_session_edits) and active.staff_absences older than the
+	// tenant's retention window. Per-staff audit rows via DataDeletion
+	// (staff_id subject, added in migration 1.15.58).
+	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
+		db,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "time-tracking-cleanup"),
 	)
 
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
@@ -886,6 +899,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareOfferingRepo:         repos.CareOffering,
 		PhaseRepo:                repos.Phase,
 		FormSchemaRepo:           repos.FormSchema,
+		DataAccessLogRepo:        repos.DataAccessLog,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,
@@ -981,6 +995,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
 		TimetableCleanup:         timetableCleanupService,
+		TimeTrackingCleanup:      timeTrackingCleanupService,
 		Instance:                 instanceService,
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,

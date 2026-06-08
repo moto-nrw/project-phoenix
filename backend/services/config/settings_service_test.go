@@ -1114,6 +1114,37 @@ func TestSetValue_TimeAcceptsValidTime(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSetValue_DateRejectsInvalidFormat(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.date", config.FieldDate, "")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.date", "01.08.2026", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected date in YYYY-MM-DD format")
+}
+
+func TestSetValue_DateAcceptsValidDate(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.date", config.FieldDate, "")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.date", "2026-08-01", nil, nil)
+	require.NoError(t, err)
+}
+
+func TestSetValue_DateAcceptsEmptyDate(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.date", config.FieldDate, "")
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.date", "", nil, nil)
+	require.NoError(t, err)
+}
+
 func TestSetValue_SelectRejectsInvalidOption(t *testing.T) {
 	setupTest(t)
 	config.Register(config.Definition{

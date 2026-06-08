@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 
 interface BreadcrumbData {
   studentName?: string;
+  staffName?: string;
   roomName?: string;
   activityName?: string;
   referrerPage?: string;

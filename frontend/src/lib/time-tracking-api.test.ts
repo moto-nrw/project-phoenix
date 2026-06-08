@@ -63,6 +63,7 @@ const backendHistory = {
   net_minutes: 480,
   is_overtime: false,
   is_break_compliant: true,
+  rest_period_warning: null,
   breaks: [backendBreak],
   edit_count: 0,
 };
@@ -237,12 +238,45 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("getConfig", () => {
+    it("returns the configured account start date", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: { account_start_date: "2026-06-01" },
+      });
+
+      const result = await timeTrackingService.getConfig();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/config",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result.accountStartDate).toBe("2026-06-01");
+    });
+
+    it("returns an empty account start date when backend config is unset", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: {},
+      });
+
+      const result = await timeTrackingService.getConfig();
+
+      expect(result.accountStartDate).toBe("");
+    });
+  });
+
   describe("getHistory", () => {
     it("sends date range and returns mapped history", async () => {
       global.fetch = mockFetchResponse({
         success: true,
         message: "",
-        data: [backendHistory],
+        data: {
+          sessions: [backendHistory],
+          weekly_summaries: [],
+        },
       });
 
       const result = await timeTrackingService.getHistory(
@@ -254,12 +288,12 @@ describe("TimeTrackingService", () => {
         "/api/time-tracking/history?from=2025-06-01&to=2025-06-30",
         expect.objectContaining({ method: "GET" }),
       );
-      expect(result).toHaveLength(1);
-      expect(result[0]!.netMinutes).toBe(480);
-      expect(result[0]!.isOvertime).toBe(false);
-      expect(result[0]!.isBreakCompliant).toBe(true);
-      expect(result[0]!.breaks).toHaveLength(1);
-      expect(result[0]!.breaks[0]!.durationMinutes).toBe(30);
+      expect(result.sessions).toHaveLength(1);
+      expect(result.sessions[0]!.netMinutes).toBe(480);
+      expect(result.sessions[0]!.isOvertime).toBe(false);
+      expect(result.sessions[0]!.isBreakCompliant).toBe(true);
+      expect(result.sessions[0]!.breaks).toHaveLength(1);
+      expect(result.sessions[0]!.breaks[0]!.durationMinutes).toBe(30);
     });
   });
 
@@ -480,6 +514,97 @@ describe("TimeTrackingService", () => {
 
       await expect(timeTrackingService.deleteAbsence("999")).rejects.toThrow(
         "Not found",
+      );
+    });
+  });
+
+  describe("requestVacation", () => {
+    it("sends vacation request data and returns the mapped absence", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Created",
+        data: { ...backendAbsence, absence_type: "vacation" },
+      });
+
+      const result = await timeTrackingService.requestVacation({
+        date_start: "2025-06-20",
+        date_end: "2025-06-21",
+        start_half_day: false,
+        end_half_day: true,
+        note: "Family",
+        substitute_staff_id: 42,
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/vacation/request",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            date_start: "2025-06-20",
+            date_end: "2025-06-21",
+            start_half_day: false,
+            end_half_day: true,
+            note: "Family",
+            substitute_staff_id: 42,
+          }),
+        }),
+      );
+      expect(result.absenceType).toBe("vacation");
+    });
+  });
+
+  describe("cancelAbsence", () => {
+    it("sends cancel request", async () => {
+      global.fetch = mockFetchResponse(null, true, 204);
+
+      await timeTrackingService.cancelAbsence("7");
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absences/7/cancel",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  describe("getVacationQuota", () => {
+    const quota = {
+      staff_id: 10,
+      year: 2026,
+      entitled_days: 30,
+      carryover_days: 1,
+      taken_days: 10,
+      reserved_days: 2,
+      remaining_days: 19,
+    };
+
+    it("loads vacation quota for a specific year", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: quota,
+      });
+
+      const result = await timeTrackingService.getVacationQuota(2026);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/vacation/quota?year=2026",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result.remaining_days).toBe(19);
+    });
+
+    it("loads vacation quota without year parameter", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: quota,
+      });
+
+      await timeTrackingService.getVacationQuota();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/vacation/quota",
+        expect.objectContaining({ method: "GET" }),
       );
     });
   });

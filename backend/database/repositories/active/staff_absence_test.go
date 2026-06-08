@@ -322,6 +322,31 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
+
+	t.Run("ignores requested and canceled absences", func(t *testing.T) {
+		today := timezone.DateOfUTC(time.Now())
+		for _, status := range []string{
+			active.AbsenceStatusRequested,
+			active.AbsenceStatusCanceled,
+			active.AbsenceStatusDeclined,
+		} {
+			absence := &active.StaffAbsence{
+				StaffID:     staff.ID,
+				AbsenceType: active.AbsenceTypeVacation,
+				DateStart:   today,
+				DateEnd:     today,
+				Status:      status,
+				CreatedBy:   staff.ID,
+			}
+			err := repo.Create(ctx, absence)
+			require.NoError(t, err)
+			defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
+		}
+
+		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
 }
 
 func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {

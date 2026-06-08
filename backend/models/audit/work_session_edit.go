@@ -24,6 +24,7 @@ type WorkSessionEdit struct {
 
 // Valid field names for audit entries
 const (
+	FieldDate          = "date"
 	FieldCheckInTime   = "check_in_time"
 	FieldCheckOutTime  = "check_out_time"
 	FieldBreakMinutes  = "break_minutes"
@@ -53,7 +54,7 @@ func (e *WorkSessionEdit) Validate() error {
 	}
 
 	switch e.FieldName {
-	case FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes:
+	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")

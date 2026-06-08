@@ -186,6 +186,12 @@ type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 
+	// ListByRequestChildIDs is the batched form of
+	// ListByRequestChildID: one query for every offering link across
+	// the given children. Powers the phase export's N+1-free load.
+	// Empty input returns an empty slice without a query.
+	ListByRequestChildIDs(ctx context.Context, requestChildIDs []int64) ([]*RequestChildOffering, error)
+
 	// CountActiveByCareOffering returns the number of children currently
 	// holding (or competing for) a slot in the given care offering.
 	// Counts non-terminal statuses on the joined request_children row:

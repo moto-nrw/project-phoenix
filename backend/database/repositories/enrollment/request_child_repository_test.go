@@ -63,6 +63,61 @@ func makeChild(requestID int64, firstName, lastName string) *enrollmentModels.Re
 	}
 }
 
+// --- ListByRequestIDs (batch loader for the phase export) --------------
+
+func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testing.T) {
+	db, repo, tenantID, phaseID, requestID := setupRequestChildRepoTest(t)
+
+	// Three children under the first request (sort order shuffled).
+	for i, name := range []string{"Cara", "Aino", "Bea"} {
+		c := makeChild(requestID, name, "Eins")
+		c.SortOrder = i
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, c)
+		}))
+	}
+
+	// A second request in the same phase, with one child.
+	reqRepo := enrollmentRepo.NewRequestRepository(db)
+	token2 := uniqueToken("child-test-2")
+	req2 := makeRequest(phaseID, token2, "bea@example.test")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return reqRepo.Create(ctx, req2)
+	}))
+	t.Cleanup(func() { wipeRequests(db, tenantID, token2) })
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, makeChild(req2.ID, "Solo", "Zwei"))
+	}))
+
+	var list []*enrollmentModels.RequestChild
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestIDs(ctx, []int64{requestID, req2.ID})
+		return lErr
+	}))
+
+	require.Len(t, list, 4, "all children across both requests in one query")
+	// Ordered by request_id, then sort_order: first request's children
+	// come back in sort_order (Cara, Aino, Bea), then the second request.
+	assert.Equal(t, requestID, list[0].RequestID)
+	assert.Equal(t, "Cara", list[0].FirstName)
+	assert.Equal(t, "Aino", list[1].FirstName)
+	assert.Equal(t, "Bea", list[2].FirstName)
+	assert.Equal(t, req2.ID, list[3].RequestID)
+}
+
+func TestRequestChildRepository_ListByRequestIDs_EmptyInputShortCircuits(t *testing.T) {
+	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
+	var list []*enrollmentModels.RequestChild
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var lErr error
+		list, lErr = repo.ListByRequestIDs(ctx, nil)
+		return lErr
+	})
+	require.NoError(t, err)
+	assert.Empty(t, list, "empty id list must not run an IN () query")
+}
+
 // --- Create + FindByID -------------------------------------------------
 
 func TestRequestChildRepository_Create_PersistsAndReturnsID(t *testing.T) {

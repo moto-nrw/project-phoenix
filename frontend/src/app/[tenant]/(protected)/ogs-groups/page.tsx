@@ -197,6 +197,30 @@ function mapStudentForOgsPage(
   return student;
 }
 
+function GroupAbsenceOverview({
+  totalStudents,
+  sickCount,
+  excusedCount,
+}: Readonly<{
+  totalStudents: number;
+  sickCount: number;
+  excusedCount: number;
+}>) {
+  return (
+    <section
+      className="mb-3 flex flex-wrap items-center gap-2 text-sm"
+      aria-label="Abwesenheiten heute"
+    >
+      <span className="rounded-full border border-[#EAB308]/20 bg-[#EAB308]/10 px-3 py-1 font-medium text-gray-900">
+        {sickCount}/{totalStudents} krank
+      </span>
+      <span className="rounded-full border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-3 py-1 font-medium text-gray-900">
+        {excusedCount}/{totalStudents} entschuldigt
+      </span>
+    </section>
+  );
+}
+
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
@@ -994,6 +1018,20 @@ function OGSGroupPageContent() {
     return sorted.sort(compareByName);
   }, [filteredStudents, sortMode, pickupTimes, now]);
 
+  const groupAbsenceOverview = useMemo(() => {
+    const groupStudents = Array.isArray(students) ? students : [];
+    const sickCount = groupStudents.filter((student) => student.sick).length;
+    const excusedCount = groupStudents.filter(
+      (student) => !student.sick && student.excused,
+    ).length;
+
+    return {
+      totalStudents: groupStudents.length,
+      sickCount,
+      excusedCount,
+    };
+  }, [students]);
+
   const getCardGradient = useCallback(
     (student: Student) => {
       if (isStudentInGroupRoom(student, currentGroup)) {
@@ -1495,6 +1533,14 @@ function OGSGroupPageContent() {
             />
           </div>
         )}
+
+        {currentGroup ? (
+          <GroupAbsenceOverview
+            totalStudents={groupAbsenceOverview.totalStudents}
+            sickCount={groupAbsenceOverview.sickCount}
+            excusedCount={groupAbsenceOverview.excusedCount}
+          />
+        ) : null}
 
         {/* Student Grid. Bottom padding reserves room for the mobile
             sticky bar / tablet floating FAB so the last row of cards

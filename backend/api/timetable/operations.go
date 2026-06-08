@@ -383,6 +383,16 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	careConcept := configSvc.ResolveStringOrDefault(
+		r.Context(),
+		rs.settingsService,
+		configModel.KeyCareConcept,
+		configModel.CareConceptOpenRooms,
+		logger,
+	)
+	if careConcept != configModel.CareConceptOpenRooms {
+		return false
+	}
 	return configSvc.ResolveBoolOrDefault(
 		r.Context(),
 		rs.settingsService,
