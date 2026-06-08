@@ -310,3 +310,51 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 		assert.NotEqual(t, tue, timezone.DateOfUTC(r.Date), "Tuesday excused row must be excluded")
 	}
 }
+
+// --- ChildFeatures ---
+
+func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, false) // sick on, notes off
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.SickNoteEnabled)
+	assert.False(t, flags.NotesEnabled)
+}
+
+func TestChildFeatures_NotOwned(t *testing.T) {
+	svc, _, _ := buildWriteService(t, true, true)
+	_, err := svc.ChildFeatures(context.Background(), 999999, 888888)
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
+}
+
+// --- length limit counts characters, not bytes ---
+
+func TestAddParentNote_AllowsMultibyteUpToRuneLimit(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// 2000 umlauts = 2000 characters but 4000 UTF-8 bytes. The old len()
+	// check would have rejected this; the rune count must accept it.
+	body := strings.Repeat("ä", maxNoteRunesForTest)
+	notes, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, body)
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+}
+
+func TestAddParentNote_RejectsOverRuneLimit(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID,
+		strings.Repeat("ä", maxNoteRunesForTest+1))
+	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
+}
+
+// maxNoteRunesForTest mirrors the service's maxParentNoteLen (kept local so
+// the test doesn't depend on an exported constant).
+const maxNoteRunesForTest = 2000

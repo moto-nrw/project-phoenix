@@ -135,6 +135,7 @@ func (rs *Resource) Router() chi.Router {
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
 		//   - notes: append / list short messages for the team
+		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		r.Get("/me/children/{studentId}/notes", rs.listNotes)

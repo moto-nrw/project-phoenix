@@ -158,6 +158,36 @@ func parseSickDayRange(r *http.Request) (time.Time, time.Time, error) {
 	return from, to, nil
 }
 
+// ChildFeaturesResponse tells the parent UI which write actions the child's
+// school currently allows, so it can avoid offering ones the backend rejects.
+type ChildFeaturesResponse struct {
+	SickNoteEnabled bool `json:"sick_note_enabled"`
+	NotesEnabled    bool `json:"notes_enabled"`
+}
+
+// getChildFeatures returns the resolved parent-portal feature flags for the
+// child's tenant.
+func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	flags, err := rs.ParentService.ChildFeatures(r.Context(), accountID, studentID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
+		SickNoteEnabled: flags.SickNoteEnabled,
+		NotesEnabled:    flags.NotesEnabled,
+	}, "Child features retrieved")
+}
+
 // --- Parent notes ---
 
 // AddNoteRequest is the wire shape for POST

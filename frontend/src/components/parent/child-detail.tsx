@@ -13,7 +13,12 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { type Child, type ParentNote, listMyChildren } from "~/lib/parent-api";
+import {
+  type Child,
+  type ChildFeatures,
+  type ParentNote,
+  listMyChildren,
+} from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -31,6 +36,15 @@ const SUPPORTED_ACTIONS: Record<string, "sick" | "notes"> = {
   "Krank melden": "sick",
   "Nachricht schreiben": "notes",
 };
+
+// An action is usable only when it's wired AND the child's school has the
+// matching feature enabled — otherwise the backend would reject it with 403.
+function isActionEnabled(label: string, features: ChildFeatures): boolean {
+  const target = SUPPORTED_ACTIONS[label];
+  if (target === "sick") return features.sick_note_enabled;
+  if (target === "notes") return features.notes_enabled;
+  return false;
+}
 
 const logger = createLogger({ component: "ChildDetail" });
 
@@ -165,10 +179,13 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const care = useChildCare(child.student_id);
   const [modal, setModal] = useState<null | "sick" | "notes">(null);
 
-  const openAction = useCallback((label: string) => {
-    const target = SUPPORTED_ACTIONS[label];
-    if (target) setModal(target);
-  }, []);
+  const openAction = useCallback(
+    (label: string) => {
+      const target = SUPPORTED_ACTIONS[label];
+      if (target && isActionEnabled(label, care.features)) setModal(target);
+    },
+    [care.features],
+  );
 
   const summaryItems = useMemo(
     () => [
@@ -219,7 +236,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                     key={action.label}
                     action={action}
                     onClick={
-                      SUPPORTED_ACTIONS[action.label]
+                      isActionEnabled(action.label, care.features)
                         ? () => openAction(action.label)
                         : undefined
                     }
@@ -253,6 +270,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         <div className="grid gap-6 max-lg:hidden">
           <MessagesPanel
             notes={care.notes}
+            composeDisabled={!care.features.notes_enabled}
             onCompose={() => setModal("notes")}
           />
           <PickupPeoplePanel people={pickupPeople} />
@@ -324,7 +342,7 @@ function MobileChildAppView({
             key={action.label}
             action={action}
             onClick={
-              SUPPORTED_ACTIONS[action.label]
+              isActionEnabled(action.label, care.features)
                 ? () => onAction(action.label)
                 : undefined
             }
@@ -343,6 +361,7 @@ function MobileChildAppView({
 
       <MessagesPanel
         notes={care.notes}
+        composeDisabled={!care.features.notes_enabled}
         onCompose={() => onAction("Nachricht schreiben")}
         mobile
       />
@@ -534,10 +553,12 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
 function MessagesPanel({
   notes,
   onCompose,
+  composeDisabled = false,
   mobile = false,
 }: Readonly<{
   notes: ParentNote[];
   onCompose: () => void;
+  composeDisabled?: boolean;
   mobile?: boolean;
 }>) {
   return (
@@ -554,14 +575,16 @@ function MessagesPanel({
           title="Nachrichten an das Team"
           description="Kurze Mitteilungen an die Betreuung."
         />
-        <button
-          type="button"
-          onClick={onCompose}
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
-        >
-          <MessageCircle className="h-4 w-4" aria-hidden="true" />
-          Schreiben
-        </button>
+        {!composeDisabled && (
+          <button
+            type="button"
+            onClick={onCompose}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            Schreiben
+          </button>
+        )}
       </div>
       <div className="mt-4">
         <ParentNotesList notes={notes} />

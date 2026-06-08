@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   listChildNotes: vi.fn().mockResolvedValue([]),
   submitSickNote: vi.fn().mockResolvedValue([]),
   addChildNote: vi.fn().mockResolvedValue([]),
+  getChildFeatures: vi
+    .fn()
+    .mockResolvedValue({ sick_note_enabled: true, notes_enabled: true }),
   setBreadcrumb: vi.fn(),
 }));
 
@@ -34,6 +37,7 @@ vi.mock("~/lib/parent-api", () => ({
   listChildNotes: mocks.listChildNotes,
   submitSickNote: mocks.submitSickNote,
   addChildNote: mocks.addChildNote,
+  getChildFeatures: mocks.getChildFeatures,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({

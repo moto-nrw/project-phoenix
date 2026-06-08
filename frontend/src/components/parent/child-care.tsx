@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HeartPulse, Loader2, MessageCircle, Send, X } from "lucide-react";
 import {
+  type ChildFeatures,
   type ParentNote,
   type StatusDay,
   addChildNote,
+  getChildFeatures,
   listChildNotes,
   listSickDays,
   submitSickNote,
@@ -71,9 +73,17 @@ function formatGermanDateTime(iso: string): string {
 
 // --- data hook ---
 
+// Default both features on so a transient features-fetch failure doesn't
+// lock a parent out of an action their school actually allows.
+const DEFAULT_FEATURES: ChildFeatures = {
+  sick_note_enabled: true,
+  notes_enabled: true,
+};
+
 export interface ChildCare {
   readonly sickDays: StatusDay[];
   readonly notes: ParentNote[];
+  readonly features: ChildFeatures;
   readonly loading: boolean;
   reportSick(dates: string[], reason: string): Promise<void>;
   postNote(body: string): Promise<ParentNote[]>;
@@ -82,17 +92,20 @@ export interface ChildCare {
 export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [notes, setNotes] = useState<ParentNote[]>([]);
+  const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [days, noteList] = await Promise.all([
+      const [days, noteList, flags] = await Promise.all([
         listSickDays(studentId).catch(() => [] as StatusDay[]),
         listChildNotes(studentId).catch(() => [] as ParentNote[]),
+        getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
       setSickDays(days);
       setNotes(noteList);
+      setFeatures(flags);
     } catch (err) {
       logger.warn("child_care_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -110,7 +123,16 @@ export function useChildCare(studentId: string): ChildCare {
   const reportSick = useCallback(
     async (dates: string[], reason: string) => {
       const updated = await submitSickNote(studentId, dates, reason);
-      setSickDays(updated);
+      // The POST only returns the just-submitted dates. Merge them into the
+      // already-loaded list (replacing any same-date entries) so previously
+      // reported sick days don't disappear after a non-overlapping submit.
+      setSickDays((prev) => {
+        const submittedDates = new Set(updated.map((d) => d.date));
+        return [
+          ...prev.filter((d) => !submittedDates.has(d.date)),
+          ...updated,
+        ].sort((a, b) => a.date.localeCompare(b.date));
+      });
     },
     [studentId],
   );
@@ -124,7 +146,7 @@ export function useChildCare(studentId: string): ChildCare {
     [studentId],
   );
 
-  return { sickDays, notes, loading, reportSick, postNote };
+  return { sickDays, notes, features, loading, reportSick, postNote };
 }
 
 // --- modal shell ---

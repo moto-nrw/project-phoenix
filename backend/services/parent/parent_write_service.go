@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
@@ -105,7 +106,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var notePtr *string
 	if trimmed := strings.TrimSpace(reason); trimmed != "" {
-		if len(trimmed) > maxParentNoteLen {
+		// Count characters (runes), not UTF-8 bytes, so the limit matches the
+		// frontend's maxLength — a German text with umlauts stays under the
+		// budget even though it spans more bytes.
+		if utf8.RuneCountInString(trimmed) > maxParentNoteLen {
 			return nil, ErrNoteTooLong
 		}
 		notePtr = &trimmed
@@ -192,6 +196,24 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	return result, nil
 }
 
+// ChildFeatures resolves the parent-portal feature toggles for the child's
+// tenant after verifying ownership.
+func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error) {
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	if err != nil {
+		return ChildFeatureFlags{}, err
+	}
+	sick, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-note setting: %w", err)
+	}
+	notes, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve notes setting: %w", err)
+	}
+	return ChildFeatureFlags{SickNoteEnabled: sick, NotesEnabled: notes}, nil
+}
+
 // ListSickDays returns the child's active sick days in [from, to].
 func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to time.Time) ([]*activeModels.StudentStatusDay, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
@@ -226,7 +248,8 @@ func (s *service) AddParentNote(ctx context.Context, accountID, studentID int64,
 	if body == "" {
 		return nil, ErrEmptyNote
 	}
-	if len(body) > maxParentNoteLen {
+	// Characters (runes), not bytes — matches the frontend maxLength budget.
+	if utf8.RuneCountInString(body) > maxParentNoteLen {
 		return nil, ErrNoteTooLong
 	}
 

@@ -71,6 +71,18 @@ type Service interface {
 	// uses ParentNoteDisplayLimit). Authorization only — reads are not
 	// gated by the setting so previously-left notes stay visible.
 	ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error)
+
+	// ChildFeatures resolves which parent-portal write features are enabled
+	// for the child's tenant, so the UI can hide/disable actions the backend
+	// would reject with 403. Authorization only.
+	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+}
+
+// ChildFeatureFlags reports the resolved per-tenant parent-portal feature
+// toggles for a single child.
+type ChildFeatureFlags struct {
+	SickNoteEnabled bool
+	NotesEnabled    bool
 }
 
 // ServiceConfig is the dependency-injection bundle.

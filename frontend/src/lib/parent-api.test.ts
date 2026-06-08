@@ -9,6 +9,7 @@ import {
   listSickDays,
   listChildNotes,
   addChildNote,
+  getChildFeatures,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
@@ -429,6 +430,29 @@ describe("addChildNote", () => {
   it("throws a generic message on non-OK non-JSON body", async () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(addChildNote("84", "x")).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+});
+
+describe("getChildFeatures", () => {
+  it("GETs the features route and returns the resolved flags", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { sick_note_enabled: true, notes_enabled: false },
+      });
+    });
+    const out = await getChildFeatures("84");
+    expect(out.sick_note_enabled).toBe(true);
+    expect(out.notes_enabled).toBe(false);
+    expect(seenURL).toContain("/api/parent/me/children/84/features");
+  });
+
+  it("throws on non-OK so the caller can fall back to defaults", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(getChildFeatures("84")).rejects.toThrow(
       /Request failed \(500\)/,
     );
   });

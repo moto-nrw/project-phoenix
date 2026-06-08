@@ -86,6 +86,12 @@ export interface ParentNote {
   readonly created_at: string; // ISO timestamp
 }
 
+// Resolved per-tenant parent-portal feature toggles for a child.
+export interface ChildFeatures {
+  readonly sick_note_enabled: boolean;
+  readonly notes_enabled: boolean;
+}
+
 interface ApiEnvelope<T> {
   readonly status?: string;
   readonly data?: T;
@@ -271,6 +277,20 @@ export async function submitSickNote(
   return postJson<StatusDay[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
     { dates, reason: reason ?? "" },
+  );
+}
+
+/**
+ * Fetches which write actions the child's school allows (resolved per
+ * tenant). Used to hide/disable actions the backend would reject. Defaults
+ * to both enabled if the request fails, so a transient error doesn't lock a
+ * parent out of an enabled feature.
+ */
+export async function getChildFeatures(
+  studentId: string,
+): Promise<ChildFeatures> {
+  return getJson<ChildFeatures>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/features`,
   );
 }
 
