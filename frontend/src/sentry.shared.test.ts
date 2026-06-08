@@ -25,6 +25,8 @@ describe("scrubEvent", () => {
 
     const result = scrubEvent(event);
 
+    expect(result).not.toBeNull();
+    if (result === null) throw new Error("expected event to be kept");
     expect(result.request?.headers).toStrictEqual({
       "Content-Type": "application/json",
     });
@@ -39,6 +41,8 @@ describe("scrubEvent", () => {
 
     const result = scrubEvent(event);
 
+    expect(result).not.toBeNull();
+    if (result === null) throw new Error("expected event to be kept");
     expect(result.request?.cookies).toStrictEqual({});
   });
 
@@ -54,6 +58,8 @@ describe("scrubEvent", () => {
 
     const result = scrubEvent(event);
 
+    expect(result).not.toBeNull();
+    if (result === null) throw new Error("expected event to be kept");
     expect(result.user).toStrictEqual({ id: "42" });
   });
 
@@ -62,6 +68,8 @@ describe("scrubEvent", () => {
 
     const result = scrubEvent(event);
 
+    expect(result).not.toBeNull();
+    if (result === null) throw new Error("expected event to be kept");
     expect(result.event_id).toBe("test-id");
   });
 
@@ -72,11 +80,75 @@ describe("scrubEvent", () => {
 
     const result = scrubEvent(event);
 
+    expect(result).not.toBeNull();
+    if (result === null) throw new Error("expected event to be kept");
     expect(result.request?.url).toBe("https://example.com");
   });
 
   it("returns the same event reference (mutates in place)", () => {
     const event = makeEvent({ user: { id: "1", email: "a@b.com" } });
+
+    const result = scrubEvent(event);
+
+    expect(result).toBe(event);
+  });
+
+  it("drops the known Next.js RSC router state parse noise", () => {
+    const event = makeEvent({
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value: "The router state header was sent but could not be parsed.",
+          },
+        ],
+      },
+      contexts: {
+        nextjs: {
+          request_path: "/dashboard?_rsc=tww4p",
+        },
+      },
+      request: {
+        url: "https://altenberge.moto-app.de/dashboard",
+      },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result).toBeNull();
+  });
+
+  it("keeps router state parse errors without an RSC marker", () => {
+    const event = makeEvent({
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value: "The router state header was sent but could not be parsed.",
+          },
+        ],
+      },
+      request: {
+        url: "https://altenberge.moto-app.de/dashboard",
+      },
+    });
+
+    const result = scrubEvent(event);
+
+    expect(result).toBe(event);
+  });
+
+  it("keeps unrelated RSC errors", () => {
+    const event = makeEvent({
+      exception: {
+        values: [{ type: "Error", value: "database unavailable" }],
+      },
+      contexts: {
+        nextjs: {
+          request_path: "/dashboard?_rsc=tww4p",
+        },
+      },
+    });
 
     const result = scrubEvent(event);
 
