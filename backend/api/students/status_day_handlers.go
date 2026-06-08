@@ -98,6 +98,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		if err := rs.StudentStatusDayRepo.MarkClearedForDates(ctx, fresh.ID, oppositeStatus, dates, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}
+		notePtr := normalizeSickReason(&req.Reason)
 		for _, date := range dates {
 			if err := rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
 				StudentID:  fresh.ID,
@@ -105,6 +106,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 				Status:     req.Status,
 				ReportedAt: now,
 				Source:     active.StudentStatusSourcePlanned,
+				Note:       notePtr,
 			}); err != nil {
 				return err
 			}

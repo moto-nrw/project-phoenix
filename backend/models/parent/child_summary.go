@@ -52,6 +52,14 @@ type ChildRepository interface {
 	// for that account. Sorted by school name, then student first
 	// name, then last name. Soft-deleted persons are filtered out.
 	ListByAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error)
+
+	// FindForAccount resolves a single child the account is a guardian
+	// of, returning the same projection (crucially including TenantID so
+	// callers can scope a follow-up tenant transaction). Returns nil,
+	// nil when the student is not linked to the account — the caller MUST
+	// treat that as a 403/404, never trusting the studentID alone. This
+	// is the authorization gate for every per-child parent write.
+	FindForAccount(ctx context.Context, accountID, studentID int64) (*ChildSummary, error)
 }
 
 // EnrollablePhase is one row in the parent's enrollment picker —

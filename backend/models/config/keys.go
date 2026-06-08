@@ -102,6 +102,8 @@ const (
 	KeyStudentPhotosEnabled           = "operations.student_photos_enabled"
 	KeyGroupMode                      = "operations.group_mode"
 	KeyCareConcept                    = "operations.care_concept"
+	KeyParentSickNoteEnabled          = "operations.parent_sick_note_enabled"
+	KeyParentNotesEnabled             = "operations.parent_notes_enabled"
 	KeyTimeTrackingAccountStartDate   = "operations.time_tracking_account_start_date"
 )
 

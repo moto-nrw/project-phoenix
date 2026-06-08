@@ -101,6 +101,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.captcha_site_key",
 		"enrollment.captcha_secret_key",
 		"enrollment.grade_level_max",
+		// Parents-portal write features.
+		"operations.parent_sick_note_enabled",
+		"operations.parent_notes_enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -374,12 +377,30 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
+		{"operations.parent_sick_note_enabled", config.FieldBoolean},
+		{"operations.parent_notes_enabled", config.FieldBoolean},
 	}
 
 	for _, tc := range tests {
 		def := config.GetDefinition(tc.key)
 		require.NotNilf(t, def, "setting %q should exist", tc.key)
 		assert.Equalf(t, tc.expected, def.Type, "setting %q should be type %s", tc.key, tc.expected)
+	}
+}
+
+// TestParentPortalSettings_DefaultOn guards the opt-out contract: both
+// parents-portal write toggles must default to true so schools with the
+// portal get them without extra configuration.
+func TestParentPortalSettings_DefaultOn(t *testing.T) {
+	for _, key := range []string{
+		"operations.parent_sick_note_enabled",
+		"operations.parent_notes_enabled",
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equalf(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equalf(t, true, def.Default, "setting %q should default to true (opt-out)", key)
+		assert.Equalf(t, "operations", def.Tab, "setting %q should be on the operations tab", key)
 	}
 }
 

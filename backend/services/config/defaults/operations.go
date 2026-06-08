@@ -436,4 +436,37 @@ func init() {
 		Category:  "kinder",
 		SortOrder: 50,
 	})
+
+	// --- Elternportal (parents-portal write features) ---
+	//
+	// These gate what guardians may submit through the parents app. Both
+	// default ON (opt-out): schools with the portal get them immediately
+	// and can disable per school. The parent endpoints resolve the value
+	// for the child's tenant before accepting a write.
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentSickNoteEnabled,
+		Label:           "Krankmeldung über Elternportal",
+		Description:     "Wenn aktiviert, können Eltern ihr Kind über das Elternportal für einen oder mehrere Tage krankmelden. Die Krankmeldung erscheint wie eine vom Team eingetragene Abwesenheit.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       60,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentNotesEnabled,
+		Label:           "Elternnachrichten über Elternportal",
+		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal kurze Nachrichten zu ihrem Kind hinterlassen. Die neuesten Nachrichten erscheinen in der Kinderdetailansicht.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       61,
+	})
 }

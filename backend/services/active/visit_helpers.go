@@ -276,7 +276,12 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 	hasPlannedSick := false
 	hasPlannedExcused := false
 	for _, row := range rows {
-		if row.Source != active.StudentStatusSourcePlanned {
+		// Both staff-planned and parent-reported sick/excused days are
+		// "scheduled ahead" rows the live-flag path doesn't cover, so the
+		// next-checkin clear must treat them the same — otherwise a parent
+		// sick note for today stays active even after the child checks in.
+		if row.Source != active.StudentStatusSourcePlanned &&
+			row.Source != active.StudentStatusSourceParent {
 			continue
 		}
 		if err := s.studentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {

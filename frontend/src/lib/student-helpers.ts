@@ -437,6 +437,8 @@ export interface UpdateStudentRequest {
   bus?: boolean;
   bus_days?: BusDays;
   sick?: boolean;
+  /** Optional free-text reason stamped on today's sick day when marking sick. */
+  sick_reason?: string;
   excused?: boolean;
   /**
    * Parental photo-consent flag. Send `true` to record consent (server stamps
@@ -465,6 +467,7 @@ export interface BackendUpdateRequest {
   bus?: boolean;
   bus_days?: BusDays;
   sick?: boolean;
+  sick_reason?: string;
   excused?: boolean;
   photo_consent_given?: boolean;
 }
@@ -517,6 +520,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "bus", target: "bus" },
   { source: "bus_days", target: "bus_days" },
   { source: "sick", target: "sick" },
+  { source: "sick_reason", target: "sick_reason" },
   { source: "excused", target: "excused" },
   { source: "photo_consent_given", target: "photo_consent_given" },
 ];

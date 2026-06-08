@@ -63,6 +63,7 @@ type Resource struct {
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
 	StudentStatusDayRepo   active.StudentStatusDayRepository
+	StudentParentNoteRepo  users.StudentParentNoteRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
@@ -93,6 +94,7 @@ type ResourceConfig struct {
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
 	StudentStatusDayRepo   active.StudentStatusDayRepository
+	StudentParentNoteRepo  users.StudentParentNoteRepository
 	VisitRepo              active.VisitRepository
 	DataAccessLogRepo      auditModels.DataAccessLogRepository
 	Broadcaster            realtime.Broadcaster
@@ -128,6 +130,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
 		StudentStatusDayRepo:   cfg.StudentStatusDayRepo,
+		StudentParentNoteRepo:  cfg.StudentParentNoteRepo,
 		VisitRepo:              cfg.VisitRepo,
 		DataAccessLogRepo:      cfg.DataAccessLogRepo,
 		Broadcaster:            cfg.Broadcaster,
@@ -164,6 +167,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -1327,7 +1331,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
-		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow); err != nil {
+		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, normalizeSickReason(req.SickReason)); err != nil {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}

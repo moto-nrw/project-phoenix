@@ -11,12 +11,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/uptrace/bun"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+// ParentNoteDisplayLimit is how many of the newest parent notes the
+// portal and the staff view surface by default.
+const ParentNoteDisplayLimit = 3
 
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
@@ -37,6 +46,43 @@ type Service interface {
 	// surface in-progress / decided submissions without the parent
 	// having to dig out the email-link status URL.
 	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
+
+	// SubmitSickNote reports the parent's child sick for one or more
+	// dates. Authorization: the account must be a guardian of the
+	// student. The write mirrors the staff sick-note path — it clears any
+	// opposing "excused" days, upserts a sick status-day per date with
+	// source=parent, and flips the live sick flag when today is included.
+	// Gated by operations.parent_sick_note_enabled for the child's tenant.
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []time.Time, reason string) ([]*activeModels.StudentStatusDay, error)
+
+	// ListSickDays returns the child's currently-active sick days in the
+	// given date range (excused days are filtered out — parents only
+	// manage sick notes). Authorization only; not gated by the setting so
+	// previously-reported days stay visible if a school later disables the
+	// feature.
+	ListSickDays(ctx context.Context, accountID, studentID int64, from, to time.Time) ([]*activeModels.StudentStatusDay, error)
+
+	// AddParentNote appends a free-text note the parent left for the
+	// team and returns the newest ParentNoteDisplayLimit notes. Gated by
+	// operations.parent_notes_enabled for the child's tenant.
+	AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error)
+
+	// ListParentNotes returns the newest notes for the child (limit <= 0
+	// uses ParentNoteDisplayLimit). Authorization only — reads are not
+	// gated by the setting so previously-left notes stay visible.
+	ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error)
+
+	// ChildFeatures resolves which parent-portal write features are enabled
+	// for the child's tenant, so the UI can hide/disable actions the backend
+	// would reject with 403. Authorization only.
+	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+}
+
+// ChildFeatureFlags reports the resolved per-tenant parent-portal feature
+// toggles for a single child.
+type ChildFeatureFlags struct {
+	SickNoteEnabled bool
+	NotesEnabled    bool
 }
 
 // ServiceConfig is the dependency-injection bundle.
@@ -44,16 +90,31 @@ type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	DB                    *bun.DB
-	Logger                *slog.Logger
+
+	// Per-child write features (sick notes + parent notes).
+	StatusDayRepo activeModels.StudentStatusDayRepository
+	StudentRepo   usersModels.StudentRepository
+	NoteRepo      usersModels.StudentParentNoteRepository
+	Settings      configService.SettingsService
+	Broadcaster   realtime.Broadcaster
+
+	DB     *bun.DB
+	Logger *slog.Logger
 }
 
 type service struct {
 	childRepo             parentModels.ChildRepository
 	enrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	db                    *bun.DB
-	logger                *slog.Logger
+
+	statusDayRepo activeModels.StudentStatusDayRepository
+	studentRepo   usersModels.StudentRepository
+	noteRepo      usersModels.StudentParentNoteRepository
+	settings      configService.SettingsService
+	broadcaster   realtime.Broadcaster
+
+	db     *bun.DB
+	logger *slog.Logger
 }
 
 // NewService wires a parent-portal service.
@@ -66,6 +127,11 @@ func NewService(cfg ServiceConfig) Service {
 		childRepo:             cfg.ChildRepo,
 		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
 		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
+		statusDayRepo:         cfg.StatusDayRepo,
+		studentRepo:           cfg.StudentRepo,
+		noteRepo:              cfg.NoteRepo,
+		settings:              cfg.Settings,
+		broadcaster:           cfg.Broadcaster,
 		db:                    cfg.DB,
 		logger:                logger,
 	}

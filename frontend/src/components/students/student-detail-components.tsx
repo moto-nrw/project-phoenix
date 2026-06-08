@@ -300,6 +300,8 @@ interface StudentHeaderProps {
   isArrivalException?: boolean;
   isArrivalAbsent?: boolean;
   todayArrivalNote?: string;
+  /** Optional reason for today's sick status, shown next to the badge. */
+  sickReason?: string;
 }
 
 export function StudentDetailHeader({
@@ -316,6 +318,7 @@ export function StudentDetailHeader({
   isArrivalException,
   isArrivalAbsent,
   todayArrivalNote,
+  sickReason,
 }: Readonly<StudentHeaderProps>) {
   // Spread the student so any field LocationBadge consumes (current_room_color,
   // future room-derived attributes, etc.) propagates without maintaining a
@@ -383,6 +386,8 @@ export function StudentDetailHeader({
               const notComingLabel =
                 absence?.label ?? dayPlanningNotComingLabel;
               if (notComingLabel && !todayPickupActualTime) {
+                const reasonSuffix =
+                  student.sick && sickReason ? ` – ${sickReason}` : "";
                 return (
                   <div
                     data-testid="today-absence-row"
@@ -390,7 +395,7 @@ export function StudentDetailHeader({
                   >
                     <ClockIcon className="h-4 w-4 text-gray-400" />
                     <span className="font-medium text-gray-900">
-                      {`Kommt heute nicht (${notComingLabel})`}
+                      {`Kommt heute nicht (${notComingLabel}${reasonSuffix})`}
                     </span>
                   </div>
                 );
