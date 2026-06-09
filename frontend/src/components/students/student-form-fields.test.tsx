@@ -295,30 +295,44 @@ describe("EnrollmentConsentsSection", () => {
 });
 
 describe("PickupStatusSection", () => {
-  it("renders pickup status select", () => {
+  it("renders selected pickup weekdays", () => {
     const onChange = vi.fn();
-    render(<PickupStatusSection value="Wird abgeholt" onChange={onChange} />);
+    render(
+      <PickupStatusSection
+        days={{ mon: true, wed: true }}
+        onChange={onChange}
+      />,
+    );
 
-    expect(screen.getByDisplayValue("Wird abgeholt")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Montag wird abgeholt" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Mittwoch wird abgeholt" }),
+    ).toBeChecked();
   });
 
-  it("calls onChange when selection changes", () => {
+  it("calls onChange with weekday map when toggled", () => {
     const onChange = vi.fn();
-    render(<PickupStatusSection value="" onChange={onChange} />);
+    render(<PickupStatusSection days={{}} onChange={onChange} />);
 
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "Geht alleine nach Hause" } });
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Montag wird abgeholt",
+    });
+    fireEvent.click(checkbox);
 
-    expect(onChange).toHaveBeenCalledWith("Geht alleine nach Hause");
+    expect(onChange).toHaveBeenCalledWith({ mon: true });
   });
 
-  it("handles null value for empty selection", () => {
+  it("unchecking a selected day removes it from the map", () => {
     const onChange = vi.fn();
-    render(<PickupStatusSection value="Wird abgeholt" onChange={onChange} />);
+    render(<PickupStatusSection days={{ mon: true }} onChange={onChange} />);
 
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "" } });
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Montag wird abgeholt",
+    });
+    fireEvent.click(checkbox);
 
-    expect(onChange).toHaveBeenCalledWith(null);
+    expect(onChange).toHaveBeenCalledWith({ mon: false });
   });
 });

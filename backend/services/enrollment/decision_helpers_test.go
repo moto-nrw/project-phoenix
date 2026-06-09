@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Pure-helper tests for the small functions the decision service
@@ -94,6 +95,45 @@ func TestDecodeBusDays_RejectsUnknownWeekday(t *testing.T) {
 	_, err := decodeBusDays(map[string]any{"sat": true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
+}
+
+func TestDecodePickupDays_NormalizesWeekdayMap(t *testing.T) {
+	out, err := decodePickupDays(map[string]any{"mon": true, "wed": false, "fri": true})
+	require.NoError(t, err)
+	assert.True(t, out["mon"])
+	assert.True(t, out["fri"])
+	assert.False(t, out["wed"])
+	assert.True(t, out.HasAny())
+}
+
+func TestDecodePickupDays_AcceptsLegacySelectValues(t *testing.T) {
+	// Pending pre-migration submissions stored the frontend select option
+	// *value*, not the German label. "picked_up" must map to all weekdays.
+	pickedUp, err := decodePickupDays("picked_up")
+	require.NoError(t, err)
+	for _, day := range users.PickupDayOrder {
+		assert.True(t, pickedUp[day], "picked_up should imply %s", day)
+	}
+
+	alone, err := decodePickupDays("alone")
+	require.NoError(t, err)
+	assert.False(t, alone.HasAny(), "alone should imply no pickup days")
+}
+
+func TestDecodePickupDays_AcceptsGermanLabels(t *testing.T) {
+	pickedUp, err := decodePickupDays(users.PickupStatusPickedUp)
+	require.NoError(t, err)
+	assert.True(t, pickedUp.HasAny())
+
+	alone, err := decodePickupDays(users.PickupStatusGoesAlone)
+	require.NoError(t, err)
+	assert.False(t, alone.HasAny())
+}
+
+func TestDecodePickupDays_RejectsUnknownWeekday(t *testing.T) {
+	_, err := decodePickupDays(map[string]any{"sun": true})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sun")
 }
 
 func TestDecodeStructured_DecodesContactList(t *testing.T) {

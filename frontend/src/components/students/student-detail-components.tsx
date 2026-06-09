@@ -14,6 +14,7 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import { formatPickupDays, pickupDaysHaveAny } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -694,8 +695,12 @@ export function PersonalInfoReadOnly({
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
         <InfoItem label="Buskind" value={student.buskind ? "Ja" : "Nein"} />
         <InfoItem
-          label="Abholstatus"
-          value={student.pickup_status ?? "Nicht gesetzt"}
+          label="Abholregelung"
+          value={
+            pickupDaysHaveAny(student.pickup_days)
+              ? `Wird abgeholt: ${formatPickupDays(student.pickup_days)}`
+              : "Geht alleine nach Hause"
+          }
         />
         {student.health_info && (
           <InfoItem

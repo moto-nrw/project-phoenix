@@ -1629,8 +1629,12 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
-			if str := stringValue(raw); str != "" {
-				student.PickupStatus = &str
+			if days, err := decodePickupDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				status := days.LegacyPickupStatus()
+				student.PickupDays = days
+				student.PickupStatus = &status
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
@@ -1733,6 +1737,44 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 		}
 	}
 	return out, nil
+}
+
+// decodePickupDays accepts either a legacy pickup answer (string) or the
+// weekday_boolean map the reserved pickup_status target now uses. Pending
+// submissions created before the migration carry a string; new submissions
+// carry the map.
+func decodePickupDays(raw any) (users.PickupDays, error) {
+	if str, ok := raw.(string); ok {
+		return pickupDaysFromLegacyPickupAnswer(str), nil
+	}
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(raw, &days); err != nil {
+		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
+	}
+	if err := days.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.PickupDays{}
+	for _, day := range users.PickupDayOrder {
+		if days[day] {
+			out[day] = true
+		}
+	}
+	return out, nil
+}
+
+// pickupDaysFromLegacyPickupAnswer maps a pending pre-migration submission's
+// pickup_status answer to the per-weekday model. Such submissions stored the
+// frontend select option *value* ("picked_up" / "alone"), not the German
+// label — so map "picked_up" to "all five weekdays" explicitly. A stored
+// German label ("Wird abgeholt") is handled by the model helper for safety.
+// Anything else — "alone", "Geht alleine nach Hause", the empty string — means
+// no pickup days ("Geht alleine nach Hause").
+func pickupDaysFromLegacyPickupAnswer(answer string) users.PickupDays {
+	if strings.TrimSpace(answer) == "picked_up" {
+		return users.PickupDaysFromLegacyStatus(users.PickupStatusPickedUp)
+	}
+	return users.PickupDaysFromLegacyStatus(answer)
 }
 
 // readFieldValue pulls the submission value for a field. Guardian-level

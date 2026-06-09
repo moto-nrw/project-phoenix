@@ -76,6 +76,7 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 		response.Bus = *student.Bus
 	}
 	response.BusDays = student.BusDays.Normalize()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
@@ -211,6 +212,7 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 		response.Bus = *student.Bus
 	}
 	response.BusDays = student.BusDays.Normalize()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}

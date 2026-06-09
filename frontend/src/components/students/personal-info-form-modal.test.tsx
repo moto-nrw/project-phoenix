@@ -334,18 +334,25 @@ describe("PersonalInfoFormModal", () => {
       expect(select.value).toBe("true");
     });
 
-    it("displays pickup status select with correct value", () => {
+    it("displays the selected pickup weekdays", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
           onClose={mockOnClose}
-          student={createMockStudent({ pickup_status: "Wird abgeholt" })}
+          student={createMockStudent({
+            pickup_status: "Wird abgeholt",
+            pickup_days: { mon: true, wed: true },
+          })}
           onSave={mockOnSave}
         />,
       );
 
-      const select = screen.getByLabelText<HTMLSelectElement>("Abholstatus");
-      expect(select.value).toBe("Wird abgeholt");
+      expect(
+        screen.getByRole("checkbox", { name: "Montag wird abgeholt" }),
+      ).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Mittwoch wird abgeholt" }),
+      ).toBeChecked();
     });
 
     it("changes buskind when selected", () => {

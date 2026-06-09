@@ -10,10 +10,10 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-func TestIsUndefinedBusDaysColumn(t *testing.T) {
-	assert.True(t, isUndefinedBusDaysColumn(testPgError("42703")))
-	assert.False(t, isUndefinedBusDaysColumn(testPgError("23514")))
-	assert.False(t, isUndefinedBusDaysColumn(errors.New("check_students_bus_days mentions bus_days")))
+func TestIsUndefinedColumnError(t *testing.T) {
+	assert.True(t, isUndefinedColumnError(testPgError("42703")))
+	assert.False(t, isUndefinedColumnError(testPgError("23514")))
+	assert.False(t, isUndefinedColumnError(errors.New("check_students_bus_days mentions bus_days")))
 }
 
 func testPgError(code string) error {
