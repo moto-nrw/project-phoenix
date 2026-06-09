@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
@@ -88,10 +89,15 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 		return nil, err
 	}
 
+	// nil settings: the CLI cleanup command runs without a tenant settings
+	// context, so the resolver falls back to the package default — exactly
+	// the previous hardcoded behaviour.
+	consentService := users.NewPrivacyConsentService(nil, slog.Default())
 	ctx.CleanupService = active.NewCleanupService(
 		ctx.RepoFactory.ActiveVisit,
 		ctx.RepoFactory.PrivacyConsent,
 		ctx.RepoFactory.DataDeletion,
+		consentService,
 		ctx.DB,
 	)
 

@@ -317,7 +317,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, err
 	}
 	now := time.Now()
-	if !phase.IsEnrollmentWindowOpen(now) {
+	if !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
 	}
 

@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 const {
@@ -689,6 +695,35 @@ describe("EnrollmentForm", () => {
     });
   });
 
+  it("shows pickup-specific helper text for the Abholregelung weekday field", async () => {
+    const withPickup = schema();
+    withPickup.fields = [
+      ...withPickup.fields,
+      {
+        key: "pickup_status",
+        label: "Abholregelung",
+        type: "weekday_boolean",
+        target: "student.pickup_status",
+        required: false,
+        applies_to_child: true,
+        sort_order: 7,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(withPickup);
+    renderForm();
+    await waitForLoaded();
+
+    // The pickup field gets the pickup copy, not the bus copy — guards the
+    // regression where the shared weekday_boolean input hardcoded bus text.
+    expect(
+      screen.getByText(/an denen das Kind abgeholt wird/),
+    ).toBeInTheDocument();
+    // The Buskind field still shows its own bus copy.
+    expect(
+      screen.getByText(/an denen das Kind mit dem Bus fährt/),
+    ).toBeInTheDocument();
+  });
+
   it("requires at least one selected weekday for required weekday boolean fields", async () => {
     const requiredBusDays = schema();
     requiredBusDays.fields = requiredBusDays.fields.map((field) =>
@@ -712,6 +747,55 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("required pickup rejects an untouched picker but accepts an explicit empty selection", async () => {
+    const withRequiredPickup = schema();
+    withRequiredPickup.fields = [
+      ...withRequiredPickup.fields,
+      {
+        key: "pickup_status",
+        label: "Abholregelung",
+        type: "weekday_boolean",
+        target: "student.pickup_status",
+        required: true,
+        applies_to_child: true,
+        sort_order: 7,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(withRequiredPickup);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    // Untouched required pickup is "missing" — submission is blocked and the
+    // pickup-specific confirm message (not the bus "pick a day" message) shows.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      await screen.findAllByText(
+        "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).",
+      ),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    // Touch the pickup picker and clear it again → an explicit empty map. That
+    // is the valid "geht alleine nach Hause" answer, so submission proceeds.
+    const pickupGroup = screen.getByRole("group", { name: /Abholregelung/ });
+    const pickupMonday = within(pickupGroup).getByRole("checkbox", {
+      name: "Mo",
+    });
+    fireEvent.click(pickupMonday); // select
+    fireEvent.click(pickupMonday); // deselect → touched, empty
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {

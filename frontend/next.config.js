@@ -6,7 +6,9 @@ import "./src/env.js";
 import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  output: "standalone",
+};
 
 export default withSentryConfig(config, {
   silent: true,

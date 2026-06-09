@@ -1,3 +1,5 @@
+import { validateRuntimeEnv } from "./env-validation";
+
 export function getMetricsBearerToken(): string {
   const token = process.env.METRICS_BEARER_TOKEN?.trim();
   if (!token) {
@@ -7,5 +9,5 @@ export function getMetricsBearerToken(): string {
 }
 
 export function validateServerRuntimeEnv(): void {
-  getMetricsBearerToken();
+  validateRuntimeEnv();
 }

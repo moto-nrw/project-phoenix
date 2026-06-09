@@ -58,4 +58,24 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// Device online/offline window (issue #586 — Rule 12 extraction). The
+	// number of minutes a device's last_seen timestamp may be in the past
+	// before it is treated as offline for health monitoring.
+	minOnlineWindow := float64(1)
+	maxOnlineWindow := float64(60)
+	config.Register(config.Definition{
+		Key:             config.KeyDeviceOnlineWindowMinutes,
+		Label:           "Online-Fenster für Geräte (Minuten)",
+		Description:     "Minuten, in denen ein Gerät zuletzt gesehen worden sein muss, um als online zu gelten. Danach wird es als offline behandelt.",
+		Type:            config.FieldNumber,
+		Default:         5,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "devices",
+		Category:        "monitoring",
+		SortOrder:       20,
+		Validation:      &config.ValidationRules{Min: &minOnlineWindow, Max: &maxOnlineWindow},
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
 }

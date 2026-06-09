@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -8,49 +9,39 @@ import (
 	"github.com/spf13/viper"
 )
 
-// GetDatabaseDSN returns the database connection string based on environment.
+// GetDatabaseDSN returns the explicitly configured database connection string.
 // Used by CLI commands (migrate, seed, cleanup) which run as the postgres superuser.
 //
 // Precedence order:
-// 1. Explicit DB_DSN environment variable (for production/Docker overrides)
-// 2. APP_ENV environment variable (test/development/production smart defaults)
-// 3. Legacy TEST_DB_DSN variable (backwards compatibility)
-// 4. Fallback to development default (localhost:5432)
+// 1. DB_DSN for normal runtime and migrations
+// 2. TEST_DB_DSN only when APP_ENV=test
 //
-// Examples:
-//   - Development (default): go run main.go serve
-//   - Test database: APP_ENV=test go run main.go migrate reset
-//   - Production: DB_DSN="postgres://..." go run main.go serve
+// Missing config is fatal by design; do not add localhost fallbacks here.
 func GetDatabaseDSN() string {
-	// 1. Explicit DB_DSN (production/Docker override) - highest priority
-	if dsn := viper.GetString("db_dsn"); dsn != "" {
+	dsn, err := resolveDatabaseDSN()
+	if err == nil {
 		return dsn
 	}
 
-	// 2. APP_ENV-based smart defaults
+	slog.Error(err.Error())
+	os.Exit(1)
+	return ""
+}
+
+func resolveDatabaseDSN() (string, error) {
+	if dsn := viper.GetString("db_dsn"); dsn != "" {
+		return dsn, nil
+	}
+
 	appEnv := viper.GetString("app_env")
-	switch appEnv {
-	case "test":
-		// Test database on port 5433 (separate from dev on 5432)
-		return "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
-	case "development":
-		// Development database with SSL (sslmode=require for GDPR compliance)
-		// Database name "postgres" matches Docker Compose default (no POSTGRES_DB override)
-		return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
-	case "production":
-		// Production requires explicit DB_DSN (fail fast if missing)
-		slog.Error("APP_ENV=production requires explicit DB_DSN environment variable")
-		os.Exit(1)
+	if appEnv == "test" {
+		if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
+			return testDSN, nil
+		}
+		return "", fmt.Errorf("APP_ENV=test requires TEST_DB_DSN or DB_DSN environment variable")
 	}
 
-	// 3. Legacy TEST_DB_DSN support (backwards compatibility)
-	if testDSN := viper.GetString("test_db_dsn"); testDSN != "" {
-		return testDSN
-	}
-
-	// 4. Fallback to development default
-	// This allows: go run main.go serve (without setting APP_ENV explicitly)
-	return "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
+	return "", fmt.Errorf("DB_DSN environment variable is required")
 }
 
 // GetServeDSN returns the database connection string for the HTTP server.

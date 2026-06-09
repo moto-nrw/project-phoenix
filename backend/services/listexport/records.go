@@ -23,6 +23,22 @@ func (s *RendererService) RenderRecords(doc RecordDocument, filenameBase string)
 	return File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
 }
 
+func (s *RendererService) RenderRecordsDOCX(doc RecordDocument, filenameBase string) (File, error) {
+	base := safeFilename(filenameBase)
+	if base == "" {
+		base = "export"
+	}
+	data, err := renderRecordsDOCX(doc)
+	if err != nil {
+		return File{}, err
+	}
+	return File{
+		Data:        data,
+		ContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		Filename:    base + ".docx",
+	}, nil
+}
+
 // Vertical-rhythm constants (PDF points). Kept here so the measure
 // pass (recordHeight/subHeight) and the draw pass stay in lock-step —
 // any spacing change is made once and both passes follow.
@@ -35,6 +51,9 @@ const (
 	subTitleSize     = 9.5 // child heading
 	subTitleToFields = 12  // gap below the child heading before its fields
 	interRecordGap   = 20  // gap between two registration blocks
+	interGroupGap    = 24  // gap between two status groups
+	groupTitleSize   = 11  // status group heading
+	groupTitleGap    = 14  // gap below the group heading
 	headerToBody     = 20  // gap below the page-header rule before the first block
 )
 
@@ -67,22 +86,50 @@ func renderRecordsPDF(doc RecordDocument) []byte {
 	// than this are allowed to split (no single page could hold them).
 	maxContent := p.topY - p.bottom
 
-	if len(doc.Records) == 0 {
+	groups := recordDocumentGroups(doc)
+	if recordGroupCount(groups) == 0 {
 		writePDFText(p.cur, p.margin, p.y, 9, "Keine Anmeldungen vorhanden.")
 		p.y -= fieldLineH
 	}
-	for i, rec := range doc.Records {
-		p.writeRecord(rec, maxContent)
-		if i < len(doc.Records)-1 {
-			// Plain vertical gap between records — each record already
-			// carries an underline rule under its heading, so no
-			// separator line is needed.
-			p.y -= interRecordGap
+	for groupIdx, group := range groups {
+		if len(group.Records) == 0 {
+			continue
+		}
+		if groupIdx > 0 {
+			p.y -= interGroupGap
+		}
+		p.writeGroupTitle(group.Title)
+		for i, rec := range group.Records {
+			p.writeRecord(rec, maxContent)
+			if i < len(group.Records)-1 {
+				// Plain vertical gap between records. Each record already
+				// carries an underline rule under its heading, so no
+				// separator line is needed.
+				p.y -= interRecordGap
+			}
 		}
 	}
 	p.pages = append(p.pages, p.cur.String())
 
 	return assembleRecordPDF(p.pages, p.pageWidth, p.pageHeight)
+}
+
+func recordDocumentGroups(doc RecordDocument) []RecordGroup {
+	if len(doc.Groups) > 0 {
+		return doc.Groups
+	}
+	if len(doc.Records) == 0 {
+		return nil
+	}
+	return []RecordGroup{{Records: doc.Records}}
+}
+
+func recordGroupCount(groups []RecordGroup) int {
+	count := 0
+	for _, group := range groups {
+		count += len(group.Records)
+	}
+	return count
 }
 
 // usableWidth is the horizontal space available for text at the given
@@ -131,6 +178,16 @@ func (p *recordPager) ensureSpace(needed float64) {
 
 func (p *recordPager) rule(y float64) {
 	fmt.Fprintf(p.cur, "%.1f %.1f m %.1f %.1f l S\n", p.margin, y, p.pageWidth-p.margin, y)
+}
+
+func (p *recordPager) writeGroupTitle(title string) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return
+	}
+	p.ensureSpace(groupTitleGap + fieldLineH)
+	writePDFText(p.cur, p.margin, p.y, groupTitleSize, title)
+	p.y -= groupTitleGap
 }
 
 // writeRecord draws one registration block. If the whole block fits on

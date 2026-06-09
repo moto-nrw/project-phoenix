@@ -46,11 +46,10 @@ Copy `.env.example` to `.env.local` and configure:
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000          # Frontend URL for auth
 NEXTAUTH_SECRET=your_secret_here            # Generate with: openssl rand -base64 32
-AUTH_SECRET=your_auth_secret_key            # Legacy - use NEXTAUTH_SECRET
 
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8080   # Client-side (browser) API URL
-API_URL=                                    # Server-side API URL (optional, see below)
+API_URL=http://localhost:8080               # Server-side API URL
 
 # Docker
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
@@ -146,6 +145,8 @@ Each portal is its own NextAuth instance. Cookies are host-only on operator + pa
 ## Reuse Existing Components and Design Standards (MANDATORY)
 
 **ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists. Duplication is a bug.
+
+**The shared UI kit is the source of truth.** Build from `src/components/ui/` (and `ui/page-header/`); never hand-roll a button/card/tab/modal/input/menu, and never import components from the `@moto-nrw/design-system` package (CSS tokens only). For the full component map, canonical radii (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`), brand colors, and gotchas, see **`.claude/rules/frontend-ui-kit.md`**.
 
 ### Brand Colors — NEVER Use Generic Tailwind Colors
 
@@ -243,11 +244,11 @@ export function mapResourceResponse(data: BackendResource): Resource {
 // src/env.js
 export const env = createEnv({
   server: {
-    NEXTAUTH_SECRET: z.string().optional(),
+    NEXTAUTH_SECRET: z.string().min(1),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   },
   client: {
-    NEXT_PUBLIC_API_URL: z.string().url().optional().default("http://localhost:8080"),
+    NEXT_PUBLIC_API_URL: z.string().url(),
   },
   runtimeEnv: {
     // Map actual env vars

@@ -39,6 +39,8 @@ export interface StudentLocationContext {
   sick_since?: string | null;
   excused?: boolean;
   excused_since?: string | null;
+  class_trip?: boolean;
+  class_trip_since?: string | null;
   has_full_access?: boolean;
   /** Today has an arrival-schedule exception with null expected time — student is not coming */
   not_arrival_today?: boolean;
@@ -53,6 +55,7 @@ export const LOCATION_STATUSES = {
   UNKNOWN: "Unbekannt",
   SICK: "Krank",
   EXCUSED: "Entschuldigt",
+  CLASS_TRIP: "Klassenfahrt",
   NOT_ARRIVAL: "Kommt heute nicht",
 } as const;
 
@@ -65,6 +68,7 @@ export const LOCATION_COLORS = {
   UNKNOWN: "#6B7280",
   SICK: "#EAB308", // Amber - medical/sick status
   EXCUSED: "#7C3AED", // Purple - excused absence (kind is not attending today)
+  CLASS_TRIP: "#5080D8", // Blue - known absence for class trips
   NOT_ARRIVAL: "#6B7280", // Gray - planned absence via arrival-schedule exception
 } as const;
 

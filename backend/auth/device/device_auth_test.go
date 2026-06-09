@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -99,6 +100,12 @@ func (m *mockIoTService) GetOfflineDevices(_ context.Context, _ time.Duration) (
 func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]int, error) {
 	return nil, nil
 }
+func (m *mockIoTService) DeviceOnlineWindow(_ context.Context) time.Duration   { return 5 * time.Minute }
+func (m *mockIoTService) IsDeviceOnline(_ context.Context, _ *iot.Device) bool { return false }
+func (m *mockIoTService) IsDeviceOnlineAt(_ context.Context, _ *iot.Device, _ time.Time) bool {
+	return false
+}
+func (m *mockIoTService) SetSettingsService(_ iotSvc.SettingsResolver)              {}
 func (m *mockIoTService) DetectNewDevices(_ context.Context) ([]*iot.Device, error) { return nil, nil }
 func (m *mockIoTService) ScanNetwork(_ context.Context) (map[string]string, error)  { return nil, nil }
 func (m *mockIoTService) UpdateDeviceLastSeen(ctx context.Context, id int64) error {

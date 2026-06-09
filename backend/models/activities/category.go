@@ -13,6 +13,10 @@ import (
 // tableActivitiesCategories is the schema-qualified table name for categories
 const tableActivitiesCategories = "activities.categories"
 
+// DefaultCategoryColor is the fallback display color used when a category has
+// no color set.
+const DefaultCategoryColor = "#CCCCCC"
+
 // Category represents a category for activities
 type Category struct {
 	base.Model `bun:"schema:activities,table:categories"`
@@ -81,7 +85,7 @@ func (c *Category) Validate() error {
 // GetColorOrDefault returns the category color or a default color if not set
 func (c *Category) GetColorOrDefault() string {
 	if c.Color == "" {
-		return "#CCCCCC" // Default gray color
+		return DefaultCategoryColor // Default gray color
 	}
 	return c.Color
 }

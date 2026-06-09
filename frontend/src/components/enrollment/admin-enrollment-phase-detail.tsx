@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
   Check,
+  ChevronDown,
   Clock,
   Download,
   ExternalLink,
   FileSpreadsheet,
+  FileText,
   Inbox,
   type LucideIcon,
   Users,
@@ -35,6 +37,7 @@ import {
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -131,6 +134,12 @@ const TERMINAL_STATUSES = new Set<ChildStatus>([
   "rejected",
   "withdrawn",
 ]);
+
+const EXPORT_FORMAT_LABELS: Record<EnrollmentExportFormat, string> = {
+  pdf: "Als PDF exportieren",
+  docx: "Als Word-Dokument exportieren",
+  xlsx: "Als Excel-Datei exportieren",
+};
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
@@ -359,7 +368,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   return (
     <div className="space-y-4">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
           <Link
             href={overviewHref}
@@ -386,24 +395,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void handleExport("pdf")}
-              disabled={exportingFormat !== null}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              {exportingFormat === "pdf" ? "Erstelle PDF…" : "Export PDF"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleExport("xlsx")}
-              disabled={exportingFormat !== null}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-              {exportingFormat === "xlsx" ? "Erstelle XLSX…" : "Export XLSX"}
-            </button>
+            <ExportMenu
+              exportingFormat={exportingFormat}
+              onExport={(format) => void handleExport(format)}
+            />
             <a
               href={`/enroll/${encodeURIComponent(phase.id)}`}
               target="_blank"
@@ -488,6 +483,82 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         }
       />
     </div>
+  );
+}
+
+function ExportMenu({
+  exportingFormat,
+  onExport,
+}: {
+  readonly exportingFormat: EnrollmentExportFormat | null;
+  readonly onExport: (format: EnrollmentExportFormat) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
+
+  const disabled = exportingFormat !== null;
+  const formats: readonly EnrollmentExportFormat[] = ["pdf", "docx", "xlsx"];
+  const triggerLabel =
+    exportingFormat === null
+      ? "Export"
+      : `Exportiere ${exportingFormat.toUpperCase()}...`;
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Download className="h-4 w-4" aria-hidden="true" />
+        {triggerLabel}
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Exportformat auswählen"
+          className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {formats.map((format) => (
+            <button
+              key={format}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onExport(format);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+            >
+              <ExportFormatIcon format={format} />
+              <span className="flex-1">{EXPORT_FORMAT_LABELS[format]}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ExportFormatIcon({
+  format,
+}: {
+  readonly format: EnrollmentExportFormat;
+}) {
+  const Icon = format === "xlsx" ? FileSpreadsheet : FileText;
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </span>
   );
 }
 

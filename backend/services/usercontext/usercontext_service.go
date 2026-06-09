@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -537,10 +539,11 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	}
 
 	// Collect group IDs for batch loading (more efficient than individual FindByID calls)
+	now := time.Now()
 	groupIDs := make([]int64, 0, len(supervisions))
 	for _, supervision := range supervisions {
 		// Check if supervision itself is still active (not ended)
-		if !supervision.IsActive() {
+		if !activeService.IsSupervisorActive(supervision, now) {
 			// Log for observability; helps diagnose silent filters of ended supervisions
 			s.getLogger().DebugContext(ctx, "skipping ended supervision",
 				slog.Int64("supervision_id", supervision.ID),

@@ -386,7 +386,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
-          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Beim Krankmelden lässt sich optional ein Grund angeben, der neben dem Status erscheint.",
+          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
           "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen.",
@@ -399,7 +399,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden und Entschuldigen, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -412,7 +412,8 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Meine Gruppen` aufklappen.",
           "Die gewünschte Gruppe wählen.",
           "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
-          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen.",
+          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen; Klassenfahrt zählt als bekannte Entschuldigung und wird am Kind als eigener Status angezeigt.",
+          "In der Schülerdatenbank bei Gruppierung nach Klasse oder Gruppe über das Drei-Punkte-Menü `Klassenfahrt planen` für mehrere Kinder gleichzeitig setzen.",
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
@@ -626,9 +627,10 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Alle Anmeldungen einer Phase kompakt als Datei sichern, zum Ausdrucken oder als Archiv, damit die wichtigsten Angaben auch bei WLAN- oder Systemausfall offline verfügbar sind.",
         steps: [
-          "Eine `Anmeldephase` öffnen - oben rechts findest du `Export PDF` und `Export XLSX`.",
-          "`Export PDF` erzeugt eine druckoptimierte Datei mit einem Block pro Kind (alphabetisch nach Nachname), inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
-          "`Export XLSX` erzeugt eine Tabelle mit einer Zeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
+          "Eine `Anmeldephase` öffnen - oben rechts findest du den Button `Export`.",
+          "`Export` öffnen und das gewünschte Format wählen: `PDF`, `Word-Dokument` oder `Excel-Datei`.",
+          "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
+          "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
         ],
         callout: {
@@ -637,7 +639,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Anmeldephase mit den Schaltflächen Export PDF und Export XLSX sowie dem Status-Filter.",
+          "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
@@ -694,7 +696,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Buskind` wählen Eltern die passenden Wochentage aus.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Buskind` und `Abholregelung` wählen Eltern die passenden Wochentage aus.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],

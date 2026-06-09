@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestGetDatabaseDSN_ExplicitDSN verifies that an explicit DB_DSN is returned when set
@@ -14,57 +15,62 @@ func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
 	customDSN := "postgres://user:pass@custom-host:5555/custom_db?sslmode=verify-full"
 	viper.Set("db_dsn", customDSN)
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
+	require.NoError(t, err)
 	assert.Equal(t, customDSN, result, "Explicit db_dsn should be returned")
 }
 
-// TestGetDatabaseDSN_TestEnv verifies that APP_ENV=test returns the test database DSN
+// TestGetDatabaseDSN_TestEnv verifies that APP_ENV=test requires an explicit test database DSN.
 func TestGetDatabaseDSN_TestEnv(t *testing.T) {
 	defer viper.Reset()
 
+	testDSN := "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
 	viper.Set("app_env", "test")
+	viper.Set("test_db_dsn", testDSN)
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
-	expectedDSN := "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable"
-	assert.Equal(t, expectedDSN, result, "APP_ENV=test should return test DB DSN on port 5433")
+	require.NoError(t, err)
+	assert.Equal(t, testDSN, result, "APP_ENV=test should return explicit test_db_dsn")
 }
 
-// TestGetDatabaseDSN_DevelopmentEnv verifies that APP_ENV=development returns the development database DSN
-func TestGetDatabaseDSN_DevelopmentEnv(t *testing.T) {
+// TestGetDatabaseDSN_DevelopmentEnvRequiresDSN verifies that development no longer invents a localhost DSN.
+func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
 	defer viper.Reset()
 
 	viper.Set("app_env", "development")
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
-	expectedDSN := "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
-	assert.Equal(t, expectedDSN, result, "APP_ENV=development should return dev DB DSN on port 5432")
+	require.Error(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
-// TestGetDatabaseDSN_LegacyTestDSN verifies that TEST_DB_DSN is returned when set (backwards compatibility)
-func TestGetDatabaseDSN_LegacyTestDSN(t *testing.T) {
+// TestGetDatabaseDSN_TestDSNRequiresTestEnv verifies that TEST_DB_DSN is not a fallback outside test mode.
+func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
 	defer viper.Reset()
 
 	legacyDSN := "postgres://legacy:legacy@legacy-host:6543/legacy_test?sslmode=disable"
 	viper.Set("test_db_dsn", legacyDSN)
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
-	assert.Equal(t, legacyDSN, result, "Legacy test_db_dsn should be returned for backwards compatibility")
+	require.Error(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
-// TestGetDatabaseDSN_FallbackDefault verifies that the development default is returned when no config is set
-func TestGetDatabaseDSN_FallbackDefault(t *testing.T) {
+// TestGetDatabaseDSN_MissingConfigFails verifies that no localhost fallback is returned.
+func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 	defer viper.Reset()
 
-	// No configuration set at all
+	result, err := resolveDatabaseDSN()
 
-	result := GetDatabaseDSN()
-
-	expectedDSN := "postgres://postgres:postgres@localhost:5432/postgres?sslmode=require"
-	assert.Equal(t, expectedDSN, result, "Should fallback to development default when no config is set")
+	require.Error(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
 // TestGetDatabaseDSN_ExplicitDSN_OverridesAppEnv verifies that explicit DB_DSN takes precedence over APP_ENV
@@ -75,8 +81,9 @@ func TestGetDatabaseDSN_ExplicitDSN_OverridesAppEnv(t *testing.T) {
 	viper.Set("db_dsn", customDSN)
 	viper.Set("app_env", "test") // Should be ignored
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
+	require.NoError(t, err)
 	assert.Equal(t, customDSN, result, "Explicit db_dsn should override app_env")
 }
 
@@ -89,7 +96,8 @@ func TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy(t *testing.T) {
 	viper.Set("db_dsn", customDSN)
 	viper.Set("test_db_dsn", legacyDSN) // Should be ignored
 
-	result := GetDatabaseDSN()
+	result, err := resolveDatabaseDSN()
 
+	require.NoError(t, err)
 	assert.Equal(t, customDSN, result, "Explicit db_dsn should override legacy test_db_dsn")
 }

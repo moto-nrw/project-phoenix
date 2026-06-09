@@ -202,34 +202,9 @@ func TestDevice_GetLastSeenDuration(t *testing.T) {
 	}
 }
 
-func TestDevice_IsOnline(t *testing.T) {
-	// Test with nil LastSeen
-	device := Device{
-		DeviceID:   "dev-001",
-		DeviceType: "terminal",
-		LastSeen:   nil,
-	}
-
-	if device.IsOnline() {
-		t.Error("Device with nil LastSeen should not be online")
-	}
-
-	// Test with recent LastSeen (within 5 minutes)
-	recentTime := time.Now().Add(-3 * time.Minute)
-	device.LastSeen = &recentTime
-
-	if !device.IsOnline() {
-		t.Error("Device seen 3 minutes ago should be online")
-	}
-
-	// Test with old LastSeen (more than 5 minutes ago)
-	oldTime := time.Now().Add(-10 * time.Minute)
-	device.LastSeen = &oldTime
-
-	if device.IsOnline() {
-		t.Error("Device seen 10 minutes ago should not be online")
-	}
-}
+// Note: the device online/offline decision moved off this model into the IoT
+// service per issue #586 (Rule 12). See TestService_IsDeviceOnlineAt in
+// services/iot for coverage of that logic.
 
 func TestDevice_HasAPIKey(t *testing.T) {
 	tests := []struct {

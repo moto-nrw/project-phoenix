@@ -55,6 +55,9 @@ func (t *OperatorEmailChangeToken) Validate() error {
 	if t.NewEmail == "" {
 		return errors.New("new email is required")
 	}
+	// Creation-time data-integrity guard: never persist an already-expired
+	// token. This is distinct from the usage-time IsExpired decision (which
+	// lives in the service); the repository Create path relies on it.
 	if t.Expiry.Before(time.Now()) {
 		return errors.New("token has already expired")
 	}

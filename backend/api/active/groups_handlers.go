@@ -128,9 +128,10 @@ func (rs *Resource) loadActiveSupervisorsMap(r *http.Request, groups []*active.G
 		return make(map[int64][]*active.GroupSupervisor)
 	}
 
+	now := time.Now()
 	activeSupervisors := make([]*active.GroupSupervisor, 0, len(allSupervisors))
 	for _, supervisor := range allSupervisors {
-		if supervisor.IsActive() {
+		if activeService.IsSupervisorActive(supervisor, now) {
 			activeSupervisors = append(activeSupervisors, supervisor)
 		}
 	}

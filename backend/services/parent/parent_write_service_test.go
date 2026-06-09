@@ -159,6 +159,33 @@ func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
 }
 
+func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	ctx := testpkg.TenantContext(chain.TenantID)
+	date := timezone.DateOfUTC(time.Now().AddDate(0, 0, 7))
+	require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		StudentID:  chain.StudentID,
+		Date:       date,
+		Status:     activeModels.StudentStatusDayClassTrip,
+		ReportedAt: time.Now(),
+		Source:     activeModels.StudentStatusSourcePlanned,
+	}))
+
+	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []time.Time{date}, "")
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
+
+	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
+	require.NoError(t, err)
+	require.Len(t, activeRows, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, activeRows[0].Status)
+}
+
 // --- ListSickDays ---
 
 func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {

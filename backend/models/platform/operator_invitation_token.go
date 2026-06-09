@@ -56,28 +56,19 @@ func (t *OperatorInvitationToken) Validate() error {
 	if t.CreatedBy <= 0 {
 		return errors.New("created_by operator ID is required")
 	}
-	if t.ExpiresAt.Before(time.Now()) {
-		return errors.New("token has already expired")
-	}
 	if t.UsedAt != nil {
 		return errors.New("token has already been used")
 	}
 	return nil
 }
 
-// IsExpired checks if the token has expired
-func (t *OperatorInvitationToken) IsExpired() bool {
-	return time.Now().After(t.ExpiresAt)
-}
-
-// IsUsed checks if the token has been used
+// IsUsed checks if the token has been used. This is a pure field accessor
+// (UsedAt != nil); the wall-clock expiry/validity decision lives in the service
+// layer (services/platform.OperatorInvitationTokenExpired /
+// OperatorInvitationTokenValid) and the repository's valid-token finders, per
+// issue #586 (Rule 12).
 func (t *OperatorInvitationToken) IsUsed() bool {
 	return t.UsedAt != nil
-}
-
-// IsValid checks if the token is still usable
-func (t *OperatorInvitationToken) IsValid() bool {
-	return !t.IsExpired() && !t.IsUsed()
 }
 
 // GetID returns the entity's ID

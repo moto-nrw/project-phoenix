@@ -486,7 +486,7 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	if invitation.IsAccepted() {
 		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationUsed}
 	}
-	if invitation.IsExpired() {
+	if GuardianInvitationExpired(invitation, time.Now()) {
 		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationExpired}
 	}
 
@@ -542,7 +542,7 @@ func (s *guardianInvitationService) fetchValidInvitation(ctx context.Context, to
 	if invitation.IsAccepted() {
 		return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationUsed}
 	}
-	if invitation.IsExpired() {
+	if GuardianInvitationExpired(invitation, time.Now()) {
 		return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationExpired}
 	}
 	return invitation, nil

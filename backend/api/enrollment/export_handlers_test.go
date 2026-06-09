@@ -1,8 +1,10 @@
 package enrollment
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -28,10 +30,11 @@ func TestParsePhaseExportRequest(t *testing.T) {
 	}{
 		{name: "empty body defaults to pdf, no filter", body: "", want: listexport.FormatPDF},
 		{name: "lowercase body xlsx", body: `{"format":"xlsx"}`, want: listexport.FormatXLSX},
+		{name: "lowercase body docx", body: `{"format":"docx"}`, want: listexport.FormatDOCX},
 		{name: "uppercase body normalised", body: `{"format":"PDF"}`, want: listexport.FormatPDF},
 		{name: "uppercase query normalised", query: "format=XLSX", want: listexport.FormatXLSX},
 		{name: "body wins over query", body: `{"format":"pdf"}`, query: "format=xlsx", want: listexport.FormatPDF},
-		{name: "unsupported format rejected", body: `{"format":"docx"}`, wantErr: true},
+		{name: "unsupported format rejected", body: `{"format":"csv"}`, wantErr: true},
 		{name: "malformed body rejected", body: `{`, wantErr: true},
 		// child_status filter
 		{name: "valid child_status kept", body: `{"format":"xlsx","child_status":"approved"}`, want: listexport.FormatXLSX, wantStatus: "approved"},
@@ -128,6 +131,16 @@ func columnLabels(doc listexport.Document) map[listexport.ColumnID]string {
 	return out
 }
 
+func tableDataRows(rows []listexport.Row) []listexport.Row {
+	out := make([]listexport.Row, 0, len(rows))
+	for _, row := range rows {
+		if row.GroupTitle == "" {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
 func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
 
@@ -143,10 +156,11 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 		}
 	}
 
-	if len(doc.Rows) != 1 {
-		t.Fatalf("rows = %d, want 1 (one child)", len(doc.Rows))
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1 (one child)", len(rows))
 	}
-	v := doc.Rows[0].Values
+	v := rows[0].Values
 	checks := map[listexport.ColumnID]string{
 		"guardian_first_name": "Anna",
 		"guardian_phone":      "0151-123",
@@ -245,8 +259,8 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 	if len(rec.Subs) != 0 {
 		t.Errorf("subs = %d, want 0 (child blocks are flat, not nested)", len(rec.Subs))
 	}
-	if doc.Footer == "" {
-		t.Error("PDF record document should carry a confidentiality footer")
+	if !strings.Contains(doc.Footer, "Vertraulich") {
+		t.Errorf("footer = %q, want confidentiality handling note", doc.Footer)
 	}
 	if !strings.Contains(doc.Subtitle, "1 Anmeldungen") {
 		t.Errorf("subtitle = %q, want it to report the counts", doc.Subtitle)
@@ -271,12 +285,105 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 	}
 }
 
+func statusExportSample() *enrollmentService.PhaseExport {
+	mkReq := func(first, last string) *enrollmentModels.Request {
+		return &enrollmentModels.Request{
+			GuardianFirstName: first,
+			GuardianLastName:  last,
+			GuardianEmail:     strings.ToLower(first) + "." + strings.ToLower(last) + "@example.test",
+			SubmittedAt:       time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+			ConsentFlags:      map[string]any{},
+		}
+	}
+	mkChild := func(first, last, status string) enrollmentService.ExportChildRow {
+		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
+			FirstName:   first,
+			LastName:    last,
+			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+			Status:      status,
+		}}
+	}
+	return &enrollmentService.PhaseExport{
+		Phase: &enrollmentModels.Phase{Name: "P"},
+		Rows: []enrollmentService.ExportRequestRow{
+			{Request: mkReq("Gesa", "Submitted"), Children: []enrollmentService.ExportChildRow{mkChild("Sina", "Ziegler", enrollmentModels.ChildStatusSubmitted)}},
+			{Request: mkReq("Gesa", "Approved"), Children: []enrollmentService.ExportChildRow{
+				mkChild("Aaron", "Meyer", enrollmentModels.ChildStatusApproved),
+				mkChild("Lena", "Alt", enrollmentModels.ChildStatusApproved),
+			}},
+			{Request: mkReq("Gesa", "Rejected"), Children: []enrollmentService.ExportChildRow{mkChild("Ben", "Rose", enrollmentModels.ChildStatusRejected)}},
+			{Request: mkReq("Gesa", "Waitlist"), Children: []enrollmentService.ExportChildRow{mkChild("Mia", "Klein", enrollmentModels.ChildStatusWaitlisted)}},
+		},
+	}
+}
+
+func TestBuildPhaseExportRecords_GroupsByChildStatus(t *testing.T) {
+	doc := buildPhaseExportRecords(statusExportSample(), "P", "")
+
+	gotTitles := make([]string, 0, len(doc.Groups))
+	for _, group := range doc.Groups {
+		gotTitles = append(gotTitles, group.Title)
+	}
+	wantTitles := []string{
+		"Bestätigte Anmeldungen",
+		"Abgelehnte Anmeldungen",
+		"Warteliste",
+		"Eingegangene Anmeldungen",
+	}
+	if strings.Join(gotTitles, "|") != strings.Join(wantTitles, "|") {
+		t.Fatalf("group titles = %v, want %v", gotTitles, wantTitles)
+	}
+
+	gotApproved := []string{doc.Groups[0].Records[0].Title, doc.Groups[0].Records[1].Title}
+	wantApproved := []string{"Lena Alt", "Aaron Meyer"}
+	if strings.Join(gotApproved, "|") != strings.Join(wantApproved, "|") {
+		t.Errorf("approved group order = %v, want %v", gotApproved, wantApproved)
+	}
+
+	gotFlat := make([]string, 0, len(doc.Records))
+	for _, record := range doc.Records {
+		gotFlat = append(gotFlat, record.Title)
+	}
+	wantFlat := []string{"Lena Alt", "Aaron Meyer", "Ben Rose", "Mia Klein", "Sina Ziegler"}
+	if strings.Join(gotFlat, "|") != strings.Join(wantFlat, "|") {
+		t.Errorf("flat record order = %v, want grouped order %v", gotFlat, wantFlat)
+	}
+}
+
+func TestBuildPhaseExportTable_InsertsStatusGroupRows(t *testing.T) {
+	doc := buildPhaseExportTable(statusExportSample(), "P", "")
+
+	got := make([]string, 0, len(doc.Rows))
+	for _, row := range doc.Rows {
+		if row.GroupTitle != "" {
+			got = append(got, "group:"+row.GroupTitle)
+			continue
+		}
+		got = append(got, strings.TrimSpace(row.Values["child_first_name"]+" "+row.Values["child_last_name"]))
+	}
+	want := []string{
+		"group:Bestätigte Anmeldungen",
+		"Lena Alt",
+		"Aaron Meyer",
+		"group:Abgelehnte Anmeldungen",
+		"Ben Rose",
+		"group:Warteliste",
+		"Mia Klein",
+		"group:Eingegangene Anmeldungen",
+		"Sina Ziegler",
+	}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("rows = %v, want %v", got, want)
+	}
+}
+
 // Siblings become separate blocks and the whole document is ordered by
 // child surname (case-insensitive), then first name — not by submission.
 func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 	mk := func(first, last string) enrollmentService.ExportChildRow {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
+			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
 		}}
 	}
@@ -309,6 +416,7 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 	mk := func(first, last string) enrollmentService.ExportChildRow {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
+			Status:      enrollmentModels.ChildStatusApproved,
 			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
 		}}
 	}
@@ -324,12 +432,13 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 
 	pdf := buildPhaseExportRecords(data, "P", "")
 	xlsx := buildPhaseExportTable(data, "P", "")
-	if len(pdf.Records) != len(xlsx.Rows) {
-		t.Fatalf("record/row counts differ: pdf=%d xlsx=%d", len(pdf.Records), len(xlsx.Rows))
+	rows := tableDataRows(xlsx.Rows)
+	if len(pdf.Records) != len(rows) {
+		t.Fatalf("record/row counts differ: pdf=%d xlsx=%d", len(pdf.Records), len(rows))
 	}
 	for i := range pdf.Records {
 		// PDF heading "First Last" must match the XLSX row's child name cells.
-		row := xlsx.Rows[i].Values
+		row := rows[i].Values
 		xlsxName := strings.TrimSpace(row["child_first_name"] + " " + row["child_last_name"])
 		if pdf.Records[i].Title != xlsxName {
 			t.Errorf("row %d order mismatch: pdf=%q xlsx=%q", i, pdf.Records[i].Title, xlsxName)
@@ -400,11 +509,8 @@ func TestCollectCustomFields_NewestSchemaLabelWins(t *testing.T) {
 }
 
 func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
-	// docx is intentionally not offered on the phase export endpoint;
-	// the default branch must reject it (secondary guard behind
-	// parsePhaseExportFormat).
-	if _, err := buildPhaseExportFile(nil, sampleExport(), "docx", ""); err == nil {
-		t.Error("docx must be rejected on the phase export endpoint")
+	if _, err := buildPhaseExportFile(nil, sampleExport(), "csv", ""); err == nil {
+		t.Error("csv must be rejected on the phase export endpoint")
 	}
 }
 
@@ -569,6 +675,74 @@ func TestExportPhaseRegistrations_StreamsXLSX(t *testing.T) {
 	if mock.exportFormat != "xlsx" {
 		t.Errorf("format = %q, want xlsx", mock.exportFormat)
 	}
+}
+
+func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
+	mock := &mockDecisionService{exportResult: sampleExport()}
+	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/phases/12/export", strings.NewReader(`{"format":"docx"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" {
+		t.Errorf("content-type = %q, want DOCX content type", ct)
+	}
+	if cd := w.Header().Get("Content-Disposition"); !strings.Contains(cd, `filename="`) || !strings.HasSuffix(strings.TrimSuffix(cd, `"`), ".docx") {
+		t.Errorf("content-disposition = %q, want an attachment .docx filename", cd)
+	}
+	if !bytes.HasPrefix(w.Body.Bytes(), []byte("PK\x03\x04")) {
+		t.Error("body is not a DOCX zip document")
+	}
+	xml := readDocxDocumentXML(t, w.Body.Bytes())
+	if strings.Contains(xml, "<w:tbl>") {
+		t.Fatal("DOCX export must use record blocks, not the wide table layout")
+	}
+	if !strings.Contains(xml, "Lina Muster") {
+		t.Fatal("DOCX export should contain the child block heading")
+	}
+	if !strings.Contains(xml, "Betreuungsangebote") {
+		t.Fatal("DOCX export should contain the child field labels")
+	}
+	if mock.exportFormat != "docx" {
+		t.Errorf("format = %q, want docx", mock.exportFormat)
+	}
+}
+
+func readDocxDocumentXML(t *testing.T, data []byte) string {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatalf("zip reader error = %v", err)
+	}
+	for _, entry := range reader.File {
+		if entry.Name != "word/document.xml" {
+			continue
+		}
+		rc, err := entry.Open()
+		if err != nil {
+			t.Fatalf("open document.xml error = %v", err)
+		}
+		defer func() {
+			if err := rc.Close(); err != nil {
+				t.Errorf("close document.xml error = %v", err)
+			}
+		}()
+		content, err := io.ReadAll(rc)
+		if err != nil {
+			t.Fatalf("read document.xml error = %v", err)
+		}
+		return string(content)
+	}
+	t.Fatal("DOCX missing word/document.xml")
+	return ""
 }
 
 func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {

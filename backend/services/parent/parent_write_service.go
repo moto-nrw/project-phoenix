@@ -122,10 +122,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// A sick day and an excused day are mutually exclusive — clear any
-		// excused entries the parent's sick note now overrides.
-		if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, activeModels.StudentStatusDayExcused, normalized, now, activeModels.StudentStatusSourceParent); err != nil {
-			return err
+		for _, status := range activeModels.StudentStatusDayStatusesExcept(activeModels.StudentStatusDaySick) {
+			if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, status, normalized, now, activeModels.StudentStatusSourceParent); err != nil {
+				return err
+			}
 		}
 		for _, d := range normalized {
 			if err := s.statusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{

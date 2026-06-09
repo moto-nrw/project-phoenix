@@ -32,6 +32,17 @@ func renderXLSX(doc Document) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	groupStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{Bold: true, Color: "111827"},
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"E5E7EB"}, Pattern: 1},
+		Border: []excelize.Border{
+			{Type: "top", Color: "D1D5DB", Style: 1},
+			{Type: "bottom", Color: "D1D5DB", Style: 1},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	if err := f.SetCellValue(sheet, "A1", doc.Title); err != nil {
 		return nil, err
@@ -66,8 +77,27 @@ func renderXLSX(doc Document) ([]byte, error) {
 	}
 
 	for rowIdx, row := range doc.Rows {
+		excelRow := headerRow + rowIdx + 1
+		if row.GroupTitle != "" {
+			startCell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			lastColumn := len(doc.Columns)
+			if lastColumn < 1 {
+				lastColumn = 1
+			}
+			endCell, _ := excelize.CoordinatesToCellName(lastColumn, excelRow)
+			if err := f.SetCellValue(sheet, startCell, row.GroupTitle); err != nil {
+				return nil, err
+			}
+			if err := f.MergeCell(sheet, startCell, endCell); err != nil {
+				return nil, err
+			}
+			if err := f.SetCellStyle(sheet, startCell, endCell, groupStyle); err != nil {
+				return nil, err
+			}
+			continue
+		}
 		for colIdx, column := range doc.Columns {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, headerRow+rowIdx+1)
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
 			if err := f.SetCellValue(sheet, cell, row.Values[column.ID]); err != nil {
 				return nil, err
 			}

@@ -45,10 +45,11 @@ COPY --from=dev-deps /app/node_modules ./node_modules
 # Copy source files
 COPY . .
 
-# Build the application
+# Build the application. Runtime env is validated when the container starts;
+# build-time validation would require baking runtime secrets into the image.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN pnpm run build
+RUN SKIP_ENV_VALIDATION=true pnpm run build
 
 # Production stage - minimal image
 FROM base AS production
@@ -58,14 +59,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy only production dependencies
-COPY --from=deps /app/node_modules ./node_modules
-
 # Copy built application
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -74,4 +71,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+CMD ["node", "server.js"]

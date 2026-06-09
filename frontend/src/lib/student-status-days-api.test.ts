@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  bulkCreateStudentStatusDays,
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
@@ -77,6 +78,76 @@ describe("student-status-days-api", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/students/42/status-days/7", {
       method: "DELETE",
     });
+  });
+
+  it("posts bulk class trip ranges with numeric student ids and reason", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        status: "success",
+        data: { student_count: 2, date_count: 3 },
+      }),
+    );
+
+    const result = await bulkCreateStudentStatusDays(
+      ["42", "43"],
+      "class_trip",
+      "2026-05-26",
+      "2026-05-28",
+      "Museum",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/students/status-days/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_ids: [42, 43],
+        status: "class_trip",
+        from: "2026-05-26",
+        to: "2026-05-28",
+        reason: "Museum",
+      }),
+    });
+    expect(result).toEqual({ student_count: 2, date_count: 3 });
+  });
+
+  it("omits empty bulk reasons and throws fallback messages on failure", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        status: "success",
+        data: { student_count: 1, date_count: 1 },
+      }),
+    );
+
+    await bulkCreateStudentStatusDays(
+      ["42"],
+      "class_trip",
+      "2026-05-26",
+      "2026-05-26",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/students/status-days/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_ids: [42],
+        status: "class_trip",
+        from: "2026-05-26",
+        to: "2026-05-26",
+      }),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("nope", { status: 500 }),
+    );
+
+    await expect(
+      bulkCreateStudentStatusDays(
+        ["42"],
+        "class_trip",
+        "2026-05-26",
+        "2026-05-26",
+      ),
+    ).rejects.toThrow("Klassenfahrt konnte nicht gespeichert werden");
   });
 
   it("throws backend errors from successful HTTP responses", async () => {

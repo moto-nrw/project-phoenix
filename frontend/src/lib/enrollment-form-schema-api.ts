@@ -63,6 +63,10 @@ export type FormFieldTarget =
   | ""
   | "student.health_info"
   | "student.extra_info"
+  // student.bus_days is the canonical Buskind target (#1582). student.bus is a
+  // legacy alias kept so older saved schemas still resolve; it is not offered
+  // in the picker for new fields.
+  | "student.bus_days"
   | "student.bus"
   | "student.pickup_status"
   | "schedule.pickup"
@@ -90,13 +94,18 @@ export const RESERVED_TARGETS: Record<
     appliesToChild: true,
     label: "Hinweise an die Betreuung",
   },
+  "student.bus_days": {
+    type: "weekday_boolean",
+    appliesToChild: true,
+    label: "Buskind",
+  },
   "student.bus": {
     type: "weekday_boolean",
     appliesToChild: true,
     label: "Buskind",
   },
   "student.pickup_status": {
-    type: "select",
+    type: "weekday_boolean",
     appliesToChild: true,
     label: "Abholregelung",
   },

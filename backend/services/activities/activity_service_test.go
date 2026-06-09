@@ -555,6 +555,13 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 		enrolled, err := service.GetEnrolledStudents(ctx, group.ID)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(enrolled), 1)
+
+		// The model no longer defaults ValidFrom (#586); the service must set it.
+		repoFactory := repositories.NewFactory(db)
+		enrollments, err := repoFactory.StudentEnrollment.FindByGroupID(ctx, group.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, enrollments)
+		assert.False(t, enrollments[0].ValidFrom.IsZero(), "EnrollStudent must set ValidFrom now that the model no longer defaults it")
 	})
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {

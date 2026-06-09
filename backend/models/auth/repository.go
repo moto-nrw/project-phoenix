@@ -34,12 +34,33 @@ type AccountRepository interface {
 	// after a successful verify so a single Account.Update can't
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
+	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
+	// pin_locked_until = now() + lockoutDuration when the post-increment
+	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
+	// UPDATE means N concurrent failed PIN entries count as N, not 1,
+	// closing the read-modify-write lockout-bypass race that the previous
+	// model-level Account.IncrementPINAttempts() suffered (issue #586).
+	IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (PINAttemptResult, error)
+	// ResetPINAttempts atomically clears pin_attempts + pin_locked_until
+	// after a successful PIN verify.
+	ResetPINAttempts(ctx context.Context, id int64) error
+	// ClearPIN atomically removes the PIN credential and resets the PIN
+	// lockout counter in a single UPDATE.
+	ClearPIN(ctx context.Context, id int64) error
 }
 
 // MFAAttemptResult is the post-update snapshot returned by
 // AccountRepository.IncrementMFAAttempts. Used by callers to decide
 // whether the increment triggered the lockout transition.
 type MFAAttemptResult struct {
+	Attempts    int
+	LockedUntil *time.Time
+}
+
+// PINAttemptResult is the post-update snapshot returned by
+// AccountRepository.IncrementPINAttempts. Mirrors MFAAttemptResult so the
+// caller can tell whether this attempt crossed the lockout threshold.
+type PINAttemptResult struct {
 	Attempts    int
 	LockedUntil *time.Time
 }

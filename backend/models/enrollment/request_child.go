@@ -129,6 +129,7 @@ type RequestChildRepository interface {
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
+	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *time.Time) error
 
 	// ListByPhaseAndStatuses returns every child row in the given
 	// phase whose status is in the provided set, sorted by request

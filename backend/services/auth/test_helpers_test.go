@@ -254,6 +254,18 @@ func (noopAccountRepository) ResetMFAAttempts(context.Context, int64) error {
 	panic("ResetMFAAttempts not implemented")
 }
 
+func (noopAccountRepository) IncrementPINAttempts(context.Context, int64, int, time.Duration) (authModel.PINAttemptResult, error) {
+	panic("IncrementPINAttempts not implemented")
+}
+
+func (noopAccountRepository) ResetPINAttempts(context.Context, int64) error {
+	panic("ResetPINAttempts not implemented")
+}
+
+func (noopAccountRepository) ClearPIN(context.Context, int64) error {
+	panic("ClearPIN not implemented")
+}
+
 func (noopAccountRepository) FindAvatarsByAccountIDs(context.Context, []int64) (map[int64]string, error) {
 	panic("FindAvatarsByAccountIDs not implemented")
 }
@@ -384,6 +396,18 @@ func (r *stubAccountRepository) IncrementMFAAttempts(_ context.Context, _ int64,
 
 func (r *stubAccountRepository) ResetMFAAttempts(_ context.Context, _ int64) error {
 	panic("ResetMFAAttempts not implemented in stubAccountRepository")
+}
+
+func (r *stubAccountRepository) IncrementPINAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (authModel.PINAttemptResult, error) {
+	panic("IncrementPINAttempts not implemented in stubAccountRepository")
+}
+
+func (r *stubAccountRepository) ResetPINAttempts(_ context.Context, _ int64) error {
+	panic("ResetPINAttempts not implemented in stubAccountRepository")
+}
+
+func (r *stubAccountRepository) ClearPIN(_ context.Context, _ int64) error {
+	panic("ClearPIN not implemented in stubAccountRepository")
 }
 
 // noopPasswordResetTokenRepository provides default panic implementations.

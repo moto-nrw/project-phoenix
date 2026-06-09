@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -322,7 +323,7 @@ func (r *PersonGuardianRepository) GrantPermissionToGuardian(ctx context.Context
 	}
 
 	// Grant the permission
-	if err := relationship.GrantPermission(permission); err != nil {
+	if err := authorize.PersonGuardianGrantPermission(relationship, permission); err != nil {
 		return err
 	}
 
@@ -357,7 +358,7 @@ func (r *PersonGuardianRepository) RevokePermissionFromGuardian(ctx context.Cont
 	}
 
 	// Revoke the permission
-	if err := relationship.RevokePermission(permission); err != nil {
+	if err := authorize.PersonGuardianRevokePermission(relationship, permission); err != nil {
 		return err
 	}
 

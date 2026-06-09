@@ -4,6 +4,7 @@ import { defineEntityConfig } from "../types";
 import { databaseThemes } from "@/components/ui/database/themes";
 import { GroupSelect } from "@/components/ui/database";
 import type { Student } from "@/lib/api";
+import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";
 import dynamic from "next/dynamic";
 import {
   LOCATION_STATUSES,
@@ -363,7 +364,9 @@ export const studentsConfig = defineEntityConfig<Student>({
                       student.bus ? "bg-orange-500" : "bg-gray-300"
                     }`}
                   />
-                  <span className="truncate">Bus</span>
+                  <span className="truncate">
+                    {student.bus ? formatBusDays(student.bus_days) : "Bus"}
+                  </span>
                 </span>
               </div>
             ),
@@ -463,6 +466,10 @@ export const studentsConfig = defineEntityConfig<Student>({
       ...data,
       // Backend expects these as numbers
       group_id: data.group_id ? Number.parseInt(data.group_id, 10) : undefined,
+      // bus_days is the single source of truth (#1582). The form captures a
+      // simple Buskind checkbox; convert it to bus_days, preserving any
+      // existing per-day selection when the flag stays on.
+      bus_days: busDaysFromToggle(data.bus ?? false, data.bus_days),
     }),
   },
 

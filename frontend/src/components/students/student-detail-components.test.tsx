@@ -593,7 +593,8 @@ describe("PersonalInfoReadOnly", () => {
     sick_since: undefined,
     current_location: "Nicht anwesend",
     location_since: undefined,
-    bus: false,
+    bus: true,
+    bus_days: { mon: true, fri: true },
   };
 
   it("renders section title", () => {
@@ -635,20 +636,35 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Nicht angegeben")).toBeInTheDocument();
   });
 
-  it("renders buskind status", () => {
+  it("renders buskind status as weekdays", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
-    expect(screen.getByText("Ja")).toBeInTheDocument();
+    expect(screen.getByText("Mo, Fr")).toBeInTheDocument();
   });
 
-  it("renders 'Nein' when not buskind", () => {
-    const studentNotBuskind = { ...mockStudent, buskind: false };
+  it("renders 'Keine Bus-Tage' when not buskind", () => {
+    const studentNotBuskind = {
+      ...mockStudent,
+      buskind: false,
+      bus: false,
+      bus_days: {},
+    };
     render(<PersonalInfoReadOnly student={studentNotBuskind} />);
-    expect(screen.getByText("Nein")).toBeInTheDocument();
+    expect(screen.getByText("Keine Bus-Tage")).toBeInTheDocument();
   });
 
-  it("renders pickup status", () => {
-    render(<PersonalInfoReadOnly student={mockStudent} />);
-    expect(screen.getByText("selbst")).toBeInTheDocument();
+  it("renders the pickup weekdays when the child is picked up", () => {
+    const pickedUp = {
+      ...mockStudent,
+      pickup_days: { mon: true, wed: true },
+    };
+    render(<PersonalInfoReadOnly student={pickedUp} />);
+    expect(screen.getByText("Wird abgeholt: Mo, Mi")).toBeInTheDocument();
+  });
+
+  it("renders 'Geht alleine nach Hause' when no pickup days are set", () => {
+    const goesAlone = { ...mockStudent, pickup_days: {} };
+    render(<PersonalInfoReadOnly student={goesAlone} />);
+    expect(screen.getByText("Geht alleine nach Hause")).toBeInTheDocument();
   });
 
   it("renders health info when present", () => {

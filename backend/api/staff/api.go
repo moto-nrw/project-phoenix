@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -1243,7 +1244,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate access
-	if renderErr := rs.checkAccountLocked(account); renderErr != nil {
+	if renderErr := rs.checkAccountLocked(r.Context(), account); renderErr != nil {
 		common.RenderError(w, r, renderErr)
 		return
 	}
@@ -1255,10 +1256,11 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	// Verify current PIN if exists
 	result, renderErr := verifyCurrentPIN(account, req.CurrentPIN)
 	if renderErr != nil {
-		// Only increment attempts for actual verification failures, not missing input
+		// Only increment attempts for actual verification failures, not missing input.
+		// Routed through the service so the atomic increment closes the
+		// read-modify-write lockout race (issue #586).
 		if result == pinVerificationFailed {
-			account.IncrementPINAttempts()
-			if updateErr := rs.AuthService.UpdateAccount(r.Context(), account); updateErr != nil {
+			if updateErr := rs.AuthService.RecordFailedPINAttempt(r.Context(), int64(account.ID)); updateErr != nil {
 				rs.getLogger().Error("failed to update account PIN attempts",
 					slog.String("error", updateErr.Error()))
 			}
@@ -1272,11 +1274,15 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to hash PIN")))
 		return
 	}
-	account.ResetPINAttempts()
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.AuthService.UpdateAccount(ctx, account)
+		if updateErr := rs.AuthService.UpdateAccount(ctx, account); updateErr != nil {
+			return updateErr
+		}
+		// Clear any prior lockout via the atomic reset rather than mutating
+		// the in-memory account and persisting it again.
+		return rs.AuthService.ResetPINLockout(ctx, int64(account.ID))
 	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -1288,9 +1294,11 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	}, "PIN updated successfully")
 }
 
-// checkAccountLocked checks if account is PIN locked
-func (rs *Resource) checkAccountLocked(account interface{ IsPINLocked() bool }) render.Renderer {
-	if account.IsPINLocked() {
+// checkAccountLocked checks if account is PIN locked. The lockout decision is
+// resolved by the auth service (clock injected) rather than on the model
+// (issue #586, Rule 12).
+func (rs *Resource) checkAccountLocked(_ context.Context, account *authmodel.Account) render.Renderer {
+	if rs.AuthService.IsPINLocked(account, time.Now()) {
 		return ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))
 	}
 	return nil

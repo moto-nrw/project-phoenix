@@ -96,6 +96,20 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 	}
 }
 
+func TestApplyExportFiltersClassTripStatus(t *testing.T) {
+	students := []StudentResponse{
+		{ID: 101, ClassTrip: true},
+		{ID: 102, Excused: true},
+		{ID: 103, Sick: true},
+		{ID: 104, Location: "Zuhause"},
+	}
+
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"})
+
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(101), got[0].ID)
+}
+
 func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *testing.T) {
 	now := time.Now()
 	responses := []StudentResponse{
@@ -230,12 +244,14 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 		Bus:          "yes",
 		PhotoConsent: "no",
 		PickupStatus: "self",
+		Status:       "klassenfahrt",
 		DayStatus:    DayPlanningStatusNotComingToday,
 	})
 
 	assert.Contains(t, labels, "Buskind")
 	assert.Contains(t, labels, "Keine Fotoerlaubnis")
 	assert.Contains(t, labels, "Abholregelung: Geht alleine nach Hause")
+	assert.Contains(t, labels, "Momentaufnahme: Klassenfahrt")
 	assert.Contains(t, labels, "Tagesplanung: Kommt heute nicht")
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 		repoFactory.ActiveVisit,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
+		users.NewPrivacyConsentService(nil, slog.Default()),
 		db,
 	)
 	return &cleanupContext{
@@ -48,6 +50,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		repoFactory.ActiveVisit,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
+		users.NewPrivacyConsentService(nil, slog.Default()),
 		db,
 	)
 	return &cleanupContext{

@@ -14,6 +14,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -404,7 +405,7 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 	case configModel.MFAModeRequiredAll:
 		return true, nil
 	case configModel.MFAModeRequiredAdmins:
-		return account.HasRole("admin"), nil
+		return authorize.AccountHasRole(account, "admin"), nil
 	default:
 		s.logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
 		return false, nil
@@ -441,7 +442,7 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	if err != nil {
 		return "", fmt.Errorf("look up account: %w", err)
 	}
-	if account.IsMFALocked() {
+	if s.isMFALocked(account, time.Now()) {
 		return "", ErrMFALocked
 	}
 
@@ -502,7 +503,7 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 	if err != nil {
 		return nil, ErrMFAChallengeTokenInvalid
 	}
-	if account.IsMFALocked() {
+	if s.isMFALocked(account, time.Now()) {
 		return nil, ErrMFALocked
 	}
 
@@ -567,7 +568,7 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	if err != nil {
 		return ErrMFACodeInvalid
 	}
-	if account.IsMFALocked() {
+	if s.isMFALocked(account, time.Now()) {
 		return ErrMFALocked
 	}
 	// VerifyCodeForAccount runs INSIDE TenantTxMiddleware (called from
@@ -626,6 +627,14 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 	return renewed, nil
 }
 
+// isMFALocked reports whether the account is inside its MFA-failure cooldown
+// window relative to now. The decision lives in the service (clock injected),
+// not on the model (issue #586, Rule 12); the account row only holds the
+// mfa_locked_until fact.
+func (s *mfaService) isMFALocked(account *auth.Account, now time.Time) bool {
+	return account != nil && account.MFALockedUntil != nil && now.Before(*account.MFALockedUntil)
+}
+
 // handleFailedAttempt atomically bumps the lockout counter via the
 // repository and emits an mfa_locked event when *this* increment was the
 // one that crossed the threshold. Errors here are logged but never bubble
@@ -642,7 +651,9 @@ func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string,
 // 0 from authenticated callers (post-login enrollment confirm) — the
 // recorder falls back to the context tenant.
 func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Account, tenantID int64) {
-	result, err := s.repos.Account.IncrementMFAAttempts(ctx, account.ID, MFALockoutThreshold, MFALockoutDuration)
+	threshold := s.resolveLockoutThreshold(ctx, tenantID)
+	duration := s.resolveLockoutDuration(ctx, tenantID)
+	result, err := s.repos.Account.IncrementMFAAttempts(ctx, account.ID, threshold, duration)
 	if err != nil {
 		s.logger.Warn("failed to persist MFA attempt counter", slog.String("error", err.Error()))
 		return
@@ -654,16 +665,60 @@ func (s *mfaService) handleFailedAttempt(ctx context.Context, account *auth.Acco
 	account.MFALockedUntil = result.LockedUntil
 
 	// Emit mfa_locked exactly when this attempt crossed the threshold.
-	// `result.Attempts == MFALockoutThreshold` means: my increment was
-	// the N-th and only I see N == threshold. Later attempts past the
-	// threshold (which the model previously also flagged) only push
+	// `result.Attempts == threshold` means: my increment was the N-th and
+	// only I see N == threshold. Later attempts past the threshold only push
 	// locked_until forward and don't re-emit — matches the original
 	// "!wasLocked && IsMFALocked()" semantic without the TOCTOU window.
-	if result.Attempts == MFALockoutThreshold {
+	if result.Attempts == threshold {
 		s.recordAuthEvent(ctx, account.ID, tenantID, audit.EventTypeMFALocked, false, nil, "", map[string]any{
 			"locked_until": result.LockedUntil,
 		})
 	}
+}
+
+// resolveLockoutThreshold resolves the tenant's
+// security.account_lockout_threshold, falling back to MFALockoutThreshold on
+// any error or missing override (issue #586). Follows the HasTenantOverride →
+// Resolve → fallback contract from .claude/rules/settings-system.md.
+func (s *mfaService) resolveLockoutThreshold(ctx context.Context, tenantID int64) int {
+	if s.settings == nil {
+		return MFALockoutThreshold
+	}
+	var (
+		val int
+		err error
+	)
+	if tenantID > 0 {
+		val, err = s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutThreshold)
+	} else {
+		val, err = s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutThreshold)
+	}
+	if err != nil || val <= 0 {
+		return MFALockoutThreshold
+	}
+	return val
+}
+
+// resolveLockoutDuration resolves the tenant's
+// security.account_lockout_duration_minutes, falling back to MFALockoutDuration
+// on any error or missing override (issue #586).
+func (s *mfaService) resolveLockoutDuration(ctx context.Context, tenantID int64) time.Duration {
+	if s.settings == nil {
+		return MFALockoutDuration
+	}
+	var (
+		minutes int
+		err     error
+	)
+	if tenantID > 0 {
+		minutes, err = s.settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyAccountLockoutDurationMinutes)
+	} else {
+		minutes, err = s.settings.ResolveInt(ctx, configModel.KeyAccountLockoutDurationMinutes)
+	}
+	if err != nil || minutes <= 0 {
+		return MFALockoutDuration
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // ===== Enrollment / lifecycle =====

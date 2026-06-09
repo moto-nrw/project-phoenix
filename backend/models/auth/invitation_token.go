@@ -70,31 +70,15 @@ func (t *InvitationToken) Validate() error {
 	if t.ExpiresAt.IsZero() {
 		return errors.New("expires_at is required")
 	}
-	if time.Now().After(t.ExpiresAt) {
-		return errors.New("invitation expiry must be in the future")
-	}
 	return nil
 }
 
-// IsExpired returns true if the invitation has passed its expiry.
-func (t *InvitationToken) IsExpired() bool {
-	return time.Now().After(t.ExpiresAt)
-}
-
-// IsUsed returns true if the invitation was already accepted or revoked.
+// IsUsed returns true if the invitation was already accepted or revoked. This
+// is a pure field accessor (UsedAt != nil); the wall-clock expiry/validity
+// decision lives in the auth service (services/auth.InvitationTokenExpired /
+// InvitationTokenValid), per issue #586 (Rule 12).
 func (t *InvitationToken) IsUsed() bool {
 	return t.UsedAt != nil
-}
-
-// IsValid checks whether the invitation can still be consumed.
-func (t *InvitationToken) IsValid() bool {
-	return !t.IsExpired() && !t.IsUsed()
-}
-
-// MarkAsUsed sets the UsedAt timestamp to now.
-func (t *InvitationToken) MarkAsUsed() {
-	now := time.Now()
-	t.UsedAt = &now
 }
 
 // SetExpiry assigns a duration from now as the expiry.

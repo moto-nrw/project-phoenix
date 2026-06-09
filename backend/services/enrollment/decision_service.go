@@ -769,6 +769,40 @@ func (s *decisionService) resolveActivationMode(ctx context.Context) string {
 	return configModel.EnrollmentActivationModeScheduled
 }
 
+type approvalActivationPlan struct {
+	Mode          string
+	ActivateOn    *time.Time
+	StudentStatus users.StudentStatus
+}
+
+func (s *decisionService) approvalActivationPlan(ctx context.Context, phase *enrollmentModels.Phase) approvalActivationPlan {
+	mode := s.resolveActivationMode(ctx)
+	if mode == configModel.EnrollmentActivationModeImmediate {
+		return approvalActivationPlan{
+			Mode:          enrollmentModels.ChildActivationImmediate,
+			StudentStatus: users.StudentStatusActive,
+		}
+	}
+
+	activateOn := phase.ServiceStartDate
+	status := users.StudentStatusPending
+	if !timezone.DateOfUTC(activateOn).After(timezone.TodayUTC()) {
+		status = users.StudentStatusActive
+	}
+	return approvalActivationPlan{
+		Mode:          enrollmentModels.ChildActivationScheduled,
+		ActivateOn:    &activateOn,
+		StudentStatus: status,
+	}
+}
+
+func (s *decisionService) stampActivationPlan(ctx context.Context, requestChildID int64, plan approvalActivationPlan) error {
+	if err := s.requestChildRepo.UpdateActivationPlan(ctx, requestChildID, plan.Mode, plan.ActivateOn); err != nil {
+		return fmt.Errorf("decision: stamp activation plan: %w", err)
+	}
+	return nil
+}
+
 func (s *decisionService) applyApproval(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -869,16 +903,12 @@ func (s *decisionService) applyApproval(
 	enrolledUntil := phase.ServiceEndDate
 	guardianEmail := request.GuardianEmail
 	guardianPhone := request.GuardianPhone
-
-	studentStatus := users.StudentStatusPending
-	if s.resolveActivationMode(ctx) == configModel.EnrollmentActivationModeImmediate {
-		studentStatus = users.StudentStatusActive
-	}
+	activationPlan := s.approvalActivationPlan(ctx, phase)
 
 	student := &users.Student{
 		PersonID:      person.ID,
 		SchoolClass:   schoolClass,
-		Status:        studentStatus,
+		Status:        activationPlan.StudentStatus,
 		EnrolledFrom:  &enrolledFrom,
 		EnrolledUntil: &enrolledUntil,
 		GuardianEmail: &guardianEmail,
@@ -929,6 +959,10 @@ func (s *decisionService) applyApproval(
 	// in activities.student_enrollments. Offerings without an activity
 	// group (pure schedule-only offerings) are skipped.
 	if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
+		return nil, err
+	}
+
+	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
 		return nil, err
 	}
 
@@ -997,20 +1031,30 @@ func (s *decisionService) applyApprovalRollover(
 		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
 	}
 
-	// Update school_class / enrollment window. Status is left at
-	// whatever the scheduler had it on — typically 'active'. The
-	// activate-students scheduler keeps the lifecycle in sync.
+	activationPlan := s.approvalActivationPlan(ctx, phase)
+
+	// Update school_class / enrollment window. Already-active children
+	// stay active even for a future rollover phase, so current attendance
+	// workflows are not interrupted. Inactive/pending children follow the
+	// approval-time activation plan.
 	existing.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
 	enrolledFrom := phase.ServiceStartDate
 	enrolledUntil := phase.ServiceEndDate
 	existing.EnrolledFrom = &enrolledFrom
 	existing.EnrolledUntil = &enrolledUntil
+	if existing.Status != users.StudentStatusActive {
+		existing.Status = activationPlan.StudentStatus
+	}
 	if err := s.studentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: rollover update student: %w", err)
 	}
 
 	// Materialize the new year's care offerings under this student.
 	if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
+		return nil, err
+	}
+
+	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
 		return nil, err
 	}
 
@@ -1575,18 +1619,22 @@ func (s *decisionService) applyTargetedFields(
 				student.ExtraInfo = &str
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentBus:
+		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
 			if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
-				b := days.HasAny()
+				// bus_days is the single source of truth (#1582); the bus flag
+				// is derived at the API boundary, not stored.
 				student.BusDays = days
-				student.Bus = &b
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
-			if str := stringValue(raw); str != "" {
-				student.PickupStatus = &str
+			if days, err := decodePickupDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				status := days.LegacyPickupStatus()
+				student.PickupDays = days
+				student.PickupStatus = &status
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
@@ -1689,6 +1737,44 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 		}
 	}
 	return out, nil
+}
+
+// decodePickupDays accepts either a legacy pickup answer (string) or the
+// weekday_boolean map the reserved pickup_status target now uses. Pending
+// submissions created before the migration carry a string; new submissions
+// carry the map.
+func decodePickupDays(raw any) (users.PickupDays, error) {
+	if str, ok := raw.(string); ok {
+		return pickupDaysFromLegacyPickupAnswer(str), nil
+	}
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(raw, &days); err != nil {
+		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
+	}
+	if err := days.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.PickupDays{}
+	for _, day := range users.PickupDayOrder {
+		if days[day] {
+			out[day] = true
+		}
+	}
+	return out, nil
+}
+
+// pickupDaysFromLegacyPickupAnswer maps a pending pre-migration submission's
+// pickup_status answer to the per-weekday model. Such submissions stored the
+// frontend select option *value* ("picked_up" / "alone"), not the German
+// label — so map "picked_up" to "all five weekdays" explicitly. A stored
+// German label ("Wird abgeholt") is handled by the model helper for safety.
+// Anything else — "alone", "Geht alleine nach Hause", the empty string — means
+// no pickup days ("Geht alleine nach Hause").
+func pickupDaysFromLegacyPickupAnswer(answer string) users.PickupDays {
+	if strings.TrimSpace(answer) == "picked_up" {
+		return users.PickupDaysFromLegacyStatus(users.PickupStatusPickedUp)
+	}
+	return users.PickupDaysFromLegacyStatus(answer)
 }
 
 // readFieldValue pulls the submission value for a field. Guardian-level

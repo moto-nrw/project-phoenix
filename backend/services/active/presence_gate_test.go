@@ -25,6 +25,7 @@ type stubSettingsResolver struct {
 	// how ResolveString behaves for a missing override.
 	stringValues map[string]string
 	stringErr    error
+	intValues    map[string]int
 }
 
 func (s *stubSettingsResolver) HasTenantOverride(_ context.Context, _ string) (bool, error) {
@@ -35,6 +36,9 @@ func (s *stubSettingsResolver) ResolveString(_ context.Context, key string) (str
 		return "", s.stringErr
 	}
 	return s.stringValues[key], nil
+}
+func (s *stubSettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
+	return s.intValues[key], nil
 }
 
 func TestService_GetPresenceMode_NoSettings_FallsBackToDetailed(t *testing.T) {

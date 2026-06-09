@@ -25,6 +25,7 @@ import {
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import { normalizeBusDays } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
   SupervisorsCard,
@@ -38,6 +39,7 @@ import {
   StudentCheckinSection,
   StudentSickReportSection,
   StudentExcusedReportSection,
+  StudentStatusActionsMenu,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
@@ -292,9 +294,10 @@ export default function StudentDetailPage() {
   // Excused toggle state
   const [showConfirmExcused, setShowConfirmExcused] = useState(false);
   const [excusedLoading, setExcusedLoading] = useState(false);
+  const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
   const excusedConfirmText = excusedLoading
     ? "Wird gespeichert..."
-    : student?.excused
+    : isQuickExcused
       ? "Entschuldigung aufheben"
       : "Entschuldigen";
 
@@ -506,11 +509,14 @@ export default function StudentDetailPage() {
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
       birthday: editedStudent.birthday,
-      bus: editedStudent.buskind ?? false,
+      // The personal-info form now edits bus_days directly via the weekday
+      // picker; bus_days is the single source of truth (#1582).
+      bus_days: normalizeBusDays(editedStudent.bus_days),
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
       pickup_status: editedStudent.pickup_status,
+      pickup_days: editedStudent.pickup_days,
     });
 
     refreshData();
@@ -602,7 +608,7 @@ export default function StudentDetailPage() {
 
     setExcusedLoading(true);
     try {
-      const newExcusedStatus = !(student.excused ?? false);
+      const newExcusedStatus = !isQuickExcused;
       await studentService.updateStudent(studentId, {
         excused: newExcusedStatus,
       });
@@ -641,7 +647,7 @@ export default function StudentDetailPage() {
   };
 
   const handleExcusedClick = () => {
-    if (student?.excused) {
+    if (isQuickExcused) {
       setShowConfirmExcused(true);
       return;
     }
@@ -703,11 +709,13 @@ export default function StudentDetailPage() {
         (current) => mergeStatusDays(current, createdStatusDays),
         { revalidate: true },
       );
-      toast.success(
+      const statusLabel =
         plannedStatusModal === "sick"
-          ? `Krankmeldung für ${student.name} wurde gespeichert`
-          : `Entschuldigung für ${student.name} wurde gespeichert`,
-      );
+          ? "Krankmeldung"
+          : plannedStatusModal === "class_trip"
+            ? "Klassenfahrt"
+            : "Entschuldigung";
+      toast.success(`${statusLabel} für ${student.name} wurde gespeichert`);
       setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
@@ -874,8 +882,11 @@ export default function StudentDetailPage() {
             onRefreshData={refreshData}
             onSickClick={handleSickClick}
             sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
             onExcusedClick={handleExcusedClick}
             excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
           />
         ) : (
           <LimitedAccessView
@@ -992,7 +1003,7 @@ export default function StudentDetailPage() {
         onClose={() => setShowConfirmExcused(false)}
         onConfirm={handleConfirmExcusedToggle}
         title={
-          student.excused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+          isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
         }
         confirmText={excusedConfirmText}
         cancelText="Abbrechen"
@@ -1000,7 +1011,7 @@ export default function StudentDetailPage() {
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
-          {student.excused ? (
+          {isQuickExcused ? (
             <>
               Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
               für heute aufheben? Geplante Entschuldigungen in der Zukunft
@@ -1170,8 +1181,11 @@ interface FullAccessViewProps {
   onRefreshData: () => void;
   onSickClick: () => void;
   sickLoading: boolean;
+  isQuickExcused: boolean;
   onExcusedClick: () => void;
   excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
 }
 
 function FullAccessView({
@@ -1196,8 +1210,11 @@ function FullAccessView({
   onRefreshData,
   onSickClick,
   sickLoading,
+  isQuickExcused,
   onExcusedClick,
   excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
@@ -1220,10 +1237,18 @@ function FullAccessView({
           )}
           {hasWriteAccess && (
             <StudentExcusedReportSection
-              isExcused={student.excused ?? false}
-              excusedSince={student.excused_since}
+              isExcused={isQuickExcused}
+              excusedSince={isQuickExcused ? student.excused_since : undefined}
               onToggle={onExcusedClick}
               isLoading={excusedLoading}
+            />
+          )}
+          {hasWriteAccess && (
+            <StudentStatusActionsMenu
+              isClassTrip={student.class_trip ?? false}
+              classTripSince={student.class_trip_since}
+              onPlanClassTrip={onClassTripClick}
+              isLoading={plannedStatusLoading}
             />
           )}
         </div>
