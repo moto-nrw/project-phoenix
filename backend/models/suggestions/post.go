@@ -22,6 +22,14 @@ const (
 // tableSuggestionsPosts is the schema-qualified table name
 const tableSuggestionsPosts = "suggestions.posts"
 
+// Field-length bounds for suggestion posts and comments.
+const (
+	// postTitleMaxLength caps a suggestion post title.
+	postTitleMaxLength = 200
+	// bodyMaxLength caps free-text bodies (post descriptions, comment content).
+	bodyMaxLength = 5000
+)
+
 // Post represents a suggestion post from a user
 type Post struct {
 	base.Model `bun:"schema:suggestions,table:posts"`
@@ -70,13 +78,13 @@ func (p *Post) Validate() error {
 	if p.Title == "" {
 		return errors.New("title is required")
 	}
-	if len(p.Title) > 200 {
+	if len(p.Title) > postTitleMaxLength {
 		return errors.New("title must not exceed 200 characters")
 	}
 	if p.Description == "" {
 		return errors.New("description is required")
 	}
-	if len(p.Description) > 5000 {
+	if len(p.Description) > bodyMaxLength {
 		return errors.New("description must not exceed 5000 characters")
 	}
 	if p.AuthorID <= 0 {

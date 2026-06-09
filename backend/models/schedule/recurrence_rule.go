@@ -20,6 +20,12 @@ const (
 // tableScheduleRecurrenceRules is the schema-qualified table name for recurrence rules
 const tableScheduleRecurrenceRules = "schedule.recurrence_rules"
 
+// Calendar bounds for a month-day entry in a monthly recurrence rule.
+const (
+	minMonthDay = 1
+	maxMonthDay = 31
+)
+
 // Valid weekday values
 var ValidWeekdays = []string{"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
@@ -120,7 +126,7 @@ func isValidWeekday(day string) bool {
 // validateMonthDays validates month days are in valid range
 func (r *RecurrenceRule) validateMonthDays() error {
 	for _, day := range r.MonthDays {
-		if day < 1 || day > 31 {
+		if day < minMonthDay || day > maxMonthDay {
 			return errors.New("month days must be between 1 and 31")
 		}
 	}

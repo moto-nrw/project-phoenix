@@ -3,6 +3,7 @@ package schedule
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -98,7 +99,7 @@ func (e *ActivityException) Validate() error {
 	}
 
 	if e.Reason != nil && len(*e.Reason) > ActivityExceptionReasonMaxLength {
-		return errors.New("reason cannot exceed 500 characters")
+		return fmt.Errorf("reason cannot exceed %d characters", ActivityExceptionReasonMaxLength)
 	}
 
 	return nil

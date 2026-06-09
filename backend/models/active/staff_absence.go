@@ -12,6 +12,14 @@ import (
 
 const tableActiveStaffAbsences = "active.staff_absences"
 
+// Absence duration constants.
+const (
+	// hoursPerDay converts an elapsed hour span into whole calendar days.
+	hoursPerDay = 24
+	// minAbsenceDays is the floor: an absence always spans at least one day.
+	minAbsenceDays = 1
+)
+
 // AbsenceType constants
 const (
 	AbsenceTypeSick     = "sick"
@@ -119,9 +127,9 @@ func (sa *StaffAbsence) Validate() error {
 
 // DurationDays returns the number of days this absence spans
 func (sa *StaffAbsence) DurationDays() int {
-	days := int(sa.DateEnd.Sub(sa.DateStart).Hours()/24) + 1
-	if days < 1 {
-		return 1
+	days := int(sa.DateEnd.Sub(sa.DateStart).Hours()/hoursPerDay) + minAbsenceDays
+	if days < minAbsenceDays {
+		return minAbsenceDays
 	}
 	return days
 }
