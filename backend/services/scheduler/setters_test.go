@@ -648,3 +648,11 @@ func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *time.Time) (*t
 func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
 	return 0, nil
 }
+
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, time.Time, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
+}

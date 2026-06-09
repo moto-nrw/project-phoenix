@@ -8,10 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // PickupScheduleService defines operations for managing student pickup schedules
@@ -86,7 +84,6 @@ type pickupScheduleService struct {
 	scheduleRepo  schedule.StudentPickupScheduleRepository
 	exceptionRepo schedule.StudentPickupExceptionRepository
 	noteRepo      schedule.StudentPickupNoteRepository
-	db            *bun.DB
 }
 
 // NewPickupScheduleService creates a new pickup schedule service
@@ -94,13 +91,11 @@ func NewPickupScheduleService(
 	scheduleRepo schedule.StudentPickupScheduleRepository,
 	exceptionRepo schedule.StudentPickupExceptionRepository,
 	noteRepo schedule.StudentPickupNoteRepository,
-	db *bun.DB,
 ) PickupScheduleService {
 	return &pickupScheduleService{
 		scheduleRepo:  scheduleRepo,
 		exceptionRepo: exceptionRepo,
 		noteRepo:      noteRepo,
-		db:            db,
 	}
 }
 
@@ -144,19 +139,9 @@ func (s *pickupScheduleService) UpsertStudentPickupSchedule(ctx context.Context,
 // This deletes existing schedules and inserts the new ones atomically,
 // ensuring that cleared weekdays are properly removed.
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error {
-	// Use transaction from context if available (handler's WithTenantTx), otherwise fall back to db
-	var db bun.IDB = s.db
-	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
-		db = tx
-	}
-
-	// Delete all existing schedules for this student first
-	_, err := db.NewDelete().
-		Model((*schedule.StudentPickupSchedule)(nil)).
-		ModelTableExpr("schedule.student_pickup_schedules").
-		Where("student_id = ?", studentID).
-		Exec(ctx)
-	if err != nil {
+	// Delete all existing schedules for this student first. The repository
+	// joins the handler's WithTenantTx transaction via the context.
+	if err := s.scheduleRepo.DeleteByStudentID(ctx, studentID); err != nil {
 		return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: fmt.Errorf("failed to delete existing schedules: %w", err)}
 	}
 
@@ -168,12 +153,7 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(ctx context.Con
 		}
 		sched.SetTenantID(tenant.FromContext(ctx))
 
-		_, err := db.NewInsert().
-			Model(sched).
-			ModelTableExpr("schedule.student_pickup_schedules").
-			Returning("id").
-			Exec(ctx)
-		if err != nil {
+		if err := s.scheduleRepo.Create(ctx, sched); err != nil {
 			return &ScheduleError{Op: opUpsertBulkStudentPickupSchedules, Err: err}
 		}
 	}

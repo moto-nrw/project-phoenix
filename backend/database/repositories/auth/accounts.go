@@ -652,3 +652,24 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 
 	return nil
 }
+
+// AnonymizeForDeletion overwrites the account's email with the given
+// anonymized placeholder and clears the username. Custom method
+// (backend-conventions Rule 2): GDPR person-deletion step that pairs two
+// column writes into one statement; used by operator SoftDeletePerson.
+func (r *AccountRepository) AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTableAlias).
+		Set(`email = ?`, anonymizedEmail).
+		Set(`username = NULL`).
+		Where(`"account".id = ?`, accountID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "anonymize account for deletion",
+			Err: err,
+		}
+	}
+	return nil
+}

@@ -81,7 +81,7 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		StudentEnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(db),
 		ActivitySupervisorRepo: activitiesRepo.NewSupervisorPlannedRepository(db),
 		TimeframeRepo:          scheduleRepo.NewTimeframeRepository(db),
-		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), db, nil),
+		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), nil),
 		RoomRepo:               facilitiesRepo.NewRoomRepository(db),
 		MaterializationService: mat,
 		DB:                     db,

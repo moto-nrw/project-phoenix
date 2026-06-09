@@ -218,3 +218,11 @@ func (r *autoStartInstanceRepo) OldestBefore(context.Context, string, *time.Time
 func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
 	return 0, nil
 }
+
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, time.Time, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
+}

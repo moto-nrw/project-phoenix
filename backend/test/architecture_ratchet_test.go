@@ -31,25 +31,17 @@ import (
 // file's allowance: transaction orchestration is legitimately service-layer,
 // but new ones still deserve the review friction of touching this list.
 var serviceQueryRatchetAllowlist = map[string]int{
-	"services/active/analytics_service.go":               1,
-	"services/active/cleanup_service.go":                 7,
-	"services/active/combined_group_service.go":          3,
-	"services/active/dashboard_helpers.go":               1,
-	"services/active/session_service.go":                 3,
-	"services/activities/supervisor_operations.go":       1,
-	"services/education/grade_transition_service.go":     1,
-	"services/emergency/service.go":                      2,
-	"services/enrollment/request_service.go":             3,
-	"services/facilities/facility_service.go":            2,
-	"services/import/student_import_config.go":           3,
-	"services/platform/operator_provisioning_service.go": 7,
-	"services/platform/operator_suggestions_service.go":  3,
-	"services/schedule/arrival_service.go":               2,
-	"services/schedule/instance_service.go":              2,
-	"services/schedule/pickup_schedule_service.go":       2,
-	"services/scheduler/scheduler.go":                    2,
-	"services/users/caregiver_capability.go":             5,
-	"services/users/caregiver_directory.go":              1,
+	// Bare-pool tenant-tx escapes, deferred to a dedicated bug PR (the
+	// scoping fix is a behavior change). See issue #585.
+	"services/active/cleanup_service.go": 7,
+	"services/active/session_service.go": 3, // 2 bare-pool sites + 1 advisory lock
+
+	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
+	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
+	"services/enrollment/request_service.go":            1,
+	"services/import/student_import_config.go":          3,
+	"services/platform/operator_suggestions_service.go": 3,
+	"services/users/caregiver_capability.go":            1,
 }
 
 var (

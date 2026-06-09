@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -93,8 +95,9 @@ func TestBuildSnapshotDocumentLoadsCurrentRows(t *testing.T) {
 			301: {FirstName: "Mila", LastName: "Albrecht"},
 			302: {FirstName: "Max", LastName: "Schmitt"},
 		}},
-		ListExport: listexport.NewService(),
-		DB:         db,
+		ListExport:          listexport.NewService(),
+		VisitRepo:           activeRepo.NewVisitRepository(db),
+		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
 	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
@@ -138,8 +141,9 @@ func TestBuildSnapshotDocumentUsesBinaryLocations(t *testing.T) {
 				202: {Status: "on_yard"},
 			},
 		},
-		ListExport: listexport.NewService(),
-		DB:         db,
+		ListExport:          listexport.NewService(),
+		VisitRepo:           activeRepo.NewVisitRepository(db),
+		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
 	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
@@ -156,11 +160,12 @@ func TestBuildSnapshotDocumentWithNoStudents(t *testing.T) {
 	defer cleanup()
 
 	svc := NewService(Dependencies{
-		AttendanceRepo: stubAttendanceRepo{ids: []int64{}},
-		StudentRepo:    stubStudentRepo{},
-		PersonRepo:     stubPersonRepo{},
-		ListExport:     listexport.NewService(),
-		DB:             db,
+		AttendanceRepo:      stubAttendanceRepo{ids: []int64{}},
+		StudentRepo:         stubStudentRepo{},
+		PersonRepo:          stubPersonRepo{},
+		ListExport:          listexport.NewService(),
+		VisitRepo:           activeRepo.NewVisitRepository(db),
+		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
 	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
@@ -174,11 +179,12 @@ func TestRenderSnapshot(t *testing.T) {
 	defer cleanup()
 
 	svc := NewService(Dependencies{
-		AttendanceRepo: stubAttendanceRepo{ids: []int64{}},
-		StudentRepo:    stubStudentRepo{},
-		PersonRepo:     stubPersonRepo{},
-		ListExport:     listexport.NewService(),
-		DB:             db,
+		AttendanceRepo:      stubAttendanceRepo{ids: []int64{}},
+		StudentRepo:         stubStudentRepo{},
+		PersonRepo:          stubPersonRepo{},
+		ListExport:          listexport.NewService(),
+		VisitRepo:           activeRepo.NewVisitRepository(db),
+		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
 	})
 
 	file, err := svc.RenderSnapshot(context.Background())

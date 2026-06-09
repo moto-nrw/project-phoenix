@@ -166,6 +166,17 @@ type ActivityInstanceRepository interface {
 	// rows changed. Used by the scheduler's daily session-end bridge.
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 
+	// DeletePlannedNonSpontaneousInWindow removes still-planned,
+	// template-backed instances in the inclusive [from, to] window and
+	// returns the number of rows deleted. Used by ReplanWeek.
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to time.Time) (int64, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key. Lifecycle transitions use it because SQL TIME columns do not
+	// round-trip safely through a full-row Update.
+	UpdateColumns(ctx context.Context, instance *ActivityInstance, columns ...string) (int64, error)
+
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the timetable retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)

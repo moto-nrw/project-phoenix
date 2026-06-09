@@ -492,3 +492,11 @@ func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Con
 func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, time.Time) ([]scheduleModel.StudentInstanceRef, error) {
 	return nil, nil
 }
+
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, time.Time, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
+}

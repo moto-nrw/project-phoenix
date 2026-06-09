@@ -2021,3 +2021,7 @@ func (m *wsMockStaffAbsenceRepository) OldestBefore(context.Context, string, *ti
 func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
 	return 0, nil
 }
+
+func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
+	return nil, nil
+}

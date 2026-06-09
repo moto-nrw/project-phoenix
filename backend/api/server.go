@@ -97,6 +97,7 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		// active.groups via repositories (issue #585 layering).
 		if api.repos != nil {
 			srv.scheduler.SetTimetableBridgeRepos(api.repos.InstanceStudent, api.repos.ActivityInstance)
+			srv.scheduler.SetStudentStatusDayRepo(api.repos.StudentStatusDay)
 		}
 		// Parent-enrollment PR 2: activate-students tick.
 		if api.repos != nil && api.repos.Student != nil {

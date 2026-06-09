@@ -319,3 +319,33 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 	}
 	return rows, nil
 }
+
+// DeletePlannedNonSpontaneousInWindow removes every still-planned,
+// template-backed instance whose date falls in the inclusive [from, to]
+// window and returns the number of rows deleted. CASCADE removes the
+// instance_staff / instance_students children (declared at DDL level).
+// Custom method (backend-conventions Rule 2): multi-predicate lifecycle
+// delete for the ReplanWeek admin action.
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to time.Time) (int64, error) {
+	q := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete planned non-spontaneous in window",
+			Err: err,
+		}
+	}
+	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return deleted, nil
+}
