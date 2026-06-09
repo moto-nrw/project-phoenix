@@ -728,6 +728,32 @@ describe("StudentCreateModal", () => {
     expect(submitted).not.toHaveProperty("guardians");
   });
 
+  it("submits an explicit empty pickup_days map (goes-home-alone) for an untouched create", async () => {
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    const form = screen.getByTestId("modal").querySelector("form");
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    await waitFor(() => {
+      expect(handleStudentFormSubmit).toHaveBeenCalled();
+    });
+    const submitted = vi.mocked(handleStudentFormSubmit).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    // The new UI semantics say "no selected days = goes home alone", and that
+    // must be sent as an explicit empty map (not omitted) so the stored
+    // pickup_days/pickup_status pair is correct without anyone editing later.
+    expect(submitted.pickup_days).toEqual({});
+    expect(submitted.pickup_status).toBe("Geht alleine nach Hause");
+  });
+
   it("opens the reused weekly care-plan editor when the add button is clicked", async () => {
     render(
       <StudentCreateModal

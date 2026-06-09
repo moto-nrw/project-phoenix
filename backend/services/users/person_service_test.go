@@ -11,9 +11,11 @@ package users_test
 import (
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -1339,6 +1341,41 @@ func TestPersonService_ValidateStaffPINForSpecificStaff_WrongPIN(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+func TestPersonService_ValidateStaffPINForSpecificStaff_UsesConfiguredLockoutPolicy(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, serviceFactory.Settings.SetValue(ctx, configModel.KeyAccountLockoutThreshold, 2, nil, nil))
+	require.NoError(t, serviceFactory.Settings.SetValue(ctx, configModel.KeyAccountLockoutDurationMinutes, 37, nil, nil))
+
+	testPIN := "2468"
+	staff, account := testpkg.CreateTestStaffWithPIN(t, db, "Configured", "PINLockout", testPIN)
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	result, err := serviceFactory.Users.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1357")
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	result, err = serviceFactory.Users.ValidateStaffPINForSpecificStaff(ctx, staff.ID, "1357")
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	updated, err := repoFactory.Account.FindByID(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, 2, updated.PINAttempts)
+	require.NotNil(t, updated.PINLockedUntil)
+
+	lockoutRemaining := time.Until(*updated.PINLockedUntil)
+	assert.Greater(t, lockoutRemaining, 30*time.Minute)
+	assert.Less(t, lockoutRemaining, 40*time.Minute)
 }
 
 func TestPersonService_ValidateStaffPINForSpecificStaff_NoPINSet(t *testing.T) {

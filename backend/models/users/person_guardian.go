@@ -115,67 +115,11 @@ func (pg *PersonGuardian) SetPerson(person *Person) {
 	}
 }
 
-// HasPermission checks if the guardian has a specific permission
-func (pg *PersonGuardian) HasPermission(permission string) bool {
-	// Parse permissions if needed
-	if pg.parsedPermissions == nil && pg.Permissions != "" {
-		_ = json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions)
-	}
-
-	if pg.parsedPermissions == nil {
-		return false
-	}
-
-	return pg.parsedPermissions[permission]
-}
-
-// GrantPermission grants a specific permission to the guardian
-func (pg *PersonGuardian) GrantPermission(permission string) error {
-	// Parse permissions if needed
-	if pg.parsedPermissions == nil {
-		if pg.Permissions != "" {
-			if json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions) != nil {
-				pg.parsedPermissions = make(map[string]bool)
-			}
-		} else {
-			pg.parsedPermissions = make(map[string]bool)
-		}
-	}
-
-	// Set the permission
-	pg.parsedPermissions[permission] = true
-
-	// Update the JSON string
-	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
-		return err
-	} else {
-		pg.Permissions = string(bytes)
-	}
-	return nil
-}
-
-// RevokePermission revokes a specific permission from the guardian
-func (pg *PersonGuardian) RevokePermission(permission string) error {
-	// Parse permissions if needed
-	if pg.parsedPermissions == nil && pg.Permissions != "" {
-		_ = json.Unmarshal([]byte(pg.Permissions), &pg.parsedPermissions)
-	}
-
-	if pg.parsedPermissions == nil {
-		return nil
-	}
-
-	// Remove the permission
-	delete(pg.parsedPermissions, permission)
-
-	// Update the JSON string
-	if bytes, err := json.Marshal(pg.parsedPermissions); err != nil {
-		return err
-	} else {
-		pg.Permissions = string(bytes)
-	}
-	return nil
-}
+// Note: the guardian permission check and grant/revoke mutations (formerly
+// PersonGuardian.HasPermission / GrantPermission / RevokePermission) moved out
+// of the model in issue #586 (Rule 12) to:
+//   - auth/authorize/guardian_permission.go (PersonGuardianHasPermission /
+//     PersonGuardianGrantPermission / PersonGuardianRevokePermission)
 
 // GetRelationshipName returns a formatted name for the relationship type
 func (pg *PersonGuardian) GetRelationshipName() string {

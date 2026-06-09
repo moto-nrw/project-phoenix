@@ -105,29 +105,6 @@ func (g *Guest) GetFullName() string {
 	return ""
 }
 
-// IsActive checks if the guest is currently active based on start/end dates
-func (g *Guest) IsActive() bool {
-	now := time.Now()
-
-	// If no dates are set, consider active
-	if g.StartDate == nil && g.EndDate == nil {
-		return true
-	}
-
-	// If only start date is set, check if it's before now
-	if g.StartDate != nil && g.EndDate == nil {
-		return !now.Before(*g.StartDate)
-	}
-
-	// If only end date is set, check if it's after now
-	if g.StartDate == nil && g.EndDate != nil {
-		return !now.After(*g.EndDate)
-	}
-
-	// Both dates are set, check if now is between them
-	return !now.Before(*g.StartDate) && !now.After(*g.EndDate)
-}
-
 // AddNotes adds notes about this guest
 func (g *Guest) AddNotes(notes string) {
 	if g.Notes == "" {

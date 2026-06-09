@@ -90,17 +90,16 @@ func TestFormField_Validate_StructuredTypeWithMatchingTargetOK(t *testing.T) {
 }
 
 func TestFormField_Validate_SelectTargetSeedsAreCheckedToo(t *testing.T) {
-	// pickup_status is target=select; the editor seeds canonical options
-	// but the model must still enforce that select fields ship options.
+	// pickup_status is no longer a select target (it is now weekday_boolean);
+	// a free-form admin select must still ship options and validate.
 	f := &FormField{
-		Key:       "pickup_status",
-		Label:     "Abholregelung",
+		Key:       "lunch_choice",
+		Label:     "Mittagessen",
 		Type:      FormFieldSelect,
 		SortOrder: 0,
-		Target:    TargetStudentPickupStatus,
 		Options: []FormFieldOption{
-			{Label: "Geht alleine nach Hause", Value: "alone"},
-			{Label: "Wird abgeholt", Value: "picked_up"},
+			{Label: "Vegetarisch", Value: "veggie"},
+			{Label: "Mit Fleisch", Value: "meat"},
 		},
 	}
 	assert.NoError(t, f.Validate())
@@ -108,15 +107,45 @@ func TestFormField_Validate_SelectTargetSeedsAreCheckedToo(t *testing.T) {
 
 func TestFormField_Validate_SelectWithoutOptionsRejected(t *testing.T) {
 	f := &FormField{
+		Key:       "lunch_choice",
+		Label:     "Mittagessen",
+		Type:      FormFieldSelect,
+		SortOrder: 0,
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "select")
+}
+
+func TestFormField_Validate_PickupStatusMustBeWeekdayBoolean(t *testing.T) {
+	// Locks in the post-migration contract: pickup_status is a
+	// weekday_boolean reserved target. A weekday_boolean field wired to it
+	// must validate...
+	ok := &FormField{
+		Key:       "pickup_status",
+		Label:     "Abholregelung",
+		Type:      FormFieldWeekdayBoolean,
+		SortOrder: 0,
+		Target:    TargetStudentPickupStatus,
+	}
+	assert.NoError(t, ok.Validate())
+
+	// ...and the legacy select shape (the exact thing migration 1.15.117
+	// rewrites) must now be rejected, so a stale schema can't slip through.
+	legacy := &FormField{
 		Key:       "pickup_status",
 		Label:     "Abholregelung",
 		Type:      FormFieldSelect,
 		SortOrder: 0,
 		Target:    TargetStudentPickupStatus,
+		Options: []FormFieldOption{
+			{Label: "Wird abgeholt", Value: "picked_up"},
+		},
 	}
-	err := f.Validate()
+	err := legacy.Validate()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "select")
+	assert.Contains(t, err.Error(), "target")
+	assert.Contains(t, err.Error(), "type")
 }
 
 func TestIsStructuredFieldType_RecognisesAllStructuredTypes(t *testing.T) {

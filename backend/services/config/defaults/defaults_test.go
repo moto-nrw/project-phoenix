@@ -25,6 +25,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_cleanup_enabled",
 		"operations.session_cleanup_interval_minutes",
 		"operations.session_abandoned_threshold_minutes",
+		// Default active-session inactivity timeout (issue #586, Rule 12).
+		"operations.session_inactivity_timeout_minutes",
 		"operations.admin_supervision_overview",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
@@ -43,6 +45,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		// Device online/offline window for health monitoring (issue #586, Rule 12).
+		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
 		"tracking.indicator_1",
 		"tracking.indicator_2",
@@ -74,6 +78,11 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"security.mfa_mode",
 		"security.mfa_trusted_device_enabled",
 		"security.mfa_trusted_device_days",
+		// Account brute-force lockout policy (issue #586): threshold + duration.
+		"security.account_lockout_threshold",
+		"security.account_lockout_duration_minutes",
+		// Privacy-consent visit-data retention default (issue #586, Rule 12).
+		"gdpr.privacy_consent_retention_days",
 		// Parent-enrollment PR 2: activate-students scheduler interval.
 		"operations.student_activation_interval_minutes",
 		// Parent-enrollment PR 3: guardian invitation token expiry.

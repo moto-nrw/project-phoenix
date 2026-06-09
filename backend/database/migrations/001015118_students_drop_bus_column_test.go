@@ -25,7 +25,7 @@ func busColumnExists(t *testing.T, db *bun.DB) bool {
 	return exists
 }
 
-// TestStudentsDropBusColumnMigration verifies migration 1.15.116 (#1582):
+// TestStudentsDropBusColumnMigration verifies migration 1.15.118 (#1582):
 // Up drops the legacy bus column, Down rebuilds it from bus_days, and the
 // bus_days source of truth survives the round-trip unchanged.
 func TestStudentsDropBusColumnMigration(t *testing.T) {

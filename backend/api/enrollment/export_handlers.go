@@ -22,7 +22,7 @@ import (
 )
 
 // phaseExportRequest is the (optional) JSON body:
-// {"format":"pdf"|"xlsx", "child_status":"approved"|…}. Missing/empty
+// {"format":"pdf"|"docx"|"xlsx", "child_status":"approved"|…}. Missing/empty
 // format defaults to PDF; missing/empty/"all" child_status means no
 // status filter (export every child).
 type phaseExportRequest struct {
@@ -30,20 +30,15 @@ type phaseExportRequest struct {
 	ChildStatus string            `json:"child_status"`
 }
 
-// exportConfidentialityNote is stamped at the foot of every PDF page and
-// every printed XLSX page. The export is the offline fallback for a
-// WLAN/system outage, so a full copy of guardian + child data leaves the
-// RLS-protected system — the note is the documented handling instruction
-// for that copy.
-const exportConfidentialityNote = "Vertraulich – nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
+// exportConfidentialityNote is stamped on printed phase exports because
+// the files contain full guardian and child PII.
+const exportConfidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
 
 // exportPhaseRegistrations streams a compact export of every
-// registration in the phase. config:manage gated (one call bundles
-// every guardian + child's full PII into a file that leaves the
-// RLS-protected system, so it sits at the GDPR/admin tier alongside
-// rollover — not config:read like the admin request list). PDF = one
-// block per submission (print fallback); XLSX = one flat row per child
-// (full data for filtering/archive).
+// registration in the phase. config:manage gated because one call bundles
+// every guardian and child's full PII into a file that leaves the
+// RLS-protected system. PDF and DOCX use readable child blocks grouped by
+// status; XLSX keeps one table row per child with status group rows.
 func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Request) {
 	if rs.ListExportService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service not configured")))
@@ -121,9 +116,9 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 // parsePhaseExportRequest reads the format and optional child-status
 // filter from the JSON body (falling back to the ?format= / ?child_status=
 // query params), reading the body exactly once. Format defaults to PDF
-// (pdf/xlsx only); child_status defaults to "" (no filter), with "all"
-// also meaning no filter. A present-but-unknown status is rejected so a
-// typo can't silently widen the export to everyone.
+// (pdf/docx/xlsx only); child_status defaults to "" (no filter), with
+// "all" also meaning no filter. A present-but-unknown status is rejected
+// so a typo can't silently widen the export to everyone.
 func parsePhaseExportRequest(r *http.Request) (listexport.Format, string, error) {
 	var body phaseExportRequest
 	if r.Body != nil {
@@ -146,10 +141,10 @@ func parsePhaseExportRequest(r *http.Request) (listexport.Format, string, error)
 		format = listexport.FormatPDF
 	}
 	switch format {
-	case listexport.FormatPDF, listexport.FormatXLSX:
+	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
 		// ok
 	default:
-		return "", "", fmt.Errorf("unsupported export format %q (use pdf or xlsx)", format)
+		return "", "", fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
 	}
 
 	childStatus := strings.ToLower(strings.TrimSpace(body.ChildStatus))
@@ -177,6 +172,8 @@ func buildPhaseExportFile(svc listexport.Service, data *enrollmentService.PhaseE
 	heading := phaseExportHeading(data)
 	filename := phaseExportFilename(data)
 	switch format {
+	case listexport.FormatDOCX:
+		return svc.RenderRecordsDOCX(buildPhaseExportRecords(data, heading, childStatus), filename)
 	case listexport.FormatXLSX:
 		return svc.Render(buildPhaseExportTable(data, heading, childStatus), listexport.FormatXLSX, filename)
 	case listexport.FormatPDF:
@@ -240,6 +237,26 @@ type exportEntry struct {
 	sortFirst string
 }
 
+type exportEntryGroup struct {
+	title   string
+	entries []exportEntry
+}
+
+var enrollmentStatusExportGroups = []struct {
+	status string
+	title  string
+}{
+	{enrollmentModels.ChildStatusApproved, "Bestätigte Anmeldungen"},
+	{enrollmentModels.ChildStatusRejected, "Abgelehnte Anmeldungen"},
+	{enrollmentModels.ChildStatusWaitlisted, "Warteliste"},
+	{enrollmentModels.ChildStatusSubmitted, "Eingegangene Anmeldungen"},
+	{enrollmentModels.ChildStatusUnderReview, "Anmeldungen in Prüfung"},
+	{enrollmentModels.ChildStatusPendingAdminReview, "Manuelle Prüfung"},
+	{enrollmentModels.ChildStatusPendingRenewal, "Ausstehende Verlängerungen"},
+	{enrollmentModels.ChildStatusAutoRenewed, "Automatisch verlängerte Anmeldungen"},
+	{enrollmentModels.ChildStatusWithdrawn, "Zurückgezogene Anmeldungen"},
+}
+
 // orderedExportEntries flattens the phase into one entry per child (plus
 // one per childless registration) and orders them by child surname then
 // first name, case-insensitively; childless entries sort by guardian
@@ -277,6 +294,72 @@ func orderedExportEntries(data *enrollmentService.PhaseExport) []exportEntry {
 	return entries
 }
 
+func groupedExportEntries(data *enrollmentService.PhaseExport) []exportEntryGroup {
+	entries := orderedExportEntries(data)
+	buckets := make(map[string][]exportEntry)
+	titles := make(map[string]string)
+	for _, e := range entries {
+		key, title := exportEntryGroupKey(e)
+		buckets[key] = append(buckets[key], e)
+		titles[key] = title
+	}
+
+	groups := make([]exportEntryGroup, 0, len(buckets))
+	seen := make(map[string]bool, len(buckets))
+	for _, def := range enrollmentStatusExportGroups {
+		if entries := buckets[def.status]; len(entries) > 0 {
+			groups = append(groups, exportEntryGroup{title: def.title, entries: entries})
+			seen[def.status] = true
+		}
+	}
+	for _, key := range sortedRemainingExportGroupKeys(titles, seen) {
+		if entries := buckets[key]; len(entries) > 0 {
+			groups = append(groups, exportEntryGroup{title: titles[key], entries: entries})
+		}
+	}
+	return groups
+}
+
+func exportEntryGroupKey(e exportEntry) (string, string) {
+	if e.child == nil || e.child.Child == nil {
+		return "__childless__", "Anmeldungen ohne Kind"
+	}
+	status := strings.TrimSpace(e.child.Child.Status)
+	if status == "" {
+		return "__unknown_status__", "Weitere Anmeldungen"
+	}
+	return status, enrollmentStatusExportTitle(status)
+}
+
+func enrollmentStatusExportTitle(status string) string {
+	for _, def := range enrollmentStatusExportGroups {
+		if def.status == status {
+			return def.title
+		}
+	}
+	label := strings.TrimSpace(statusLabelDE(status))
+	if label == "" {
+		return "Weitere Anmeldungen"
+	}
+	return label
+}
+
+func sortedRemainingExportGroupKeys(titles map[string]string, seen map[string]bool) []string {
+	keys := make([]string, 0, len(titles))
+	for key := range titles {
+		if !seen[key] {
+			keys = append(keys, key)
+		}
+	}
+	sort.SliceStable(keys, func(i, j int) bool {
+		if titles[keys[i]] != titles[keys[j]] {
+			return titles[keys[i]] < titles[keys[j]]
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
+}
+
 func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childStatus string) listexport.RecordDocument {
 	guardianCustoms, childCustoms := collectCustomFields(data.Schemas)
 
@@ -284,12 +367,22 @@ func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childSt
 	// childless registration still surfaces as a guardian-only block so
 	// no submission is silently dropped.
 	records := make([]listexport.Record, 0, len(data.Rows))
-	for _, e := range orderedExportEntries(data) {
-		if e.child == nil {
-			records = append(records, guardianOnlyRecord(e.request, guardianCustoms))
-			continue
+	groups := make([]listexport.RecordGroup, 0, len(data.Rows))
+	for _, group := range groupedExportEntries(data) {
+		groupRecords := make([]listexport.Record, 0, len(group.entries))
+		for _, e := range group.entries {
+			var record listexport.Record
+			if e.child == nil {
+				record = guardianOnlyRecord(e.request, guardianCustoms)
+			} else {
+				record = childRecord(e.request, *e.child, guardianCustoms, childCustoms)
+			}
+			groupRecords = append(groupRecords, record)
+			records = append(records, record)
 		}
-		records = append(records, childRecord(e.request, *e.child, guardianCustoms, childCustoms))
+		if len(groupRecords) > 0 {
+			groups = append(groups, listexport.RecordGroup{Title: group.title, Records: groupRecords})
+		}
 	}
 	return listexport.RecordDocument{
 		Title:       title,
@@ -298,6 +391,7 @@ func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childSt
 		Footer:      exportConfidentialityNote,
 		Filters:     enrollmentExportFilterLabels(childStatus),
 		Records:     records,
+		Groups:      groups,
 	}
 }
 
@@ -424,13 +518,16 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 	// the same order as the PDF blocks (child surname A–Z). One row per
 	// child; a childless registration emits a guardian-only row.
 	rows := make([]listexport.Row, 0, len(data.Rows))
-	for _, e := range orderedExportEntries(data) {
-		guardianValues := guardianRowValues(e.request, guardianCustoms)
-		if e.child == nil {
-			rows = append(rows, listexport.Row{Values: guardianValues})
-			continue
+	for _, group := range groupedExportEntries(data) {
+		rows = append(rows, listexport.Row{GroupTitle: group.title})
+		for _, e := range group.entries {
+			guardianValues := guardianRowValues(e.request, guardianCustoms)
+			if e.child == nil {
+				rows = append(rows, listexport.Row{Values: guardianValues})
+				continue
+			}
+			rows = append(rows, listexport.Row{Values: childRowValues(guardianValues, *e.child, childCustoms)})
 		}
-		rows = append(rows, listexport.Row{Values: childRowValues(guardianValues, *e.child, childCustoms)})
 	}
 
 	return listexport.Document{
@@ -440,9 +537,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 		Filters:     enrollmentExportFilterLabels(childStatus),
 		Columns:     cols,
 		Rows:        rows,
-		// Same full PII as the PDF leaves the system here, so the printed
-		// XLSX carries the same handling instruction on every page.
-		Footer: exportConfidentialityNote,
+		Footer:      exportConfidentialityNote,
 	}
 }
 

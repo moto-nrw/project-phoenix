@@ -1,6 +1,7 @@
 package devices
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -8,6 +9,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
 // DeviceResponse represents a device API response
@@ -92,8 +94,10 @@ type NetworkScanResponse struct {
 	DevicesFound int               `json:"devices_found"`
 }
 
-// newDeviceResponse converts a device model to a response object
-func newDeviceResponse(device *iot.Device) DeviceResponse {
+// newDeviceResponse converts a device model to a response object. The
+// online/offline decision is resolved by the IoT service (issue #586, Rule 12)
+// rather than the model.
+func newDeviceResponse(ctx context.Context, svc iotSvc.Service, device *iot.Device) DeviceResponse {
 	response := DeviceResponse{
 		ID:             device.ID,
 		DeviceID:       device.DeviceID,
@@ -102,7 +106,7 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 		Status:         string(device.Status),
 		RegisteredByID: device.RegisteredByID,
 		RoomName:       device.RoomName,
-		IsOnline:       device.IsOnline(),
+		IsOnline:       svc.IsDeviceOnline(ctx, device),
 		CreatedAt:      common.Time(device.CreatedAt),
 		UpdatedAt:      common.Time(device.UpdatedAt),
 	}
@@ -116,18 +120,18 @@ func newDeviceResponse(device *iot.Device) DeviceResponse {
 }
 
 // newDeviceResponses converts a slice of device models to response objects
-func newDeviceResponses(devices []*iot.Device) []DeviceResponse {
+func newDeviceResponses(ctx context.Context, svc iotSvc.Service, devices []*iot.Device) []DeviceResponse {
 	responses := make([]DeviceResponse, 0, len(devices))
 	for _, device := range devices {
-		responses = append(responses, newDeviceResponse(device))
+		responses = append(responses, newDeviceResponse(ctx, svc, device))
 	}
 	return responses
 }
 
 // newDeviceCreationResponse converts a device model to a creation response object with API key
-func newDeviceCreationResponse(device *iot.Device) DeviceCreationResponse {
+func newDeviceCreationResponse(ctx context.Context, svc iotSvc.Service, device *iot.Device) DeviceCreationResponse {
 	response := DeviceCreationResponse{
-		DeviceResponse: newDeviceResponse(device),
+		DeviceResponse: newDeviceResponse(ctx, svc, device),
 	}
 
 	// Include API key only during creation

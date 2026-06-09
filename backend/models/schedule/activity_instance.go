@@ -30,6 +30,9 @@ var (
 // tableActivityInstances is the schema-qualified table name.
 const tableActivityInstances = "schedule.activity_instances"
 
+// ActivityInstanceTitleMaxLength is the maximum length of the title field.
+const ActivityInstanceTitleMaxLength = 255
+
 // ActivityInstance is the concrete materialized occurrence of a template on a
 // given date (or a spontaneous instance created without a template). It lives
 // in the "instance layer" between the template layer (activities.*) and the
@@ -85,7 +88,7 @@ func (i *ActivityInstance) Validate() error {
 	if i.Title == "" {
 		return errors.New("title is required")
 	}
-	if len(i.Title) > 255 {
+	if len(i.Title) > ActivityInstanceTitleMaxLength {
 		return errors.New("title cannot exceed 255 characters")
 	}
 	if i.Date.IsZero() {

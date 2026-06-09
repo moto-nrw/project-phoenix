@@ -66,20 +66,6 @@ func (cg *CombinedGroup) Validate() error {
 	return nil
 }
 
-// IsActive returns whether this combined group is currently active
-func (cg *CombinedGroup) IsActive() bool {
-	if cg.EndTime == nil {
-		return true
-	}
-	return time.Now().Before(*cg.EndTime)
-}
-
-// EndCombination sets the end time to the current time
-func (cg *CombinedGroup) EndCombination() {
-	now := time.Now()
-	cg.EndTime = &now
-}
-
 // SetEndTime explicitly sets the end time
 func (cg *CombinedGroup) SetEndTime(endTime time.Time) error {
 	if cg.StartTime.After(endTime) {

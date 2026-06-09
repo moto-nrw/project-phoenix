@@ -447,6 +447,9 @@ func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModel
 func (m *mockAuthService) ActivateAccount(context.Context, int) error               { return nil }
 func (m *mockAuthService) DeactivateAccount(context.Context, int) error             { return nil }
 func (m *mockAuthService) UpdateAccount(context.Context, *authModels.Account) error { return nil }
+func (m *mockAuthService) IsPINLocked(*authModels.Account, time.Time) bool          { return false }
+func (m *mockAuthService) RecordFailedPINAttempt(context.Context, int64) error      { return nil }
+func (m *mockAuthService) ResetPINLockout(context.Context, int64) error             { return nil }
 func (m *mockAuthService) ListAccounts(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
 	return nil, nil
 }

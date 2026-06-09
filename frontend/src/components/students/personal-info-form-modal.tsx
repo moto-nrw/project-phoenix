@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
-import { ChevronDownIcon } from "./student-detail-components";
-import { BusStatusSection } from "./student-form-fields";
-import { busDaysHaveAny, normalizeBusDays } from "~/lib/student-helpers";
+import { BusStatusSection, PickupStatusSection } from "./student-form-fields";
+import {
+  busDaysHaveAny,
+  normalizeBusDays,
+  normalizePickupDays,
+  pickupDaysHaveAny,
+} from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -127,19 +131,18 @@ export function PersonalInfoFormModal({
             }));
           }}
         />
-        <SelectInput
-          id="modal-student-pickup-status"
-          label="Abholstatus"
-          value={editedStudent.pickup_status ?? ""}
-          onChange={(value) => updateField("pickup_status", value || undefined)}
-          options={[
-            { value: "", label: "Nicht gesetzt" },
-            {
-              value: "Geht alleine nach Hause",
-              label: "Geht alleine nach Hause",
-            },
-            { value: "Wird abgeholt", label: "Wird abgeholt" },
-          ]}
+        <PickupStatusSection
+          days={editedStudent.pickup_days}
+          onChange={(value) => {
+            const normalized = normalizePickupDays(value);
+            setEditedStudent((prev) => ({
+              ...prev,
+              pickup_days: normalized,
+              pickup_status: pickupDaysHaveAny(normalized)
+                ? "Wird abgeholt"
+                : "Geht alleine nach Hause",
+            }));
+          }}
         />
         <TextAreaInput
           id="modal-student-health-info"
@@ -225,49 +228,6 @@ function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
   );
 }
 
-interface SelectOption {
-  value: string;
-  label: string;
-}
-
-interface SelectInputProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-}
-
-function SelectInput({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-}: Readonly<SelectInputProps>) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1 block text-xs text-gray-500">
-        {label}
-      </label>
-      <div className="relative">
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-      </div>
-    </div>
-  );
-}
 
 interface TextAreaInputProps {
   id: string;

@@ -11,6 +11,13 @@ const (
 	KeyMFAMode                 = "security.mfa_mode"
 	KeyMFATrustedDeviceEnabled = "security.mfa_trusted_device_enabled"
 	KeyMFATrustedDeviceDays    = "security.mfa_trusted_device_days"
+
+	// Account brute-force lockout policy (issue #586 — Rule 12 extraction).
+	// Shared by the PIN and MFA failure counters: after
+	// KeyAccountLockoutThreshold failed attempts the account is locked for
+	// KeyAccountLockoutDurationMinutes minutes.
+	KeyAccountLockoutThreshold       = "security.account_lockout_threshold"
+	KeyAccountLockoutDurationMinutes = "security.account_lockout_duration_minutes"
 )
 
 // MFAMode option values for KeyMFAMode.
@@ -30,6 +37,11 @@ const (
 	// fixes the floor at 2 years; §147 AO / §257 HGB cap the legally
 	// defensible ceiling at 8 years.
 	KeyGDPRTimeTrackingRetentionDays = "gdpr.time_tracking_retention_days"
+	// Default visit-data retention window (days) applied when a student's
+	// privacy consent does not set its own data_retention_days. Issue #586
+	// (Rule 12): the 30-day default + 1..31 bounds moved off the
+	// PrivacyConsent model into this per-tenant setting.
+	KeyPrivacyConsentRetentionDays = "gdpr.privacy_consent_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
@@ -70,6 +82,14 @@ const (
 	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
 )
 
+// IoT device health-monitoring settings (issue #586 — Rule 12 extraction).
+// A device counts as "online" when its last_seen timestamp is within
+// KeyDeviceOnlineWindowMinutes of now. The 5-minute window moved off the
+// iot.Device model into this per-tenant setting.
+const (
+	KeyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
+)
+
 // Tracking indicator settings (student card activity indicators).
 const (
 	KeyTrackingIndicatorsEnabled = "tracking.indicators_enabled"
@@ -89,6 +109,7 @@ const (
 	KeySessionCleanupEnabled          = "operations.session_cleanup_enabled"
 	KeySessionCleanupIntervalMinutes  = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin   = "operations.session_abandoned_threshold_minutes"
+	KeySessionInactivityTimeoutMin    = "operations.session_inactivity_timeout_minutes"
 	KeyAdminSupervisionOverview       = "operations.admin_supervision_overview"
 	KeyStatusFlagClearTime            = "operations.status_flag_clear_time"
 	KeySickClearMode                  = "operations.sick_clear_mode"

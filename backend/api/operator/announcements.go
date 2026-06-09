@@ -387,7 +387,7 @@ func newAnnouncementResponse(a *platform.Announcement) AnnouncementResponse {
 	// Determine status
 	if a.IsDraft() {
 		response.Status = "draft"
-	} else if a.IsExpired() {
+	} else if platformSvc.IsAnnouncementExpired(a, time.Now()) {
 		response.Status = "expired"
 	} else {
 		response.Status = "published"

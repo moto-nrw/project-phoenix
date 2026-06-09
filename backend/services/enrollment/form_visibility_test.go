@@ -52,6 +52,66 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 	assert.False(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "", "tue": ""}), "all-blank schedule rejected")
 	assert.True(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "08:00"}), "a filled day accepted")
 	assert.False(t, customValueSatisfiesRequired(sched, nil), "nil schedule rejected")
+
+	// weekday_boolean (Buskind): needs at least one selected day.
+	busDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentBus}
+	assert.False(t, customValueSatisfiesRequired(busDays, nil), "nil bus days rejected")
+	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{}), "empty bus days rejected")
+	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{"mon": false}), "all-false bus days rejected")
+	assert.True(t, customValueSatisfiesRequired(busDays, map[string]any{"mon": true}), "a selected bus day accepted")
+
+	// weekday_boolean (Abholregelung): an empty map is the valid "Geht
+	// alleine nach Hause" answer, so a required pickup field is satisfied
+	// even with no day selected. A malformed value is still rejected.
+	pickupDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentPickupStatus}
+	assert.True(t, customValueSatisfiesRequired(pickupDays, nil), "nil pickup days accepted (goes alone)")
+	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{}), "empty pickup days accepted (goes alone)")
+	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{"mon": true}), "selected pickup day accepted")
+	assert.False(t, customValueSatisfiesRequired(pickupDays, map[string]any{"sat": true}), "invalid weekday rejected")
+}
+
+// customAnswerSatisfiesRequired adds presence-awareness on top of the value
+// shape check: for a required pickup field an explicit empty map is the valid
+// "Geht alleine nach Hause" answer, but a missing key (parent never touched the
+// picker) must fail. Covers the three distinct states the change hinges on.
+func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
+	pickup := enrollmentModels.FormField{
+		Key:    "pickup",
+		Type:   enrollmentModels.FormFieldWeekdayBoolean,
+		Target: enrollmentModels.TargetStudentPickupStatus,
+	}
+
+	// 1) Missing key — unanswered required pickup is rejected.
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{}),
+		"missing pickup answer must fail required")
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{"other": true}),
+		"unrelated keys do not satisfy a missing pickup answer")
+
+	// 2) Explicit empty map — the valid "goes home alone" answer is accepted.
+	assert.True(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{}}),
+		"explicit empty pickup map is a valid answer")
+
+	// 3) One or more selected weekdays — accepted.
+	assert.True(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{"mon": true}}),
+		"selected pickup day is a valid answer")
+
+	// A malformed value is still rejected even when present.
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{"sat": true}}),
+		"invalid weekday rejected")
+
+	// Non-pickup weekday_boolean (Buskind) still requires a selected day even
+	// when present, and a missing key fails as before.
+	bus := enrollmentModels.FormField{
+		Key:    "bus",
+		Type:   enrollmentModels.FormFieldWeekdayBoolean,
+		Target: enrollmentModels.TargetStudentBus,
+	}
+	assert.False(t, customAnswerSatisfiesRequired(bus, map[string]any{}),
+		"missing bus answer fails required")
+	assert.False(t, customAnswerSatisfiesRequired(bus, map[string]any{"bus": map[string]any{}}),
+		"empty bus map fails required (needs a selected day)")
+	assert.True(t, customAnswerSatisfiesRequired(bus, map[string]any{"bus": map[string]any{"mon": true}}),
+		"selected bus day accepted")
 }
 
 // ---- fieldVisible --------------------------------------------------------

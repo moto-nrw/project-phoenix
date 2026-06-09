@@ -736,9 +736,7 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	if req.PickupStatus != nil {
-		student.PickupStatus = req.PickupStatus
-	}
+	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
 	applyBusDays(req.Bus, req.BusDays, student)
 
 	return student
@@ -765,6 +763,33 @@ func applyBusDays(legacyBus *bool, days *users.BusDays, student *users.Student) 
 		student.BusDays = users.BusDaysFromLegacyFlag(true)
 		// On with an existing per-day selection: preserve it (a legacy bus=true
 		// must not flatten Mo/Fr into all weekdays).
+	}
+}
+
+// reconcilePickupFields keeps student.PickupDays (the authoritative per-weekday
+// map) and the legacy student.PickupStatus string in sync from a request that
+// may carry either, both, or neither. When both are present the weekday map
+// wins, since it is the granular source of truth.
+//
+// Contract for legacy (status-only) callers: pickup_status is treated as
+// authoritative. A non-"Wird abgeholt" status therefore CLEARS any existing
+// weekday map — a partial update that sends pickup_status without pickup_days
+// will wipe previously stored pickup days. This is intentional (the legacy
+// string has no per-day information to preserve), but it means new clients must
+// always send pickup_days, never pickup_status alone, to mutate the map.
+func reconcilePickupFields(student *users.Student, status *string, days *users.PickupDays) {
+	if status != nil {
+		student.PickupStatus = status
+		if *status != users.PickupStatusPickedUp {
+			student.PickupDays = users.PickupDays{}
+		} else if !student.PickupDays.HasAny() {
+			student.PickupDays = users.PickupDaysFromLegacyStatus(*status)
+		}
+	}
+	if days != nil {
+		student.PickupDays = *days
+		s := student.PickupDays.LegacyPickupStatus()
+		student.PickupStatus = &s
 	}
 }
 
@@ -1102,9 +1127,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	if req.PickupStatus != nil {
-		student.PickupStatus = req.PickupStatus
-	}
+	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
 	applyBusDays(req.Bus, req.BusDays, student)
 }
 

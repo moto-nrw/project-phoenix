@@ -249,6 +249,17 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 	return availableGroups, nil
 }
 
+// CanStudentJoinGroup reports whether a student may join the group given the
+// current enrollment count: the group must be open AND have available spots.
+// Enrollment eligibility is a business policy owned by the service so it can
+// evolve (waitlists, role overrides) without touching the data entity.
+func (s *Service) CanStudentJoinGroup(group *activities.Group, currentEnrollmentCount int) bool {
+	if group == nil {
+		return false
+	}
+	return group.IsOpen && group.HasAvailableSpots(currentEnrollmentCount)
+}
+
 // UpdateAttendanceStatus updates the attendance status for an enrollment
 func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error {
 	// Check if enrollment exists

@@ -62,10 +62,9 @@ func (p *Permission) GetFullName() string {
 	return p.Resource + ":" + p.Action
 }
 
-// IsAdminPermission checks if this is an admin-level permission
-func (p *Permission) IsAdminPermission() bool {
-	return p.Resource == "admin" || strings.HasPrefix(p.Name, "admin:")
-}
+// Note: the admin-level classification (formerly Permission.IsAdminPermission)
+// moved out of the model in issue #586 (Rule 12) to:
+//   - auth/authorize/role_permission.go (PermissionIsAdmin)
 
 // Clone creates a copy of the permission
 func (p *Permission) Clone() *Permission {

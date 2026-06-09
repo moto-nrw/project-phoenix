@@ -117,42 +117,9 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 	}
 }
 
-func TestStudentGuardian_HasPermission(t *testing.T) {
-	// Test with boolean permissions
-	sg1 := &StudentGuardian{
-		StudentID:         1,
-		GuardianProfileID: 2,
-		RelationshipType:  "parent",
-		Permissions: map[string]interface{}{
-			"can_view_grades":     true,
-			"can_attend_meetings": false,
-		},
-	}
-
-	if !sg1.HasPermission("can_view_grades") {
-		t.Errorf("StudentGuardian.HasPermission() failed, expected true for can_view_grades")
-	}
-
-	if sg1.HasPermission("can_attend_meetings") {
-		t.Errorf("StudentGuardian.HasPermission() failed, expected false for can_attend_meetings")
-	}
-
-	if sg1.HasPermission("non_existent_permission") {
-		t.Errorf("StudentGuardian.HasPermission() failed, expected false for non-existent permission")
-	}
-
-	// Test with empty permissions
-	sg2 := &StudentGuardian{
-		StudentID:         1,
-		GuardianProfileID: 2,
-		RelationshipType:  "parent",
-		Permissions:       map[string]interface{}{},
-	}
-
-	if sg2.HasPermission("any_permission") {
-		t.Errorf("StudentGuardian.HasPermission() failed, expected false for any permission with empty permissions")
-	}
-}
+// Note: the permission check (formerly StudentGuardian.HasPermission) moved out
+// of the model in issue #586 (Rule 12). Its test follows the logic to:
+//   - auth/authorize/guardian_permission_test.go (TestStudentGuardianHasPermission)
 
 func TestStudentGuardian_GetRelationshipName(t *testing.T) {
 	tests := []struct {
@@ -203,21 +170,23 @@ func TestStudentGuardian_UpdatePermissions(t *testing.T) {
 		t.Errorf("StudentGuardian.UpdatePermissions() error = %v", err)
 	}
 
-	// Check if permissions were updated
-	if !sg.HasPermission("can_view_grades") {
+	// Check if permissions were updated (read the stored map directly; the
+	// permission predicate moved to auth/authorize in issue #586)
+	permissions := sg.GetPermissions()
+
+	if v, ok := permissions["can_view_grades"].(bool); !ok || !v {
 		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected true for can_view_grades")
 	}
 
-	if !sg.HasPermission("can_attend_meetings") {
+	if v, ok := permissions["can_attend_meetings"].(bool); !ok || !v {
 		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected true for can_attend_meetings")
 	}
 
-	if sg.HasPermission("can_authorize_trips") {
+	if v, ok := permissions["can_authorize_trips"].(bool); !ok || v {
 		t.Errorf("StudentGuardian.UpdatePermissions() failed, expected false for can_authorize_trips")
 	}
 
 	// Check if nested permissions are correctly handled
-	permissions := sg.GetPermissions()
 	contactPrefs, ok := permissions["contact_preferences"].(map[string]interface{})
 	if !ok {
 		t.Errorf("StudentGuardian.UpdatePermissions() failed to handle nested permissions")

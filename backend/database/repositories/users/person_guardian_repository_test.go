@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -496,7 +497,7 @@ func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
 		// Verify permission granted
 		found, err := repo.FindByID(ctx, pg.ID)
 		require.NoError(t, err)
-		assert.True(t, found.HasPermission("view_attendance"))
+		assert.True(t, authorize.PersonGuardianHasPermission(found, "view_attendance"))
 	})
 
 	t.Run("returns error for non-existent ID", func(t *testing.T) {
@@ -536,7 +537,7 @@ func TestPersonGuardianRepository_RevokePermissionFromGuardian(t *testing.T) {
 		// Verify permission revoked
 		found, err := repo.FindByID(ctx, pg.ID)
 		require.NoError(t, err)
-		assert.False(t, found.HasPermission("view_attendance"))
+		assert.False(t, authorize.PersonGuardianHasPermission(found, "view_attendance"))
 	})
 
 	t.Run("returns error for non-existent ID", func(t *testing.T) {

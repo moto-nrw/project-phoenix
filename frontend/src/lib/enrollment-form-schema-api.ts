@@ -105,7 +105,7 @@ export const RESERVED_TARGETS: Record<
     label: "Buskind",
   },
   "student.pickup_status": {
-    type: "select",
+    type: "weekday_boolean",
     appliesToChild: true,
     label: "Abholregelung",
   },

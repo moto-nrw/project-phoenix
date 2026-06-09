@@ -11,6 +11,9 @@ import {
   formatBusDays,
   getSchoolYear,
   normalizeBusDays,
+  pickupDaysHaveAny,
+  formatPickupDays,
+  normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
   mapStudentsResponse,
@@ -145,6 +148,39 @@ describe("bus day helpers", () => {
       } as Parameters<typeof busDaysFromToggle>[1] & { sat: boolean });
       expect(result).toEqual({ mon: true });
     });
+  });
+});
+
+describe("pickup day helpers", () => {
+  it("normalizes only enabled known weekdays", () => {
+    const result = normalizePickupDays({
+      mon: true,
+      tue: false,
+      wed: true,
+      sat: true,
+    } as Parameters<typeof normalizePickupDays>[0] & { sat: boolean });
+
+    expect(result).toEqual({ mon: true, wed: true });
+  });
+
+  it("normalizes null and undefined to an empty object", () => {
+    expect(normalizePickupDays(null)).toEqual({});
+    expect(normalizePickupDays(undefined)).toEqual({});
+  });
+
+  it("detects any enabled known weekday", () => {
+    expect(pickupDaysHaveAny({ fri: true })).toBe(true);
+    expect(pickupDaysHaveAny({ mon: false, thu: false })).toBe(false);
+    expect(pickupDaysHaveAny(null)).toBe(false);
+    expect(pickupDaysHaveAny(undefined)).toBe(false);
+  });
+
+  it("formats selected weekdays or the empty label", () => {
+    expect(formatPickupDays({ mon: true, wed: true, fri: true })).toBe(
+      "Mo, Mi, Fr",
+    );
+    expect(formatPickupDays({ tue: false })).toBe("Keine Abhol-Tage");
+    expect(formatPickupDays(null)).toBe("Keine Abhol-Tage");
   });
 });
 
@@ -461,6 +497,21 @@ describe("prepareStudentForBackend", () => {
     });
 
     expect(result.id).toBeUndefined();
+  });
+
+  it("normalizes pickup_days when present", () => {
+    const result = prepareStudentForBackend({
+      id: "1",
+      pickup_days: { mon: true, tue: false, wed: true },
+    });
+
+    expect(result.pickup_days).toEqual({ mon: true, wed: true });
+  });
+
+  it("omits pickup_days when undefined so partial updates do not wipe the map", () => {
+    const result = prepareStudentForBackend({ id: "1" });
+
+    expect(result.pickup_days).toBeUndefined();
   });
 });
 

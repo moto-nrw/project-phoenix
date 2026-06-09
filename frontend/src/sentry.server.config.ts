@@ -2,12 +2,12 @@ import * as Sentry from "@sentry/nextjs";
 import { scrubEvent } from "./sentry.shared";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+const environment = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT;
 
 if (dsn) {
   Sentry.init({
     dsn,
-    environment:
-      process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ?? process.env.NODE_ENV,
+    environment,
 
     tracesSampleRate: 0,
 

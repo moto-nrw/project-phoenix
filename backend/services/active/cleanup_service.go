@@ -23,11 +23,19 @@ const (
 	supervisorTableName = "active.group_supervisors"
 )
 
+// ConsentRetentionResolver resolves the data-retention window for a privacy
+// consent, honouring the per-tenant settings default (issue #586, Rule 12: the
+// retention default no longer lives on the PrivacyConsent model).
+type ConsentRetentionResolver interface {
+	ResolveDataRetentionDays(ctx context.Context, consent *userModels.PrivacyConsent) int
+}
+
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
+	consentRetention   ConsentRetentionResolver
 	db                 *bun.DB
 	txHandler          *base.TxHandler
 	batchSize          int
@@ -38,12 +46,14 @@ func NewCleanupService(
 	visitRepo active.VisitRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	dataDeletionRepo audit.DataDeletionRepository,
+	consentRetention ConsentRetentionResolver,
 	db *bun.DB,
 ) CleanupService {
 	return &cleanupService{
 		visitRepo:          visitRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
+		consentRetention:   consentRetention,
 		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 		batchSize:          100, // Process 100 students at a time
@@ -107,10 +117,9 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 	}
 
 	if consent == nil {
-		// No consent found, use default 30 days
+		// No consent found; the resolver supplies the per-tenant default.
 		consent = &userModels.PrivacyConsent{
-			StudentID:         studentID,
-			DataRetentionDays: 30,
+			StudentID: studentID,
 		}
 	}
 
@@ -119,8 +128,10 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 	// because there is no HTTP handler or JWT involved in scheduled cleanup.
 	var deletedCount int64
 	err = s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
+		retentionDays := s.consentRetention.ResolveDataRetentionDays(ctx, consent)
+
 		// Delete expired visits
-		count, err := s.visitRepo.DeleteExpiredVisits(ctx, studentID, consent.GetDataRetentionDays())
+		count, err := s.visitRepo.DeleteExpiredVisits(ctx, studentID, retentionDays)
 		if err != nil {
 			return fmt.Errorf("failed to delete expired visits: %w", err)
 		}
@@ -135,8 +146,8 @@ func (s *cleanupService) CleanupVisitsForStudent(ctx context.Context, studentID 
 				"system",
 			)
 			deletion.SetTenantID(tenant.FromContext(ctx))
-			deletion.DeletionReason = fmt.Sprintf("Data retention policy: %d days", consent.GetDataRetentionDays())
-			deletion.SetMetadata("retention_days", consent.GetDataRetentionDays())
+			deletion.DeletionReason = fmt.Sprintf("Data retention policy: %d days", retentionDays)
+			deletion.SetMetadata("retention_days", retentionDays)
 			deletion.SetMetadata("consent_id", consent.ID)
 
 			if err := s.dataDeletionRepo.Create(ctx, deletion); err != nil {

@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,6 +32,16 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		// Default consent should have renewal_required: true
 		assert.Contains(t, rr.Body.String(), "renewal_required")
+	})
+
+	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
+		require.NoError(t, tc.services.Settings.SetValue(testpkg.TenantContext(1), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"data_retention_days":12`)
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {

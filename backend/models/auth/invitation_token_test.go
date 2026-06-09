@@ -11,7 +11,6 @@ import (
 
 func TestInvitationToken_Validate(t *testing.T) {
 	futureTime := time.Now().Add(48 * time.Hour)
-	pastTime := time.Now().Add(-time.Hour)
 
 	tests := []struct {
 		name    string
@@ -130,17 +129,6 @@ func TestInvitationToken_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "expired invitation",
-			token: &InvitationToken{
-				Email:     "invite@example.com",
-				Token:     "abc123token",
-				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
-				ExpiresAt: pastTime,
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -148,45 +136,6 @@ func TestInvitationToken_Validate(t *testing.T) {
 			err := tt.token.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("InvitationToken.Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestInvitationToken_IsExpired(t *testing.T) {
-	tests := []struct {
-		name     string
-		token    *InvitationToken
-		expected bool
-	}{
-		{
-			name: "not expired",
-			token: &InvitationToken{
-				ExpiresAt: time.Now().Add(time.Hour),
-			},
-			expected: false,
-		},
-		{
-			name: "expired",
-			token: &InvitationToken{
-				ExpiresAt: time.Now().Add(-time.Hour),
-			},
-			expected: true,
-		},
-		{
-			name: "zero time is expired",
-			token: &InvitationToken{
-				ExpiresAt: time.Time{},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.token.IsExpired()
-			if got != tt.expected {
-				t.Errorf("InvitationToken.IsExpired() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
@@ -223,91 +172,6 @@ func TestInvitationToken_IsUsed(t *testing.T) {
 				t.Errorf("InvitationToken.IsUsed() = %v, want %v", got, tt.expected)
 			}
 		})
-	}
-}
-
-func TestInvitationToken_IsValid(t *testing.T) {
-	now := time.Now()
-	future := time.Now().Add(time.Hour)
-	past := time.Now().Add(-time.Hour)
-
-	tests := []struct {
-		name     string
-		token    *InvitationToken
-		expected bool
-	}{
-		{
-			name: "valid - not expired, not used",
-			token: &InvitationToken{
-				ExpiresAt: future,
-				UsedAt:    nil,
-			},
-			expected: true,
-		},
-		{
-			name: "invalid - expired",
-			token: &InvitationToken{
-				ExpiresAt: past,
-				UsedAt:    nil,
-			},
-			expected: false,
-		},
-		{
-			name: "invalid - used",
-			token: &InvitationToken{
-				ExpiresAt: future,
-				UsedAt:    &now,
-			},
-			expected: false,
-		},
-		{
-			name: "invalid - both expired and used",
-			token: &InvitationToken{
-				ExpiresAt: past,
-				UsedAt:    &now,
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.token.IsValid()
-			if got != tt.expected {
-				t.Errorf("InvitationToken.IsValid() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestInvitationToken_MarkAsUsed(t *testing.T) {
-	token := &InvitationToken{
-		Email:     "test@example.com",
-		Token:     "abc123",
-		RoleID:    1,
-		CreatedBy: base.Int64Ptr(1),
-		ExpiresAt: time.Now().Add(time.Hour),
-		UsedAt:    nil,
-	}
-
-	if token.IsUsed() {
-		t.Error("Token should not be used initially")
-	}
-
-	before := time.Now()
-	token.MarkAsUsed()
-	after := time.Now()
-
-	if !token.IsUsed() {
-		t.Error("Token should be marked as used")
-	}
-
-	if token.UsedAt == nil {
-		t.Fatal("UsedAt should not be nil after MarkAsUsed")
-	}
-
-	if token.UsedAt.Before(before) || token.UsedAt.After(after) {
-		t.Errorf("UsedAt = %v, want between %v and %v", token.UsedAt, before, after)
 	}
 }
 

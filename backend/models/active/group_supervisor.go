@@ -89,20 +89,6 @@ func (gs *GroupSupervisor) Validate() error {
 	return nil
 }
 
-// IsActive returns whether this supervision is currently active
-func (gs *GroupSupervisor) IsActive() bool {
-	if gs.EndDate == nil {
-		return true
-	}
-	return time.Now().Before(*gs.EndDate)
-}
-
-// EndSupervision sets the end date to the current date
-func (gs *GroupSupervisor) EndSupervision() {
-	now := time.Now()
-	gs.EndDate = &now
-}
-
 // SetEndDate explicitly sets the end date
 func (gs *GroupSupervisor) SetEndDate(endDate time.Time) error {
 	if gs.StartDate.After(endDate) {

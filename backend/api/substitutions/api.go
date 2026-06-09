@@ -83,7 +83,7 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		EndDate:           sub.EndDate.Format(dateFormatYMD),
 		Reason:            sub.Reason,
 		Duration:          sub.Duration(),
-		IsActive:          sub.IsCurrentlyActive(),
+		IsActive:          education.SubstitutionIsActiveNow(sub, time.Now()),
 		CreatedAt:         sub.CreatedAt,
 		UpdatedAt:         sub.UpdatedAt,
 	}

@@ -61,7 +61,9 @@ describe("RESERVED_TARGETS", () => {
   it("declares the right field type per target", () => {
     expect(RESERVED_TARGETS["student.health_info"].type).toBe("textarea");
     expect(RESERVED_TARGETS["student.bus"].type).toBe("weekday_boolean");
-    expect(RESERVED_TARGETS["student.pickup_status"].type).toBe("select");
+    expect(RESERVED_TARGETS["student.pickup_status"].type).toBe(
+      "weekday_boolean",
+    );
     expect(RESERVED_TARGETS["schedule.pickup"].type).toBe("weekday_schedule");
     expect(RESERVED_TARGETS["student.contacts"].type).toBe("contact_list");
   });

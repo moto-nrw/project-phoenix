@@ -107,24 +107,9 @@ func (sg *StudentGuardian) UpdatePermissions(permissions map[string]interface{})
 	return nil
 }
 
-// HasPermission checks if a specific permission exists and is true
-func (sg *StudentGuardian) HasPermission(permission string) bool {
-	permissions := sg.GetPermissions()
-
-	value, exists := permissions[permission]
-	if !exists {
-		return false
-	}
-
-	// Try to convert to bool
-	boolValue, ok := value.(bool)
-	if ok {
-		return boolValue
-	}
-
-	// If not a bool, check if it's a non-empty value
-	return value != nil
-}
+// Note: the permission check (formerly StudentGuardian.HasPermission) moved out
+// of the model in issue #586 (Rule 12) to:
+//   - auth/authorize/guardian_permission.go (StudentGuardianHasPermission)
 
 // GetRelationshipName returns a formatted name for the relationship type
 func (sg *StudentGuardian) GetRelationshipName() string {

@@ -165,6 +165,39 @@ func TestRenderXLSXWritesTable(t *testing.T) {
 	}
 }
 
+func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{GroupTitle: "Bestätigte Anmeldungen"},
+		{Values: map[ColumnID]string{ColumnName: "Mila Muster", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:00 bis 15:00"}},
+	}
+	file, err := NewService().Render(doc, FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() { _ = workbook.Close() }()
+
+	group, err := workbook.GetCellValue("Export", "A7")
+	if err != nil {
+		t.Fatalf("read group row error = %v", err)
+	}
+	if group != "Bestätigte Anmeldungen" {
+		t.Fatalf("group row = %q, want Bestätigte Anmeldungen", group)
+	}
+	firstName, err := workbook.GetCellValue("Export", "A8")
+	if err != nil {
+		t.Fatalf("read first data row error = %v", err)
+	}
+	if firstName != "Mila Muster" {
+		t.Fatalf("first data row = %q, want Mila Muster", firstName)
+	}
+}
+
 func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {

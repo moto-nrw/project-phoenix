@@ -113,6 +113,15 @@ func (r stubStaffAccountRepo) IncrementMFAAttempts(context.Context, int64, int, 
 func (r stubStaffAccountRepo) ResetMFAAttempts(context.Context, int64) error {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) IncrementPINAttempts(context.Context, int64, int, time.Duration) (authModels.PINAttemptResult, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ResetPINAttempts(context.Context, int64) error {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ClearPIN(context.Context, int64) error {
+	panic("not implemented")
+}
 
 type stubStaffAccountTenantRepo struct {
 	exists bool

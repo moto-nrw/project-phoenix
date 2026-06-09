@@ -276,7 +276,10 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 	if err := r.Repository.Create(ctx, student); err != nil {
 		return err
 	}
-	return r.persistBusDays(ctx, student)
+	if err := r.persistBusDays(ctx, student); err != nil {
+		return err
+	}
+	return r.persistPickupDays(ctx, student)
 }
 
 // Update overrides the base Update method to handle validation
@@ -293,7 +296,10 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	if err := r.Repository.Update(ctx, student); err != nil {
 		return err
 	}
-	return r.persistBusDays(ctx, student)
+	if err := r.persistBusDays(ctx, student); err != nil {
+		return err
+	}
+	return r.persistPickupDays(ctx, student)
 }
 
 func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.Student) error {
@@ -314,7 +320,7 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 		// Migration tests exercise historical schemas with the current model.
 		// Before 1.15.112 the column legitimately does not exist; let the
 		// legacy bus flag continue to cover those test/database states.
-		if isUndefinedBusDaysColumn(err) {
+		if isUndefinedColumnError(err) {
 			return nil
 		}
 		return &modelBase.DatabaseError{
@@ -326,7 +332,48 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 	return base.AssertRowsAffected(result, 1, "update student bus days")
 }
 
-func isUndefinedBusDaysColumn(err error) bool {
+// persistPickupDays writes the per-weekday pickup map AND the derived legacy
+// pickup_status string in the same update, so the repository is the single
+// source of truth: any caller that mutates PickupDays directly (not just the
+// HTTP reconcile helpers) can never leave pickup_status stale. HasAny →
+// "Wird abgeholt", else "Geht alleine nach Hause". Mirrors persistBusDays.
+func (r *StudentRepository) persistPickupDays(ctx context.Context, student *users.Student) error {
+	if student.PickupDays == nil {
+		if student.PickupStatus == nil {
+			return nil
+		}
+		student.PickupDays = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+	}
+	normalized := student.PickupDays.Normalize()
+	legacyStatus := normalized.LegacyPickupStatus()
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set(`pickup_days = ?`, normalized).
+		Set(`pickup_status = ?`, legacyStatus).
+		Where(`"student".id = ?`, student.ID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		// Before 1.15.116 the column legitimately does not exist; let the
+		// legacy pickup_status field continue to cover those test states.
+		if isUndefinedColumnError(err) {
+			return nil
+		}
+		return &modelBase.DatabaseError{
+			Op:  "update student pickup days",
+			Err: err,
+		}
+	}
+	student.PickupDays = normalized
+	student.PickupStatus = &legacyStatus
+	return base.AssertRowsAffected(result, 1, "update student pickup days")
+}
+
+func isUndefinedColumnError(err error) bool {
 	var pgErr pgdriver.Error
 	return errors.As(err, &pgErr) && pgErr.Field('C') == "42703"
 }
@@ -691,12 +738,27 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		return nil
 	}
 
-	type busDaysRow struct {
-		ID      int64         `bun:"id"`
-		BusDays users.BusDays `bun:"bus_days"`
+	// pickup_days (1.15.116) lands one migration after bus_days (1.15.112),
+	// so there is a schema window where bus_days exists but pickup_days does
+	// not. Detect the column independently and only select it when present —
+	// otherwise a missing pickup_days would fail the whole query and drop the
+	// bus_days hydration along with it.
+	hasPickupDays, err := r.hasStudentColumn(ctx, "pickup_days")
+	if err != nil {
+		return err
 	}
-	var rows []busDaysRow
-	sql := `SELECT "student".id, "student".bus_days FROM users.students AS "student" WHERE "student".id IN (?)`
+
+	type weekdayDaysRow struct {
+		ID         int64            `bun:"id"`
+		BusDays    users.BusDays    `bun:"bus_days"`
+		PickupDays users.PickupDays `bun:"pickup_days"`
+	}
+	var rows []weekdayDaysRow
+	pickupCol := `, NULL::jsonb AS pickup_days`
+	if hasPickupDays {
+		pickupCol = `, "student".pickup_days`
+	}
+	sql := `SELECT "student".id, "student".bus_days` + pickupCol + ` FROM users.students AS "student" WHERE "student".id IN (?)`
 	args := []any{bun.List(ids)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		sql += ` AND "student".tenant_id = ?`
@@ -705,13 +767,13 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 
 	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
 		// Migration tests exercise historical schemas with the current model.
-		// Before 1.15.112 the column legitimately does not exist; callers can
-		// still rely on the legacy bus flag in those schema states.
+		// Before 1.15.112 the bus_days column legitimately does not exist;
+		// callers can still rely on the legacy bus flag in those schema states.
 		if strings.Contains(err.Error(), "bus_days") {
 			return nil
 		}
 		return &modelBase.DatabaseError{
-			Op:  "hydrate student bus days",
+			Op:  "hydrate student weekday days",
 			Err: err,
 		}
 	}
@@ -719,6 +781,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	for _, row := range rows {
 		if student := byID[row.ID]; student != nil {
 			student.BusDays = row.BusDays.Normalize()
+			student.PickupDays = row.PickupDays.Normalize()
 		}
 	}
 	return nil
@@ -838,7 +901,7 @@ func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*u
 }
 
 func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, students []*users.Student) error {
-	hasBusDays, err := r.hasBusDaysColumn(ctx)
+	hasBusDays, err := r.hasStudentColumn(ctx, "bus_days")
 	if err != nil {
 		return err
 	}
@@ -848,7 +911,7 @@ func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, student
 	return r.hydrateBusDaysForStudents(ctx, students)
 }
 
-func (r *StudentRepository) hasBusDaysColumn(ctx context.Context) (bool, error) {
+func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {
 	var exists bool
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT EXISTS (
@@ -856,12 +919,12 @@ func (r *StudentRepository) hasBusDaysColumn(ctx context.Context) (bool, error) 
 			FROM information_schema.columns
 			WHERE table_schema = 'users'
 			  AND table_name = 'students'
-			  AND column_name = 'bus_days'
+			  AND column_name = ?
 		)
-	`).Scan(ctx, &exists)
+	`, column).Scan(ctx, &exists)
 	if err != nil {
 		return false, &modelBase.DatabaseError{
-			Op:  "check students bus_days column",
+			Op:  "check students column",
 			Err: err,
 		}
 	}

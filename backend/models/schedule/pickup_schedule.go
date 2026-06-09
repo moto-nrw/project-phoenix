@@ -82,7 +82,7 @@ func (s *StudentPickupSchedule) Validate() error {
 	if s.CreatedBy <= 0 {
 		return errors.New(errMsgCreatedByRequired)
 	}
-	if s.Notes != nil && len(*s.Notes) > 500 {
+	if s.Notes != nil && len(*s.Notes) > scheduleNotesMaxLength {
 		return errors.New("notes cannot exceed 500 characters")
 	}
 	return nil
@@ -146,7 +146,7 @@ func (e *StudentPickupException) Validate() error {
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
 	}
-	if e.Reason != nil && len(*e.Reason) > 255 {
+	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if e.CreatedBy <= 0 {
@@ -261,7 +261,7 @@ func (n *StudentPickupNote) Validate() error {
 	if n.Content == "" {
 		return errors.New("content is required")
 	}
-	if len(n.Content) > 500 {
+	if len(n.Content) > scheduleNotesMaxLength {
 		return errors.New("content cannot exceed 500 characters")
 	}
 	if n.CreatedBy <= 0 {

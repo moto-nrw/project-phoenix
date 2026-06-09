@@ -3,7 +3,7 @@
  * Extracted to reduce cognitive complexity in route handlers
  */
 
-import type { BusDays, Student } from "~/lib/student-helpers";
+import type { BusDays, PickupDays, Student } from "~/lib/student-helpers";
 import type { StudentGuardianPayload } from "~/lib/guardian-helpers";
 import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type { BackendPickupScheduleRequest } from "~/lib/pickup-schedule-helpers";
@@ -31,6 +31,7 @@ interface BackendStudentRequest {
   group_id?: number;
   bus?: boolean;
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   extra_info?: string;
   birthday?: string;
   health_info?: string;
@@ -171,6 +172,7 @@ export function buildBackendStudentRequest(
     // bus_days is the single source of truth (#1582); the legacy bus boolean
     // is no longer sent from the frontend.
     bus_days: backendData.bus_days,
+    pickup_days: backendData.pickup_days,
     extra_info: backendData.extra_info,
     birthday: backendData.birthday,
     health_info: backendData.health_info,

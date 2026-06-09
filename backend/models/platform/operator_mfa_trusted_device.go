@@ -36,14 +36,12 @@ func (d *OperatorMFATrustedDevice) TableName() string {
 	return "platform.operator_mfa_trusted_devices"
 }
 
-// IsExpired returns true once the device's trust window has passed.
-func (d *OperatorMFATrustedDevice) IsExpired() bool { return time.Now().After(d.ExpiresAt) }
-
-// IsRevoked returns true once the device was explicitly revoked.
+// IsRevoked returns true once the device was explicitly revoked. This is a pure
+// field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
+// in the service layer (services/platform.OperatorMFATrustedDeviceExpired /
+// OperatorMFATrustedDeviceActive) and the repository's active-device finders,
+// per issue #586 (Rule 12).
 func (d *OperatorMFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
-
-// IsActive is the convenience predicate for the trusted-device check on login.
-func (d *OperatorMFATrustedDevice) IsActive() bool { return !d.IsExpired() && !d.IsRevoked() }
 
 func (d *OperatorMFATrustedDevice) GetID() interface{}      { return d.ID }
 func (d *OperatorMFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }

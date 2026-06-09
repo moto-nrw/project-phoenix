@@ -31,6 +31,10 @@ func (f *fakeSettingsResolver) ResolveString(_ context.Context, _ string) (strin
 	return f.resolved, f.resolveErr
 }
 
+func (f *fakeSettingsResolver) ResolveInt(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+
 // TestResolveClearMode_NilSettings — when no SettingsResolver is injected the
 // fallback value is returned untouched.
 func TestResolveClearMode_NilSettings(t *testing.T) {

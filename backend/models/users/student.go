@@ -28,20 +28,21 @@ const (
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
-	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string `bun:"pickup_status" json:"pickup_status,omitempty"`
+	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
+	PickupDays      PickupDays `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
 	// BusDays is the single source of truth for the Buskind flag (#1582): the
 	// weekdays on which the child rides the bus. The legacy boolean bus column
-	// was dropped in migration 1.15.116; the API derives a compatibility bus
+	// was dropped in migration 1.15.118; the API derives a compatibility bus
 	// flag from BusDays.HasAny() at the response boundary.
 	BusDays       BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`
 	Sick          *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
@@ -119,6 +120,10 @@ func (s *Student) Validate() error {
 	}
 
 	if err := s.BusDays.Validate(); err != nil {
+		return err
+	}
+
+	if err := s.PickupDays.Validate(); err != nil {
 		return err
 	}
 

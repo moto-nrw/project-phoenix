@@ -73,6 +73,42 @@ export function formatBusDays(value?: BusDays | null): string {
   return labels.length > 0 ? labels.join(", ") : "Keine Bus-Tage";
 }
 
+// Pickup days mirror bus days: per-weekday "wird abgeholt" flags. A day not
+// selected means the child goes home alone that day. Reuses the same weekday
+// keys as BusDays.
+export type PickupDayKey = BusDayKey;
+export type PickupDays = Partial<Record<PickupDayKey, boolean>>;
+
+export const PICKUP_WEEKDAYS: ReadonlyArray<{
+  key: PickupDayKey;
+  label: string;
+}> = [
+  { key: "mon", label: "Montag" },
+  { key: "tue", label: "Dienstag" },
+  { key: "wed", label: "Mittwoch" },
+  { key: "thu", label: "Donnerstag" },
+  { key: "fri", label: "Freitag" },
+] as const;
+
+export function normalizePickupDays(value?: PickupDays | null): PickupDays {
+  const out: PickupDays = {};
+  for (const day of PICKUP_WEEKDAYS) {
+    if (value?.[day.key]) out[day.key] = true;
+  }
+  return out;
+}
+
+export function pickupDaysHaveAny(value?: PickupDays | null): boolean {
+  return PICKUP_WEEKDAYS.some((day) => Boolean(value?.[day.key]));
+}
+
+export function formatPickupDays(value?: PickupDays | null): string {
+  const labels = PICKUP_WEEKDAYS.filter((day) => Boolean(value?.[day.key])).map(
+    (day) => day.label.slice(0, 2),
+  );
+  return labels.length > 0 ? labels.join(", ") : "Keine Abhol-Tage";
+}
+
 /**
  * Extract the school year (Klassenstufe) from a school_class string.
  * E.g. "Klasse 3a" → "3", "2b" → "2", "unknown" → null
@@ -104,6 +140,7 @@ export interface BackendStudent {
   current_room_color?: string | null;
   bus?: boolean;
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   sick?: boolean;
   sick_since?: string;
   excused?: boolean;
@@ -223,6 +260,7 @@ export interface Student {
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -309,6 +347,7 @@ export function mapStudentResponse(
     // stays correct even if an older payload omits it.
     bus: busDaysHaveAny(backendStudent.bus_days),
     bus_days: normalizeBusDays(backendStudent.bus_days),
+    pickup_days: normalizePickupDays(backendStudent.pickup_days),
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
     excused: backendStudent.excused ?? false, // Excused from attending today
@@ -414,6 +453,10 @@ export function prepareStudentForBackend(
       student.bus_days !== undefined
         ? normalizeBusDays(student.bus_days)
         : undefined,
+    pickup_days:
+      student.pickup_days !== undefined
+        ? normalizePickupDays(student.pickup_days)
+        : undefined,
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
     group_id: student.group_id
@@ -459,6 +502,7 @@ export interface UpdateStudentRequest {
   pickup_status?: string;
   bus?: boolean;
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   sick?: boolean;
   /** Optional free-text reason stamped on today's sick day when marking sick. */
   sick_reason?: string;
@@ -489,6 +533,7 @@ export interface BackendUpdateRequest {
   pickup_status?: string;
   bus?: boolean;
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   sick?: boolean;
   sick_reason?: string;
   excused?: boolean;
@@ -543,6 +588,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   // bus_days is the single source of truth (#1582); the legacy bus boolean is
   // no longer sent from the frontend.
   { source: "bus_days", target: "bus_days" },
+  { source: "pickup_days", target: "pickup_days" },
   { source: "sick", target: "sick" },
   { source: "sick_reason", target: "sick_reason" },
   { source: "excused", target: "excused" },

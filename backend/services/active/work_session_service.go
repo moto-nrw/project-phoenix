@@ -878,6 +878,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
+	now := time.Now()
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
 		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
@@ -887,9 +888,9 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 
 		responses[i] = &SessionResponse{
 			WorkSession:      session,
-			NetMinutes:       session.NetMinutes(),
-			IsOvertime:       session.IsOvertime(),
-			IsBreakCompliant: session.IsBreakCompliant(),
+			NetMinutes:       netMinutes(session, now),
+			IsOvertime:       isOvertime(session, now),
+			IsBreakCompliant: isBreakCompliant(session, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 		}

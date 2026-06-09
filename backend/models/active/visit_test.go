@@ -134,22 +134,6 @@ func TestVisitIsActive(t *testing.T) {
 	}
 }
 
-func TestVisitEndVisit(t *testing.T) {
-	nowTime := time.Now()
-
-	visit := &Visit{
-		EntryTime: nowTime,
-		ExitTime:  nil,
-	}
-
-	// Test that EndVisit sets the exit time
-	visit.EndVisit()
-
-	if visit.ExitTime == nil {
-		t.Errorf("Visit.EndVisit() did not set the exit time")
-	}
-}
-
 func TestVisitSetExitTime(t *testing.T) {
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)

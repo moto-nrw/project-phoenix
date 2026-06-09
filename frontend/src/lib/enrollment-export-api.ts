@@ -2,10 +2,10 @@
  * Client for the compact per-phase registration export. Mirrors the
  * student-export download flow: POST to the Next.js proxy, then stream
  * the returned blob to a download. PDF = one block per submission
- * (print fallback); XLSX = one flat row per child (full data).
+ * (print fallback); DOCX/XLSX = one flat row per child (full data).
  */
 
-export type EnrollmentExportFormat = "pdf" | "xlsx";
+export type EnrollmentExportFormat = "pdf" | "docx" | "xlsx";
 
 /**
  * Export a phase's registrations. When `childStatus` is given, the export

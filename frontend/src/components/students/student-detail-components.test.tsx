@@ -652,9 +652,19 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Keine Bus-Tage")).toBeInTheDocument();
   });
 
-  it("renders pickup status", () => {
-    render(<PersonalInfoReadOnly student={mockStudent} />);
-    expect(screen.getByText("selbst")).toBeInTheDocument();
+  it("renders the pickup weekdays when the child is picked up", () => {
+    const pickedUp = {
+      ...mockStudent,
+      pickup_days: { mon: true, wed: true },
+    };
+    render(<PersonalInfoReadOnly student={pickedUp} />);
+    expect(screen.getByText("Wird abgeholt: Mo, Mi")).toBeInTheDocument();
+  });
+
+  it("renders 'Geht alleine nach Hause' when no pickup days are set", () => {
+    const goesAlone = { ...mockStudent, pickup_days: {} };
+    render(<PersonalInfoReadOnly student={goesAlone} />);
+    expect(screen.getByText("Geht alleine nach Hause")).toBeInTheDocument();
   });
 
   it("renders health info when present", () => {

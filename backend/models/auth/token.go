@@ -31,7 +31,10 @@ func (t *Token) TableName() string {
 	return "auth.tokens"
 }
 
-// Validate ensures token data is valid
+// Validate ensures token data is valid. It performs pure field validation only.
+// The expiry/validity decision is wall-clock policy owned by the auth service
+// (services/auth.TokenExpired), per issue #586 (Rule 12: models hold data, not
+// decisions).
 func (t *Token) Validate() error {
 	if t.AccountID <= 0 {
 		return errors.New("account ID is required")
@@ -41,17 +44,7 @@ func (t *Token) Validate() error {
 		return errors.New("token value is required")
 	}
 
-	// Check if token has expired
-	if t.Expiry.Before(time.Now()) {
-		return errors.New("token has already expired")
-	}
-
 	return nil
-}
-
-// IsExpired checks if the token has expired
-func (t *Token) IsExpired() bool {
-	return t.Expiry.Before(time.Now())
 }
 
 // SetExpiry sets the token expiry time to a specified duration from now

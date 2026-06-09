@@ -76,6 +76,7 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	// bus is a derived compatibility flag, true iff the child is a Buskind on at
 	// least one weekday. bus_days is the single source of truth (#1582).
 	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
@@ -210,6 +211,7 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	response.BusDays = student.BusDays.Normalize()
 	// bus derived from bus_days (single source of truth, #1582).
 	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
