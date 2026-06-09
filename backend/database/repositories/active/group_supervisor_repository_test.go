@@ -909,10 +909,19 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	repo := repositories.NewFactory(db).GroupSupervisor
+	factory := repositories.NewFactory(db)
+	repo := factory.GroupSupervisor
 	ctx := testpkg.TenantContext(1)
 	data := createSupervisorTestData(t, db)
 	defer cleanupSupervisorTestData(t, db, data)
+
+	// End the active session up front. Tests in other packages run
+	// EndDailySessions concurrently against the shared test DB, which
+	// bulk-ends supervisors of every group with end_time IS NULL — racing
+	// the count assertions below. EndAllActiveByStaffID filters only on
+	// staff_id + end_date IS NULL, so an ended session changes nothing
+	// about what this test exercises.
+	require.NoError(t, factory.ActiveGroup.EndSession(ctx, data.ActiveGroup.ID))
 
 	t.Run("ends all active supervisions for staff", func(t *testing.T) {
 		today := timezone.DateOfUTC(time.Now())
