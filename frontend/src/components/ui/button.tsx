@@ -11,7 +11,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     | "danger"
     | "success"
     | "ghost";
-  size?: "sm" | "base" | "lg" | "xl" | "compact" | "icon";
+  size?: "sm" | "md" | "base" | "lg" | "xl" | "compact" | "icon";
 }
 
 export function Button({
@@ -26,6 +26,7 @@ export function Button({
   // Text sizes basierend auf size prop
   const textSizes = {
     sm: "text-sm", // 14px
+    md: "text-sm", // 14px — modal/form-action height (Flo standard)
     base: "text-base", // 16px
     lg: "text-lg", // 18px
     xl: "text-xl", // 20px
@@ -34,11 +35,15 @@ export function Button({
   };
 
   // Geometry (radius + padding) per size. sm/base/lg/xl keep the original
-  // page-level geometry so every existing caller renders unchanged. compact
-  // and icon are the dense chrome variants for toolbars, dropdown triggers,
-  // and icon actions (the documented kit gap).
+  // page-level geometry so every existing caller renders unchanged. md is the
+  // modal-footer / dense-form-action height (px-4 py-2 text-sm ≈ 36px) that
+  // matches the ConfirmationModal action buttons — use it for slide-over /
+  // modal footers and in-form actions instead of the oversized page sizes.
+  // compact and icon are the dense chrome variants for toolbars, dropdown
+  // triggers, and icon actions.
   const sizeStyles = {
     sm: "rounded-lg px-5 py-3",
+    md: "rounded-lg px-4 py-2",
     base: "rounded-lg px-5 py-3",
     lg: "rounded-lg px-5 py-3",
     xl: "rounded-lg px-5 py-3",
