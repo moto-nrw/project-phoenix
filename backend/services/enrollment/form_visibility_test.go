@@ -52,6 +52,22 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 	assert.False(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "", "tue": ""}), "all-blank schedule rejected")
 	assert.True(t, customValueSatisfiesRequired(sched, map[string]any{"mon": "08:00"}), "a filled day accepted")
 	assert.False(t, customValueSatisfiesRequired(sched, nil), "nil schedule rejected")
+
+	// weekday_boolean (Buskind): needs at least one selected day.
+	busDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentBus}
+	assert.False(t, customValueSatisfiesRequired(busDays, nil), "nil bus days rejected")
+	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{}), "empty bus days rejected")
+	assert.False(t, customValueSatisfiesRequired(busDays, map[string]any{"mon": false}), "all-false bus days rejected")
+	assert.True(t, customValueSatisfiesRequired(busDays, map[string]any{"mon": true}), "a selected bus day accepted")
+
+	// weekday_boolean (Abholregelung): an empty map is the valid "Geht
+	// alleine nach Hause" answer, so a required pickup field is satisfied
+	// even with no day selected. A malformed value is still rejected.
+	pickupDays := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean, Target: enrollmentModels.TargetStudentPickupStatus}
+	assert.True(t, customValueSatisfiesRequired(pickupDays, nil), "nil pickup days accepted (goes alone)")
+	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{}), "empty pickup days accepted (goes alone)")
+	assert.True(t, customValueSatisfiesRequired(pickupDays, map[string]any{"mon": true}), "selected pickup day accepted")
+	assert.False(t, customValueSatisfiesRequired(pickupDays, map[string]any{"sat": true}), "invalid weekday rejected")
 }
 
 // ---- fieldVisible --------------------------------------------------------

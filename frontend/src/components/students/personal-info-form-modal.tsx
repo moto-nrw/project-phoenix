@@ -5,6 +5,8 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { ChevronDownIcon } from "./student-detail-components";
+import { PickupStatusSection } from "./student-form-fields";
+import { normalizePickupDays, pickupDaysHaveAny } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -123,19 +125,18 @@ export function PersonalInfoFormModal({
             { value: "true", label: "Ja" },
           ]}
         />
-        <SelectInput
-          id="modal-student-pickup-status"
-          label="Abholstatus"
-          value={editedStudent.pickup_status ?? ""}
-          onChange={(value) => updateField("pickup_status", value || undefined)}
-          options={[
-            { value: "", label: "Nicht gesetzt" },
-            {
-              value: "Geht alleine nach Hause",
-              label: "Geht alleine nach Hause",
-            },
-            { value: "Wird abgeholt", label: "Wird abgeholt" },
-          ]}
+        <PickupStatusSection
+          days={editedStudent.pickup_days}
+          onChange={(value) => {
+            const normalized = normalizePickupDays(value);
+            setEditedStudent((prev) => ({
+              ...prev,
+              pickup_days: normalized,
+              pickup_status: pickupDaysHaveAny(normalized)
+                ? "Wird abgeholt"
+                : "Geht alleine nach Hause",
+            }));
+          }}
         />
         <TextAreaInput
           id="modal-student-health-info"

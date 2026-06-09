@@ -689,6 +689,35 @@ describe("EnrollmentForm", () => {
     });
   });
 
+  it("shows pickup-specific helper text for the Abholregelung weekday field", async () => {
+    const withPickup = schema();
+    withPickup.fields = [
+      ...withPickup.fields,
+      {
+        key: "pickup_status",
+        label: "Abholregelung",
+        type: "weekday_boolean",
+        target: "student.pickup_status",
+        required: false,
+        applies_to_child: true,
+        sort_order: 7,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(withPickup);
+    renderForm();
+    await waitForLoaded();
+
+    // The pickup field gets the pickup copy, not the bus copy — guards the
+    // regression where the shared weekday_boolean input hardcoded bus text.
+    expect(
+      screen.getByText(/an denen das Kind abgeholt wird/),
+    ).toBeInTheDocument();
+    // The Buskind field still shows its own bus copy.
+    expect(
+      screen.getByText(/an denen das Kind mit dem Bus fährt/),
+    ).toBeInTheDocument();
+  });
+
   it("requires at least one selected weekday for required weekday boolean fields", async () => {
     const requiredBusDays = schema();
     requiredBusDays.fields = requiredBusDays.fields.map((field) =>

@@ -19,6 +19,8 @@ import {
   busDaysHaveAny,
   normalizeBusDays,
   type BusDays,
+  pickupDaysHaveAny,
+  normalizePickupDays,
 } from "~/lib/student-helpers";
 import GuardianFormModal, {
   type RelationshipFormData,
@@ -531,8 +533,17 @@ export function StudentCreateModal({
 
           {/* Pickup Status */}
           <PickupStatusSection
-            value={formData.pickup_status}
-            onChange={(v) => handleChange("pickup_status", v)}
+            days={formData.pickup_days}
+            onChange={(value) => {
+              const normalized = normalizePickupDays(value);
+              setFormData((prev) => ({
+                ...prev,
+                pickup_days: normalized,
+                pickup_status: pickupDaysHaveAny(normalized)
+                  ? "Wird abgeholt"
+                  : "Geht alleine nach Hause",
+              }));
+            }}
           />
 
           {/* Action Buttons */}

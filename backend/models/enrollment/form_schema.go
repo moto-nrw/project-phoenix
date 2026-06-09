@@ -273,7 +273,7 @@ var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
 	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
-	TargetStudentPickupStatus: {Type: FormFieldSelect, AppliesToChild: true, Label: "Abholregelung"},
+	TargetStudentPickupStatus: {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
 	TargetSchedulePickup:      {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
 	TargetScheduleArrival:     {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
 	TargetStudentContacts:     {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},

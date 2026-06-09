@@ -242,6 +242,14 @@ func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) b
 	case enrollmentModels.FormFieldWeekdaySchedule:
 		return scheduleHasAnyTime(value)
 	case enrollmentModels.FormFieldWeekdayBoolean:
+		// For the pickup target an empty map is the valid "Geht alleine nach
+		// Hause" answer — the parent consciously selected no pickup days — so a
+		// required Abholregelung is satisfied as long as the value is a
+		// well-formed weekday map. Every other weekday_boolean field (e.g.
+		// Buskind) still needs at least one selected day to count as answered.
+		if field.Target == enrollmentModels.TargetStudentPickupStatus {
+			return weekdayBooleanWellFormed(value)
+		}
 		return weekdayBooleanHasAnySelected(value)
 	case enrollmentModels.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
@@ -259,6 +267,18 @@ func weekdayBooleanHasAnySelected(value any) bool {
 		return false
 	}
 	return days.HasAny()
+}
+
+// weekdayBooleanWellFormed reports whether the value decodes to a valid
+// weekday map, without requiring any day to be selected. Used for the pickup
+// target, where an empty map ("Geht alleine nach Hause") is a legitimate
+// answer — a nil/absent value decodes to an empty map and is accepted too.
+func weekdayBooleanWellFormed(value any) bool {
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(value, &days); err != nil {
+		return false
+	}
+	return days.Validate() == nil
 }
 
 func phoneListSatisfiesRequired(value any) bool {

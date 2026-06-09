@@ -133,7 +133,7 @@ const targetSuggestionDescriptions: Record<
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
   "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",
   "student.pickup_status":
-    "Für die grundsätzliche Regelung, ob ein Kind abgeholt wird oder alleine geht.",
+    "Für die Wochentage, an denen ein Kind abgeholt wird. Nicht gewählte Tage bedeuten, dass es alleine nach Hause geht.",
   "schedule.pickup": "Für regelmäßige Abholzeiten je Wochentag.",
   "schedule.arrival": "Für regelmäßige Ankunftszeiten je Wochentag.",
   "student.contacts":
@@ -3042,13 +3042,12 @@ function createTargetField(
 }
 
 function getTargetOptions(
-  target: Exclude<FormFieldTarget, "">,
+  _target: Exclude<FormFieldTarget, "">,
 ): FormField["options"] {
-  if (target !== "student.pickup_status") return [];
-  return [
-    { label: "Geht alleine nach Hause", value: "alone" },
-    { label: "Wird abgeholt", value: "picked_up" },
-  ];
+  // No reserved target uses static select options anymore. Abholregelung is
+  // a weekday_boolean (the parent picks the pickup weekdays, just like the
+  // Buskind field); structured types carry no options.
+  return [];
 }
 
 function prepareFieldsForSave(fields: FormField[]): FormField[] {

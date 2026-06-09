@@ -1829,6 +1829,10 @@ function customValueMissing(
     return !Object.values(schedule).some((time) => time.trim() !== "");
   }
   if (field.type === "weekday_boolean") {
+    // Pickup: an empty selection is the valid "Geht alleine nach Hause"
+    // answer, so a required Abholregelung is never "missing". Other
+    // weekday_boolean fields (e.g. Buskind) still need at least one day.
+    if (field.target === "student.pickup_status") return false;
     const days = asWeekdayBooleanObject(value);
     return !Object.values(days).some(Boolean);
   }
@@ -2281,7 +2285,9 @@ function WeekdayBooleanInput({
         </p>
       )}
       <p className="text-xs text-gray-500">
-        Wähle die Tage aus, an denen das Kind mit dem Bus fährt.
+        {field.target === "student.pickup_status"
+          ? "Wähle die Tage aus, an denen das Kind abgeholt wird. An nicht gewählten Tagen geht es alleine nach Hause."
+          : "Wähle die Tage aus, an denen das Kind mit dem Bus fährt."}
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-5">
         {WEEKDAYS.map((w) => {
