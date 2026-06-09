@@ -410,16 +410,22 @@ func waitForDispatch(t *testing.T, ch <-chan struct{}, what string) {
 	}
 }
 
+// trySend signals ch without blocking; signals beyond the buffer are
+// dropped, which is fine for a "dispatched at least once" marker.
+func trySend(ch chan<- struct{}) {
+	select {
+	case ch <- struct{}{}:
+	default:
+	}
+}
+
 func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	var captured email.Message
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
-			select {
-			case sent <- struct{}{}:
-			default:
-			}
+			trySend(sent)
 			return nil
 		},
 	}
@@ -473,10 +479,7 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
-			select {
-			case sent <- struct{}{}:
-			default:
-			}
+			trySend(sent)
 			return nil
 		},
 	}
@@ -526,10 +529,7 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
-			select {
-			case sent <- struct{}{}:
-			default:
-			}
+			trySend(sent)
 			return nil
 		},
 	}
@@ -585,10 +585,7 @@ func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
 		updateDeliveryResultFn: func(_ context.Context, tokenID int64, _ *time.Time, _ *string, _ int) error {
 			updateCalled = true
 			capturedTokenID = tokenID
-			select {
-			case persisted <- struct{}{}:
-			default:
-			}
+			trySend(persisted)
 			return nil
 		},
 	}
@@ -1101,10 +1098,7 @@ func TestInitiateEmailChange_AuditLogFailure_DoesNotBlockEmails(t *testing.T) {
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
-			select {
-			case sent <- struct{}{}:
-			default:
-			}
+			trySend(sent)
 			return nil
 		},
 	}
@@ -1259,10 +1253,7 @@ func TestConfirmEmailChange_AuditLogFailure_DoesNotBlock(t *testing.T) {
 	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
-			select {
-			case sent <- struct{}{}:
-			default:
-			}
+			trySend(sent)
 			return nil
 		},
 	}

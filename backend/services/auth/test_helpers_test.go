@@ -522,7 +522,8 @@ func (r *stubPasswordResetTokenRepository) FindValidByToken(_ context.Context, t
 	if !ok || item.Used || time.Now().After(item.Expiry) {
 		return nil, sql.ErrNoRows
 	}
-	return item, nil
+	cp := *item
+	return &cp, nil
 }
 
 func (r *stubPasswordResetTokenRepository) MarkAsUsed(_ context.Context, id int64) error {
@@ -632,7 +633,8 @@ func (r *stubInvitationTokenRepository) FindByToken(_ context.Context, value str
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if token, ok := r.byToken[value]; ok {
-		return token, nil
+		cp := *token
+		return &cp, nil
 	}
 	return nil, sql.ErrNoRows
 }
@@ -647,7 +649,8 @@ func (r *stubInvitationTokenRepository) FindValidByToken(_ context.Context, valu
 	if token.IsUsed() || token.ExpiresAt.Before(now) {
 		return nil, sql.ErrNoRows
 	}
-	return token, nil
+	cp := *token
+	return &cp, nil
 }
 
 func (r *stubInvitationTokenRepository) FindByEmail(_ context.Context, email string) ([]*authModel.InvitationToken, error) {
@@ -657,7 +660,8 @@ func (r *stubInvitationTokenRepository) FindByEmail(_ context.Context, email str
 	var result []*authModel.InvitationToken
 	for _, token := range r.tokens {
 		if strings.ToLower(token.Email) == email {
-			result = append(result, token)
+			cp := *token
+			result = append(result, &cp)
 		}
 	}
 	return result, nil
@@ -729,7 +733,8 @@ func (r *stubInvitationTokenRepository) List(_ context.Context, filters map[stri
 			}
 		}
 		if include {
-			result = append(result, token)
+			cp := *token
+			result = append(result, &cp)
 		}
 	}
 	return result, nil

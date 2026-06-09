@@ -2,16 +2,14 @@ package test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -1115,42 +1113,12 @@ func hashPassword(password string) (string, error) {
 	return h, nil
 }
 
-// hashPasswordUncached hashes a password using Argon2id (matches auth/userpass)
+// hashPasswordUncached hashes a password with the same algorithm as the
+// auth service, using the cheap test-only params: these are throwaway test
+// credentials, and the params travel inside the encoded hash, so
+// verification still works.
 func hashPasswordUncached(password string) (string, error) {
-	// Import the userpass package inline to hash the password
-	// This uses the same algorithm as the auth service. Memory is kept
-	// deliberately small: these are throwaway test credentials, and the
-	// params travel inside the encoded hash, so verification still works.
-	params := &argon2Params{
-		memory:      1024,
-		iterations:  1,
-		parallelism: 1,
-		saltLength:  16,
-		keyLength:   32,
-	}
-
-	salt := make([]byte, params.saltLength)
-	if _, err := rand.Read(salt); err != nil {
-		return "", err
-	}
-
-	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
-
-	// Encode as $argon2id$v=19$m=<memory>,t=<iterations>,p=<parallelism>$<salt>$<hash>
-	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
-
-	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, params.memory, params.iterations, params.parallelism, b64Salt, b64Hash), nil
-}
-
-// argon2Params holds parameters for Argon2id hashing
-type argon2Params struct {
-	memory      uint32
-	iterations  uint32
-	parallelism uint8
-	saltLength  uint32
-	keyLength   uint32
+	return userpass.HashPassword(password, cheapArgon2Params)
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.

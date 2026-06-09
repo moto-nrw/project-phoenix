@@ -81,9 +81,12 @@ jobs:
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
           # BEFORE restoring the dump — it contains GRANTs and RLS policies
-          # referencing these roles. Everything runs inside the postgres:17
-          # service container: the local socket is trust-auth and the runner's
-          # psql is v16, which refuses a v17 server.
+          # referencing these roles. If a future migration adds a role, update
+          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
+          # never silently, because new migrations also change the cache key.
+          # Everything runs inside the postgres:17 service container: the
+          # local socket is trust-auth and the runner's psql is v16, which
+          # refuses a v17 server.
           docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
           CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '${PHOENIX_AUTH_PASSWORD}';
           CREATE ROLE phoenix_tenant NOLOGIN;

@@ -4,21 +4,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestMain makes Argon2id hashing cheap for every test in this binary.
-// Production DefaultParams (64MiB memory, 3 iterations) cost 55-120ms per
-// hash, and the login/reset handler tests hash on most paths. The override
-// only applies to callers that pass nil params; each encoded hash
-// self-describes its params, so verification is unaffected.
+// The login/reset handler tests hash passwords on most paths; cheap
+// Argon2id params keep that off the test suite's critical path.
 func TestMain(m *testing.M) {
-	userpass.DefaultOverride = &userpass.PasswordParams{
-		Memory:      1024, // KiB
-		Iterations:  1,
-		Parallelism: 1,
-		SaltLength:  16,
-		KeyLength:   32,
-	}
+	testpkg.UseCheapArgon2Params()
 	os.Exit(m.Run())
 }
