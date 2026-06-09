@@ -147,6 +147,8 @@ Each portal is its own NextAuth instance. Cookies are host-only on operator + pa
 
 **ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists. Duplication is a bug.
 
+**The shared UI kit is the source of truth.** Build from `src/components/ui/` (and `ui/page-header/`); never hand-roll a button/card/tab/modal/input/menu, and never import components from the `@moto-nrw/design-system` package (CSS tokens only). For the full component map, canonical radii (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`), brand colors, and gotchas, see **`.claude/rules/frontend-ui-kit.md`**.
+
 ### Brand Colors — NEVER Use Generic Tailwind Colors
 
 MOTO has specific brand hex codes. Using generic Tailwind colors (like `text-green-500`, `bg-blue-500`) instead of the correct brand hex is **wrong** and will be rejected in review. Tailwind defaults are different hues than the MOTO brand.
