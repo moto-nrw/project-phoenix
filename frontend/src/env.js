@@ -8,15 +8,13 @@ export const env = createEnv({
    */
   server: {
     API_URL: z.string().url(),
-    // Remove AUTH_SECRET or make it fully optional
-    AUTH_SECRET: z.string().optional(),
-    AUTH_JWT_EXPIRY: z.string().default("1h"),
-    AUTH_JWT_REFRESH_EXPIRY: z.string().default("168h"),
+    AUTH_JWT_EXPIRY: z.string().min(1),
+    AUTH_JWT_REFRESH_EXPIRY: z.string().min(1),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
-    NEXTAUTH_URL: z.url().optional().default("http://localhost:3000"),
-    NEXTAUTH_SECRET: z.string().optional(),
+    NEXTAUTH_URL: z.url(),
+    NEXTAUTH_SECRET: z.string().min(1),
     TENANT_DOMAIN: z.string().min(1),
   },
 
@@ -26,7 +24,7 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_API_URL: z.url().optional().default("http://localhost:8080"),
+    NEXT_PUBLIC_API_URL: z.url(),
     NEXT_PUBLIC_LOG_LEVEL: z
       .enum(["debug", "info", "warn", "error"])
       .default("info"),
@@ -45,7 +43,6 @@ export const env = createEnv({
    */
   runtimeEnv: {
     API_URL: process.env.API_URL,
-    AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_JWT_EXPIRY: process.env.AUTH_JWT_EXPIRY,
     AUTH_JWT_REFRESH_EXPIRY: process.env.AUTH_JWT_REFRESH_EXPIRY,
     NODE_ENV: process.env.NODE_ENV,

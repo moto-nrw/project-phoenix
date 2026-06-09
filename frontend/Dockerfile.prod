@@ -35,8 +35,9 @@ ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 
-# Build the app
-RUN pnpm run build
+# Build the app. Runtime env is validated when the container starts; build-time
+# validation would require baking runtime secrets into the image.
+RUN SKIP_ENV_VALIDATION=true pnpm run build
 
 # Set production environment
 ENV NODE_ENV=production

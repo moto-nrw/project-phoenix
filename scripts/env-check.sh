@@ -215,6 +215,70 @@ else
 fi
 
 # ============================================================
+# CHECK 4: Fail-fast config guard
+# ============================================================
+echo ""
+echo "=== Check 4: Fail-fast config guard ==="
+
+ENV_JS="${PROJECT_ROOT}/frontend/src/env.js"
+if [[ -f "$ENV_JS" ]]; then
+  env_schema_violations=$(
+    grep -nE '\.(default|optional)\(' "$ENV_JS" \
+      | grep -v 'default("development")' \
+      | grep -v 'default("info")' \
+      | grep -v 'NEXT_PUBLIC_POSTHOG_KEY' \
+      | grep -v 'NEXT_PUBLIC_POSTHOG_HOST' \
+      | grep -v 'NEXT_PUBLIC_SENTRY_DSN' \
+      | grep -v 'NEXT_PUBLIC_SENTRY_ENVIRONMENT' || true
+  )
+  if [[ -n "$env_schema_violations" ]]; then
+    echo "❌ frontend/src/env.js contains unapproved .default()/.optional() usage:"
+    echo "$env_schema_violations" | sed 's/^/   /'
+    exit_code=1
+  else
+    echo "✅ frontend env schema has no unapproved defaults/options"
+  fi
+else
+  echo "❌ frontend/src/env.js not found"
+  exit_code=1
+fi
+
+frontend_env_fallbacks=$(grep -R -nE 'process\.env\.[A-Z0-9_]+[[:space:]]*(\?\?|\|\|)' "${PROJECT_ROOT}/frontend/src" || true)
+if [[ -n "$frontend_env_fallbacks" ]]; then
+  echo "❌ Frontend contains process.env fallback expressions:"
+  echo "$frontend_env_fallbacks" | sed 's/^/   /'
+  exit_code=1
+else
+  echo "✅ frontend process.env reads have no fallback expressions"
+fi
+
+backend_default_violations=$(
+  grep -R -n 'viper.SetDefault' "${PROJECT_ROOT}/backend/cmd" \
+    | grep -v 'log_level' || true
+)
+if [[ -n "$backend_default_violations" ]]; then
+  echo "❌ backend/cmd contains unapproved viper.SetDefault calls:"
+  echo "$backend_default_violations" | sed 's/^/   /'
+  exit_code=1
+else
+  echo "✅ backend/cmd has no unapproved viper defaults"
+fi
+
+compose_fallbacks=$(
+  grep -R -nE '\$\{[A-Z0-9_]+:-' \
+    "$COMPOSE_EXAMPLE" \
+    "${ENV_DIR}"/*.compose.yml \
+    "${PROJECT_ROOT}/.github/workflows" 2>/dev/null || true
+)
+if [[ -n "$compose_fallbacks" ]]; then
+  echo "❌ Compose/workflow files contain shell fallback interpolation:"
+  echo "$compose_fallbacks" | sed 's/^/   /'
+  exit_code=1
+else
+  echo "✅ Compose/workflow interpolation has no shell fallbacks"
+fi
+
+# ============================================================
 # Summary
 # ============================================================
 echo ""

@@ -31,7 +31,7 @@ func TestNewFactory(t *testing.T) {
 
 	// Clear viper for clean test
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
@@ -66,8 +66,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.DefaultFrom)
 	})
 
-	t.Run("default values", func(t *testing.T) {
-		// Default frontend URL
+	t.Run("configured values", func(t *testing.T) {
 		assert.Equal(t, "http://localhost:3000", factory.FrontendURL)
 
 		// Default expiry values (when not configured)
@@ -84,7 +83,7 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 
 	// Set invitation expiry to zero (should default to 48h)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 0)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -102,7 +101,7 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 
 	// Set invitation expiry to > 168 hours (should clamp to 168h)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 500)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -120,7 +119,7 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 
 	// Set invitation expiry to valid value (72 hours)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", 72)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -138,7 +137,7 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 
 	// Set password reset expiry to zero (should default to 30m)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 0)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -156,7 +155,7 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 
 	// Set password reset expiry to > 1440 minutes (should clamp to 1440m)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 2000)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -174,7 +173,7 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 
 	// Set password reset expiry to valid value (60 minutes)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", 60)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -192,7 +191,7 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 
 	// Set frontend URL with trailing slash
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("frontend_url", "http://example.com/")
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -202,7 +201,7 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	assert.Equal(t, "http://example.com", factory.FrontendURL)
 }
 
-func TestNewFactory_FrontendURL_DefaultWhenEmpty(t *testing.T) {
+func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -210,14 +209,29 @@ func TestNewFactory_FrontendURL_DefaultWhenEmpty(t *testing.T) {
 
 	// Clear frontend URL
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("frontend_url", "")
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
-	require.NoError(t, err)
-	require.NotNil(t, factory)
+	require.Error(t, err)
+	require.Nil(t, factory)
+	assert.Contains(t, err.Error(), "FRONTEND_URL")
+}
 
-	assert.Equal(t, "http://localhost:3000", factory.FrontendURL)
+func TestNewFactory_ParentsURL_Required(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+
+	viper.Reset()
+	seedFactoryRequiredConfig()
+	viper.Set("parents_url", "")
+
+	factory, err := services.NewFactory(repos, db, slog.Default())
+	require.Error(t, err)
+	require.Nil(t, factory)
+	assert.Contains(t, err.Error(), "PARENTS_URL")
 }
 
 func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
@@ -228,7 +242,7 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 
 	// Clear email config
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
@@ -247,7 +261,7 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 
 	// Set email config
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("email_from_name", "Test App")
 	viper.Set("email_from_address", "test@example.com")
 
@@ -267,7 +281,7 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 
 	// Set negative value (should default to 48h)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("invitation_token_expiry_hours", -10)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -285,7 +299,7 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 
 	// Set negative value (should default to 30m)
 	viper.Reset()
-	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	seedFactoryRequiredConfig()
 	viper.Set("password_reset_token_expiry_minutes", -10)
 
 	factory, err := services.NewFactory(repos, db, slog.Default())
@@ -293,6 +307,12 @@ func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	require.NotNil(t, factory)
 
 	assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
+}
+
+func seedFactoryRequiredConfig() {
+	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
+	viper.Set("frontend_url", "http://localhost:3000")
+	viper.Set("parents_url", "http://parents.localhost:3000")
 }
 
 func TestEnableStudentPhotos(t *testing.T) {

@@ -45,10 +45,11 @@ COPY --from=dev-deps /app/node_modules ./node_modules
 # Copy source files
 COPY . .
 
-# Build the application
+# Build the application. Runtime env is validated when the container starts;
+# build-time validation would require baking runtime secrets into the image.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN pnpm run build
+RUN SKIP_ENV_VALIDATION=true pnpm run build
 
 # Production stage - minimal image
 FROM base AS production
