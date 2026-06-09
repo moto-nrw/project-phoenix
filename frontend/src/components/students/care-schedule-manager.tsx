@@ -134,7 +134,9 @@ function invalidatePickupCaches() {
 }
 
 function getStatusLabel(status: StudentStatusKind): string {
-  return status === "sick" ? "Krank" : "Entschuldigt";
+  if (status === "sick") return "Krank";
+  if (status === "class_trip") return "Klassenfahrt";
+  return "Entschuldigt";
 }
 
 function formatStatusDayDate(date: string): string {
@@ -161,6 +163,7 @@ function getAbsenceStatus(
   pickup: PickupDayData,
 ): StudentStatusKind | null {
   if (arrival.showSick || pickup.showSick) return "sick";
+  if (arrival.showClassTrip || pickup.showClassTrip) return "class_trip";
   if (arrival.showExcused || pickup.showExcused) return "excused";
   return null;
 }
@@ -813,9 +816,9 @@ function MobileDayButton({
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const statusLabel = day.status
-    ? day.status === "sick"
-      ? "Krank"
-      : "Entsch."
+    ? day.status === "class_trip"
+      ? "Klasse"
+      : getStatusLabel(day.status)
     : null;
   return (
     <button
@@ -947,7 +950,12 @@ function AbsencePlaceholder({
 }) {
   if (!status) return null;
   const isSick = status === "sick";
-  const label = isSick ? "Ganztägig krank gemeldet" : "Ganztägig entschuldigt";
+  const label =
+    status === "class_trip"
+      ? "Ganztägig Klassenfahrt"
+      : isSick
+        ? "Ganztägig krank gemeldet"
+        : "Ganztägig entschuldigt";
   const isInteractive = !readOnly && statusDay !== null;
   const content = (
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">

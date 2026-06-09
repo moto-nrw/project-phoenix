@@ -48,25 +48,32 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		assert.GreaterOrEqual(t, analytics.ActiveActivities, 1, "Should have at least 1 active activity")
 	})
 
-	t.Run("counts class trip students as excused without double counting excused students", func(t *testing.T) {
+	t.Run("counts class trip students as excused without counting sick overlaps", func(t *testing.T) {
 		// ARRANGE
 		before, err := service.GetDashboardAnalytics(ctx)
 		require.NoError(t, err)
 
 		classTripStudent := testpkg.CreateTestStudent(t, db, "ClassTrip", "Dashboard", "CT1")
 		alreadyExcusedStudent := testpkg.CreateTestStudent(t, db, "ExcusedClassTrip", "Dashboard", "CT2")
-		defer testpkg.CleanupActivityFixtures(t, db, classTripStudent.ID, alreadyExcusedStudent.ID)
+		sickClassTripStudent := testpkg.CreateTestStudent(t, db, "SickClassTrip", "Dashboard", "CT3")
+		defer testpkg.CleanupActivityFixtures(t, db, classTripStudent.ID, alreadyExcusedStudent.ID, sickClassTripStudent.ID)
 
-		excused := true
+		flagTrue := true
 		_, err = db.NewUpdate().
 			Model(alreadyExcusedStudent).
-			Set("excused = ?", excused).
+			Set("excused = ?", flagTrue).
 			Where("id = ?", alreadyExcusedStudent.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewUpdate().
+			Model(sickClassTripStudent).
+			Set("sick = ?", flagTrue).
+			Where("id = ?", sickClassTripStudent.ID).
 			Exec(ctx)
 		require.NoError(t, err)
 
 		now := time.Now()
-		for _, studentID := range []int64{classTripStudent.ID, alreadyExcusedStudent.ID} {
+		for _, studentID := range []int64{classTripStudent.ID, alreadyExcusedStudent.ID, sickClassTripStudent.ID} {
 			_, err = db.NewRaw(`
 				INSERT INTO active.student_status_days
 					(tenant_id, student_id, date, status, reported_at, source, created_at, updated_at)

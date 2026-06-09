@@ -288,6 +288,18 @@ const statusDays: StudentStatusDay[] = [
     created_at: "2026-05-25T08:00:00Z",
     updated_at: "2026-05-25T08:00:00Z",
   },
+  {
+    id: "9",
+    student_id: "42",
+    date: "2026-05-27",
+    status: "class_trip",
+    label: "Klassenfahrt",
+    reported_at: "2026-05-25T08:00:00Z",
+    cleared_at: null,
+    source: "planned",
+    created_at: "2026-05-25T08:00:00Z",
+    updated_at: "2026-05-25T08:00:00Z",
+  },
 ];
 
 describe("CareScheduleManager", () => {
@@ -331,6 +343,9 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("15:15").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("Ganztägig entschuldigt").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Ganztägig Klassenfahrt").length,
     ).toBeGreaterThan(0);
     expect(
       screen.getAllByText("Ganztägig krank gemeldet").length,

@@ -293,9 +293,10 @@ export default function StudentDetailPage() {
   // Excused toggle state
   const [showConfirmExcused, setShowConfirmExcused] = useState(false);
   const [excusedLoading, setExcusedLoading] = useState(false);
+  const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
   const excusedConfirmText = excusedLoading
     ? "Wird gespeichert..."
-    : student?.excused
+    : isQuickExcused
       ? "Entschuldigung aufheben"
       : "Entschuldigen";
 
@@ -604,7 +605,7 @@ export default function StudentDetailPage() {
 
     setExcusedLoading(true);
     try {
-      const newExcusedStatus = !(student.excused ?? false);
+      const newExcusedStatus = !isQuickExcused;
       await studentService.updateStudent(studentId, {
         excused: newExcusedStatus,
       });
@@ -643,7 +644,7 @@ export default function StudentDetailPage() {
   };
 
   const handleExcusedClick = () => {
-    if (student?.excused) {
+    if (isQuickExcused) {
       setShowConfirmExcused(true);
       return;
     }
@@ -878,6 +879,7 @@ export default function StudentDetailPage() {
             onRefreshData={refreshData}
             onSickClick={handleSickClick}
             sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
             onExcusedClick={handleExcusedClick}
             excusedLoading={excusedLoading}
             onClassTripClick={() => setPlannedStatusModal("class_trip")}
@@ -998,7 +1000,7 @@ export default function StudentDetailPage() {
         onClose={() => setShowConfirmExcused(false)}
         onConfirm={handleConfirmExcusedToggle}
         title={
-          student.excused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+          isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
         }
         confirmText={excusedConfirmText}
         cancelText="Abbrechen"
@@ -1006,7 +1008,7 @@ export default function StudentDetailPage() {
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
         <p>
-          {student.excused ? (
+          {isQuickExcused ? (
             <>
               Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
               für heute aufheben? Geplante Entschuldigungen in der Zukunft
@@ -1176,6 +1178,7 @@ interface FullAccessViewProps {
   onRefreshData: () => void;
   onSickClick: () => void;
   sickLoading: boolean;
+  isQuickExcused: boolean;
   onExcusedClick: () => void;
   excusedLoading: boolean;
   onClassTripClick: () => void;
@@ -1204,6 +1207,7 @@ function FullAccessView({
   onRefreshData,
   onSickClick,
   sickLoading,
+  isQuickExcused,
   onExcusedClick,
   excusedLoading,
   onClassTripClick,
@@ -1230,10 +1234,8 @@ function FullAccessView({
           )}
           {hasWriteAccess && (
             <StudentExcusedReportSection
-              isExcused={(student.excused ?? false) && !student.class_trip}
-              excusedSince={
-                student.class_trip ? undefined : student.excused_since
-              }
+              isExcused={isQuickExcused}
+              excusedSince={isQuickExcused ? student.excused_since : undefined}
               onToggle={onExcusedClick}
               isLoading={excusedLoading}
             />

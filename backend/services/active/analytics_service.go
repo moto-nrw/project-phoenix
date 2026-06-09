@@ -105,6 +105,7 @@ func (s *service) countClassTripStudentsForDate(ctx context.Context, date time.T
 		Where(`"student_status_day".date = ?`, date).
 		Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayClassTrip).
 		Where(`"student_status_day".cleared_at IS NULL`).
+		Where(`COALESCE("student".sick, FALSE) = FALSE`).
 		Where(`COALESCE("student".excused, FALSE) = FALSE`).
 		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`).
 		Scan(ctx, &count)
