@@ -5,6 +5,7 @@ import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly label?: string;
   readonly error?: string;
+  readonly controlSize?: "default" | "compact";
 }
 
 export function Input({
@@ -12,10 +13,16 @@ export function Input({
   name,
   error,
   className = "",
+  controlSize = "default",
   maxLength,
   type,
   ...props
 }: InputProps) {
+  const controlClassName =
+    controlSize === "compact"
+      ? "block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200"
+      : "block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200";
+
   return (
     <div>
       {label && (
@@ -31,7 +38,7 @@ export function Input({
         name={name}
         type={type}
         maxLength={maxLength ?? getDefaultMaxLength(type ?? "text")}
-        className={`block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 ${className}`}
+        className={`${controlClassName} ${className}`}
         {...props}
       />
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}

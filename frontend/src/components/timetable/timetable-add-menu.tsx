@@ -94,7 +94,7 @@ export function TimetableAddMenu({
           disabled={disabled || isPending}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="w-full sm:w-auto"
+          className="w-full rounded-lg sm:w-auto"
         >
           {isPending ? (
             <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />

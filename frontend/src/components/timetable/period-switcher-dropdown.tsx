@@ -126,7 +126,7 @@ export function PeriodSwitcherDropdown({
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
   if (isLoading) {
-    return <Skeleton className="h-8 w-44 rounded-md" />;
+    return <Skeleton className="h-8 w-44 rounded-lg" />;
   }
 
   // Empty state — no periods exist at all.
@@ -137,6 +137,7 @@ export function PeriodSwitcherDropdown({
         variant="primary"
         size="compact"
         onClick={onCreate}
+        className="rounded-lg"
         title="Ohne aktive Kalenderperiode kann der Plan nicht materialisiert werden."
       >
         Periode anlegen
@@ -230,24 +231,24 @@ export function PeriodSwitcherDropdown({
                           setOpen(false);
                           onSelect(p);
                         }}
-                        className={`group min-w-0 flex-1 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-gray-100 ${
+                        className={`group relative min-w-0 flex-1 rounded-md px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 ${
                           isAssigned ? "bg-gray-100" : ""
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
                           <span className="truncate text-xs font-medium text-gray-900">
                             {p.name}
                           </span>
-                          {isAssigned && (
-                            <Check
-                              className="h-3.5 w-3.5 shrink-0 text-gray-900"
-                              aria-hidden
-                            />
-                          )}
                         </div>
                         <p className="text-[10px] text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
                         </p>
+                        {isAssigned && (
+                          <Check
+                            className="absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-gray-900"
+                            aria-hidden
+                          />
+                        )}
                       </button>
                       <Button
                         type="button"

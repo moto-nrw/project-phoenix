@@ -1,15 +1,14 @@
 "use client";
 
+import { Check } from "lucide-react";
+
 import { cn } from "~/lib/utils";
 
 /**
- * Checkbox — the shared kit checkbox.
+ * Checkbox: the shared kit checkbox.
  *
- * One styled native <input type="checkbox"> so every checkbox in the app
- * shares the same size, radius, brand-green checked state (#83CD2D =
- * LOCATION_COLORS.GROUP_ROOM) and focus ring. Before this existed, checkboxes
- * drifted across purple-600 / green-600 / blue-600 / gray-900 accents — this
- * is the single source of truth.
+ * Visually matches the custom room drawer checkbox while keeping a native
+ * input for forms, labels, and keyboard interaction.
  *
  * It is only the control. Wrap it in your own <label> for the row layout you
  * need so it composes into dense multi-select lists and single toggle rows
@@ -19,15 +18,21 @@ type CheckboxProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">;
 
 export function Checkbox({ className, ...props }: CheckboxProps) {
   return (
-    <input
-      type="checkbox"
-      className={cn(
-        "h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-[#83CD2D]",
-        "focus-visible:ring-2 focus-visible:ring-[#83CD2D]/40 focus-visible:outline-none",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
-      {...props}
-    />
+    <>
+      <input type="checkbox" className="peer sr-only" {...props} />
+      <span
+        className={cn(
+          "pointer-events-none flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white shadow-sm transition-all",
+          "peer-checked:border-gray-900 peer-checked:bg-gray-900",
+          "peer-checked:[&>svg]:opacity-100",
+          "peer-focus-visible:ring-2 peer-focus-visible:ring-gray-300 peer-focus-visible:outline-none",
+          "peer-disabled:opacity-50",
+          className,
+        )}
+        aria-hidden="true"
+      >
+        <Check className="h-3.5 w-3.5 text-white opacity-0 transition-opacity" />
+      </span>
+    </>
   );
 }

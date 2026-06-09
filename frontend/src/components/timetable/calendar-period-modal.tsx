@@ -28,6 +28,8 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
+const FORM_SELECT_CLASS =
+  "moto-select block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
 
 interface CalendarPeriodModalProps {
   isOpen: boolean;
@@ -278,6 +280,7 @@ export function CalendarPeriodModal({
             onChange={(e) => update("name", e.target.value)}
             placeholder="z. B. Schuljahr 2025/2026"
             maxLength={255}
+            controlSize="compact"
             required
             autoFocus
           />
@@ -288,7 +291,7 @@ export function CalendarPeriodModal({
             id="period_type"
             value={form.periodType}
             onChange={(e) => update("periodType", e.target.value as PeriodType)}
-            className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+            className={FORM_SELECT_CLASS}
           >
             {PERIOD_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -304,6 +307,7 @@ export function CalendarPeriodModal({
               id="start_date"
               type="date"
               value={form.startDate}
+              controlSize="compact"
               onChange={(e) => update("startDate", e.target.value)}
               required
             />
@@ -313,6 +317,7 @@ export function CalendarPeriodModal({
               id="end_date"
               type="date"
               value={form.endDate}
+              controlSize="compact"
               onChange={(e) => update("endDate", e.target.value)}
               required
             />
@@ -327,6 +332,7 @@ export function CalendarPeriodModal({
               min={1}
               max={4}
               value={form.weekCycleLength}
+              controlSize="compact"
               onChange={(e) => update("weekCycleLength", e.target.value)}
             />
           </Field>
@@ -339,6 +345,7 @@ export function CalendarPeriodModal({
               id="cycle_anchor"
               type="date"
               value={form.weekCycleAnchor}
+              controlSize="compact"
               onChange={(e) => update("weekCycleAnchor", e.target.value)}
               disabled={cycleLength <= 1}
             />

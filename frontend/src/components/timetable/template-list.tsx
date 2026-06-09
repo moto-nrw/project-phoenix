@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { TemplateCard } from "./template-card";
@@ -23,7 +23,7 @@ export function TemplateList({
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/40 px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
           <CalendarDays className="h-6 w-6 text-gray-400" aria-hidden />
         </div>
@@ -41,9 +41,10 @@ export function TemplateList({
           variant="primary"
           size="sm"
           onClick={onCreate}
-          className="mt-2"
+          className="mt-2 gap-2"
         >
-          + Serientermin anlegen
+          <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
+          Serientermin anlegen
         </Button>
       </div>
     );

@@ -110,6 +110,10 @@ interface TimetableEventModalProps {
 }
 
 const logger = createLogger({ component: "TimetableEventModal" });
+const FORM_SELECT_CLASS =
+  "moto-select block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
+const FORM_SEARCH_CLASS =
+  "block h-10 w-full rounded-lg border-0 bg-white py-2 pr-3 pl-9 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400";
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
@@ -624,6 +628,7 @@ export function TimetableEventModal({
                 onChange={(event) => update("title", event.target.value)}
                 placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
                 maxLength={255}
+                controlSize="compact"
                 autoFocus
                 required
               />
@@ -635,6 +640,7 @@ export function TimetableEventModal({
                   id="event_date"
                   type="date"
                   value={form.date}
+                  controlSize="compact"
                   onChange={(event) => {
                     const nextDate = event.target.value;
                     const nextWeekday = isoWeekday(nextDate);
@@ -651,6 +657,7 @@ export function TimetableEventModal({
                   id="event_start"
                   type="time"
                   value={form.startTime}
+                  controlSize="compact"
                   onChange={(event) => update("startTime", event.target.value)}
                   required
                 />
@@ -660,6 +667,7 @@ export function TimetableEventModal({
                   id="event_end"
                   type="time"
                   value={form.endTime}
+                  controlSize="compact"
                   onChange={(event) => update("endTime", event.target.value)}
                   required
                 />
@@ -673,7 +681,7 @@ export function TimetableEventModal({
                 onChange={(event) => update("roomId", event.target.value)}
                 disabled={loadingRefs}
                 required
-                className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                className={FORM_SELECT_CLASS}
               >
                 <option value="">
                   {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
@@ -793,7 +801,7 @@ export function TimetableEventModal({
                       }
                       required
                       disabled={loadingRefs}
-                      className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                      className={FORM_SELECT_CLASS}
                     >
                       <option value="">
                         {loadingRefs
@@ -815,7 +823,7 @@ export function TimetableEventModal({
                         update("educationGroupId", event.target.value)
                       }
                       disabled={loadingRefs}
-                      className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                      className={FORM_SELECT_CLASS}
                     >
                       <option value="">Keine Zuordnung</option>
                       {groups.map((group) => (
@@ -841,7 +849,7 @@ export function TimetableEventModal({
                           update("calendarPeriodId", event.target.value)
                         }
                         required
-                        className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                        className={FORM_SELECT_CLASS}
                       >
                         <option value="">Periode auswählen ...</option>
                         {calendarPeriods.map((period) => (
@@ -856,7 +864,7 @@ export function TimetableEventModal({
                       <span className="text-xs font-semibold text-gray-700">
                         Planungsperiode
                       </span>
-                      <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-600">
+                      <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
                         <span className="truncate">
                           Gilt in{" "}
                           <span className="font-semibold text-gray-800">
@@ -901,7 +909,7 @@ export function TimetableEventModal({
                   onChange={(event) =>
                     update("primaryStaffId", event.target.value)
                   }
-                  className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                  className={FORM_SELECT_CLASS}
                 >
                   <option value="">Keine Auswahl</option>
                   {staff
@@ -1096,14 +1104,14 @@ function MultiSelectField({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`${label} suchen ...`}
-            className="block w-full rounded-lg border-0 bg-white py-3 pl-9 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+            className={FORM_SEARCH_CLASS}
           />
         </label>
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
             onChange={(event) => setClassFilter(event.target.value)}
-            className="moto-select block rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+            className={FORM_SELECT_CLASS}
             aria-label="Nach Klasse filtern"
           >
             <option value="all">Alle Klassen</option>
@@ -1118,7 +1126,7 @@ function MultiSelectField({
           <select
             value={groupFilter}
             onChange={(event) => setGroupFilter(event.target.value)}
-            className="moto-select block rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+            className={FORM_SELECT_CLASS}
             aria-label="Nach Gruppe filtern"
           >
             <option value="all">Alle Gruppen</option>
