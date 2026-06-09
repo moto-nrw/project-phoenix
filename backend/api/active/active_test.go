@@ -919,7 +919,7 @@ func TestUpdateSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Update", "Supervisor")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "original")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID, supervisor.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		body := map[string]interface{}{
 			"staff_id":        staff.ID,
@@ -993,7 +993,7 @@ func TestEndSupervision(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "End", "Supervision")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "to-end")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID, supervisor.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/supervisors/%d/end", supervisor.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsAssign})
@@ -1554,7 +1554,7 @@ func TestGetSupervisorSuccess(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Get", "Supervisor")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "test-role")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID, supervisor.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1595,8 +1595,8 @@ func TestGetStaffActiveSupervisionsSuccess(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Staff Active Sup Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Staff", "ActiveSup")
-		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "active-role")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID, supervisor.ID)
+		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "active-role")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d/active", staff.ID), nil)
 		rr := executeWithAuth(router, req, adminClaims, []string{permissions.GroupsRead})

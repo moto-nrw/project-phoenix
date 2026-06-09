@@ -565,10 +565,15 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// Active domain cleanup (continued)
 		// ========================================
 
-		// Delete from active.group_supervisors
+		// Delete from active.group_supervisors. Match only the FK columns:
+		// matching the row's own PK against a generic entity ID deletes
+		// FOREIGN supervisor rows whenever another fixture's auto-increment
+		// ID collides numerically (the same cross-domain collision the auth
+		// NOTE below describes). Tests that own a supervisor row clean it
+		// via CleanupTableRecords("active.group_supervisors", id) instead.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
+			Where("staff_id = ? OR group_id = ?", id, id).
 			Where("tenant_id = ?", tenantID),
 			"active.group_supervisors")
 

@@ -43,7 +43,7 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.GetGroupSupervisor(ctx, supervisor.ID)
@@ -107,7 +107,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, supervisor.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 	})
 
 	t.Run("returns error for nil supervisor", func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// Update role
 		supervisor.Role = "primary_supervisor"
@@ -290,7 +290,7 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.ListGroupSupervisors(ctx, nil)
@@ -343,7 +343,7 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByStaffID(ctx, staff.ID)
@@ -399,7 +399,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
@@ -457,7 +457,7 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 		require.NoError(t, err)
 		err = service.CreateGroupSupervisor(ctx, sup2)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, sup1.ID, sup2.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sup1.ID, sup2.ID)
 
 		// ACT
 		result, err := service.FindSupervisorsByActiveGroupIDs(ctx, []int64{group1.ID, group2.ID})
@@ -505,7 +505,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		err = service.EndSupervision(ctx, supervisor.ID)
@@ -570,7 +570,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		}
 		err := service.CreateGroupSupervisor(ctx, supervisor)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 		// ACT
 		result, err := service.GetStaffActiveSupervisions(ctx, staff.ID)
