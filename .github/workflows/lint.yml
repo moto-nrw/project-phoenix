@@ -17,7 +17,7 @@ defaults:
 jobs:
   backend-quality:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -30,9 +30,12 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Install Go quality tools
+        # Pinned so the Go build cache can reuse the compiled binaries run
+        # over run. go-licenses v2 lives on the /v2 module path, so @latest
+        # on this path resolves to v1.6.0 anyway — the pin changes nothing.
         run: |
-          go install golang.org/x/tools/cmd/deadcode@latest
-          go install github.com/google/go-licenses@latest
+          go install golang.org/x/tools/cmd/deadcode@v0.45.0
+          go install github.com/google/go-licenses@v1.6.0
 
       - name: Check Go formatting
         working-directory: backend
