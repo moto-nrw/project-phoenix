@@ -102,6 +102,44 @@ func ParseBool(val string) bool {
 	return normalized == "ja" || normalized == "yes" || normalized == "true" || normalized == "1"
 }
 
+// busDayColumns maps the optional per-day "Bus.Xx" import headers (German
+// weekday abbreviations, lowercased by the column mapper) to the canonical
+// bus_days weekday keys.
+var busDayColumns = []struct{ col, key string }{
+	{"bus.mo", "mon"},
+	{"bus.di", "tue"},
+	{"bus.mi", "wed"},
+	{"bus.do", "thu"},
+	{"bus.fr", "fri"},
+}
+
+// parseBusDayColumns reads optional per-day Buskind columns (Bus.Mo..Bus.Fr).
+// It returns nil unless at least one per-day cell holds an explicit value, in
+// which case the caller falls back to the legacy single "Bus" column. This
+// matters because the generated template always emits the Bus.Mo..Bus.Fr
+// headers: keying off header presence alone would make a row with "Bus=Ja" and
+// blank per-day cells import as no bus days, contradicting the documented
+// "legacy Bus=Ja → all weekdays" behavior. We therefore only let the per-day
+// columns override the legacy flag when the user actually filled a cell.
+// bus_days is the single source of truth (#1582).
+func parseBusDayColumns(mapper *ColumnMapper) map[string]bool {
+	var days map[string]bool
+	for _, d := range busDayColumns {
+		// GetCol returns "" for both an absent header and a present-but-blank
+		// cell, so this skips both and only an explicit value counts as an
+		// override.
+		raw := mapper.GetCol(d.col)
+		if raw == "" {
+			continue
+		}
+		if days == nil {
+			days = make(map[string]bool, len(busDayColumns))
+		}
+		days[d.key] = ParseBool(raw)
+	}
+	return days
+}
+
 // MapStudentRow maps column values to StudentImportRow using the shared mapping logic
 func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) {
 	row := importModels.StudentImportRow{
@@ -120,6 +158,7 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.ExtraInfo = mapper.GetCol("zusatzinfo")
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
+	row.BusDays = parseBusDayColumns(mapper)
 	row.EnrolledFrom = mapper.GetCol("einschreibung von")
 	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 

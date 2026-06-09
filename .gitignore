@@ -486,3 +486,6 @@ node_modules/
 .gitattributes
 .beads/
 /qodana.yaml
+
+# Downloaded CI run logs dumped under docs/ for local debugging (never commit)
+docs/logs_*/

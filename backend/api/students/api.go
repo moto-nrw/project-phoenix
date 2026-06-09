@@ -738,21 +738,33 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 		student.SupervisorNotes = req.SupervisorNotes
 	}
 	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	applyBusDays(req.Bus, req.BusDays, student)
 
 	return student
+}
+
+// applyBusDays sets the student's bus_days from a create/update request.
+// bus_days is the single source of truth (#1582); the legacy bus boolean is
+// accepted only as an alias (true => Mon–Fri, false => no days) and is ignored
+// when bus_days is also supplied. The derived bus flag is no longer stored.
+func applyBusDays(legacyBus *bool, days *users.BusDays, student *users.Student) {
+	if days != nil {
+		student.BusDays = *days
+		return
+	}
+	if legacyBus == nil {
+		return
+	}
+	switch {
+	case !*legacyBus:
+		// Explicitly off: clear all bus days.
+		student.BusDays = users.BusDays{}
+	case !student.BusDays.HasAny():
+		// On with no existing per-day selection: default to all weekdays.
+		student.BusDays = users.BusDaysFromLegacyFlag(true)
+		// On with an existing per-day selection: preserve it (a legacy bus=true
+		// must not flatten Mo/Fr into all weekdays).
+	}
 }
 
 // reconcilePickupFields keeps student.PickupDays (the authoritative per-weekday
@@ -1117,19 +1129,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 		student.SupervisorNotes = req.SupervisorNotes
 	}
 	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	applyBusDays(req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

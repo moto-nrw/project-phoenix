@@ -220,17 +220,16 @@ func TestStudentRepository_Create(t *testing.T) {
 		cleanupStudentRecords(t, db, student.ID)
 	})
 
-	t.Run("derives all bus days from legacy bus true", func(t *testing.T) {
+	t.Run("persists all bus days", func(t *testing.T) {
 		requireStudentsBusDaysColumn(t, db)
 
-		person := testpkg.CreateTestPerson(t, db, "LegacyBus", "True")
+		person := testpkg.CreateTestPerson(t, db, "BusDays", "All")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
-		bus := true
 		student := &users.Student{
 			PersonID:    person.ID,
 			SchoolClass: "2c",
-			Bus:         &bus,
+			BusDays:     users.BusDaysFromLegacyFlag(true),
 		}
 
 		err := repo.Create(ctx, student)
@@ -239,23 +238,22 @@ func TestStudentRepository_Create(t *testing.T) {
 		found, err := repo.FindByID(ctx, student.ID)
 		require.NoError(t, err)
 		for _, day := range users.BusDayOrder {
-			assert.True(t, found.BusDays[day], "legacy bus=true should enable %s", day)
+			assert.True(t, found.BusDays[day], "bus_days should enable %s", day)
 		}
 
 		cleanupStudentRecords(t, db, student.ID)
 	})
 
-	t.Run("derives empty bus days from legacy bus false", func(t *testing.T) {
+	t.Run("persists empty bus days", func(t *testing.T) {
 		requireStudentsBusDaysColumn(t, db)
 
-		person := testpkg.CreateTestPerson(t, db, "LegacyBus", "False")
+		person := testpkg.CreateTestPerson(t, db, "BusDays", "Empty")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)
 
-		bus := false
 		student := &users.Student{
 			PersonID:    person.ID,
 			SchoolClass: "2d",
-			Bus:         &bus,
+			BusDays:     users.BusDays{},
 		}
 
 		err := repo.Create(ctx, student)

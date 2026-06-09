@@ -50,7 +50,10 @@ describe("RESERVED_TARGETS", () => {
     expect(keys).toEqual([
       "schedule.arrival",
       "schedule.pickup",
+      // student.bus is the legacy alias; student.bus_days is the canonical
+      // Buskind target (#1582). Both must resolve so older saved schemas work.
       "student.bus",
+      "student.bus_days",
       "student.contacts",
       "student.extra_info",
       "student.health_info",
@@ -60,6 +63,7 @@ describe("RESERVED_TARGETS", () => {
 
   it("declares the right field type per target", () => {
     expect(RESERVED_TARGETS["student.health_info"].type).toBe("textarea");
+    expect(RESERVED_TARGETS["student.bus_days"].type).toBe("weekday_boolean");
     expect(RESERVED_TARGETS["student.bus"].type).toBe("weekday_boolean");
     expect(RESERVED_TARGETS["student.pickup_status"].type).toBe(
       "weekday_boolean",

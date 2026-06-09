@@ -320,18 +320,26 @@ describe("PersonalInfoFormModal", () => {
   });
 
   describe("Select inputs", () => {
-    it("displays buskind select with correct value", () => {
+    it("displays the selected bus days as a per-day picker", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
           onClose={mockOnClose}
-          student={createMockStudent({ buskind: true })}
+          student={createMockStudent({
+            buskind: true,
+            bus_days: { mon: true },
+          })}
           onSave={mockOnSave}
         />,
       );
 
-      const select = screen.getByLabelText<HTMLSelectElement>("Buskind");
-      expect(select.value).toBe("true");
+      // Per-day weekday checkboxes (#1582), no Ja/Nein select.
+      expect(
+        screen.getByLabelText<HTMLInputElement>("Montag Buskind").checked,
+      ).toBe(true);
+      expect(
+        screen.getByLabelText<HTMLInputElement>("Freitag Buskind").checked,
+      ).toBe(false);
     });
 
     it("displays the selected pickup weekdays", () => {
@@ -355,7 +363,8 @@ describe("PersonalInfoFormModal", () => {
       ).toBeChecked();
     });
 
-    it("changes buskind when selected", () => {
+    it("toggles a bus day and saves bus_days", async () => {
+      mockOnSave.mockResolvedValue(undefined);
       render(
         <PersonalInfoFormModal
           isOpen={true}
@@ -365,10 +374,17 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      const select = screen.getByLabelText<HTMLSelectElement>("Buskind");
-      fireEvent.change(select, { target: { value: "true" } });
+      fireEvent.click(screen.getByLabelText("Montag Buskind"));
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-      expect(select.value).toBe("true");
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            bus_days: { mon: true },
+            buskind: true,
+          }),
+        );
+      });
     });
   });
 

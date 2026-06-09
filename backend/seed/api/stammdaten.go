@@ -479,9 +479,12 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 		pickupStatus := pickupStatuses[i%len(pickupStatuses)]
 		body["pickup_status"] = pickupStatus
 
-		// Set bus flag for some students (every 5th student is a "Buskind")
+		// Set bus days for some students (every 5th student is a "Buskind").
+		// bus_days is the single source of truth (#1582).
 		if i%5 == 0 {
-			body["bus"] = true
+			body["bus_days"] = map[string]bool{
+				"mon": true, "tue": true, "wed": true, "thu": true, "fri": true,
+			}
 		}
 
 		// Add health info for some students (about 1/3)
