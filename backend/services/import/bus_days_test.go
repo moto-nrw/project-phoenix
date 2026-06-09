@@ -16,6 +16,17 @@ func TestParseBusDayColumns(t *testing.T) {
 		assert.Nil(t, parseBusDayColumns(mapper))
 	})
 
+	t.Run("returns nil when per-day headers are present but all cells are blank", func(t *testing.T) {
+		// The generated template always emits the Bus.Mo–Bus.Fr headers, so
+		// header presence alone must not count as an override (#1580 review).
+		mapping := map[string]int{
+			"bus": 0, "bus.mo": 1, "bus.di": 2, "bus.mi": 3, "bus.do": 4, "bus.fr": 5,
+		}
+		values := []string{"Ja", "", "", "", "", ""}
+		mapper := NewColumnMapper(mapping, values)
+		assert.Nil(t, parseBusDayColumns(mapper))
+	})
+
 	t.Run("maps present per-day columns to canonical weekday keys", func(t *testing.T) {
 		mapping := map[string]int{"bus.mo": 0, "bus.di": 1, "bus.fr": 2}
 		values := []string{"Ja", "Nein", "Ja"}
@@ -91,5 +102,38 @@ func TestMapStudentRow_BusDays(t *testing.T) {
 			usersModel.BusDayMonday: true,
 			usersModel.BusDayFriday: true,
 		}, busDaysFromImportRow(row))
+	})
+
+	t.Run("legacy Bus=Ja with present-but-blank per-day headers maps to all weekdays", func(t *testing.T) {
+		// New-template regression (#1580 review): the Bus.Mo–Bus.Fr headers are
+		// always emitted; when the user leaves them blank, the legacy "Bus"
+		// column must win — Bus=Ja → all weekdays.
+		mapper := NewColumnMapper(
+			map[string]int{
+				"vorname": 0, "nachname": 1, "bus": 2,
+				"bus.mo": 3, "bus.di": 4, "bus.mi": 5, "bus.do": 6, "bus.fr": 7,
+			},
+			[]string{"Max", "Mustermann", "Ja", "", "", "", "", ""},
+		)
+		row, err := MapStudentRow(mapper)
+		require.NoError(t, err)
+		assert.True(t, row.BusPermission)
+		assert.Nil(t, row.BusDays, "blank per-day cells must not register as an override")
+		assert.Equal(t, usersModel.BusDaysFromLegacyFlag(true), busDaysFromImportRow(row))
+	})
+
+	t.Run("an explicit per-day cell overrides the legacy Bus column", func(t *testing.T) {
+		// Bus=Ja but only Bus.Mo filled → Monday only (per-day path wins once any
+		// cell is explicit).
+		mapper := NewColumnMapper(
+			map[string]int{
+				"vorname": 0, "nachname": 1, "bus": 2,
+				"bus.mo": 3, "bus.di": 4, "bus.mi": 5, "bus.do": 6, "bus.fr": 7,
+			},
+			[]string{"Max", "Mustermann", "Ja", "Ja", "", "", "", ""},
+		)
+		row, err := MapStudentRow(mapper)
+		require.NoError(t, err)
+		assert.Equal(t, usersModel.BusDays{usersModel.BusDayMonday: true}, busDaysFromImportRow(row))
 	})
 }
