@@ -431,7 +431,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,
 		Label:           "AGB / Teilnahmebedingungen abfragen",
-		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB bzw. Teilnahmebedingungen ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht. Solange deaktiviert, wird keine AGB-Zustimmung verlangt.",
+		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht. Solange deaktiviert oder ohne Text, wird keine AGB-Zustimmung angezeigt oder verlangt.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -445,7 +445,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen / Teilnahmebedingungen, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link zur Zustimmung angezeigt. Nur sichtbar, wenn „AGB / Teilnahmebedingungen abfragen“ aktiviert ist.",
+		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Nur sichtbar und erforderlich, wenn „AGB / Teilnahmebedingungen abfragen“ aktiviert ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -468,7 +468,7 @@ func registerEnrollmentLegalTexts() {
 		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
 		// not collect a DSGVO "Einwilligung". Keep this description aligned
 		// with the acknowledgement label rendered on the public form.
-		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Leer lassen, wenn kein separater Datenschutz-Block im Formular angezeigt werden soll.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",

@@ -169,29 +169,40 @@ type RequestService interface {
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
 
-	// LegalTexts returns the tenant's configured AGB and Datenschutz
-	// (DSGVO) Markdown for the public enrollment form. Empty strings
-	// when the admin hasn't filled them in — the frontend then renders
-	// a plain consent label without a clickable "view document" link.
+	// LegalTexts returns the tenant's configured legal texts and derived
+	// public blocks for the enrollment form. Empty strings mean the admin
+	// hasn't filled the text in; such blocks are not rendered.
 	// Caller must already be inside a tenant-tx so the settings repo
 	// reads the per-tenant override. A non-nil error means a real
 	// settings/DB/JSON failure — the caller MUST fail the request rather
-	// than fall back to plain consent labels, because these texts sit
-	// behind legally relevant consents.
+	// than fall back to an incomplete legal state, because these texts sit
+	// behind legally relevant blocks.
 	LegalTexts(ctx context.Context) (LegalTexts, error)
 }
 
-// LegalTexts bundles the per-tenant info texts surfaced behind each
-// consent checkbox on the public enrollment form's consent step.
-// TermsEnabled mirrors enrollment.legal_terms_enabled so the form knows
-// whether to render the AGB block at all (the AGB text alone can't carry
-// that: an enabled-but-empty AGB still needs the checkbox shown).
+// LegalTexts bundles the per-tenant legal texts surfaced on the public
+// enrollment form.
+// TermsEnabled mirrors enrollment.legal_terms_enabled. The public form only
+// renders AGB when this is true and the AGB text is non-empty.
 type LegalTexts struct {
 	AGB          string
 	DSGVO        string
 	EmailContact string
 	Photo        string
 	TermsEnabled bool
+	Blocks       []LegalBlock
+}
+
+// LegalBlock is one configured legal row shown on the public enrollment
+// form. Required checkbox blocks must be accepted; notice blocks only display
+// information.
+type LegalBlock struct {
+	Key      string `json:"key"`
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	Label    string `json:"label"`
+	Text     string `json:"text"`
+	Required bool   `json:"required"`
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -563,7 +574,11 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	for _, key := range s.resolveRequiredConsents(ctx) {
+	requiredConsents, err := s.resolveRequiredConsents(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: resolve required consents: %v", ErrInvalidSubmission, err)
+	}
+	for _, key := range requiredConsents {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
 			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
@@ -1048,17 +1063,16 @@ func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
 	return false
 }
 
-// LegalTexts resolves the AGB and Datenschutz Markdown for the tenant
-// in context. No env var fallback: these settings were registered from
-// the start, so a plain Resolve (tenant override → registry default of
-// "") is correct. Whitespace-only values normalize to "" so the
-// frontend treats them as "not configured".
+// LegalTexts resolves configured legal Markdown for the tenant in context
+// and derives the public block list. No env var fallback: these settings
+// were registered from the start, so a plain Resolve (tenant override →
+// registry default of "") is correct. Whitespace-only values normalize to
+// "" so the frontend treats them as "not configured".
 //
-// A resolve error (settings/DB/JSON failure) is propagated, NOT
-// swallowed: these texts sit behind legally relevant consents, so the
-// endpoint must fail rather than let the form collect consent without
-// the configured documents. An unconfigured (empty) text is not an
-// error — it returns "" and lets the frontend drop the link.
+// A resolve error (settings/DB/JSON failure) is propagated, NOT swallowed:
+// these texts drive legally relevant blocks, so the endpoint must fail rather
+// than let the form collect an incomplete legal state. An unconfigured
+// (empty) text is not an error; it returns "" and produces no public block.
 func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if s.settings == nil {
 		return LegalTexts{}, nil
@@ -1079,13 +1093,60 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve photo legal text: %w", err)
 	}
-	return LegalTexts{
+	texts := LegalTexts{
 		AGB:          strings.TrimSpace(agb),
 		DSGVO:        strings.TrimSpace(dsgvo),
 		EmailContact: strings.TrimSpace(emailContact),
 		Photo:        strings.TrimSpace(photo),
 		TermsEnabled: s.legalTermsEnabled(ctx),
-	}, nil
+	}
+	texts.Blocks = buildLegalBlocks(texts)
+	return texts, nil
+}
+
+func buildLegalBlocks(texts LegalTexts) []LegalBlock {
+	blocks := make([]LegalBlock, 0, 4)
+	if texts.TermsEnabled && texts.AGB != "" {
+		blocks = append(blocks, LegalBlock{
+			Key:      enrollmentModels.ConsentKeyAGB,
+			Kind:     "terms",
+			Title:    "AGB / Teilnahmebedingungen",
+			Label:    "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+			Text:     texts.AGB,
+			Required: true,
+		})
+	}
+	if texts.DSGVO != "" {
+		blocks = append(blocks, LegalBlock{
+			Key:      enrollmentModels.ConsentKeyDataProcessing,
+			Kind:     "privacy_notice",
+			Title:    "Datenschutzinformation",
+			Label:    "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
+			Text:     texts.DSGVO,
+			Required: true,
+		})
+	}
+	if texts.Photo != "" {
+		blocks = append(blocks, LegalBlock{
+			Key:      enrollmentModels.ConsentKeyPhoto,
+			Kind:     "consent",
+			Title:    "Fotoeinwilligung",
+			Label:    "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
+			Text:     texts.Photo,
+			Required: false,
+		})
+	}
+	if texts.EmailContact != "" {
+		blocks = append(blocks, LegalBlock{
+			Key:      enrollmentModels.ConsentKeyEmailContact,
+			Kind:     "notice",
+			Title:    "E-Mail-Kontakt",
+			Label:    "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
+			Text:     texts.EmailContact,
+			Required: false,
+		})
+	}
+	return blocks
 }
 
 // legalTermsEnabled reports whether the tenant has switched on the
@@ -1103,17 +1164,21 @@ func (s *requestService) legalTermsEnabled(ctx context.Context) bool {
 	return false
 }
 
-// resolveRequiredConsents returns the consent keys the parent must accept
-// for this tenant: the unconditional base set (Datenschutz-Kenntnisnahme)
-// plus AGB when the tenant has enabled the terms block. Keeping this in
-// the service - rather than a static model slice - lets a Träger without
-// standard terms submit without an AGB checkbox the form never showed.
-func (s *requestService) resolveRequiredConsents(ctx context.Context) []string {
-	required := append([]string(nil), enrollmentModels.BaseRequiredConsentKeys...)
-	if s.legalTermsEnabled(ctx) {
-		required = append(required, enrollmentModels.ConsentKeyAGB)
+// resolveRequiredConsents returns the visible legal blocks the parent must
+// accept for this tenant. It uses the same derived block list as the public
+// endpoint so a hidden/empty block never blocks submit server-side.
+func (s *requestService) resolveRequiredConsents(ctx context.Context) ([]string, error) {
+	texts, err := s.LegalTexts(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return required
+	required := make([]string, 0, len(texts.Blocks))
+	for _, block := range texts.Blocks {
+		if block.Required {
+			required = append(required, block.Key)
+		}
+	}
+	return required, nil
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

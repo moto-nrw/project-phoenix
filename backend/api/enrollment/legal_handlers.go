@@ -10,22 +10,21 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // PublicLegalTextsResponse carries the tenant-scoped legal documents
-// (Markdown) the public enrollment form shows behind the AGB and
-// Datenschutz consent checkboxes. Empty strings mean the admin hasn't
-// configured a document → the form renders a plain consent label
-// without a clickable "view document" link.
+// (Markdown) and the derived legal blocks the public enrollment form renders.
 type PublicLegalTextsResponse struct {
 	AGB          string `json:"agb"`
 	DSGVO        string `json:"dsgvo"`
 	EmailContact string `json:"email_contact"`
 	Photo        string `json:"photo"`
-	// TermsEnabled reflects enrollment.legal_terms_enabled: when false the
-	// form hides the AGB block entirely (no checkbox, not required).
-	TermsEnabled bool `json:"terms_enabled"`
+	// TermsEnabled reflects enrollment.legal_terms_enabled. The AGB block is
+	// rendered only when this is true and the AGB text is non-empty.
+	TermsEnabled bool                           `json:"terms_enabled"`
+	Blocks       []enrollmentService.LegalBlock `json:"blocks"`
 }
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
@@ -47,8 +46,8 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	out := PublicLegalTextsResponse{}
 	// legalErr captures a genuine settings/DB/JSON resolve failure so we
 	// can return a 500 instead of the 404 path. These texts sit behind
-	// legally relevant consents — on a real failure the endpoint must
-	// fail rather than let the form fall back to plain consent labels.
+	// legally relevant blocks — on a real failure the endpoint must fail
+	// rather than let the form collect an incomplete legal state.
 	var legalErr error
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
@@ -67,6 +66,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 			out.EmailContact = texts.EmailContact
 			out.Photo = texts.Photo
 			out.TermsEnabled = texts.TermsEnabled
+			out.Blocks = texts.Blocks
 			return nil
 		})
 	})
