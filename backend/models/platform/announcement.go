@@ -33,6 +33,12 @@ const (
 // MaxTargetIDs is the upper bound for target_org_ids and target_tenant_ids arrays.
 const MaxTargetIDs = 100
 
+// Field length bounds for announcement validation.
+const (
+	maxTitleLen   = 200
+	maxVersionLen = 50
+)
+
 // tablePlatformAnnouncements is the schema-qualified table name
 const tablePlatformAnnouncements = "platform.announcements"
 
@@ -74,8 +80,8 @@ func (a *Announcement) Validate() error {
 	if a.Title == "" {
 		return errors.New("title is required")
 	}
-	if len(a.Title) > 200 {
-		return errors.New("title must not exceed 200 characters")
+	if len(a.Title) > maxTitleLen {
+		return fmt.Errorf("title must not exceed %d characters", maxTitleLen)
 	}
 	if a.Content == "" {
 		return errors.New("content is required")
@@ -89,8 +95,8 @@ func (a *Announcement) Validate() error {
 	if a.CreatedBy <= 0 {
 		return errors.New("created_by is required")
 	}
-	if a.Version != nil && len(*a.Version) > 50 {
-		return errors.New("version must not exceed 50 characters")
+	if a.Version != nil && len(*a.Version) > maxVersionLen {
+		return fmt.Errorf("version must not exceed %d characters", maxVersionLen)
 	}
 
 	// Normalize nil slices to empty arrays so BUN sends '{}' instead of NULL.
@@ -133,16 +139,6 @@ func IsValidSeverity(s string) bool {
 	default:
 		return false
 	}
-}
-
-// IsPublished returns true if the announcement has been published
-func (a *Announcement) IsPublished() bool {
-	return a.PublishedAt != nil && a.PublishedAt.Before(time.Now())
-}
-
-// IsExpired returns true if the announcement has expired
-func (a *Announcement) IsExpired() bool {
-	return a.ExpiresAt != nil && a.ExpiresAt.Before(time.Now())
 }
 
 // IsDraft returns true if the announcement is a draft (not published)
