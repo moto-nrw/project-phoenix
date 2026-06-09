@@ -30,6 +30,10 @@ type phaseExportRequest struct {
 	ChildStatus string            `json:"child_status"`
 }
 
+// exportConfidentialityNote is stamped on printed phase exports because
+// the files contain full guardian and child PII.
+const exportConfidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
+
 // exportPhaseRegistrations streams a compact export of every
 // registration in the phase. config:manage gated because one call bundles
 // every guardian and child's full PII into a file that leaves the
@@ -384,6 +388,7 @@ func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childSt
 		Title:       title,
 		Subtitle:    phaseExportSubtitle(data),
 		GeneratedAt: time.Now(),
+		Footer:      exportConfidentialityNote,
 		Filters:     enrollmentExportFilterLabels(childStatus),
 		Records:     records,
 		Groups:      groups,
@@ -532,6 +537,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 		Filters:     enrollmentExportFilterLabels(childStatus),
 		Columns:     cols,
 		Rows:        rows,
+		Footer:      exportConfidentialityNote,
 	}
 }
 

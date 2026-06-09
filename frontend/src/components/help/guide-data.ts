@@ -634,7 +634,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
-          body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
+          body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
           tone: "orange",
         },
         screenshot:

@@ -259,8 +259,8 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 	if len(rec.Subs) != 0 {
 		t.Errorf("subs = %d, want 0 (child blocks are flat, not nested)", len(rec.Subs))
 	}
-	if doc.Footer != "" {
-		t.Errorf("footer = %q, want empty enrollment export footer", doc.Footer)
+	if !strings.Contains(doc.Footer, "Vertraulich") {
+		t.Errorf("footer = %q, want confidentiality handling note", doc.Footer)
 	}
 	if !strings.Contains(doc.Subtitle, "1 Anmeldungen") {
 		t.Errorf("subtitle = %q, want it to report the counts", doc.Subtitle)
