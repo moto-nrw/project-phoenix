@@ -73,6 +73,18 @@ function getExcusedDisplayMode(
   return "additional";
 }
 
+function getClassTripDisplayMode(
+  student: StudentLocationContext,
+): "replace" | "additional" | "none" {
+  if (!student.class_trip) return "none";
+
+  if (isHomeLocation(student.current_location)) {
+    return "replace";
+  }
+
+  return "additional";
+}
+
 /**
  * Determines how to display "kommt heute nicht" (arrival-schedule exception with null time).
  * Same replace/additional pattern as sick/excused.
@@ -148,13 +160,17 @@ export function LocationBadge({
     supervisedRooms,
   );
 
-  // Check sick / excused / notArrival status display modes.
-  // Priority: sick > excused > notArrival. Only one replace-mode applies at a time.
+  // Check sick / class trip / excused / notArrival status display modes.
+  // Priority: sick > class trip > excused > notArrival. Only one replace-mode applies at a time.
   const sickMode = getSickDisplayMode(student);
+  const classTripMode =
+    sickMode === "none" ? getClassTripDisplayMode(student) : "none";
   const excusedMode =
-    sickMode === "none" ? getExcusedDisplayMode(student) : "none";
+    sickMode === "none" && classTripMode === "none"
+      ? getExcusedDisplayMode(student)
+      : "none";
   const notArrivalMode =
-    sickMode === "none" && excusedMode === "none"
+    sickMode === "none" && classTripMode === "none" && excusedMode === "none"
       ? getNotArrivalDisplayMode(student)
       : "none";
 
@@ -194,10 +210,13 @@ export function LocationBadge({
     );
   }
 
-  // Override for sick/excused/notArrival students at home: replace the base label
+  // Override for sick/classTrip/excused/notArrival students at home: replace the base label
   if (sickMode === "replace") {
     color = LOCATION_COLORS.SICK;
     label = LOCATION_STATUSES.SICK;
+  } else if (classTripMode === "replace") {
+    color = LOCATION_COLORS.CLASS_TRIP;
+    label = LOCATION_STATUSES.CLASS_TRIP;
   } else if (excusedMode === "replace") {
     color = LOCATION_COLORS.EXCUSED;
     label = LOCATION_STATUSES.EXCUSED;
@@ -208,6 +227,7 @@ export function LocationBadge({
 
   const glowEffect = getLocationGlowEffect(color);
   const sickGlowEffect = getLocationGlowEffect(LOCATION_COLORS.SICK);
+  const classTripGlowEffect = getLocationGlowEffect(LOCATION_COLORS.CLASS_TRIP);
   const excusedGlowEffect = getLocationGlowEffect(LOCATION_COLORS.EXCUSED);
   const notArrivalGlowEffect = getLocationGlowEffect(
     LOCATION_COLORS.NOT_ARRIVAL,
@@ -228,11 +248,13 @@ export function LocationBadge({
   const replaceTimeSource =
     sickMode === "replace"
       ? (student.sick_since ?? student.location_since)
-      : excusedMode === "replace"
-        ? (student.excused_since ?? student.location_since)
-        : notArrivalMode === "replace"
-          ? student.location_since
-          : null;
+      : classTripMode === "replace"
+        ? (student.class_trip_since ?? student.location_since)
+        : excusedMode === "replace"
+          ? (student.excused_since ?? student.location_since)
+          : notArrivalMode === "replace"
+            ? student.location_since
+            : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
@@ -241,6 +263,7 @@ export function LocationBadge({
     (parsed.status === LOCATION_STATUSES.PRESENT ||
       parsed.status === LOCATION_STATUSES.HOME ||
       sickMode === "replace" ||
+      classTripMode === "replace" ||
       excusedMode === "replace");
 
   const sickIndicator = (
@@ -272,6 +295,22 @@ export function LocationBadge({
         className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
       />
       {LOCATION_STATUSES.EXCUSED}
+    </span>
+  );
+
+  const classTripIndicator = (
+    <span
+      className={`mt-1 ${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
+      style={{
+        backgroundColor: LOCATION_COLORS.CLASS_TRIP,
+        boxShadow: classTripGlowEffect,
+      }}
+      data-class-trip-indicator="true"
+    >
+      <span
+        className={`${sizeConfig.dot} animate-pulse rounded-full bg-white/80`}
+      />
+      {LOCATION_STATUSES.CLASS_TRIP}
     </span>
   );
 
@@ -316,6 +355,7 @@ export function LocationBadge({
           </span>
         )}
         {sickMode === "additional" && sickIndicator}
+        {classTripMode === "additional" && classTripIndicator}
         {excusedMode === "additional" && excusedIndicator}
         {notArrivalMode === "additional" && notArrivalIndicator}
       </div>
@@ -348,6 +388,7 @@ export function LocationBadge({
         </span>
       )}
       {sickMode === "additional" && sickIndicator}
+      {classTripMode === "additional" && classTripIndicator}
       {excusedMode === "additional" && excusedIndicator}
       {notArrivalMode === "additional" && notArrivalIndicator}
     </div>

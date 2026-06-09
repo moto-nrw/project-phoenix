@@ -92,6 +92,15 @@ func TestApplyAndClearLiveStatusForToday(t *testing.T) {
 	require.NotNil(t, student.Sick)
 	assert.False(t, *student.Sick)
 	assert.Nil(t, student.SickSince)
+
+	applyLiveStatusForToday(student, active.StudentStatusDaySick, now)
+	applyLiveStatusForToday(student, active.StudentStatusDayClassTrip, now.Add(2*time.Hour))
+	require.NotNil(t, student.Sick)
+	require.NotNil(t, student.Excused)
+	assert.False(t, *student.Sick)
+	assert.False(t, *student.Excused)
+	assert.Nil(t, student.SickSince)
+	assert.Nil(t, student.ExcusedSince)
 }
 
 func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
@@ -125,6 +134,20 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	assert.True(t, studentResponses[0].Sick)
 	assert.False(t, studentResponses[0].Excused)
 	assert.True(t, studentResponses[1].Excused)
+
+	classTrip := &active.StudentStatusDay{
+		Model:      modelBase.Model{ID: 44},
+		StudentID:  92,
+		Date:       time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC),
+		Status:     active.StudentStatusDayClassTrip,
+		ReportedAt: reportedExcused.Add(time.Hour),
+		Source:     active.StudentStatusSourcePlanned,
+	}
+	classTripResponse := StudentResponse{ID: 92, Excused: true, Sick: true}
+	applyEffectiveStatusDays(&classTripResponse, []*active.StudentStatusDay{classTrip})
+	assert.True(t, classTripResponse.ClassTrip)
+	assert.False(t, classTripResponse.Sick)
+	assert.False(t, classTripResponse.Excused)
 
 	alreadySick := StudentResponse{ID: 91, Sick: true}
 	applyEffectiveStatusDays(&alreadySick, []*active.StudentStatusDay{excused})
@@ -279,14 +302,38 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	assert.Nil(t, fresh.SickSince)
 	assert.NotNil(t, fresh.ExcusedSince)
 
+	classTripReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
+		"status": active.StudentStatusDayClassTrip,
+		"dates":  []string{today},
+	})
+	classTripRR := executeStatusDayHandler(router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	require.Equal(t, http.StatusCreated, classTripRR.Code)
+
+	rows, err = resource.StudentStatusDayRepo.FindActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, timezone.DateOfUTC(time.Now()), timezone.DateOfUTC(time.Now()))
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, active.StudentStatusDayClassTrip, rows[0].Status)
+
+	fresh, err = resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fresh.Sick)
+	require.NotNil(t, fresh.Excused)
+	assert.False(t, *fresh.Sick)
+	assert.False(t, *fresh.Excused)
+	assert.Nil(t, fresh.SickSince)
+	assert.Nil(t, fresh.ExcusedSince)
+
 	deleteReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, rows[0].ID), nil)
 	deleteRR := executeStatusDayHandler(router, deleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code)
 
 	fresh, err = resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
 	require.NoError(t, err)
+	require.NotNil(t, fresh.Sick)
 	require.NotNil(t, fresh.Excused)
+	assert.False(t, *fresh.Sick)
 	assert.False(t, *fresh.Excused)
+	assert.Nil(t, fresh.SickSince)
 	assert.Nil(t, fresh.ExcusedSince)
 }
 
@@ -326,6 +373,17 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 			name:   "invalid id",
 			method: "DELETE",
 			path:   fmt.Sprintf("/%d/status-days/broken", student.ID),
+		},
+		{
+			name:   "bulk range too long",
+			method: "POST",
+			path:   "/status-days/bulk",
+			body: map[string]any{
+				"student_ids": []int64{student.ID},
+				"status":      active.StudentStatusDayClassTrip,
+				"from":        "2026-05-01",
+				"to":          "2026-06-01",
+			},
 		},
 	}
 
@@ -524,6 +582,7 @@ func statusDayTestRouter(resource *Resource) chi.Router {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Get("/{id}/status-days", resource.getStudentStatusDays)
 	router.Post("/{id}/status-days", resource.createStudentStatusDays)
+	router.Post("/status-days/bulk", resource.bulkCreateStudentStatusDays)
 	router.Delete("/{id}/status-days/{statusDayId}", resource.deleteStudentStatusDay)
 	return router
 }

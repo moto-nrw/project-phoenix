@@ -52,6 +52,8 @@ type StudentResponse struct {
 	SickSince          *time.Time       `json:"sick_since,omitempty"`
 	Excused            bool             `json:"excused"`
 	ExcusedSince       *time.Time       `json:"excused_since,omitempty"`
+	ClassTrip          bool             `json:"class_trip"`
+	ClassTripSince     *time.Time       `json:"class_trip_since,omitempty"`
 	DayPlanningStatus  string           `json:"day_planning_status,omitempty"`
 	DayPlanningReason  string           `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string           `json:"day_planning_label,omitempty"`
@@ -127,6 +129,14 @@ type CreateStudentStatusDaysRequest struct {
 	Status string   `json:"status"`
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason,omitempty"` // optional free-text reason stamped on each day
+}
+
+type BulkCreateStudentStatusDaysRequest struct {
+	StudentIDs []int64 `json:"student_ids"`
+	Status     string  `json:"status"`
+	From       string  `json:"from"`
+	To         string  `json:"to"`
+	Reason     string  `json:"reason,omitempty"`
 }
 
 // StudentRequest represents a student creation request with person details
@@ -371,8 +381,8 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 
 func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 	req.Status = strings.TrimSpace(req.Status)
-	if req.Status != active.StudentStatusDaySick && req.Status != active.StudentStatusDayExcused {
-		return errors.New("status must be sick or excused")
+	if !isValidStudentStatusDayStatus(req.Status) {
+		return errors.New("status must be sick, excused, or class_trip")
 	}
 	if len(req.Dates) == 0 {
 		return errors.New("dates are required")
@@ -394,6 +404,47 @@ func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 		req.Dates[i] = date
 	}
 	return nil
+}
+
+func (req *BulkCreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
+	req.Status = strings.TrimSpace(req.Status)
+	if !isValidStudentStatusDayStatus(req.Status) {
+		return errors.New("status must be sick, excused, or class_trip")
+	}
+	if len(req.StudentIDs) == 0 {
+		return errors.New("student_ids are required")
+	}
+	seen := make(map[int64]struct{}, len(req.StudentIDs))
+	for _, id := range req.StudentIDs {
+		if id <= 0 {
+			return errors.New("student_ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			return errors.New("duplicate student_ids are not allowed")
+		}
+		seen[id] = struct{}{}
+	}
+	req.From = strings.TrimSpace(req.From)
+	req.To = strings.TrimSpace(req.To)
+	if req.From == "" || req.To == "" {
+		return errors.New("from and to are required")
+	}
+	if _, err := time.Parse(dateFormatYYYYMMDD, req.From); err != nil {
+		return errors.New("invalid from date format, expected YYYY-MM-DD")
+	}
+	if _, err := time.Parse(dateFormatYYYYMMDD, req.To); err != nil {
+		return errors.New("invalid to date format, expected YYYY-MM-DD")
+	}
+	return nil
+}
+
+func isValidStudentStatusDayStatus(status string) bool {
+	switch status {
+	case active.StudentStatusDaySick, active.StudentStatusDayExcused, active.StudentStatusDayClassTrip:
+		return true
+	default:
+		return false
+	}
 }
 
 // Bind validates the RFID assignment request

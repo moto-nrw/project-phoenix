@@ -798,6 +798,25 @@ describe("getDayData", () => {
       expect(result.showExcused).toBe(false);
     });
 
+    it("returns class-trip status as no pickup for status days", () => {
+      const today = new Date();
+      const result = getDayData(
+        today,
+        schedules,
+        [],
+        false,
+        [],
+        false,
+        "class_trip",
+      );
+
+      expect(result.showClassTrip).toBe(true);
+      expect(result.showSick).toBe(false);
+      expect(result.showExcused).toBe(false);
+      expect(result.effectiveTime).toBeUndefined();
+      expect(result.effectiveNotes).toBe("Klassenfahrt");
+    });
+
     it("showExcused defaults to false when parameter omitted", () => {
       const today = new Date();
       const result = getDayData(today, schedules, [], false);

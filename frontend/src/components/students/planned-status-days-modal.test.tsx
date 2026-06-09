@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlannedStatusDaysModal } from "./planned-status-days-modal";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
@@ -77,6 +77,16 @@ const existingDays: StudentStatusDay[] = [
 ];
 
 describe("PlannedStatusDaysModal", () => {
+  const originalTZ = process.env.TZ;
+
+  beforeAll(() => {
+    process.env.TZ = "Europe/Berlin";
+  });
+
+  afterAll(() => {
+    process.env.TZ = originalTZ;
+  });
+
   it("preselects today and submits selected sick dates", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
@@ -202,5 +212,39 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByText("Modal schließen"));
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("submits each class-trip calendar day across DST changes", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="class_trip"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-03-28" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-03-30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Klassenfahrt speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith([
+        "2026-03-28",
+        "2026-03-29",
+        "2026-03-30",
+      ]);
+    });
   });
 });

@@ -15,6 +15,7 @@ services:
       - go_mod_cache:/go/pkg/mod
     environment:
       TZ: ${TZ}
+      APP_ENV: ${APP_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING}
       PORT: ${PORT}
