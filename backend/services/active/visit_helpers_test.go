@@ -307,7 +307,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since", "excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
@@ -378,7 +378,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,

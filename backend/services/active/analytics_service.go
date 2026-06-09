@@ -42,7 +42,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	excusedOpts := modelBase.NewQueryOptions()
 	excusedOpts.Filter.Equal("excused", true)
 	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
-		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, timezone.DateOfUTC(today))
+		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, timezone.DateFromTime(today))
 		if classTripErr == nil {
 			excusedCount += classTripCount
 		} else {
@@ -94,7 +94,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	return analytics, nil
 }
 
-func (s *service) countClassTripStudentsForDate(ctx context.Context, date time.Time) (int, error) {
+func (s *service) countClassTripStudentsForDate(ctx context.Context, date timezone.Date) (int, error) {
 	if s.db == nil {
 		return 0, nil
 	}

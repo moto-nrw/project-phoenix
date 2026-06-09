@@ -86,7 +86,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 				// The DATE column must hold the Berlin calendar date; the driver
 				// binds raw time.Time values as UTC, which is one day behind
 				// Berlin between 00:00 and 02:00 local time.
-				timezone.DateOfUTC(now),
+				timezone.TodayDate(),
 				activeModels.StudentStatusDayClassTrip,
 				now,
 				activeModels.StudentStatusSourcePlanned,
@@ -122,14 +122,14 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		now := time.Now()
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &activeModels.StudentStatusDay{
 			StudentID:  studentA.ID,
-			Date:       now,
+			Date:       timezone.DateFromTime(now),
 			Status:     activeModels.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     activeModels.StudentStatusSourcePlanned,
 		}))
 		require.NoError(t, statusRepo.UpsertReported(ctxB, &activeModels.StudentStatusDay{
 			StudentID:  studentB.ID,
-			Date:       now,
+			Date:       timezone.DateFromTime(now),
 			Status:     activeModels.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     activeModels.StudentStatusSourcePlanned,

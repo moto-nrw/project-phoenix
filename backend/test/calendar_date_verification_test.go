@@ -39,7 +39,6 @@ var legacyTimeTimeDateColumns = map[string]string{
 	"active.group_supervisors.start_date":                "pending migration in this PR",
 	"active.staff_absences.date_end":                     "pending migration in this PR",
 	"active.staff_absences.date_start":                   "pending migration in this PR",
-	"active.student_status_days.date":                    "pending migration in this PR",
 	"active.work_sessions.date":                          "pending migration in this PR",
 	"activities.student_enrollments.valid_from":          "pending migration in this PR",
 	"activities.student_enrollments.valid_until":         "pending migration in this PR",

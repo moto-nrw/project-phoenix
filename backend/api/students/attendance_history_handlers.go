@@ -140,7 +140,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	statusRows := []*active.StudentStatusDay{}
 	if rs.StudentStatusDayRepo != nil {
-		statusRows, err = rs.StudentStatusDayRepo.FindByStudentAndDateRange(ctx, student.ID, start, end)
+		statusRows, err = rs.StudentStatusDayRepo.FindByStudentAndDateRange(ctx, student.ID, timezone.DateFromTime(start), timezone.DateFromTime(end))
 		if err != nil {
 			logger.Error("student status history query failed",
 				slog.Int64("student_id", student.ID),
@@ -300,7 +300,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 	}
 
 	for _, row := range statusRows {
-		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
+		dateKey := row.Date.String()
 		day, seen := dayMap[dateKey]
 		if !seen {
 			day = &attendanceHistoryDay{

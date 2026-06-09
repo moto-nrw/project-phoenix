@@ -12,7 +12,7 @@ func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDa
 	return StudentStatusDayResponse{
 		ID:         entry.ID,
 		StudentID:  entry.StudentID,
-		Date:       entry.Date.Format(dateFormatYYYYMMDD),
+		Date:       entry.Date.String(),
 		Status:     entry.Status,
 		Label:      studentStatusDayLabel(entry.Status),
 		ReportedAt: entry.ReportedAt,
@@ -67,7 +67,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	for _, response := range responses {
 		studentIDs = append(studentIDs, response.ID)
 	}
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateOfUTC(now))
+	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		if rs.Logger != nil {
 			rs.Logger.Warn("failed to apply student status days to responses", "error", err.Error())
@@ -81,7 +81,7 @@ func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, respon
 	if response == nil || rs.StudentStatusDayRepo == nil {
 		return
 	}
-	date := timezone.DateOfUTC(now)
+	date := timezone.DateFromTime(now)
 	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(ctx, response.ID, date, date)
 	if err != nil {
 		if rs.Logger != nil {

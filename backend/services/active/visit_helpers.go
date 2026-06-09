@@ -233,7 +233,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	if since != nil {
 		reportedAt = *since
 	}
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	if err := s.studentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
 		StudentID:  studentID,
 		Date:       today,
@@ -263,7 +263,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	rows, err := s.studentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
 		s.getLogger().Warn("failed to load planned student status days on check-in",

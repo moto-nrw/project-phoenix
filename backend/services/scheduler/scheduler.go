@@ -1523,7 +1523,7 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 		return 0, err
 	}
 	now := time.Now()
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	db := repoBase.GetDB(ctx, s.db)
 
 	upsertQuery := fmt.Sprintf(`

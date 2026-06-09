@@ -206,7 +206,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 		{
 			TenantModel: base.TenantModel{TenantID: 1},
 			StudentID:   10,
-			Date:        today,
+			Date:        timezone.DateFromTime(today),
 			Status:      active.StudentStatusDaySick,
 			ReportedAt:  reportedAt,
 			ClearedAt:   &clearedAt,
@@ -217,7 +217,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*active.Visit{}, roomCutoff, false)
 
 	require.Len(t, days, 1)
-	assert.Equal(t, timezone.DateOf(today).Format("2006-01-02"), days[0].Date)
+	assert.Equal(t, timezone.DateFromTime(today).String(), days[0].Date)
 	assert.Nil(t, days[0].Attendance)
 	require.Len(t, days[0].StatusEntries, 1)
 	assert.Equal(t, "Krank", days[0].StatusEntries[0].Label)
