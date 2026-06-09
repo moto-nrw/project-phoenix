@@ -2,6 +2,7 @@
 
 import { CalendarDays } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 
@@ -22,7 +23,7 @@ export function TemplateList({
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50/40 px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50/40 px-6 py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
           <CalendarDays className="h-6 w-6 text-gray-400" aria-hidden />
         </div>
@@ -35,13 +36,15 @@ export function TemplateList({
             erscheinen.
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={onCreate}
-          className="mt-2 inline-flex items-center gap-1 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          className="mt-2"
         >
           + Serientermin anlegen
-        </button>
+        </Button>
       </div>
     );
   }

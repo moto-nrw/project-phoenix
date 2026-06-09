@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 export type TimetableView = "week" | "month" | "year" | "series";
@@ -114,40 +115,46 @@ export function TimetableToolbar({
           <div className="hidden h-6 w-px bg-gray-200 lg:block" aria-hidden />
 
           {/* Date navigator — ghost buttons, no borders */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onPrev}
             disabled={navDisabled}
-            className="order-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40"
+            className="order-1"
             aria-label="Vorheriger Zeitraum"
           >
             <ChevronLeft className="h-4 w-4" />
-          </button>
+          </Button>
 
           <span className="order-2 min-w-0 text-center text-sm leading-tight font-semibold text-gray-900 tabular-nums sm:order-4 sm:truncate sm:text-left">
             {rangeLabel}
           </span>
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onNext}
             disabled={navDisabled}
-            className="order-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 sm:order-2"
+            className="order-3 sm:order-2"
             aria-label="Nächster Zeitraum"
           >
             <ChevronRight className="h-4 w-4" />
-          </button>
+          </Button>
 
           {/* Today pill — only when not already on today */}
           {!isOnToday && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="compact"
               onClick={onToday}
               disabled={navDisabled}
-              className="order-4 col-span-3 inline-flex h-8 items-center justify-self-center rounded-md border border-gray-200 px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 sm:order-3"
+              className="order-4 col-span-3 justify-self-center border border-gray-200 sm:order-3"
             >
               Heute
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -162,14 +169,15 @@ export function TimetableToolbar({
           )}
 
           {onAddInstance && (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="compact"
               onClick={onAddInstance}
-              className="inline-flex h-8 items-center gap-1 rounded-md bg-gray-900 px-2.5 text-xs font-medium text-white transition-colors hover:bg-gray-700"
             >
               <Plus className="h-3.5 w-3.5" />
               Termin
-            </button>
+            </Button>
           )}
 
           {showDensity && (
@@ -195,16 +203,17 @@ function DensityMenu({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Weitere Optionen"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
       >
         <MoreVertical className="h-4 w-4" />
-      </button>
+      </Button>
 
       {open && (
         <div

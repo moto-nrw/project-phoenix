@@ -14,6 +14,7 @@ import { useSession } from "next-auth/react";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
@@ -1105,23 +1106,24 @@ function TimetablesContent() {
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Stundenplan</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <PeriodSwitcherDropdown
-            periods={calendarPeriods}
-            weekDays={periodContextDays}
-            view={view}
-            selectedPeriodId={
-              view === "series" ? (templatePeriodID ?? null) : null
-            }
-            isLoading={periodsLoading}
-            onCreate={openPeriodCreate}
-            onEdit={openPeriodEdit}
-            onSelect={jumpToPeriod}
-          />
-        </div>
-      </header>
+      {/* Mobile title via the shared kit PageHeader (md:hidden); on desktop
+          the sidebar provides page context, matching every other page. The
+          period switcher stays reachable at all widths in its own row. */}
+      <PageHeader title="Stundenplan" />
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <PeriodSwitcherDropdown
+          periods={calendarPeriods}
+          weekDays={periodContextDays}
+          view={view}
+          selectedPeriodId={
+            view === "series" ? (templatePeriodID ?? null) : null
+          }
+          isLoading={periodsLoading}
+          onCreate={openPeriodCreate}
+          onEdit={openPeriodEdit}
+          onSelect={jumpToPeriod}
+        />
+      </div>
 
       <TimetableToolbar
         view={view}
@@ -1191,7 +1193,7 @@ function TimetablesContent() {
       {view === "week" && (
         <>
           {isInstanceDataLoading ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-8">
+            <div className="moto-content-surface rounded-2xl border p-8">
               <Loading />
             </div>
           ) : (

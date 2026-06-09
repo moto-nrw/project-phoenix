@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import {
   SlideOver,
   SlideOverClose,
@@ -616,11 +617,11 @@ export function TimetableEventModal({
           className="flex-1 overflow-y-auto px-5 py-4"
         >
           <div className="flex flex-col gap-5">
-            {initialInstance && initialInstance.status !== "planned" && (
-              <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]">
-                Nur geplante Termine können bearbeitet werden.
-              </div>
-            )}
+            {initialInstance &&
+              initialInstance.status !== "planned" &&
+              renderModalErrorAlert({
+                message: "Nur geplante Termine können bearbeitet werden.",
+              })}
 
             <Field label="Titel" htmlFor="event_title" required>
               <Input
@@ -678,7 +679,7 @@ export function TimetableEventModal({
                 onChange={(event) => update("roomId", event.target.value)}
                 disabled={loadingRefs}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="">
                   {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
@@ -805,7 +806,7 @@ export function TimetableEventModal({
                       }
                       required
                       disabled={loadingRefs}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                      className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                     >
                       <option value="">
                         {loadingRefs
@@ -827,7 +828,7 @@ export function TimetableEventModal({
                         update("educationGroupId", event.target.value)
                       }
                       disabled={loadingRefs}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                      className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                     >
                       <option value="">Keine Zuordnung</option>
                       {groups.map((group) => (
@@ -853,7 +854,7 @@ export function TimetableEventModal({
                           update("calendarPeriodId", event.target.value)
                         }
                         required
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+                        className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">Periode auswählen ...</option>
                         {calendarPeriods.map((period) => (
@@ -868,7 +869,7 @@ export function TimetableEventModal({
                       <span className="text-xs font-semibold text-gray-700">
                         Planungsperiode
                       </span>
-                      <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                      <div className="flex h-10 items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
                         <span className="truncate">
                           Gilt in{" "}
                           <span className="font-semibold text-gray-800">
@@ -913,7 +914,7 @@ export function TimetableEventModal({
                   onChange={(event) =>
                     update("primaryStaffId", event.target.value)
                   }
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+                  className="moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                 >
                   <option value="">Keine Auswahl</option>
                   {staff
@@ -939,24 +940,15 @@ export function TimetableEventModal({
               </Field>
             )}
 
-            {isSeriesFlow && calendarPeriods.length === 0 && (
-              <div
-                role="alert"
-                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
-              >
-                Für diese Woche gibt es keine aktive Planungsperiode. Lege
-                zuerst eine Periode im Kopfbereich an.
-              </div>
-            )}
+            {isSeriesFlow &&
+              calendarPeriods.length === 0 &&
+              renderModalErrorAlert({
+                message:
+                  "Für diese Woche gibt es keine aktive Planungsperiode. Lege zuerst eine Periode im Kopfbereich an.",
+              })}
 
-            {validationError && (
-              <div
-                role="alert"
-                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
-              >
-                {validationError}
-              </div>
-            )}
+            {validationError &&
+              renderModalErrorAlert({ message: validationError })}
           </div>
         </form>
 
@@ -1097,7 +1089,7 @@ function MultiSelectField({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className="flex flex-col gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
         <span className="text-[11px] text-gray-500">
@@ -1117,14 +1109,14 @@ function MultiSelectField({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={`${label} suchen ...`}
-            className="h-9 w-full rounded-md border border-gray-200 bg-white pr-3 pl-9 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className="block w-full rounded-lg border-0 bg-white py-3 pl-9 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
           />
         </label>
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
             onChange={(event) => setClassFilter(event.target.value)}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className="moto-select block rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             aria-label="Nach Klasse filtern"
           >
             <option value="all">Alle Klassen</option>
@@ -1139,7 +1131,7 @@ function MultiSelectField({
           <select
             value={groupFilter}
             onChange={(event) => setGroupFilter(event.target.value)}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className="moto-select block rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             aria-label="Nach Gruppe filtern"
           >
             <option value="all">Alle Gruppen</option>
@@ -1185,7 +1177,7 @@ function MultiSelectField({
         )}
       </div>
 
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+      <div className="max-h-72 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm">
         {options.length === 0 ? (
           <div className="px-2 py-3 text-xs text-gray-500">
             Keine Einträge gefunden

@@ -24,6 +24,7 @@ import { useRef, useState } from "react";
 import { CalendarPlus, ChevronDown, RefreshCw } from "lucide-react";
 
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { ConfirmationModal } from "~/components/ui/modal";
 
 interface PlanningMenuProps {
   onMaterialize: () => Promise<void>;
@@ -151,80 +152,22 @@ export function PlanningMenu({
         )}
       </div>
 
-      {showReplanDialog && (
-        <ReplanConfirmDialog
-          weekLabel={weekLabel}
-          replanning={replanning}
-          onCancel={() => setShowReplanDialog(false)}
-          onConfirm={handleReplan}
-        />
-      )}
+      <ConfirmationModal
+        isOpen={showReplanDialog}
+        onClose={() => setShowReplanDialog(false)}
+        onConfirm={handleReplan}
+        title="Woche neu berechnen?"
+        confirmText={replanning ? "Berechne …" : "Neu berechnen"}
+        cancelText="Abbrechen"
+        isConfirmLoading={replanning}
+      >
+        <p className="text-sm leading-relaxed text-gray-600">
+          Noch nicht gestartete Serientermine in{" "}
+          <span className="font-semibold text-gray-900">{weekLabel}</span>{" "}
+          werden gelöscht und anhand der aktuellen Serien neu erstellt.
+          Laufende, abgesagte und manuell angelegte Termine bleiben erhalten.
+        </p>
+      </ConfirmationModal>
     </>
-  );
-}
-
-function ReplanConfirmDialog({
-  weekLabel,
-  replanning,
-  onCancel,
-  onConfirm,
-}: {
-  weekLabel: string;
-  replanning: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="replan-dialog-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-    >
-      <button
-        type="button"
-        aria-label="Schließen"
-        className="absolute inset-0 bg-gray-900/40 transition-opacity"
-        onClick={replanning ? undefined : onCancel}
-        disabled={replanning}
-      />
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
-        <div className="px-5 py-4">
-          <h3
-            id="replan-dialog-title"
-            className="text-base font-semibold text-gray-900"
-          >
-            Woche neu berechnen?
-          </h3>
-          <p className="mt-1.5 text-sm text-gray-600">
-            Noch nicht gestartete Serientermine in{" "}
-            <span className="font-semibold text-gray-900">{weekLabel}</span>{" "}
-            werden gelöscht und anhand der aktuellen Serien neu erstellt.
-            Laufende, abgesagte und manuell angelegte Termine bleiben erhalten.
-          </p>
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/50 px-5 py-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={replanning}
-            className="inline-flex h-8 items-center rounded-md px-3 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={replanning}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {replanning && (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            )}
-            {replanning ? "Berechne …" : "Neu berechnen"}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

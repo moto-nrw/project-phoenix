@@ -112,7 +112,7 @@ export function PlanQualityPanel({
   };
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div>
         <h2 className="text-sm font-bold text-gray-900">Planstatus</h2>
         <p className="mt-0.5 text-xs text-gray-500">
@@ -232,7 +232,7 @@ export function PlanQualityPanel({
                                   [gap.instanceId]: e.target.value,
                                 }))
                               }
-                              className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                              className="moto-select block min-w-48 rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                             >
                               {absentRows.map((item) => (
                                 <option key={item.staffId} value={item.staffId}>
@@ -250,7 +250,7 @@ export function PlanQualityPanel({
                                 [gap.instanceId]: e.target.value,
                               }))
                             }
-                            className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                            className="moto-select block min-w-48 rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                           >
                             <option value="">Ersatz auswählen …</option>
                             {availableStaff.map((item) => (
@@ -290,7 +290,7 @@ export function PlanQualityPanel({
                     key={`${conflict.kind}-${conflict.instanceId}-${conflict.studentId}`}
                     type="button"
                     onClick={() => onSelectInstance(conflict.instanceId)}
-                    className="block w-full rounded-md bg-white p-2 text-left text-xs shadow-sm hover:bg-[#FFF7ED]"
+                    className="block w-full rounded-md bg-white p-2 text-left text-xs shadow-sm hover:bg-[#EAB308]/10"
                   >
                     <div className="font-bold text-gray-900">
                       {dateLabel(conflict.date)} • {conflict.activityTitle}
@@ -332,7 +332,7 @@ function Metric({
     danger: "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]",
   };
   return (
-    <div className={`rounded-md border px-3 py-2 ${palette[tone]}`}>
+    <div className={`rounded-xl border px-3 py-2 ${palette[tone]}`}>
       <div className="flex items-center gap-2 text-[11px] font-bold uppercase">
         {icon}
         {label}

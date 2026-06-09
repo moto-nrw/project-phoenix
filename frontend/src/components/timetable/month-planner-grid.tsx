@@ -95,7 +95,7 @@ export function MonthPlannerGrid({
                     return (
                       <div
                         key={inst.id}
-                        className={`flex min-w-0 items-center gap-1.5 rounded-md border px-1.5 py-1 text-[11px] ${
+                        className={`flex min-w-0 items-center gap-1.5 rounded-full border px-1.5 py-1 text-[11px] ${
                           isCancelled
                             ? "border-dashed border-[#FF3130] bg-gray-50 text-gray-400 line-through"
                             : "border-gray-200/60 text-gray-700"
@@ -119,7 +119,7 @@ export function MonthPlannerGrid({
                           {inst.title}
                         </span>
                         {inst.isSpontaneous && !isCancelled && (
-                          <span className="shrink-0 rounded bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
+                          <span className="shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
                             Spontan
                           </span>
                         )}

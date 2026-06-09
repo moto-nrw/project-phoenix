@@ -97,7 +97,7 @@ export function YearPlannerGrid({
                     key={iso}
                     type="button"
                     onClick={() => onDayClick(iso)}
-                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 ${
+                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded-md text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 ${
                       outsideMonth ? "text-gray-300" : "text-gray-700"
                     } ${dayInstances.length > 0 ? "bg-gray-50" : ""}`}
                     aria-label={`${iso}: ${dayInstances.length} Termine`}

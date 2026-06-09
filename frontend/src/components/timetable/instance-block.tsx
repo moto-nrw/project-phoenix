@@ -71,7 +71,7 @@ export function InstanceBlock({
       type="button"
       onClick={onClick}
       aria-pressed={isSelected}
-      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-md text-left transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
+      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-xl text-left transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
       style={{
         top: `${top}px`,
         height: `${Math.max(height, 18)}px`,

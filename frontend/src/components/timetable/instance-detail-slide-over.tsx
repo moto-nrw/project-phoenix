@@ -253,7 +253,7 @@ export function InstanceDetailSlideOver({
                   <SlideOverTitle>{instance.title}</SlideOverTitle>
                   <StatusBadge status={instance.status} />
                   {instance.isSpontaneous && (
-                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
                       Spontan
                     </span>
                   )}
@@ -261,7 +261,7 @@ export function InstanceDetailSlideOver({
                     const tb = getActivityTypeBadge(instance.activityType);
                     return tb ? (
                       <span
-                        className="rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
+                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
                         style={{ backgroundColor: tb.bg }}
                       >
                         {tb.label}
@@ -488,13 +488,14 @@ export function InstanceDetailSlideOver({
                     </Button>
                   )}
                   {deleteConfirm && !pendingDelete && (
-                    <button
+                    <Button
                       type="button"
-                      className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                      variant="ghost"
+                      size="compact"
                       onClick={() => setDeleteConfirm(false)}
                     >
                       Löschen abbrechen
-                    </button>
+                    </Button>
                   )}
                 </>
               )}

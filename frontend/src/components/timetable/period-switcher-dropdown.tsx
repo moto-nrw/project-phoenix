@@ -20,6 +20,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 
@@ -131,14 +132,15 @@ export function PeriodSwitcherDropdown({
   // Empty state — no periods exist at all.
   if (periods.length === 0) {
     return (
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="compact"
         onClick={onCreate}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         title="Ohne aktive Kalenderperiode kann der Plan nicht materialisiert werden."
       >
         Periode anlegen
-      </button>
+      </Button>
     );
   }
 
@@ -247,17 +249,18 @@ export function PeriodSwitcherDropdown({
                           {formatPeriodRange(p)}
                         </p>
                       </button>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="compact"
                         onClick={() => {
                           setOpen(false);
                           onEdit(p);
                         }}
-                        className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
                         aria-label={`${p.name} bearbeiten`}
                       >
                         Bearbeiten
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
