@@ -1,16 +1,20 @@
-FROM node:24-alpine
+FROM node:24-alpine AS base
 
 RUN apk add --no-cache tzdata && \
     corepack enable && corepack prepare pnpm@10 --activate
 ENV TZ=Europe/Berlin
+ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Install dependencies
+FROM base AS deps
+
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy source files
+FROM base AS builder
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Accept build args
@@ -42,17 +46,25 @@ RUN pnpm run validate:build-env
 # Build the app. Runtime secrets are validated when the container starts.
 RUN SKIP_ENV_VALIDATION=true pnpm run build
 
-# Set production environment
+FROM node:24-alpine AS runner
+
+RUN apk add --no-cache tzdata && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 -G nodejs
+
+ENV TZ=Europe/Berlin
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001 -G nodejs && \
-    chown -R nextjs:nodejs /app
+WORKDIR /app
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
 USER nextjs
 
 EXPOSE 3000
 
-# Run production server
-CMD ["pnpm", "start"]
+# Run the production server without invoking pnpm/corepack at runtime.
+CMD ["node", "server.js"]

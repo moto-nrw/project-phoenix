@@ -43,6 +43,21 @@ restore_uploads_volume() {
   return 0
 }
 
+wait_for_postgres_ready() {
+  local attempts="${1:-60}"
+  local delay_seconds="${2:-1}"
+
+  for _ in $(seq 1 "$attempts"); do
+    if docker compose exec -T postgres pg_isready -U postgres -d template1 >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$delay_seconds"
+  done
+
+  echo "CRITICAL: PostgreSQL did not become ready for restore"
+  return 1
+}
+
 BACKUP_FILE="$1"
 
 if [ -z "$BACKUP_FILE" ]; then
@@ -56,6 +71,10 @@ if [ ! -f "$BACKUP_FILE" ]; then
 fi
 
 echo "Restoring database from: $(basename "$BACKUP_FILE")"
+
+if ! wait_for_postgres_ready; then
+  exit 1
+fi
 
 # ── Restore cluster globals (roles, passwords) if available ──
 # Naming conventions:
@@ -89,6 +108,9 @@ if [ -n "$GLOBALS_FILE" ] && [ -f "$GLOBALS_FILE" ]; then
   echo "Restoring cluster globals from: $(basename "$GLOBALS_FILE")"
   docker compose exec -T postgres psql -U postgres -d template1 < "$GLOBALS_FILE" 2>/dev/null || true
   echo "Cluster globals restored (roles, passwords)"
+  if ! wait_for_postgres_ready; then
+    exit 1
+  fi
 else
   echo "WARNING: No globals file found — roles must already exist on this cluster"
 fi
@@ -96,6 +118,9 @@ fi
 # ── Drop and recreate database from clean template ──
 docker compose exec -T postgres psql -U postgres -d template1 -c "DROP DATABASE IF EXISTS postgres WITH (FORCE);" 2>/dev/null || true
 docker compose exec -T postgres psql -U postgres -d template1 -c "CREATE DATABASE postgres OWNER postgres TEMPLATE template0;"
+if ! wait_for_postgres_ready; then
+  exit 1
+fi
 
 # ── Restore with strict error handling ──
 RESTORE_LOG=$(mktemp)
