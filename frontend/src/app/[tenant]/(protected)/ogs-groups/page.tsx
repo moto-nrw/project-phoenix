@@ -106,6 +106,8 @@ interface BackendStudentFromBFF {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  class_trip?: boolean;
+  class_trip_since?: string;
   location_since?: string;
   group_id?: number;
   group_name?: string;
@@ -177,6 +179,8 @@ function mapStudentForOgsPage(
       sick_since: student.sick_since,
       excused: student.excused ?? false,
       excused_since: student.excused_since,
+      class_trip: student.class_trip ?? false,
+      class_trip_since: student.class_trip_since,
       location_since: student.location_since,
       group_id: student.group_id?.toString(),
       group_name: student.group_name,
@@ -949,6 +953,7 @@ function OGSGroupPageContent() {
           actualTime: a.actual_pickup_time,
           now,
           sick: a.sick,
+          classTrip: a.class_trip,
           excused: a.excused,
         });
         const statusB = getStudentTimeStatus({
@@ -956,6 +961,7 @@ function OGSGroupPageContent() {
           actualTime: b.actual_pickup_time,
           now,
           sick: b.sick,
+          classTrip: b.class_trip,
           excused: b.excused,
         });
         const rankA = getTimeStatusSortRank(statusA);
@@ -991,6 +997,7 @@ function OGSGroupPageContent() {
           actualTime: a.actual_arrival_time,
           now,
           sick: a.sick,
+          classTrip: a.class_trip,
           excused: a.excused,
         });
         const statusB = getStudentTimeStatus({
@@ -998,6 +1005,7 @@ function OGSGroupPageContent() {
           actualTime: b.actual_arrival_time,
           now,
           sick: b.sick,
+          classTrip: b.class_trip,
           excused: b.excused,
         });
         const rankA = getTimeStatusSortRank(statusA);
@@ -1307,6 +1315,7 @@ function OGSGroupPageContent() {
               const studentPickup = pickupTimes.get(student.id.toString());
               const studentAbsence = getStudentAbsence({
                 sick: student.sick,
+                classTrip: student.class_trip,
                 excused: student.excused,
               });
 

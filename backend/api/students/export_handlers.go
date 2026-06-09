@@ -404,7 +404,7 @@ func exportFilterLabels(filters studentExportFilters) []string {
 		labels = append(labels, "Stufe: "+filters.Year)
 	}
 	if filters.Status != "" && filters.Status != "all" {
-		labels = append(labels, "Momentaufnahme: "+filters.Status)
+		labels = append(labels, "Momentaufnahme: "+exportStatusLabel(filters.Status))
 	}
 	if filters.Bus != "" && filters.Bus != "all" {
 		if filters.Bus == "yes" {
@@ -442,6 +442,27 @@ func exportPickupStatusLabel(status string) string {
 	}
 }
 
+func exportStatusLabel(status string) string {
+	switch status {
+	case "krank":
+		return "Krank"
+	case "klassenfahrt":
+		return "Klassenfahrt"
+	case "entschuldigt":
+		return "Entschuldigt"
+	case "abwesend":
+		return "Abwesend"
+	case "unterwegs":
+		return "Unterwegs"
+	case "schulhof":
+		return "Schulhof"
+	case "anwesend":
+		return "Anwesend"
+	default:
+		return status
+	}
+}
+
 func dayStatusExportLabel(status string) string {
 	switch status {
 	case DayPlanningStatusComesToday:
@@ -463,6 +484,9 @@ func schoolYear(schoolClass string) string {
 }
 
 func exportStatus(student StudentResponse) string {
+	if student.ClassTrip {
+		return "klassenfahrt"
+	}
 	if student.Sick {
 		return "krank"
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studentsDropBusColumnVersion     = "1.15.118"
+	studentsDropBusColumnVersion     = "1.15.119"
 	studentsDropBusColumnDescription = "Drop legacy users.students.bus column; bus_days is the single source of truth"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func studentsDropBusColumnUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.118: Dropping legacy users.students.bus column...")
+	fmt.Println("Migration 1.15.119: Dropping legacy users.students.bus column...")
 
 	// Defensive backfill before the drop: guarantee no Buskind information is
 	// lost if any row still has the legacy bus flag set but never received the
@@ -64,7 +64,7 @@ func studentsDropBusColumnUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsDropBusColumnDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.118: Re-adding users.students.bus column...")
+	fmt.Println("Rolling back migration 1.15.119: Re-adding users.students.bus column...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students

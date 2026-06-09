@@ -37,6 +37,7 @@ function makeDay(overrides: Partial<ArrivalDayData> = {}): ArrivalDayData {
     weekday: 1,
     isToday: false,
     isWeekend: false,
+    showClassTrip: false,
     baseSchedule: null,
     exception: null,
     isAbsent: false,

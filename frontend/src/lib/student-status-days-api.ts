@@ -1,4 +1,4 @@
-export type StudentStatusKind = "sick" | "excused";
+export type StudentStatusKind = "sick" | "excused" | "class_trip";
 
 export interface StudentStatusDay {
   id: string;
@@ -96,6 +96,31 @@ export async function createStudentStatusDays(
     "Geplante Einträge konnten nicht gespeichert werden",
   );
   return data.map(mapStatusDay);
+}
+
+export async function bulkCreateStudentStatusDays(
+  studentIds: string[],
+  status: StudentStatusKind,
+  from: string,
+  to: string,
+  reason?: string,
+): Promise<{ student_count: number; date_count: number }> {
+  const response = await fetch("/api/students/status-days/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      reason
+        ? { student_ids: studentIds.map(Number), status, from, to, reason }
+        : { student_ids: studentIds.map(Number), status, from, to },
+    ),
+  });
+  if (!response.ok) {
+    throw new Error("Klassenfahrt konnte nicht gespeichert werden");
+  }
+  return parseApiResult<{ student_count: number; date_count: number }>(
+    response,
+    "Klassenfahrt konnte nicht gespeichert werden",
+  );
 }
 
 export async function deleteStudentStatusDay(

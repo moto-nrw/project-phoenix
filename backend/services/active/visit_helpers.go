@@ -295,7 +295,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		if row.Status == active.StudentStatusDaySick {
 			hasPlannedSick = true
 		}
-		if row.Status == active.StudentStatusDayExcused {
+		if row.Status == active.StudentStatusDayExcused || row.Status == active.StudentStatusDayClassTrip {
 			hasPlannedExcused = true
 		}
 	}

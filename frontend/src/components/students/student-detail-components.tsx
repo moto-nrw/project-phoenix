@@ -384,6 +384,7 @@ export function StudentDetailHeader({
               // recorded, the actual resolved times can render normally.
               const absence = getStudentAbsence({
                 sick: student.sick,
+                classTrip: student.class_trip,
                 excused: student.excused,
               });
               const dayPlanningNotComingLabel =

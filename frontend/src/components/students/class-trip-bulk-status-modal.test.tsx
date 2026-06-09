@@ -1,0 +1,115 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
+import { bulkCreateStudentStatusDays } from "~/lib/student-status-days-api";
+import type { Student } from "~/lib/api";
+
+vi.mock("~/components/ui/form-modal", () => ({
+  FormModal: ({
+    isOpen,
+    title,
+    children,
+    footer,
+    onClose,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        <button type="button" onClick={onClose}>
+          Modal schließen
+        </button>
+        {children}
+        <div>{footer}</div>
+      </div>
+    ) : null,
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
+vi.mock("~/lib/student-status-days-api", () => ({
+  bulkCreateStudentStatusDays: vi.fn(),
+}));
+
+const students = [
+  {
+    id: "42",
+    name: "Kevin Anders",
+    first_name: "Kevin",
+    second_name: "Anders",
+    school_class: "3a",
+    current_location: "Zuhause",
+  },
+] satisfies Student[];
+
+describe("ClassTripBulkStatusModal", () => {
+  const originalTZ = process.env.TZ;
+
+  beforeAll(() => {
+    process.env.TZ = "Europe/Berlin";
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  afterAll(() => {
+    process.env.TZ = originalTZ;
+  });
+
+  it("defaults the bulk range to the local Berlin date after midnight", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-26T22:30:00Z"));
+    vi.mocked(bulkCreateStudentStatusDays).mockResolvedValue({
+      student_count: 1,
+      date_count: 1,
+    });
+
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3a"
+        students={students}
+      />,
+    );
+
+    expect(screen.getByLabelText("Von")).toHaveValue("2026-05-27");
+    expect(screen.getByLabelText("Bis")).toHaveValue("2026-05-27");
+
+    vi.useRealTimers();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(bulkCreateStudentStatusDays).toHaveBeenCalledWith(
+        ["42"],
+        "class_trip",
+        "2026-05-27",
+        "2026-05-27",
+        undefined,
+      );
+    });
+  });
+});

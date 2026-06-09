@@ -28,6 +28,8 @@ export interface ExtendedStudent extends Student {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  class_trip?: boolean;
+  class_trip_since?: string;
 }
 
 interface StudentDataState {
@@ -93,6 +95,10 @@ function mapStudentResponse(
     excused: hasAccess ? (mappedStudent.excused ?? false) : false,
     excused_since: hasAccess
       ? (mappedStudent.excused_since ?? undefined)
+      : undefined,
+    class_trip: hasAccess ? (mappedStudent.class_trip ?? false) : false,
+    class_trip_since: hasAccess
+      ? (mappedStudent.class_trip_since ?? undefined)
       : undefined,
     actual_arrival_time: hasAccess
       ? (mappedStudent.actual_arrival_time ?? undefined)

@@ -159,6 +159,8 @@ interface BFFDashboardResponse {
     sickSince?: string;
     excused?: boolean;
     excusedSince?: string;
+    class_trip?: boolean;
+    class_trip_since?: string;
     // Authenticated proxy URL — backend rewrites the raw /uploads path
     // to /api/students/{id}/photo/{filename} before sending it down.
     photoUrl?: string;
@@ -1803,6 +1805,7 @@ function MeinRaumPageContent() {
                       {(() => {
                         const absence = getStudentAbsence({
                           sick: student.sick,
+                          classTrip: student.class_trip,
                           excused: student.excused,
                         });
                         if (absence && !student.actual_pickup_time) {

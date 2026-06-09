@@ -145,6 +145,8 @@ export interface BackendStudent {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  class_trip?: boolean;
+  class_trip_since?: string;
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
@@ -267,6 +269,9 @@ export interface Student {
   // Excused status (kind is not attending the OGS today, only visible to supervisors/admins)
   excused?: boolean;
   excused_since?: string;
+  // Class trip status, counted as a known absence but rendered separately
+  class_trip?: boolean;
+  class_trip_since?: string;
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
@@ -352,6 +357,8 @@ export function mapStudentResponse(
     sick_since: backendStudent.sick_since,
     excused: backendStudent.excused ?? false, // Excused from attending today
     excused_since: backendStudent.excused_since,
+    class_trip: backendStudent.class_trip ?? false,
+    class_trip_since: backendStudent.class_trip_since,
     day_planning_status: backendStudent.day_planning_status,
     day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,

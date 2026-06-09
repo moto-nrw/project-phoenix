@@ -42,7 +42,7 @@ type Student struct {
 	PickupDays      PickupDays `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
 	// BusDays is the single source of truth for the Buskind flag (#1582): the
 	// weekdays on which the child rides the bus. The legacy boolean bus column
-	// was dropped in migration 1.15.118; the API derives a compatibility bus
+	// was dropped in migration 1.15.119; the API derives a compatibility bus
 	// flag from BusDays.HasAny() at the response boundary.
 	BusDays       BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`
 	Sick          *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick

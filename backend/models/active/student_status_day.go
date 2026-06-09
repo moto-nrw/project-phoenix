@@ -11,9 +11,29 @@ import (
 const tableActiveStudentStatusDays = "active.student_status_days"
 
 const (
-	StudentStatusDaySick    = "sick"
-	StudentStatusDayExcused = "excused"
+	StudentStatusDaySick      = "sick"
+	StudentStatusDayExcused   = "excused"
+	StudentStatusDayClassTrip = "class_trip"
 )
+
+func StudentStatusDayStatuses() []string {
+	return []string{
+		StudentStatusDaySick,
+		StudentStatusDayExcused,
+		StudentStatusDayClassTrip,
+	}
+}
+
+func StudentStatusDayStatusesExcept(status string) []string {
+	statuses := StudentStatusDayStatuses()
+	result := make([]string, 0, len(statuses)-1)
+	for _, candidate := range statuses {
+		if candidate != status {
+			result = append(result, candidate)
+		}
+	}
+	return result
+}
 
 const (
 	StudentStatusSourceManual      = "manual"
