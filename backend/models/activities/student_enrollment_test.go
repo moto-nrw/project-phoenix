@@ -209,51 +209,6 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 	}
 }
 
-func TestStudentEnrollmentMarkPresent(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkPresent()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkPresent() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendancePresent {
-		t.Errorf("StudentEnrollment.MarkPresent() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendancePresent)
-	}
-}
-
-func TestStudentEnrollmentMarkAbsent(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkAbsent()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkAbsent() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendanceAbsent {
-		t.Errorf("StudentEnrollment.MarkAbsent() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendanceAbsent)
-	}
-}
-
-func TestStudentEnrollmentMarkExcused(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkExcused()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkExcused() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendanceExcused {
-		t.Errorf("StudentEnrollment.MarkExcused() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendanceExcused)
-	}
-}
-
 func TestStudentEnrollmentClearAttendance(t *testing.T) {
 	status := AttendancePresent
 	studentEnrollment := &StudentEnrollment{

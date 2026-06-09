@@ -107,8 +107,3 @@ func (g *Group) IsSupervisedBy(staffID int64) bool {
 func (g *Group) HasAvailableSpots(currentEnrollmentCount int) bool {
 	return g.MaxParticipants > currentEnrollmentCount
 }
-
-// CanJoin determines if a student can join this group
-func (g *Group) CanJoin(currentEnrollmentCount int) bool {
-	return g.IsOpen && g.HasAvailableSpots(currentEnrollmentCount)
-}

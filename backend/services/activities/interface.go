@@ -64,6 +64,7 @@ type ActivityService interface {
 	GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error)
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error)
 	UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error
+	CanStudentJoinGroup(group *activities.Group, currentEnrollmentCount int) bool
 	GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*activities.StudentEnrollment, error)
 	GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error)
 

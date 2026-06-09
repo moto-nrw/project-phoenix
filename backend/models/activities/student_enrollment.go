@@ -103,7 +103,7 @@ func (se *StudentEnrollment) Validate() error {
 
 	seenWeekdays := make(map[int]bool, len(se.SelectedWeekdays))
 	for _, weekday := range se.SelectedWeekdays {
-		if weekday < 1 || weekday > 7 {
+		if !IsValidWeekday(weekday) {
 			return errors.New("selected weekdays must be between 1 and 7")
 		}
 		if seenWeekdays[weekday] {
@@ -113,24 +113,6 @@ func (se *StudentEnrollment) Validate() error {
 	}
 
 	return nil
-}
-
-// MarkPresent marks the student as present
-func (se *StudentEnrollment) MarkPresent() {
-	status := AttendancePresent
-	se.AttendanceStatus = &status
-}
-
-// MarkAbsent marks the student as absent
-func (se *StudentEnrollment) MarkAbsent() {
-	status := AttendanceAbsent
-	se.AttendanceStatus = &status
-}
-
-// MarkExcused marks the student as excused
-func (se *StudentEnrollment) MarkExcused() {
-	status := AttendanceExcused
-	se.AttendanceStatus = &status
 }
 
 // ClearAttendance clears the attendance status

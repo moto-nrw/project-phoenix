@@ -92,7 +92,7 @@ func (s *InstanceStudent) Validate() error {
 		return errors.New("invalid attendance substatus")
 	}
 	if s.Note != nil && len(*s.Note) > InstanceStudentNoteMaxLength {
-		return errors.New("note cannot exceed 500 characters")
+		return fmt.Errorf("note cannot exceed %d characters", InstanceStudentNoteMaxLength)
 	}
 	if s.RoomID != nil && *s.RoomID <= 0 {
 		return errors.New("room_id must be positive when set")
