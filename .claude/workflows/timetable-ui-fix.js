@@ -16,6 +16,8 @@ SHARED KIT FACTS (already present in the codebase):
   - Icon-only action (chevron, kebab, close, single icon) → variant="ghost" size="icon" + an aria-label.
   - Plain text/link action with no border and no selected/toggle state → variant="ghost" size="compact".
   - Solid filled CTA → variant="primary"; size="compact" for dense chrome, size="sm" for a normal or empty-state page CTA.
+  - Modal / slide-over FOOTER buttons and dense in-form actions → size="md" (rounded-lg px-4 py-2 text-sm, the ConfirmationModal footer height). NEVER leave footer Abbrechen/Speichern at size="sm" — that is the oversized page height.
+- Checkbox — import { Checkbox } from "~/components/ui/checkbox". Replace any raw <input type="checkbox" .../> with <Checkbox .../> (brand-green #83CD2D checked state). Preserve checked/onChange/disabled and keep the surrounding <label>/layout; drop the ad-hoc h-4 w-4 / text-* / focus:ring-* classes the kit already provides (a layout-only className may stay).
   - DO NOT convert (leave as semantic <button>): toggle/segmented/chip buttons that carry a selected/active state; bordered "pill" triggers; full-row clickable list items; buttons inside a custom dropdown/popover menu; absolutely-positioned calendar-grid cells. (Documented kit gap — out of scope.)
 - Native <select> — KEEP the <select>/<option> element and ALL option/value/onChange logic. Only swap its className to the kit-Input look via the shared moto-select utility (provides appearance-none + a consistent chevron). Preserve a leading w-full only if it was full-width.
   - Form select (full field): "moto-select block w-full rounded-lg border-0 bg-white py-3 pl-4 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
@@ -86,10 +88,11 @@ DO NOT touch: the trigger pill button (bordered pill with the green status dot),
     path: `${DIR}/calendar-period-modal.tsx`,
     label: 'calendar-period-modal',
     instructions: `FIXES:
-1. The inline error banner (hand-rolled <div> showing the validation error string): replace with renderModalErrorAlert({ message: <theErrorExpr> }) from "~/components/ui/modal-utils", keeping the same conditional.
+1. INLINE ERROR BANNER: it already uses renderModalErrorAlert — leave it. (Only if you find a genuinely hand-rolled <div> string-error banner, convert it via renderModalErrorAlert({ message: <expr> }).)
 2. Any ad-hoc dark red hex (e.g. #991B1B) used for a brand-red purpose: change to #FF3130 (brand red). Verify contrast still reads.
-3. The native <select> ("Typ"/period type): apply the FORM select className from the shared spec (keep the <select> and its options/onChange).
-DO NOT convert the "Löschen abbrechen"/cancel text button unless it is a plain text button — if so, convert to <Button type="button" variant="ghost" size="compact">; otherwise leave it.`,
+3. The native <select> ("Typ"/period type): apply the FORM select className from the shared spec (keep the <select> and its options/onChange). It is currently rounded-lg — keep rounded-lg (the kit Input token).
+4. CHECKBOX: replace the raw <input type="checkbox" .../> ("Periode ist aktiv", className "h-4 w-4") with the kit <Checkbox .../> (import { Checkbox } from "~/components/ui/checkbox"), preserving checked={form.isActive} and onChange. Keep the surrounding <label> row and its German texts.
+5. FOOTER BUTTONS: in the FormModal footer, every action button currently using size="sm" (Abbrechen, Speichern, and any delete action) → change to size="md" (Flo's footer height). Keep variants and all other props.`,
   },
   {
     path: `${DIR}/plan-quality-panel.tsx`,
@@ -106,7 +109,7 @@ DO NOT convert the full-row clickable <button> targets (the instance rows) — l
     label: 'instance-detail-slide-over',
     instructions: `FIXES:
 1. The "Spontan" badge and the activity-type badge: change bare "rounded" → "rounded-full".
-2. The plain text cancel/"Abbrechen" button (no border, no toggle state): convert to <Button type="button" variant="ghost" size="compact"> (Button is already imported in this file).
+2. FOOTER BUTTONS: in SlideOverFooter, every action button currently using size="sm" (the outline/ghost cancel and the primary/lifecycle/danger actions) → change to size="md" (Flo's footer height). Keep each button's variant and all other props.
 DO NOT touch the SlideOverClose button (it uses asChild and forwards a DOM element) or the IconActionButton helper / lifecycle icon buttons — leave those as-is.`,
   },
   {
@@ -114,19 +117,21 @@ DO NOT touch the SlideOverClose button (it uses asChild and forwards a DOM eleme
     label: 'timetable-event-modal',
     model: 'opus',
     instructions: `This is the largest file. Apply these fixes carefully, one at a time, preserving ALL behavior. Button and Input are already imported here.
-1. REPEAT-MODE SWITCHER (a hand-rolled segmented pill toggle, e.g. Einmalig / Wöchentlich): convert to the kit Tabs. import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs". Render:
+1. REPEAT-MODE SWITCHER ("Wiederholen": a hand-rolled segmented pill toggle of options like Nie / Jede Woche / Alle 2 Wochen, a div.inline-flex.bg-gray-100 with three raw <button>): convert to the kit Tabs. import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs". Render:
      <Tabs value={<currentModeState>} onValueChange={(v) => <existingSetter>(v as <ModeType>)}>
-       <TabsList aria-label="...">
-         <TabsTrigger value="<exactValueA>">Label A</TabsTrigger>
-         <TabsTrigger value="<exactValueB>">Label B</TabsTrigger>
+       <TabsList aria-label="Wiederholen">
+         <TabsTrigger value="<exactValueA>" disabled={<keep any existing per-button disabled expr, else omit>}>Label A</TabsTrigger>
+         ...one TabsTrigger per option, in the same order...
        </TabsList>
      </Tabs>
-   CRITICAL: read the current buttons' onClick to find the EXACT state variable, setter, and the EXACT string value each button sets; reuse them verbatim. Do not rename or alter the repeat-mode logic. Each TabsTrigger value must equal what the old button set. This also removes the bare "rounded" on those buttons.
-2. INLINE ERROR BANNERS (there are ~3 hand-rolled <div> error banners showing a string message): replace each with renderModalErrorAlert({ message: <theMessageExpr> }) from "~/components/ui/modal-utils", keeping each one's conditional.
-3. MULTISELECT SEARCH INPUT (a raw <input type="search"> with an absolute search icon): KEEP the element and the icon; only align its className to the kit Input look — "block w-full rounded-lg border-0 bg-white py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400" plus the existing left padding for the icon (e.g. pl-10/pl-9). Do NOT swap to the <Input> component (it would wrap an extra div and break the icon overlay).
-4. PANEL SURFACES: the read-only period row and the MultiSelect dropdown containers that are rounded-lg content panels → rounded-2xl, adding "border border-gray-200 bg-white shadow-sm" only if it is a real card surface. (A floating MultiSelect options popover STAYS rounded-xl — do not change those.)
-5. NATIVE <select> elements (room, category, education group, period, primary staff = FORM selects; the "Alle Klassen"/"Alle Gruppen" filters = COMPACT/inline selects): apply the matching FORM or COMPACT select className from the shared spec. Keep every <select>, its <option>s, value and onChange exactly.
-DO NOT convert: the type-selector cards, the weekday toggle chips, or the MultiSelect add/remove action chips — these are toggle/chip controls with selected state; leave them as-is.`,
+   CRITICAL: read the current buttons' onClick to find the EXACT state variable, setter, and EXACT string value each button sets; reuse them verbatim. One button's onClick ALSO seeds a default weekday when switching away from "none" — preserve that side-effect (run the same follow-up inside onValueChange after calling the setter). Each TabsTrigger value must equal what the old button set. Keep the "Wiederholen" field label above the control. This also removes the bare "rounded" (4px) on those buttons.
+2. INLINE ERROR BANNERS: this file already uses renderModalErrorAlert for its error messages — leave those as-is. Only if you find a genuinely hand-rolled <div> error banner showing a string, convert it via renderModalErrorAlert({ message: <expr> }).
+3. MULTISELECT SEARCH INPUT (a raw <input type="search"> with an absolute Search icon overlay): KEEP the element and the icon; only align its className to the kit Input look — "block w-full rounded-lg border-0 bg-white py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400" plus the existing left padding for the icon (pl-9). Do NOT swap to the <Input> component (it would break the icon overlay).
+4. NATIVE <select> elements (room, category, education group, period, primary staff = FORM selects; the "Alle Klassen"/"Alle Gruppen" filters = COMPACT/inline selects): apply the matching FORM or COMPACT select className from the shared spec. Keep every <select>, its <option>s, value and onChange exactly. Their rounded-lg radius is the kit Input token — keep rounded-lg.
+5. CHECKBOX: in MultiSelectField, replace the raw <input type="checkbox" .../> (className "h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-200") with the kit <Checkbox .../> (import { Checkbox } from "~/components/ui/checkbox"). Preserve checked={...} and onChange={...}; let Checkbox provide the sizing/color/focus.
+6. FOOTER BUTTONS: in SlideOverFooter, the "Abbrechen" (variant="outline") and "Speichern" (variant="primary") buttons currently use size="sm" — change BOTH to size="md" (Flo's footer height). Keep every other prop (type, form, isLoading, loadingText, disabled, onClick) untouched.
+7. READ-ONLY PERIOD BOX: the non-editable Planungsperiode display (the <div> showing "Gilt in ..." whose classes include "flex h-10 items-center rounded-2xl border border-gray-200 bg-gray-50 px-3") — change rounded-2xl → rounded-lg and replace "h-10" with "py-2.5" (drop the fixed height so padding defines it, matching the kit field rhythm). Keep "items-center", the text and the logic.
+DO NOT convert: the type-selector cards ("Typ"), the weekday toggle chips ("Wochentage"), or the MultiSelect "Sichtbare auswählen/Auswahl leeren/Filter zurücksetzen" action buttons — the first two are toggle/chip controls with selected state (leave their structure + rounded-md). The three MultiSelect toolbar action buttons MAY be converted to <Button type="button" variant="ghost" size="compact"> (and the primary "Sichtbare auswählen" to variant="outline" size="compact") if clean; otherwise leave them.`,
   },
 ]
 
