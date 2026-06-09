@@ -72,10 +72,10 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
 	response.BusDays = student.BusDays.Normalize()
+	// bus is a derived compatibility flag, true iff the child is a Buskind on at
+	// least one weekday. bus_days is the single source of truth (#1582).
+	response.Bus = response.BusDays.HasAny()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
@@ -207,10 +207,9 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
 	response.BusDays = student.BusDays.Normalize()
+	// bus derived from bus_days (single source of truth, #1582).
+	response.Bus = response.BusDays.HasAny()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
