@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -28,6 +30,13 @@ import (
 // rather than inserting a second one.
 
 func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
+	return setupAutoApproveIntegrationEnvWithSettings(t, nil)
+}
+
+func setupAutoApproveIntegrationEnvWithSettings(
+	t *testing.T,
+	settings enrollmentService.DecisionSettingsResolver,
+) (*rolloverTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
@@ -54,6 +63,7 @@ func setupAutoApproveIntegrationEnv(t *testing.T) (*rolloverTestEnv, func()) {
 		OutboxEnqueuer:           env.outbox,
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
+		Settings:                 settings,
 		Logger:                   slog.Default(),
 	})
 
@@ -236,6 +246,8 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	// memory copy.
 	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
 	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status,
+		"already-active rollover students must stay active even for a future phase")
 	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
 		"grade was bumped 1 → 2; school_class must follow")
 	require.NotNil(t, refreshed.EnrolledFrom)
@@ -243,6 +255,135 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 		"enrolled_from must follow the new phase's service window")
 	require.NotNil(t, refreshed.EnrolledUntil)
 	assert.Equal(t, result.Phase.ServiceEndDate, *refreshed.EnrolledUntil)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	require.NotNil(t, approved[0].ActivateOn)
+	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
+}
+
+func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
+	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
+		mode: configModel.EnrollmentActivationModeImmediate,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Anna", "Inactive", "inactive-immediate@example.com",
+		"Lina", "Inactive",
+		int16(1),
+	)
+	existing.Status = usersModels.StudentStatusInactive
+	require.NoError(t, env.repos.Student.Update(ctx, existing))
+
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
+	req.Name = "inactive-immediate-target"
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.AutoRenewedToApproved)
+	assert.Equal(t, 0, summary.AutoApproveErrors)
+
+	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx, result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusApproved},
+	)
+	require.NoError(t, err)
+	require.Len(t, approved, 1)
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, approved[0].ActivationMode)
+	assert.Nil(t, approved[0].ActivateOn)
+
+	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
+}
+
+func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
+	env, cleanup := setupAutoApproveIntegrationEnv(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Anna", "Inactive", "inactive-scheduled@example.com",
+		"Lina", "Inactive",
+		int16(1),
+	)
+	existing.Status = usersModels.StudentStatusInactive
+	require.NoError(t, env.repos.Student.Update(ctx, existing))
+
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
+	req.Name = "inactive-scheduled-target"
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.AutoRenewedToApproved)
+	assert.Equal(t, 0, summary.AutoApproveErrors)
+
+	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusPending, refreshed.Status)
+
+	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx, result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusApproved},
+	)
+	require.NoError(t, err)
+	require.Len(t, approved, 1)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	require.NotNil(t, approved[0].ActivateOn)
+	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
+}
+
+func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
+	env, cleanup := setupAutoApproveIntegrationEnv(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	_, existing := seedApprovedChildWithStudent(
+		t, env,
+		"Anna", "Inactive", "inactive-scheduled-past@example.com",
+		"Lina", "Inactive",
+		int16(1),
+	)
+	existing.Status = usersModels.StudentStatusInactive
+	require.NoError(t, env.repos.Student.Update(ctx, existing))
+
+	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	req.RolloverAutoApprove = true
+	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
+	req.ServiceStartDate = timezone.TodayUTC().AddDate(0, 0, -1)
+	req.ServiceEndDate = req.ServiceStartDate.AddDate(0, 10, 0)
+	req.Name = "inactive-scheduled-past-target"
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
+	require.NoError(t, err)
+
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, summary.AutoRenewedToApproved)
+	assert.Equal(t, 0, summary.AutoApproveErrors)
+
+	refreshed, err := env.repos.Student.FindByID(ctx, existing.ID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
+
+	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx, result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusApproved},
+	)
+	require.NoError(t, err)
+	require.Len(t, approved, 1)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
+	require.NotNil(t, approved[0].ActivateOn)
+	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
 }
 
 func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
