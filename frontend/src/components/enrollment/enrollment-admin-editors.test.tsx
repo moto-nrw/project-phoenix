@@ -374,7 +374,7 @@ describe("CareOfferingsEditor", () => {
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
     await waitForInputByName("name");
-    fireEvent.change(screen.getByLabelText("Stundenplan-Vorlage"), {
+    fireEvent.change(screen.getByLabelText("Betreuungsplan-Vorlage"), {
       target: { value: "8" },
     });
 

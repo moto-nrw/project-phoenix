@@ -1120,7 +1120,7 @@ function MeinRaumPageContent() {
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Aktion im Stundenplan konnte nicht ausgeführt werden.");
+        setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
       }
     },
     [activeTimetableInstanceId, mutateRoster],

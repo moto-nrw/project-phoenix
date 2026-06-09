@@ -88,7 +88,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/timetables",
-    label: "Stundenplan",
+    label: "Betreuungsplan",
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
     requiresAdmin: true,

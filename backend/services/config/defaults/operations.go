@@ -404,7 +404,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyWebSpontaneousActivities,
 		Label:           "Spontane Aktivitäten über Web/App",
-		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Stundenplan geschrieben, auch wenn die Stundenplanplanung deaktiviert ist.",
+		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Betreuungsplan geschrieben, auch wenn die Betreuungsplanung deaktiviert ist.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

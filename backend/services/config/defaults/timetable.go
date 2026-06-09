@@ -26,8 +26,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnabled,
-		Label:           "Stundenplan aktivieren",
-		Description:     "Zeigt den Stundenplan in der Navigation an und schaltet die passenden Einstellungen frei.",
+		Label:           "Betreuungsplan aktivieren",
+		Description:     "Zeigt den Betreuungsplan in der Navigation an und schaltet die passenden Einstellungen frei.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -159,7 +159,7 @@ func init() {
 	maxRetention := float64(1825) // 5 years
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimetableRetentionDays,
-		Label:           "Aufbewahrungsdauer Stundenplan (Tage)",
+		Label:           "Aufbewahrungsdauer Betreuungsplan (Tage)",
 		Description:     "Anzahl der Tage, für die abgeschlossene oder abgesagte Termine gespeichert bleiben.",
 		Type:            config.FieldNumber,
 		Default:         365,

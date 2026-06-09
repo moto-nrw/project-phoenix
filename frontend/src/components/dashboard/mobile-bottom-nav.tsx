@@ -249,7 +249,7 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   {
     href: "/timetables",
-    label: "Stundenplan",
+    label: "Betreuungsplan",
     iconKey: "calendar",
     requiresAdmin: true,
   },

@@ -103,7 +103,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     icon: LayoutDashboard,
     points: [
       "Kindersuche, Aufsicht, Räume, Mitarbeiter",
-      "Vertretungen, Stundenplan, Zeiterfassung",
+      "Vertretungen, Betreuungsplan, Zeiterfassung",
       "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
     ],
   },
@@ -233,7 +233,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Nur bei NFC-/Tablet-Nutzung sichtbar",
-          body: "Wenn Ihre Einrichtung kein NFC oder keine Tablets nutzt, wird der Bereich `Aktivitäten` in der Datenverwaltung nicht angezeigt. In diesem Fall können Angebote je nach Freischaltung später im Alltag über `Aktuelle Aufsicht` oder den `Stundenplan` entstehen (siehe `Die App im Alltag` -> `Aktuelle Aufsicht` und `Stundenplan`).",
+          body: "Wenn Ihre Einrichtung kein NFC oder keine Tablets nutzt, wird der Bereich `Aktivitäten` in der Datenverwaltung nicht angezeigt. In diesem Fall können Angebote je nach Freischaltung später im Alltag über `Aktuelle Aufsicht` oder den `Betreuungsplan` entstehen (siehe `Die App im Alltag` -> `Aktuelle Aufsicht` und `Betreuungsplan`).",
           tone: "blue",
         },
         screenshot:
@@ -524,23 +524,23 @@ export const appChapters: readonly GuideChapter[] = [
     steps: [
       {
         id: "stundenplan",
-        title: "Stundenplan",
+        title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
           "Plant Termine, Serien, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Stundenplan` öffnen und die Planungsperiode wählen.",
+          "`Betreuungsplan` öffnen und die Planungsperiode wählen.",
           "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
           "Für wiederkehrende Angebote eine Serie anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Dienstplan markieren kann.",
           "`Termine erzeugen` nutzen, damit die Serie in konkrete Termine der Planungsperiode übernommen wird.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
         ],
         callout: {
-          title: "Stundenplan zuerst aktivieren",
-          body: "Der Stundenplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` -> `Betrieb` mit `Stundenplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
+          title: "Betreuungsplan zuerst aktivieren",
+          body: "Der Betreuungsplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
           tone: "blue",
         },
-        screenshot: "Stundenplan-Kalender mit Termin und Serien.",
+        screenshot: "Betreuungsplan-Kalender mit Termin und Serien.",
         image: "/help/screens/stundenplan.webp",
       },
       {
@@ -673,13 +673,13 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
-          "Unter `Stundenplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
+          "Unter `Betreuungsplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
         callout: {
-          title: "Anmeldung und Stundenplan verbinden",
-          body: "Eltern wählen weiterhin nur Angebot und Tage. Phoenix übernimmt genehmigte Kinder in die verknüpfte Stundenplan-Vorlage und materialisiert sie dort an den passenden Angebotstagen. Hinweise zeigen, wenn Angebotstage, Vorlage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
+          title: "Anmeldung und Betreuungsplan verbinden",
+          body: "Eltern wählen weiterhin nur Angebot und Tage. Phoenix übernimmt genehmigte Kinder in die verknüpfte Betreuungsplan-Vorlage und materialisiert sie dort an den passenden Angebotstagen. Hinweise zeigen, wenn Angebotstage, Vorlage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
           tone: "blue",
         },
         screenshot:
@@ -728,7 +728,7 @@ export const appChapters: readonly GuideChapter[] = [
     id: "einstellungen",
     title: "Einstellungen",
     description:
-      "Hier stellen Admins ein, wie sich die App im Alltag verhält. Viele Funktionen (etwa der Stundenplan, die Online-Anmeldung oder die Aktivitäts-Indikatoren) sind erst sichtbar, wenn sie hier eingeschaltet wurden.",
+      "Hier stellen Admins ein, wie sich die App im Alltag verhält. Viele Funktionen (etwa der Betreuungsplan, die Online-Anmeldung oder die Aktivitäts-Indikatoren) sind erst sichtbar, wenn sie hier eingeschaltet wurden.",
     icon: SlidersHorizontal,
     tone: "gray",
     steps: [
@@ -740,7 +740,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Einstellungen sind in Reiter (Tabs) gegliedert. Jeder Reiter bündelt Optionen zu einem Thema. Änderungen werden automatisch gespeichert.",
         steps: [
           "In der Seitenleiste `Einstellungen` öffnen.",
-          "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Stundenplan oder Aktivitäts-Indikatoren), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
+          "Oben den passenden Reiter wählen: `Betrieb` (Alltagsverhalten, z. B. Betreuungsplan oder Aktivitäts-Indikatoren), `Geräte` (NFC-Tablets, PIN, Auswahl-Buttons), `Anmeldung` (Online-Anmeldung der Eltern), `Datenschutz` (Aufbewahrung und Sichtbarkeit von Daten), `Sicherheit` sowie `Personalisierung` (Erscheinungsbild).",
           "Schalter (an/aus) und Auswahlfelder werden sofort gespeichert; Text-, Zahl- und Zeitfelder kurz nach der Eingabe. Ein grüner Rahmen bestätigt das Speichern, ein roter weist auf einen Fehler hin.",
           "Steht neben einer Einstellung das Abzeichen `Standard`, ist noch der voreingestellte Wert aktiv. Nach einer Änderung erscheint `Zurücksetzen`, um wieder den Standard herzustellen.",
         ],
