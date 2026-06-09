@@ -10,7 +10,7 @@ const emptyStringToUndefined = (value) =>
 const optionalUrl = z.preprocess(emptyStringToUndefined, z.url().optional());
 const optionalString = z.preprocess(
   emptyStringToUndefined,
-  z.string().optional(),
+  z.union([z.string(), z.undefined()]),
 );
 
 export const serverEnvSchema = {
