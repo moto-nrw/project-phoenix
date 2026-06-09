@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -1839,7 +1840,10 @@ func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*c
 
 func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor time.Time, entries []*config.WorkTimeModelEntry) error {
 	if anchor.IsZero() {
-		anchor = time.Now().Truncate(24 * time.Hour)
+		// Berlin calendar day at UTC midnight, matching how the DATE column
+		// binds; the old Truncate(24h) form took the UTC day, one behind
+		// Berlin between 00:00 and 02:00.
+		anchor = timezone.TodayUTC()
 	}
 	model := &config.WorkTimeModel{
 		Name:               name,

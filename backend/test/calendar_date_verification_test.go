@@ -98,8 +98,6 @@ var droppedDateColumns = map[string]string{
 // truncate24hAllowlist holds files still containing Truncate(24 * time.Hour)
 // date math (always wrong for Berlin calendar days). Shrink-only.
 var truncate24hAllowlist = map[string]string{
-	"api/staff/api.go":                                      "fixed in the lint-guard stage of this PR",
-	"models/schedule/calendar_period.go":                    "fixed in the lint-guard stage of this PR",
 	"services/active/time_tracking_cleanup_service_test.go": "fixed in the lint-guard stage of this PR",
 	"services/active/work_session_export_test.go":           "fixed in the lint-guard stage of this PR",
 	"services/active/work_session_service_test.go":          "fixed in the lint-guard stage of this PR",

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -118,11 +119,13 @@ func (p *CalendarPeriod) HasWeekCycle() bool {
 	return p.WeekCycleLength > 1
 }
 
-// ContainsDate returns true if the given date falls within this period
+// ContainsDate returns true if the given date falls within this period.
+// Comparison happens on Berlin calendar days; the old Truncate(24h) form
+// compared UTC days and was one day off between 00:00 and 02:00 Berlin.
 func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
-	d := date.Truncate(24 * time.Hour)
-	start := p.StartDate.Truncate(24 * time.Hour)
-	end := p.EndDate.Truncate(24 * time.Hour)
+	d := timezone.DateFromTime(date)
+	start := timezone.DateFromTime(p.StartDate)
+	end := timezone.DateFromTime(p.EndDate)
 	return !d.Before(start) && !d.After(end)
 }
 

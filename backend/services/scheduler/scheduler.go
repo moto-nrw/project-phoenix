@@ -1339,7 +1339,7 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 // Returns false if the scheduler is shutting down during the wait.
 func (s *Scheduler) waitUntilNextMinute() bool {
 	now := time.Now()
-	nextMinute := now.Truncate(time.Minute).Add(time.Minute)
+	nextMinute := now.Truncate(time.Minute).Add(time.Minute) //nolint:forbidigo // sub-day minute alignment, not calendar-date math
 	delay := time.Until(nextMinute)
 	select {
 	case <-time.After(delay):
