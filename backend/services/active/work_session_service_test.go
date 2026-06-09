@@ -1995,3 +1995,29 @@ func TestWSUpdateSession_CannotEditActiveBreak(t *testing.T) {
 func wsStrPtr(s string) *string {
 	return &s
 }
+
+// Generic query helper stubs (interface additions for the issue #585
+// cleanup refactor) — unused by these tests.
+func (m *wsMockWorkSessionRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *wsMockWorkSessionRepository) OldestBefore(context.Context, string, *time.Time) (*time.Time, error) {
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) OldestBefore(context.Context, string, *time.Time) (*time.Time, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
+	return 0, nil
+}

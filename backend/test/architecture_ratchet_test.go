@@ -32,11 +32,10 @@ import (
 // but new ones still deserve the review friction of touching this list.
 var serviceQueryRatchetAllowlist = map[string]int{
 	"services/active/analytics_service.go":               1,
-	"services/active/cleanup_service.go":                 10,
+	"services/active/cleanup_service.go":                 7,
 	"services/active/combined_group_service.go":          3,
 	"services/active/dashboard_helpers.go":               1,
 	"services/active/session_service.go":                 3,
-	"services/active/time_tracking_cleanup_service.go":   10,
 	"services/activities/supervisor_operations.go":       1,
 	"services/education/grade_transition_service.go":     1,
 	"services/emergency/service.go":                      2,
@@ -48,8 +47,7 @@ var serviceQueryRatchetAllowlist = map[string]int{
 	"services/schedule/arrival_service.go":               2,
 	"services/schedule/instance_service.go":              2,
 	"services/schedule/pickup_schedule_service.go":       2,
-	"services/schedule/timetable_cleanup_service.go":     8,
-	"services/scheduler/scheduler.go":                    4,
+	"services/scheduler/scheduler.go":                    2,
 	"services/users/caregiver_capability.go":             5,
 	"services/users/caregiver_directory.go":              1,
 }

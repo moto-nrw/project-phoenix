@@ -160,4 +160,15 @@ type ActivityInstanceRepository interface {
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip
 	// safely through Bun.
 	MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error
+
+	// CompleteActiveByActiveGroupIDs marks every still-active instance bridged
+	// to one of the given active.groups as completed and returns the number of
+	// rows changed. Used by the scheduler's daily session-end bridge.
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the timetable retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
 }

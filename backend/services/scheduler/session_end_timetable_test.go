@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,7 +37,11 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID)
 	})
 
-	s := &Scheduler{db: db, logger: slog.Default()}
+	s := &Scheduler{
+		instanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
+		instanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
+		logger:              slog.Default(),
+	}
 	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &activeSvc.DailySessionCleanupResult{
 		EndedActiveGroupIDs: []int64{activeGroup.ID},
 	})

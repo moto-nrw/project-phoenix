@@ -279,3 +279,43 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 	}
 	return &instance, nil
 }
+
+// CompleteActiveByActiveGroupIDs marks every still-active instance bridged to
+// one of the given active.groups as completed and returns the number of rows
+// changed. Custom method (backend-conventions Rule 2): lifecycle bulk update
+// keyed on the active-group bridge, paired with MarkCompleted's
+// column-restricted shape. Used by the scheduler's daily session-end bridge.
+func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if len(activeGroupIDs) == 0 {
+		return 0, nil
+	}
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Set(`status = ?`, schedule.InstanceStatusCompleted).
+		Set(`completed_at = ?`, completedAt).
+		Set(`updated_at = ?`, completedAt).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
+		Where(`"activity_instance".active_group_id IN (?)`, bun.List(activeGroupIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "complete active instances by active group ids",
+			Err: err,
+		}
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "complete active instances by active group ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -182,7 +183,9 @@ func setupFixture(t *testing.T) (*instFixture, int64) {
 // service with a stubSettingsService.
 func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 	return scheduleSvc.NewTimetableCleanupService(
-		db,
+		scheduleRepoPkg.NewActivityInstanceRepository(db),
+		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
 		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
@@ -309,7 +312,9 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 	// service provides when a school admin sets the value in the UI.
 	f, roomID := setupFixture(t)
 	svc := scheduleSvc.NewTimetableCleanupService(
-		f.db,
+		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
+		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		auditRepoPkg.NewDataDeletionRepository(f.db),
 		&stubSettingsService{hasOverride: true, intVal: 30},
 		slog.Default(),
@@ -547,7 +552,9 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	f.attachStudent(t, instID, student.ID, nil)
 
 	svc := scheduleSvc.NewTimetableCleanupService(
-		f.db,
+		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
+		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		&failingAuditRepo{err: errors.New("simulated audit failure")},
 		nil,
 		slog.Default(),

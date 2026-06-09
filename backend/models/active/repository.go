@@ -280,6 +280,12 @@ type WorkSessionRepository interface {
 
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
 }
 
 // StaffAbsenceRepository defines operations for managing staff absences
@@ -304,6 +310,12 @@ type StaffAbsenceRepository interface {
 
 	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
 	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
 }
 
 type StaffAbsenceAuditRepository interface {

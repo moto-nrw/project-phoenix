@@ -433,7 +433,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// and schedule.activity_exceptions older than the tenant's retention window.
 	// Per-student audit rows via DataDeletion; exceptions slog-only.
 	timetableCleanupService := schedule.NewTimetableCleanupService(
-		db,
+		repos.ActivityInstance,
+		repos.ActivityException,
+		repos.InstanceStudent,
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
@@ -445,7 +447,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// tenant's retention window. Per-staff audit rows via DataDeletion
 	// (staff_id subject, added in migration 1.15.58).
 	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
-		db,
+		repos.WorkSession,
+		repos.StaffAbsence,
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "time-tracking-cleanup"),
@@ -726,6 +729,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
+		repos.Attendance,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
 		privacyConsentService,

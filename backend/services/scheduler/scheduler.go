@@ -119,6 +119,7 @@ type Scheduler struct {
 	// does not emit `instance_overdue` every minute for the same planned
 	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
 	instanceRepo        scheduleModel.ActivityInstanceRepository
+	instanceStudentRepo scheduleModel.InstanceStudentRepository
 	overdueBroadcaster  realtime.Broadcaster
 	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
 	overdueEmittedDay   time.Time
@@ -260,6 +261,16 @@ func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
 func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, broadcaster realtime.Broadcaster) {
 	s.instanceRepo = repo
 	s.overdueBroadcaster = broadcaster
+}
+
+// SetTimetableBridgeRepos wires the schedule-side repositories used by the
+// daily session-end bridge (completeTimetableInstancesForEndedSessions).
+// Independent of the overdue-tick wiring: it also sets instanceRepo so the
+// bridge works even when SetInstanceOverdueDeps was never called. Without
+// this wiring the bridge is a no-op.
+func (s *Scheduler) SetTimetableBridgeRepos(instanceStudents scheduleModel.InstanceStudentRepository, instances scheduleModel.ActivityInstanceRepository) {
+	s.instanceStudentRepo = instanceStudents
+	s.instanceRepo = instances
 }
 
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
@@ -647,43 +658,22 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
 func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
-	if result == nil || len(result.EndedActiveGroupIDs) == 0 || s.db == nil {
+	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
+		return 0, nil
+	}
+	if s.instanceStudentRepo == nil || s.instanceRepo == nil {
 		return 0, nil
 	}
 
-	db := repoBase.GetDB(ctx, s.db)
 	now := time.Now()
 
-	if _, err := db.NewUpdate().
-		TableExpr(`schedule.instance_students AS "student"`).
-		Set("status = ?", scheduleModel.AttendanceStatusAbsent).
-		Set("updated_at = ?", now).
-		Where(`"student".status = ?`, scheduleModel.AttendanceStatusExpected).
-		Where(`"student".instance_id IN (
-			SELECT "instance".id
-			FROM schedule.activity_instances AS "instance"
-			WHERE "instance".status = ?
-				AND "instance".active_group_id IN (?)
-		)`, scheduleModel.InstanceStatusActive, bun.List(result.EndedActiveGroupIDs)).
-		Exec(ctx); err != nil {
+	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
 		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
 	}
 
-	res, err := db.NewUpdate().
-		TableExpr(`schedule.activity_instances AS "instance"`).
-		Set("status = ?", scheduleModel.InstanceStatusCompleted).
-		Set("completed_at = ?", now).
-		Set("updated_at = ?", now).
-		Where(`"instance".status = ?`, scheduleModel.InstanceStatusActive).
-		Where(`"instance".active_group_id IN (?)`, bun.List(result.EndedActiveGroupIDs)).
-		Exec(ctx)
+	rows, err := s.instanceRepo.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
 	if err != nil {
 		return 0, fmt.Errorf("complete active timetable instances: %w", err)
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("complete active timetable instances rows affected: %w", err)
 	}
 	return int(rows), nil
 }
