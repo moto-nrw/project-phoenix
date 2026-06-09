@@ -739,21 +739,22 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.PickupStatus != nil {
 		student.PickupStatus = req.PickupStatus
 	}
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	applyBusDays(req.Bus, req.BusDays, student)
 
 	return student
+}
+
+// applyBusDays sets the student's bus_days from a create/update request.
+// bus_days is the single source of truth (#1582); the legacy bus boolean is
+// accepted only as an alias (true => Mon–Fri, false => no days) and is ignored
+// when bus_days is also supplied. The derived bus flag is no longer stored.
+func applyBusDays(legacyBus *bool, days *users.BusDays, student *users.Student) {
+	if legacyBus != nil && days == nil {
+		student.BusDays = users.BusDaysFromLegacyFlag(*legacyBus)
+	}
+	if days != nil {
+		student.BusDays = *days
+	}
 }
 
 // optionalString returns a pointer to the trimmed string, or nil when empty,
@@ -1093,19 +1094,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.PickupStatus != nil {
 		student.PickupStatus = req.PickupStatus
 	}
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	applyBusDays(req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

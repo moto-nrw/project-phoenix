@@ -250,8 +250,12 @@ type ReservedTarget struct {
 }
 
 const (
-	TargetStudentHealthInfo   = "student.health_info"
-	TargetStudentExtraInfo    = "student.extra_info"
+	TargetStudentHealthInfo = "student.health_info"
+	TargetStudentExtraInfo  = "student.extra_info"
+	// TargetStudentBusDays is the canonical Buskind target. TargetStudentBus
+	// ("student.bus") is kept as a legacy alias so older saved schemas keep
+	// working; both dispatch onto student.bus_days (#1582).
+	TargetStudentBusDays      = "student.bus_days"
 	TargetStudentBus          = "student.bus"
 	TargetStudentPickupStatus = "student.pickup_status"
 	TargetSchedulePickup      = "schedule.pickup"
@@ -272,6 +276,7 @@ const (
 var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
+	TargetStudentBusDays:      {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentPickupStatus: {Type: FormFieldSelect, AppliesToChild: true, Label: "Abholregelung"},
 	TargetSchedulePickup:      {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},

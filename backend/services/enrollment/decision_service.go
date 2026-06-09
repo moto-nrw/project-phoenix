@@ -1575,13 +1575,13 @@ func (s *decisionService) applyTargetedFields(
 				student.ExtraInfo = &str
 				studentDirty = true
 			}
-		case enrollmentModels.TargetStudentBus:
+		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
 			if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
-				b := days.HasAny()
+				// bus_days is the single source of truth (#1582); the bus flag
+				// is derived at the API boundary, not stored.
 				student.BusDays = days
-				student.Bus = &b
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
