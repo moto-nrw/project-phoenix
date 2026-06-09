@@ -102,6 +102,35 @@ func ParseBool(val string) bool {
 	return normalized == "ja" || normalized == "yes" || normalized == "true" || normalized == "1"
 }
 
+// busDayColumns maps the optional per-day "Bus.Xx" import headers (German
+// weekday abbreviations, lowercased by the column mapper) to the canonical
+// bus_days weekday keys.
+var busDayColumns = []struct{ col, key string }{
+	{"bus.mo", "mon"},
+	{"bus.di", "tue"},
+	{"bus.mi", "wed"},
+	{"bus.do", "thu"},
+	{"bus.fr", "fri"},
+}
+
+// parseBusDayColumns reads optional per-day Buskind columns (Bus.Mo..Bus.Fr).
+// Returns nil when none of the per-day columns is present, in which case the
+// caller falls back to the legacy single "Bus" column. bus_days is the single
+// source of truth (#1582).
+func parseBusDayColumns(mapper *ColumnMapper) map[string]bool {
+	var days map[string]bool
+	for _, d := range busDayColumns {
+		if !mapper.HasColumn(d.col) {
+			continue
+		}
+		if days == nil {
+			days = make(map[string]bool, len(busDayColumns))
+		}
+		days[d.key] = ParseBool(mapper.GetCol(d.col))
+	}
+	return days
+}
+
 // MapStudentRow maps column values to StudentImportRow using the shared mapping logic
 func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) {
 	row := importModels.StudentImportRow{
@@ -120,6 +149,7 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.ExtraInfo = mapper.GetCol("zusatzinfo")
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
+	row.BusDays = parseBusDayColumns(mapper)
 	row.EnrolledFrom = mapper.GetCol("einschreibung von")
 	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 

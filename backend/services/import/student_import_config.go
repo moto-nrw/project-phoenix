@@ -597,6 +597,23 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 	return person, nil
 }
 
+// busDaysFromImportRow resolves the student's bus_days from an import row.
+// Per-day "Bus.Mo".."Bus.Fr" columns take precedence; otherwise the legacy
+// single "Bus" column maps to all weekdays (Mo–Fr) when true, no days when
+// false. bus_days is the single source of truth (#1582).
+func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
+	if row.BusDays != nil {
+		days := users.BusDays{}
+		for _, key := range users.BusDayOrder {
+			if row.BusDays[key] {
+				days[key] = true
+			}
+		}
+		return days
+	}
+	return users.BusDaysFromLegacyFlag(row.BusPermission)
+}
+
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
 	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
@@ -610,7 +627,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		SupervisorNotes:          stringPtr(row.SupervisorNotes),
 		HealthInfo:               stringPtr(row.HealthInfo),
 		PickupStatus:             stringPtr(row.PickupStatus),
-		Bus:                      &row.BusPermission,
+		BusDays:                  busDaysFromImportRow(row),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),

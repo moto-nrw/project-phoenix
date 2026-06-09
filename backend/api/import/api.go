@@ -291,8 +291,10 @@ func writeHinweiseSheet(f *excelize.File) {
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
 		23: "Schüler-Zusatzinfos",
-		37: "Abholzeiten (Montag bis Freitag)",
-		41: "Allgemeine Hinweise",
+		// +1 vs. the original layout: the Bus.Mo per-day column row (#1582) was
+		// added in the Schüler-Zusatzinfos section above.
+		38: "Abholzeiten (Montag bis Freitag)",
+		42: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -328,14 +330,15 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Bus", "Nein", hintYesNo, "Fährt das Kind mit dem Bus"},
+		{"Bus", "Nein", hintYesNo, "Buskind an allen Wochentagen (Mo–Fr). Für einzelne Tage stattdessen die Spalten Bus.Mo–Bus.Fr nutzen."},
+		{"Bus.Mo", "Nein", hintYesNo, "Buskind am Montag (überschreibt die Spalte 'Bus'). Di, Mi, Do, Fr analog: Bus.Di, Bus.Mi, Bus.Do, Bus.Fr"},
 		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
 		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
 		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
 		{"Datenverarbeitung akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur Datenverarbeitung. Leer = keine Einwilligung."},
 		{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
 		{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
-		// row 37: section header "Abholzeiten" (injected)
+		// row 38: section header "Abholzeiten" (injected)
 		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
 		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
 		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
