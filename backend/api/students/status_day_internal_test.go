@@ -135,6 +135,20 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	assert.False(t, studentResponses[0].Excused)
 	assert.True(t, studentResponses[1].Excused)
 
+	classTrip := &active.StudentStatusDay{
+		Model:      modelBase.Model{ID: 44},
+		StudentID:  92,
+		Date:       time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC),
+		Status:     active.StudentStatusDayClassTrip,
+		ReportedAt: reportedExcused.Add(time.Hour),
+		Source:     active.StudentStatusSourcePlanned,
+	}
+	classTripResponse := StudentResponse{ID: 92, Excused: true, Sick: true}
+	applyEffectiveStatusDays(&classTripResponse, []*active.StudentStatusDay{classTrip})
+	assert.True(t, classTripResponse.ClassTrip)
+	assert.False(t, classTripResponse.Sick)
+	assert.False(t, classTripResponse.Excused)
+
 	alreadySick := StudentResponse{ID: 91, Sick: true}
 	applyEffectiveStatusDays(&alreadySick, []*active.StudentStatusDay{excused})
 	assert.True(t, alreadySick.Sick)

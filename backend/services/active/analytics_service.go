@@ -99,7 +99,7 @@ func (s *service) countClassTripStudentsForDate(ctx context.Context, date time.T
 		return 0, nil
 	}
 	var count int
-	err := repoBase.GetDB(ctx, s.db).NewSelect().
+	query := repoBase.GetDB(ctx, s.db).NewSelect().
 		TableExpr(`active.student_status_days AS "student_status_day"`).
 		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
 		Where(`"student_status_day".date = ?`, date).
@@ -107,7 +107,10 @@ func (s *service) countClassTripStudentsForDate(ctx context.Context, date time.T
 		Where(`"student_status_day".cleared_at IS NULL`).
 		Where(`COALESCE("student".sick, FALSE) = FALSE`).
 		Where(`COALESCE("student".excused, FALSE) = FALSE`).
-		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`).
-		Scan(ctx, &count)
+		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`)
+	if where, val, ok := repoBase.TenantWhere(ctx, "student_status_day"); ok {
+		query = query.Where(where, val)
+	}
+	err := query.Scan(ctx, &count)
 	return count, err
 }

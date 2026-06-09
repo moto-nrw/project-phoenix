@@ -352,23 +352,8 @@ func datesBetweenInclusive(from, to time.Time) []time.Time {
 	return dates
 }
 
-func allStudentStatusDayStatusesExcept(status string) []string {
-	statuses := []string{
-		active.StudentStatusDaySick,
-		active.StudentStatusDayExcused,
-		active.StudentStatusDayClassTrip,
-	}
-	result := make([]string, 0, len(statuses)-1)
-	for _, candidate := range statuses {
-		if candidate != status {
-			result = append(result, candidate)
-		}
-	}
-	return result
-}
-
 func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []time.Time, now time.Time) error {
-	for _, otherStatus := range allStudentStatusDayStatusesExcept(status) {
+	for _, otherStatus := range active.StudentStatusDayStatusesExcept(status) {
 		if err := rs.StudentStatusDayRepo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}

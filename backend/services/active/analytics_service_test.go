@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -97,5 +98,41 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Equal(t, before.StudentsExcused+2, after.StudentsExcused)
+	})
+
+	t.Run("scopes class trip count to tenant context", func(t *testing.T) {
+		tenantA := testpkg.UniqueTestTenantID(t)
+		tenantB := testpkg.UniqueTestTenantID(t)
+		testpkg.EnsureTestTenant(t, db, tenantA)
+		testpkg.EnsureTestTenant(t, db, tenantB)
+		ctxA := testpkg.TenantContext(tenantA)
+		ctxB := testpkg.TenantContext(tenantB)
+		before, err := service.GetDashboardAnalytics(ctxA)
+		require.NoError(t, err)
+
+		studentA := testpkg.CreateTestStudentForTenant(t, db, tenantA, "TenantA", "ClassTrip", "CTA")
+		studentB := testpkg.CreateTestStudentForTenant(t, db, tenantB, "TenantB", "ClassTrip", "CTB")
+		defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
+
+		statusRepo := repositories.NewFactory(db).StudentStatusDay
+		now := time.Now()
+		require.NoError(t, statusRepo.UpsertReported(ctxA, &activeModels.StudentStatusDay{
+			StudentID:  studentA.ID,
+			Date:       now,
+			Status:     activeModels.StudentStatusDayClassTrip,
+			ReportedAt: now,
+			Source:     activeModels.StudentStatusSourcePlanned,
+		}))
+		require.NoError(t, statusRepo.UpsertReported(ctxB, &activeModels.StudentStatusDay{
+			StudentID:  studentB.ID,
+			Date:       now,
+			Status:     activeModels.StudentStatusDayClassTrip,
+			ReportedAt: now,
+			Source:     activeModels.StudentStatusSourcePlanned,
+		}))
+
+		after, err := service.GetDashboardAnalytics(ctxA)
+		require.NoError(t, err)
+		assert.Equal(t, before.StudentsExcused+1, after.StudentsExcused)
 	})
 }

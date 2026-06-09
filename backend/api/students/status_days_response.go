@@ -134,8 +134,10 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 	if classTripRow != nil {
 		response.ClassTrip = true
 		response.ClassTripSince = statusDayTimePtr(classTripRow.ReportedAt)
-		response.Excused = true
-		response.ExcusedSince = statusDayTimePtr(classTripRow.ReportedAt)
+		response.Sick = false
+		response.SickSince = nil
+		response.Excused = false
+		response.ExcusedSince = nil
 		return
 	}
 
