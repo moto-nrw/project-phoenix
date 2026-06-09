@@ -106,6 +106,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.health_info": "Gesundheitsinformationen beim Kind speichern",
   "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
   "student.pickup_status": "Abholregelung beim Kind speichern",
   "schedule.pickup": "Abholzeiten im Stundenplan speichern",
@@ -116,12 +117,15 @@ const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
 
 // Targets sorted alphabetically by label for the picker, keeps the
 // dropdown stable across renders even if the underlying map order
-// changes.
+// changes. student.bus is a legacy alias of student.bus_days (#1582) and is
+// excluded so new fields can only pick the canonical target.
 const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
   Object.keys(targetPickerLabels) as Array<Exclude<FormFieldTarget, "">>
-).sort((a, b) =>
-  targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
-);
+)
+  .filter((target) => target !== "student.bus")
+  .sort((a, b) =>
+    targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
+  );
 
 const targetSuggestionDescriptions: Record<
   Exclude<FormFieldTarget, "">,
@@ -131,6 +135,8 @@ const targetSuggestionDescriptions: Record<
     "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.bus_days":
+    "Für die Information, an welchen Wochentagen ein Kind mit dem Bus fährt.",
   "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",
   "student.pickup_status":
     "Für die grundsätzliche Regelung, ob ein Kind abgeholt wird oder alleine geht.",
