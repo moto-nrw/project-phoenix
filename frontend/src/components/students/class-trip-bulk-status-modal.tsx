@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { Bus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
@@ -20,7 +21,7 @@ interface ClassTripBulkStatusModalProps {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return format(new Date(), "yyyy-MM-dd");
 }
 
 export function ClassTripBulkStatusModal({

@@ -19,6 +19,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const maxStudentStatusDayRangeDays = 31
+
 var errStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
 
 func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +163,10 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	}
 	if to.Before(from) {
 		renderError(w, r, ErrorInvalidRequest(errors.New("to must be after from")))
+		return
+	}
+	if to.After(from.AddDate(0, 0, maxStudentStatusDayRangeDays-1)) {
+		renderError(w, r, ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
 		return
 	}
 	dates := datesBetweenInclusive(from, to)
@@ -384,6 +390,11 @@ func applyLiveStatusForToday(student *users.Student, status string, now time.Tim
 		student.ExcusedSince = &now
 		student.Sick = &falseVal
 		student.SickSince = nil
+	case active.StudentStatusDayClassTrip:
+		student.Sick = &falseVal
+		student.SickSince = nil
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
 	}
 }
 
@@ -394,6 +405,11 @@ func clearLiveStatusForToday(student *users.Student, status string) {
 		student.Sick = &falseVal
 		student.SickSince = nil
 	case active.StudentStatusDayExcused:
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
+	case active.StudentStatusDayClassTrip:
+		student.Sick = &falseVal
+		student.SickSince = nil
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
 	}

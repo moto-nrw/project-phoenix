@@ -462,11 +462,12 @@ function buildDateRangeKeys(start: string, end: string): string[] {
     return [];
   }
   const result: string[] = [];
-  const startTime = new Date(`${start}T00:00:00`).getTime();
-  const endTime = new Date(`${end}T00:00:00`).getTime();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  for (let time = startTime; time <= endTime; time += oneDayMs) {
-    const cursor = new Date(time);
+  const endDate = new Date(`${end}T00:00:00`);
+  for (
+    let cursor = new Date(`${start}T00:00:00`);
+    cursor <= endDate;
+    cursor = addDays(cursor, 1)
+  ) {
     result.push(formatDateKey(cursor));
   }
   return result;
