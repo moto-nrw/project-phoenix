@@ -5,6 +5,8 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { ChevronDownIcon } from "./student-detail-components";
+import { BusStatusSection } from "./student-form-fields";
+import { busDaysHaveAny, normalizeBusDays } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -113,15 +115,17 @@ export function PersonalInfoFormModal({
           value={editedStudent.birthday}
           onChange={(value) => updateField("birthday", value)}
         />
-        <SelectInput
-          id="modal-student-buskind"
-          label="Buskind"
-          value={editedStudent.buskind ? "true" : "false"}
-          onChange={(value) => updateField("buskind", value === "true")}
-          options={[
-            { value: "false", label: "Nein" },
-            { value: "true", label: "Ja" },
-          ]}
+        <BusStatusSection
+          value={editedStudent.buskind}
+          days={editedStudent.bus_days}
+          onChange={(value) => {
+            const normalized = normalizeBusDays(value);
+            setEditedStudent((prev) => ({
+              ...prev,
+              bus_days: normalized,
+              buskind: busDaysHaveAny(normalized),
+            }));
+          }}
         />
         <SelectInput
           id="modal-student-pickup-status"

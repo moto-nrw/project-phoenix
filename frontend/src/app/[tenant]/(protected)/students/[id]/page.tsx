@@ -25,7 +25,7 @@ import {
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
-import { busDaysFromToggle } from "~/lib/student-helpers";
+import { normalizeBusDays } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
   SupervisorsCard,
@@ -507,13 +507,9 @@ export default function StudentDetailPage() {
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
       birthday: editedStudent.birthday,
-      // The personal-info form captures Buskind as a simple Ja/Nein. bus_days
-      // is the single source of truth (#1582); convert the toggle to bus_days
-      // while preserving any existing per-day selection.
-      bus_days: busDaysFromToggle(
-        editedStudent.buskind ?? false,
-        editedStudent.bus_days,
-      ),
+      // The personal-info form now edits bus_days directly via the weekday
+      // picker; bus_days is the single source of truth (#1582).
+      bus_days: normalizeBusDays(editedStudent.bus_days),
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
