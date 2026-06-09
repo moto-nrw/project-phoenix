@@ -524,6 +524,45 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, guardian.ID, result[0].Profile.ID)
+		// No account and no invitation → not pending.
+		assert.False(t, result[0].InvitationPending,
+			"guardian without account or invitation must not be pending")
+	})
+
+	t.Run("marks guardian with an open invitation as pending", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
+		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+
+		// An open invitation: not accepted, not expired, not rejected.
+		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
+		repoFactory := repositories.NewFactory(db)
+		invitation := &authModels.GuardianInvitation{
+			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         inviter.ID,
+			ExpiresAt:         time.Now().Add(48 * time.Hour),
+			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		}
+		invitation.SetTenantID(1)
+		require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, invitation))
+
+		// ACT
+		result, err := service.GetStudentGuardians(ctx, student.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.True(t, result[0].InvitationPending,
+			"guardian with an open invitation must be marked pending")
 	})
 
 	t.Run("returns empty list when no guardians", func(t *testing.T) {

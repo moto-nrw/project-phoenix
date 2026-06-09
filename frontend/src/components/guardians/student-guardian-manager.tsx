@@ -26,6 +26,7 @@ import {
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
+  inviteGuardianToStudent,
 } from "@/lib/guardian-api";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -56,6 +57,9 @@ export default function StudentGuardianManager({
     GuardianWithRelationship | undefined
   >();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [invitingGuardianId, setInvitingGuardianId] = useState<string | null>(
+    null,
+  );
   const { success: toastSuccess, error: toastError } = useToast();
 
   // Load guardians
@@ -325,6 +329,35 @@ export default function StudentGuardianManager({
     }
   };
 
+  // Invite an existing guardian (info already on file) to the parents portal.
+  // Uses their on-file email — no re-typing. The backend resolves the existing
+  // profile and either sends an invite or links an account that already exists.
+  const handleInviteGuardian = async (guardian: GuardianWithRelationship) => {
+    if (!guardian.email) return;
+    setInvitingGuardianId(guardian.id);
+    try {
+      const result = await inviteGuardianToStudent(studentId, guardian.email);
+      await loadGuardians();
+      onUpdate?.();
+      const name = getGuardianFullName(guardian);
+      const message =
+        result.outcome === "invited"
+          ? `Einladung an ${guardian.email} gesendet`
+          : result.outcome === "already_linked"
+            ? `${name} ist bereits verbunden`
+            : `${name} wurde mit dem vorhandenen Konto verbunden`;
+      toastSuccess(message);
+    } catch (err) {
+      logger.error("guardian_invite_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      toastError("Fehler beim Einladen der/des Erziehungsberechtigten");
+    } finally {
+      setInvitingGuardianId(null);
+    }
+  };
+
   // Handle delete guardian - open confirmation modal
   const handleDeleteClick = (guardian: GuardianWithRelationship) => {
     setDeletingGuardian(guardian);
@@ -494,6 +527,8 @@ export default function StudentGuardianManager({
         <GuardianList
           guardians={guardians}
           onEdit={readOnly ? undefined : handleOpenEditModal}
+          onInvite={readOnly ? undefined : (g) => void handleInviteGuardian(g)}
+          invitingGuardianId={invitingGuardianId}
           readOnly={readOnly}
           showRelationship={true}
         />

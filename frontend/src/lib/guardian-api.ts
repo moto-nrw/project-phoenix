@@ -523,6 +523,67 @@ export async function removeGuardianFromStudent(
   }
 }
 
+// Outcome returned by the unified invite resolve, mirroring the backend.
+export type InviteGuardianOutcome =
+  | "linked_existing_account"
+  | "already_linked"
+  | "invited"
+  | "pending_approval";
+
+export interface InviteGuardianResult {
+  outcome: InviteGuardianOutcome;
+  guardian_profile_id: string;
+  invitation_id?: string;
+}
+
+/**
+ * Invite a guardian to a student by email. For a guardian whose info is already
+ * on file (no account yet), pass their on-file email — the backend resolves the
+ * existing profile and sends the invite without creating a duplicate. Staff
+ * path: invites act immediately (no approval queue).
+ */
+export async function inviteGuardianToStudent(
+  studentId: string,
+  email: string,
+  options?: {
+    firstName?: string;
+    lastName?: string;
+    relationshipType?: string;
+  },
+): Promise<InviteGuardianResult> {
+  const response = await fetch(`/api/guardians/students/${studentId}/invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email,
+      first_name: options?.firstName ?? "",
+      last_name: options?.lastName ?? "",
+      relationship_type: options?.relationshipType ?? "",
+    }),
+  });
+
+  if (!response.ok) {
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "invite_guardian_to_student",
+      });
+      return { error: "Failed to invite guardian" };
+    });
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to invite guardian: ${response.statusText}`;
+    throw new Error(errorMessage);
+  }
+
+  const result = (await response.json()) as ApiResponse<InviteGuardianResult>;
+  if (result.status === "error") {
+    throw new Error(result.error ?? "Failed to invite guardian");
+  }
+  return result.data;
+}
+
 // Hard ceiling on guardian picker results, requested explicitly so the picker
 // doesn't silently ride on whatever the backend's default page size happens to
 // be. The backend clamps to the same value (maxGuardianPickerResults); keep the
