@@ -69,19 +69,6 @@ func TestOperatorInvitationToken_Validate_NegativeCreatedBy(t *testing.T) {
 	assert.Contains(t, err.Error(), "created_by operator ID is required")
 }
 
-func TestOperatorInvitationToken_Validate_ExpiredToken(t *testing.T) {
-	token := &OperatorInvitationToken{
-		Email:     "test@example.com",
-		Token:     "abc-123-def",
-		CreatedBy: 42,
-		ExpiresAt: time.Now().Add(-1 * time.Hour),
-	}
-
-	err := token.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "token has already expired")
-}
-
 func TestOperatorInvitationToken_Validate_AlreadyUsed(t *testing.T) {
 	usedAt := time.Now()
 	token := &OperatorInvitationToken{
@@ -97,37 +84,6 @@ func TestOperatorInvitationToken_Validate_AlreadyUsed(t *testing.T) {
 	assert.Contains(t, err.Error(), "token has already been used")
 }
 
-func TestOperatorInvitationToken_IsExpired(t *testing.T) {
-	tests := []struct {
-		name      string
-		expiresAt time.Time
-		want      bool
-	}{
-		{
-			name:      "not expired",
-			expiresAt: time.Now().Add(1 * time.Hour),
-			want:      false,
-		},
-		{
-			name:      "expired",
-			expiresAt: time.Now().Add(-1 * time.Hour),
-			want:      true,
-		},
-		{
-			name:      "just expired",
-			expiresAt: time.Now().Add(-1 * time.Millisecond),
-			want:      true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			token := &OperatorInvitationToken{ExpiresAt: tt.expiresAt}
-			assert.Equal(t, tt.want, token.IsExpired())
-		})
-	}
-}
-
 func TestOperatorInvitationToken_IsUsed(t *testing.T) {
 	t.Run("not used", func(t *testing.T) {
 		token := &OperatorInvitationToken{}
@@ -139,50 +95,6 @@ func TestOperatorInvitationToken_IsUsed(t *testing.T) {
 		token := &OperatorInvitationToken{UsedAt: &usedAt}
 		assert.True(t, token.IsUsed())
 	})
-}
-
-func TestOperatorInvitationToken_IsValid(t *testing.T) {
-	tests := []struct {
-		name      string
-		expiresAt time.Time
-		usedAt    *time.Time
-		want      bool
-	}{
-		{
-			name:      "valid - not expired, not used",
-			expiresAt: time.Now().Add(1 * time.Hour),
-			usedAt:    nil,
-			want:      true,
-		},
-		{
-			name:      "invalid - expired",
-			expiresAt: time.Now().Add(-1 * time.Hour),
-			usedAt:    nil,
-			want:      false,
-		},
-		{
-			name:      "invalid - used",
-			expiresAt: time.Now().Add(1 * time.Hour),
-			usedAt:    ptrTime(time.Now()),
-			want:      false,
-		},
-		{
-			name:      "invalid - expired and used",
-			expiresAt: time.Now().Add(-1 * time.Hour),
-			usedAt:    ptrTime(time.Now()),
-			want:      false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			token := &OperatorInvitationToken{
-				ExpiresAt: tt.expiresAt,
-				UsedAt:    tt.usedAt,
-			}
-			assert.Equal(t, tt.want, token.IsValid())
-		})
-	}
 }
 
 func TestOperatorInvitationToken_TableName(t *testing.T) {
@@ -208,8 +120,4 @@ func TestOperatorInvitationToken_GetUpdatedAt(t *testing.T) {
 	token := &OperatorInvitationToken{}
 	token.UpdatedAt = now
 	assert.Equal(t, now, token.GetUpdatedAt())
-}
-
-func ptrTime(t time.Time) *time.Time {
-	return &t
 }

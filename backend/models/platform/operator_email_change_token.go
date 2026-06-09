@@ -55,9 +55,6 @@ func (t *OperatorEmailChangeToken) Validate() error {
 	if t.NewEmail == "" {
 		return errors.New("new email is required")
 	}
-	if t.Expiry.Before(time.Now()) {
-		return errors.New("token has already expired")
-	}
 	if t.Used {
 		return errors.New("token has already been used")
 	}

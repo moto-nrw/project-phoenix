@@ -69,13 +69,6 @@ func TestOperatorMFACredential_BeforeAppendModel(t *testing.T) {
 
 // --- OperatorMFAEmailChallenge ---
 
-func TestOperatorMFAEmailChallenge_IsExpired(t *testing.T) {
-	past := &OperatorMFAEmailChallenge{ExpiresAt: time.Now().Add(-time.Minute)}
-	future := &OperatorMFAEmailChallenge{ExpiresAt: time.Now().Add(time.Minute)}
-	assert.True(t, past.IsExpired())
-	assert.False(t, future.IsExpired())
-}
-
 func TestOperatorMFAEmailChallenge_IsConsumed(t *testing.T) {
 	unconsumed := &OperatorMFAEmailChallenge{}
 	now := time.Now()
@@ -105,44 +98,12 @@ func TestOperatorMFAEmailChallenge_BeforeAppendModel(t *testing.T) {
 
 // --- OperatorMFATrustedDevice ---
 
-func TestOperatorMFATrustedDevice_IsExpiredIsRevokedIsActive(t *testing.T) {
+func TestOperatorMFATrustedDevice_IsRevoked(t *testing.T) {
 	now := time.Now()
-	cases := []struct {
-		name        string
-		dev         OperatorMFATrustedDevice
-		wantExpired bool
-		wantRevoked bool
-		wantActive  bool
-	}{
-		{
-			name:        "fresh device is active",
-			dev:         OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour)},
-			wantExpired: false,
-			wantRevoked: false,
-			wantActive:  true,
-		},
-		{
-			name:        "past-expiry is expired and inactive",
-			dev:         OperatorMFATrustedDevice{ExpiresAt: now.Add(-time.Hour)},
-			wantExpired: true,
-			wantRevoked: false,
-			wantActive:  false,
-		},
-		{
-			name:        "revoked is inactive regardless of expiry",
-			dev:         OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now},
-			wantExpired: false,
-			wantRevoked: true,
-			wantActive:  false,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantExpired, tc.dev.IsExpired())
-			assert.Equal(t, tc.wantRevoked, tc.dev.IsRevoked())
-			assert.Equal(t, tc.wantActive, tc.dev.IsActive())
-		})
-	}
+	active := &OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour)}
+	revoked := &OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}
+	assert.False(t, active.IsRevoked())
+	assert.True(t, revoked.IsRevoked())
 }
 
 func TestOperatorMFATrustedDevice_AccessorsAndTableName(t *testing.T) {
@@ -170,3 +131,9 @@ func TestOperatorMFATrustedDevice_BeforeAppendModel(t *testing.T) {
 // services/platform.TestOperatorMFAService_isMFALocked, and the atomic counter
 // mutations by the OperatorRepository tests in
 // database/repositories/platform/operator_mfa_atomic_test.go.
+//
+// The wall-clock expiry/active decisions (OperatorMFAEmailChallenge.IsExpired,
+// OperatorMFATrustedDevice.IsExpired/IsActive) likewise moved to
+// services/platform (OperatorMFAEmailChallengeExpired,
+// OperatorMFATrustedDeviceExpired/Active) and are covered by
+// services/platform/operator_token_validity_test.go with the clock injected.
