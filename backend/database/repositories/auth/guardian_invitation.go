@@ -152,6 +152,28 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 	return invitations, nil
 }
 
+// FindPendingApproval retrieves parent-initiated invitations awaiting staff
+// approval (approval_status = 'pending'), newest first. Backs the staff
+// approval queue. Tenant isolation is enforced by RLS on the ambient tenant
+// transaction.
+func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) ([]*auth.GuardianInvitation, error) {
+	var invitations []*auth.GuardianInvitation
+
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&invitations).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".approval_status = ?`, auth.GuardianInvitationApprovalPending).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find invitations pending approval: %w", err)
+	}
+
+	return invitations, nil
+}
+
 // FindExpired retrieves all expired invitations
 func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation

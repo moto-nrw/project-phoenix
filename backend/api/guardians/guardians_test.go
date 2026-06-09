@@ -40,6 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	resource := guardiansAPI.NewResource(
 		svc.Guardian,
+		svc.GuardianInvitation,
 		svc.Users,
 		svc.Education,
 		svc.UserContext,

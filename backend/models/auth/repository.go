@@ -377,6 +377,10 @@ type GuardianInvitationRepository interface {
 	// FindPending retrieves all pending (not accepted, not expired) invitations
 	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
 
+	// FindPendingApproval retrieves parent-initiated invitations awaiting
+	// staff approval (approval_status = 'pending'), newest first.
+	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
+
 	// FindExpired retrieves all expired invitations
 	FindExpired(ctx context.Context) ([]*GuardianInvitation, error)
 

@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -321,9 +322,16 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrInviteDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "invite_disabled"))
+	case errors.Is(err, parentService.ErrRemoveDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "remove_disabled"))
+	case errors.Is(err, authService.ErrCannotRemovePrimaryGuardian):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "primary_guardian_protected"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrEmptyNote),
-		errors.Is(err, parentService.ErrNoteTooLong):
+		errors.Is(err, parentService.ErrNoteTooLong),
+		errors.Is(err, parentService.ErrEmailRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

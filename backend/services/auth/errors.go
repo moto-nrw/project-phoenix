@@ -77,6 +77,9 @@ var (
 	ErrInvitationNameRequired        = errors.New("first name and last name are required")
 	ErrAccountAlreadyHasTenantAccess = errors.New("account already has access to tenant")
 
+	// Related-accounts errors
+	ErrCannotRemovePrimaryGuardian = errors.New("the primary guardian cannot be removed by a parent")
+
 	// Deletion constraint errors
 	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message
 	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
