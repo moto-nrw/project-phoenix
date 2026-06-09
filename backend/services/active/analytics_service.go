@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -40,6 +42,14 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	excusedOpts := modelBase.NewQueryOptions()
 	excusedOpts.Filter.Equal("excused", true)
 	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
+		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, timezone.DateOfUTC(today))
+		if classTripErr == nil {
+			excusedCount += classTripCount
+		} else {
+			s.getLogger().Warn("failed to count class trip students for dashboard",
+				"error", classTripErr.Error(),
+			)
+		}
 		analytics.StudentsExcused = excusedCount
 	}
 
@@ -82,4 +92,21 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
 
 	return analytics, nil
+}
+
+func (s *service) countClassTripStudentsForDate(ctx context.Context, date time.Time) (int, error) {
+	if s.db == nil {
+		return 0, nil
+	}
+	var count int
+	err := repoBase.GetDB(ctx, s.db).NewSelect().
+		TableExpr(`active.student_status_days AS "student_status_day"`).
+		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
+		Where(`"student_status_day".date = ?`, date).
+		Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayClassTrip).
+		Where(`"student_status_day".cleared_at IS NULL`).
+		Where(`COALESCE("student".excused, FALSE) = FALSE`).
+		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`).
+		Scan(ctx, &count)
+	return count, err
 }

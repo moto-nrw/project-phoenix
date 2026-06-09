@@ -16,6 +16,7 @@ const (
 	DayPlanningStatusNotComingToday   = "not_coming_today"
 	dayPlanningReasonSick             = "sick"
 	dayPlanningReasonExcused          = "excused"
+	dayPlanningReasonClassTrip        = "class_trip"
 	dayPlanningReasonArrivalException = "arrival_exception"
 	dayPlanningReasonPickupException  = "pickup_exception"
 	dayPlanningReasonArrivalSchedule  = "arrival_schedule"
@@ -85,6 +86,9 @@ func resolveDayPlanning(
 	}
 	if student.Sick {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonSick, "krank gemeldet"
+	}
+	if student.ClassTrip {
+		return DayPlanningStatusNotComingToday, dayPlanningReasonClassTrip, "Klassenfahrt"
 	}
 	if student.Excused {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonExcused, "entschuldigt"

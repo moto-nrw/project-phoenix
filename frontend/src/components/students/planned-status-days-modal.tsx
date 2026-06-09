@@ -38,11 +38,22 @@ export function PlannedStatusDaysModal({
   onDeleteStatusDay,
 }: PlannedStatusDaysModalProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const isSick = status === "sick";
-  const title = isSick ? "Krankmeldung planen" : "Entschuldigung planen";
-  const submitLabel = isSick ? "Krankmelden" : "Entschuldigen";
+  const isClassTrip = status === "class_trip";
+  const title = isSick
+    ? "Krankmeldung planen"
+    : isClassTrip
+      ? "Klassenfahrt planen"
+      : "Entschuldigung planen";
+  const submitLabel = isSick
+    ? "Krankmelden"
+    : isClassTrip
+      ? "Klassenfahrt speichern"
+      : "Entschuldigen";
   const currentWeekDates = useMemo(() => {
     const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
     return Array.from({ length: 5 }, (_, index) => addDays(monday, index));
@@ -79,10 +90,11 @@ export function PlannedStatusDaysModal({
   useEffect(() => {
     if (isOpen) {
       const today = new Date();
+      const todayKey = formatDateKey(today);
       setSelectionHint(null);
-      setSelectedDates(
-        activeExistingDayByDate.has(formatDateKey(today)) ? [] : [today],
-      );
+      setRangeStart(todayKey);
+      setRangeEnd(todayKey);
+      setSelectedDates(activeExistingDayByDate.has(todayKey) ? [] : [today]);
     }
   }, [activeExistingDayByDate, isOpen]);
 
@@ -121,6 +133,8 @@ export function PlannedStatusDaysModal({
   const handleClose = () => {
     if (!isSubmitting) {
       setSelectedDates([]);
+      setRangeStart("");
+      setRangeEnd("");
       setSelectionHint(null);
       setReason("");
       onClose();
@@ -128,12 +142,18 @@ export function PlannedStatusDaysModal({
   };
 
   const handleSubmit = async () => {
-    const dateKeys = selectedDates
-      .map(formatDateKey)
-      .filter((date) => !activeExistingDayByDate.has(date));
+    const dateKeys = isClassTrip
+      ? buildDateRangeKeys(rangeStart, rangeEnd).filter(
+          (date) => !activeExistingDayByDate.has(date),
+        )
+      : selectedDates
+          .map(formatDateKey)
+          .filter((date) => !activeExistingDayByDate.has(date));
     if (dateKeys.length === 0) {
       setSelectionHint(
-        "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
+        isClassTrip
+          ? "Wähle einen Zeitraum ohne bestehenden Status aus."
+          : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
       );
       return;
     }
@@ -146,6 +166,8 @@ export function PlannedStatusDaysModal({
       await onSubmit(dateKeys);
     }
     setSelectedDates([]);
+    setRangeStart("");
+    setRangeEnd("");
     setSelectionHint(null);
     setReason("");
   };
@@ -169,7 +191,12 @@ export function PlannedStatusDaysModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || selectedDates.length === 0}
+            disabled={
+              isSubmitting ||
+              (isClassTrip
+                ? !rangeStart || !rangeEnd || rangeEnd < rangeStart
+                : selectedDates.length === 0)
+            }
             className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {isSubmitting ? "Speichert..." : submitLabel}
@@ -182,6 +209,8 @@ export function PlannedStatusDaysModal({
           <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 shadow-sm">
             {isSick ? (
               <CalendarX className="h-5 w-5" />
+            ) : isClassTrip ? (
+              <CalendarCheck className="h-5 w-5" />
             ) : (
               <CalendarCheck className="h-5 w-5" />
             )}
@@ -189,83 +218,118 @@ export function PlannedStatusDaysModal({
           <div>
             <p className="text-sm font-medium text-gray-900">{studentName}</p>
             <p className="mt-1 text-sm text-gray-500">
-              Heute ist vorausgewählt. Wähle bei Bedarf weitere konkrete Tage
-              aus.
+              {isClassTrip
+                ? "Wähle den Zeitraum der Klassenfahrt aus."
+                : "Heute ist vorausgewählt. Wähle bei Bedarf weitere konkrete Tage aus."}
             </p>
           </div>
         </div>
 
-        <div>
-          <p className="mb-2 text-sm font-medium text-gray-900">
-            Kalenderauswahl
-          </p>
-          <DatePicker
-            mode="multiple"
-            values={selectedDates}
-            onChangeDates={setSortedDates}
-            disabledDates={disabledDates}
-            placeholder="Tage auswählen"
-            dropdownPlacement="down"
-            calendarLayout="inline"
-          />
-          {selectionHint ? (
-            <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
-              {selectionHint}
-            </p>
-          ) : null}
-        </div>
+        {isClassTrip ? (
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-900">Zeitraum</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-medium text-gray-700">
+                Von
+                <input
+                  type="date"
+                  value={rangeStart}
+                  onChange={(event) => setRangeStart(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                />
+              </label>
+              <label className="text-sm font-medium text-gray-700">
+                Bis
+                <input
+                  type="date"
+                  value={rangeEnd}
+                  min={rangeStart || undefined}
+                  onChange={(event) => setRangeEnd(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                />
+              </label>
+            </div>
+            {selectionHint ? (
+              <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+                {selectionHint}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-900">
+                Kalenderauswahl
+              </p>
+              <DatePicker
+                mode="multiple"
+                values={selectedDates}
+                onChangeDates={setSortedDates}
+                disabledDates={disabledDates}
+                placeholder="Tage auswählen"
+                dropdownPlacement="down"
+                calendarLayout="inline"
+              />
+              {selectionHint ? (
+                <p className="mt-2 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+                  {selectionHint}
+                </p>
+              ) : null}
+            </div>
 
-        <div>
-          <p className="mb-2 text-sm font-medium text-gray-900">
-            Aktuelle Woche
-          </p>
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
-            {currentWeekDates.map((date, index) => {
-              const key = formatDateKey(date);
-              const isSelected = selectedKeys.has(key);
-              const existingDay = activeExistingDayByDate.get(key);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => toggleDate(date)}
-                  disabled={existingDay !== undefined}
-                  className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
-                    isSelected
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : existingDay
-                        ? "border-gray-100 bg-gray-50 text-gray-400"
-                        : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                  } disabled:cursor-not-allowed`}
-                  title={
-                    existingDay
-                      ? capitalizeFirst(
-                          getExistingStatusLabel(existingDay.status),
-                        )
-                      : undefined
-                  }
-                >
-                  <span className="block font-semibold">
-                    {WEEKDAY_LABELS[index]}
-                  </span>
-                  <span className="text-xs">
-                    {format(date, "dd.MM.", { locale: de })}
-                  </span>
-                  {existingDay ? (
-                    <span className="mt-1 block text-[10px] leading-tight font-medium sm:text-[11px]">
-                      <span className="block">bereits</span>
-                      <span className="block">
-                        {getStatusLabel(existingDay.status).toLowerCase()}
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-900">
+                Aktuelle Woche
+              </p>
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                {currentWeekDates.map((date, index) => {
+                  const key = formatDateKey(date);
+                  const isSelected = selectedKeys.has(key);
+                  const existingDay = activeExistingDayByDate.get(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleDate(date)}
+                      disabled={existingDay !== undefined}
+                      className={`min-h-16 rounded-lg border px-1.5 py-2 text-center text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-2 ${
+                        isSelected
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : existingDay
+                            ? "border-gray-100 bg-gray-50 text-gray-400"
+                            : "moto-content-surface border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                      } disabled:cursor-not-allowed`}
+                      title={
+                        existingDay
+                          ? capitalizeFirst(
+                              getExistingStatusLabel(existingDay.status),
+                            )
+                          : undefined
+                      }
+                    >
+                      <span className="block font-semibold">
+                        {WEEKDAY_LABELS[index]}
                       </span>
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                      <span className="text-xs">
+                        {format(date, "dd.MM.", { locale: de })}
+                      </span>
+                      {existingDay ? (
+                        <span className="mt-1 block text-[10px] leading-tight font-medium sm:text-[11px]">
+                          <span className="block">bereits</span>
+                          <span className="block">
+                            {getStatusLabel(existingDay.status).toLowerCase()}
+                          </span>
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
-        {selectedDates.length > 0 && (
+        {!isClassTrip && selectedDates.length > 0 && (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">
               Ausgewählte Tage
@@ -298,7 +362,7 @@ export function PlannedStatusDaysModal({
         {activeExistingDays.length > 0 ? (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">
-              {isSick ? "Bereits krank" : "Bereits entschuldigt"}
+              {getExistingListTitle(status)}
             </p>
             <div className="space-y-2">
               {activeExistingDays.map((day) => (
@@ -335,13 +399,13 @@ export function PlannedStatusDaysModal({
           </div>
         ) : null}
 
-        {isSick && (
+        {(isSick || isClassTrip) && (
           <div>
             <label
               htmlFor="planned-sick-reason"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Grund (optional)
+              {isSick ? "Grund (optional)" : "Hinweis (optional)"}
             </label>
             <textarea
               id="planned-sick-reason"
@@ -349,7 +413,11 @@ export function PlannedStatusDaysModal({
               onChange={(e) => setReason(e.target.value)}
               rows={2}
               maxLength={2000}
-              placeholder="z. B. Fieber, beim Arzt"
+              placeholder={
+                isSick
+                  ? "z. B. Fieber, beim Arzt"
+                  : "z. B. Ziel oder Kontakt vor Ort"
+              }
               className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
             />
           </div>
@@ -370,13 +438,38 @@ function formatDateLabel(date: string): string {
 }
 
 function getStatusLabel(status: StudentStatusKind): string {
-  return status === "sick" ? "Krank" : "Entschuldigt";
+  if (status === "sick") return "Krank";
+  if (status === "class_trip") return "Klassenfahrt";
+  return "Entschuldigt";
 }
 
 function getExistingStatusLabel(status: StudentStatusKind): string {
-  return status === "sick" ? "bereits krank" : "bereits entschuldigt";
+  if (status === "sick") return "bereits krank";
+  if (status === "class_trip") return "bereits Klassenfahrt";
+  return "bereits entschuldigt";
 }
 
 function capitalizeFirst(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function getExistingListTitle(status: StudentStatusKind): string {
+  if (status === "sick") return "Bereits krank";
+  if (status === "class_trip") return "Bereits Klassenfahrt";
+  return "Bereits entschuldigt";
+}
+
+function buildDateRangeKeys(start: string, end: string): string[] {
+  if (!start || !end || end < start) {
+    return [];
+  }
+  const result: string[] = [];
+  const startTime = new Date(`${start}T00:00:00`).getTime();
+  const endTime = new Date(`${end}T00:00:00`).getTime();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  for (let time = startTime; time <= endTime; time += oneDayMs) {
+    const cursor = new Date(time);
+    result.push(formatDateKey(cursor));
+  }
+  return result;
 }

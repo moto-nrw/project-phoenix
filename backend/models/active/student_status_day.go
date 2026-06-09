@@ -11,8 +11,9 @@ import (
 const tableActiveStudentStatusDays = "active.student_status_days"
 
 const (
-	StudentStatusDaySick    = "sick"
-	StudentStatusDayExcused = "excused"
+	StudentStatusDaySick      = "sick"
+	StudentStatusDayExcused   = "excused"
+	StudentStatusDayClassTrip = "class_trip"
 )
 
 const (

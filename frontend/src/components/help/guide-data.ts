@@ -386,7 +386,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
-          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Beim Krankmelden lässt sich optional ein Grund angeben, der neben dem Status erscheint.",
+          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
           "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen.",
@@ -399,7 +399,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden und Entschuldigen, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -412,7 +412,8 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Meine Gruppen` aufklappen.",
           "Die gewünschte Gruppe wählen.",
           "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
-          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen.",
+          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen; Klassenfahrt zählt als bekannte Entschuldigung und wird am Kind als eigener Status angezeigt.",
+          "In der Schülerdatenbank bei Gruppierung nach Klasse oder Gruppe über das Drei-Punkte-Menü `Klassenfahrt planen` für mehrere Kinder gleichzeitig setzen.",
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",

@@ -38,6 +38,7 @@ import {
   StudentCheckinSection,
   StudentSickReportSection,
   StudentExcusedReportSection,
+  StudentStatusActionsMenu,
   getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { performImmediateCheckin } from "~/lib/checkin-api";
@@ -704,11 +705,13 @@ export default function StudentDetailPage() {
         (current) => mergeStatusDays(current, createdStatusDays),
         { revalidate: true },
       );
-      toast.success(
+      const statusLabel =
         plannedStatusModal === "sick"
-          ? `Krankmeldung für ${student.name} wurde gespeichert`
-          : `Entschuldigung für ${student.name} wurde gespeichert`,
-      );
+          ? "Krankmeldung"
+          : plannedStatusModal === "class_trip"
+            ? "Klassenfahrt"
+            : "Entschuldigung";
+      toast.success(`${statusLabel} für ${student.name} wurde gespeichert`);
       setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
@@ -877,6 +880,8 @@ export default function StudentDetailPage() {
             sickLoading={sickLoading}
             onExcusedClick={handleExcusedClick}
             excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
           />
         ) : (
           <LimitedAccessView
@@ -1173,6 +1178,8 @@ interface FullAccessViewProps {
   sickLoading: boolean;
   onExcusedClick: () => void;
   excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
 }
 
 function FullAccessView({
@@ -1199,6 +1206,8 @@ function FullAccessView({
   sickLoading,
   onExcusedClick,
   excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
@@ -1221,10 +1230,20 @@ function FullAccessView({
           )}
           {hasWriteAccess && (
             <StudentExcusedReportSection
-              isExcused={student.excused ?? false}
-              excusedSince={student.excused_since}
+              isExcused={(student.excused ?? false) && !student.class_trip}
+              excusedSince={
+                student.class_trip ? undefined : student.excused_since
+              }
               onToggle={onExcusedClick}
               isLoading={excusedLoading}
+            />
+          )}
+          {hasWriteAccess && (
+            <StudentStatusActionsMenu
+              isClassTrip={student.class_trip ?? false}
+              classTripSince={student.class_trip_since}
+              onPlanClassTrip={onClassTripClick}
+              isLoading={plannedStatusLoading}
             />
           )}
         </div>

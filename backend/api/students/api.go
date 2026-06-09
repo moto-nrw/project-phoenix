@@ -174,6 +174,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:update permission
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
 
