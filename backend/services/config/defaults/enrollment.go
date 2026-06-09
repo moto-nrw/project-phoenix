@@ -423,10 +423,29 @@ func registerEnrollmentLegalTexts() {
 		Value:     true,
 	}
 
+	// Master toggle for the AGB / Teilnahmebedingungen block. Default off:
+	// there is no general legal duty to use AGB, and forcing a mandatory
+	// "AGB akzeptieren" checkbox on a Träger that has no standard terms is
+	// misleading. Schools that actually incorporate terms switch this on
+	// and fill in the AGB text below.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalTermsEnabled,
+		Label:           "AGB / Teilnahmebedingungen abfragen",
+		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht. Solange deaktiviert oder ohne Text, wird keine AGB-Zustimmung angezeigt oder verlangt.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       79,
+		DependsOn:       dependsOnEnabled,
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen, die Eltern beim Anmelden bestätigen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link zur Zustimmung angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Nur sichtbar und erforderlich, wenn „AGB / Teilnahmebedingungen abfragen“ aktiviert ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -434,13 +453,22 @@ func registerEnrollmentLegalTexts() {
 		Tab:             "enrollment",
 		Category:        "rechtstexte",
 		SortOrder:       80,
-		DependsOn:       dependsOnEnabled,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentLegalTermsEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentLegalDSGVOText,
-		Label:           "Datenschutzerklärung (Anmeldeformular)",
-		Description:     "Datenschutzerklärung gemäß DSGVO, die Eltern bei der Anmeldung bestätigen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird im Formular über einen Link zur Einwilligung angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Key:   config.KeyEnrollmentLegalDSGVOText,
+		Label: "Datenschutzinformation (Anmeldeformular)",
+		// Wording note: enrollment data is processed on a contractual /
+		// legal-obligation basis, NOT on consent. The form therefore asks
+		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
+		// not collect a DSGVO "Einwilligung". Keep this description aligned
+		// with the acknowledgement label rendered on the public form.
+		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Leer lassen, wenn kein separater Datenschutz-Block im Formular angezeigt werden soll.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -454,7 +482,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalEmailContactText,
 		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
-		Description:     "Erläuterung zur E-Mail-Kontakt-Zustimmung (wozu die Schule die E-Mail-Adresse nutzt). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt (Rückfragen, Status-Benachrichtigungen). Markdown wird unterstützt. Wird im Formular als Hinweis angezeigt — keine separate Zustimmung, da der E-Mail-Kontakt zur Durchführung der Anmeldung erforderlich ist. Leer lassen, um den Hinweis auszublenden.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -468,7 +496,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalPhotoText,
 		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
-		Description:     "Erläuterung zur (optionalen) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",

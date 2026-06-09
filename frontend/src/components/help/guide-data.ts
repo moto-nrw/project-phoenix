@@ -593,6 +593,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
+          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` pflegst du nur die Texte, die eure Einrichtung tatsächlich nutzt. Leere Rechtstexte werden im Elternformular nicht angezeigt. Wenn ihr mit einem Ganztag Info-Brief, AGB oder Teilnahmebedingungen arbeitet, `AGB / Teilnahmebedingungen abfragen` einschalten und den Text dort hinterlegen; dann müssen Eltern genau diesen Block bestätigen.",
         ],
         callout: {
           title: "So hängt alles zusammen",

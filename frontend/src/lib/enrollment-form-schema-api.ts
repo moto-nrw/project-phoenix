@@ -294,26 +294,38 @@ export async function fetchPublicCaptchaConfig(
   return readJSON<PublicCaptchaConfig>(response);
 }
 
+export interface PublicLegalBlock {
+  key: "agb" | "data_processing" | "email_contact" | "photo";
+  kind: "terms" | "privacy_notice" | "notice" | "consent";
+  title: string;
+  label: string;
+  text: string;
+  required: boolean;
+}
+
 /**
- * Per-tenant legal documents (Markdown) shown behind the AGB and
- * Datenschutz consent checkboxes on the public form. Empty strings mean
- * the admin hasn't configured a document — the form then renders a
- * plain consent label without a clickable "view document" link.
+ * Per-tenant legal documents and the configured blocks shown on the public
+ * form. Empty raw strings remain for compatibility; `blocks` is the canonical
+ * render/validation contract for the form.
  */
 export interface PublicLegalTexts {
   agb: string;
   dsgvo: string;
   email_contact: string;
   photo: string;
+  /**
+   * Mirrors enrollment.legal_terms_enabled. The AGB block is shown only
+   * when this is true and an AGB/Ganztag Info-Brief text is configured.
+   */
+  terms_enabled: boolean;
+  blocks: PublicLegalBlock[];
 }
 
 /**
  * Fetches the per-tenant legal documents. Unconfigured texts come back
- * as empty strings (a 200 response) and are fine — the form drops the
- * link. A non-OK response (settings/DB/JSON failure) THROWS rather than
- * returning null: these texts sit behind legally relevant consents, so
- * the caller must fail closed instead of silently showing plain consent
- * labels without the configured documents.
+ * as empty strings and produce no legal block. A non-OK response
+ * (settings/DB/JSON failure) THROWS rather than returning null: the
+ * caller must fail closed instead of collecting an incomplete legal state.
  */
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
