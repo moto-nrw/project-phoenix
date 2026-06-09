@@ -41,7 +41,10 @@ func (t *PasswordResetToken) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// Validate ensures password reset token data is valid
+// Validate ensures password reset token data is valid. It performs pure field
+// validation only. Expiry/used consumability is wall-clock policy owned by the
+// auth service (services/auth.PasswordResetTokenValid) and the repository's
+// FindValidByToken, per issue #586 (Rule 12: models hold data, not decisions).
 func (t *PasswordResetToken) Validate() error {
 	if t.AccountID <= 0 {
 		return errors.New("account ID is required")
@@ -51,32 +54,7 @@ func (t *PasswordResetToken) Validate() error {
 		return errors.New("token value is required")
 	}
 
-	// Check if token has expired
-	if t.Expiry.Before(time.Now()) {
-		return errors.New("token has already expired")
-	}
-
-	// Check if token has been used
-	if t.Used {
-		return errors.New("token has already been used")
-	}
-
 	return nil
-}
-
-// IsExpired checks if the token has expired
-func (t *PasswordResetToken) IsExpired() bool {
-	return t.Expiry.Before(time.Now())
-}
-
-// IsValid checks if the token is valid (not expired and not used)
-func (t *PasswordResetToken) IsValid() bool {
-	return !t.IsExpired() && !t.Used
-}
-
-// MarkAsUsed marks the token as used
-func (t *PasswordResetToken) MarkAsUsed() {
-	t.Used = true
 }
 
 // SetExpiry sets the token expiry time to a specified duration from now

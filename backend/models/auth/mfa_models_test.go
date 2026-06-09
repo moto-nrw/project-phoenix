@@ -75,13 +75,6 @@ func TestMFACredential_BeforeAppendModel_SetsTableExprForUpdateAndDelete(t *test
 
 // --- MFAEmailChallenge ---
 
-func TestMFAEmailChallenge_IsExpired(t *testing.T) {
-	past := &MFAEmailChallenge{ExpiresAt: time.Now().Add(-time.Minute)}
-	future := &MFAEmailChallenge{ExpiresAt: time.Now().Add(time.Minute)}
-	assert.True(t, past.IsExpired())
-	assert.False(t, future.IsExpired())
-}
-
 func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
 	unconsumed := &MFAEmailChallenge{}
 	now := time.Now()
@@ -111,44 +104,10 @@ func TestMFAEmailChallenge_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testin
 
 // --- MFATrustedDevice ---
 
-func TestMFATrustedDevice_IsExpiredIsRevokedIsActive(t *testing.T) {
+func TestMFATrustedDevice_IsRevoked(t *testing.T) {
 	now := time.Now()
-	cases := []struct {
-		name        string
-		dev         MFATrustedDevice
-		wantExpired bool
-		wantRevoked bool
-		wantActive  bool
-	}{
-		{
-			name:        "fresh device is active",
-			dev:         MFATrustedDevice{ExpiresAt: now.Add(time.Hour)},
-			wantExpired: false,
-			wantRevoked: false,
-			wantActive:  true,
-		},
-		{
-			name:        "past-expiry is expired and inactive",
-			dev:         MFATrustedDevice{ExpiresAt: now.Add(-time.Hour)},
-			wantExpired: true,
-			wantRevoked: false,
-			wantActive:  false,
-		},
-		{
-			name:        "revoked is inactive regardless of expiry",
-			dev:         MFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now},
-			wantExpired: false,
-			wantRevoked: true,
-			wantActive:  false,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantExpired, tc.dev.IsExpired())
-			assert.Equal(t, tc.wantRevoked, tc.dev.IsRevoked())
-			assert.Equal(t, tc.wantActive, tc.dev.IsActive())
-		})
-	}
+	assert.False(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour)}).IsRevoked())
+	assert.True(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}).IsRevoked())
 }
 
 func TestMFATrustedDevice_AccessorsAndTableName(t *testing.T) {

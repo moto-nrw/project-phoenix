@@ -35,9 +35,6 @@ func (c *MFAEmailChallenge) BeforeAppendModel(query any) error {
 // TableName returns the database table name.
 func (c *MFAEmailChallenge) TableName() string { return "auth.mfa_email_challenges" }
 
-// IsExpired returns true once the TTL has passed.
-func (c *MFAEmailChallenge) IsExpired() bool { return time.Now().After(c.ExpiresAt) }
-
 // IsConsumed returns true once the code has been redeemed.
 func (c *MFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }
 
