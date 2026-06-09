@@ -58,7 +58,8 @@ type Column struct {
 }
 
 type Row struct {
-	Values map[ColumnID]string `json:"values"`
+	Values     map[ColumnID]string `json:"values"`
+	GroupTitle string              `json:"group_title,omitempty"`
 }
 
 type Document struct {
@@ -88,6 +89,7 @@ type Service interface {
 	// enrollment with N children, offerings, consents and per-phase
 	// custom fields) that a fixed-column table can't lay out legibly.
 	RenderRecords(doc RecordDocument, filenameBase string) (File, error)
+	RenderRecordsDOCX(doc RecordDocument, filenameBase string) (File, error)
 }
 
 // Field is one label/value pair inside a record or sub-record block.
@@ -111,6 +113,11 @@ type Record struct {
 	Subs   []SubRecord
 }
 
+type RecordGroup struct {
+	Title   string
+	Records []Record
+}
+
 // RecordDocument is the input to RenderRecords — the block-layout
 // counterpart of Document. Footer prints small at the bottom of every
 // page (e.g. a GDPR confidentiality note).
@@ -124,4 +131,5 @@ type RecordDocument struct {
 	// block-layout counterpart of Document.Filters.
 	Filters []string
 	Records []Record
+	Groups  []RecordGroup
 }

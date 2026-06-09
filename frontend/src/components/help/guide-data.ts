@@ -626,9 +626,10 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Alle Anmeldungen einer Phase kompakt als Datei sichern, zum Ausdrucken oder als Archiv, damit die wichtigsten Angaben auch bei WLAN- oder Systemausfall offline verfügbar sind.",
         steps: [
-          "Eine `Anmeldephase` öffnen - oben rechts findest du `Export PDF` und `Export XLSX`.",
-          "`Export PDF` erzeugt eine druckoptimierte Datei mit einem Block pro Kind (alphabetisch nach Nachname), inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
-          "`Export XLSX` erzeugt eine Tabelle mit einer Zeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
+          "Eine `Anmeldephase` öffnen - oben rechts findest du den Button `Export`.",
+          "`Export` öffnen und das gewünschte Format wählen: `PDF`, `Word-Dokument` oder `Excel-Datei`.",
+          "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
+          "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
         ],
         callout: {
@@ -637,7 +638,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Anmeldephase mit den Schaltflächen Export PDF und Export XLSX sowie dem Status-Filter.",
+          "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
