@@ -93,10 +93,6 @@ func (se *StudentEnrollment) Validate() error {
 		return errors.New("activity group ID is required")
 	}
 
-	if se.ValidFrom.IsZero() {
-		se.ValidFrom = time.Now()
-	}
-
 	if se.AttendanceStatus != nil && !IsValidAttendanceStatus(*se.AttendanceStatus) {
 		return errors.New("invalid attendance status")
 	}

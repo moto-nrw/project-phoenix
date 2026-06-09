@@ -135,7 +135,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Missing valid_from will be set automatically",
+			name: "Missing valid_from is allowed (not auto-populated)",
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       1,
 				ActivityGroupID: 1,
@@ -201,9 +201,9 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 				t.Errorf("StudentEnrollment.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// Verify enrollment date is set when missing
-			if tt.name == "Missing valid_from will be set automatically" && tt.studentEnrollment.ValidFrom.IsZero() {
-				t.Errorf("StudentEnrollment.Validate() did not set enrollment date")
+			// Validate() must NOT populate ValidFrom; the service owns that default.
+			if tt.name == "Missing valid_from is allowed (not auto-populated)" && !tt.studentEnrollment.ValidFrom.IsZero() {
+				t.Errorf("StudentEnrollment.Validate() must not set ValidFrom; the service owns that default")
 			}
 		})
 	}
