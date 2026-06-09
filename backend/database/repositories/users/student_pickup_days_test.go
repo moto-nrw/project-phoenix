@@ -132,6 +132,50 @@ func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
 		cleanupStudentRecords(t, db, student.ID)
 	})
 
+	// A direct PickupDays write must keep the legacy pickup_status column in
+	// sync even when the caller never sets PickupStatus — the repository is the
+	// single source of truth, so filters/exports reading the legacy string can
+	// never disagree with the weekday map. Covers the three distinct states.
+	t.Run("syncs legacy pickup_status from a direct weekday write", func(t *testing.T) {
+		requireStudentsPickupDaysColumn(t, db)
+
+		t.Run("selected days derive picked-up", func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, db, "Pickup", "SyncPicked", "4a")
+			defer cleanupStudentRecords(t, db, student.ID)
+
+			// Set only the map, leave PickupStatus nil (the stale-write case).
+			student.PickupStatus = nil
+			student.PickupDays = users.PickupDays{users.PickupDayFriday: true}
+			require.NoError(t, repo.Update(ctx, student))
+
+			found, err := repo.FindByID(ctx, student.ID)
+			require.NoError(t, err)
+			require.NotNil(t, found.PickupStatus)
+			assert.Equal(t, users.PickupStatusPickedUp, *found.PickupStatus)
+		})
+
+		t.Run("explicit empty map derives goes-alone", func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, db, "Pickup", "SyncAlone", "4b")
+			defer cleanupStudentRecords(t, db, student.ID)
+
+			// Seed a picked-up student, then clear the map to the empty answer.
+			picked := users.PickupStatusPickedUp
+			student.PickupStatus = &picked
+			student.PickupDays = users.PickupDays{users.PickupDayMonday: true}
+			require.NoError(t, repo.Update(ctx, student))
+
+			student.PickupStatus = nil
+			student.PickupDays = users.PickupDays{}
+			require.NoError(t, repo.Update(ctx, student))
+
+			found, err := repo.FindByID(ctx, student.ID)
+			require.NoError(t, err)
+			require.NotNil(t, found.PickupStatus)
+			assert.Equal(t, users.PickupStatusGoesAlone, *found.PickupStatus)
+			assert.False(t, found.PickupDays.HasAny())
+		})
+	})
+
 	t.Run("rejects an invalid weekday before persistence", func(t *testing.T) {
 		person := testpkg.CreateTestPerson(t, db, "Pickup", "Invalid")
 		defer testpkg.CleanupActivityFixtures(t, db, person.ID)

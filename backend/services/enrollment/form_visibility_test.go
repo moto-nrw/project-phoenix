@@ -70,6 +70,50 @@ func TestCustomValueSatisfiesRequired(t *testing.T) {
 	assert.False(t, customValueSatisfiesRequired(pickupDays, map[string]any{"sat": true}), "invalid weekday rejected")
 }
 
+// customAnswerSatisfiesRequired adds presence-awareness on top of the value
+// shape check: for a required pickup field an explicit empty map is the valid
+// "Geht alleine nach Hause" answer, but a missing key (parent never touched the
+// picker) must fail. Covers the three distinct states the change hinges on.
+func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
+	pickup := enrollmentModels.FormField{
+		Key:    "pickup",
+		Type:   enrollmentModels.FormFieldWeekdayBoolean,
+		Target: enrollmentModels.TargetStudentPickupStatus,
+	}
+
+	// 1) Missing key — unanswered required pickup is rejected.
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{}),
+		"missing pickup answer must fail required")
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{"other": true}),
+		"unrelated keys do not satisfy a missing pickup answer")
+
+	// 2) Explicit empty map — the valid "goes home alone" answer is accepted.
+	assert.True(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{}}),
+		"explicit empty pickup map is a valid answer")
+
+	// 3) One or more selected weekdays — accepted.
+	assert.True(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{"mon": true}}),
+		"selected pickup day is a valid answer")
+
+	// A malformed value is still rejected even when present.
+	assert.False(t, customAnswerSatisfiesRequired(pickup, map[string]any{"pickup": map[string]any{"sat": true}}),
+		"invalid weekday rejected")
+
+	// Non-pickup weekday_boolean (Buskind) still requires a selected day even
+	// when present, and a missing key fails as before.
+	bus := enrollmentModels.FormField{
+		Key:    "bus",
+		Type:   enrollmentModels.FormFieldWeekdayBoolean,
+		Target: enrollmentModels.TargetStudentBus,
+	}
+	assert.False(t, customAnswerSatisfiesRequired(bus, map[string]any{}),
+		"missing bus answer fails required")
+	assert.False(t, customAnswerSatisfiesRequired(bus, map[string]any{"bus": map[string]any{}}),
+		"empty bus map fails required (needs a selected day)")
+	assert.True(t, customAnswerSatisfiesRequired(bus, map[string]any{"bus": map[string]any{"mon": true}}),
+		"selected bus day accepted")
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {

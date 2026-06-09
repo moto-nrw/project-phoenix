@@ -336,9 +336,11 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 	return base.AssertRowsAffected(result, 1, "update student bus days")
 }
 
-// persistPickupDays writes the per-weekday pickup map and keeps the legacy
-// pickup_status string in sync on subsequent reads (HasAny → "Wird abgeholt",
-// else "Geht alleine nach Hause"). Mirrors persistBusDays.
+// persistPickupDays writes the per-weekday pickup map AND the derived legacy
+// pickup_status string in the same update, so the repository is the single
+// source of truth: any caller that mutates PickupDays directly (not just the
+// HTTP reconcile helpers) can never leave pickup_status stale. HasAny →
+// "Wird abgeholt", else "Geht alleine nach Hause". Mirrors persistBusDays.
 func (r *StudentRepository) persistPickupDays(ctx context.Context, student *users.Student) error {
 	if student.PickupDays == nil {
 		if student.PickupStatus == nil {
@@ -347,9 +349,11 @@ func (r *StudentRepository) persistPickupDays(ctx context.Context, student *user
 		student.PickupDays = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
 	}
 	normalized := student.PickupDays.Normalize()
+	legacyStatus := normalized.LegacyPickupStatus()
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		TableExpr(`users.students AS "student"`).
 		Set(`pickup_days = ?`, normalized).
+		Set(`pickup_status = ?`, legacyStatus).
 		Where(`"student".id = ?`, student.ID)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
@@ -369,6 +373,7 @@ func (r *StudentRepository) persistPickupDays(ctx context.Context, student *user
 		}
 	}
 	student.PickupDays = normalized
+	student.PickupStatus = &legacyStatus
 	return base.AssertRowsAffected(result, 1, "update student pickup days")
 }
 

@@ -194,7 +194,7 @@ func (s *requestService) validateRequiredCustomFields(
 		if !fieldVisible(f, guardianCtx) {
 			continue
 		}
-		if !customValueSatisfiesRequired(*f, req.CustomData[f.Key]) {
+		if !customAnswerSatisfiesRequired(*f, req.CustomData) {
 			return fmt.Errorf("%w: field %q is required", ErrInvalidSubmission, f.Key)
 		}
 	}
@@ -216,12 +216,28 @@ func (s *requestService) validateRequiredCustomFields(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
-			if !customValueSatisfiesRequired(*f, child.CustomData[f.Key]) {
+			if !customAnswerSatisfiesRequired(*f, child.CustomData) {
 				return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 			}
 		}
 	}
 	return nil
+}
+
+// customAnswerSatisfiesRequired reports whether a required field is answered,
+// pulling the value out of the answer map so it can distinguish a *missing*
+// key from a present-but-empty value. This matters only for the pickup target:
+// an explicit empty weekday map is the valid "Geht alleine nach Hause" answer,
+// but a field the parent never touched (no key in custom_data) is unanswered
+// and must fail a required check. Every other field type derives "missing"
+// from the value shape alone, so the value lookup is sufficient for them.
+func customAnswerSatisfiesRequired(field enrollmentModels.FormField, answers map[string]any) bool {
+	value, present := answers[field.Key]
+	if field.Type == enrollmentModels.FormFieldWeekdayBoolean &&
+		field.Target == enrollmentModels.TargetStudentPickupStatus && !present {
+		return false
+	}
+	return customValueSatisfiesRequired(field, value)
 }
 
 // customValueSatisfiesRequired reports whether a required field's answer is

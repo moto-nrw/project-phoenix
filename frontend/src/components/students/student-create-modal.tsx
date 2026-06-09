@@ -162,7 +162,12 @@ export function StudentCreateModal({
     privacy_consent_accepted: false,
     data_retention_days: 30,
     bus: false,
-    pickup_status: "",
+    // Explicit empty pickup map = "Geht alleine nach Hause". Sending it (not
+    // omitting it) keeps the create contract identical to the edit flow and
+    // makes the stored pickup_days/pickup_status pair correct even when the
+    // pickup section is never touched.
+    pickup_days: {},
+    pickup_status: "Geht alleine nach Hause",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveLoading, setSaveLoading] = useState(false);
@@ -205,7 +210,8 @@ export function StudentCreateModal({
         privacy_consent_accepted: false,
         data_retention_days: 30,
         bus: false,
-        pickup_status: "",
+        pickup_days: {},
+        pickup_status: "Geht alleine nach Hause",
       });
       setErrors({});
       setGuardians([]);
