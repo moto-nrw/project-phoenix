@@ -997,15 +997,16 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 		}
 	}
 
+	now := time.Now()
 	info := &SessionTimeoutInfo{
 		SessionID:          session.ID,
 		ActivityID:         session.GroupID,
 		StartTime:          session.StartTime,
 		LastActivity:       session.LastActivity,
 		TimeoutMinutes:     session.TimeoutMinutes,
-		InactivityDuration: session.GetInactivityDuration(),
-		TimeUntilTimeout:   session.GetTimeUntilTimeout(),
-		IsTimedOut:         session.IsTimedOut(),
+		InactivityDuration: SessionInactivityDuration(session, now),
+		TimeUntilTimeout:   s.SessionTimeUntilTimeout(ctx, session, now),
+		IsTimedOut:         s.IsSessionTimedOut(ctx, session, now),
 		ActiveStudentCount: activeStudentCount,
 	}
 

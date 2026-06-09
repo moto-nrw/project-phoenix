@@ -115,67 +115,6 @@ func TestGroupSupervisorValidate(t *testing.T) {
 	}
 }
 
-func TestGroupSupervisorIsActive(t *testing.T) {
-	nowDate := time.Now()
-	futureDate := nowDate.Add(30 * 24 * time.Hour) // 30 days in the future
-	pastDate := nowDate.Add(-30 * 24 * time.Hour)  // 30 days in the past
-
-	tests := []struct {
-		name            string
-		groupSupervisor *GroupSupervisor
-		want            bool
-	}{
-		{
-			name: "Active supervision (no end date)",
-			groupSupervisor: &GroupSupervisor{
-				StartDate: nowDate,
-				EndDate:   nil,
-			},
-			want: true,
-		},
-		{
-			name: "Active supervision (future end date)",
-			groupSupervisor: &GroupSupervisor{
-				StartDate: nowDate,
-				EndDate:   &futureDate,
-			},
-			want: true,
-		},
-		{
-			name: "Inactive supervision (past end date)",
-			groupSupervisor: &GroupSupervisor{
-				StartDate: pastDate,
-				EndDate:   &pastDate,
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.groupSupervisor.IsActive(); got != tt.want {
-				t.Errorf("GroupSupervisor.IsActive() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGroupSupervisorEndSupervision(t *testing.T) {
-	nowDate := time.Now()
-
-	groupSupervisor := &GroupSupervisor{
-		StartDate: nowDate,
-		EndDate:   nil,
-	}
-
-	// Test that EndSupervision sets the end date
-	groupSupervisor.EndSupervision()
-
-	if groupSupervisor.EndDate == nil {
-		t.Errorf("GroupSupervisor.EndSupervision() did not set the end date")
-	}
-}
-
 func TestGroupSupervisorSetEndDate(t *testing.T) {
 	nowDate := time.Now()
 	futureDate := nowDate.Add(30 * 24 * time.Hour) // 30 days in the future

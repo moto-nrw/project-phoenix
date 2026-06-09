@@ -122,12 +122,6 @@ func (g *Group) IsActive() bool {
 	return g.EndTime == nil
 }
 
-// EndSession sets the end time to the current time
-func (g *Group) EndSession() {
-	now := time.Now()
-	g.EndTime = &now
-}
-
 // SetEndTime explicitly sets the end time
 func (g *Group) SetEndTime(endTime time.Time) error {
 	if g.StartTime.After(endTime) {
@@ -143,35 +137,4 @@ func (g *Group) GetDuration() time.Duration {
 		return time.Since(g.StartTime)
 	}
 	return g.EndTime.Sub(g.StartTime)
-}
-
-// UpdateActivity updates the last activity timestamp to current time
-func (g *Group) UpdateActivity() {
-	g.LastActivity = time.Now()
-}
-
-// GetTimeoutDuration returns the configured timeout duration
-func (g *Group) GetTimeoutDuration() time.Duration {
-	if g.TimeoutMinutes <= 0 {
-		return 30 * time.Minute // Default 30 minutes
-	}
-	return time.Duration(g.TimeoutMinutes) * time.Minute
-}
-
-// GetInactivityDuration returns how long the session has been inactive
-func (g *Group) GetInactivityDuration() time.Duration {
-	return time.Since(g.LastActivity)
-}
-
-// IsTimedOut checks if the session has exceeded the timeout threshold
-func (g *Group) IsTimedOut() bool {
-	if !g.IsActive() {
-		return false // Already ended
-	}
-	return g.GetInactivityDuration() >= g.GetTimeoutDuration()
-}
-
-// GetTimeUntilTimeout returns how much time remains before timeout (negative if already timed out)
-func (g *Group) GetTimeUntilTimeout() time.Duration {
-	return g.GetTimeoutDuration() - g.GetInactivityDuration()
 }
