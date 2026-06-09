@@ -500,11 +500,16 @@ func (r *stubPasswordResetTokenRepository) FindByID(_ context.Context, id interf
 	switch v := id.(type) {
 	case int64:
 		if token, ok := r.byID[v]; ok {
-			return token, nil
+			// Copy, like a real repository returns a fresh row: tests poll
+			// the result while the async delivery goroutine mutates the
+			// stored token under r.mu.
+			cp := *token
+			return &cp, nil
 		}
 	case int:
 		if token, ok := r.byID[int64(v)]; ok {
-			return token, nil
+			cp := *token
+			return &cp, nil
 		}
 	}
 	return nil, sql.ErrNoRows
@@ -612,7 +617,12 @@ func (r *stubInvitationTokenRepository) FindByID(_ context.Context, id interface
 	defer r.mu.Unlock()
 	if v, ok := id.(int64); ok {
 		if token, exists := r.tokens[v]; exists {
-			return token, nil
+			// Return a copy, like a real repository returns a fresh row.
+			// Tests poll the returned token while the service's async
+			// delivery goroutine mutates the stored one under r.mu;
+			// handing out the live pointer is a data race.
+			cp := *token
+			return &cp, nil
 		}
 	}
 	return nil, sql.ErrNoRows

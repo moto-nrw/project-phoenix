@@ -397,11 +397,29 @@ func TestGetLogger_WithLogger(t *testing.T) {
 // Dispatch function tests with real Dispatcher + mock mailer
 // =============================================================================
 
+// waitForDispatch blocks until the async dispatcher goroutine signals ch,
+// failing the test after a generous timeout. Replaces fixed sleeps, which
+// both wasted wall time and read shared state without a happens-before
+// edge.
+func waitForDispatch(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", what)
+	}
+}
+
 func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	var captured email.Message
+	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
+			select {
+			case sent <- struct{}{}:
+			default:
+			}
 			return nil
 		},
 	}
@@ -430,10 +448,9 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 
 	svc.dispatchVerificationEmail(context.Background(), token, newEmail)
 
-	// Wait for the async goroutine in Dispatcher.Dispatch
-	time.Sleep(200 * time.Millisecond)
+	waitForDispatch(t, sent, "verification email dispatch")
 
-	assert.True(t, mailer.SendInvoked, "mailer should have been invoked")
+	assert.True(t, mailer.SendInvoked.Load(), "mailer should have been invoked")
 	assert.Equal(t, newEmail, captured.To.Address)
 	assert.Equal(t, "", captured.To.Name)
 	assert.Equal(t, "E-Mail-Adresse bestätigen", captured.Subject)
@@ -452,9 +469,14 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 
 func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 	var captured email.Message
+	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
+			select {
+			case sent <- struct{}{}:
+			default:
+			}
 			return nil
 		},
 	}
@@ -480,9 +502,9 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 
 	svc.dispatchNotificationEmail(context.Background(), operator, maskedNewEmail)
 
-	time.Sleep(200 * time.Millisecond)
+	waitForDispatch(t, sent, "notification email dispatch")
 
-	assert.True(t, mailer.SendInvoked, "mailer should have been invoked")
+	assert.True(t, mailer.SendInvoked.Load(), "mailer should have been invoked")
 	assert.Equal(t, operator.Email, captured.To.Address)
 	assert.Equal(t, operator.DisplayName, captured.To.Name)
 	assert.Equal(t, "E-Mail-Änderung angefordert", captured.Subject)
@@ -500,9 +522,14 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 
 func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 	var captured email.Message
+	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
 		SendFn: func(m email.Message) error {
 			captured = m
+			select {
+			case sent <- struct{}{}:
+			default:
+			}
 			return nil
 		},
 	}
@@ -525,9 +552,9 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 
 	svc.dispatchChangeConfirmedEmail(context.Background(), oldEmail, displayName)
 
-	time.Sleep(200 * time.Millisecond)
+	waitForDispatch(t, sent, "change-confirmed email dispatch")
 
-	assert.True(t, mailer.SendInvoked, "mailer should have been invoked")
+	assert.True(t, mailer.SendInvoked.Load(), "mailer should have been invoked")
 	assert.Equal(t, oldEmail, captured.To.Address)
 	assert.Equal(t, displayName, captured.To.Name)
 	assert.Equal(t, "E-Mail-Adresse wurde geändert", captured.Subject)
@@ -553,10 +580,15 @@ func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
 
 	var updateCalled bool
 	var capturedTokenID int64
+	persisted := make(chan struct{}, 1)
 	repo := &mockEmailChangeTokenRepo{
 		updateDeliveryResultFn: func(_ context.Context, tokenID int64, _ *time.Time, _ *string, _ int) error {
 			updateCalled = true
 			capturedTokenID = tokenID
+			select {
+			case persisted <- struct{}{}:
+			default:
+			}
 			return nil
 		},
 	}
@@ -578,7 +610,7 @@ func TestDispatchVerificationEmail_CallbackWiring(t *testing.T) {
 
 	svc.dispatchVerificationEmail(context.Background(), token, "new@example.com")
 
-	time.Sleep(200 * time.Millisecond)
+	waitForDispatch(t, persisted, "delivery-result persistence callback")
 
 	assert.True(t, updateCalled, "persistEmailChangeDelivery should have been called via callback")
 	assert.Equal(t, int64(99), capturedTokenID)
@@ -1020,7 +1052,7 @@ func TestInitiateEmailChange_EmailTaken_SilentSuccess(t *testing.T) {
 	assert.False(t, tokenCreateCalled, "token should NOT be created when email is taken")
 	// Wait briefly for any async goroutine that should NOT fire
 	time.Sleep(100 * time.Millisecond)
-	assert.False(t, mailer.SendInvoked, "mailer should NOT be invoked when email is taken")
+	assert.False(t, mailer.SendInvoked.Load(), "mailer should NOT be invoked when email is taken")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -1066,8 +1098,15 @@ func TestInitiateEmailChange_AuditLogFailure_DoesNotBlockEmails(t *testing.T) {
 	hash := fastHashPassword(t, "test-password")
 	op := testOperator(42, "current@example.com", hash)
 
+	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
-		SendFn: func(m email.Message) error { return nil },
+		SendFn: func(m email.Message) error {
+			select {
+			case sent <- struct{}{}:
+			default:
+			}
+			return nil
+		},
 	}
 
 	svc, mock, _ := newEmailChangeTestService(t, func(s *emailChangeTestSetup) {
@@ -1106,9 +1145,8 @@ func TestInitiateEmailChange_AuditLogFailure_DoesNotBlockEmails(t *testing.T) {
 
 	require.NoError(t, err, "audit log failure must not block the email change flow")
 
-	// Wait for the async dispatcher goroutine
-	time.Sleep(200 * time.Millisecond)
-	assert.True(t, mailer.SendInvoked, "dispatcher should still send emails despite audit failure")
+	waitForDispatch(t, sent, "email dispatch after audit failure")
+	assert.True(t, mailer.SendInvoked.Load(), "dispatcher should still send emails despite audit failure")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -1218,8 +1256,15 @@ func TestConfirmEmailChange_AuditLogFailure_DoesNotBlock(t *testing.T) {
 	}
 	op := testOperator(42, "old@example.com", "some-hash")
 
+	sent := make(chan struct{}, 1)
 	mailer := &email.MockMailer{
-		SendFn: func(m email.Message) error { return nil },
+		SendFn: func(m email.Message) error {
+			select {
+			case sent <- struct{}{}:
+			default:
+			}
+			return nil
+		},
 	}
 
 	svc, mock, _ := newEmailChangeTestService(t, func(s *emailChangeTestSetup) {
@@ -1252,8 +1297,7 @@ func TestConfirmEmailChange_AuditLogFailure_DoesNotBlock(t *testing.T) {
 	require.NoError(t, err, "audit log failure must not block confirmation")
 	assert.Equal(t, "new@example.com", newEmail)
 
-	// Wait for the async dispatcher goroutine
-	time.Sleep(200 * time.Millisecond)
-	assert.True(t, mailer.SendInvoked, "confirmation email should be dispatched despite audit failure")
+	waitForDispatch(t, sent, "confirmation email dispatch")
+	assert.True(t, mailer.SendInvoked.Load(), "confirmation email should be dispatched despite audit failure")
 	require.NoError(t, mock.ExpectationsWereMet())
 }

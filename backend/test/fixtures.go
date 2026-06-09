@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -1089,14 +1090,41 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	return account
 }
 
-// hashPassword hashes a password using Argon2id (matches auth/userpass)
+var (
+	hashCacheMu sync.Mutex
+	hashCache   = map[string]string{}
+)
+
+// hashPassword returns an Argon2id hash for the password, memoizing per
+// password string. Fixtures reuse a handful of passwords across thousands
+// of tests, and each uncached hash costs real CPU and memory. Reused salts
+// are fine for test data; verification decodes params and salt from the
+// hash itself. The mutex is held across the hash on purpose so concurrent
+// requests for the same password compute it once.
 func hashPassword(password string) (string, error) {
+	hashCacheMu.Lock()
+	defer hashCacheMu.Unlock()
+	if h, ok := hashCache[password]; ok {
+		return h, nil
+	}
+	h, err := hashPasswordUncached(password)
+	if err != nil {
+		return "", err
+	}
+	hashCache[password] = h
+	return h, nil
+}
+
+// hashPasswordUncached hashes a password using Argon2id (matches auth/userpass)
+func hashPasswordUncached(password string) (string, error) {
 	// Import the userpass package inline to hash the password
-	// This uses the same algorithm as the auth service
+	// This uses the same algorithm as the auth service. Memory is kept
+	// deliberately small: these are throwaway test credentials, and the
+	// params travel inside the encoded hash, so verification still works.
 	params := &argon2Params{
-		memory:      64 * 1024,
+		memory:      1024,
 		iterations:  1,
-		parallelism: 2,
+		parallelism: 1,
 		saltLength:  16,
 		keyLength:   32,
 	}
@@ -1108,7 +1136,7 @@ func hashPassword(password string) (string, error) {
 
 	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
 
-	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
+	// Encode as $argon2id$v=19$m=<memory>,t=<iterations>,p=<parallelism>$<salt>$<hash>
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
