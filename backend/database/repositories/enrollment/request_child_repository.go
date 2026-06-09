@@ -138,6 +138,28 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 	return nil
 }
 
+// UpdateActivationPlan records the approval-time lifecycle decision on
+// the child row. Submission rows start with the schema default; approval is
+// the first point where the tenant setting and phase dates are authoritative.
+func (r *RequestChildRepository) UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *time.Time) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("activation_mode = ?", mode).
+		Set("activate_on = ?", activateOn).
+		Set("updated_at = ?", time.Now()).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update request child activation plan: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
 // CountCreatedStudentsByPhaseID returns the number of distinct students
 // that were created from the phase's enrollment requests (children with
 // a non-null created_student_id). Powers the phase-delete confirmation
