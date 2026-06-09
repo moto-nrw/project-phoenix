@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -326,7 +327,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 
 	tenantID := int64(testutil.DefaultTestClaims().TenantID)
 	tenantCtx := testpkg.TenantContext(tenantID)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	today := timezone.TodayUTC()
 	session := &active.WorkSession{
 		StaffID:     staff.ID,
 		Date:        today,
