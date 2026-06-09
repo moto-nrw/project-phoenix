@@ -297,15 +297,20 @@ jobs:
 
       - name: Generate guide PDFs
         working-directory: frontend
-        # The /help pages are public and host-agnostic; proxy.ts only requires
-        # these hostnames to be non-empty, so harmless placeholders suffice for
-        # the throwaway render server. METRICS_BEARER_TOKEN is required by the
-        # runtime instrumentation hook (validateServerRuntimeEnv runs on
-        # `next start` regardless of SKIP_ENV_VALIDATION), so a throwaway value
-        # is needed or the render server crashes before serving /help.
+        # The /help pages are public and host-agnostic, but this command boots a
+        # production Next server (`next build && next start`). Build-time env
+        # validation is skipped, while runtime instrumentation still validates a
+        # complete server env on `next start`, so CI must provide harmless
+        # throwaway values for vars the guide pages do not use.
         env:
           SKIP_ENV_VALIDATION: "true"
           METRICS_BEARER_TOKEN: "ci-guide-render-throwaway-token"
+          API_URL: "http://server:8080"
+          AUTH_JWT_EXPIRY: "15m"
+          AUTH_JWT_REFRESH_EXPIRY: "7d"
+          NEXTAUTH_URL: "http://localhost:3000"
+          NEXTAUTH_SECRET: "ci-guide-render-throwaway-secret"
+          NEXT_PUBLIC_API_URL: ${{ steps.api_url.outputs.url }}
           NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
           NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
           TENANT_DOMAIN: "localhost"
