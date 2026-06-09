@@ -297,12 +297,8 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 }
 
 func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.Student) error {
-	if student.BusDays == nil {
-		if student.Bus == nil {
-			return nil
-		}
-		student.BusDays = users.BusDaysFromLegacyFlag(*student.Bus)
-	}
+	// bus_days is the single source of truth (#1582). A nil map normalizes to an
+	// empty selection, so no legacy bus fallback is needed.
 	normalized := student.BusDays.Normalize()
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		TableExpr(`users.students AS "student"`).
@@ -573,7 +569,6 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		ColumnExpr(`"student".bus AS "student__bus"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
@@ -640,7 +635,6 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		ColumnExpr(`"student".bus AS "student__bus"`).
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).

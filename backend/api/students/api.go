@@ -749,11 +749,22 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 // accepted only as an alias (true => Mon–Fri, false => no days) and is ignored
 // when bus_days is also supplied. The derived bus flag is no longer stored.
 func applyBusDays(legacyBus *bool, days *users.BusDays, student *users.Student) {
-	if legacyBus != nil && days == nil {
-		student.BusDays = users.BusDaysFromLegacyFlag(*legacyBus)
-	}
 	if days != nil {
 		student.BusDays = *days
+		return
+	}
+	if legacyBus == nil {
+		return
+	}
+	switch {
+	case !*legacyBus:
+		// Explicitly off: clear all bus days.
+		student.BusDays = users.BusDays{}
+	case !student.BusDays.HasAny():
+		// On with no existing per-day selection: default to all weekdays.
+		student.BusDays = users.BusDaysFromLegacyFlag(true)
+		// On with an existing per-day selection: preserve it (a legacy bus=true
+		// must not flatten Mo/Fr into all weekdays).
 	}
 }
 

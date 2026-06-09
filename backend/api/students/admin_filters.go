@@ -16,9 +16,10 @@ import "strings"
 // active administrative filters. Empty or "all" values are treated as "off".
 func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupStatus string) bool {
 	if isActiveFilterValue(bus) {
-		// bus_days is the single source of truth (#1582); the bus=yes/no query
-		// wording stays for API compatibility but evaluates HasAny() semantics.
-		if !s.HasFullAccess || s.BusDays.HasAny() != (bus == "yes") {
+		// s.Bus is derived from bus_days.HasAny() when the response is built, so
+		// filtering on it evaluates bus_days semantics — the single source of
+		// truth (#1582). The bus=yes/no query wording stays for API compatibility.
+		if !s.HasFullAccess || s.Bus != (bus == "yes") {
 			return false
 		}
 	}
