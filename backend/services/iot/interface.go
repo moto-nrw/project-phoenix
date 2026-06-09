@@ -34,6 +34,7 @@ type Service interface {
 
 	// Online/offline decision (issue #586 — Rule 12). The online window is
 	// resolved from the per-tenant setting iot.device_online_window_minutes.
+	DeviceOnlineWindow(ctx context.Context) time.Duration
 	IsDeviceOnline(ctx context.Context, device *iot.Device) bool
 	IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now time.Time) bool
 

@@ -400,8 +400,9 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Get offline devices count (devices offline for more than 5 minutes)
-	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), 5*time.Minute)
+	// Get offline devices count using the same tenant-configured online window
+	// used by per-device is_online responses.
+	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), rs.IoTService.DeviceOnlineWindow(r.Context()))
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 		return

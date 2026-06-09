@@ -100,6 +100,7 @@ func (m *mockIoTService) GetOfflineDevices(_ context.Context, _ time.Duration) (
 func (m *mockIoTService) GetDeviceTypeStatistics(_ context.Context) (map[string]int, error) {
 	return nil, nil
 }
+func (m *mockIoTService) DeviceOnlineWindow(_ context.Context) time.Duration   { return 5 * time.Minute }
 func (m *mockIoTService) IsDeviceOnline(_ context.Context, _ *iot.Device) bool { return false }
 func (m *mockIoTService) IsDeviceOnlineAt(_ context.Context, _ *iot.Device, _ time.Time) bool {
 	return false

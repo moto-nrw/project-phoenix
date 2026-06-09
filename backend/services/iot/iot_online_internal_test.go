@@ -125,7 +125,7 @@ func TestService_IsDeviceOnlineAt(t *testing.T) {
 
 func TestService_deviceOnlineWindow_NilResolver(t *testing.T) {
 	svc := &service{}
-	if got := svc.deviceOnlineWindow(context.Background()); got != defaultDeviceOnlineWindow {
-		t.Errorf("deviceOnlineWindow() with nil resolver = %v, want %v", got, defaultDeviceOnlineWindow)
+	if got := svc.DeviceOnlineWindow(context.Background()); got != defaultDeviceOnlineWindow {
+		t.Errorf("DeviceOnlineWindow() with nil resolver = %v, want %v", got, defaultDeviceOnlineWindow)
 	}
 }

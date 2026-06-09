@@ -77,12 +77,12 @@ func (s *service) IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now 
 	if device == nil || device.LastSeen == nil {
 		return false
 	}
-	return now.Sub(*device.LastSeen) <= s.deviceOnlineWindow(ctx)
+	return now.Sub(*device.LastSeen) <= s.DeviceOnlineWindow(ctx)
 }
 
-// deviceOnlineWindow resolves the per-tenant device-online window, falling back
+// DeviceOnlineWindow resolves the per-tenant device-online window, falling back
 // to defaultDeviceOnlineWindow when no override exists or the lookup fails.
-func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
+func (s *service) DeviceOnlineWindow(ctx context.Context) time.Duration {
 	if s.settings == nil {
 		return defaultDeviceOnlineWindow
 	}
