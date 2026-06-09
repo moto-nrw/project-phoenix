@@ -794,7 +794,7 @@ function ChildExtraFields({
   );
 }
 
-function formatCustomValue(
+export function formatCustomValue(
   v: unknown,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
@@ -832,6 +832,19 @@ function formatCustomValue(
       ["thu", "Do"],
       ["fri", "Fr"],
     ] as const;
+
+    // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
+    // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
+    // mirroring the backend export renderer (formatWeekdayBoolean in
+    // export_format.go). Detected by value type so it works without `field`.
+    if (weekdays.some(([key]) => typeof o[key] === "boolean")) {
+      const days = weekdays
+        .filter(([key]) => o[key] === true)
+        .map(([, label]) => label);
+      if (days.length === 0) return null;
+      return days.join(", ");
+    }
+
     const cells = weekdays
       .map(([key, label]) => ({ label, value: o[key] }))
       .filter(
