@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -32,11 +31,16 @@ type inviteToStudentResponse struct {
 	InvitationID      string `json:"invitation_id,omitempty"`
 }
 
-// pendingApprovalResponse is the parent-initiated approval-queue row.
+// pendingApprovalResponse is the parent-initiated approval-queue row, with
+// guardian/child/requester names resolved for the staff queue.
 type pendingApprovalResponse struct {
 	ID                string    `json:"id"`
 	GuardianProfileID string    `json:"guardian_profile_id"`
+	GuardianName      string    `json:"guardian_name"`
+	GuardianEmail     string    `json:"guardian_email,omitempty"`
 	StudentID         string    `json:"student_id,omitempty"`
+	StudentName       string    `json:"student_name,omitempty"`
+	RequestedByEmail  string    `json:"requested_by_email,omitempty"`
 	CreatedAt         time.Time `json:"created_at"`
 	ExpiresAt         time.Time `json:"expires_at"`
 }
@@ -80,14 +84,14 @@ func (rs *Resource) inviteGuardianToStudent(w http.ResponseWriter, r *http.Reque
 // listPendingApprovals returns parent-initiated invitations awaiting staff
 // approval for the current tenant.
 func (rs *Resource) listPendingApprovals(w http.ResponseWriter, r *http.Request) {
-	invitations, err := rs.InvitationService.ListPendingApprovals(r.Context())
+	views, err := rs.InvitationService.ListPendingApprovalsDetailed(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	out := make([]pendingApprovalResponse, 0, len(invitations))
-	for _, inv := range invitations {
-		out = append(out, toPendingApprovalResponse(inv))
+	out := make([]pendingApprovalResponse, 0, len(views))
+	for _, v := range views {
+		out = append(out, toPendingApprovalResponse(v))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Pending approvals")
 }
@@ -140,15 +144,19 @@ func toInviteResponse(result *authSvc.InviteToStudentResult) inviteToStudentResp
 	return resp
 }
 
-func toPendingApprovalResponse(inv *authModels.GuardianInvitation) pendingApprovalResponse {
+func toPendingApprovalResponse(v *authSvc.PendingApprovalView) pendingApprovalResponse {
 	resp := pendingApprovalResponse{
-		ID:                strconv.FormatInt(inv.ID, 10),
-		GuardianProfileID: strconv.FormatInt(inv.GuardianProfileID, 10),
-		CreatedAt:         inv.CreatedAt,
-		ExpiresAt:         inv.ExpiresAt,
+		ID:                strconv.FormatInt(v.InvitationID, 10),
+		GuardianProfileID: strconv.FormatInt(v.GuardianProfileID, 10),
+		GuardianName:      v.GuardianName,
+		GuardianEmail:     v.GuardianEmail,
+		StudentName:       v.StudentName,
+		RequestedByEmail:  v.RequestedByEmail,
+		CreatedAt:         v.CreatedAt,
+		ExpiresAt:         v.ExpiresAt,
 	}
-	if inv.StudentID != nil {
-		resp.StudentID = strconv.FormatInt(*inv.StudentID, 10)
+	if v.StudentID > 0 {
+		resp.StudentID = strconv.FormatInt(v.StudentID, 10)
 	}
 	return resp
 }

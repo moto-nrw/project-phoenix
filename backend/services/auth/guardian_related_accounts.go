@@ -370,6 +370,82 @@ func (s *guardianInvitationService) ListPendingApprovals(ctx context.Context) ([
 	return invitations, nil
 }
 
+// PendingApprovalView is the staff-facing, name-resolved projection of a
+// parent-initiated invitation awaiting approval. Backs the approval queue so
+// staff see who is being invited, to which child, and by whom — not raw IDs.
+type PendingApprovalView struct {
+	InvitationID      int64
+	GuardianProfileID int64
+	GuardianName      string
+	GuardianEmail     string
+	StudentID         int64
+	StudentName       string
+	RequestedByEmail  string
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+}
+
+// ListPendingApprovalsDetailed returns the approval queue with guardian, child,
+// and requester names resolved. The queue is short (one row per outstanding
+// request), so the per-row lookups are acceptable.
+func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error) {
+	invitations, err := s.invitationRepo.FindPendingApproval(ctx)
+	if err != nil {
+		return nil, &AuthError{Op: opGuardianInviteApprove, Err: err}
+	}
+
+	views := make([]*PendingApprovalView, 0, len(invitations))
+	for _, inv := range invitations {
+		view := &PendingApprovalView{
+			InvitationID:      inv.ID,
+			GuardianProfileID: inv.GuardianProfileID,
+			CreatedAt:         inv.CreatedAt,
+			ExpiresAt:         inv.ExpiresAt,
+		}
+		s.fillGuardianFields(ctx, inv.GuardianProfileID, view)
+		if inv.StudentID != nil {
+			view.StudentID = *inv.StudentID
+			view.StudentName = s.resolveStudentName(ctx, *inv.StudentID)
+		}
+		if inv.RequestedByAccountID != nil {
+			if acc, accErr := s.accountRepo.FindByID(ctx, *inv.RequestedByAccountID); accErr == nil && acc != nil {
+				view.RequestedByEmail = acc.Email
+			}
+		}
+		views = append(views, view)
+	}
+	return views, nil
+}
+
+// fillGuardianFields populates the guardian name + email on the view.
+func (s *guardianInvitationService) fillGuardianFields(ctx context.Context, guardianProfileID int64, view *PendingApprovalView) {
+	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
+	if err != nil || profile == nil {
+		return
+	}
+	view.GuardianName = strings.TrimSpace(profile.GetFullName())
+	if profile.Email != nil {
+		view.GuardianEmail = strings.TrimSpace(*profile.Email)
+	}
+}
+
+// resolveStudentName resolves a child's display name via student → person.
+// Best-effort: returns "" when the lookup fails.
+func (s *guardianInvitationService) resolveStudentName(ctx context.Context, studentID int64) string {
+	if s.studentRepo == nil {
+		return ""
+	}
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil || student == nil {
+		return ""
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil || person == nil {
+		return ""
+	}
+	return strings.TrimSpace(person.FirstName + " " + person.LastName)
+}
+
 // RevokeAccess removes one account's link to one child. Parents may not remove
 // the primary guardian; staff may remove anyone. The account/profile and
 // sibling links are untouched.

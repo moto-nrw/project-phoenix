@@ -49,6 +49,7 @@ func setupGuardianInvitationTest(t *testing.T) *guardianTestEnv {
 		PersonRepo:          repoFactory.Person,
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		StudentGuardianRepo: repoFactory.StudentGuardian,
+		StudentRepo:         repoFactory.Student,
 		SchoolRepo:          repoFactory.School,
 		Mailer:              mailer,
 		Dispatcher:          dispatcher,

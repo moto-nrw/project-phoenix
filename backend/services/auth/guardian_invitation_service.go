@@ -86,6 +86,7 @@ type GuardianInvitationServiceConfig struct {
 	PersonRepo          userModels.PersonRepository
 	GuardianProfileRepo userModels.GuardianProfileRepository
 	StudentGuardianRepo userModels.StudentGuardianRepository
+	StudentRepo         userModels.StudentRepository
 	SchoolRepo          platformModels.SchoolRepository
 	Mailer              email.Mailer
 	Dispatcher          *email.Dispatcher
@@ -121,6 +122,7 @@ type guardianInvitationService struct {
 	personRepo           userModels.PersonRepository
 	guardianProfileRepo  userModels.GuardianProfileRepository
 	studentGuardianRepo  userModels.StudentGuardianRepository
+	studentRepo          userModels.StudentRepository
 	schoolRepo           platformModels.SchoolRepository
 	dispatcher           *email.Dispatcher
 	outboxEnqueuer       OutboxEnqueuer
@@ -159,6 +161,7 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 		personRepo:           cfg.PersonRepo,
 		guardianProfileRepo:  cfg.GuardianProfileRepo,
 		studentGuardianRepo:  cfg.StudentGuardianRepo,
+		studentRepo:          cfg.StudentRepo,
 		schoolRepo:           cfg.SchoolRepo,
 		dispatcher:           dispatcher,
 		outboxEnqueuer:       cfg.OutboxEnqueuer,

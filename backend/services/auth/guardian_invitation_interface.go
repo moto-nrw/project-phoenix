@@ -54,6 +54,7 @@ type GuardianInvitationService interface {
 	ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error
 	RejectInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error
 	ListPendingApprovals(ctx context.Context) ([]*authModels.GuardianInvitation, error)
+	ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error)
 	RevokeAccess(ctx context.Context, req RevokeAccessRequest) error
 }
 

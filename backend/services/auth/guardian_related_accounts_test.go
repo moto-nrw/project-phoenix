@@ -189,3 +189,43 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID),
 		"approval must link the child")
 }
+
+func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Mila", "Schmidt", "1a")
+	requester := testpkg.CreateTestAccount(t, env.db, "requester-parent")
+	email := fmt.Sprintf("invitee-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		FirstName:                  "Oma",
+		LastName:                   "Schmidt",
+		CreatedBy:                  requester.ID,
+		RequestedByParentAccountID: &requester.ID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+
+	views, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+
+	var view *authService.PendingApprovalView
+	for _, v := range views {
+		if v.InvitationID == *result.InvitationID {
+			view = v
+		}
+	}
+	require.NotNil(t, view, "queued invite must appear in the detailed approval queue")
+	assert.Equal(t, email, view.GuardianEmail)
+	assert.Equal(t, "Oma Schmidt", view.GuardianName)
+	assert.Equal(t, student.ID, view.StudentID)
+	assert.Equal(t, "Mila Schmidt", view.StudentName, "child name must be resolved via student→person")
+	assert.Equal(t, requester.Email, view.RequestedByEmail, "requester email must be resolved")
+}
