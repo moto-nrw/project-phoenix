@@ -38,6 +38,12 @@ const (
 	activeSupervisionReasonStudentMoved    = "student_moved"
 )
 
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used by the
+// abandoned-session cleanup when no tenant override
+// (iot.device_online_window_minutes) is configured. Moved off the iot.Device
+// model per issue #586 (Rule 12: models hold data, not decisions).
+const defaultDeviceOnlineWindow = 5 * time.Minute
+
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
 type RoomConflictStrategy int
 

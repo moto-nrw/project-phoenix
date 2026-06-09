@@ -45,6 +45,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		// Device online/offline window for health monitoring (issue #586, Rule 12).
+		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
 		"tracking.indicator_1",
 		"tracking.indicator_2",

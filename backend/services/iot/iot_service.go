@@ -7,8 +7,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -19,6 +21,20 @@ const (
 	errDeviceIDEmpty = "device ID cannot be empty"
 )
 
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used when no
+// tenant override (iot.device_online_window_minutes) is configured. A device is
+// considered online if it was last seen within this window. Moved off the
+// iot.Device model per issue #586 (Rule 12: models hold data, not decisions).
+const defaultDeviceOnlineWindow = 5 * time.Minute
+
+// SettingsResolver is the subset of the settings service the IoT service needs
+// to resolve the per-tenant device-online window. Declared locally to avoid an
+// import cycle through the service factory.
+type SettingsResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
 func isProtectedSystemDevice(device *iot.Device) bool {
 	return device != nil && device.DeviceID == iot.WebManualDeviceID
 }
@@ -27,6 +43,10 @@ func isProtectedSystemDevice(device *iot.Device) bool {
 type service struct {
 	deviceRepo iot.DeviceRepository
 	db         *bun.DB
+
+	// Optional: tenant-scoped settings resolver for the device-online window.
+	// When nil, IsDeviceOnline falls back to defaultDeviceOnlineWindow.
+	settings SettingsResolver
 }
 
 // NewService creates a new IoT service
@@ -35,6 +55,53 @@ func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
 		deviceRepo: deviceRepo,
 		db:         db,
 	}
+}
+
+// SetSettingsService injects the tenant-scoped settings resolver.
+// Called from the factory after the settings service is constructed.
+func (s *service) SetSettingsService(resolver SettingsResolver) {
+	s.settings = resolver
+}
+
+// IsDeviceOnline reports whether the device is currently online, comparing its
+// last_seen timestamp against the resolved online window using the wall clock.
+func (s *service) IsDeviceOnline(ctx context.Context, device *iot.Device) bool {
+	return s.IsDeviceOnlineAt(ctx, device, time.Now())
+}
+
+// IsDeviceOnlineAt reports whether the device was online at the supplied
+// observation time. A device is online when its last_seen timestamp is within
+// the resolved online window of now. The window comes from the tenant setting
+// iot.device_online_window_minutes, falling back to defaultDeviceOnlineWindow.
+func (s *service) IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now time.Time) bool {
+	if device == nil || device.LastSeen == nil {
+		return false
+	}
+	return now.Sub(*device.LastSeen) <= s.deviceOnlineWindow(ctx)
+}
+
+// deviceOnlineWindow resolves the per-tenant device-online window, falling back
+// to defaultDeviceOnlineWindow when no override exists or the lookup fails.
+func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
+	if s.settings == nil {
+		return defaultDeviceOnlineWindow
+	}
+	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyDeviceOnlineWindowMinutes)
+	if err != nil {
+		slog.WarnContext(ctx, "device online window override check failed, using default",
+			slog.String("key", configModel.KeyDeviceOnlineWindowMinutes),
+			slog.String("error", err.Error()),
+		)
+		return defaultDeviceOnlineWindow
+	}
+	if !has {
+		return defaultDeviceOnlineWindow
+	}
+	minutes, err := s.settings.ResolveInt(ctx, configModel.KeyDeviceOnlineWindowMinutes)
+	if err != nil || minutes <= 0 {
+		return defaultDeviceOnlineWindow
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // generateAPIKey generates a secure random API key for device authentication

@@ -61,7 +61,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
@@ -82,7 +82,7 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newDeviceResponse(device), "Device retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newDeviceResponse(r.Context(), rs.IoTService, device), "Device retrieved successfully")
 }
 
 // getDeviceByDeviceID handles getting a device by its device ID
@@ -101,7 +101,7 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newDeviceResponse(device), "Device retrieved successfully")
+	common.Respond(w, r, http.StatusOK, newDeviceResponse(r.Context(), rs.IoTService, device), "Device retrieved successfully")
 }
 
 // createDevice handles creating a new device
@@ -140,7 +140,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, newDeviceCreationResponse(createdDevice), "Device created successfully")
+	common.Respond(w, r, http.StatusCreated, newDeviceCreationResponse(r.Context(), rs.IoTService, createdDevice), "Device created successfully")
 }
 
 // updateDevice handles updating an existing device
@@ -188,7 +188,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, newDeviceResponse(updatedDevice), "Device updated successfully")
+	common.Respond(w, r, http.StatusOK, newDeviceResponse(r.Context(), rs.IoTService, updatedDevice), "Device updated successfully")
 }
 
 // deleteDevice handles deleting a device
@@ -273,7 +273,7 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
@@ -302,7 +302,7 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
@@ -324,7 +324,7 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, msgDevicesRetrieved)
 }
@@ -339,7 +339,7 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Active devices retrieved successfully")
 }
@@ -354,7 +354,7 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Devices requiring maintenance retrieved successfully")
 }
@@ -379,7 +379,7 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Offline devices retrieved successfully")
 }
@@ -435,7 +435,7 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build response
-	responses := newDeviceResponses(devices)
+	responses := newDeviceResponses(r.Context(), rs.IoTService, devices)
 
 	common.Respond(w, r, http.StatusOK, responses, "Device detection completed")
 }

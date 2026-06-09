@@ -82,6 +82,14 @@ const (
 	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
 )
 
+// IoT device health-monitoring settings (issue #586 — Rule 12 extraction).
+// A device counts as "online" when its last_seen timestamp is within
+// KeyDeviceOnlineWindowMinutes of now. The 5-minute window moved off the
+// iot.Device model into this per-tenant setting.
+const (
+	KeyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
+)
+
 // Tracking indicator settings (student card activity indicators).
 const (
 	KeyTrackingIndicatorsEnabled = "tracking.indicators_enabled"

@@ -345,6 +345,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// operations.excused_clear_mode settings.
 	activeService.SetSettingsService(settingsService)
 
+	// Inject settings resolver into the IoT service so the device-online window
+	// (iot.device_online_window_minutes) is resolved per tenant (issue #586).
+	iotService.SetSettingsService(settingsService)
+
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
 		repos.ActivityCategory,
