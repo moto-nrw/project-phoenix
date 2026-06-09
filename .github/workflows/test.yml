@@ -59,9 +59,6 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Install gotestsum
-        run: go install gotest.tools/gotestsum@v1.13.0
-
       - name: Restore migrated DB snapshot
         id: db-snapshot
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
@@ -133,8 +130,10 @@ jobs:
         # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
         # gotestsum reruns overwrite the coverage profile (upstream issue;
         # fix PR unmerged), and flaky tests should fail loudly, not retry.
+        # gotestsum is a go.mod tool directive, so its whole dependency
+        # graph is locked by go.sum (sonar githubactions:S8545).
         run: |
-          gotestsum \
+          go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
             -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
