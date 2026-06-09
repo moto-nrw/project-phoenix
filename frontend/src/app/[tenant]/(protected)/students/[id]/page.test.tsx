@@ -249,6 +249,20 @@ vi.mock("~/components/students/student-checkout-section", () => ({
       </button>
     </div>
   ),
+  StudentStatusActionsMenu: ({
+    onPlanClassTrip,
+  }: {
+    isClassTrip: boolean;
+    classTripSince?: string;
+    onPlanClassTrip: () => void;
+    isLoading: boolean;
+  }) => (
+    <div data-testid="status-actions-menu">
+      <button data-testid="class-trip-action" onClick={onPlanClassTrip}>
+        Klassenfahrt planen
+      </button>
+    </div>
+  ),
   StudentSickReportSection: ({
     isSick,
     onToggle,

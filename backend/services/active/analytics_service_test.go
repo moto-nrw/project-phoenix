@@ -3,7 +3,9 @@ package active_test
 
 import (
 	"testing"
+	"time"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,5 +46,49 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, analytics.ActiveActivities, 1, "Should have at least 1 active activity")
+	})
+
+	t.Run("counts class trip students as excused without double counting excused students", func(t *testing.T) {
+		// ARRANGE
+		before, err := service.GetDashboardAnalytics(ctx)
+		require.NoError(t, err)
+
+		classTripStudent := testpkg.CreateTestStudent(t, db, "ClassTrip", "Dashboard", "CT1")
+		alreadyExcusedStudent := testpkg.CreateTestStudent(t, db, "ExcusedClassTrip", "Dashboard", "CT2")
+		defer testpkg.CleanupActivityFixtures(t, db, classTripStudent.ID, alreadyExcusedStudent.ID)
+
+		excused := true
+		_, err = db.NewUpdate().
+			Model(alreadyExcusedStudent).
+			Set("excused = ?", excused).
+			Where("id = ?", alreadyExcusedStudent.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		now := time.Now()
+		for _, studentID := range []int64{classTripStudent.ID, alreadyExcusedStudent.ID} {
+			_, err = db.NewRaw(`
+				INSERT INTO active.student_status_days
+					(tenant_id, student_id, date, status, reported_at, source, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`,
+				classTripStudent.GetTenantID(),
+				studentID,
+				now,
+				activeModels.StudentStatusDayClassTrip,
+				now,
+				activeModels.StudentStatusSourcePlanned,
+				now,
+				now,
+			).Exec(ctx)
+			require.NoError(t, err)
+		}
+
+		// ACT
+		after, err := service.GetDashboardAnalytics(ctx)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.Equal(t, before.StudentsExcused+2, after.StudentsExcused)
 	})
 }

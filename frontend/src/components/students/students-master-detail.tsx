@@ -307,7 +307,7 @@ export function StudentsMasterDetail({
       ) : null}
       {classTripTarget ? (
         <ClassTripBulkStatusModal
-          isOpen={classTripTarget !== null}
+          isOpen={true}
           onClose={handleClassTripClose}
           targetLabel={classTripTarget.label}
           students={classTripTarget.students}

@@ -209,8 +209,6 @@ export function PlannedStatusDaysModal({
           <div className="moto-content-surface mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 shadow-sm">
             {isSick ? (
               <CalendarX className="h-5 w-5" />
-            ) : isClassTrip ? (
-              <CalendarCheck className="h-5 w-5" />
             ) : (
               <CalendarCheck className="h-5 w-5" />
             )}

@@ -395,6 +395,34 @@ describe("student-time-status helpers", () => {
     );
   });
 
+  it("treats class trip as a resolved absence and keeps absence priority explicit", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "14:00",
+      classTrip: true,
+      now: new Date("2025-01-15T15:00:00"),
+    });
+
+    expect(status).toEqual(
+      expect.objectContaining({
+        state: "absent-excused",
+        icon: "clock",
+        iconColor: LOCATION_COLORS.UNKNOWN,
+        isResolved: true,
+      }),
+    );
+    expect(getStudentAbsence({ classTrip: true })).toEqual({
+      reason: "class_trip",
+      label: "Klassenfahrt",
+    });
+    expect(
+      getStudentAbsence({ sick: true, classTrip: true, excused: true }),
+    ).toEqual({ reason: "sick", label: "krank gemeldet" });
+    expect(getStudentAbsence({ classTrip: true, excused: true })).toEqual({
+      reason: "class_trip",
+      label: "Klassenfahrt",
+    });
+  });
+
   it("marks a student closed out only when both rows are resolved", () => {
     const arrival = getStudentTimeStatus({
       plannedTime: "08:00",
