@@ -195,22 +195,6 @@ func (p *Phase) Validate() error {
 	return nil
 }
 
-// IsEnrollmentWindowOpen returns true when the configured window
-// includes `now`. NULL bounds mean "unbounded on that side". The
-// public-form gate uses this; the private admin pages don't, since
-// admins can preview/edit closed phases.
-func (p *Phase) IsEnrollmentWindowOpen(now time.Time) bool {
-	if p.EnrollmentOpenAt != nil && now.Before(*p.EnrollmentOpenAt) {
-		return false
-	}
-	if p.EnrollmentCloseAt != nil && !now.Before(*p.EnrollmentCloseAt) {
-		// Half-open semantics: the moment close arrives, the window is
-		// closed. Mirrors care_offering.IsApplicationWindowOpen.
-		return false
-	}
-	return true
-}
-
 // PhaseRepository is the DB contract the phase service consumes. PR A
 // ships everything below; PR B's admin-page handlers + PR C's parent-
 // landing endpoint use them as-is.
