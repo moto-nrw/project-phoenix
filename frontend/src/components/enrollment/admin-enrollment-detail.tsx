@@ -794,21 +794,69 @@ function ChildExtraFields({
   );
 }
 
+const WEEKDAYS = [
+  ["mon", "Mo"],
+  ["tue", "Di"],
+  ["wed", "Mi"],
+  ["thu", "Do"],
+  ["fri", "Fr"],
+] as const;
+
+function formatStringValue(
+  v: string,
+  field?: AdminRequestSchemaField,
+): React.ReactNode | null {
+  const trimmed = v.trim();
+  if (trimmed === "") return null;
+  if (field?.type === "select" && field.options) {
+    const opt = field.options.find((o) => o.value === trimmed);
+    if (opt) return opt.label;
+  }
+  return trimmed;
+}
+
+function formatWeekdayObject(
+  o: Record<string, unknown>,
+): React.ReactNode | null {
+  // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
+  // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
+  // mirroring the backend export renderer (formatWeekdayBoolean in
+  // export_format.go). Detected by value type so it works without `field`.
+  if (WEEKDAYS.some(([key]) => typeof o[key] === "boolean")) {
+    const days = WEEKDAYS.filter(([key]) => o[key] === true).map(
+      ([, label]) => label,
+    );
+    if (days.length === 0) return null;
+    return days.join(", ");
+  }
+
+  // weekday_schedule: values are per-day time strings ({mon: "07:30"}).
+  const cells = WEEKDAYS.map(([key, label]) => ({
+    label,
+    value: o[key],
+  })).filter(
+    (c) => typeof c.value === "string" && (c.value as string).trim() !== "",
+  );
+  if (cells.length === 0) return null;
+  return (
+    <span>
+      {cells.map((c) => (
+        <span key={c.label} className="mr-3 inline-block">
+          <span className="text-gray-500">{c.label}:</span>{" "}
+          <span className="font-medium">{c.value as string}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function formatCustomValue(
   v: unknown,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "boolean") return v ? "Ja" : "Nein";
-  if (typeof v === "string") {
-    const trimmed = v.trim();
-    if (trimmed === "") return null;
-    if (field?.type === "select" && field.options) {
-      const opt = field.options.find((o) => o.value === trimmed);
-      if (opt) return opt.label;
-    }
-    return trimmed;
-  }
+  if (typeof v === "string") return formatStringValue(v, field);
   if (typeof v === "number") return String(v);
 
   if (Array.isArray(v)) {
@@ -824,43 +872,7 @@ export function formatCustomValue(
     );
   }
   if (typeof v === "object") {
-    const o = v as Record<string, unknown>;
-    const weekdays = [
-      ["mon", "Mo"],
-      ["tue", "Di"],
-      ["wed", "Mi"],
-      ["thu", "Do"],
-      ["fri", "Fr"],
-    ] as const;
-
-    // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
-    // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
-    // mirroring the backend export renderer (formatWeekdayBoolean in
-    // export_format.go). Detected by value type so it works without `field`.
-    if (weekdays.some(([key]) => typeof o[key] === "boolean")) {
-      const days = weekdays
-        .filter(([key]) => o[key] === true)
-        .map(([, label]) => label);
-      if (days.length === 0) return null;
-      return days.join(", ");
-    }
-
-    const cells = weekdays
-      .map(([key, label]) => ({ label, value: o[key] }))
-      .filter(
-        (c) => typeof c.value === "string" && (c.value as string).trim() !== "",
-      );
-    if (cells.length === 0) return null;
-    return (
-      <span>
-        {cells.map((c) => (
-          <span key={c.label} className="mr-3 inline-block">
-            <span className="text-gray-500">{c.label}:</span>{" "}
-            <span className="font-medium">{c.value as string}</span>
-          </span>
-        ))}
-      </span>
-    );
+    return formatWeekdayObject(v as Record<string, unknown>);
   }
   return String(v);
 }
