@@ -221,25 +221,28 @@ echo ""
 echo "=== Check 4: Fail-fast config guard ==="
 
 ENV_JS="${PROJECT_ROOT}/frontend/src/env.js"
-if [[ -f "$ENV_JS" ]]; then
+ENV_VALIDATION_JS="${PROJECT_ROOT}/frontend/src/lib/env-validation.js"
+if [[ -f "$ENV_JS" && -f "$ENV_VALIDATION_JS" ]]; then
   env_schema_violations=$(
-    grep -nE '\.(default|optional)\(' "$ENV_JS" \
+    grep -nE '\.(default|optional)\(' "$ENV_JS" "$ENV_VALIDATION_JS" \
       | grep -v 'default("development")' \
       | grep -v 'default("info")' \
+      | grep -v 'const optionalUrl' \
+      | grep -v 'const optionalString' \
       | grep -v 'NEXT_PUBLIC_POSTHOG_KEY' \
       | grep -v 'NEXT_PUBLIC_POSTHOG_HOST' \
       | grep -v 'NEXT_PUBLIC_SENTRY_DSN' \
       | grep -v 'NEXT_PUBLIC_SENTRY_ENVIRONMENT' || true
   )
   if [[ -n "$env_schema_violations" ]]; then
-    echo "❌ frontend/src/env.js contains unapproved .default()/.optional() usage:"
+    echo "❌ frontend env schema contains unapproved .default()/.optional() usage:"
     echo "$env_schema_violations" | sed 's/^/   /'
     exit_code=1
   else
     echo "✅ frontend env schema has no unapproved defaults/options"
   fi
 else
-  echo "❌ frontend/src/env.js not found"
+  echo "❌ frontend env schema files not found"
   exit_code=1
 fi
 

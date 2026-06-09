@@ -35,8 +35,11 @@ ENV NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
 ARG NEXT_PUBLIC_SENTRY_ENVIRONMENT
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
 
-# Build the app. Runtime env is validated when the container starts; build-time
-# validation would require baking runtime secrets into the image.
+# Public client env is embedded into the browser bundle during next build, so
+# validate those build args before skipping the full runtime-secret schema.
+RUN pnpm run validate:build-env
+
+# Build the app. Runtime secrets are validated when the container starts.
 RUN SKIP_ENV_VALIDATION=true pnpm run build
 
 # Set production environment
