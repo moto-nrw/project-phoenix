@@ -31,7 +31,7 @@ import { Button } from "~/components/ui/button";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   SlideOver,
-  SlideOverClose,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -274,15 +274,7 @@ export function InstanceDetailSlideOver({
                   {instance.endTime}
                 </SlideOverDescription>
               </div>
-              <SlideOverClose asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-100"
-                  aria-label="Schließen"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </SlideOverClose>
+              <SlideOverCloseButton />
             </div>
           </SlideOverHeader>
 
@@ -399,7 +391,7 @@ export function InstanceDetailSlideOver({
               {instance.status === "planned" && !editDeferred && onEdit && (
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="md"
                   type="button"
                   onClick={() => onEdit(instance)}
                   disabled={pendingAction !== null}
@@ -415,7 +407,7 @@ export function InstanceDetailSlideOver({
                 onRepeat && (
                   <Button
                     variant="outline"
-                    size="sm"
+                    size="md"
                     type="button"
                     onClick={() => onRepeat(instance)}
                     disabled={pendingAction !== null}
@@ -429,7 +421,7 @@ export function InstanceDetailSlideOver({
               {instance.status === "active" && (
                 <Button
                   variant="primary"
-                  size="sm"
+                  size="md"
                   type="button"
                   onClick={() => void handleLifecycle("complete")}
                   isLoading={pendingAction === "complete"}
@@ -446,7 +438,7 @@ export function InstanceDetailSlideOver({
                 instance.status === "active") && (
                 <Button
                   variant="outline_danger"
-                  size="sm"
+                  size="md"
                   type="button"
                   onClick={() => void handleLifecycle("cancel")}
                   isLoading={pendingAction === "cancel"}
@@ -474,7 +466,7 @@ export function InstanceDetailSlideOver({
                   {onDeleteCancelled && (
                     <Button
                       variant="outline_danger"
-                      size="sm"
+                      size="md"
                       type="button"
                       onClick={() => void handleDeleteCancelled()}
                       isLoading={pendingDelete}

@@ -206,7 +206,10 @@ export function getGermanWeekdayShort(d: Date): string {
 }
 
 /**
- * "KW 38 • Mo 22.09 – So 28.09.2026" — the week-navigator header.
+ * "KW 38 · 22.09.–28.09.2026" — the week-navigator header. Weekday names are
+ * omitted on purpose: the grid columns directly below already show Mo–So, so
+ * repeating them here only bloated the label and pushed the toolbar onto a
+ * second row.
  */
 export function formatWeekLabel(from: Date, to: Date): string {
   const kw = getISOWeekNumber(from);
@@ -215,7 +218,7 @@ export function formatWeekLabel(from: Date, to: Date): string {
   const toDay = String(to.getDate()).padStart(2, "0");
   const toMonth = String(to.getMonth() + 1).padStart(2, "0");
   const year = to.getFullYear();
-  return `KW ${kw} • Mo ${fromDay}.${fromMonth} – So ${toDay}.${toMonth}.${year}`;
+  return `KW ${kw} · ${fromDay}.${fromMonth}.–${toDay}.${toMonth}.${year}`;
 }
 
 /**

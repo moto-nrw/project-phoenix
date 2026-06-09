@@ -24,6 +24,7 @@ import { useRef, useState } from "react";
 import { CalendarPlus, ChevronDown, RefreshCw } from "lucide-react";
 
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 
 interface PlanningMenuProps {
@@ -67,23 +68,22 @@ export function PlanningMenu({
   };
 
   const isPending = materializing || replanning;
-  const triggerClass =
-    emphasis === "primary"
-      ? "bg-gray-900 text-white hover:bg-gray-700"
-      : emphasis === "accent"
-        ? "bg-[#83CD2D] text-gray-950 hover:bg-[#74b827]"
-        : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
+  // The planning CTA uses the standard primary (gray-900) like every other
+  // primary button; "secondary" falls back to the kit outline variant.
+  const triggerVariant = emphasis === "secondary" ? "outline" : "primary";
 
   return (
     <>
       <div className="relative w-full sm:w-auto" ref={containerRef}>
-        <button
+        <Button
           type="button"
+          variant={triggerVariant}
+          size="compact"
           onClick={() => setOpen((v) => !v)}
           disabled={disabled || isPending}
           aria-haspopup="menu"
           aria-expanded={open}
-          className={`inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${triggerClass}`}
+          className="w-full sm:w-auto"
         >
           {isPending ? (
             <RefreshCw className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -95,7 +95,7 @@ export function PlanningMenu({
             className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
             aria-hidden
           />
-        </button>
+        </Button>
 
         {open && (
           <div

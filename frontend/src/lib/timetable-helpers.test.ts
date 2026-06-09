@@ -150,7 +150,7 @@ describe("date and range helpers", () => {
     expect(formatWeekLabel(monday, sunday)).toContain("KW 19");
     expect(formatWeekLabel(weekOne2027, weekOneSunday2027)).toContain("KW 1");
     expect(formatWeekLabel(monday, sunday)).toContain("04.05");
-    expect(formatWeekLabel(monday, sunday)).toContain("So 10.05.2026");
+    expect(formatWeekLabel(monday, sunday)).toContain("10.05.2026");
     expect(formatDayHeader(monday)).toBe("Mo 04.05.");
     expect(formatMonthLabel(monday)).toMatch(/Mai 2026/i);
     expect(formatYearLabel(monday)).toBe("2026");

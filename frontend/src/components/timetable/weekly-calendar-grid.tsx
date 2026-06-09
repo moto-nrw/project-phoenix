@@ -124,7 +124,7 @@ export function WeeklyCalendarGrid({
               type="button"
               onClick={() => setSelectedDayIndex(index)}
               aria-pressed={isSelected}
-              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                 isSelected
                   ? "bg-gray-900 text-white"
                   : "text-gray-600 hover:bg-gray-100"

@@ -22,7 +22,7 @@ import {
   InstanceDetailSlideOver,
   type LifecycleAction,
 } from "~/components/timetable/instance-detail-slide-over";
-import { PlanningMenu } from "~/components/timetable/planning-menu";
+import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
@@ -589,7 +589,7 @@ function TimetablesContent() {
   useEffect(() => {
     if (!errorMessage) return;
     logger.error("week_load_failed", { error: errorMessage });
-    toastError(`Stundenplan konnte nicht geladen werden: ${errorMessage}`);
+    toastError(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
   }, [errorMessage, toastError]);
 
   useEffect(() => {
@@ -1105,25 +1105,12 @@ function TimetablesContent() {
           : true;
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4">
       {/* Mobile title via the shared kit PageHeader (md:hidden); on desktop
           the sidebar provides page context, matching every other page. The
-          period switcher stays reachable at all widths in its own row. */}
-      <PageHeader title="Stundenplan" />
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <PeriodSwitcherDropdown
-          periods={calendarPeriods}
-          weekDays={periodContextDays}
-          view={view}
-          selectedPeriodId={
-            view === "series" ? (templatePeriodID ?? null) : null
-          }
-          isLoading={periodsLoading}
-          onCreate={openPeriodCreate}
-          onEdit={openPeriodEdit}
-          onSelect={jumpToPeriod}
-        />
-      </div>
+          period switcher lives inside the toolbar (below) so it isn't a dead
+          top row. */}
+      <PageHeader title="Betreuungsplan" />
 
       <TimetableToolbar
         view={view}
@@ -1142,17 +1129,34 @@ function TimetablesContent() {
         navDisabled={view === "series"}
         density={density}
         onDensityChange={setDensity}
-        onAddInstance={openEventCreate}
+        periodSwitcher={
+          <PeriodSwitcherDropdown
+            periods={calendarPeriods}
+            weekDays={periodContextDays}
+            view={view}
+            selectedPeriodId={
+              view === "series" ? (templatePeriodID ?? null) : null
+            }
+            isLoading={periodsLoading}
+            onCreate={openPeriodCreate}
+            onEdit={openPeriodEdit}
+            onSelect={jumpToPeriod}
+          />
+        }
         planWeekAction={
-          view === "week" && weekHasFullPeriodCoverage ? (
-            <PlanningMenu
-              onMaterialize={handleMaterialize}
-              onReplan={handleReplanWeek}
-              weekLabel={weekLabel}
-              emphasis="accent"
-              label="Angebote einplanen"
-            />
-          ) : null
+          <TimetableAddMenu
+            onAddInstance={openEventCreate}
+            onAddSeries={openSeriesCreate}
+            planning={
+              view === "week" && weekHasFullPeriodCoverage
+                ? {
+                    onMaterialize: handleMaterialize,
+                    onReplan: handleReplanWeek,
+                    weekLabel,
+                  }
+                : undefined
+            }
+          />
         }
       />
 
@@ -1162,7 +1166,7 @@ function TimetablesContent() {
 
       {view === "month" &&
         (isInstanceDataLoading ? (
-          <div className="moto-content-surface rounded-2xl border p-8">
+          <div className="moto-content-surface rounded-2xl border p-6">
             <Loading />
           </div>
         ) : (
@@ -1177,7 +1181,7 @@ function TimetablesContent() {
 
       {view === "year" &&
         (isInstanceDataLoading ? (
-          <div className="moto-content-surface rounded-2xl border p-8">
+          <div className="moto-content-surface rounded-2xl border p-6">
             <Loading />
           </div>
         ) : (
@@ -1193,7 +1197,7 @@ function TimetablesContent() {
       {view === "week" && (
         <>
           {isInstanceDataLoading ? (
-            <div className="moto-content-surface rounded-2xl border p-8">
+            <div className="moto-content-surface rounded-2xl border p-6">
               <Loading />
             </div>
           ) : (
@@ -1379,7 +1383,7 @@ function TimetablesContent() {
             </>
           ) : null}{" "}
           verschwindet aus der Serienliste. Bereits erzeugte konkrete Termine
-          bleiben im Stundenplan erhalten.
+          bleiben im Betreuungsplan erhalten.
         </p>
       </ConfirmationModal>
     </div>

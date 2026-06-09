@@ -66,7 +66,7 @@ export function TemplateCard({
   const timeRange = summarizeTimeRange(template);
 
   return (
-    <article className="group moto-content-surface relative flex flex-col overflow-hidden rounded-2xl border transition-shadow hover:shadow-sm">
+    <article className="group moto-content-surface relative flex flex-col overflow-hidden rounded-2xl border transition-shadow hover:shadow-md">
       <div
         className="absolute top-0 left-0 h-full w-1"
         style={{ backgroundColor: color }}

@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { renderModalErrorAlert } from "~/components/ui/modal-utils";
@@ -213,7 +214,7 @@ export function CalendarPeriodModal({
                 <Button
                   type="button"
                   variant="outline_danger"
-                  size="sm"
+                  size="md"
                   onClick={() => void handleDelete()}
                   isLoading={deleting}
                   loadingText="Lösche …"
@@ -244,7 +245,7 @@ export function CalendarPeriodModal({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="md"
               onClick={onClose}
               disabled={submitting || deleting}
             >
@@ -254,7 +255,7 @@ export function CalendarPeriodModal({
               type="submit"
               form="calendar-period-form"
               variant="primary"
-              size="sm"
+              size="md"
               isLoading={submitting}
               loadingText="Speichere …"
               disabled={!canSubmit || deleting}
@@ -344,12 +345,14 @@ export function CalendarPeriodModal({
           </Field>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-          <input
-            type="checkbox"
+        <label
+          htmlFor="period_active"
+          className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+        >
+          <Checkbox
+            id="period_active"
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
-            className="h-4 w-4"
           />
           <span className="font-semibold text-gray-700">Periode ist aktiv</span>
           <span className="text-xs text-gray-500">

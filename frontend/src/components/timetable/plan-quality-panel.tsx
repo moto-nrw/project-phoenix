@@ -154,7 +154,7 @@ export function PlanQualityPanel({
       </div>
 
       {hasError && (
-        <div className="mt-4 rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3 text-xs text-[#EAB308]">
+        <div className="mt-4 rounded-xl border border-[#EAB308]/20 bg-[#EAB308]/10 p-3 text-xs text-[#EAB308]">
           <div className="flex items-center gap-2 font-bold">
             <TriangleAlert className="h-4 w-4" />
             Prüfung unvollständig
@@ -169,7 +169,7 @@ export function PlanQualityPanel({
       {(gaps.length > 0 || conflicts.length > 0) && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {gaps.length > 0 && (
-            <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+            <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
               <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                 <UserPlus className="h-4 w-4" />
                 Personal-Lücken
@@ -203,7 +203,7 @@ export function PlanQualityPanel({
                         <div className="mt-2">
                           <Button
                             type="button"
-                            size="sm"
+                            size="compact"
                             variant="outline"
                             onClick={() => onEditInstance(gap.instanceId)}
                           >
@@ -232,7 +232,7 @@ export function PlanQualityPanel({
                                   [gap.instanceId]: e.target.value,
                                 }))
                               }
-                              className="moto-select block min-w-48 rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                              className="moto-select block min-w-48 rounded-md border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                             >
                               {absentRows.map((item) => (
                                 <option key={item.staffId} value={item.staffId}>
@@ -250,7 +250,7 @@ export function PlanQualityPanel({
                                 [gap.instanceId]: e.target.value,
                               }))
                             }
-                            className="moto-select block min-w-48 rounded-lg border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                            className="moto-select block min-w-48 rounded-md border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
                           >
                             <option value="">Ersatz auswählen …</option>
                             {availableStaff.map((item) => (
@@ -261,7 +261,7 @@ export function PlanQualityPanel({
                           </select>
                           <Button
                             type="button"
-                            size="sm"
+                            size="compact"
                             variant="outline"
                             onClick={() => handleSubstitute(gap)}
                             isLoading={submittingGapId === gap.instanceId}
@@ -279,7 +279,7 @@ export function PlanQualityPanel({
           )}
 
           {conflicts.length > 0 && (
-            <div className="rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3">
+            <div className="rounded-xl border border-[#EAB308]/20 bg-[#EAB308]/10 p-3">
               <div className="flex items-center gap-2 text-xs font-bold text-[#EAB308]">
                 <TriangleAlert className="h-4 w-4" />
                 Ausnahmen prüfen

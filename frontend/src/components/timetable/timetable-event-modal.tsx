@@ -1,20 +1,22 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import {
   SlideOver,
-  SlideOverClose,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -596,18 +598,10 @@ export function TimetableEventModal({
               <SlideOverDescription>
                 {isSeriesFlow
                   ? "Wiederkehrenden Termin mit Kindern und Personal planen."
-                  : "Einmaligen Termin im Stundenplan anlegen."}
+                  : "Einmaligen Termin im Betreuungsplan anlegen."}
               </SlideOverDescription>
             </div>
-            <SlideOverClose asChild>
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100"
-                aria-label="Schließen"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </SlideOverClose>
+            <SlideOverCloseButton />
           </div>
         </SlideOverHeader>
 
@@ -698,39 +692,32 @@ export function TimetableEventModal({
               <span className="text-xs font-semibold text-gray-700">
                 Wiederholen
               </span>
-              <div className="inline-flex w-fit rounded-md bg-gray-100 p-0.5">
-                {REPEAT_OPTIONS.map((option) => {
-                  const isActive = form.repeat === option.value;
-                  const disabled = isEditingSeries && option.value === "none";
-                  return (
-                    <button
+              <Tabs
+                value={form.repeat}
+                onValueChange={(value) => {
+                  const nextRepeat = value as RepeatMode;
+                  update("repeat", nextRepeat);
+                  if (nextRepeat !== "none" && form.weekdays.length === 0) {
+                    const weekday = isoWeekday(form.date);
+                    update(
+                      "weekdays",
+                      weekday >= 1 && weekday <= 5 ? [weekday] : [1],
+                    );
+                  }
+                }}
+              >
+                <TabsList aria-label="Wiederholung" className="w-fit">
+                  {REPEAT_OPTIONS.map((option) => (
+                    <TabsTrigger
                       key={option.value}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        update("repeat", option.value);
-                        if (
-                          option.value !== "none" &&
-                          form.weekdays.length === 0
-                        ) {
-                          const weekday = isoWeekday(form.date);
-                          update(
-                            "weekdays",
-                            weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-                          );
-                        }
-                      }}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                        isActive
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
+                      value={option.value}
+                      disabled={isEditingSeries && option.value === "none"}
                     >
                       {option.label}
-                    </button>
-                  );
-                })}
-              </div>
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
 
             {isSeriesFlow && (
@@ -869,7 +856,7 @@ export function TimetableEventModal({
                       <span className="text-xs font-semibold text-gray-700">
                         Planungsperiode
                       </span>
-                      <div className="flex h-10 items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                      <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-600">
                         <span className="truncate">
                           Gilt in{" "}
                           <span className="font-semibold text-gray-800">
@@ -956,7 +943,7 @@ export function TimetableEventModal({
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="md"
             onClick={onClose}
             disabled={submitting}
           >
@@ -966,7 +953,7 @@ export function TimetableEventModal({
             type="submit"
             form="timetable-event-form"
             variant="primary"
-            size="sm"
+            size="md"
             isLoading={submitting}
             loadingText="Speichere ..."
             disabled={!canSubmit}
@@ -1193,11 +1180,9 @@ function MultiSelectField({
                 key={option.id}
                 className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selected.has(option.id)}
                   onChange={() => toggle(option.id)}
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-200"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{option.name}</span>

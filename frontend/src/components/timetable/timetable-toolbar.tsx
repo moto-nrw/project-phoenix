@@ -61,6 +61,8 @@ interface TimetableToolbarProps {
   /** Currently active week density. Only rendered in week view. */
   density?: WeekDensity;
   onDensityChange?: (next: WeekDensity) => void;
+  /** Period selector — folded into the toolbar so it isn't a dead top row. */
+  periodSwitcher?: ReactNode;
   /** Primary add actions live in the toolbar to keep chrome on one row. */
   onAddInstance?: () => void;
   planWeekAction?: ReactNode;
@@ -84,6 +86,7 @@ export function TimetableToolbar({
   navDisabled = false,
   density,
   onDensityChange,
+  periodSwitcher,
   onAddInstance,
   planWeekAction,
 }: TimetableToolbarProps) {
@@ -96,7 +99,7 @@ export function TimetableToolbar({
       <Tabs
         value={view}
         onValueChange={(next) => onViewChange(next as TimetableView)}
-        className="w-full sm:w-auto lg:self-auto"
+        className="w-full sm:w-auto lg:shrink-0 lg:self-auto"
       >
         <TabsList
           aria-label="Ansicht wählen"
@@ -159,11 +162,9 @@ export function TimetableToolbar({
         </div>
       )}
 
-      {/* Spacer pushes everything below to the right */}
-      <div className="hidden flex-1 lg:block" />
-
-      {(onAddInstance || planWeekAction || showDensity) && (
-        <div className="flex w-full items-stretch gap-2 sm:w-auto sm:items-center lg:ml-auto">
+      {(periodSwitcher || onAddInstance || planWeekAction || showDensity) && (
+        <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center lg:ml-auto lg:shrink-0 lg:flex-nowrap">
+          {periodSwitcher}
           {planWeekAction && (
             <div className="min-w-0 flex-1 sm:flex-none">{planWeekAction}</div>
           )}

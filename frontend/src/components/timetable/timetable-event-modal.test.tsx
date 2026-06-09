@@ -316,7 +316,9 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Raum*"), {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Jede Woche" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
     fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },

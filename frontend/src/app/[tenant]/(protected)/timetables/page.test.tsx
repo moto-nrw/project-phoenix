@@ -151,8 +151,8 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
     onPrev,
     onNext,
     onToday,
-    onAddInstance,
     onDensityChange,
+    periodSwitcher,
     planWeekAction,
   }: {
     view: string;
@@ -161,8 +161,8 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
     onPrev: () => void;
     onNext: () => void;
     onToday: () => void;
-    onAddInstance: () => void;
     onDensityChange: (density: "compact" | "normal" | "comfortable") => void;
+    periodSwitcher: React.ReactNode;
     planWeekAction: React.ReactNode;
   }) => (
     <div data-testid="toolbar">
@@ -193,29 +193,42 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
       <button type="button" onClick={() => onDensityChange("comfortable")}>
         density
       </button>
-      <button type="button" onClick={onAddInstance}>
-        add-instance
-      </button>
+      {periodSwitcher}
       {planWeekAction}
     </div>
   ),
 }));
 
-vi.mock("~/components/timetable/planning-menu", () => ({
-  PlanningMenu: ({
-    onMaterialize,
-    onReplan,
+vi.mock("~/components/timetable/timetable-add-menu", () => ({
+  TimetableAddMenu: ({
+    onAddInstance,
+    onAddSeries,
+    planning,
   }: {
-    onMaterialize: () => Promise<void>;
-    onReplan: () => Promise<void>;
+    onAddInstance: () => void;
+    onAddSeries: () => void;
+    planning?: {
+      onMaterialize: () => Promise<void>;
+      onReplan: () => Promise<void>;
+    };
   }) => (
     <div>
-      <button type="button" onClick={() => void onMaterialize()}>
-        materialize
+      <button type="button" onClick={onAddInstance}>
+        add-instance
       </button>
-      <button type="button" onClick={() => void onReplan()}>
-        replan
+      <button type="button" onClick={onAddSeries}>
+        add-series
       </button>
+      {planning && (
+        <>
+          <button type="button" onClick={() => void planning.onMaterialize()}>
+            materialize
+          </button>
+          <button type="button" onClick={() => void planning.onReplan()}>
+            replan
+          </button>
+        </>
+      )}
     </div>
   ),
 }));
@@ -674,7 +687,9 @@ describe("TimetablesPage", () => {
   it("renders month view by default and opens create/edit period flows", async () => {
     render(<TimetablesPage />);
 
-    expect(screen.getByRole("heading", { name: "Stundenplan" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Betreuungsplan" }),
+    ).toBeVisible();
     expect(screen.getByText(/month:/)).toBeInTheDocument();
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
 
