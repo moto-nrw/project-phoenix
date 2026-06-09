@@ -60,7 +60,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success`; sizes `sm` `base` `lg` `xl` | `~/components/ui/button` |
+| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input` | `~/components/ui/input` |
 | Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
 | Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
@@ -128,12 +128,12 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-The kit does **not** yet have a compact / ghost / icon-only button or a generic `DropdownMenu`. When you need one, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. The kit still does **not** have a generic `DropdownMenu`/popover-menu or a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
-- **`ui/Button` is page-level** (`rounded-lg px-5 py-3 shadow-md`) and defaults `type="submit"`. In a non-form context pass `type="button"`. For dense toolbar chrome it is oversized — prefer a compact variant (add one per **Kit gaps**) over reaching for raw Tailwind.
+- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for dense chrome; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"` instead of reaching for raw Tailwind.
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
 ## Detection
