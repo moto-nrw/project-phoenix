@@ -576,7 +576,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	}
 	requiredConsents, err := s.resolveRequiredConsents(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: resolve required consents: %v", ErrInvalidSubmission, err)
+		return fmt.Errorf("resolve required consents: %w", err)
 	}
 	for _, key := range requiredConsents {
 		accepted, ok := req.ConsentFlags[key].(bool)
@@ -1093,12 +1093,16 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve photo legal text: %w", err)
 	}
+	termsEnabled, err := s.legalTermsEnabled(ctx)
+	if err != nil {
+		return LegalTexts{}, err
+	}
 	texts := LegalTexts{
 		AGB:          strings.TrimSpace(agb),
 		DSGVO:        strings.TrimSpace(dsgvo),
 		EmailContact: strings.TrimSpace(emailContact),
 		Photo:        strings.TrimSpace(photo),
-		TermsEnabled: s.legalTermsEnabled(ctx),
+		TermsEnabled: termsEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
 	return texts, nil
@@ -1149,19 +1153,26 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	return blocks
 }
 
-// legalTermsEnabled reports whether the tenant has switched on the
-// AGB / Teilnahmebedingungen block. Default off (no general duty to use
-// AGB), matching the registry default for enrollment.legal_terms_enabled.
-func (s *requestService) legalTermsEnabled(ctx context.Context) bool {
+// legalTermsEnabled reports whether the tenant has switched on the AGB /
+// Teilnahmebedingungen block. Missing overrides default off; settings errors
+// fail closed because this setting decides whether a required legal block is
+// rendered and enforced.
+func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
-		return false
+		return false, nil
 	}
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentLegalTermsEnabled); err == nil && has {
-		if v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled); err == nil {
-			return v
-		}
+	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	if err != nil {
+		return false, fmt.Errorf("check AGB terms setting override: %w", err)
 	}
-	return false
+	if !has {
+		return false, nil
+	}
+	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	if err != nil {
+		return false, fmt.Errorf("resolve AGB terms setting: %w", err)
+	}
+	return v, nil
 }
 
 // resolveRequiredConsents returns the visible legal blocks the parent must
