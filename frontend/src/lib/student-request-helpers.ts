@@ -168,7 +168,8 @@ export function buildBackendStudentRequest(
     notes: undefined, // Not in frontend model
     tag_id: backendData.tag_id,
     group_id: backendData.group_id,
-    bus: backendData.bus,
+    // bus_days is the single source of truth (#1582); the legacy bus boolean
+    // is no longer sent from the frontend.
     bus_days: backendData.bus_days,
     extra_info: backendData.extra_info,
     birthday: backendData.birthday,

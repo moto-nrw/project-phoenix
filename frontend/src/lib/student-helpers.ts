@@ -46,6 +46,26 @@ export function busDaysHaveAny(value?: BusDays | null): boolean {
   return BUS_WEEKDAYS.some((day) => Boolean(value?.[day.key]));
 }
 
+/**
+ * Resolves bus_days from a simple Buskind Ja/Nein toggle without losing
+ * per-day granularity. Mirrors the backend legacy-bus alias (#1582): turning
+ * the toggle off clears all days; turning it on keeps the existing per-day
+ * selection when present, otherwise defaults to all weekdays (Mo–Fr). Used by
+ * the simplified personal-info form, where only a boolean is captured.
+ */
+export function busDaysFromToggle(
+  enabled: boolean,
+  existing?: BusDays | null,
+): BusDays {
+  if (!enabled) return {};
+  const normalized = normalizeBusDays(existing);
+  if (busDaysHaveAny(normalized)) return normalized;
+  return BUS_WEEKDAYS.reduce<BusDays>((acc, day) => {
+    acc[day.key] = true;
+    return acc;
+  }, {});
+}
+
 export function formatBusDays(value?: BusDays | null): string {
   const labels = BUS_WEEKDAYS.filter((day) => Boolean(value?.[day.key])).map(
     (day) => day.label.slice(0, 2),
@@ -284,7 +304,10 @@ export function mapStudentResponse(
     location_since: backendStudent.location_since ?? undefined,
     current_room_color: backendStudent.current_room_color ?? null,
     takes_bus: undefined,
-    bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
+    // bus is derived from bus_days, the single source of truth (#1582). The
+    // backend already derives it, but we recompute here so the legacy boolean
+    // stays correct even if an older payload omits it.
+    bus: busDaysHaveAny(backendStudent.bus_days),
     bus_days: normalizeBusDays(backendStudent.bus_days),
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
@@ -383,10 +406,10 @@ export function prepareStudentForBackend(
     current_location: student.current_location
       ? normalizeLocation(student.current_location)
       : undefined,
-    // Only send bus when explicitly provided so partial updates (e.g. sick/excused
-    // toggles) don't clobber the persisted Buskind flag. The backend field is
-    // *bool with omitempty — omitting the key leaves the DB value untouched.
-    bus: student.bus,
+    // bus_days is the single source of truth (#1582); we no longer send the
+    // legacy bus boolean. Only send bus_days when explicitly provided so
+    // partial updates (e.g. sick/excused toggles) leave the persisted Buskind
+    // days untouched (the key is omitted, so the backend keeps the DB value).
     bus_days:
       student.bus_days !== undefined
         ? normalizeBusDays(student.bus_days)
@@ -517,7 +540,8 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "health_info", target: "health_info" },
   { source: "supervisor_notes", target: "supervisor_notes" },
   { source: "pickup_status", target: "pickup_status" },
-  { source: "bus", target: "bus" },
+  // bus_days is the single source of truth (#1582); the legacy bus boolean is
+  // no longer sent from the frontend.
   { source: "bus_days", target: "bus_days" },
   { source: "sick", target: "sick" },
   { source: "sick_reason", target: "sick_reason" },
