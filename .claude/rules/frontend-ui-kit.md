@@ -33,6 +33,19 @@ Prose cannot transfer taste, density, spacing judgment, or restraint. Examples c
 
 Keep this list current: if a reference is deleted or substantially rewritten, replace it with the new canonical example.
 
+## Visual references — look at the real UI
+
+Don't design from imagination. The app's real screens are captured as images you can open directly with the Read tool:
+
+- **App screenshots** → `frontend/public/help/screens/*.webp` (52 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
+  - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
+  - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
+  - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities · `feedback.webp` = feedback
+  - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
+- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` → :6006). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
+
+Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
+
 ## New UI is suspicious by default
 
 Writing a new component is the exception, not the default. Every new card/button/table/modal/empty-state that could have reused the kit is drift. Before building one:
@@ -80,6 +93,7 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 - **Card / panel / floating surface wrapper** → `rounded-2xl border border-gray-200 bg-white shadow-sm`. 24px = the design system's `--card-radius`; this is the canonical card (used 13×+ across the app and in `InfoCard`). Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
 - Inner controls (buttons, inputs, pills) get their radius from the kit component. Don't sprinkle bare `rounded` (= 4px Tailwind default, off the brand scale).
+- Component radius tokens: button & input = `--radius-md` (8px), card = `--radius-2xl` (24px), badge/pill = `--radius-full`.
 
 ### Colors — route every semantic color through `LOCATION_COLORS`
 
@@ -97,6 +111,20 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 | Gray (neutral) | `#6B7280` | `UNKNOWN` / `NOT_ARRIVAL` |
 
 Primary action button green: base `#83CD2D`, hover `#74b827`, active `#669f21`.
+
+**Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
+
+### Spacing & padding
+
+Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
+
+- Card → `p-6` (24px); `p-4` compact, `p-10` large
+- Button → `px-5 py-2` (md); `px-3 py-1` (sm)
+- Input → `px-4 py-3`
+
+### Shadows
+
+`shadow-sm` (cards / surfaces — the app default) · `shadow-md` (hover / raised) · `shadow-lg` / `shadow-xl` (overlays / modals). The canonical card uses `shadow-sm`.
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
