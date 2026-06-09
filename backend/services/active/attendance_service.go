@@ -381,8 +381,9 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	// Use first active supervisor
+	now := time.Now()
 	for _, supervisor := range supervisors {
-		if supervisor.IsActive() {
+		if IsSupervisorActive(supervisor, now) {
 			return supervisor.StaffID, nil
 		}
 	}

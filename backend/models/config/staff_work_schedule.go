@@ -63,10 +63,10 @@ func (s *StaffWorkSchedule) Validate() error {
 	if s.DayOfWeek < 0 || s.DayOfWeek > 6 {
 		return errors.New("day_of_week must be between 0 (Monday) and 6 (Sunday)")
 	}
-	if s.TargetMinutes < 0 || s.TargetMinutes > 720 {
+	if s.TargetMinutes < 0 || s.TargetMinutes > WorkTimeModelMaxDailyMinutes {
 		return errors.New("target_minutes must be between 0 and 720 (12h)")
 	}
-	if s.RotationLength < 1 || s.RotationLength > 4 {
+	if s.RotationLength < 1 || s.RotationLength > WorkTimeModelMaxRotation {
 		return errors.New("rotation_length must be between 1 and 4")
 	}
 	if s.WeekIndex < 0 || s.WeekIndex >= s.RotationLength {

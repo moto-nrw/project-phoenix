@@ -38,6 +38,12 @@ const (
 	activeSupervisionReasonStudentMoved    = "student_moved"
 )
 
+// defaultDeviceOnlineWindow is the fallback online/offline cutoff used by the
+// abandoned-session cleanup when no tenant override
+// (iot.device_online_window_minutes) is configured. Moved off the iot.Device
+// model per issue #586 (Rule 12: models hold data, not decisions).
+const defaultDeviceOnlineWindow = 5 * time.Minute
+
 // RoomConflictStrategy defines how to handle room conflicts when determining room ID
 type RoomConflictStrategy int
 
@@ -60,6 +66,7 @@ type CrossTenantRepo interface {
 type SettingsResolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
 // ServiceDependencies contains all dependencies required by the active service
@@ -1126,9 +1133,10 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	}
 
 	// Filter only active supervisions
+	now := time.Now()
 	var activeSupervisions []*active.GroupSupervisor
 	for _, supervisor := range supervisors {
-		if supervisor.IsActive() {
+		if IsSupervisorActive(supervisor, now) {
 			activeSupervisions = append(activeSupervisions, supervisor)
 		}
 	}
@@ -1144,9 +1152,10 @@ func (s *service) GetAllActiveSupervisions(ctx context.Context) ([]*active.Group
 		return nil, &ActiveError{Op: "GetAllActiveSupervisions", Err: ErrDatabaseOperation}
 	}
 
+	now := time.Now()
 	var activeSupervisions []*active.GroupSupervisor
 	for _, supervisor := range supervisors {
-		if supervisor.IsActive() {
+		if IsSupervisorActive(supervisor, now) {
 			activeSupervisions = append(activeSupervisions, supervisor)
 		}
 	}

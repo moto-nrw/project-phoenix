@@ -63,7 +63,7 @@ func (c *Comment) Validate() error {
 	if c.Content == "" {
 		return errors.New("content is required")
 	}
-	if len(c.Content) > 5000 {
+	if len(c.Content) > bodyMaxLength {
 		return errors.New("content must not exceed 5000 characters")
 	}
 	return nil

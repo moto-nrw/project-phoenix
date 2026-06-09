@@ -180,48 +180,6 @@ func TestIsValidSeverity_Invalid(t *testing.T) {
 	assert.False(t, IsValidSeverity("invalid"))
 }
 
-func TestAnnouncement_IsPublished_Nil(t *testing.T) {
-	a := &Announcement{}
-	assert.False(t, a.IsPublished())
-}
-
-func TestAnnouncement_IsPublished_Future(t *testing.T) {
-	future := time.Now().Add(24 * time.Hour)
-	a := &Announcement{
-		PublishedAt: &future,
-	}
-	assert.False(t, a.IsPublished())
-}
-
-func TestAnnouncement_IsPublished_Past(t *testing.T) {
-	past := time.Now().Add(-24 * time.Hour)
-	a := &Announcement{
-		PublishedAt: &past,
-	}
-	assert.True(t, a.IsPublished())
-}
-
-func TestAnnouncement_IsExpired_Nil(t *testing.T) {
-	a := &Announcement{}
-	assert.False(t, a.IsExpired())
-}
-
-func TestAnnouncement_IsExpired_Future(t *testing.T) {
-	future := time.Now().Add(24 * time.Hour)
-	a := &Announcement{
-		ExpiresAt: &future,
-	}
-	assert.False(t, a.IsExpired())
-}
-
-func TestAnnouncement_IsExpired_Past(t *testing.T) {
-	past := time.Now().Add(-24 * time.Hour)
-	a := &Announcement{
-		ExpiresAt: &past,
-	}
-	assert.True(t, a.IsExpired())
-}
-
 func TestAnnouncement_IsDraft_Nil(t *testing.T) {
 	a := &Announcement{}
 	assert.True(t, a.IsDraft())

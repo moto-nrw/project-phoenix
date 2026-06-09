@@ -260,7 +260,7 @@ func (s *operatorAuthService) RevokeOperatorInvitation(ctx context.Context, invi
 	if err != nil {
 		return fmt.Errorf("failed to find invitation: %w", err)
 	}
-	if token == nil || !token.IsValid() {
+	if !OperatorInvitationTokenValid(token, time.Now()) {
 		return &OperatorInvitationNotFoundError{}
 	}
 
@@ -302,7 +302,7 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 	if err != nil {
 		return fmt.Errorf("failed to find invitation: %w", err)
 	}
-	if token == nil || !token.IsValid() {
+	if !OperatorInvitationTokenValid(token, time.Now()) {
 		return &OperatorInvitationNotFoundError{}
 	}
 

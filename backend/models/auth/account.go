@@ -72,36 +72,6 @@ func (a *Account) Validate() error {
 	return nil
 }
 
-// HasRole checks if the account has the specified role
-func (a *Account) HasRole(roleName string) bool {
-	if a.Roles == nil {
-		return false
-	}
-
-	for _, role := range a.Roles {
-		if strings.EqualFold(role.Name, roleName) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// HasPermission checks if the account has the specified permission
-func (a *Account) HasPermission(permission string) bool {
-	if a.Permissions == nil {
-		return false
-	}
-
-	for _, p := range a.Permissions {
-		if strings.EqualFold(p.Name, permission) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // IsActive returns whether the account is active
 func (a *Account) IsActive() bool {
 	return a.Active
@@ -156,60 +126,15 @@ func (a *Account) HasPIN() bool {
 	return a.PINHash != nil && *a.PINHash != ""
 }
 
-// IsPINLocked checks if the account is temporarily locked due to failed PIN attempts
-func (a *Account) IsPINLocked() bool {
-	if a.PINLockedUntil == nil {
-		return false
-	}
-	return time.Now().Before(*a.PINLockedUntil)
-}
-
-// IncrementPINAttempts increments the failed PIN attempt counter and locks if needed
-func (a *Account) IncrementPINAttempts() {
-	a.PINAttempts++
-
-	// Lock account for 15 minutes after 5 failed attempts
-	if a.PINAttempts >= 5 {
-		lockUntil := time.Now().Add(15 * time.Minute)
-		a.PINLockedUntil = &lockUntil
-	}
-}
-
-// ResetPINAttempts resets the failed PIN attempt counter
-func (a *Account) ResetPINAttempts() {
-	a.PINAttempts = 0
-	a.PINLockedUntil = nil
-}
-
-// ClearPIN removes the PIN from the account
-func (a *Account) ClearPIN() {
-	a.PINHash = nil
-	a.ResetPINAttempts()
-}
-
-// MFA-related lockout helpers (mirror PIN-Lockout pattern)
-
-// IsMFALocked reports whether the account is currently in the MFA-failure
-// cooldown window.
-func (a *Account) IsMFALocked() bool {
-	if a.MFALockedUntil == nil {
-		return false
-	}
-	return time.Now().Before(*a.MFALockedUntil)
-}
-
-// IncrementMFAAttempts records a failed MFA verification and applies the
-// 15-minute lockout once the threshold of 5 failures is hit.
-func (a *Account) IncrementMFAAttempts() {
-	a.MFAAttempts++
-	if a.MFAAttempts >= 5 {
-		lockUntil := time.Now().Add(15 * time.Minute)
-		a.MFALockedUntil = &lockUntil
-	}
-}
-
-// ResetMFAAttempts clears any in-flight MFA-failure counter and lockout.
-func (a *Account) ResetMFAAttempts() {
-	a.MFAAttempts = 0
-	a.MFALockedUntil = nil
-}
+// PIN- and MFA-failure lockout policy no longer lives on the model
+// (issue #586, Rule 12). The decision (is the account locked?) and the
+// counter mutations are owned by the service layer with atomic repository
+// methods so concurrent failures can't share an attempt budget:
+//   - PIN:  services/users person service + services/auth Service.IsPINLocked /
+//           RecordFailedPINAttempt / ResetPINLockout
+//           (database/repositories/auth AccountRepository.IncrementPINAttempts,
+//            ResetPINAttempts, ClearPIN)
+//   - MFA:  services/auth mfaService.isMFALocked / handleFailedAttempt
+//           (AccountRepository.IncrementMFAAttempts, ResetMFAAttempts)
+// The account row holds only the pin_attempts / pin_locked_until /
+// mfa_attempts / mfa_locked_until facts.

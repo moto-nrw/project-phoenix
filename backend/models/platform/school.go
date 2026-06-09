@@ -62,13 +62,13 @@ func (s *School) Validate() error {
 	if s.Name == "" {
 		return errors.New("name is required")
 	}
-	if len(s.Name) > 200 {
+	if len(s.Name) > maxNameLen {
 		return errors.New("name must not exceed 200 characters")
 	}
 	if s.Slug == "" {
 		return errors.New("slug is required")
 	}
-	if len(s.Slug) > 100 {
+	if len(s.Slug) > maxSlugLen {
 		return errors.New("slug must not exceed 100 characters")
 	}
 	if !slugRegex.MatchString(s.Slug) {
@@ -80,7 +80,7 @@ func (s *School) Validate() error {
 	if s.Subdomain == "" {
 		return errors.New("subdomain is required")
 	}
-	if len(s.Subdomain) > 63 {
+	if len(s.Subdomain) > maxDNSLabelLen {
 		return errors.New("subdomain must not exceed 63 characters (DNS label limit)")
 	}
 	if !slugRegex.MatchString(s.Subdomain) {
@@ -92,7 +92,7 @@ func (s *School) Validate() error {
 	if s.OrganizationID == 0 {
 		return errors.New("organization_id is required")
 	}
-	if s.Email != "" && len(s.Email) > 255 {
+	if s.Email != "" && len(s.Email) > maxEmailLen {
 		return errors.New("email must not exceed 255 characters")
 	}
 	return nil

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -997,15 +998,16 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 		}
 	}
 
+	now := time.Now()
 	info := &SessionTimeoutInfo{
 		SessionID:          session.ID,
 		ActivityID:         session.GroupID,
 		StartTime:          session.StartTime,
 		LastActivity:       session.LastActivity,
 		TimeoutMinutes:     session.TimeoutMinutes,
-		InactivityDuration: session.GetInactivityDuration(),
-		TimeUntilTimeout:   session.GetTimeUntilTimeout(),
-		IsTimedOut:         session.IsTimedOut(),
+		InactivityDuration: SessionInactivityDuration(session, now),
+		TimeUntilTimeout:   s.SessionTimeUntilTimeout(ctx, session, now),
+		IsTimedOut:         s.IsSessionTimedOut(ctx, session, now),
 		ActiveStudentCount: activeStudentCount,
 	}
 
@@ -1030,7 +1032,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// Session is abandoned only if BOTH conditions are true:
 		// 1. No recent activity (already filtered by query)
 		// 2. Device is offline (not pinging)
-		deviceOnline := session.Device != nil && session.Device.IsOnline()
+		deviceOnline := s.isDeviceOnline(ctx, session.Device, time.Now())
 		if deviceOnline {
 			// Device is still pinging - session stays alive
 			continue
@@ -1051,6 +1053,46 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	}
 
 	return cleanedCount, nil
+}
+
+// isDeviceOnline reports whether the device was online at the supplied
+// observation time. A device is online when its last_seen timestamp is within
+// the resolved online window of now. The window comes from the per-tenant
+// setting iot.device_online_window_minutes, falling back to
+// defaultDeviceOnlineWindow when the resolver is nil, no override exists, or
+// the lookup fails. Moved off the iot.Device model per issue #586 (Rule 12).
+func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, now time.Time) bool {
+	if device == nil || device.LastSeen == nil {
+		return false
+	}
+	return now.Sub(*device.LastSeen) <= s.deviceOnlineWindow(ctx)
+}
+
+// deviceOnlineWindow resolves the per-tenant device-online window, falling back
+// to defaultDeviceOnlineWindow. The key string is inlined (rather than
+// imported from models/config) to avoid a dependency cycle through the factory,
+// matching the GetPresenceMode convention in this package.
+func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
+	const keyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
+	if s.settings == nil {
+		return defaultDeviceOnlineWindow
+	}
+	has, err := s.settings.HasTenantOverride(ctx, keyDeviceOnlineWindowMinutes)
+	if err != nil {
+		s.getLogger().WarnContext(ctx, "device online window override check failed, using default",
+			slog.String("key", keyDeviceOnlineWindowMinutes),
+			slog.String("error", err.Error()),
+		)
+		return defaultDeviceOnlineWindow
+	}
+	if !has {
+		return defaultDeviceOnlineWindow
+	}
+	minutes, err := s.settings.ResolveInt(ctx, keyDeviceOnlineWindowMinutes)
+	if err != nil || minutes <= 0 {
+		return defaultDeviceOnlineWindow
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs

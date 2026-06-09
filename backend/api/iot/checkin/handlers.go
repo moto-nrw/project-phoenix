@@ -59,7 +59,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 		"device_name":    deviceCtx.Name,
 		"status":         deviceCtx.Status,
 		"last_seen":      deviceCtx.LastSeen,
-		"is_online":      deviceCtx.IsOnline(),
+		"is_online":      rs.IoTService.IsDeviceOnline(r.Context(), deviceCtx),
 		"ping_time":      time.Now(),
 		"session_active": sessionActive,
 	}
@@ -89,7 +89,7 @@ func (rs *Resource) deviceStatus(w http.ResponseWriter, r *http.Request) {
 			"name":        deviceCtx.Name,
 			"status":      deviceCtx.Status,
 			"last_seen":   deviceCtx.LastSeen,
-			"is_online":   deviceCtx.IsOnline(),
+			"is_online":   rs.IoTService.IsDeviceOnline(r.Context(), deviceCtx),
 			"is_active":   deviceCtx.IsActive(),
 		},
 		"authenticated_at": time.Now(),

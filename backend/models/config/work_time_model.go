@@ -13,6 +13,9 @@ const (
 	tableWorkTimeModelEntries  = "config.work_time_model_entries"
 	WorkTimeModelMaxRotation   = 4
 	WorkTimeModelDefaultRotate = 1
+	// WorkTimeModelMaxDailyMinutes caps a single day's target working time at
+	// 12 hours (720 minutes). Shared with StaffWorkSchedule validation.
+	WorkTimeModelMaxDailyMinutes = 720
 )
 
 // WorkTimeModel is a tenant-scoped, named template that captures a working-time
@@ -102,7 +105,7 @@ func (e *WorkTimeModelEntry) Validate() error {
 	if e.DayOfWeek < 0 || e.DayOfWeek > 6 {
 		return errors.New("day_of_week must be between 0 (Monday) and 6 (Sunday)")
 	}
-	if e.TargetMinutes < 0 || e.TargetMinutes > 720 {
+	if e.TargetMinutes < 0 || e.TargetMinutes > WorkTimeModelMaxDailyMinutes {
 		return errors.New("target_minutes must be between 0 and 720 (12h)")
 	}
 	return nil

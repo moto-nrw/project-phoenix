@@ -70,16 +70,6 @@ func (gs *GroupSubstitution) Duration() int {
 	return int(gs.EndDate.Sub(gs.StartDate).Hours()/24) + 1
 }
 
-// IsActive checks if the substitution is currently active
-func (gs *GroupSubstitution) IsActive(checkDate time.Time) bool {
-	return !checkDate.Before(gs.StartDate) && !checkDate.After(gs.EndDate)
-}
-
-// IsCurrentlyActive checks if the substitution is active at the current time
-func (gs *GroupSubstitution) IsCurrentlyActive() bool {
-	return gs.IsActive(time.Now())
-}
-
 // SetGroup links this substitution to a group
 func (gs *GroupSubstitution) SetGroup(group *Group) {
 	gs.Group = group

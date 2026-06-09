@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Pure tests for Phase.Validate + IsEnrollmentWindowOpen. The whole
+// Pure tests for Phase.Validate. The whole
 // admin-create-phase flow runs through Validate before the DB write,
 // so each branch is worth covering — broken validation here means
 // either a bad row lands in the DB (CHECK constraints are a backstop,
@@ -196,42 +196,4 @@ func TestPhase_IsRollover(t *testing.T) {
 
 	p2 := validPhase()
 	assert.False(t, p2.IsRollover(), "fresh phase is not a rollover")
-}
-
-// ---- IsEnrollmentWindowOpen --------------------------------------------
-
-func TestIsEnrollmentWindowOpen_NoBoundsAlwaysOpen(t *testing.T) {
-	p := validPhase()
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Now()))
-}
-
-func TestIsEnrollmentWindowOpen_BeforeOpenIsClosed(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	assert.False(t, p.IsEnrollmentWindowOpen(time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)))
-}
-
-func TestIsEnrollmentWindowOpen_AfterOpenIsOpen(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)))
-}
-
-func TestIsEnrollmentWindowOpen_AtCloseIsClosed(t *testing.T) {
-	// Half-open semantics — close moment is excluded from the window.
-	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentCloseAt = &closed
-	assert.False(t, p.IsEnrollmentWindowOpen(closed))
-}
-
-func TestIsEnrollmentWindowOpen_BetweenBoundsIsOpen(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	p.EnrollmentCloseAt = &closed
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)))
 }

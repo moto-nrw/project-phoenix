@@ -157,60 +157,6 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 	}
 }
 
-func TestGroupCanJoin(t *testing.T) {
-	tests := []struct {
-		name                   string
-		group                  *Group
-		currentEnrollmentCount int
-		want                   bool
-	}{
-		{
-			name: "Can join (open and has spots)",
-			group: &Group{
-				IsOpen:          true,
-				MaxParticipants: 10,
-			},
-			currentEnrollmentCount: 5,
-			want:                   true,
-		},
-		{
-			name: "Cannot join (closed)",
-			group: &Group{
-				IsOpen:          false,
-				MaxParticipants: 10,
-			},
-			currentEnrollmentCount: 5,
-			want:                   false,
-		},
-		{
-			name: "Cannot join (open but full)",
-			group: &Group{
-				IsOpen:          true,
-				MaxParticipants: 10,
-			},
-			currentEnrollmentCount: 10,
-			want:                   false,
-		},
-		{
-			name: "Cannot join (closed and full)",
-			group: &Group{
-				IsOpen:          false,
-				MaxParticipants: 10,
-			},
-			currentEnrollmentCount: 10,
-			want:                   false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.group.CanJoin(tt.currentEnrollmentCount); got != tt.want {
-				t.Errorf("Group.CanJoin() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGroup_TableName(t *testing.T) {
 	group := &Group{}
 	if got := group.TableName(); got != "activities.groups" {

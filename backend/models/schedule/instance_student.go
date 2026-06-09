@@ -92,7 +92,7 @@ func (s *InstanceStudent) Validate() error {
 		return errors.New("invalid attendance substatus")
 	}
 	if s.Note != nil && len(*s.Note) > InstanceStudentNoteMaxLength {
-		return errors.New("note cannot exceed 500 characters")
+		return fmt.Errorf("note cannot exceed %d characters", InstanceStudentNoteMaxLength)
 	}
 	if s.RoomID != nil && *s.RoomID <= 0 {
 		return errors.New("room_id must be positive when set")
@@ -149,49 +149,6 @@ type AttendancePatchFieldError struct {
 func (p AttendanceFieldPatch) HasChanges() bool {
 	return p.Status != nil || p.Substatus != nil || p.SubstatusClear ||
 		p.Note != nil || p.NoteClear
-}
-
-// ValidateAttendancePatch enforces attendance patch business rules against the
-// current row so cross-field rules can be evaluated against the final state.
-func ValidateAttendancePatch(patch AttendanceFieldPatch, current *InstanceStudent) []AttendancePatchFieldError {
-	var errs []AttendancePatchFieldError
-
-	if patch.Status != nil && !IsValidAttendanceStatus(*patch.Status) {
-		errs = append(errs, AttendancePatchFieldError{Field: "status", Reason: "must be one of: expected, present, absent"})
-	}
-	if patch.Substatus != nil && !IsValidAttendanceSubstatus(*patch.Substatus) {
-		errs = append(errs, AttendancePatchFieldError{Field: "substatus", Reason: "must be one of: late, excused, sick, field_trip, other"})
-	}
-	if patch.Note != nil && len(*patch.Note) > InstanceStudentNoteMaxLength {
-		errs = append(errs, AttendancePatchFieldError{
-			Field:  "note",
-			Reason: fmt.Sprintf("must be at most %d characters", InstanceStudentNoteMaxLength),
-		})
-	}
-	if len(errs) > 0 {
-		return errs
-	}
-
-	finalStatus := current.Status
-	if patch.Status != nil {
-		finalStatus = *patch.Status
-	}
-
-	finalSubstatusNonNull := current.Substatus != nil
-	if patch.SubstatusClear {
-		finalSubstatusNonNull = false
-	} else if patch.Substatus != nil {
-		finalSubstatusNonNull = true
-	}
-
-	if finalSubstatusNonNull && finalStatus == AttendanceStatusExpected {
-		errs = append(errs, AttendancePatchFieldError{
-			Field:  "substatus",
-			Reason: "cannot be set when status is expected",
-		})
-	}
-
-	return errs
 }
 
 // InstanceStudentRepository defines operations for managing expected/actual

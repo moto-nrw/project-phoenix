@@ -732,7 +732,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 	if invitation.IsUsed() {
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationUsed}
 	}
-	if invitation.IsExpired() {
+	if InvitationTokenExpired(invitation, time.Now()) {
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationExpired}
 	}
 
@@ -837,7 +837,7 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationUsed}
 	}
 
-	if invitation.IsExpired() {
+	if InvitationTokenExpired(invitation, time.Now()) {
 		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationExpired}
 	}
 

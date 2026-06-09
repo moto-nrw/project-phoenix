@@ -300,6 +300,9 @@ var keyAllowedRunes = func(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_'
 }
 
+// formFieldKeyMaxLength caps the length of a custom form field key.
+const formFieldKeyMaxLength = 64
+
 // Validate checks a single field. Used by the form schema service when
 // admins create / update a schema version.
 func (f *FormField) Validate() error {
@@ -307,7 +310,7 @@ func (f *FormField) Validate() error {
 	if f.Key == "" {
 		return errors.New("form field key is required")
 	}
-	if len(f.Key) > 64 {
+	if len(f.Key) > formFieldKeyMaxLength {
 		return errors.New("form field key must be at most 64 characters")
 	}
 	for _, r := range f.Key {

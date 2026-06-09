@@ -55,67 +55,6 @@ func TestCombinedGroupValidate(t *testing.T) {
 	}
 }
 
-func TestCombinedGroupIsActive(t *testing.T) {
-	nowTime := time.Now()
-	futureTime := nowTime.Add(2 * time.Hour)
-	pastTime := nowTime.Add(-2 * time.Hour)
-
-	tests := []struct {
-		name          string
-		combinedGroup *CombinedGroup
-		want          bool
-	}{
-		{
-			name: "Active combined group (no end time)",
-			combinedGroup: &CombinedGroup{
-				StartTime: nowTime,
-				EndTime:   nil,
-			},
-			want: true,
-		},
-		{
-			name: "Active combined group (future end time)",
-			combinedGroup: &CombinedGroup{
-				StartTime: nowTime,
-				EndTime:   &futureTime,
-			},
-			want: true,
-		},
-		{
-			name: "Inactive combined group (past end time)",
-			combinedGroup: &CombinedGroup{
-				StartTime: pastTime,
-				EndTime:   &pastTime,
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.combinedGroup.IsActive(); got != tt.want {
-				t.Errorf("CombinedGroup.IsActive() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCombinedGroupEndCombination(t *testing.T) {
-	nowTime := time.Now()
-
-	combinedGroup := &CombinedGroup{
-		StartTime: nowTime,
-		EndTime:   nil,
-	}
-
-	// Test that EndCombination sets the end time
-	combinedGroup.EndCombination()
-
-	if combinedGroup.EndTime == nil {
-		t.Errorf("CombinedGroup.EndCombination() did not set the end time")
-	}
-}
-
 func TestCombinedGroupSetEndTime(t *testing.T) {
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)

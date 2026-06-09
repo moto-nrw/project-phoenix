@@ -23,11 +23,15 @@ import (
 
 // Operator MFA constants. The cooldown / lockout / TTL values are not
 // configurable for operators by design — moto-Operators always face the
-// same security posture.
+// same security posture. The lockout threshold/duration reference the
+// auth-side constants so the 5-attempt / 15-minute brute-force policy has a
+// single source of truth across the platform (issue #586 — no second copy of
+// the literals; the per-tenant security.account_lockout_* settings only apply
+// to tenant accounts, which operators are not).
 const (
 	OperatorMFAChallengeTTL          = 10 * time.Minute
-	OperatorMFALockoutThreshold      = 5
-	OperatorMFALockoutDuration       = 15 * time.Minute
+	OperatorMFALockoutThreshold      = authService.MFALockoutThreshold
+	OperatorMFALockoutDuration       = authService.MFALockoutDuration
 	OperatorMFARateLimitWindow       = 15 * time.Minute
 	OperatorMFARateLimitMaxSent      = 3
 	OperatorMFATrustedDeviceDuration = 90 * 24 * time.Hour
@@ -166,7 +170,7 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 	if err != nil || op == nil {
 		return "", fmt.Errorf("look up operator: %w", err)
 	}
-	if op.IsMFALocked() {
+	if s.isMFALocked(op, time.Now()) {
 		return "", ErrOperatorMFALocked
 	}
 
@@ -221,7 +225,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	if err != nil || op == nil {
 		return nil, ErrOperatorMFAChallengeTokenInvalid
 	}
-	if op.IsMFALocked() {
+	if s.isMFALocked(op, time.Now()) {
 		return nil, ErrOperatorMFALocked
 	}
 
@@ -287,7 +291,7 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	if err != nil || op == nil {
 		return ErrOperatorMFACodeInvalid
 	}
-	if op.IsMFALocked() {
+	if s.isMFALocked(op, time.Now()) {
 		return ErrOperatorMFALocked
 	}
 	active, err := s.repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, operatorID)
@@ -318,6 +322,13 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	op.MFALockedUntil = nil
 	s.recordAudit(ctx, operatorID, platform.ActionMFAVerified, nil, &active.ID, nil)
 	return nil
+}
+
+// isMFALocked reports whether the operator is inside its MFA-failure cooldown
+// window relative to now. The decision lives in the service (clock injected),
+// not on the model (Rule 12); the operator row only holds mfa_locked_until.
+func (s *operatorMFAService) isMFALocked(op *platform.Operator, now time.Time) bool {
+	return op != nil && op.MFALockedUntil != nil && now.Before(*op.MFALockedUntil)
 }
 
 // handleFailedAttempt atomically bumps the operator's lockout counter via

@@ -858,3 +858,43 @@ func TestAnnouncementService_GetViewDetails_AnnouncementNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.AnnouncementNotFoundError{}, err)
 }
+
+func TestIsAnnouncementPublished_Nil(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	a := &platform.Announcement{}
+	assert.False(t, platformSvc.IsAnnouncementPublished(a, now))
+}
+
+func TestIsAnnouncementPublished_Future(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	future := now.Add(24 * time.Hour)
+	a := &platform.Announcement{PublishedAt: &future}
+	assert.False(t, platformSvc.IsAnnouncementPublished(a, now))
+}
+
+func TestIsAnnouncementPublished_Past(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-24 * time.Hour)
+	a := &platform.Announcement{PublishedAt: &past}
+	assert.True(t, platformSvc.IsAnnouncementPublished(a, now))
+}
+
+func TestIsAnnouncementExpired_Nil(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	a := &platform.Announcement{}
+	assert.False(t, platformSvc.IsAnnouncementExpired(a, now))
+}
+
+func TestIsAnnouncementExpired_Future(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	future := now.Add(24 * time.Hour)
+	a := &platform.Announcement{ExpiresAt: &future}
+	assert.False(t, platformSvc.IsAnnouncementExpired(a, now))
+}
+
+func TestIsAnnouncementExpired_Past(t *testing.T) {
+	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-24 * time.Hour)
+	a := &platform.Announcement{ExpiresAt: &past}
+	assert.True(t, platformSvc.IsAnnouncementExpired(a, now))
+}

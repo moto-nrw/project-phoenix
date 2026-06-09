@@ -221,6 +221,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:             db,
 	})
 
+	// Initialize settings service (new schema-driven settings system)
+	settingsService := config.NewSettingsService(
+		repos.SettingValue,
+		repos.SettingAudit,
+		repos.School,
+		db,
+		logger,
+	)
+
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonRepo:          repos.Person,
@@ -232,6 +241,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TeacherRepo:         repos.Teacher,
 		GroupSupervisorRepo: repos.GroupSupervisor,
 		DB:                  db,
+		SettingsService:     settingsService,
+		Logger:              logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -331,19 +342,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 
-	// Initialize settings service (new schema-driven settings system)
-	settingsService := config.NewSettingsService(
-		repos.SettingValue,
-		repos.SettingAudit,
-		repos.School,
-		db,
-		logger,
-	)
-
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
 	// operations.excused_clear_mode settings.
 	activeService.SetSettingsService(settingsService)
+
+	// Inject settings resolver into the IoT service so the device-online window
+	// (iot.device_online_window_minutes) is resolved per tenant (issue #586).
+	iotService.SetSettingsService(settingsService)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -524,6 +530,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
+	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -719,10 +726,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	databaseService := database.NewService(repos, databaseLogger)
 
 	// Initialize cleanup service
+	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
+		privacyConsentService,
 		db,
 	)
 

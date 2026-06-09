@@ -15,6 +15,14 @@ const (
 	errMsgArrivalCreatedByRequired = "created_by is required"
 )
 
+// Field-length bounds shared by student arrival/pickup schedule models.
+const (
+	// scheduleNotesMaxLength caps free-text notes and note content.
+	scheduleNotesMaxLength = 500
+	// scheduleReasonMaxLength caps exception reason text.
+	scheduleReasonMaxLength = 255
+)
+
 // StudentArrivalSchedule represents a recurring weekly arrival schedule for a student
 type StudentArrivalSchedule struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_schedules"`
@@ -56,7 +64,7 @@ func (s *StudentArrivalSchedule) Validate() error {
 	if s.CreatedBy <= 0 {
 		return errors.New(errMsgArrivalCreatedByRequired)
 	}
-	if s.Notes != nil && len(*s.Notes) > 500 {
+	if s.Notes != nil && len(*s.Notes) > scheduleNotesMaxLength {
 		return errors.New("notes cannot exceed 500 characters")
 	}
 	return nil
@@ -120,7 +128,7 @@ func (e *StudentArrivalException) Validate() error {
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
 	}
-	if e.Reason != nil && len(*e.Reason) > 255 {
+	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if e.CreatedBy <= 0 {
@@ -186,7 +194,7 @@ func (n *StudentArrivalNote) Validate() error {
 	if n.Content == "" {
 		return errors.New("content is required")
 	}
-	if len(n.Content) > 500 {
+	if len(n.Content) > scheduleNotesMaxLength {
 		return errors.New("content cannot exceed 500 characters")
 	}
 	if n.CreatedBy <= 0 {

@@ -178,59 +178,9 @@ func TestPermission_GetFullName(t *testing.T) {
 	}
 }
 
-func TestPermission_IsAdminPermission(t *testing.T) {
-	tests := []struct {
-		name       string
-		permission *Permission
-		expected   bool
-	}{
-		{
-			name: "admin resource",
-			permission: &Permission{
-				Name:     "admin_manage",
-				Resource: "admin",
-				Action:   "manage",
-			},
-			expected: true,
-		},
-		{
-			name: "admin prefixed name",
-			permission: &Permission{
-				Name:     "admin:users",
-				Resource: "users",
-				Action:   "manage",
-			},
-			expected: true,
-		},
-		{
-			name: "non-admin permission",
-			permission: &Permission{
-				Name:     "users_read",
-				Resource: "users",
-				Action:   "read",
-			},
-			expected: false,
-		},
-		{
-			name: "contains admin but not prefix",
-			permission: &Permission{
-				Name:     "users_admin_view",
-				Resource: "users",
-				Action:   "admin_view",
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.permission.IsAdminPermission()
-			if got != tt.expected {
-				t.Errorf("Permission.IsAdminPermission() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
+// Note: the admin-level classification (formerly Permission.IsAdminPermission)
+// moved out of the model in issue #586 (Rule 12). Its test follows the logic to:
+//   - auth/authorize/role_permission_test.go (TestPermissionIsAdmin)
 
 func TestPermission_Clone(t *testing.T) {
 	now := time.Now()

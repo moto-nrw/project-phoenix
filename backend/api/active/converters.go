@@ -2,8 +2,10 @@ package active
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // activeGroupDisplayName renders a display string for an active.Group. For
@@ -41,9 +43,10 @@ func newActiveGroupResponse(group *active.Group) ActiveGroupResponse {
 	}
 	if group.Supervisors != nil {
 		// Only expose currently active supervisors
+		now := time.Now()
 		activeSupervisors := make([]*active.GroupSupervisor, 0, len(group.Supervisors))
 		for _, supervisor := range group.Supervisors {
-			if supervisor.IsActive() {
+			if activeService.IsSupervisorActive(supervisor, now) {
 				activeSupervisors = append(activeSupervisors, supervisor)
 			}
 		}
@@ -103,7 +106,7 @@ func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorRespons
 		ActiveGroupID: supervisor.GroupID,
 		StartTime:     supervisor.StartDate,
 		EndTime:       supervisor.EndDate,
-		IsActive:      supervisor.IsActive(),
+		IsActive:      activeService.IsSupervisorActive(supervisor, time.Now()),
 		CreatedAt:     supervisor.CreatedAt,
 		UpdatedAt:     supervisor.UpdatedAt,
 	}
@@ -128,7 +131,7 @@ func newCombinedGroupResponse(group *active.CombinedGroup) CombinedGroupResponse
 		RoomID:      0,                                                    // Using default value since the model doesn't have roomID
 		StartTime:   group.StartTime,
 		EndTime:     group.EndTime,
-		IsActive:    group.IsActive(),
+		IsActive:    activeService.IsCombinedGroupActive(group, time.Now()),
 		CreatedAt:   group.CreatedAt,
 		UpdatedAt:   group.UpdatedAt,
 	}

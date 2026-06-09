@@ -9,7 +9,6 @@ import (
 
 func TestPasswordResetToken_Validate(t *testing.T) {
 	futureTime := time.Now().Add(1 * time.Hour)
-	pastTime := time.Now().Add(-1 * time.Hour)
 
 	tests := []struct {
 		name    string
@@ -60,28 +59,6 @@ func TestPasswordResetToken_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "token value is required",
 		},
-		{
-			name: "expired token",
-			token: &PasswordResetToken{
-				AccountID: 1,
-				Token:     "expired-token-123",
-				Expiry:    pastTime,
-				Used:      false,
-			},
-			wantErr: true,
-			errMsg:  "token has already expired",
-		},
-		{
-			name: "used token",
-			token: &PasswordResetToken{
-				AccountID: 1,
-				Token:     "used-token-123",
-				Expiry:    futureTime,
-				Used:      true,
-			},
-			wantErr: true,
-			errMsg:  "token has already been used",
-		},
 	}
 
 	for _, tt := range tests {
@@ -94,106 +71,6 @@ func TestPasswordResetToken_Validate(t *testing.T) {
 				t.Errorf("PasswordResetToken.Validate() error = %q, want %q", err.Error(), tt.errMsg)
 			}
 		})
-	}
-}
-
-func TestPasswordResetToken_IsExpired(t *testing.T) {
-	tests := []struct {
-		name     string
-		expiry   time.Time
-		expected bool
-	}{
-		{
-			name:     "not expired",
-			expiry:   time.Now().Add(1 * time.Hour),
-			expected: false,
-		},
-		{
-			name:     "expired",
-			expiry:   time.Now().Add(-1 * time.Hour),
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			token := &PasswordResetToken{
-				AccountID: 1,
-				Token:     "test-token",
-				Expiry:    tt.expiry,
-			}
-
-			if got := token.IsExpired(); got != tt.expected {
-				t.Errorf("PasswordResetToken.IsExpired() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestPasswordResetToken_IsValid(t *testing.T) {
-	futureTime := time.Now().Add(1 * time.Hour)
-	pastTime := time.Now().Add(-1 * time.Hour)
-
-	tests := []struct {
-		name     string
-		expiry   time.Time
-		used     bool
-		expected bool
-	}{
-		{
-			name:     "valid - not expired and not used",
-			expiry:   futureTime,
-			used:     false,
-			expected: true,
-		},
-		{
-			name:     "invalid - expired",
-			expiry:   pastTime,
-			used:     false,
-			expected: false,
-		},
-		{
-			name:     "invalid - used",
-			expiry:   futureTime,
-			used:     true,
-			expected: false,
-		},
-		{
-			name:     "invalid - expired and used",
-			expiry:   pastTime,
-			used:     true,
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			token := &PasswordResetToken{
-				AccountID: 1,
-				Token:     "test-token",
-				Expiry:    tt.expiry,
-				Used:      tt.used,
-			}
-
-			if got := token.IsValid(); got != tt.expected {
-				t.Errorf("PasswordResetToken.IsValid() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestPasswordResetToken_MarkAsUsed(t *testing.T) {
-	token := &PasswordResetToken{
-		AccountID: 1,
-		Token:     "test-token",
-		Expiry:    time.Now().Add(1 * time.Hour),
-		Used:      false,
-	}
-
-	token.MarkAsUsed()
-
-	if !token.Used {
-		t.Error("PasswordResetToken.MarkAsUsed() should set Used to true")
 	}
 }
 

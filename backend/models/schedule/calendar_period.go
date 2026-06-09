@@ -28,6 +28,9 @@ var (
 // tableCalendarPeriods is the schema-qualified table name.
 const tableCalendarPeriods = "schedule.calendar_periods"
 
+// CalendarPeriodNameMaxLength is the maximum length of the name field.
+const CalendarPeriodNameMaxLength = 255
+
 // CalendarPeriod represents a time period in the school calendar (e.g. school year, semester, holiday).
 type CalendarPeriod struct {
 	base.Model `bun:"schema:schedule,table:calendar_periods"`
@@ -77,7 +80,7 @@ func (p *CalendarPeriod) Validate() error {
 	if p.Name == "" {
 		return errors.New("name is required")
 	}
-	if len(p.Name) > 255 {
+	if len(p.Name) > CalendarPeriodNameMaxLength {
 		return errors.New("name cannot exceed 255 characters")
 	}
 	if !IsValidPeriodType(p.PeriodType) {

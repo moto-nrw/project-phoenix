@@ -370,7 +370,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if row == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
-	if verrs := scheduleModel.ValidateAttendancePatch(patch, row); len(verrs) > 0 {
+	if verrs := ValidateAttendancePatch(patch, row); len(verrs) > 0 {
 		return nil, &TimetableAttendanceValidationError{Fields: verrs}
 	}
 	if err := s.deps.InstanceStudents.UpdateAttendanceFields(ctx, row.ID, patch); err != nil {
