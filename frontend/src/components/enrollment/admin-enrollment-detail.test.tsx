@@ -45,6 +45,61 @@ describe("formatCustomValue", () => {
     expect(formatCustomValue(value, field("weekday_boolean"))).toBeNull();
   });
 
+  // The reserved student.pickup_status target treats an empty map as a real
+  // answer ("Geht alleine nach Hause"), not a missing field. The admin must be
+  // able to tell "goes alone every day" apart from an absent field, so the row
+  // is rendered with an explicit label instead of being dropped.
+  it("renders 'Geht alleine nach Hause' for an all-false pickup_status", () => {
+    const value = {
+      mon: false,
+      tue: false,
+      wed: false,
+      thu: false,
+      fri: false,
+    };
+    expect(
+      formatCustomValue(
+        value,
+        field("weekday_boolean", { target: "student.pickup_status" }),
+      ),
+    ).toBe("Geht alleine nach Hause");
+  });
+
+  it("renders 'Geht alleine nach Hause' for an explicit empty pickup_status map", () => {
+    expect(
+      formatCustomValue(
+        {},
+        field("weekday_boolean", { target: "student.pickup_status" }),
+      ),
+    ).toBe("Geht alleine nach Hause");
+  });
+
+  it("still renders selected days for pickup_status when days are chosen", () => {
+    const value = { mon: true, fri: true };
+    expect(
+      formatCustomValue(
+        value,
+        field("weekday_boolean", { target: "student.pickup_status" }),
+      ),
+    ).toBe("Mo, Fr");
+  });
+
+  // Buskind is also weekday_boolean but has no special empty-map meaning: no
+  // bus days means the child simply is not a bus kid, so the row drops out.
+  it("returns null for an all-false non-pickup weekday_boolean (Buskind)", () => {
+    const value = { mon: false, tue: false };
+    expect(
+      formatCustomValue(
+        value,
+        field("weekday_boolean", {
+          key: "student.bus",
+          target: "student.bus",
+          label: "Buskind",
+        }),
+      ),
+    ).toBeNull();
+  });
+
   it("still renders weekday_schedule time values per day", () => {
     const value = { mon: "07:30", wed: "08:00" };
     const { container } = render(

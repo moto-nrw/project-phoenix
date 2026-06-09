@@ -817,17 +817,33 @@ function formatStringValue(
 
 function formatWeekdayObject(
   o: Record<string, unknown>,
+  field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
   // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
   // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
   // mirroring the backend export renderer (formatWeekdayBoolean in
-  // export_format.go). Detected by value type so it works without `field`.
-  if (WEEKDAYS.some(([key]) => typeof o[key] === "boolean")) {
+  // export_format.go). Detected by value type so it works without `field`;
+  // the field metadata also flags it, which covers an explicit empty {} map
+  // that carries no boolean values to sniff.
+  const isWeekdayBoolean =
+    field?.type === "weekday_boolean" ||
+    WEEKDAYS.some(([key]) => typeof o[key] === "boolean");
+  if (isWeekdayBoolean) {
     const days = WEEKDAYS.filter(([key]) => o[key] === true).map(
       ([, label]) => label,
     );
-    if (days.length === 0) return null;
-    return days.join(", ");
+    if (days.length > 0) return days.join(", ");
+    // No days selected. For the reserved student.pickup_status target an
+    // empty map is itself a valid submitted answer ("Geht alleine nach
+    // Hause", see PickupDays.LegacyPickupStatus in the backend). Render that
+    // label so the admin can tell an explicit "goes alone every day" answer
+    // apart from an absent field — dropping the row would conflate the two.
+    // Other weekday_boolean targets (e.g. Buskind) keep dropping the empty
+    // row: no bus days means the child is simply not a bus kid.
+    if (field?.target === "student.pickup_status") {
+      return "Geht alleine nach Hause";
+    }
+    return null;
   }
 
   // weekday_schedule: values are per-day time strings ({mon: "07:30"}).
@@ -872,7 +888,7 @@ export function formatCustomValue(
     );
   }
   if (typeof v === "object") {
-    return formatWeekdayObject(v as Record<string, unknown>);
+    return formatWeekdayObject(v as Record<string, unknown>, field);
   }
   return String(v);
 }
