@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
   AuthShell,
@@ -67,12 +68,12 @@ export default function RootPage() {
       footer={
         <p className="text-sm text-gray-500">
           Noch nicht registriert?{" "}
-          <a
-            href="mailto:kontakt@moto.nrw"
+          <Link
+            href="/start"
             className="font-medium text-gray-700 transition-colors hover:text-gray-900 hover:underline"
           >
-            Kontaktieren Sie uns
-          </a>
+            Los geht&apos;s
+          </Link>
         </p>
       }
     >
