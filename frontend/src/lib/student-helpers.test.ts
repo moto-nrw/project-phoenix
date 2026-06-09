@@ -6,6 +6,7 @@ import type {
   UpdateStudentRequest,
 } from "./student-helpers";
 import {
+  busDaysFromToggle,
   busDaysHaveAny,
   formatBusDays,
   getSchoolYear,
@@ -103,6 +104,47 @@ describe("bus day helpers", () => {
     );
     expect(formatBusDays({ tue: false })).toBe("Keine Bus-Tage");
     expect(formatBusDays(null)).toBe("Keine Bus-Tage");
+  });
+
+  describe("busDaysFromToggle", () => {
+    it("clears all days when toggled off", () => {
+      expect(busDaysFromToggle(false)).toEqual({});
+      // Off wins even if a previous selection exists.
+      expect(busDaysFromToggle(false, { mon: true, fri: true })).toEqual({});
+    });
+
+    it("defaults to all weekdays when toggled on with no existing days", () => {
+      expect(busDaysFromToggle(true)).toEqual({
+        mon: true,
+        tue: true,
+        wed: true,
+        thu: true,
+        fri: true,
+      });
+      expect(busDaysFromToggle(true, {})).toEqual({
+        mon: true,
+        tue: true,
+        wed: true,
+        thu: true,
+        fri: true,
+      });
+    });
+
+    it("preserves an existing per-day selection when toggled on", () => {
+      // The Ja/Nein toggle must not flatten Mo/Fr into all weekdays.
+      expect(busDaysFromToggle(true, { mon: true, fri: true })).toEqual({
+        mon: true,
+        fri: true,
+      });
+    });
+
+    it("normalizes unknown keys out of the preserved selection", () => {
+      const result = busDaysFromToggle(true, {
+        mon: true,
+        sat: true,
+      } as Parameters<typeof busDaysFromToggle>[1] & { sat: boolean });
+      expect(result).toEqual({ mon: true });
+    });
   });
 });
 
