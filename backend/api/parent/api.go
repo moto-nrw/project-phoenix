@@ -129,6 +129,17 @@ func (rs *Resource) Router() chi.Router {
 		// already authenticated), and forwards to the same
 		// RequestService.Submit the public path uses.
 		r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+
+		// Per-child write features. The {studentId} is validated against
+		// the calling account's guardian links inside the service — the
+		// account id always comes from the JWT, never the URL/body.
+		//   - sick-note: report the child sick for one or more dates
+		//   - notes: append / list short messages for the team
+		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
+		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
+		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
+		r.Get("/me/children/{studentId}/notes", rs.listNotes)
+		r.Post("/me/children/{studentId}/notes", rs.addNote)
 	})
 
 	return r

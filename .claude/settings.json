@@ -103,7 +103,6 @@
       "Bash(brew:*)",
       "Bash(jq:*)",
       "Bash(wget:*)",
-      "mcp__*",
       "WebFetch(domain:docs.anthropic.com)",
       "WebSearch",
       "WebFetch"

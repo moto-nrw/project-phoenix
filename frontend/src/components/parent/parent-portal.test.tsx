@@ -6,6 +6,15 @@ import type React from "react";
 const mocks = vi.hoisted(() => ({
   listMyChildren: vi.fn(),
   listMyEnrollments: vi.fn(),
+  // child-detail now pulls in the child-care hook, which calls these on
+  // mount; stub them so the rendered detail view loads cleanly.
+  listSickDays: vi.fn().mockResolvedValue([]),
+  listChildNotes: vi.fn().mockResolvedValue([]),
+  submitSickNote: vi.fn().mockResolvedValue([]),
+  addChildNote: vi.fn().mockResolvedValue([]),
+  getChildFeatures: vi
+    .fn()
+    .mockResolvedValue({ sick_note_enabled: true, notes_enabled: true }),
   setBreadcrumb: vi.fn(),
 }));
 
@@ -24,6 +33,11 @@ vi.mock("next/link", () => ({
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: mocks.listMyChildren,
   listMyEnrollments: mocks.listMyEnrollments,
+  listSickDays: mocks.listSickDays,
+  listChildNotes: mocks.listChildNotes,
+  submitSickNote: mocks.submitSickNote,
+  addChildNote: mocks.addChildNote,
+  getChildFeatures: mocks.getChildFeatures,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({

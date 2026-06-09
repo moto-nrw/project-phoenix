@@ -4,6 +4,7 @@
  */
 
 import type { Student } from "@/lib/api";
+import type { BusDays } from "~/lib/student-helpers";
 import {
   HealthInfoSection,
   SupervisorNotesSection,
@@ -16,7 +17,7 @@ interface StudentCommonFormSectionsProps {
   readonly errors: Record<string, string>;
   readonly onChange: (
     field: keyof Student,
-    value: string | boolean | number | null,
+    value: string | boolean | number | BusDays | null,
   ) => void;
 }
 

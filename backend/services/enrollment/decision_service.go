@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -226,6 +227,13 @@ type ChildOfferingRow struct {
 // the new tenant directly to the parent's existing portal account
 // instead of mailing an invite that would overwrite their password
 // on accept.
+// DecisionSettingsResolver is the narrow contract the decision service
+// needs from the platform settings service. Only the activation-mode
+// lookup is required today, so the interface stays minimal.
+type DecisionSettingsResolver interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -243,13 +251,17 @@ type DecisionServiceConfig struct {
 	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
+	ActivityGroupRepo        activities.GroupRepository
+	ActivityScheduleRepo     activities.ScheduleRepository
+	CalendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	AccountRepo              authModels.AccountRepository
 	AccountTenantRepo        authModels.AccountTenantRepository
 	AccountRoleRepo          authModels.AccountRoleRepository
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           OutboxEnqueuer
-	FrontendURL              string // not used by parent-facing emails today; kept for future admin links
-	ParentsURL               string // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	FrontendURL              string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL               string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings                 DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
 	Logger                   *slog.Logger
 }
 
@@ -270,6 +282,9 @@ type decisionService struct {
 	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
 	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
 	studentEnrollmentRepo    activities.StudentEnrollmentRepository
+	activityGroupRepo        activities.GroupRepository
+	activityScheduleRepo     activities.ScheduleRepository
+	calendarPeriodRepo       scheduleModels.CalendarPeriodRepository
 	accountRepo              authModels.AccountRepository
 	accountTenantRepo        authModels.AccountTenantRepository
 	accountRoleRepo          authModels.AccountRoleRepository
@@ -277,6 +292,7 @@ type decisionService struct {
 	outboxEnqueuer           OutboxEnqueuer
 	frontendURL              string
 	parentsURL               string
+	settings                 DecisionSettingsResolver
 	logger                   *slog.Logger
 }
 
@@ -302,6 +318,9 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		pickupScheduleRepo:       cfg.PickupScheduleRepo,
 		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
 		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
+		activityGroupRepo:        cfg.ActivityGroupRepo,
+		activityScheduleRepo:     cfg.ActivityScheduleRepo,
+		calendarPeriodRepo:       cfg.CalendarPeriodRepo,
 		accountRepo:              cfg.AccountRepo,
 		accountTenantRepo:        cfg.AccountTenantRepo,
 		accountRoleRepo:          cfg.AccountRoleRepo,
@@ -315,7 +334,8 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 			}
 			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 		}(),
-		logger: logger,
+		settings: cfg.Settings,
+		logger:   logger,
 	}
 }
 
@@ -721,6 +741,34 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 //
 // Returns a PendingGuardianInvite when the guardian needs an invitation
 // (no existing portal account) so the handler can fire it post-commit.
+// resolveActivationMode reads enrollment.default_activation_mode for the
+// tenant in context. The setting was registered from the start with a
+// registry default of "scheduled", so a plain ResolveString (tenant
+// override → registry default) is correct — there is no env-var fallback.
+//
+// Any resolve error or empty/unknown value falls back to the safe
+// "scheduled" default rather than failing the approval: an unconfigured
+// or momentarily-unreadable setting must never block a school from
+// approving a child.
+func (s *decisionService) resolveActivationMode(ctx context.Context) string {
+	if s.settings == nil {
+		return configModel.EnrollmentActivationModeScheduled
+	}
+	mode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
+	if err != nil {
+		s.logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
+			slog.String("key", configModel.KeyEnrollmentDefaultActivationMode),
+			slog.String("error", err.Error()),
+		)
+		return configModel.EnrollmentActivationModeScheduled
+	}
+	if mode == configModel.EnrollmentActivationModeImmediate {
+		return configModel.EnrollmentActivationModeImmediate
+	}
+	// Empty (unconfigured) or any unknown value normalizes to scheduled.
+	return configModel.EnrollmentActivationModeScheduled
+}
+
 func (s *decisionService) applyApproval(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -803,19 +851,34 @@ func (s *decisionService) applyApproval(
 		return nil, fmt.Errorf("decision: create person: %w", err)
 	}
 
-	// 3. Student row pinned to the phase's service window. Status
-	// 'pending' lets the activate-students scheduler flip to 'active'
-	// when ServiceStartDate arrives.
+	// 3. Student row pinned to the phase's service window. The
+	// enrollment.default_activation_mode setting decides the initial
+	// status:
+	//   - "scheduled" (default): status 'pending' lets the
+	//     activate-students scheduler flip to 'active' once enrolled_from
+	//     (ServiceStartDate) arrives.
+	//   - "immediate": status 'active' right away, so the child appears
+	//     in lists/attendance/check-in immediately.
+	//
+	// enrolled_from stays the phase's ServiceStartDate in BOTH modes — it
+	// is the official, consistent start date (not the arbitrary approval
+	// day) and is no longer read once a student is active; only
+	// enrolled_until drives later deactivation.
 	schoolClass := s.gradeToClass(child.TargetGradeLevel)
 	enrolledFrom := phase.ServiceStartDate
 	enrolledUntil := phase.ServiceEndDate
 	guardianEmail := request.GuardianEmail
 	guardianPhone := request.GuardianPhone
 
+	studentStatus := users.StudentStatusPending
+	if s.resolveActivationMode(ctx) == configModel.EnrollmentActivationModeImmediate {
+		studentStatus = users.StudentStatusActive
+	}
+
 	student := &users.Student{
 		PersonID:      person.ID,
 		SchoolClass:   schoolClass,
-		Status:        users.StudentStatusPending,
+		Status:        studentStatus,
 		EnrolledFrom:  &enrolledFrom,
 		EnrolledUntil: &enrolledUntil,
 		GuardianEmail: &guardianEmail,
@@ -845,9 +908,10 @@ func (s *decisionService) applyApproval(
 	}
 
 	// 4b. Dispatch every targeted form field onto the right downstream
-	// record. Scalar targets (health_info, extra_info, bus, photo_
+	// record. Scalar targets (health_info, extra_info, photo_
 	// consent, pickup_status) update the Student row in place;
-	// structured targets (phone_list, weekday_schedule, contact_list)
+	// structured targets (bus weekday flags, phone_list,
+	// weekday_schedule, contact_list)
 	// create association rows. Failures inside one field don't abort
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
@@ -1032,7 +1096,7 @@ func (s *decisionService) materializeEnrollments(
 	phase *enrollmentModels.Phase,
 ) error {
 	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
-		s.studentEnrollmentRepo == nil {
+		s.studentEnrollmentRepo == nil || s.activityGroupRepo == nil {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
 		// activity groups later via the activity admin UI.
@@ -1049,6 +1113,13 @@ func (s *decisionService) materializeEnrollments(
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
+	type enrollmentDraft struct {
+		activityGroupID  int64
+		calendarPeriodID *int64
+		selectedWeekday  map[int]bool
+		allWeekdays      bool
+	}
+	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
 		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
@@ -1062,11 +1133,72 @@ func (s *decisionService) materializeEnrollments(
 			// Schedule-only offering - no activity group, nothing to enroll into.
 			continue
 		}
+		group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, careOfferingTemplateDeps{
+			activityGroupRepo:    s.activityGroupRepo,
+			activityScheduleRepo: s.activityScheduleRepo,
+			calendarPeriodRepo:   s.calendarPeriodRepo,
+		}, *offering.ActivityGroupID)
+		if err != nil {
+			return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if group.IsTemplate && len(offering.AvailableDays) == 0 && len(link.SelectedDays) == 0 {
+			return fmt.Errorf("decision: care offering %d links to a timetable template but has no selected or available days", link.CareOfferingID)
+		}
+		if period != nil {
+			if err := validatePhaseWithinTemplatePeriod(phase, period); err != nil {
+				return fmt.Errorf("decision: validate linked timetable template period for care offering %d: %w", link.CareOfferingID, err)
+			}
+		}
+		var periodID *int64
+		if period != nil {
+			periodID = &period.ID
+		}
+		if draft := drafts[*offering.ActivityGroupID]; draft != nil && !sameOptionalInt64(draft.calendarPeriodID, periodID) {
+			return fmt.Errorf("decision: care offering %d resolves to conflicting calendar_period_id", link.CareOfferingID)
+		}
+		draft := drafts[*offering.ActivityGroupID]
+		if draft == nil {
+			draft = &enrollmentDraft{
+				activityGroupID:  *offering.ActivityGroupID,
+				calendarPeriodID: periodID,
+				selectedWeekday:  make(map[int]bool),
+			}
+			drafts[*offering.ActivityGroupID] = draft
+		}
+		if !group.IsTemplate {
+			draft.allWeekdays = true
+			continue
+		}
+		days, err := effectiveOfferingDaysForEnrollment(offering, link)
+		if err != nil {
+			return fmt.Errorf("decision: resolve selected days for care offering %d: %w", link.CareOfferingID, err)
+		}
+		if len(days) == 0 {
+			draft.allWeekdays = true
+			continue
+		}
+		if draft.allWeekdays {
+			continue
+		}
+		for _, day := range days {
+			weekday, ok := enrollmentDayToISOWeekday(day)
+			if !ok {
+				return fmt.Errorf("decision: invalid selected day %q for care offering %d", day, link.CareOfferingID)
+			}
+			draft.selectedWeekday[weekday] = true
+		}
+	}
+
+	for _, draft := range drafts {
 		row := &activities.StudentEnrollment{
-			StudentID:       studentID,
-			ActivityGroupID: *offering.ActivityGroupID,
-			ValidFrom:       validFrom,
-			ValidUntil:      &validUntil,
+			StudentID:        studentID,
+			ActivityGroupID:  draft.activityGroupID,
+			ValidFrom:        validFrom,
+			ValidUntil:       &validUntil,
+			CalendarPeriodID: draft.calendarPeriodID,
+		}
+		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
+			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
 		}
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
@@ -1076,6 +1208,61 @@ func (s *decisionService) materializeEnrollments(
 		}
 	}
 	return nil
+}
+
+func sameOptionalInt64(left, right *int64) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func effectiveOfferingDaysForEnrollment(
+	offering *enrollmentModels.CareOffering,
+	link *enrollmentModels.RequestChildOffering,
+) ([]string, error) {
+	if len(link.SelectedDays) > 0 {
+		return link.SelectedDays, nil
+	}
+	switch offering.DaysOfWeekMode {
+	case enrollmentModels.DaysOfWeekModeFixed:
+		return offering.AvailableDays, nil
+	case enrollmentModels.DaysOfWeekModeParentChoice:
+		return nil, fmt.Errorf("parent-choice offering has no selected_days")
+	default:
+		return nil, fmt.Errorf("unknown days_of_week_mode %q", offering.DaysOfWeekMode)
+	}
+}
+
+func enrollmentDayToISOWeekday(day string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(day)) {
+	case "mon":
+		return 1, true
+	case "tue":
+		return 2, true
+	case "wed":
+		return 3, true
+	case "thu":
+		return 4, true
+	case "fri":
+		return 5, true
+	case "sat":
+		return 6, true
+	case "sun":
+		return 7, true
+	default:
+		return 0, false
+	}
+}
+
+func sortedWeekdaySet(days map[int]bool) []int {
+	out := make([]int, 0, len(days))
+	for day := 1; day <= 7; day++ {
+		if days[day] {
+			out = append(out, day)
+		}
+	}
+	return out
 }
 
 // linkCreatedStudent stamps request_children.created_student_id so the
@@ -1389,7 +1576,11 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentBus:
-			if b, ok := raw.(bool); ok {
+			if days, err := decodeBusDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				b := days.HasAny()
+				student.BusDays = days
 				student.Bus = &b
 				studentDirty = true
 			}
@@ -1419,13 +1610,13 @@ func (s *decisionService) applyTargetedFields(
 	// and the dedicated guardian_phone input), but their values still
 	// need to land in the right downstream rows on approval.
 	//
-	// All four consent flags get copied onto the student row so staff
-	// looking at a single child see the consent state without joining
-	// back to enrollment.requests. AGB / Datenschutz / E-Mail are
-	// required at submission and will always be true here; photo is
-	// optional. Each stamp records the approval moment, not the parent
-	// submission moment — the parent submission timestamp lives on
-	// enrollment.requests if a more precise audit is ever needed.
+	// All present consent flags get copied onto the student row so staff
+	// looking at a single child see the consent state without joining back
+	// to enrollment.requests. The public form now submits only configured
+	// legal blocks, so absent flags simply leave the matching timestamp null.
+	// Each stamp records the approval moment, not the parent submission
+	// moment — the parent submission timestamp lives on enrollment.requests
+	// if a more precise audit is ever needed.
 	if request.ConsentFlags != nil {
 		now := time.Now()
 		if photo, ok := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); ok && photo {
@@ -1478,6 +1669,26 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func decodeBusDays(raw any) (users.BusDays, error) {
+	if enabled, ok := raw.(bool); ok {
+		return users.BusDaysFromLegacyFlag(enabled), nil
+	}
+	var days enrollmentModels.WeekdayBoolean
+	if err := decodeStructured(raw, &days); err != nil {
+		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
+	}
+	if err := days.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.BusDays{}
+	for _, day := range users.BusDayOrder {
+		if days[day] {
+			out[day] = true
+		}
+	}
+	return out, nil
 }
 
 // readFieldValue pulls the submission value for a field. Guardian-level

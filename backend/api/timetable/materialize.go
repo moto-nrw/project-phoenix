@@ -2,12 +2,14 @@ package timetable
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // materializeRequest is the optional body shape for the manual endpoint.
@@ -77,6 +79,12 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+
+	rs.getLogger().Info("manual materialization requested",
+		slog.Int64("tenant_id", tenant.FromContext(r.Context())),
+		slog.String("from", from.Format(dateLayout)),
+		slog.String("to", to.Format(dateLayout)),
+	)
 
 	result, err := rs.materializationService.MaterializeForTenant(
 		r.Context(), from, to, scheduleSvc.MaterializationSourceManual,

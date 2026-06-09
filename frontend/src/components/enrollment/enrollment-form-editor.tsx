@@ -66,6 +66,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   information: "Infotext",
   phone_list: "Telefonliste",
   weekday_schedule: "Wochenzeiten",
+  weekday_boolean: "Wochentage",
   contact_list: "Kontaktliste",
 };
 
@@ -95,6 +96,7 @@ const freeFieldTypes = [
 const structuredFieldTypes = new Set<FormFieldType>([
   "phone_list",
   "weekday_schedule",
+  "weekday_boolean",
   "contact_list",
 ]);
 
@@ -3103,6 +3105,9 @@ function getRequiredHint(field: FormField): string {
   }
   if (field.type === "weekday_schedule") {
     return "Eltern müssen mindestens eine Uhrzeit angeben.";
+  }
+  if (field.type === "weekday_boolean") {
+    return "Eltern müssen mindestens einen Wochentag auswählen.";
   }
   if (field.type === "contact_list") {
     return "Eltern müssen mindestens einen vollständigen Kontakt angeben.";

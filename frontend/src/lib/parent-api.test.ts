@@ -5,8 +5,15 @@ import {
   listMyEnrollments,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
+  submitSickNote,
+  listSickDays,
+  listChildNotes,
+  addChildNote,
+  getChildFeatures,
   type Child,
   type EnrollmentRequest,
+  type StatusDay,
+  type ParentNote,
 } from "./parent-api";
 
 import type { SubmitEnrollmentPayload } from "./enrollment-submission-api";
@@ -273,5 +280,180 @@ describe("submitParentEnrollment", () => {
     await expect(
       submitParentEnrollment("school", validPayload),
     ).rejects.toThrow(/Anmeldung konnte nicht übermittelt werden/);
+  });
+});
+
+// --- sick notes ------------------------------------------------------
+
+function mkStatusDay(date: string, note?: string): StatusDay {
+  return {
+    id: "1",
+    student_id: "84",
+    date,
+    status: "sick",
+    reported_at: "2026-06-01T08:00:00Z",
+    source: "parent",
+    note,
+  };
+}
+
+describe("submitSickNote", () => {
+  it("POSTs dates + reason to the child sick-note route and unwraps data", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      seenMethod = init?.method ?? "";
+      return jsonResponse(
+        { data: [mkStatusDay("2026-06-02", "Fieber")] },
+        { status: 201 },
+      );
+    });
+    const out = await submitSickNote("84", ["2026-06-02"], "Fieber");
+    expect(out).toHaveLength(1);
+    expect(out[0]!.note).toBe("Fieber");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toContain("/api/parent/me/children/84/sick-note");
+    expect(seenBody).toContain('"dates":["2026-06-02"]');
+    expect(seenBody).toContain('"reason":"Fieber"');
+  });
+
+  it("sends an empty reason when none is supplied", async () => {
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: [] }, { status: 201 });
+    });
+    await submitSickNote("84", ["2026-06-02"]);
+    expect(seenBody).toContain('"reason":""');
+  });
+
+  it("URL-encodes the student id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [] }, { status: 201 });
+    });
+    await submitSickNote("a/b", ["2026-06-02"]);
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("throws with the backend error message on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Krankmeldung deaktiviert" }, { status: 403 }),
+    );
+    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow(
+      /Krankmeldung deaktiviert/,
+    );
+  });
+
+  it("redirects to /parents/login on 401", async () => {
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { assign, host: "parents.localhost:3000" },
+    });
+    mockFetch(async () => new Response("", { status: 401 }));
+    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow();
+    expect(assign).toHaveBeenCalledWith("/parents/login");
+  });
+});
+
+describe("listSickDays", () => {
+  it("GETs the child sick-note route and returns the data array", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkStatusDay("2026-06-02")] });
+    });
+    const out = await listSickDays("84");
+    expect(out).toHaveLength(1);
+    expect(seenURL).toContain("/api/parent/me/children/84/sick-note");
+  });
+});
+
+// --- parent notes ----------------------------------------------------
+
+function mkNote(body: string): ParentNote {
+  return {
+    id: "7",
+    student_id: "84",
+    body,
+    created_at: "2026-06-01T09:00:00Z",
+  };
+}
+
+describe("listChildNotes", () => {
+  it("GETs the notes route and returns the data array", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkNote("Hallo")] });
+    });
+    const out = await listChildNotes("84");
+    expect(out).toHaveLength(1);
+    expect(out[0]!.body).toBe("Hallo");
+    expect(seenURL).toContain("/api/parent/me/children/84/notes");
+  });
+});
+
+describe("addChildNote", () => {
+  it("POSTs the body to the notes route and returns the newest list", async () => {
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (_input, init) => {
+      seenMethod = init?.method ?? "";
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        { data: [mkNote("neu"), mkNote("alt")] },
+        { status: 201 },
+      );
+    });
+    const out = await addChildNote("84", "neu");
+    expect(seenMethod).toBe("POST");
+    expect(seenBody).toContain('"body":"neu"');
+    expect(out).toHaveLength(2);
+    expect(out[0]!.body).toBe("neu");
+  });
+
+  it("throws with the backend error message on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Nachrichten deaktiviert" }, { status: 403 }),
+    );
+    await expect(addChildNote("84", "x")).rejects.toThrow(
+      /Nachrichten deaktiviert/,
+    );
+  });
+
+  it("throws a generic message on non-OK non-JSON body", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(addChildNote("84", "x")).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+});
+
+describe("getChildFeatures", () => {
+  it("GETs the features route and returns the resolved flags", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { sick_note_enabled: true, notes_enabled: false },
+      });
+    });
+    const out = await getChildFeatures("84");
+    expect(out.sick_note_enabled).toBe(true);
+    expect(out.notes_enabled).toBe(false);
+    expect(seenURL).toContain("/api/parent/me/children/84/features");
+  });
+
+  it("throws on non-OK so the caller can fall back to defaults", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(getChildFeatures("84")).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
   });
 });

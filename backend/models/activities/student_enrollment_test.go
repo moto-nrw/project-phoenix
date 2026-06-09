@@ -152,6 +152,46 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Valid selected weekdays",
+			studentEnrollment: &StudentEnrollment{
+				StudentID:        101,
+				ActivityGroupID:  201,
+				ValidFrom:        now,
+				SelectedWeekdays: []int{1, 3, 5},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Selected weekday below monday is rejected",
+			studentEnrollment: &StudentEnrollment{
+				StudentID:        102,
+				ActivityGroupID:  202,
+				ValidFrom:        now,
+				SelectedWeekdays: []int{0},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Selected weekday above sunday is rejected",
+			studentEnrollment: &StudentEnrollment{
+				StudentID:        103,
+				ActivityGroupID:  203,
+				ValidFrom:        now,
+				SelectedWeekdays: []int{8},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Duplicate selected weekday is rejected",
+			studentEnrollment: &StudentEnrollment{
+				StudentID:        104,
+				ActivityGroupID:  204,
+				ValidFrom:        now,
+				SelectedWeekdays: []int{2, 2},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

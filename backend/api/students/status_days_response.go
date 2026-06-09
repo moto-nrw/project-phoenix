@@ -23,6 +23,7 @@ func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDa
 		ReportedAt: entry.ReportedAt,
 		ClearedAt:  entry.ClearedAt,
 		Source:     entry.Source,
+		Note:       entry.Note,
 		CreatedAt:  entry.CreatedAt,
 		UpdatedAt:  entry.UpdatedAt,
 	}

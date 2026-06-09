@@ -29,6 +29,22 @@ func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*pa
 	return s.result, s.err
 }
 
+// FindForAccount satisfies the ChildRepository interface. Returns the
+// first canned child whose StudentID matches, or nil when none — mirrors
+// the real repo's "not linked" contract.
+func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {
+	s.gotAccountID = accountID
+	if s.err != nil {
+		return nil, s.err
+	}
+	for _, c := range s.result {
+		if c.StudentID == studentID {
+			return c, nil
+		}
+	}
+	return nil, nil
+}
+
 type stubEnrollableRepo struct {
 	gotAccountID int64
 	result       []*parentModels.EnrollablePhase

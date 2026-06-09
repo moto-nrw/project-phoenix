@@ -28,6 +28,8 @@ import {
 } from "~/lib/care-offering-api";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
+import { timetableService } from "~/lib/timetable-api";
+import type { TimetableTemplate } from "~/lib/timetable-types";
 import { useToast } from "~/contexts/ToastContext";
 import {
   DataTable,
@@ -48,6 +50,25 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 const WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri"];
+const CARE_DAY_TO_ISO: Record<string, number> = {
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+  sun: 7,
+};
+
+const ISO_WEEKDAY_LABELS: Record<number, string> = {
+  1: "Mo",
+  2: "Di",
+  3: "Mi",
+  4: "Do",
+  5: "Fr",
+  6: "Sa",
+  7: "So",
+};
 
 const KIND_LABELS: Record<Phase["kind"], string> = {
   school_year: "Schuljahr",
@@ -111,10 +132,77 @@ function formatDays(days: string[]): string {
   return visibleDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
 }
 
+function templateLabel(template: TimetableTemplate): string {
+  const days = template.schedules
+    .map((schedule) => schedule.weekday)
+    .sort((a, b) => a - b)
+    .map((weekday) => ISO_WEEKDAY_LABELS[weekday] ?? `Tag ${weekday}`)
+    .join(", ");
+  const time = template.schedules[0]
+    ? `${template.schedules[0].startTime}-${template.schedules[0].endTime}`
+    : "ohne Zeit";
+  return `${template.name} (${days || "keine Tage"}, ${time})`;
+}
+
+function linkedTemplateWarnings(
+  draft: CareOfferingInput,
+  templates: TimetableTemplate[],
+): string[] {
+  if (!draft.activity_group_id) return [];
+  const template = templates.find(
+    (item) => item.id === draft.activity_group_id?.toString(),
+  );
+  if (!template)
+    return ["Die ausgewählte Vorlage konnte nicht geladen werden."];
+  const warnings: string[] = [];
+  if (template.schedules.length === 0) {
+    warnings.push("Die ausgewählte Vorlage hat noch keine Slots.");
+    return warnings;
+  }
+  const templateDays = new Set(
+    template.schedules.map((schedule) => schedule.weekday),
+  );
+  const offeringDays = new Set(
+    draft.available_days
+      .map((day) => CARE_DAY_TO_ISO[day])
+      .filter((day): day is number => day !== undefined),
+  );
+  if (
+    draft.available_days.some((day) => {
+      const iso = CARE_DAY_TO_ISO[day];
+      return iso !== undefined && !templateDays.has(iso);
+    })
+  ) {
+    warnings.push(
+      "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+    );
+  }
+  if ([...templateDays].some((day) => !offeringDays.has(day))) {
+    warnings.push(
+      "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+    );
+  }
+  const periodIds = new Set(
+    template.schedules
+      .map((schedule) => schedule.calendarPeriodId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  if (
+    periodIds.size !== 1 ||
+    template.schedules.some((schedule) => !schedule.calendarPeriodId)
+  ) {
+    warnings.push(
+      "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
+    );
+  }
+  return warnings;
+}
+
 export function CareOfferingsEditor() {
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const [offerings, setOfferings] = useState<CareOffering[]>([]);
+  const [templates, setTemplates] = useState<TimetableTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -140,8 +228,17 @@ export function CareOfferingsEditor() {
     setLoading(true);
     setError(null);
     try {
-      const phasesData = await listPhases();
+      const [phasesData, templateData] = await Promise.all([
+        listPhases(),
+        timetableService.getTemplates().catch((err: unknown) => {
+          logger.error("care_offering_templates_load_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return { templates: [] as TimetableTemplate[] };
+        }),
+      ]);
       setPhases(phasesData);
+      setTemplates(templateData.templates);
 
       let phaseId = selectedPhaseId;
       if (!phaseId && phasesData.length > 0) {
@@ -303,9 +400,13 @@ export function CareOfferingsEditor() {
             {offering.includes_holiday_care ? (
               <FeaturePill label="Ferienbetreuung" />
             ) : null}
+            {offering.activity_group_id ? (
+              <FeaturePill label="Stundenplan" />
+            ) : null}
             {!offering.is_required &&
             !offering.includes_lunch &&
-            !offering.includes_holiday_care ? (
+            !offering.includes_holiday_care &&
+            !offering.activity_group_id ? (
               <span className="text-sm text-gray-400">Keine Extras</span>
             ) : null}
           </div>
@@ -417,6 +518,7 @@ export function CareOfferingsEditor() {
               draft={draft}
               editing={editingId !== "new"}
               phases={phases}
+              templates={templates}
               saving={saving}
               onChange={setDraft}
               onSubmit={handleSave}
@@ -790,6 +892,7 @@ interface CareOfferingFormProps {
   readonly draft: CareOfferingInput;
   readonly editing: boolean;
   readonly phases: Phase[];
+  readonly templates: TimetableTemplate[];
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
@@ -800,6 +903,7 @@ function CareOfferingForm({
   draft,
   editing,
   phases,
+  templates,
   saving,
   onChange,
   onSubmit,
@@ -807,6 +911,7 @@ function CareOfferingForm({
 }: CareOfferingFormProps) {
   const update = (patch: Partial<CareOfferingInput>) =>
     onChange({ ...draft, ...patch });
+  const templateWarnings = linkedTemplateWarnings(draft, templates);
   const toggleDay = (day: string) => {
     const nextDays = new Set(draft.available_days);
     if (nextDays.has(day)) nextDays.delete(day);
@@ -873,6 +978,43 @@ function CareOfferingForm({
           </select>
         </label>
       </div>
+
+      <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">
+            Stundenplan-Vorlage
+          </span>
+          <select
+            value={draft.activity_group_id?.toString() ?? ""}
+            onChange={(event) =>
+              update({
+                activity_group_id: event.target.value
+                  ? Number(event.target.value)
+                  : null,
+              })
+            }
+            className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <option value="">Keine automatische Stundenplan-Zuordnung</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {templateLabel(template)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-xs text-gray-600">
+          Genehmigte Anmeldungen werden in diese Vorlage übernommen und an den
+          ausgewählten Angebotstagen erwartet.
+        </p>
+        {templateWarnings.length > 0 ? (
+          <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+            {templateWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
 
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Beschreibung</span>

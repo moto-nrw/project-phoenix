@@ -117,3 +117,88 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 	}
 	return out, nil
 }
+
+// FindForAccount resolves a single child the account is a guardian of.
+// Same cross-tenant join as ListByAccount, narrowed to one student id.
+// Returns nil, nil when the student is not linked to the account so the
+// caller can map "not yours" to a 403/404 without leaking existence.
+//
+// MUST run inside a tenant.WithAdminTx — the join spans tenant_id
+// boundaries scoped only by auth.account_tenants membership.
+func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("parent: account_id must be positive")
+	}
+	if studentID <= 0 {
+		return nil, fmt.Errorf("parent: student_id must be positive")
+	}
+
+	type row struct {
+		StudentID     int64      `bun:"student_id"`
+		TenantID      int64      `bun:"tenant_id"`
+		FirstName     string     `bun:"first_name"`
+		LastName      string     `bun:"last_name"`
+		SchoolClass   string     `bun:"school_class"`
+		Status        string     `bun:"status"`
+		EnrolledFrom  *time.Time `bun:"enrolled_from"`
+		EnrolledUntil *time.Time `bun:"enrolled_until"`
+		SchoolName    string     `bun:"school_name"`
+		SchoolSlug    string     `bun:"school_slug"`
+	}
+
+	const query = `
+		SELECT
+			s.id           AS student_id,
+			s.tenant_id    AS tenant_id,
+			p.first_name   AS first_name,
+			p.last_name    AS last_name,
+			COALESCE(s.school_class, '') AS school_class,
+			s.status       AS status,
+			s.enrolled_from  AS enrolled_from,
+			s.enrolled_until AS enrolled_until,
+			COALESCE(sch.name, '')  AS school_name,
+			COALESCE(sch.slug, '')  AS school_slug
+		FROM auth.account_tenants AS at
+		JOIN users.guardian_profiles AS gp
+			ON gp.account_id = at.account_id
+			AND gp.tenant_id  = at.tenant_id
+		JOIN users.students_guardians AS sg
+			ON sg.guardian_profile_id = gp.id
+			AND sg.tenant_id          = at.tenant_id
+		JOIN users.students AS s
+			ON s.id        = sg.student_id
+			AND s.tenant_id = at.tenant_id
+		JOIN users.persons AS p
+			ON p.id        = s.person_id
+			AND p.tenant_id = at.tenant_id
+		LEFT JOIN platform.schools AS sch
+			ON sch.id = at.tenant_id
+		WHERE at.account_id = ?
+		  AND s.id          = ?
+		  AND at.status     = 'active'
+		  AND p.deleted_at IS NULL
+		LIMIT 1
+	`
+
+	var rows []row
+	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, studentID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("parent: find child for account: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	rr := rows[0]
+	return &parentModels.ChildSummary{
+		StudentID:     rr.StudentID,
+		TenantID:      rr.TenantID,
+		FirstName:     rr.FirstName,
+		LastName:      rr.LastName,
+		SchoolClass:   rr.SchoolClass,
+		Status:        rr.Status,
+		EnrolledFrom:  rr.EnrolledFrom,
+		EnrolledUntil: rr.EnrolledUntil,
+		SchoolName:    rr.SchoolName,
+		SchoolSlug:    rr.SchoolSlug,
+	}, nil
+}

@@ -26,7 +26,7 @@ export const GET = createGetHandler(
 
 export const POST = createPostHandler<
   unknown,
-  { status: string; dates: string[] }
+  { status: string; dates: string[]; reason?: string }
 >(
   async (
     _request: NextRequest,
@@ -40,7 +40,7 @@ export const POST = createPostHandler<
     }
     const response = await apiPost<
       { data: unknown },
-      { status: string; dates: string[] }
+      { status: string; dates: string[]; reason?: string }
     >(`/api/students/${id}/status-days`, token, body);
     return response.data;
   },

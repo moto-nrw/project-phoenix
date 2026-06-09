@@ -1,6 +1,7 @@
 package timetable
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,6 +27,7 @@ type updateTemplateRequest struct {
 	MaxParticipants  *int    `json:"max_participants,omitempty"`
 	WeekPattern      *int    `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64  `json:"education_group_id,omitempty"`
 	StudentIDs       []int64 `json:"student_ids,omitempty"`
 	StaffIDs         []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
@@ -54,6 +56,31 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		if !activitiesModel.IsValidWeekday(w) {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
+	}
+	return nil
+}
+
+func (rs *Resource) validateTemplateEducationGroup(ctx context.Context, groupID *int64) error {
+	if groupID == nil {
+		return nil
+	}
+	if *groupID <= 0 {
+		return errors.New("education_group_id must be positive when set")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("no tenant in context")
+	}
+	exists, err := base.GetDB(ctx, rs.db).NewSelect().
+		TableExpr(`education.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".id = ?`, *groupID).
+		Exists(ctx)
+	if err != nil {
+		return fmt.Errorf("validate education_group_id: %w", err)
+	}
+	if !exists {
+		return errors.New("education_group_id does not reference a group in this tenant")
 	}
 	return nil
 }
@@ -131,6 +158,10 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
+	if err := rs.validateTemplateEducationGroup(ctx, req.EducationGroupID); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	exists, err := rs.templateExists(ctx, id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
@@ -151,6 +182,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		Set("type = ?", req.Type).
 		Set("category_id = ?", req.CategoryID).
 		Set("planned_room_id = ?", req.RoomID).
+		Set("education_group_id = ?", req.EducationGroupID).
 		Set("max_participants = ?", maxParticipants).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).

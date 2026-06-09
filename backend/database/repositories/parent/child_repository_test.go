@@ -328,3 +328,106 @@ func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, list)
 }
+
+// --- FindForAccount ---------------------------------------------------
+
+// findChild runs the single-child resolver inside the required admin tx.
+func findChild(t *testing.T, db *bun.DB, accountID, studentID int64) *parentModels.ChildSummary {
+	t.Helper()
+	repo := parentRepo.NewChildRepository(db)
+	var got *parentModels.ChildSummary
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		c, e := repo.FindForAccount(ctx, accountID, studentID)
+		got = c
+		return e
+	}))
+	return got
+}
+
+func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := parentRepo.NewChildRepository(db)
+
+	_, err := repo.FindForAccount(context.Background(), 0, 5)
+	require.Error(t, err)
+	_, err = repo.FindForAccount(context.Background(), 5, 0)
+	require.Error(t, err)
+}
+
+func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "find-owned")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Owned", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
+
+	got := findChild(t, db, account.ID, student.ID)
+	require.NotNil(t, got, "guardian's own child must resolve")
+	assert.Equal(t, student.ID, got.StudentID)
+	assert.Equal(t, tenantID, got.TenantID, "tenant must be returned for downstream scoping")
+}
+
+func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "find-notlinked")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+	// account is a guardian of `mine` but NOT of `other`.
+	mine := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Mine", "Child", "1a")
+	other := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Other", "Child", "2b")
+	t.Cleanup(func() {
+		bg := context.Background()
+		for _, s := range []struct{ sid, pid int64 }{{mine.ID, mine.PersonID}, {other.ID, other.PersonID}} {
+			_, _ = db.NewDelete().Table("users.students").Where("id = ?", s.sid).Exec(bg)
+			_, _ = db.NewDelete().Table("users.persons").Where("id = ?", s.pid).Exec(bg)
+		}
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, mine.ID)
+
+	assert.Nil(t, findChild(t, db, account.ID, other.ID),
+		"a student the account is not a guardian of must not resolve")
+}
+
+func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "find-inactive")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Felix", "Inactive", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccount(t, db, account.ID, tenantID, student.ID)
+
+	_, err := db.NewRaw(`UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?`,
+		account.ID, tenantID).Exec(context.Background())
+	require.NoError(t, err)
+
+	assert.Nil(t, findChild(t, db, account.ID, student.ID),
+		"an inactive tenant mapping must drop the child")
+}

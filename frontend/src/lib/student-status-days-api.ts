@@ -9,6 +9,8 @@ export interface StudentStatusDay {
   reported_at: string;
   cleared_at?: string | null;
   source: string;
+  /** Optional free-text reason, e.g. a parent-supplied sick note. */
+  note?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +31,7 @@ interface BackendStudentStatusDay {
   reported_at: string;
   cleared_at?: string | null;
   source: string;
+  note?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -74,11 +77,16 @@ export async function createStudentStatusDays(
   studentId: string,
   status: StudentStatusKind,
   dates: string[],
+  reason?: string,
 ): Promise<StudentStatusDay[]> {
   const response = await fetch(`/api/students/${studentId}/status-days`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, dates }),
+    // Only include the reason when one is supplied so the default request
+    // shape is unchanged (the backend treats an absent reason as no note).
+    body: JSON.stringify(
+      reason ? { status, dates, reason } : { status, dates },
+    ),
   });
   if (!response.ok) {
     throw new Error("Geplante Einträge konnten nicht gespeichert werden");

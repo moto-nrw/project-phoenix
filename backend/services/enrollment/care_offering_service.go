@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // ErrCareOfferingNotFound is the sentinel returned by GetByID when the
@@ -36,20 +39,30 @@ type CareOfferingService interface {
 	// Clone copies an existing offering into a new row scoped to a
 	// target phase. All offering-level fields (capacity, days, lunch,
 	// price, etc.) are preserved; the source row's ID is reset and
-	// phase_id is set to the target. Use case: cloning last year's
-	// catalog into this year's phase, then editing what changed.
+	// phase_id is set to the target. When cloning across phases, linked
+	// timetable templates are cleared so admins can relink a template for
+	// the new phase. Use case: cloning last year's catalog into this year's
+	// phase, then editing what changed.
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
 }
 
 // CareOfferingServiceConfig is the dep-injection bundle.
 type CareOfferingServiceConfig struct {
-	Repo   enrollmentModels.CareOfferingRepository
-	Logger *slog.Logger
+	Repo                 enrollmentModels.CareOfferingRepository
+	ActivityGroupRepo    activitiesModels.GroupRepository
+	ActivityScheduleRepo activitiesModels.ScheduleRepository
+	CalendarPeriodRepo   scheduleModels.CalendarPeriodRepository
+	PhaseRepo            enrollmentModels.PhaseRepository
+	Logger               *slog.Logger
 }
 
 type careOfferingService struct {
-	repo   enrollmentModels.CareOfferingRepository
-	logger *slog.Logger
+	repo                 enrollmentModels.CareOfferingRepository
+	activityGroupRepo    activitiesModels.GroupRepository
+	activityScheduleRepo activitiesModels.ScheduleRepository
+	calendarPeriodRepo   scheduleModels.CalendarPeriodRepository
+	phaseRepo            enrollmentModels.PhaseRepository
+	logger               *slog.Logger
 }
 
 // NewCareOfferingService builds the service.
@@ -59,8 +72,12 @@ func NewCareOfferingService(cfg CareOfferingServiceConfig) CareOfferingService {
 		logger = slog.Default()
 	}
 	return &careOfferingService{
-		repo:   cfg.Repo,
-		logger: logger,
+		repo:                 cfg.Repo,
+		activityGroupRepo:    cfg.ActivityGroupRepo,
+		activityScheduleRepo: cfg.ActivityScheduleRepo,
+		calendarPeriodRepo:   cfg.CalendarPeriodRepo,
+		phaseRepo:            cfg.PhaseRepo,
+		logger:               logger,
 	}
 }
 
@@ -137,9 +154,152 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 	return nil
 }
 
+type careOfferingTemplateDeps struct {
+	activityGroupRepo    activitiesModels.GroupRepository
+	activityScheduleRepo activitiesModels.ScheduleRepository
+	calendarPeriodRepo   scheduleModels.CalendarPeriodRepository
+}
+
+func (d careOfferingTemplateDeps) validateActivityGroupLookup() error {
+	if d.activityGroupRepo == nil {
+		return errors.New("activity group validation dependency is not configured")
+	}
+	return nil
+}
+
+func (d careOfferingTemplateDeps) validate() error {
+	if d.activityGroupRepo == nil || d.activityScheduleRepo == nil || d.calendarPeriodRepo == nil {
+		return errors.New("template validation dependencies are not configured")
+	}
+	return nil
+}
+
+func resolveCareOfferingTemplatePeriod(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	activityGroupID int64,
+) (*scheduleModels.CalendarPeriod, error) {
+	if activityGroupID <= 0 {
+		return nil, errors.New("activity_group_id must be positive when set")
+	}
+	if err := deps.validate(); err != nil {
+		return nil, err
+	}
+
+	group, err := deps.activityGroupRepo.FindByID(ctx, activityGroupID)
+	if err != nil || group == nil {
+		return nil, fmt.Errorf("activity_group_id does not reference a template in this tenant")
+	}
+	if !group.IsTemplate {
+		return nil, fmt.Errorf("activity_group_id must reference a timetable template")
+	}
+	if group.ArchivedAt != nil {
+		return nil, fmt.Errorf("activity_group_id references an archived timetable template")
+	}
+
+	schedules, err := deps.activityScheduleRepo.FindByGroupID(ctx, activityGroupID)
+	if err != nil {
+		return nil, fmt.Errorf("load timetable template schedules: %w", err)
+	}
+	if len(schedules) == 0 {
+		return nil, fmt.Errorf("timetable template must have at least one schedule")
+	}
+
+	var periodID *int64
+	for _, schedule := range schedules {
+		if schedule.CalendarPeriodID == nil {
+			return nil, fmt.Errorf("timetable template schedules must all have a calendar_period_id")
+		}
+		if periodID == nil {
+			id := *schedule.CalendarPeriodID
+			periodID = &id
+			continue
+		}
+		if *periodID != *schedule.CalendarPeriodID {
+			return nil, fmt.Errorf("timetable template schedules must use one calendar_period_id")
+		}
+	}
+
+	period, err := deps.calendarPeriodRepo.FindByID(ctx, *periodID)
+	if err != nil || period == nil {
+		return nil, fmt.Errorf("calendar period for timetable template not found")
+	}
+	return period, nil
+}
+
+func resolveCareOfferingLinkedGroupPeriod(
+	ctx context.Context,
+	deps careOfferingTemplateDeps,
+	activityGroupID int64,
+) (*activitiesModels.Group, *scheduleModels.CalendarPeriod, error) {
+	if activityGroupID <= 0 {
+		return nil, nil, errors.New("activity_group_id must be positive when set")
+	}
+	if err := deps.validateActivityGroupLookup(); err != nil {
+		return nil, nil, err
+	}
+
+	group, err := deps.activityGroupRepo.FindByID(ctx, activityGroupID)
+	if err != nil || group == nil {
+		return nil, nil, fmt.Errorf("activity_group_id does not reference a group in this tenant")
+	}
+	if !group.IsTemplate {
+		return group, nil, nil
+	}
+
+	period, err := resolveCareOfferingTemplatePeriod(ctx, deps, activityGroupID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return group, period, nil
+}
+
+func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *scheduleModels.CalendarPeriod) error {
+	if phase == nil || period == nil {
+		return nil
+	}
+	phaseStart := civilEnrollmentDate(phase.ServiceStartDate)
+	phaseEnd := civilEnrollmentDate(phase.ServiceEndDate)
+	periodStart := civilEnrollmentDate(period.StartDate)
+	periodEnd := civilEnrollmentDate(period.EndDate)
+	if phaseStart.Before(periodStart) || phaseEnd.After(periodEnd) {
+		return fmt.Errorf("care offering phase must be within the linked timetable template period")
+	}
+	return nil
+}
+
+func civilEnrollmentDate(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	if offering == nil || offering.ActivityGroupID == nil {
+		return nil
+	}
+	period, err := resolveCareOfferingTemplatePeriod(ctx, careOfferingTemplateDeps{
+		activityGroupRepo:    s.activityGroupRepo,
+		activityScheduleRepo: s.activityScheduleRepo,
+		calendarPeriodRepo:   s.calendarPeriodRepo,
+	}, *offering.ActivityGroupID)
+	if err != nil {
+		return err
+	}
+	if s.phaseRepo == nil {
+		return errors.New("phase validation dependency is not configured")
+	}
+	phase, err := s.phaseRepo.FindByID(ctx, offering.PhaseID)
+	if err != nil || phase == nil {
+		return fmt.Errorf("phase_id does not reference a phase in this tenant")
+	}
+	return validatePhaseWithinTemplatePeriod(phase, period)
+}
+
 func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentModels.CareOffering) (*enrollmentModels.CareOffering, error) {
 	if offering == nil {
 		return nil, fmt.Errorf("offering is required")
+	}
+	if err := s.validateLinkedTemplate(ctx, offering); err != nil {
+		return nil, err
 	}
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return nil, err
@@ -156,6 +316,9 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentModels.CareOffering) error {
 	if offering == nil || offering.ID <= 0 {
 		return fmt.Errorf("offering with valid id is required")
+	}
+	if err := s.validateLinkedTemplate(ctx, offering); err != nil {
+		return err
 	}
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return err
@@ -179,8 +342,9 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 }
 
 // Clone copies a care offering into a new row scoped to a target phase.
-// All offering-level fields are preserved; ID is reset so the DB
-// assigns a fresh BIGSERIAL, and phase_id is repointed at the target.
+// Offering-level fields are preserved except cross-phase timetable template
+// links; ID is reset so the DB assigns a fresh BIGSERIAL, and phase_id is
+// repointed at the target.
 func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error) {
 	if sourceID <= 0 {
 		return nil, fmt.Errorf("source id must be positive")
@@ -197,7 +361,12 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	clone := *source
 	clone.ID = 0 // BIGSERIAL - let the DB assign
 	clone.PhaseID = targetPhaseID
-
+	if source.PhaseID != targetPhaseID && clone.ActivityGroupID != nil {
+		clone.ActivityGroupID = nil
+	}
+	if err := s.checkGroupRuleConsistency(ctx, &clone); err != nil {
+		return nil, fmt.Errorf("clone: check selection group consistency: %w", err)
+	}
 	if err := s.repo.Create(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: create: %w", err)
 	}

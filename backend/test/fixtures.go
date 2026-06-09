@@ -2827,3 +2827,98 @@ func CleanupScheduleFixturesB11(
 		CleanupTableRecords(tb, db, g.table, g.ids...)
 	}
 }
+
+// ParentChain bundles the IDs of a fully-wired loginable-parent → child
+// relationship, mirroring what the guardian-invitation accept flow
+// produces: an auth account, a guardian profile linked to it, an active
+// account_tenants mapping, and a students_guardians link to a student.
+// All rows live in tenant 1 so the parent-portal cross-tenant queries
+// resolve.
+type ParentChain struct {
+	AccountID         int64
+	TenantID          int64
+	GuardianProfileID int64
+	StudentID         int64
+	PersonID          int64
+	Email             string
+}
+
+// CreateTestParentGuardianChain wires the full parent→child chain for
+// tenant 1 and returns the IDs. Use CleanupParentGuardianChain (deferred)
+// to tear it down.
+func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	student := CreateTestStudent(tb, db, "Felix", "Schneider", "1a")
+	account := CreateTestAccount(tb, db, "parent")
+
+	profile := &users.GuardianProfile{
+		FirstName:              "Sabine",
+		LastName:               "Schneider",
+		Email:                  &account.Email,
+		AccountID:              &account.ID,
+		HasAccount:             true,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create test guardian profile")
+
+	link := &users.StudentGuardian{
+		StudentID:          student.ID,
+		GuardianProfileID:  profile.ID,
+		RelationshipType:   "parent",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+		EmergencyPriority:  1,
+	}
+	link.SetTenantID(1)
+	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create students_guardians link")
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    1,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create account_tenants mapping")
+
+	return ParentChain{
+		AccountID:         account.ID,
+		TenantID:          1,
+		GuardianProfileID: profile.ID,
+		StudentID:         student.ID,
+		PersonID:          student.PersonID,
+		Email:             account.Email,
+	}
+}
+
+// CleanupParentGuardianChain removes every row created by
+// CreateTestParentGuardianChain plus any parent notes / status days that
+// tests attached to the chain's student. Safe to defer.
+func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	exec := func(query string, arg int64) {
+		if _, err := db.ExecContext(ctx, query, arg); err != nil {
+			tb.Logf("cleanup warning: %v", err)
+		}
+	}
+	exec(`DELETE FROM users.student_parent_notes WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
+	exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, c.GuardianProfileID)
+	exec(`DELETE FROM users.students WHERE id = ?`, c.StudentID)
+	exec(`DELETE FROM users.persons WHERE id = ?`, c.PersonID)
+	exec(`DELETE FROM auth.accounts WHERE id = ?`, c.AccountID)
+}

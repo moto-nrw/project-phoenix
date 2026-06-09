@@ -45,6 +45,18 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 		Set("reported_at = EXCLUDED.reported_at").
 		Set("cleared_at = NULL").
 		Set("source = EXCLUDED.source").
+		// Note handling depends on whether the existing row is still active.
+		// On an active re-report (cleared_at IS NULL — e.g. editing other
+		// fields while sick) preserve the prior reason when none is supplied.
+		// On a reactivation of a previously-cleared row, take the incoming
+		// note verbatim so a stale reason from the old, superseded report
+		// can't resurface. The references read the OLD row, since Postgres
+		// evaluates all SET expressions against the pre-update tuple.
+		Set(`note = CASE
+			WHEN student_status_days.cleared_at IS NULL
+			THEN COALESCE(EXCLUDED.note, student_status_days.note)
+			ELSE EXCLUDED.note
+		END`).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert student status day", Err: err}

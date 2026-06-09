@@ -214,10 +214,15 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
+	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-EducationGroup")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "education.groups", educationGroup.ID)
+	})
 
 	body := createTemplateBody(s, "Tpl-CreateListUpdate")
 	body["materialize_from"] = "2026-05-04"
 	body["materialize_to"] = "2026-05-08"
+	body["education_group_id"] = educationGroup.ID
 
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
@@ -242,6 +247,9 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	assert.Equal(t, activitiesModel.GroupTypeCare, tpl.Type)
 	assert.Equal(t, s.roomID, *tpl.RoomID)
 	assert.Equal(t, s.category.ID, tpl.CategoryID)
+	require.NotNil(t, tpl.EducationGroupID)
+	assert.Equal(t, educationGroup.ID, *tpl.EducationGroupID)
+	assert.Equal(t, educationGroup.Name, tpl.EducationGroupName)
 	assert.Equal(t, []int64{s.studentA, s.studentB}, tpl.StudentIDs)
 	assert.Equal(t, []int64{s.staffB, s.staffA}, tpl.StaffIDs)
 	require.NotNil(t, tpl.PrimaryStaffID)
@@ -255,9 +263,13 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
 	got := decodeTemplateData[templateResponse](t, getW)
 	assert.Equal(t, created.TemplateID, got.ID)
+	require.NotNil(t, got.EducationGroupID)
+	assert.Equal(t, educationGroup.ID, *got.EducationGroupID)
+	assert.Equal(t, educationGroup.Name, got.EducationGroupName)
 
 	updateBody := createTemplateBody(s, "Tpl-Updated")
 	updateBody["type"] = activitiesModel.GroupTypeActivity
+	updateBody["education_group_id"] = educationGroup.ID
 	updateBody["weekdays"] = []int{activitiesModel.WeekdayFriday}
 	updateBody["start_time"] = "13:15"
 	updateBody["end_time"] = "14:00"

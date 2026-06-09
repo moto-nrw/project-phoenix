@@ -242,6 +242,8 @@ export interface TimetableTemplate {
   categoryName: string;
   roomId?: string;
   roomName?: string;
+  educationGroupId?: string;
+  educationGroupName?: string;
   isOpen: boolean;
   maxParticipants: number;
   enrollmentCount: number;
@@ -273,6 +275,8 @@ export interface BackendTimetableTemplate {
   category_name: string;
   room_id?: number;
   room_name?: string;
+  education_group_id?: number;
+  education_group_name?: string;
   is_open: boolean;
   max_participants: number;
   enrollment_count: number;
@@ -488,6 +492,7 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  education_group_id?: number;
   max_participants?: number;
   week_pattern?: number;
   calendar_period_id?: number;

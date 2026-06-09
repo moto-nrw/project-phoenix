@@ -20,6 +20,9 @@ const (
 	StudentStatusSourcePlanned     = "planned"
 	StudentStatusSourceNextCheckin = "next_checkin"
 	StudentStatusSourceEndOfDay    = "end_of_day"
+	// StudentStatusSourceParent marks a status day reported by a
+	// guardian through the parents portal (vs. entered by staff).
+	StudentStatusSourceParent = "parent"
 )
 
 type StudentStatusDay struct {
@@ -31,6 +34,9 @@ type StudentStatusDay struct {
 	ReportedAt time.Time  `bun:"reported_at,notnull" json:"reported_at"`
 	ClearedAt  *time.Time `bun:"cleared_at" json:"cleared_at,omitempty"`
 	Source     string     `bun:"source,notnull" json:"source"`
+	// Note carries an optional free-text reason supplied alongside the
+	// status (currently only parent sick notes set it). Nullable.
+	Note *string `bun:"note" json:"note,omitempty"`
 }
 
 func (s *StudentStatusDay) BeforeAppendModel(query any) error {

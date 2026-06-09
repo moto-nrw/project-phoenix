@@ -39,7 +39,10 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
 });
 
 import { EnrollmentForm } from "./enrollment-form";
-import type { PublicFormSchema } from "~/lib/enrollment-form-schema-api";
+import type {
+  PublicFormSchema,
+  PublicLegalTexts,
+} from "~/lib/enrollment-form-schema-api";
 import type {
   MeProfileResponse,
   PublicCareOffering,
@@ -99,7 +102,66 @@ function schema(): PublicFormSchema {
         applies_to_child: true,
         sort_order: 5,
       },
+      {
+        key: "bus_days",
+        label: "Buskind",
+        type: "weekday_boolean",
+        required: false,
+        applies_to_child: true,
+        sort_order: 6,
+      },
     ],
+  };
+}
+
+function legalTexts(
+  blocks: PublicLegalTexts["blocks"] = [
+    {
+      key: "agb",
+      kind: "terms",
+      title: "AGB / Teilnahmebedingungen",
+      label:
+        "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+      text: "AGB Text",
+      required: true,
+    },
+    {
+      key: "data_processing",
+      kind: "privacy_notice",
+      title: "Datenschutzinformation",
+      label:
+        "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
+      text: "Datenschutz Text",
+      required: true,
+    },
+    {
+      key: "photo",
+      kind: "consent",
+      title: "Fotoeinwilligung",
+      label:
+        "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
+      text: "Foto Text",
+      required: false,
+    },
+    {
+      key: "email_contact",
+      kind: "notice",
+      title: "E-Mail-Kontakt",
+      label:
+        "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
+      text: "E-Mail Text",
+      required: false,
+    },
+  ],
+): PublicLegalTexts {
+  return {
+    agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
+    email_contact:
+      blocks.find((block) => block.key === "email_contact")?.text ?? "",
+    photo: blocks.find((block) => block.key === "photo")?.text ?? "",
+    terms_enabled: blocks.some((block) => block.key === "agb"),
+    blocks,
   };
 }
 
@@ -193,9 +255,16 @@ function fillRequiredFields() {
   fireEvent.change(screen.getByLabelText("Klassenstufe *"), {
     target: { value: "2" },
   });
-  fireEvent.click(screen.getByText(/AGB/));
-  fireEvent.click(screen.getByText(/Verarbeitung der angegebenen Daten/));
-  fireEvent.click(screen.getByText(/E-Mail kontaktieren/));
+  const agb = screen.queryByText(/AGB|Ganztag Info-Brief/);
+  if (agb) {
+    fireEvent.click(agb);
+  }
+  const privacy = screen.queryByText(
+    /Datenschutzinformation der Schule zur Kenntnis/,
+  );
+  if (privacy) {
+    fireEvent.click(privacy);
+  }
 }
 
 describe("EnrollmentForm", () => {
@@ -211,16 +280,7 @@ describe("EnrollmentForm", () => {
       enabled: false,
       site_key: "",
     });
-    // Unconfigured tenant: the public legal endpoint returns empty
-    // strings (a 200 response), so the consent labels render without a
-    // document link. A real load failure rejects instead — covered by
-    // the dedicated fail-closed test below.
-    mockFetchPublicLegalTexts.mockResolvedValue({
-      agb: "",
-      dsgvo: "",
-      email_contact: "",
-      photo: "",
-    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "at_least_one",
@@ -255,6 +315,28 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("renders custom field help texts so parents see the admin's guidance", async () => {
+    // Regression guard: help_text was stored, served, and shown in the form
+    // editor, but never rendered in the actual enrollment form (CustomFieldInput
+    // and the structured field renderers dropped it). Cover both render paths:
+    // a simple field via labelEl (textarea) and a structured one
+    // (weekday_schedule), which render help_text independently.
+    const withHelp = schema();
+    withHelp.fields[0]!.help_text = "Bitte gewünschte Abholung beschreiben.";
+    withHelp.fields[3]!.help_text = "Pro Tag die Uhrzeit eintragen.";
+    mockFetchPublicActiveSchema.mockResolvedValue(withHelp);
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.getByText("Bitte gewünschte Abholung beschreiben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Pro Tag die Uhrzeit eintragen."),
+    ).toBeInTheDocument();
+  });
+
   it("fails closed when the legal texts cannot be loaded", async () => {
     // A real load failure (settings/DB/JSON error) must reject the whole
     // form load so the parent never submits legally relevant consent
@@ -274,6 +356,81 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("renders only the configured AGB block and submits only its consent", async () => {
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(
+      legalTexts([
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB / Teilnahmebedingungen",
+          label:
+            "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+          text: "Ganztag Info-Brief",
+          required: true,
+        },
+      ]),
+    );
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(screen.getByText(/Ganztag Info-Brief/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Datenschutzinformation der Schule zur Kenntnis/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Schulveranstaltungen fotografiert/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Status-Benachrichtigungen/),
+    ).not.toBeInTheDocument();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags).toEqual({ agb: true });
+  });
+
+  it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.queryByText("Zustimmungen & Hinweise"),
+    ).not.toBeInTheDocument();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags).toEqual({});
   });
 
   it("submits guardian, child, custom field, offering, and consent payloads", async () => {
@@ -507,6 +664,59 @@ describe("EnrollmentForm", () => {
     expect(payload.captcha_token).toBeUndefined();
     expect(payload.children[0]?.offering_ids).toEqual([12]);
     expect(onSubmitted).toHaveBeenCalledWith("/parents/status/1");
+  });
+
+  it("submits selected bus weekdays for weekday boolean fields", async () => {
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Fr" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.bus_days).toEqual({
+      mon: true,
+      fri: true,
+    });
+  });
+
+  it("requires at least one selected weekday for required weekday boolean fields", async () => {
+    const requiredBusDays = schema();
+    requiredBusDays.fields = requiredBusDays.fields.map((field) =>
+      field.key === "bus_days" ? { ...field, required: true } : field,
+    );
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredBusDays);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findAllByText("Bitte mindestens einen Wochentag auswählen."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("pre-selects and locks a mandatory offering and submits it for every child", async () => {

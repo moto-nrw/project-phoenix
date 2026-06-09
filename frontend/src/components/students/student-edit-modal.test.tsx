@@ -60,17 +60,31 @@ vi.mock("./student-form-fields", () => ({
   ),
   BusStatusSection: ({
     value,
+    days,
     onChange,
   }: {
     value: unknown;
-    onChange: (v: boolean) => void;
+    days?: Record<string, boolean>;
+    onChange: (v: Record<string, boolean>) => void;
   }) => (
     <div data-testid="bus-status-section">
       <input
         type="checkbox"
         data-testid="bus-checkbox"
         checked={(value as boolean) ?? false}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={(e) => onChange(e.target.checked ? { mon: true } : {})}
+      />
+      <input
+        type="checkbox"
+        data-testid="bus-day-mon"
+        checked={Boolean(days?.mon)}
+        onChange={(e) => onChange({ ...days, mon: e.target.checked })}
+      />
+      <input
+        type="checkbox"
+        data-testid="bus-day-wed"
+        checked={Boolean(days?.wed)}
+        onChange={(e) => onChange({ ...days, wed: e.target.checked })}
       />
     </div>
   ),
@@ -399,6 +413,26 @@ describe("StudentEditModal", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("first-name-input")).toHaveValue("John");
+    });
+  });
+
+  it("initializes bus days from the student", async () => {
+    render(
+      <StudentEditModal
+        isOpen={true}
+        onClose={mockOnClose}
+        student={{
+          ...mockStudent,
+          bus: true,
+          bus_days: { mon: true, wed: true },
+        }}
+        onSave={mockOnSave}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("bus-day-mon")).toBeChecked();
+      expect(screen.getByTestId("bus-day-wed")).toBeChecked();
     });
   });
 

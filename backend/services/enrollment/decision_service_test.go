@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -10,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -33,7 +37,30 @@ type decisionTestEnv struct {
 	decision enrollmentService.DecisionService
 }
 
+// stubActivationSettings is a fake DecisionSettingsResolver returning a
+// fixed enrollment.default_activation_mode, so the immediate/scheduled
+// approval paths can be exercised without writing config.setting_values
+// rows. Any other key resolves to "" (registry-default behaviour).
+type stubActivationSettings struct {
+	mode string
+}
+
+func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModel.KeyEnrollmentDefaultActivationMode {
+		return s.mode, nil
+	}
+	return "", nil
+}
+
 func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
+	// nil Settings exercises the safe default (scheduled).
+	return setupDecisionTestWithSettings(t, nil)
+}
+
+func setupDecisionTestWithSettings(
+	t *testing.T,
+	settings enrollmentService.DecisionSettingsResolver,
+) (*decisionTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
@@ -53,6 +80,9 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 		PickupScheduleRepo:       repoFactory.StudentPickupSchedule,
 		ArrivalScheduleRepo:      repoFactory.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repoFactory.StudentEnrollment,
+		ActivityGroupRepo:        repoFactory.ActivityGroup,
+		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
 		AccountRepo:              repoFactory.Account,
 		AccountTenantRepo:        repoFactory.AccountTenant,
 		AccountRoleRepo:          repoFactory.AccountRole,
@@ -60,6 +90,7 @@ func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
 		OutboxEnqueuer:           env.outbox,
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
+		Settings:                 settings,
 		Logger:                   slog.Default(),
 	})
 	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
@@ -363,6 +394,71 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
 }
 
+// ---- Decide: activation mode (enrollment.default_activation_mode) -------
+
+// Default / "scheduled": an approved child becomes a PENDING student
+// pinned to the phase's service-start date, so the activate-students
+// scheduler flips it to active when that date arrives. Uses the nil-
+// Settings setup, which must behave identically to an explicit
+// "scheduled" override (the safe default).
+func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-scheduled@example.com", "Sched", "Uled")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+		"scheduled mode must create the student as pending")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must be pinned to the phase service-start date")
+}
+
+// "immediate": an approved child becomes an ACTIVE student right away so
+// it appears in lists/attendance/check-in immediately. enrolled_from is
+// still pinned to the phase's service-start date (the mode changes only
+// the status, never the dates).
+func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		mode: configModel.EnrollmentActivationModeImmediate,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-immediate@example.com", "Immo", "Diate")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, student.Status,
+		"immediate mode must activate the student on approval")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must stay the phase service-start date even in immediate mode")
+}
+
 func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -419,6 +515,251 @@ func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 	require.NotNil(t, second.Child.CreatedStudentID)
 	assert.Equal(t, firstStudentID, *second.Child.CreatedStudentID,
 		"second approve must not duplicate the student row")
+}
+
+func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollment(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
+	group := &activitiesModels.Group{
+		Name:            "Decision Fixed Days",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      true,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.schedules").
+			Where("activity_group_id = ?", group.ID).
+			Exec(ctx)
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Fixed Tue Thu",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"tue", "thu"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	req := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Fixed",
+		GuardianEmail:     "fixed-days@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Fina",
+				LastName:         "Fixed",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	}
+	submitted, err := env.requestSvc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	var rows []activitiesModels.StudentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".student_id = ?`, *outcome.Child.CreatedStudentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Scan(ctx))
+	require.Len(t, rows, 1)
+	assert.Equal(t, []int{2, 4}, rows[0].SelectedWeekdays,
+		"fixed offering approval must constrain enrollment to available_days")
+	require.NotNil(t, rows[0].CalendarPeriodID)
+	assert.Equal(t, period.ID, *rows[0].CalendarPeriodID)
+}
+
+func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Legacy-Linked")
+	group := &activitiesModels.Group{
+		Name:            "Decision Legacy Linked",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	defer func() {
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Legacy Linked",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"mon", "wed"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Legacy",
+		GuardianEmail:     "legacy-linked@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "Legacy",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	var rows []activitiesModels.StudentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".student_id = ?`, *outcome.Child.CreatedStudentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Scan(ctx))
+	require.Len(t, rows, 1)
+	assert.Nil(t, rows[0].CalendarPeriodID)
+	assert.Empty(t, rows[0].SelectedWeekdays)
+}
+
+func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Empty-Days")
+	group := &activitiesModels.Group{
+		Name:            "Decision Empty Days",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      true,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
+		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.schedules").
+			Where("activity_group_id = ?", group.ID).
+			Exec(ctx)
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Empty Template Days",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "EmptyDays",
+		GuardianEmail:     "empty-days@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Emil",
+				LastName:         "EmptyDays",
+				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no selected or available days")
 }
 
 // ---- ListChildOfferings -------------------------------------------------

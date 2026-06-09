@@ -20,6 +20,7 @@ import {
   fetchPublicLegalTexts,
   type PublicCaptchaConfig,
   type PublicFormSchema,
+  type PublicLegalBlock,
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import {
@@ -72,17 +73,6 @@ const DAY_LABELS: Record<string, string> = {
   fri: "Fr",
   sat: "Sa",
   sun: "So",
-};
-
-// The four consent checkboxes that can carry a per-tenant info text.
-// Keys match the PublicLegalTexts fields and the modal title lookup.
-type LegalDocKey = "agb" | "dsgvo" | "email_contact" | "photo";
-
-const LEGAL_DOC_TITLES: Record<LegalDocKey, string> = {
-  agb: "Allgemeine Geschäftsbedingungen",
-  dsgvo: "Datenschutzerklärung",
-  email_contact: "E-Mail-Kontakt",
-  photo: "Fotoeinwilligung",
 };
 
 import type {
@@ -176,9 +166,10 @@ export function EnrollmentForm({
   const [guardianLastName, setGuardianLastName] = useState("");
   const [guardianEmail, setGuardianEmail] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
+  // Consent states are only used when the tenant's legal block resolver
+  // returns the matching visible block.
   const [agbConsent, setAgbConsent] = useState(false);
   const [dataConsent, setDataConsent] = useState(false);
-  const [emailConsent, setEmailConsent] = useState(false);
   const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
   // Request-level custom fields (applies_to_child=false). Stored
@@ -188,12 +179,12 @@ export function EnrollmentForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(null);
-  // Per-tenant legal documents (Markdown) shown behind the AGB +
-  // Datenschutz consent checkboxes. null until fetched / when the tenant
-  // configured none — the consent label then renders without a link.
+  // Per-tenant legal block contract. null until fetched.
   const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
-  // Which consent info text the parent is currently viewing in the modal.
-  const [openLegalDoc, setOpenLegalDoc] = useState<LegalDocKey | null>(null);
+  // Which legal block text the parent is currently viewing in the modal.
+  const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
+    null,
+  );
   const [profile, setProfile] = useState<MeProfileResponse | null>(null);
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
@@ -406,6 +397,15 @@ export function EnrollmentForm({
   const visibleGuardianFields = (schema?.fields ?? []).filter(
     (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
   );
+  const legalBlocks = legalTexts?.blocks ?? [];
+  const agbBlock = legalBlocks.find((block) => block.key === "agb");
+  const dataProcessingBlock = legalBlocks.find(
+    (block) => block.key === "data_processing",
+  );
+  const emailContactBlock = legalBlocks.find(
+    (block) => block.key === "email_contact",
+  );
+  const photoBlock = legalBlocks.find((block) => block.key === "photo");
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
@@ -505,19 +505,16 @@ export function EnrollmentForm({
         }
       }
     }
-    // Required consents are collected into the same pass so a missing one is
-    // marked (red checkbox) together with any other missing field, instead of
-    // only showing in the banner.
-    if (!agbConsent) {
-      newFieldErrors.consent_agb = "Bitte den AGB zustimmen.";
+    // Required legal blocks are collected into the same pass so a missing
+    // confirmation is marked together with other missing fields. The backend
+    // derives the same required keys from the public legal block contract.
+    if (agbBlock?.required && !agbConsent) {
+      newFieldErrors.consent_agb =
+        "Bitte den AGB / Teilnahmebedingungen zustimmen.";
     }
-    if (!dataConsent) {
+    if (dataProcessingBlock?.required && !dataConsent) {
       newFieldErrors.consent_data_processing =
-        "Bitte der Datenverarbeitung zustimmen.";
-    }
-    if (!emailConsent) {
-      newFieldErrors.consent_email_contact =
-        "Bitte dem E-Mail-Kontakt zustimmen.";
+        "Bitte die Kenntnisnahme der Datenschutzinformation bestätigen.";
     }
     // Offering validation runs in the SAME pass as the field checks above
     // so a missing care-offering day and a missing core field (e.g. phone)
@@ -680,18 +677,27 @@ export function EnrollmentForm({
 
     setSubmitting(true);
     try {
+      const consentFlags: Record<string, unknown> = {};
+      if (agbBlock) {
+        consentFlags.agb = agbConsent;
+      }
+      if (dataProcessingBlock) {
+        consentFlags.data_processing = dataConsent;
+      }
+      if (emailContactBlock) {
+        consentFlags.email_contact = true;
+      }
+      if (photoBlock) {
+        consentFlags.photo = photoConsent === true;
+      }
+
       const payload: SubmitEnrollmentPayload = {
         phase_id: Number(phaseID),
         guardian_first_name: guardianFirstName.trim(),
         guardian_last_name: guardianLastName.trim(),
         guardian_email: guardianEmail.trim().toLowerCase(),
         guardian_phone: guardianPhone.trim() || undefined,
-        consent_flags: {
-          agb: agbConsent,
-          data_processing: dataConsent,
-          email_contact: emailConsent,
-          photo: photoConsent === true,
-        },
+        consent_flags: consentFlags,
         custom_data: visibleAnswerData(
           schema?.fields ?? [],
           false,
@@ -1133,64 +1139,65 @@ export function EnrollmentForm({
         ))}
       </section>
 
-      <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
-        <SectionHeading
-          kicker="Schritt 3"
-          title="Zustimmungen"
-          description="Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."
-        />
-        <Consent
-          name="consent_agb"
-          label="Ich akzeptiere die AGB der Schule."
-          checked={agbConsent}
-          onChange={setAgbConsent}
-          required
-          error={fieldErrors.consent_agb}
-          legalText={legalTexts?.agb}
-          onViewLegal={() => setOpenLegalDoc("agb")}
-        />
-        <Consent
-          name="consent_data_processing"
-          label="Ich willige in die Verarbeitung der angegebenen Daten gemäß DSGVO ein."
-          checked={dataConsent}
-          onChange={setDataConsent}
-          required
-          error={fieldErrors.consent_data_processing}
-          legalText={legalTexts?.dsgvo}
-          onViewLegal={() => setOpenLegalDoc("dsgvo")}
-        />
-        <Consent
-          name="consent_email_contact"
-          label="Die Schule darf mich per E-Mail kontaktieren (Rückfragen, Statusbenachrichtigungen)."
-          checked={emailConsent}
-          onChange={setEmailConsent}
-          required
-          error={fieldErrors.consent_email_contact}
-          legalText={legalTexts?.email_contact}
-          onViewLegal={() => setOpenLegalDoc("email_contact")}
-        />
-        <Consent
-          name="consent_photo"
-          label="Mein Kind darf bei Schulveranstaltungen fotografiert werden (optional)."
-          checked={photoConsent === true}
-          onChange={(checked) => setPhotoConsent(checked)}
-          legalText={legalTexts?.photo}
-          onViewLegal={() => setOpenLegalDoc("photo")}
-        />
-      </section>
+      {legalBlocks.length > 0 && (
+        <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+          <SectionHeading
+            kicker="Schritt 3"
+            title="Zustimmungen & Hinweise"
+            description="Bitte lesen Sie die folgenden Punkte sorgfältig. Erforderliche Bestätigungen müssen aktiv ausgewählt werden."
+          />
+          {agbBlock && (
+            <Consent
+              name="consent_agb"
+              label={agbBlock.label}
+              checked={agbConsent}
+              onChange={setAgbConsent}
+              required={agbBlock.required}
+              error={fieldErrors.consent_agb}
+              legalText={agbBlock.text}
+              onViewLegal={() => setOpenLegalDoc(agbBlock)}
+            />
+          )}
+          {dataProcessingBlock && (
+            <Consent
+              name="consent_data_processing"
+              label={dataProcessingBlock.label}
+              checked={dataConsent}
+              onChange={setDataConsent}
+              required={dataProcessingBlock.required}
+              error={fieldErrors.consent_data_processing}
+              legalText={dataProcessingBlock.text}
+              onViewLegal={() => setOpenLegalDoc(dataProcessingBlock)}
+            />
+          )}
+          {photoBlock && (
+            <Consent
+              name="consent_photo"
+              label={photoBlock.label}
+              checked={photoConsent === true}
+              onChange={(checked) => setPhotoConsent(checked)}
+              required={photoBlock.required}
+              legalText={photoBlock.text}
+              onViewLegal={() => setOpenLegalDoc(photoBlock)}
+            />
+          )}
+          {emailContactBlock && (
+            <EmailContactNotice
+              block={emailContactBlock}
+              onViewLegal={() => setOpenLegalDoc(emailContactBlock)}
+            />
+          )}
+        </section>
+      )}
 
       <Modal
         isOpen={openLegalDoc !== null}
         onClose={() => setOpenLegalDoc(null)}
-        title={openLegalDoc ? LEGAL_DOC_TITLES[openLegalDoc] : ""}
+        title={openLegalDoc?.title ?? ""}
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
       >
         <div className="max-h-[60vh] overflow-y-auto text-sm text-gray-700">
-          <LegalMarkdown
-            text={
-              openLegalDoc && legalTexts ? (legalTexts[openLegalDoc] ?? "") : ""
-            }
-          />
+          <LegalMarkdown text={openLegalDoc?.text ?? ""} />
         </div>
       </Modal>
 
@@ -1773,6 +1780,37 @@ function Consent({
   );
 }
 
+/**
+ * Informational notice for the e-mail contact. Unlike the consent rows
+ * this carries NO checkbox: the school needs the e-mail address to run
+ * the enrollment (Rückfragen, Status-Link), which is contract
+ * performance, not a consent the parent could decline and still enrol.
+ * When the tenant configured an explanatory text it gains a "Mehr
+ * anzeigen" link that opens it in the shared legal modal.
+ */
+function EmailContactNotice({
+  block,
+  onViewLegal,
+}: {
+  readonly block: PublicLegalBlock;
+  readonly onViewLegal?: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-600">
+      <span>{block.label}</span>{" "}
+      {onViewLegal && (
+        <button
+          type="button"
+          onClick={onViewLegal}
+          className="font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
+        >
+          Mehr anzeigen
+        </button>
+      )}
+    </div>
+  );
+}
+
 function customValueMissing(
   field: PublicFormSchema["fields"][number],
   value: unknown,
@@ -1789,6 +1827,10 @@ function customValueMissing(
   if (field.type === "weekday_schedule") {
     const schedule = asScheduleObject(value);
     return !Object.values(schedule).some((time) => time.trim() !== "");
+  }
+  if (field.type === "weekday_boolean") {
+    const days = asWeekdayBooleanObject(value);
+    return !Object.values(days).some(Boolean);
   }
   return typeof value !== "string" || value.trim() === "";
 }
@@ -1835,6 +1877,9 @@ function requiredMessageForField(
   if (field.type === "weekday_schedule") {
     return "Bitte mindestens eine Uhrzeit angeben.";
   }
+  if (field.type === "weekday_boolean") {
+    return "Bitte mindestens einen Wochentag auswählen.";
+  }
   if (field.type === "select") {
     return "Bitte eine Option auswählen.";
   }
@@ -1855,10 +1900,17 @@ function CustomFieldInput({
   error,
 }: CustomFieldInputProps) {
   const labelEl = (
-    <span className="block text-sm font-semibold text-gray-700">
-      {field.label}
-      {field.required && <span className="text-[#FF3130]"> *</span>}
-    </span>
+    <>
+      <span className="block text-sm font-semibold text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </span>
+      {field.help_text && (
+        <span className="mt-1 block text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </span>
+      )}
+    </>
   );
   const valueStr = typeof value === "string" ? value : "";
 
@@ -1956,6 +2008,16 @@ function CustomFieldInput({
       />
     );
   }
+  if (field.type === "weekday_boolean") {
+    return (
+      <WeekdayBooleanInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
   if (field.type === "contact_list") {
     return (
       <ContactListInput
@@ -2039,6 +2101,11 @@ function PhoneListInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch keine Nummer eingetragen.
@@ -2140,6 +2207,16 @@ function asScheduleObject(v: unknown): Record<string, string> {
   return out;
 }
 
+function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, boolean> = {};
+  for (const w of WEEKDAYS) {
+    const raw = (v as Record<string, unknown>)[w.key];
+    if (typeof raw === "boolean") out[w.key] = raw;
+  }
+  return out;
+}
+
 function WeekdayScheduleInput({
   field,
   value,
@@ -2156,6 +2233,11 @@ function WeekdayScheduleInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       <p className="text-xs text-gray-500">
         Leere Felder bedeuten: an diesem Tag keine Angabe.
       </p>
@@ -2171,6 +2253,60 @@ function WeekdayScheduleInput({
             />
           </label>
         ))}
+      </div>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+    </fieldset>
+  );
+}
+
+function WeekdayBooleanInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
+  const days = asWeekdayBooleanObject(value);
+  return (
+    <fieldset
+      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
+      <p className="text-xs text-gray-500">
+        Wähle die Tage aus, an denen das Kind mit dem Bus fährt.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-5">
+        {WEEKDAYS.map((w) => {
+          const checked = Boolean(days[w.key]);
+          return (
+            <label
+              key={w.key}
+              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ${
+                checked
+                  ? "border-gray-900 bg-gray-900 text-white"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) =>
+                  onChange({ ...days, [w.key]: e.target.checked })
+                }
+                className="sr-only"
+              />
+              {w.label.slice(0, 2)}
+            </label>
+          );
+        })}
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
@@ -2227,6 +2363,11 @@ function ContactListInput({
         {field.label}
         {field.required && <span className="text-[#FF3130]"> *</span>}
       </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
           Noch kein zusätzlicher Kontakt eingetragen.

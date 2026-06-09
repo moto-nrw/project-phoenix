@@ -19,7 +19,7 @@ interface PlannedStatusDaysModalProps {
   readonly existingDays?: StudentStatusDay[];
   readonly deletingStatusDayId?: string | null;
   readonly onClose: () => void;
-  readonly onSubmit: (dates: string[]) => Promise<void>;
+  readonly onSubmit: (dates: string[], reason?: string) => Promise<void>;
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
 }
 
@@ -39,6 +39,7 @@ export function PlannedStatusDaysModal({
 }: PlannedStatusDaysModalProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
   const isSick = status === "sick";
   const title = isSick ? "Krankmeldung planen" : "Entschuldigung planen";
   const submitLabel = isSick ? "Krankmelden" : "Entschuldigen";
@@ -121,6 +122,7 @@ export function PlannedStatusDaysModal({
     if (!isSubmitting) {
       setSelectedDates([]);
       setSelectionHint(null);
+      setReason("");
       onClose();
     }
   };
@@ -135,9 +137,17 @@ export function PlannedStatusDaysModal({
       );
       return;
     }
-    await onSubmit(dateKeys);
+    const trimmedReason = reason.trim();
+    // Pass the reason as a second arg only when present, so callers/tests
+    // that expect the single-arg shape keep matching.
+    if (trimmedReason) {
+      await onSubmit(dateKeys, trimmedReason);
+    } else {
+      await onSubmit(dateKeys);
+    }
     setSelectedDates([]);
     setSelectionHint(null);
+    setReason("");
   };
 
   return (
@@ -301,6 +311,11 @@ export function PlannedStatusDaysModal({
                     <span className="block text-xs text-gray-500">
                       {capitalizeFirst(getExistingStatusLabel(day.status))}
                     </span>
+                    {day.note ? (
+                      <span className="mt-0.5 block text-xs text-gray-600 italic">
+                        {day.note}
+                      </span>
+                    ) : null}
                   </span>
                   {onDeleteStatusDay ? (
                     <button
@@ -319,6 +334,26 @@ export function PlannedStatusDaysModal({
             </div>
           </div>
         ) : null}
+
+        {isSick && (
+          <div>
+            <label
+              htmlFor="planned-sick-reason"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Grund (optional)
+            </label>
+            <textarea
+              id="planned-sick-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              placeholder="z. B. Fieber, beim Arzt"
+              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+            />
+          </div>
+        )}
       </div>
     </FormModal>
   );

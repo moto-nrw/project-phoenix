@@ -13,9 +13,38 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
-import { type Child, listMyChildren } from "~/lib/parent-api";
+import {
+  type Child,
+  type ChildFeatures,
+  type ParentNote,
+  listMyChildren,
+} from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import {
+  type ChildCare,
+  NotesModal,
+  ParentNotesList,
+  SickNoteModal,
+  SickStatusSummary,
+  useChildCare,
+} from "~/components/parent/child-care";
+
+// Quick-actions that are wired to real backend flows. The rest remain
+// "coming soon" stubs until their features ship.
+const SUPPORTED_ACTIONS: Record<string, "sick" | "notes"> = {
+  "Krank melden": "sick",
+  "Nachricht schreiben": "notes",
+};
+
+// An action is usable only when it's wired AND the child's school has the
+// matching feature enabled — otherwise the backend would reject it with 403.
+function isActionEnabled(label: string, features: ChildFeatures): boolean {
+  const target = SUPPORTED_ACTIONS[label];
+  if (target === "sick") return features.sick_note_enabled;
+  if (target === "notes") return features.notes_enabled;
+  return false;
+}
 
 const logger = createLogger({ component: "ChildDetail" });
 
@@ -147,6 +176,17 @@ export function ChildDetail({ studentId }: Props) {
 function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
+  const care = useChildCare(child.student_id);
+  const [modal, setModal] = useState<null | "sick" | "notes">(null);
+
+  const openAction = useCallback(
+    (label: string) => {
+      const target = SUPPORTED_ACTIONS[label];
+      if (target && isActionEnabled(label, care.features)) setModal(target);
+    },
+    [care.features],
+  );
+
   const summaryItems = useMemo(
     () => [
       { label: "Schule", value: child.school_name },
@@ -159,7 +199,12 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <MobileChildAppView child={child} fullName={fullName} />
+      <MobileChildAppView
+        child={child}
+        fullName={fullName}
+        care={care}
+        onAction={openAction}
+      />
 
       <section className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:block">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem] xl:grid-cols-[minmax(0,1fr)_30rem]">
@@ -187,13 +232,21 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               </div>
               <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">
                 {CHILD_ACTIONS.slice(0, 3).map((action) => (
-                  <DesktopQuickAction key={action.label} action={action} />
+                  <DesktopQuickAction
+                    key={action.label}
+                    action={action}
+                    onClick={
+                      isActionEnabled(action.label, care.features)
+                        ? () => openAction(action.label)
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
             </div>
           </div>
           <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <TodayPanel />
+            <TodayPanel care={care} />
           </div>
         </div>
       </section>
@@ -215,10 +268,29 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         </section>
 
         <div className="grid gap-6 max-lg:hidden">
+          <MessagesPanel
+            notes={care.notes}
+            composeDisabled={!care.features.notes_enabled}
+            onCompose={() => setModal("notes")}
+          />
           <PickupPeoplePanel people={pickupPeople} />
           <NewsPanel />
         </div>
       </div>
+
+      {modal === "sick" && (
+        <SickNoteModal
+          onClose={() => setModal(null)}
+          onSubmit={care.reportSick}
+        />
+      )}
+      {modal === "notes" && (
+        <NotesModal
+          notes={care.notes}
+          onClose={() => setModal(null)}
+          onSubmit={care.postNote}
+        />
+      )}
     </div>
   );
 }
@@ -226,7 +298,14 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
 function MobileChildAppView({
   child,
   fullName,
-}: Readonly<{ child: Child; fullName: string }>) {
+  care,
+  onAction,
+}: Readonly<{
+  child: Child;
+  fullName: string;
+  care: ChildCare;
+  onAction: (label: string) => void;
+}>) {
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
   const pickupPeople = getPickupPeople();
 
@@ -259,9 +338,33 @@ function MobileChildAppView({
 
       <div className="grid grid-cols-3 gap-3">
         {primaryActions.map((action) => (
-          <MobileQuickAction key={action.label} action={action} />
+          <MobileQuickAction
+            key={action.label}
+            action={action}
+            onClick={
+              isActionEnabled(action.label, care.features)
+                ? () => onAction(action.label)
+                : undefined
+            }
+          />
         ))}
       </div>
+
+      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Tagesmeldung
+        </p>
+        <div className="mt-2">
+          <SickStatusSummary sickDays={care.sickDays} />
+        </div>
+      </section>
+
+      <MessagesPanel
+        notes={care.notes}
+        composeDisabled={!care.features.notes_enabled}
+        onCompose={() => onAction("Nachricht schreiben")}
+        mobile
+      />
 
       <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
@@ -320,13 +423,23 @@ function getPickupPeople() {
 
 function MobileQuickAction({
   action,
-}: Readonly<{ action: (typeof CHILD_ACTIONS)[number] }>) {
+  onClick,
+}: Readonly<{
+  action: (typeof CHILD_ACTIONS)[number];
+  onClick?: () => void;
+}>) {
   const Icon = action.icon;
+  const enabled = Boolean(onClick);
   return (
     <button
       type="button"
-      disabled
-      className="flex aspect-square min-h-28 cursor-not-allowed flex-col items-center justify-center gap-3 rounded-3xl border border-gray-100 bg-white p-3 text-center shadow-sm"
+      onClick={onClick}
+      disabled={!enabled}
+      className={`flex aspect-square min-h-28 flex-col items-center justify-center gap-3 rounded-3xl border p-3 text-center shadow-sm transition-colors ${
+        enabled
+          ? "border-gray-200 bg-white hover:bg-gray-50"
+          : "cursor-not-allowed border-gray-100 bg-white"
+      }`}
     >
       <span
         className={`flex h-11 w-11 items-center justify-center rounded-2xl ${action.tone}`}
@@ -342,14 +455,24 @@ function MobileQuickAction({
 
 function DesktopQuickAction({
   action,
-}: Readonly<{ action: (typeof CHILD_ACTIONS)[number] }>) {
+  onClick,
+}: Readonly<{
+  action: (typeof CHILD_ACTIONS)[number];
+  onClick?: () => void;
+}>) {
   const Icon = action.icon;
+  const enabled = Boolean(onClick);
   return (
     <button
       type="button"
-      disabled
-      className="flex min-h-24 cursor-not-allowed items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-left transition-colors disabled:opacity-80"
-      aria-label={`${action.label} bald verfügbar`}
+      onClick={onClick}
+      disabled={!enabled}
+      className={`flex min-h-24 items-center gap-3 rounded-xl border p-4 text-left transition-colors ${
+        enabled
+          ? "border-gray-200 bg-white hover:bg-gray-50"
+          : "cursor-not-allowed border-gray-200 bg-gray-50/70 opacity-80"
+      }`}
+      aria-label={enabled ? action.label : `${action.label} bald verfügbar`}
     >
       <span
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.tone}`}
@@ -368,28 +491,8 @@ function DesktopQuickAction({
   );
 }
 
-function TodayPanel() {
-  const items = [
-    {
-      label: "Tagesmeldung",
-      value: "Keine Krankmeldung",
-      icon: HeartPulse,
-      tone: "text-[#D6373E] bg-[#D6373E]/10",
-    },
-    {
-      label: "Abholung",
-      value: "Reguläre Abholung",
-      icon: CalendarClock,
-      tone: "text-[#5080D8] bg-[#5080D8]/10",
-    },
-    {
-      label: "Nachrichten",
-      value: "Keine neuen Nachrichten",
-      icon: MessageCircle,
-      tone: "text-[#F78C10] bg-[#F78C10]/10",
-    },
-  ] as const;
-
+function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
+  const noteCount = care.notes.length;
   return (
     <div className="relative z-10 space-y-4">
       <div>
@@ -401,31 +504,92 @@ function TodayPanel() {
         </p>
       </div>
       <div className="space-y-2">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.label}
-              className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm"
-            >
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${item.tone}`}
-              >
-                <Icon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  {item.label}
-                </p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                  {item.value}
-                </p>
-              </div>
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#D6373E]/10 text-[#D6373E]">
+            <HeartPulse className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Tagesmeldung
+            </p>
+            <div className="mt-0.5">
+              <SickStatusSummary sickDays={care.sickDays} />
             </div>
-          );
-        })}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#5080D8]">
+            <CalendarClock className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Abholung
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-gray-900">
+              Reguläre Abholung
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F78C10]/10 text-[#F78C10]">
+            <MessageCircle className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Nachrichten
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-gray-900">
+              {noteCount === 0
+                ? "Keine Nachrichten gesendet"
+                : `${noteCount} gesendet`}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+function MessagesPanel({
+  notes,
+  onCompose,
+  composeDisabled = false,
+  mobile = false,
+}: Readonly<{
+  notes: ParentNote[];
+  onCompose: () => void;
+  composeDisabled?: boolean;
+  mobile?: boolean;
+}>) {
+  return (
+    <section
+      className={
+        mobile
+          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
+          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+      }
+    >
+      <div className="flex items-start justify-between gap-4">
+        <PanelHeader
+          eyebrow="Elternportal"
+          title="Nachrichten an das Team"
+          description="Kurze Mitteilungen an die Betreuung."
+        />
+        {!composeDisabled && (
+          <button
+            type="button"
+            onClick={onCompose}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            Schreiben
+          </button>
+        )}
+      </div>
+      <div className="mt-4">
+        <ParentNotesList notes={notes} />
+      </div>
+    </section>
   );
 }
 

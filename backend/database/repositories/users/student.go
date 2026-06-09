@@ -3,7 +3,9 @@ package users
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -11,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // studentPhotoFeatureLockClass is the pg_advisory_xact_lock class id used
@@ -51,6 +54,18 @@ func NewStudentRepository(db *bun.DB) users.StudentRepository {
 		Repository: repo,
 		db:         db,
 	}
+}
+
+// FindByID retrieves a student by their ID.
+func (r *StudentRepository) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
+	student, err := r.Repository.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
+		return nil, err
+	}
+	return student, nil
 }
 
 // FindByPersonID retrieves a student by their person ID
@@ -106,6 +121,9 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	for _, student := range students {
 		result[student.ID] = student
 	}
+	if err := r.hydrateBusDaysIfPresent(ctx, students); err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }
@@ -129,6 +147,10 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 			Op:  "find by group ID",
 			Err: err,
 		}
+	}
+
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
 	}
 
 	return students, nil
@@ -159,6 +181,10 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 		}
 	}
 
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+
 	return students, nil
 }
 
@@ -181,6 +207,10 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 			Op:  "find by school class",
 			Err: err,
 		}
+	}
+
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
 	}
 
 	return students, nil
@@ -243,8 +273,10 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 		return err
 	}
 
-	// Use the base Create method
-	return r.Repository.Create(ctx, student)
+	if err := r.Repository.Create(ctx, student); err != nil {
+		return err
+	}
+	return r.persistBusDays(ctx, student)
 }
 
 // Update overrides the base Update method to handle validation
@@ -258,8 +290,49 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
-	// Use the base Update method
-	return r.Repository.Update(ctx, student)
+	if err := r.Repository.Update(ctx, student); err != nil {
+		return err
+	}
+	return r.persistBusDays(ctx, student)
+}
+
+func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.Student) error {
+	if student.BusDays == nil {
+		if student.Bus == nil {
+			return nil
+		}
+		student.BusDays = users.BusDaysFromLegacyFlag(*student.Bus)
+	}
+	normalized := student.BusDays.Normalize()
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set(`bus_days = ?`, normalized).
+		Where(`"student".id = ?`, student.ID)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		// Migration tests exercise historical schemas with the current model.
+		// Before 1.15.112 the column legitimately does not exist; let the
+		// legacy bus flag continue to cover those test/database states.
+		if isUndefinedBusDaysColumn(err) {
+			return nil
+		}
+		return &modelBase.DatabaseError{
+			Op:  "update student bus days",
+			Err: err,
+		}
+	}
+	student.BusDays = normalized
+	return base.AssertRowsAffected(result, 1, "update student bus days")
+}
+
+func isUndefinedBusDaysColumn(err error) bool {
+	var pgErr pgdriver.Error
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "42703"
 }
 
 // Legacy method to maintain compatibility with old interface
@@ -323,6 +396,10 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 			Op:  "list with options",
 			Err: err,
 		}
+	}
+
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
 	}
 
 	return students, nil
@@ -535,6 +612,10 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		students[i] = student
 	}
 
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+
 	return students, nil
 }
 
@@ -588,6 +669,67 @@ func mapStudentGroupResults(results []*studentWithPersonAndGroup) []*users.Stude
 	return out
 }
 
+func (r *StudentRepository) hydrateBusDaysForGroupInfo(ctx context.Context, infos []*users.StudentWithGroupInfo) error {
+	students := make([]*users.Student, 0, len(infos))
+	for _, info := range infos {
+		if info != nil && info.Student != nil {
+			students = append(students, info.Student)
+		}
+	}
+	return r.hydrateBusDaysForStudents(ctx, students)
+}
+
+func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, students []*users.Student) error {
+	if len(students) == 0 {
+		return nil
+	}
+
+	ids := make([]int64, 0, len(students))
+	byID := make(map[int64]*users.Student, len(students))
+	for _, student := range students {
+		if student == nil || student.ID == 0 {
+			continue
+		}
+		ids = append(ids, student.ID)
+		byID[student.ID] = student
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+
+	type busDaysRow struct {
+		ID      int64         `bun:"id"`
+		BusDays users.BusDays `bun:"bus_days"`
+	}
+	var rows []busDaysRow
+	sql := `SELECT "student".id, "student".bus_days FROM users.students AS "student" WHERE "student".id IN (?)`
+	args := []any{bun.List(ids)}
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		sql += ` AND "student".tenant_id = ?`
+		args = append(args, tenantID)
+	}
+
+	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
+		// Migration tests exercise historical schemas with the current model.
+		// Before 1.15.112 the column legitimately does not exist; callers can
+		// still rely on the legacy bus flag in those schema states.
+		if strings.Contains(err.Error(), "bus_days") {
+			return nil
+		}
+		return &modelBase.DatabaseError{
+			Op:  "hydrate student bus days",
+			Err: err,
+		}
+	}
+
+	for _, row := range rows {
+		if student := byID[row.ID]; student != nil {
+			student.BusDays = row.BusDays.Normalize()
+		}
+	}
+	return nil
+}
+
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
@@ -606,7 +748,11 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 		}
 	}
 
-	return mapStudentGroupResults(results), nil
+	infos := mapStudentGroupResults(results)
+	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
+		return nil, err
+	}
+	return infos, nil
 }
 
 // FindAllWithGroups retrieves all students with their group names.
@@ -627,7 +773,11 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 		}
 	}
 
-	return mapStudentGroupResults(results), nil
+	infos := mapStudentGroupResults(results)
+	if err := r.hydrateBusDaysForGroupInfo(ctx, infos); err != nil {
+		return nil, err
+	}
+	return infos, nil
 }
 
 // LockPhotoFeature acquires the per-tenant pg_advisory_xact_lock that
@@ -687,7 +837,41 @@ func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*u
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
 	}
+	if err := r.hydrateBusDaysIfPresent(ctx, []*users.Student{student}); err != nil {
+		return nil, err
+	}
 	return student, nil
+}
+
+func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, students []*users.Student) error {
+	hasBusDays, err := r.hasBusDaysColumn(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasBusDays {
+		return nil
+	}
+	return r.hydrateBusDaysForStudents(ctx, students)
+}
+
+func (r *StudentRepository) hasBusDaysColumn(ctx context.Context) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'bus_days'
+		)
+	`).Scan(ctx, &exists)
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "check students bus_days column",
+			Err: err,
+		}
+	}
+	return exists, nil
 }
 
 // PurgeAllPhotos clears photo_path for every row visible in the current
@@ -809,8 +993,7 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 // missing student).
 func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, newStatus users.StudentStatus) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
+		TableExpr(`users.students AS "student"`).
 		Set("status = ?", string(newStatus)).
 		Set("updated_at = NOW()").
 		Where(`"student".id = ?`, studentID)

@@ -23,6 +23,36 @@ export const SCHOOL_YEAR_FILTER_OPTIONS = [
   { value: "4", label: "4" },
 ] as const;
 
+export type BusDayKey = "mon" | "tue" | "wed" | "thu" | "fri";
+export type BusDays = Partial<Record<BusDayKey, boolean>>;
+
+export const BUS_WEEKDAYS: ReadonlyArray<{ key: BusDayKey; label: string }> = [
+  { key: "mon", label: "Montag" },
+  { key: "tue", label: "Dienstag" },
+  { key: "wed", label: "Mittwoch" },
+  { key: "thu", label: "Donnerstag" },
+  { key: "fri", label: "Freitag" },
+] as const;
+
+export function normalizeBusDays(value?: BusDays | null): BusDays {
+  const out: BusDays = {};
+  for (const day of BUS_WEEKDAYS) {
+    if (value?.[day.key]) out[day.key] = true;
+  }
+  return out;
+}
+
+export function busDaysHaveAny(value?: BusDays | null): boolean {
+  return BUS_WEEKDAYS.some((day) => Boolean(value?.[day.key]));
+}
+
+export function formatBusDays(value?: BusDays | null): string {
+  const labels = BUS_WEEKDAYS.filter((day) => Boolean(value?.[day.key])).map(
+    (day) => day.label.slice(0, 2),
+  );
+  return labels.length > 0 ? labels.join(", ") : "Keine Bus-Tage";
+}
+
 /**
  * Extract the school year (Klassenstufe) from a school_class string.
  * E.g. "Klasse 3a" → "3", "2b" → "2", "unknown" → null
@@ -53,6 +83,7 @@ export interface BackendStudent {
   /** Hex color of the current room when set (Issue #1324). Drives badge color in LocationBadge. */
   current_room_color?: string | null;
   bus?: boolean;
+  bus_days?: BusDays;
   sick?: boolean;
   sick_since?: string;
   excused?: boolean;
@@ -171,6 +202,7 @@ export interface Student {
   // Transportation method (separate from attendance)
   takes_bus?: boolean;
   bus?: boolean; // Administrative permission flag (Buskind), not attendance status
+  bus_days?: BusDays;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -253,6 +285,7 @@ export function mapStudentResponse(
     current_room_color: backendStudent.current_room_color ?? null,
     takes_bus: undefined,
     bus: backendStudent.bus ?? false, // Administrative permission flag (Buskind)
+    bus_days: normalizeBusDays(backendStudent.bus_days),
     sick: backendStudent.sick ?? false, // Sickness status
     sick_since: backendStudent.sick_since,
     excused: backendStudent.excused ?? false, // Excused from attending today
@@ -354,6 +387,10 @@ export function prepareStudentForBackend(
     // toggles) don't clobber the persisted Buskind flag. The backend field is
     // *bool with omitempty — omitting the key leaves the DB value untouched.
     bus: student.bus,
+    bus_days:
+      student.bus_days !== undefined
+        ? normalizeBusDays(student.bus_days)
+        : undefined,
     // REMOVED: guardian_name and guardian_contact - deprecated fields
     // Use guardian_profiles system instead
     group_id: student.group_id
@@ -398,7 +435,10 @@ export interface UpdateStudentRequest {
   supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
+  bus_days?: BusDays;
   sick?: boolean;
+  /** Optional free-text reason stamped on today's sick day when marking sick. */
+  sick_reason?: string;
   excused?: boolean;
   /**
    * Parental photo-consent flag. Send `true` to record consent (server stamps
@@ -425,7 +465,9 @@ export interface BackendUpdateRequest {
   supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
+  bus_days?: BusDays;
   sick?: boolean;
+  sick_reason?: string;
   excused?: boolean;
   photo_consent_given?: boolean;
 }
@@ -476,7 +518,9 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "supervisor_notes", target: "supervisor_notes" },
   { source: "pickup_status", target: "pickup_status" },
   { source: "bus", target: "bus" },
+  { source: "bus_days", target: "bus_days" },
   { source: "sick", target: "sick" },
+  { source: "sick_reason", target: "sick_reason" },
   { source: "excused", target: "excused" },
   { source: "photo_consent_given", target: "photo_consent_given" },
 ];

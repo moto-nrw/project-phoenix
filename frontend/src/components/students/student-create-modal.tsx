@@ -15,6 +15,11 @@ import {
   validateStudentForm,
   handleStudentFormSubmit,
 } from "~/lib/student-form-validation";
+import {
+  busDaysHaveAny,
+  normalizeBusDays,
+  type BusDays,
+} from "~/lib/student-helpers";
 import GuardianFormModal, {
   type RelationshipFormData,
 } from "~/components/guardians/guardian-form-modal";
@@ -303,7 +308,7 @@ export function StudentCreateModal({
 
   const handleChange = (
     field: keyof Student,
-    value: string | boolean | number | null,
+    value: string | boolean | number | BusDays | null,
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error for this field
@@ -513,7 +518,15 @@ export function StudentCreateModal({
           {/* Bus Status */}
           <BusStatusSection
             value={formData.bus}
-            onChange={(v) => handleChange("bus", v)}
+            days={formData.bus_days}
+            onChange={(value) => {
+              const normalized = normalizeBusDays(value);
+              setFormData((prev) => ({
+                ...prev,
+                bus_days: normalized,
+                bus: busDaysHaveAny(normalized),
+              }));
+            }}
           />
 
           {/* Pickup Status */}

@@ -79,6 +79,10 @@ describe("parseTimeToMinutes", () => {
   it("returns NaN for malformed input", () => {
     expect(Number.isNaN(parseTimeToMinutes("not-a-time"))).toBe(true);
     expect(Number.isNaN(parseTimeToMinutes(""))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("12:30:45"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("24:00"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("09:60"))).toBe(true);
+    expect(Number.isNaN(parseTimeToMinutes("-1:30"))).toBe(true);
   });
 });
 
@@ -140,8 +144,11 @@ describe("date and range helpers", () => {
   it("formats German labels", () => {
     const monday = new Date("2026-05-04T00:00:00");
     const sunday = new Date("2026-05-10T00:00:00");
+    const weekOne2027 = new Date("2027-01-04T00:00:00");
+    const weekOneSunday2027 = new Date("2027-01-10T00:00:00");
 
     expect(formatWeekLabel(monday, sunday)).toContain("KW 19");
+    expect(formatWeekLabel(weekOne2027, weekOneSunday2027)).toContain("KW 1");
     expect(formatWeekLabel(monday, sunday)).toContain("04.05");
     expect(formatWeekLabel(monday, sunday)).toContain("So 10.05.2026");
     expect(formatDayHeader(monday)).toBe("Mo 04.05.");
@@ -407,6 +414,47 @@ describe("backend mappers", () => {
     ).toMatchObject({ id: "100", studentId: "21" });
   });
 
+  it("maps empty backend arrays from optional collections", () => {
+    expect(
+      mapMaterializeResult({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        instances_created: 0,
+        candidates_skipped_existing: 0,
+        duration_ms: 1,
+      }),
+    ).toMatchObject({ warnings: [] });
+
+    expect(
+      mapReplanWeekResult({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        deleted_instances: 0,
+        candidates_skipped_existing: 0,
+        instances_created: 0,
+        instance_students_created: 0,
+        instance_staff_created: 0,
+        duration_ms: 1,
+      }),
+    ).toMatchObject({ warnings: [] });
+
+    expect(
+      mapGaps({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        gaps: undefined as never,
+      }),
+    ).toMatchObject({ gaps: [] });
+
+    expect(
+      mapExceptionConflicts({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        conflicts: undefined as never,
+      }),
+    ).toMatchObject({ conflicts: [] });
+  });
+
   it("maps substitutes and templates", () => {
     expect(
       mapSubstitute({
@@ -476,6 +524,55 @@ describe("backend mappers", () => {
       staffIds: ["11"],
       primaryStaffId: "11",
       schedules: [{ id: "9", calendarPeriodId: "5" }],
+    });
+  });
+
+  it("maps optional substitute/template fields without fallback ids", () => {
+    expect(
+      mapSubstitute({
+        absent_staff_id: 11,
+        substitute_staff_id: 12,
+        date: "2026-05-04",
+        affected_instances: undefined as never,
+        warnings: undefined as never,
+      }),
+    ).toMatchObject({ affectedInstances: [], warnings: [] });
+
+    expect(
+      mapTemplates({
+        templates: [
+          {
+            id: 8,
+            name: "Offene Betreuung",
+            type: "care",
+            category_id: 3,
+            category_name: "Betreuung",
+            is_open: false,
+            max_participants: undefined as never,
+            enrollment_count: undefined as never,
+            supervisor_count: 0,
+            schedules: undefined as never,
+          },
+        ],
+      }).templates[0],
+    ).toEqual({
+      id: "8",
+      name: "Offene Betreuung",
+      type: "care",
+      categoryId: "3",
+      categoryName: "Betreuung",
+      roomId: undefined,
+      roomName: undefined,
+      educationGroupId: undefined,
+      educationGroupName: undefined,
+      isOpen: false,
+      maxParticipants: undefined,
+      enrollmentCount: undefined,
+      supervisorCount: 0,
+      studentIds: [],
+      staffIds: [],
+      primaryStaffId: undefined,
+      schedules: [],
     });
   });
 });

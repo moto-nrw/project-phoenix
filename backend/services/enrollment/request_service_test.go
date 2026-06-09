@@ -29,6 +29,9 @@ type stubRequestSettings struct {
 	stringValues map[string]string
 	boolValues   map[string]bool
 	intValues    map[string]int
+	hasErrors    map[string]error
+	boolErrors   map[string]error
+	stringErrors map[string]error
 }
 
 func newStubRequestSettings() *stubRequestSettings {
@@ -36,12 +39,18 @@ func newStubRequestSettings() *stubRequestSettings {
 		stringValues: make(map[string]string),
 		boolValues:   make(map[string]bool),
 		intValues:    make(map[string]int),
+		hasErrors:    make(map[string]error),
+		boolErrors:   make(map[string]error),
+		stringErrors: make(map[string]error),
 	}
 }
 
 func (s *stubRequestSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.hasErrors[key]; err != nil {
+		return false, err
+	}
 	if _, ok := s.stringValues[key]; ok {
 		return true, nil
 	}
@@ -57,6 +66,9 @@ func (s *stubRequestSettings) HasTenantOverride(_ context.Context, key string) (
 func (s *stubRequestSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.boolErrors[key]; err != nil {
+		return false, err
+	}
 	v, ok := s.boolValues[key]
 	if !ok {
 		return false, nil
@@ -67,6 +79,9 @@ func (s *stubRequestSettings) ResolveBool(_ context.Context, key string) (bool, 
 func (s *stubRequestSettings) ResolveString(_ context.Context, key string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.stringErrors[key]; err != nil {
+		return "", err
+	}
 	return s.stringValues[key], nil
 }
 
@@ -312,6 +327,122 @@ func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+}
+
+func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{}
+	_, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{}
+	_, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{"agb": false}
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+}
+
+func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("bad bool setting")
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{}
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+	assert.ErrorContains(t, err, "resolve AGB terms setting")
+}
+
+func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.hasErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("settings db unavailable")
+
+	req := validSubmission(env.phaseID)
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+	assert.ErrorContains(t, err, "check AGB terms setting override")
+}
+
+func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{}
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+
+	req.ConsentFlags = map[string]any{"data_processing": true}
+	_, err = env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringErrors[configModel.KeyEnrollmentLegalDSGVOText] = errors.New("settings json broken")
+
+	req := validSubmission(env.phaseID)
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
+	assert.ErrorContains(t, err, "resolve required consents")
+	assert.ErrorContains(t, err, "resolve DSGVO legal text")
+}
+
+func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{"photo": false}
+	_, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
 }
 
 // Regression for issue #1465: a guardian phone that fails the canonical
