@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -19,9 +21,19 @@ var serveCmd = &cobra.Command{
 	Short: "start http server with configured api",
 	Long:  `Starts a http server and serves the configured api`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := validateServeConfig(); err != nil {
+			slog.Error("invalid server configuration", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+
+		logFormat := "json"
+		if viper.GetBool("log_textlogging") {
+			logFormat = "text"
+		}
+
 		logger := applog.New(applog.Config{
 			Level:  viper.GetString("log_level"),
-			Format: viper.GetString("log_format"),
+			Format: logFormat,
 			Env:    viper.GetString("app_env"),
 		})
 
@@ -60,15 +72,7 @@ var serveCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(serveCmd)
 
-	// Here you will define your flags and configuration settings.
-	viper.SetDefault("port", "8080")
 	viper.SetDefault("log_level", "debug")
-	viper.SetDefault("log_format", "json")
-
-	viper.SetDefault("login_url", "http://localhost:8080/login")
-	viper.SetDefault("auth_jwt_secret", "random")
-	viper.SetDefault("auth_jwt_expiry", "1h")
-	viper.SetDefault("auth_jwt_refresh_expiry", "168h")
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
@@ -77,4 +81,51 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func validateServeConfig() error {
+	required := []string{
+		"port",
+		"app_env",
+		"log_textlogging",
+		"auth_jwt_secret",
+		"auth_jwt_expiry",
+		"auth_jwt_refresh_expiry",
+		"frontend_url",
+		"parents_url",
+		"phoenix_auth_password",
+	}
+
+	var missing []string
+	for _, key := range required {
+		if strings.TrimSpace(viper.GetString(key)) == "" {
+			missing = append(missing, strings.ToUpper(key))
+		}
+	}
+
+	appEnv := strings.TrimSpace(viper.GetString("app_env"))
+	if strings.TrimSpace(viper.GetString("db_dsn")) == "" {
+		if appEnv == "test" && strings.TrimSpace(viper.GetString("test_db_dsn")) != "" {
+			// Explicit test database DSN is allowed for test runs.
+		} else {
+			missing = append(missing, "DB_DSN")
+		}
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	if viper.GetString("auth_jwt_secret") == "random" {
+		return fmt.Errorf("AUTH_JWT_SECRET=random is not allowed for serve; set an explicit secret")
+	}
+
+	if viper.GetDuration("auth_jwt_expiry") <= 0 {
+		return fmt.Errorf("AUTH_JWT_EXPIRY must be a positive duration")
+	}
+	if viper.GetDuration("auth_jwt_refresh_expiry") <= 0 {
+		return fmt.Errorf("AUTH_JWT_REFRESH_EXPIRY must be a positive duration")
+	}
+
+	return nil
 }

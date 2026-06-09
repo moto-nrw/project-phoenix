@@ -160,7 +160,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	rawFrontendURL := viper.GetString("frontend_url")
 	frontendURL := strings.TrimRight(rawFrontendURL, "/")
 	if frontendURL == "" {
-		frontendURL = "http://localhost:3000"
+		return nil, fmt.Errorf("FRONTEND_URL is required")
 	}
 
 	appEnv := strings.ToLower(viper.GetString("app_env"))
@@ -169,14 +169,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}
 
 	// Parents-portal URL - used for every parent-facing email link
-	// (status, decision emails, guardian invitation accept). Falls
-	// back to the staff frontendURL when unset so dev keeps working
-	// without an explicit value, but production must set it
-	// explicitly to https://parents.{TENANT_DOMAIN}.
+	// (status, decision emails, guardian invitation accept).
 	rawParentsURL := viper.GetString("parents_url")
 	parentsURL := strings.TrimRight(rawParentsURL, "/")
 	if parentsURL == "" {
-		parentsURL = frontendURL
+		return nil, fmt.Errorf("PARENTS_URL is required")
 	}
 	if appEnv == "production" && !strings.HasPrefix(parentsURL, "https://") {
 		return nil, fmt.Errorf("PARENTS_URL must use https:// in production (received %q)", rawParentsURL)

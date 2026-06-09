@@ -44,26 +44,74 @@ func TestServeCmd_UsageOutput(t *testing.T) {
 }
 
 // =============================================================================
-// Viper Defaults Tests (set in serve.go init())
+// Serve config validation tests
 // =============================================================================
 
-func TestServeCmd_ViperDefaults(t *testing.T) {
-	// Reset viper to isolate from dev.env (which initConfig may have loaded)
+func TestValidateServeConfig_ValidConfigPasses(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+
+	require.NoError(t, validateServeConfig())
+}
+
+func TestValidateServeConfig_MissingRequiredConfigFails(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("auth_jwt_secret", "")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET")
+}
+
+func TestValidateServeConfig_MissingDatabaseDSNFails(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("db_dsn", "")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DB_DSN")
+}
+
+func TestValidateServeConfig_TestEnvAllowsExplicitTestDSN(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("app_env", "test")
+	viper.Set("db_dsn", "")
+	viper.Set("test_db_dsn", "postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable")
+
+	require.NoError(t, validateServeConfig())
+}
+
+func TestValidateServeConfig_RejectsRandomJWTSecret(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("auth_jwt_secret", "random")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
+}
+
+func resetServeConfig(t *testing.T) {
+	t.Helper()
 	viper.Reset()
+	t.Cleanup(viper.Reset)
+}
 
-	// Re-register the defaults that serve.go init() sets
-	viper.SetDefault("port", "8080")
-	viper.SetDefault("log_level", "debug")
-	viper.SetDefault("login_url", "http://localhost:8080/login")
-	viper.SetDefault("auth_jwt_secret", "random")
-	viper.SetDefault("auth_jwt_expiry", "15m")
-	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
-
-	// Verify defaults without any config file influence
-	assert.Equal(t, "8080", viper.GetString("port"))
-	assert.Equal(t, "debug", viper.GetString("log_level"))
-	assert.Equal(t, "http://localhost:8080/login", viper.GetString("login_url"))
-	assert.Equal(t, "random", viper.GetString("auth_jwt_secret"))
-	assert.Equal(t, "15m", viper.GetString("auth_jwt_expiry"))
-	assert.Equal(t, "1h", viper.GetString("auth_jwt_refresh_expiry"))
+func setValidServeConfig() {
+	viper.Set("port", "8080")
+	viper.Set("app_env", "development")
+	viper.Set("log_textlogging", "false")
+	viper.Set("auth_jwt_secret", "test-jwt-secret-for-unit-tests-minimum-32-chars")
+	viper.Set("auth_jwt_expiry", "15m")
+	viper.Set("auth_jwt_refresh_expiry", "168h")
+	viper.Set("frontend_url", "http://localhost:3000")
+	viper.Set("parents_url", "http://parents.localhost:3000")
+	viper.Set("phoenix_auth_password", "phoenix_auth_dev")
+	viper.Set("db_dsn", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 }
