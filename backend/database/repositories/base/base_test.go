@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -377,4 +378,237 @@ func TestRepository_Transaction_Rollback(t *testing.T) {
 		Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+// ============================================================================
+// Generic query helpers (issue #585 services→repository refactor):
+// CountWithOptions, OldestBefore, DeleteOlderThan, UpdateColumns.
+//
+// Aggregate tests (count/min/delete) run under their own tenant via
+// UniqueTestTenantID + TenantScoped=true, so rows that other tests create in
+// the shared config.setting_values table cannot affect the assertions.
+// ============================================================================
+
+// newTenantScopedRepo builds a base repository with the tenant_id
+// defense-in-depth filter enabled, matching how domain repositories
+// (students, groups, ...) construct their embedded generic.
+func newTenantScopedRepo(db *bun.DB) *base.Repository[*configModels.SettingValue] {
+	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	repo.TenantScoped = true
+	return repo
+}
+
+// createSettingValueForTenant inserts a row for the given tenant and returns it.
+func createSettingValueForTenant(t *testing.T, db *bun.DB, tenantID int64, key, value string) *configModels.SettingValue {
+	t.Helper()
+	sv := &configModels.SettingValue{
+		SettingKey: key,
+		Value:      jsonValue(value),
+	}
+	sv.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(testpkg.TenantContext(tenantID))
+	require.NoError(t, err)
+	return sv
+}
+
+// setSettingValueCreatedAt overwrites created_at so date-window tests have
+// deterministic timestamps (the column default is current_timestamp).
+func setSettingValueCreatedAt(t *testing.T, db *bun.DB, id int64, createdAt time.Time) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr(baseTestTable).
+		Set("created_at = ?", createdAt).
+		Where("id = ?", id).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+}
+
+// cleanupTenantSettingValues removes every row the test created for a tenant.
+func cleanupTenantSettingValues(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	_, _ = db.NewDelete().
+		TableExpr(baseTestTable).
+		Where("tenant_id = ?", tenantID).
+		Exec(testpkg.TenantContext(tenantID))
+}
+
+func TestRepository_CountWithOptions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	defer cleanupTenantSettingValues(t, db, tenantID)
+	defer cleanupTenantSettingValues(t, db, otherTenantID)
+
+	repo := newTenantScopedRepo(db)
+	ctx := testpkg.TenantContext(tenantID)
+
+	prefix := uniqueKey("count_options")
+	first := createSettingValueForTenant(t, db, tenantID, prefix+"_a", "v1")
+	createSettingValueForTenant(t, db, tenantID, prefix+"_b", "v2")
+	createSettingValueForTenant(t, db, tenantID, prefix+"_c", "v3")
+	// Same key prefix under another tenant — must not be counted.
+	createSettingValueForTenant(t, db, otherTenantID, prefix+"_other", "v4")
+
+	t.Run("nil options counts all tenant rows", func(t *testing.T) {
+		count, err := repo.CountWithOptions(ctx, nil)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+	})
+
+	t.Run("like filter", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter = modelBase.NewFilter().Like("setting_key", prefix+"%")
+		count, err := repo.CountWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.Equal(t, 3, count)
+	})
+
+	t.Run("equal filter", func(t *testing.T) {
+		options := modelBase.NewQueryOptions()
+		options.Filter = modelBase.NewFilter().Equal("setting_key", first.SettingKey)
+		count, err := repo.CountWithOptions(ctx, options)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+}
+
+func TestRepository_OldestBefore(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer cleanupTenantSettingValues(t, db, tenantID)
+
+	repo := newTenantScopedRepo(db)
+	ctx := testpkg.TenantContext(tenantID)
+
+	older := time.Date(2020, 1, 15, 10, 0, 0, 0, time.UTC)
+	newer := time.Date(2021, 3, 10, 12, 0, 0, 0, time.UTC)
+
+	prefix := uniqueKey("oldest_before")
+	first := createSettingValueForTenant(t, db, tenantID, prefix+"_old", "v1")
+	second := createSettingValueForTenant(t, db, tenantID, prefix+"_new", "v2")
+	setSettingValueCreatedAt(t, db, first.ID, older)
+	setSettingValueCreatedAt(t, db, second.ID, newer)
+
+	t.Run("nil cutoff returns absolute minimum", func(t *testing.T) {
+		oldest, err := repo.OldestBefore(ctx, "created_at", nil)
+		require.NoError(t, err)
+		require.NotNil(t, oldest)
+		assert.WithinDuration(t, older, *oldest, time.Second)
+	})
+
+	t.Run("cutoff between rows returns only the older one", func(t *testing.T) {
+		cutoff := time.Date(2020, 6, 1, 0, 0, 0, 0, time.UTC)
+		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
+		require.NoError(t, err)
+		require.NotNil(t, oldest)
+		assert.WithinDuration(t, older, *oldest, time.Second)
+	})
+
+	t.Run("cutoff before all rows returns nil", func(t *testing.T) {
+		cutoff := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
+		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
+		require.NoError(t, err)
+		assert.Nil(t, oldest)
+	})
+}
+
+func TestRepository_DeleteOlderThan(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	defer cleanupTenantSettingValues(t, db, tenantID)
+	defer cleanupTenantSettingValues(t, db, otherTenantID)
+
+	repo := newTenantScopedRepo(db)
+	ctx := testpkg.TenantContext(tenantID)
+
+	older := time.Date(2020, 1, 15, 10, 0, 0, 0, time.UTC)
+	newer := time.Date(2021, 3, 10, 12, 0, 0, 0, time.UTC)
+
+	prefix := uniqueKey("delete_older")
+	expired := createSettingValueForTenant(t, db, tenantID, prefix+"_expired", "v1")
+	kept := createSettingValueForTenant(t, db, tenantID, prefix+"_kept", "v2")
+	foreign := createSettingValueForTenant(t, db, otherTenantID, prefix+"_foreign", "v3")
+	setSettingValueCreatedAt(t, db, expired.ID, older)
+	setSettingValueCreatedAt(t, db, kept.ID, newer)
+	setSettingValueCreatedAt(t, db, foreign.ID, older)
+
+	cutoff := time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)
+	deleted, err := repo.DeleteOlderThan(ctx, "created_at", cutoff)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted)
+
+	// The newer row survives.
+	remaining, err := repo.CountWithOptions(ctx, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, remaining)
+
+	// The other tenant's expired row is untouched despite matching the cutoff.
+	foreignCount, err := repo.CountWithOptions(testpkg.TenantContext(otherTenantID), nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, foreignCount)
+}
+
+func TestRepository_UpdateColumns(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
+	ctx := testpkg.TenantContext(1)
+
+	sv := newSettingValue(uniqueKey("update_columns"), "original", nil)
+	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewDelete().TableExpr(baseTestTable).Where("id = ?", sv.ID).Exec(ctx)
+	}()
+
+	t.Run("updates only the named columns", func(t *testing.T) {
+		originalKey := sv.SettingKey
+		sv.Value = jsonValue("changed")
+		sv.SettingKey = originalKey + "_mutated_in_memory"
+
+		updated, err := repo.UpdateColumns(ctx, sv, "value")
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, updated)
+
+		found, err := repo.FindByID(ctx, sv.ID)
+		require.NoError(t, err)
+		assert.JSONEq(t, `"changed"`, string(found.Value))
+		assert.Equal(t, originalKey, found.SettingKey, "setting_key must not be written when only value is named")
+
+		sv.SettingKey = originalKey
+	})
+
+	t.Run("returns zero rows for missing entity without error", func(t *testing.T) {
+		ghost := newSettingValue(uniqueKey("update_columns_ghost"), "ghost", nil)
+		ghost.ID = 999999999
+		updated, err := repo.UpdateColumns(ctx, ghost, "value")
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), updated)
+	})
+
+	t.Run("rejects empty column list", func(t *testing.T) {
+		_, err := repo.UpdateColumns(ctx, sv)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "at least one column required")
+	})
+
+	t.Run("rejects nil entity", func(t *testing.T) {
+		var nilSV *configModels.SettingValue
+		_, err := repo.UpdateColumns(ctx, nilSV, "value")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot be nil or zero value")
+	})
 }
