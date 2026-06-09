@@ -96,6 +96,12 @@ type Service interface {
 type ChildFeatureFlags struct {
 	SickNoteEnabled bool
 	NotesEnabled    bool
+	// RelatedAccountsInviteEnabled is true when parents may invite further
+	// guardians (guardians.parent_invite_mode != disabled).
+	RelatedAccountsInviteEnabled bool
+	// RelatedAccountsRemoveEnabled is true when parents may remove another
+	// account's access (guardians.parent_can_remove).
+	RelatedAccountsRemoveEnabled bool
 }
 
 // ServiceConfig is the dependency-injection bundle.

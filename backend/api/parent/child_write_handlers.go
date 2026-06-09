@@ -162,8 +162,10 @@ func parseSickDayRange(r *http.Request) (time.Time, time.Time, error) {
 // ChildFeaturesResponse tells the parent UI which write actions the child's
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
-	SickNoteEnabled bool `json:"sick_note_enabled"`
-	NotesEnabled    bool `json:"notes_enabled"`
+	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	NotesEnabled                 bool `json:"notes_enabled"`
+	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
+	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -184,8 +186,10 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
-		SickNoteEnabled: flags.SickNoteEnabled,
-		NotesEnabled:    flags.NotesEnabled,
+		SickNoteEnabled:              flags.SickNoteEnabled,
+		NotesEnabled:                 flags.NotesEnabled,
+		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
+		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 	}, "Child features retrieved")
 }
 
