@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -82,7 +83,10 @@ func TestGetDashboardAnalytics(t *testing.T) {
 			`,
 				classTripStudent.GetTenantID(),
 				studentID,
-				now,
+				// The DATE column must hold the Berlin calendar date; the driver
+				// binds raw time.Time values as UTC, which is one day behind
+				// Berlin between 00:00 and 02:00 local time.
+				timezone.DateOfUTC(now),
 				activeModels.StudentStatusDayClassTrip,
 				now,
 				activeModels.StudentStatusSourcePlanned,
