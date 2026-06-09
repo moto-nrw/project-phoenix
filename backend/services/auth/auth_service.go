@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
 	"golang.org/x/sync/singleflight"
 )
@@ -37,6 +38,7 @@ type ServiceConfig struct {
 	DefaultFrom         email.Email
 	FrontendURL         string
 	PasswordResetExpiry time.Duration
+	Settings            configSvc.SettingsService
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -74,6 +76,7 @@ type Service struct {
 	txHandler           *base.TxHandler
 	db                  *bun.DB
 	logger              *slog.Logger
+	settings            configSvc.SettingsService
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
 	// pair; when nil the gate is bypassed and login behaves as before.
@@ -118,6 +121,7 @@ func NewService(
 		txHandler:           base.NewTxHandler(db),
 		db:                  db,
 		logger:              logger,
+		settings:            config.Settings,
 	}, nil
 }
 

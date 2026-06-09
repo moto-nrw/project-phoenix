@@ -11,7 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -69,7 +71,9 @@ type PersonServiceDependencies struct {
 	GroupSupervisorRepo active.GroupSupervisorRepository
 
 	// Infrastructure
-	DB *bun.DB
+	DB              *bun.DB
+	SettingsService configSvc.SettingsService
+	Logger          *slog.Logger
 }
 
 // personService implements the PersonService interface
@@ -83,6 +87,8 @@ type personService struct {
 	teacherRepo         userModels.TeacherRepository
 	groupSupervisorRepo active.GroupSupervisorRepository
 	db                  *bun.DB
+	settings            configSvc.SettingsService
+	logger              *slog.Logger
 }
 
 // NewPersonService creates a new person service
@@ -97,6 +103,8 @@ func NewPersonService(deps PersonServiceDependencies) PersonService {
 		teacherRepo:         deps.TeacherRepo,
 		groupSupervisorRepo: deps.GroupSupervisorRepo,
 		db:                  deps.DB,
+		settings:            deps.SettingsService,
+		logger:              deps.Logger,
 	}
 }
 
@@ -654,7 +662,9 @@ func (s *personService) handleSuccessfulPINAuth(ctx context.Context, account *au
 // (Account.IncrementPINAttempts + Update), which let concurrent failures
 // share an attempt budget (issue #586).
 func (s *personService) handleFailedPINAttempt(ctx context.Context, account *auth.Account) {
-	result, err := s.accountRepo.IncrementPINAttempts(ctx, account.ID, PINLockoutThreshold, PINLockoutDuration)
+	threshold := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutThreshold, PINLockoutThreshold, s.logger)
+	durationMinutes := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutDurationMinutes, int(PINLockoutDuration/time.Minute), s.logger)
+	result, err := s.accountRepo.IncrementPINAttempts(ctx, account.ID, threshold, time.Duration(durationMinutes)*time.Minute)
 	if err == nil {
 		account.PINAttempts = result.Attempts
 		account.PINLockedUntil = result.LockedUntil

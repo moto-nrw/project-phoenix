@@ -221,6 +221,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:             db,
 	})
 
+	// Initialize settings service (new schema-driven settings system)
+	settingsService := config.NewSettingsService(
+		repos.SettingValue,
+		repos.SettingAudit,
+		repos.School,
+		db,
+		logger,
+	)
+
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonRepo:          repos.Person,
@@ -232,6 +241,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TeacherRepo:         repos.Teacher,
 		GroupSupervisorRepo: repos.GroupSupervisor,
 		DB:                  db,
+		SettingsService:     settingsService,
+		Logger:              logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -329,15 +340,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	iotService := iot.NewService(
 		repos.Device,
 		db,
-	)
-
-	// Initialize settings service (new schema-driven settings system)
-	settingsService := config.NewSettingsService(
-		repos.SettingValue,
-		repos.SettingAudit,
-		repos.School,
-		db,
-		logger,
 	)
 
 	// Inject settings resolver into active service so auto-clear of sick /
@@ -528,6 +530,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
+	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err

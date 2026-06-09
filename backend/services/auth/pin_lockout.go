@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // PIN brute-force lockout policy (issue #586 — extracted from the model). The
@@ -28,7 +30,9 @@ func (s *Service) IsPINLocked(account *auth.Account, now time.Time) bool {
 // read-modify-write (model IncrementPINAttempts + UpdateAccount) so concurrent
 // failures count independently (issue #586).
 func (s *Service) RecordFailedPINAttempt(ctx context.Context, accountID int64) error {
-	_, err := s.repos.Account.IncrementPINAttempts(ctx, accountID, PINLockoutThreshold, PINLockoutDuration)
+	threshold := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutThreshold, PINLockoutThreshold, s.logger)
+	durationMinutes := configSvc.ResolveIntOrDefault(ctx, s.settings, configModel.KeyAccountLockoutDurationMinutes, int(PINLockoutDuration/time.Minute), s.logger)
+	_, err := s.repos.Account.IncrementPINAttempts(ctx, accountID, threshold, time.Duration(durationMinutes)*time.Minute)
 	return err
 }
 

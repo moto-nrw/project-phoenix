@@ -46,12 +46,13 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 
 	// If no consent exists, return a default response
 	if consent == nil {
+		consentSvc := userService.NewPrivacyConsentService(rs.SettingsService, rs.Logger)
 		response := PrivacyConsentResponse{
 			StudentID:         student.ID,
 			PolicyVersion:     "1.0",
 			Accepted:          false,
 			RenewalRequired:   true,
-			DataRetentionDays: users.DefaultDataRetentionDays,
+			DataRetentionDays: consentSvc.DefaultDataRetentionDays(r.Context()),
 		}
 		common.Respond(w, r, http.StatusOK, response, "No privacy consent found, returning defaults")
 		return
