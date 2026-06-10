@@ -51,24 +51,26 @@ func scheduleValidationErrorf(format string, args ...any) error {
 
 // Resource defines the staff API resource
 type Resource struct {
-	PersonService       usersSvc.PersonService
-	StaffRepo           users.StaffRepository
-	TeacherRepo         users.TeacherRepository
-	EducationService    educationSvc.Service
-	AuthService         authSvc.AuthService
-	GroupSupervisorRepo active.GroupSupervisorRepository
-	WorkSessionService  activeSvc.WorkSessionService
-	StaffAbsenceService activeSvc.StaffAbsenceService
-	AbsenceRepo         active.StaffAbsenceRepository
-	ScheduleRepo        config.StaffWorkScheduleRepository
-	WorkTimeModelRepo   config.WorkTimeModelRepository
-	db                  *bun.DB
-	logger              *slog.Logger
+	PersonService           usersSvc.PersonService
+	StaffOffboardingService usersSvc.StaffOffboardingService
+	StaffRepo               users.StaffRepository
+	TeacherRepo             users.TeacherRepository
+	EducationService        educationSvc.Service
+	AuthService             authSvc.AuthService
+	GroupSupervisorRepo     active.GroupSupervisorRepository
+	WorkSessionService      activeSvc.WorkSessionService
+	StaffAbsenceService     activeSvc.StaffAbsenceService
+	AbsenceRepo             active.StaffAbsenceRepository
+	ScheduleRepo            config.StaffWorkScheduleRepository
+	WorkTimeModelRepo       config.WorkTimeModelRepository
+	db                      *bun.DB
+	logger                  *slog.Logger
 }
 
 // NewResource creates a new staff resource
 func NewResource(
 	personService usersSvc.PersonService,
+	staffOffboardingService usersSvc.StaffOffboardingService,
 	educationService educationSvc.Service,
 	authService authSvc.AuthService,
 	groupSupervisorRepo active.GroupSupervisorRepository,
@@ -81,19 +83,20 @@ func NewResource(
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
-		PersonService:       personService,
-		StaffRepo:           personService.StaffRepository(),
-		TeacherRepo:         personService.TeacherRepository(),
-		EducationService:    educationService,
-		AuthService:         authService,
-		GroupSupervisorRepo: groupSupervisorRepo,
-		WorkSessionService:  workSessionService,
-		StaffAbsenceService: staffAbsenceService,
-		AbsenceRepo:         absenceRepo,
-		ScheduleRepo:        scheduleRepo,
-		WorkTimeModelRepo:   workTimeModelRepo,
-		db:                  db,
-		logger:              logger,
+		PersonService:           personService,
+		StaffOffboardingService: staffOffboardingService,
+		StaffRepo:               personService.StaffRepository(),
+		TeacherRepo:             personService.TeacherRepository(),
+		EducationService:        educationService,
+		AuthService:             authService,
+		GroupSupervisorRepo:     groupSupervisorRepo,
+		WorkSessionService:      workSessionService,
+		StaffAbsenceService:     staffAbsenceService,
+		AbsenceRepo:             absenceRepo,
+		ScheduleRepo:            scheduleRepo,
+		WorkTimeModelRepo:       workTimeModelRepo,
+		db:                      db,
+		logger:                  logger,
 	}
 }
 
@@ -836,19 +839,22 @@ func (rs *Resource) buildUpdateStaffResponse(
 	return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
 }
 
-// deleteStaff handles deleting a staff member
+// deleteStaff handles offboarding a staff member: soft-deletes the staff and
+// teacher rows and revokes the linked account's access for this tenant.
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
 		return
 	}
 
+	deletedBy := jwt.ClaimsFromCtx(r.Context()).Username
+
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.PersonService.DeleteStaff(ctx, id)
+		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedBy)
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
-			common.RenderError(w, r, common.ErrorConflict(err))
+			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))
 			return
 		}
 		if common.IsConstraintViolation(err) {

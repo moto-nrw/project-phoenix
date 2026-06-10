@@ -30,9 +30,6 @@ type PersonService interface {
 	// Delete removes a person
 	Delete(ctx context.Context, id interface{}) error
 
-	// DeleteStaff removes a staff member after checking for active supervisions
-	DeleteStaff(ctx context.Context, staffID int64) error
-
 	// List retrieves persons matching the provided query options
 	List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)
 
@@ -87,6 +84,15 @@ type PersonService interface {
 
 	// GetAllStudentsWithGroups retrieves all students with their group info
 	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
+}
+
+// StaffOffboardingService fully offboards a staff member within a tenant:
+// soft-deletes the staff/teacher rows, cleans up planned assignments, and
+// revokes the linked account's access for the tenant.
+type StaffOffboardingService interface {
+	// OffboardStaff offboards the staff member. deletedBy is the acting
+	// account's username for the audit trail ("system" if empty).
+	OffboardStaff(ctx context.Context, staffID int64, deletedBy string) error
 }
 
 // CaregiverCapabilityService manages the operational caregiver capability of an
