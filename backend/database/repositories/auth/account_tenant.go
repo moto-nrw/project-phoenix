@@ -123,9 +123,9 @@ func (r *AccountTenantRepository) ListAccountsByTenantID(ctx context.Context, te
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = ?`, tenantID).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = ?`, tenantID).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = ?`, tenantID).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = ?`, tenantID).
+		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = ? AND "p".deleted_at IS NULL`, tenantID).
+		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = ? AND "s".deleted_at IS NULL`, tenantID).
+		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = ? AND "t".deleted_at IS NULL`, tenantID).
 		Where(`"at".tenant_id = ?`, tenantID).
 		GroupExpr(`"at".account_id, "a".email, "a".active, "p".id, "p".first_name, "p".last_name, "s".id, "t".id, "t".role, "at".status`).
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
@@ -166,8 +166,8 @@ func (r *AccountTenantRepository) scanPendingInvitationsTenant(ctx context.Conte
 		Where(`NOT EXISTS (
 			SELECT 1 FROM auth.account_tenants AS "existing"
 			INNER JOIN auth.accounts AS "ea" ON "ea".id = "existing".account_id
-			WHERE "existing".tenant_id = ? AND LOWER("ea".email) = LOWER("inv".email)
-		)`, tenantID).
+			WHERE "existing".tenant_id = ? AND "existing".status = ? AND LOWER("ea".email) = LOWER("inv".email)
+		)`, tenantID, auth.AccountTenantStatusActive).
 		Scan(ctx, out)
 }
 
@@ -235,9 +235,9 @@ func (r *AccountTenantRepository) queryOrgAccounts(ctx context.Context, db bun.I
 		Join(`INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id`).
 		Join(`LEFT JOIN auth.account_roles AS "ar" ON "ar".account_id = "at".account_id AND "ar".tenant_id = "at".tenant_id`).
 		Join(`LEFT JOIN auth.roles AS "r" ON "r".id = "ar".role_id`).
-		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id`).
-		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id`).
+		Join(`LEFT JOIN users.persons AS "p" ON "p".account_id = "at".account_id AND "p".tenant_id = "at".tenant_id AND "p".deleted_at IS NULL`).
+		Join(`LEFT JOIN users.staff AS "s" ON "s".person_id = "p".id AND "s".tenant_id = "at".tenant_id AND "s".deleted_at IS NULL`).
+		Join(`LEFT JOIN users.teachers AS "t" ON "t".staff_id = "s".id AND "t".tenant_id = "at".tenant_id AND "t".deleted_at IS NULL`).
 		Where(`"sch".deleted_at IS NULL`)
 	if whereClause != "" {
 		q = q.Where(whereClause, arg)
@@ -280,8 +280,8 @@ func (r *AccountTenantRepository) queryOrgInvitations(ctx context.Context, db bu
 		Where(`NOT EXISTS (
 			SELECT 1 FROM auth.account_tenants AS "existing"
 			INNER JOIN auth.accounts AS "ea" ON "ea".id = "existing".account_id
-			WHERE "existing".tenant_id = "inv".tenant_id AND LOWER("ea".email) = LOWER("inv".email)
-		)`).
+			WHERE "existing".tenant_id = "inv".tenant_id AND "existing".status = ? AND LOWER("ea".email) = LOWER("inv".email)
+		)`, auth.AccountTenantStatusActive).
 		Scan(ctx, &invitations)
 	return invitations, err
 }

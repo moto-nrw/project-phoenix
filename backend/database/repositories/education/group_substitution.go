@@ -478,11 +478,13 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 
 	staffIDSlice := mapKeysToSlice(staffIDs)
 
-	// Load staff records
+	// Load staff records. Include soft-deleted staff so historical
+	// substitutions keep resolving the staff member's name after offboarding.
 	var staffList []*users.Staff
 	staffQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
+		WhereAllWithDeleted().
 		Where(`"staff".id IN (?)`, bun.List(staffIDSlice))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {

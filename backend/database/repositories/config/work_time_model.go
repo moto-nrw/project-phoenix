@@ -199,7 +199,8 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id`).
-		Where(`"staff".work_time_model_id = ?`, modelID)
+		Where(`"staff".work_time_model_id = ?`, modelID).
+		Where(`"staff".deleted_at IS NULL`)
 	if tenantID > 0 {
 		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
 	}
@@ -271,7 +272,8 @@ func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 	db := repoBase.GetDB(ctx, r.db)
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
-		Where(`"staff".work_time_model_id = ?`, id)
+		Where(`"staff".work_time_model_id = ?`, id).
+		Where(`"staff".deleted_at IS NULL`)
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
 	}

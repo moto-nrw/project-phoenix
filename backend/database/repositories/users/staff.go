@@ -176,7 +176,8 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"staff".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		query = query.Where(where, val)
@@ -367,7 +368,8 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "ar".role_id = "role".id`).
-		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles))
+		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles)).
+		Where(`"staff".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		query = query.Where(where, val)
