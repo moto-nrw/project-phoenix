@@ -120,6 +120,12 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
+		// Reminders work package (issue #1457): visual-only staff reminders.
+		"reminders.pickup_upcoming_enabled",
+		"reminders.pickup_upcoming_lead_minutes",
+		"reminders.pickup_overdue_enabled",
+		"reminders.activity_start_enabled",
+		"reminders.activity_start_lead_minutes",
 	}
 
 	for _, key := range expectedKeys {

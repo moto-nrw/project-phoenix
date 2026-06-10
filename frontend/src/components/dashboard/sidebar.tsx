@@ -21,6 +21,7 @@ import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useReminders } from "~/lib/hooks/use-reminders";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -133,14 +134,14 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
     comingSoon: true,
   },
-  // Coming soon features - caregivers only
+  // Erinnerungen — visual-only reminders (issue #1457). Shown to all staff;
+  // count badge surfaces active reminders. Page itself is empty when the
+  // school has not enabled any reminder type.
   {
-    href: "#",
+    href: "/reminders",
     label: "Erinnerungen",
     icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     alwaysShow: true,
-    hideForAdmin: true,
-    comingSoon: true,
   },
   {
     href: "#",
@@ -411,6 +412,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Get unread suggestions count for badge (teacher mode)
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
+  const { count: remindersCount, enabled: remindersEnabled } = useReminders();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
@@ -473,6 +475,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (item.href === "/timetables" && !timetableEnabled) {
+      return false;
+    }
+    // Hide "Erinnerungen" until the tenant enables at least one reminder type.
+    // remindersEnabled comes from /api/reminders, so this works for caregivers
+    // too (who don't fetch the settings schema).
+    if (item.href === "/reminders" && !remindersEnabled) {
       return false;
     }
     if (item.alwaysShow) return true;
@@ -635,6 +643,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
             )}
             {item.href === "/messages" && (
               <UnreadBadge count={messagesUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/reminders" && remindersCount > 0 && (
+              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+                {remindersCount > 99 ? "99+" : remindersCount}
+              </span>
             )}
           </span>
         </Link>

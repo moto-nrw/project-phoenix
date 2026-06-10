@@ -39,6 +39,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -88,6 +89,7 @@ type Factory struct {
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               listexport.Service
 	Emergency                emergency.Service
+	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -1186,6 +1188,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ListExport:          listExportService,
 	})
 
+	remindersService := reminders.NewService(reminders.Dependencies{
+		Settings:    settingsService,
+		Attendance:  repos.Attendance,
+		Pickup:      pickupScheduleService,
+		Instance:    repos.ActivityInstance,
+		Student:     repos.Student,
+		Person:      repos.Person,
+		Supervision: activeService,
+		Logger:      logger.With("service", "reminders"),
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
 		MFA:                      mfaService,
@@ -1226,6 +1239,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
+		Reminders:                remindersService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,

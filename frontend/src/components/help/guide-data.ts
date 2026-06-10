@@ -516,6 +516,27 @@ export const appChapters: readonly GuideChapter[] = [
           "Laufende Aufsicht mit Anwesend, Erwartet und Spontane Aktivität.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
+      {
+        id: "erinnerungen",
+        title: "Erinnerungen",
+        icon: Clock3,
+        summary:
+          "Eine Übersicht, die rein visuell an anstehende und überfällige Abholungen sowie startende Aktivitäten erinnert. Kein Ton.",
+        steps: [
+          "In der Seitenleiste `Erinnerungen` öffnen.",
+          "Die Liste ist nach Art gruppiert: `Überfällige Abholung`, `Anstehende Abholung` und `AG-Beginn`.",
+          "Je Eintrag stehen rechts die Uhrzeit und der Abstand (z. B. `in 10 Min` oder `8 Min überfällig`).",
+          "Die Zahl am Seitenleisten-Eintrag `Erinnerungen` zeigt jederzeit, wie viele Erinnerungen gerade offen sind.",
+          "Als Betreuer siehst du die Kinder deiner aktuellen Aufsicht; als Admin alle anwesenden Kinder.",
+        ],
+        callout: {
+          title: "Nichts zu sehen?",
+          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Welche Arten erscheinen (und mit welcher Vorlaufzeit), schaltet ein Admin unter `Einstellungen` -> `Erinnerungen` ein. Solange keine Art aktiv ist oder gerade nichts ansteht, bleibt die Seite leer.",
+          tone: "blue",
+        },
+        screenshot:
+          "Seite Erinnerungen mit den Abschnitten Überfällige Abholung, Anstehende Abholung und AG-Beginn, je Eintrag Name, Uhrzeit und Abstand; am Seitenleisten-Eintrag eine Zähler-Markierung.",
+      },
     ],
   },
   {
