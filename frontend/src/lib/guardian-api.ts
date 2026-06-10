@@ -578,7 +578,7 @@ export async function inviteGuardianToStudent(
   }
 
   const result = (await response.json()) as ApiResponse<InviteGuardianResult>;
-  if (result.status === "error") {
+  if (result.status === "error" || !result.data) {
     throw new Error(result.error ?? "Failed to invite guardian");
   }
   return result.data;

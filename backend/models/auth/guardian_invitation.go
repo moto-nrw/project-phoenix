@@ -23,7 +23,7 @@ type GuardianInvitation struct {
 	EmailError        *string    `bun:"email_error" json:"email_error,omitempty"`
 	EmailRetryCount   int        `bun:"email_retry_count,default:0" json:"email_retry_count"`
 
-	// Parent-initiated invites + staff approval (migration 1.15.118).
+	// Parent-initiated invites + staff approval (migration 1.15.120).
 	// StudentID names the child this invite grants access to; lets the accept
 	// flow link an existing account to an additional child (sibling case).
 	StudentID *int64 `bun:"student_id" json:"student_id,omitempty"`

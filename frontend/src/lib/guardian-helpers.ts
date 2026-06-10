@@ -101,7 +101,10 @@ export interface GuardianWithRelationship extends Guardian {
   canPickup: boolean;
   pickupNotes?: string;
   emergencyPriority: number;
-  accountStatus: GuardianAccountStatus;
+  // Optional: present on data mapped from the backend (always set by
+  // mapGuardianWithRelationshipResponse), but omittable in test fixtures and
+  // older payloads. Consumers default a missing value to "none".
+  accountStatus?: GuardianAccountStatus;
 }
 
 // Backend Guardian with Relationship
