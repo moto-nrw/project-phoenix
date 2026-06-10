@@ -83,15 +83,6 @@ func (m mockStudentRepo) FindByID(_ context.Context, id any) (*userModels.Studen
 	return m.findByID(id)
 }
 
-type mockPersonRepo struct {
-	userModels.PersonRepository
-	findByID func(any) (*userModels.Person, error)
-}
-
-func (m mockPersonRepo) FindByID(_ context.Context, id any) (*userModels.Person, error) {
-	return m.findByID(id)
-}
-
 type mockAccountRepo struct {
 	authModels.AccountRepository
 	findByID func(any) (*authModels.Account, error)
