@@ -30,7 +30,7 @@ func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
 
 	t.Run("updates duration and ended_at of break", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -70,7 +70,7 @@ func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
 
 	t.Run("updates duration for break without ended_at", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -128,7 +128,7 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 
 	t.Run("creates break with valid data", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -170,7 +170,7 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with negative duration should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -192,7 +192,7 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with zero started_at should fail validation", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -215,7 +215,7 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with started_at after ended_at should fail validation", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -254,7 +254,7 @@ func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {
 
 	t.Run("returns all breaks for session", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -304,7 +304,7 @@ func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
 
 	t.Run("returns active break without ended_at", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -333,7 +333,7 @@ func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
 
 	t.Run("returns nil when no active break", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -364,7 +364,7 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 
 	t.Run("ends active break", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -411,7 +411,7 @@ func TestWorkSessionBreakRepository_List(t *testing.T) {
 
 	t.Run("lists all breaks", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -439,7 +439,7 @@ func TestWorkSessionBreakRepository_List(t *testing.T) {
 
 	t.Run("lists with query options", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,

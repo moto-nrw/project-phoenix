@@ -1966,13 +1966,13 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -2009,12 +2009,12 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
 		return
 	}
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -2371,13 +2371,13 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -261,16 +262,16 @@ type WorkSessionRepository interface {
 	base.Repository[*WorkSession]
 
 	// GetByStaffAndDate returns the work session for a staff member on a given date
-	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*WorkSession, error)
+	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
 
 	// GetCurrentByStaffID returns the active (not checked out) session for a staff member
 	GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error)
 
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
-	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*WorkSession, error)
+	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
 
 	// GetOpenSessions returns all sessions without check-out before a given date
-	GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*WorkSession, error)
+	GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*WorkSession, error)
 
 	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
@@ -287,13 +288,13 @@ type StaffAbsenceRepository interface {
 	base.Repository[*StaffAbsence]
 
 	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsence, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
 
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
-	GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*StaffAbsence, error)
+	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
 	// GetByDateRange returns all absences overlapping the given date range
-	GetByDateRange(ctx context.Context, from, to time.Time) ([]*StaffAbsence, error)
+	GetByDateRange(ctx context.Context, from, to timezone.Date) ([]*StaffAbsence, error)
 
 	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
 	// Priority order when multiple absences exist: sick > training > vacation > other

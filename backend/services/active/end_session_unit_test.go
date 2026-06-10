@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
@@ -532,7 +533,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 // =============================================================================
 
 func TestGetAllActiveSupervisions_Success(t *testing.T) {
-	now := time.Now()
+	now := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
 		{Model: base.Model{ID: 10}, StaffID: 100, GroupID: 200, StartDate: now},
 		{Model: base.Model{ID: 11}, StaffID: 101, GroupID: 201, StartDate: now},
@@ -583,8 +584,8 @@ func TestGetAllActiveSupervisions_DatabaseError(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_FiltersInactive(t *testing.T) {
-	past := time.Now().Add(-24 * time.Hour)
-	now := time.Now()
+	past := timezone.TodayDate().AddDays(-1)
+	now := timezone.TodayDate()
 
 	supervisors := []*active.GroupSupervisor{
 		// Active: no end date

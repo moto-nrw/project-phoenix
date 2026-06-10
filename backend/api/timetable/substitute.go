@@ -289,7 +289,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 					StaffID:   req.SubstituteStaffID,
 					GroupID:   *op.instance.ActiveGroupID,
 					Role:      "supervisor",
-					StartDate: now,
+					StartDate: timezone.DateFromTime(now),
 				}
 				newSup.SetTenantID(tenant.FromContext(ctx))
 				if err := rs.supervisorRepo.Create(ctx, newSup); err != nil {

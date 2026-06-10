@@ -23,6 +23,7 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -498,7 +499,7 @@ func TestSubstitute_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		StaffID:   s.absent,
 		GroupID:   ag.ID,
 		Role:      "supervisor",
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 	}
 	require.NoError(t, supervisorRepo.Create(s.ctx, absentSup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", absentSup.ID) })

@@ -4,9 +4,9 @@ package active
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -153,7 +153,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", time.Now()).
+		Set("end_date = ?", timezone.TodayDate()).
 		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {

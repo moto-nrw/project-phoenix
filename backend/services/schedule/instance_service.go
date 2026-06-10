@@ -30,6 +30,7 @@ import (
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -236,7 +237,7 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 			StaffID:   row.StaffID,
 			GroupID:   newGroup.ID,
 			Role:      "supervisor",
-			StartDate: now,
+			StartDate: timezone.DateFromTime(now),
 		}
 		sup.SetTenantID(tenant.FromContext(ctx))
 		if err := s.deps.SupervisorRepo.Create(ctx, sup); err != nil {

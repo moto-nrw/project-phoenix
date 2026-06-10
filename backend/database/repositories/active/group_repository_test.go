@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1213,7 +1214,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 			GroupID:   group.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
-			StartDate: now,
+			StartDate: timezone.DateFromTime(now),
 		}
 		groupSup.SetTenantID(1)
 		_, err = db.NewInsert().

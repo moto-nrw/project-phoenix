@@ -35,11 +35,6 @@ import (
 // deletion. Seeded from the discovery scan when this test was introduced.
 var legacyTimeTimeDateColumns = map[string]string{
 	"active.attendance.date":                             "pending migration in this PR",
-	"active.group_supervisors.end_date":                  "pending migration in this PR",
-	"active.group_supervisors.start_date":                "pending migration in this PR",
-	"active.staff_absences.date_end":                     "pending migration in this PR",
-	"active.staff_absences.date_start":                   "pending migration in this PR",
-	"active.work_sessions.date":                          "pending migration in this PR",
 	"activities.student_enrollments.valid_from":          "pending migration in this PR",
 	"activities.student_enrollments.valid_until":         "pending migration in this PR",
 	"activities.supervisors.valid_from":                  "pending migration in this PR",
@@ -96,14 +91,11 @@ var droppedDateColumns = map[string]string{
 // truncate24hAllowlist holds files still containing Truncate(24 * time.Hour)
 // date math (always wrong for Berlin calendar days). Shrink-only.
 var truncate24hAllowlist = map[string]string{
-	"services/active/time_tracking_cleanup_service_test.go": "fixed in the lint-guard stage of this PR",
-	"services/active/work_session_export_test.go":           "fixed in the lint-guard stage of this PR",
-	"services/active/work_session_service_test.go":          "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_a_happy_path_test.go":          "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_b_cancel_conflicts_test.go":    "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_c_gaps_substitute_test.go":     "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_d_replan_week_test.go":         "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_f_gdpr_cleanup_test.go":        "fixed in the lint-guard stage of this PR",
+	"test/e2e/timetable/flow_a_happy_path_test.go":       "fixed in the lint-guard stage of this PR",
+	"test/e2e/timetable/flow_b_cancel_conflicts_test.go": "fixed in the lint-guard stage of this PR",
+	"test/e2e/timetable/flow_c_gaps_substitute_test.go":  "fixed in the lint-guard stage of this PR",
+	"test/e2e/timetable/flow_d_replan_week_test.go":      "fixed in the lint-guard stage of this PR",
+	"test/e2e/timetable/flow_f_gdpr_cleanup_test.go":     "fixed in the lint-guard stage of this PR",
 }
 
 func TestDateColumnTypes(t *testing.T) {

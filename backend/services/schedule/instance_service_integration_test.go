@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -519,7 +520,7 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
-	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: now}
+	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
 	sup.SetTenantID(1)
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })

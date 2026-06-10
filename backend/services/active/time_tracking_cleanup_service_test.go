@@ -6,6 +6,7 @@ import (
 	"time"
 
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -245,7 +246,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, crea
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &activeModels.WorkSession{
 		StaffID:      staffID,
-		Date:         businessDate,
+		Date:         timezone.DateFromTime(businessDate),
 		Status:       activeModels.WorkSessionStatusPresent,
 		Source:       activeModels.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
@@ -306,8 +307,7 @@ func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt ti
 
 func insertAbsence(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
-	day := createdAt.Truncate(24 * time.Hour)
-	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, day, day)
+	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, createdAt, createdAt)
 }
 
 func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
@@ -315,8 +315,8 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, cre
 	a := &activeModels.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   dateStart.Truncate(24 * time.Hour),
-		DateEnd:     dateEnd.Truncate(24 * time.Hour),
+		DateStart:   timezone.DateFromTime(dateStart),
+		DateEnd:     timezone.DateFromTime(dateEnd),
 		Status:      activeModels.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}

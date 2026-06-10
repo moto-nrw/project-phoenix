@@ -845,7 +845,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
-		StartDate: time.Now(),
+		StartDate: timezone.TodayDate(),
 	}
 	supervisor.SetTenantID(1)
 

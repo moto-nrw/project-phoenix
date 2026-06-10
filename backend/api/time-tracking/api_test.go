@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -140,10 +140,10 @@ type mockWorkSessionService struct {
 	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
 	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
 	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn         func(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error)
+	getHistoryFn         func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
 	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
-	exportSessionsFn     func(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
+	exportSessionsFn     func(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
@@ -189,7 +189,7 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 	}
 	return nil, nil
 }
-func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
+func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 	if m.getHistoryFn != nil {
 		return m.getHistoryFn(ctx, staffID, from, to)
 	}
@@ -217,7 +217,7 @@ func (m *mockWorkSessionService) CleanupOpenSessions(_ context.Context) (int, er
 func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
-func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
+func (m *mockWorkSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error) {
 	if m.exportSessionsFn != nil {
 		return m.exportSessionsFn(ctx, staffID, from, to, format)
 	}
@@ -246,8 +246,8 @@ type mockStaffAbsenceService struct {
 	createAbsenceFn     func(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	updateAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
-	getAbsencesForRange func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.StaffAbsenceResponse, error)
-	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date time.Time) (bool, *activeModels.StaffAbsence, error)
+	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
+	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 }
 
 func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
@@ -268,13 +268,13 @@ func (m *mockStaffAbsenceService) DeleteAbsence(ctx context.Context, staffID int
 	}
 	return nil
 }
-func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to time.Time) ([]*activeSvc.StaffAbsenceResponse, error) {
+func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 	if m.getAbsencesForRange != nil {
 		return m.getAbsencesForRange(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
-func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date time.Time) (bool, *activeModels.StaffAbsence, error) {
+func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error) {
 	if m.hasAbsenceOnDateFn != nil {
 		return m.hasAbsenceOnDateFn(ctx, staffID, date)
 	}
@@ -812,7 +812,7 @@ func TestGetConfig_SettingsError(t *testing.T) {
 
 func TestGetHistory_Success(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, staffID int64, from, to time.Time) (*activeSvc.HistoryResponse, error) {
+		getHistoryFn: func(_ context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "2026-01-01", from.Format("2006-01-02"))
 			assert.Equal(t, "2026-01-31", to.Format("2006-01-02"))
@@ -867,7 +867,7 @@ func TestGetHistory_InvalidToDate(t *testing.T) {
 
 func TestGetHistory_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		getHistoryFn: func(_ context.Context, _ int64, _, _ time.Time) (*activeSvc.HistoryResponse, error) {
+		getHistoryFn: func(_ context.Context, _ int64, _, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -1155,7 +1155,7 @@ func TestGetSessionEdits_InvalidID(t *testing.T) {
 
 func TestExportSessions_CSV(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, staffID int64, _, _ time.Time, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, staffID int64, _, _ timezone.Date, format string) ([]byte, string, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "csv", format)
 			return []byte("date,time\n"), "export.csv", nil
@@ -1175,7 +1175,7 @@ func TestExportSessions_CSV(t *testing.T) {
 
 func TestExportSessions_XLSX(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ time.Time, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) ([]byte, string, error) {
 			assert.Equal(t, "xlsx", format)
 			return []byte{0x50, 0x4B}, "export.xlsx", nil
 		},
@@ -1193,7 +1193,7 @@ func TestExportSessions_XLSX(t *testing.T) {
 
 func TestExportSessions_DefaultCSV(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ time.Time, format string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, format string) ([]byte, string, error) {
 			assert.Equal(t, "csv", format)
 			return []byte("data"), "export.csv", nil
 		},
@@ -1221,7 +1221,7 @@ func TestExportSessions_MissingDates(t *testing.T) {
 
 func TestExportSessions_ServiceError(t *testing.T) {
 	wsSvc := &mockWorkSessionService{
-		exportSessionsFn: func(_ context.Context, _ int64, _, _ time.Time, _ string) ([]byte, string, error) {
+		exportSessionsFn: func(_ context.Context, _ int64, _, _ timezone.Date, _ string) ([]byte, string, error) {
 			return nil, "", errors.New("export failed")
 		},
 	}
@@ -1239,7 +1239,7 @@ func TestExportSessions_ServiceError(t *testing.T) {
 
 func TestListAbsences_Success(t *testing.T) {
 	absSvc := &mockStaffAbsenceService{
-		getAbsencesForRange: func(_ context.Context, staffID int64, from, to time.Time) ([]*activeSvc.StaffAbsenceResponse, error) {
+		getAbsencesForRange: func(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
 			return []*activeSvc.StaffAbsenceResponse{}, nil
 		},
@@ -1267,7 +1267,7 @@ func TestListAbsences_MissingDates(t *testing.T) {
 
 func TestListAbsences_ServiceError(t *testing.T) {
 	absSvc := &mockStaffAbsenceService{
-		getAbsencesForRange: func(_ context.Context, _ int64, _, _ time.Time) ([]*activeSvc.StaffAbsenceResponse, error) {
+		getAbsencesForRange: func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 			return nil, errors.New("database error")
 		},
 	}

@@ -503,7 +503,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 		StaffID:   staffID,
 		GroupID:   groupID,
 		Role:      role,
-		StartDate: time.Now(),
+		StartDate: timezone.TodayDate(),
 		// EndDate is nil (active supervision)
 	}
 

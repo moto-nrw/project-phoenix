@@ -37,6 +37,7 @@ import (
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -63,7 +64,7 @@ type TimeTrackingCleanupResult struct {
 	AbsencesDeleted int
 	StaffAffected   int
 	RetentionDays   int
-	CutoffDate      time.Time
+	CutoffDate      timezone.Date
 	DurationMS      int64
 }
 
@@ -74,9 +75,9 @@ type TimeTrackingCleanupPreview struct {
 	AbsencesToDelete int
 	StaffAffected    int
 	RetentionDays    int
-	CutoffDate       time.Time
-	OldestSession    *time.Time
-	OldestAbsence    *time.Time
+	CutoffDate       timezone.Date
+	OldestSession    *timezone.Date
+	OldestAbsence    *timezone.Date
 }
 
 // TimeTrackingCleanupStats returns the current state of the time-tracking
@@ -84,10 +85,10 @@ type TimeTrackingCleanupPreview struct {
 type TimeTrackingCleanupStats struct {
 	TotalSessions int
 	TotalAbsences int
-	OldestSession *time.Time
-	OldestAbsence *time.Time
+	OldestSession *timezone.Date
+	OldestAbsence *timezone.Date
 	RetentionDays int
-	CutoffDate    time.Time
+	CutoffDate    timezone.Date
 }
 
 // TimeTrackingCleanupService drives GDPR retention cleanup for the
@@ -182,7 +183,7 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 		slog.Int("absences_deleted", absencesDeleted),
 		slog.Int("staff_affected", result.StaffAffected),
 		slog.Int("retention_days", retentionDays),
-		slog.String("cutoff", cutoff.Format("2006-01-02")),
+		slog.String("cutoff", cutoff.String()),
 		slog.Int64("duration_ms", result.DurationMS),
 	)
 
@@ -269,11 +270,14 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 		return nil, fmt.Errorf("count absences: %w", err)
 	}
 
-	oldestSession, err := oldestWorkSession(ctx, db, tenantID, time.Now().AddDate(100, 0, 0))
+	// A far-future bound so the MIN() helpers see every row (+100 years).
+	today := timezone.TodayDate()
+	farFuture := timezone.NewDate(today.Year+100, today.Month, today.Day)
+	oldestSession, err := oldestWorkSession(ctx, db, tenantID, farFuture)
 	if err != nil {
 		return nil, fmt.Errorf("oldest session: %w", err)
 	}
-	oldestAbsence, err := oldestStaffAbsence(ctx, db, tenantID, time.Now().AddDate(100, 0, 0))
+	oldestAbsence, err := oldestStaffAbsence(ctx, db, tenantID, farFuture)
 	if err != nil {
 		return nil, fmt.Errorf("oldest absence: %w", err)
 	}
@@ -309,12 +313,10 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 	return timeTrackingRetentionDefaultDays
 }
 
-// cutoffForDays returns the UTC start-of-day cutoff: anything older than
+// cutoffForDays returns the calendar-day cutoff: anything older than
 // today minus retentionDays will be deleted.
-func cutoffForDays(retentionDays int) time.Time {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return today.AddDate(0, 0, -retentionDays)
+func cutoffForDays(retentionDays int) timezone.Date {
+	return timezone.TodayDate().AddDays(-retentionDays)
 }
 
 // perStaffCounts maps staff_id to the number of rows older than cutoff (sessions
@@ -339,7 +341,7 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 	ctx context.Context,
 	db bun.IDB,
 	tenantID int64,
-	cutoff time.Time,
+	cutoff timezone.Date,
 ) (perStaffCounts, perStaffSamples, error) {
 	counts := make(perStaffCounts)
 	samples := make(perStaffSamples)
@@ -402,14 +404,14 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	ctx context.Context,
 	tenantID int64,
 	retentionDays int,
-	cutoff time.Time,
+	cutoff timezone.Date,
 	counts perStaffCounts,
 	samples perStaffSamples,
 ) error {
 	if s.auditRepo == nil {
 		return fmt.Errorf("audit repo not configured")
 	}
-	cutoffStr := cutoff.Format("2006-01-02")
+	cutoffStr := cutoff.String()
 	for staffID, n := range counts {
 		deletion := audit.NewStaffDataDeletion(
 			staffID,
@@ -434,7 +436,7 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	return nil
 }
 
-func deleteOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+func deleteOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (int, error) {
 	res, err := db.NewDelete().
 		Table("active.work_sessions").
 		Where("tenant_id = ?", tenantID).
@@ -450,7 +452,7 @@ func deleteOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cuto
 	return int(n), nil
 }
 
-func deleteOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+func deleteOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (int, error) {
 	res, err := db.NewDelete().
 		Table("active.staff_absences").
 		Where("tenant_id = ?", tenantID).
@@ -466,7 +468,7 @@ func deleteOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cut
 	return int(n), nil
 }
 
-func countOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+func countOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (int, error) {
 	type row struct {
 		Cnt int `bun:"cnt"`
 	}
@@ -480,7 +482,7 @@ func countOldWorkSessions(ctx context.Context, db bun.IDB, tenantID int64, cutof
 	return r.Cnt, err
 }
 
-func countOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+func countOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (int, error) {
 	type row struct {
 		Cnt int `bun:"cnt"`
 	}
@@ -494,9 +496,9 @@ func countOldStaffAbsences(ctx context.Context, db bun.IDB, tenantID int64, cuto
 	return r.Cnt, err
 }
 
-func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (*time.Time, error) {
+func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (*timezone.Date, error) {
 	type row struct {
-		Date *time.Time `bun:"date"`
+		Date *timezone.Date `bun:"date"`
 	}
 	var r row
 	err := db.NewSelect().
@@ -511,9 +513,9 @@ func oldestWorkSession(ctx context.Context, db bun.IDB, tenantID int64, cutoff t
 	return r.Date, nil
 }
 
-func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (*time.Time, error) {
+func oldestStaffAbsence(ctx context.Context, db bun.IDB, tenantID int64, cutoff timezone.Date) (*timezone.Date, error) {
 	type row struct {
-		DateEnd *time.Time `bun:"date_end"`
+		DateEnd *timezone.Date `bun:"date_end"`
 	}
 	var r row
 	err := db.NewSelect().
