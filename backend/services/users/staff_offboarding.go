@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -34,8 +35,10 @@ type StaffOffboardingServiceDependencies struct {
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	InstanceStaffRepo      scheduleModels.InstanceStaffRepository
+	StaffAbsenceRepo       activeModels.StaffAbsenceRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
 	RoleRepo               authModels.RoleRepository
+	AccountPermissionRepo  authModels.AccountPermissionRepository
 	DataDeletionRepo       auditModels.DataDeletionRepository
 	AuthService            authSvc.AuthService
 	DB                     *bun.DB
@@ -51,8 +54,10 @@ type staffOffboardingService struct {
 	groupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	activitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	instanceStaffRepo      scheduleModels.InstanceStaffRepository
+	staffAbsenceRepo       activeModels.StaffAbsenceRepository
 	accountTenantRepo      authModels.AccountTenantRepository
 	roleRepo               authModels.RoleRepository
+	accountPermissionRepo  authModels.AccountPermissionRepository
 	dataDeletionRepo       auditModels.DataDeletionRepository
 	authService            authSvc.AuthService
 	txHandler              *modelBase.TxHandler
@@ -70,8 +75,10 @@ func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffO
 		groupSubstitutionRepo:  deps.GroupSubstitutionRepo,
 		activitySupervisorRepo: deps.ActivitySupervisorRepo,
 		instanceStaffRepo:      deps.InstanceStaffRepo,
+		staffAbsenceRepo:       deps.StaffAbsenceRepo,
 		accountTenantRepo:      deps.AccountTenantRepo,
 		roleRepo:               deps.RoleRepo,
+		accountPermissionRepo:  deps.AccountPermissionRepo,
 		dataDeletionRepo:       deps.DataDeletionRepo,
 		authService:            deps.AuthService,
 		txHandler:              modelBase.NewTxHandler(deps.DB),
@@ -94,8 +101,11 @@ func (s *staffOffboardingService) getLogger() *slog.Logger {
 //   - removes planned assignments the old hard-delete CASCADE used to clean up
 //   - unlinks the person from RFID card and account (the person row stays as
 //     the name-bearer for history)
-//   - removes the account's tenant-scoped roles, revokes tokens, and
-//     deactivates the account-tenant mapping so the email can be re-invited
+//   - removes the account's tenant-scoped roles and direct permission grants,
+//     revokes tokens, and deactivates the account-tenant mapping so the email
+//     can be re-invited
+//   - keeps the guardian role and the tenant mapping when the account is also
+//     a guardian at this school (parents portal access survives offboarding)
 //   - deactivates the auth account entirely when no other active tenant
 //     mapping remains
 //
@@ -130,11 +140,20 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 		return err
 	}
 
+	// Clear the work-time-model FK before the soft delete: the row keeps its
+	// reference otherwise and blocks work-time-model deletion via the RESTRICT
+	// FK while the live-staff pre-check reports zero assignments.
+	if staff.WorkTimeModelID != nil {
+		if err := s.staffRepo.ClearWorkTimeModel(ctx, staffID); err != nil {
+			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("clear work time model: %w", err)}
+		}
+	}
+
 	if err := s.staffRepo.Delete(ctx, staffID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: err}
 	}
 
-	if err := s.offboardPersonAndAccount(ctx, staff.PersonID); err != nil {
+	if err := s.offboardPersonAndAccount(ctx, staff.PersonID, cleanupCounts); err != nil {
 		return err
 	}
 
@@ -176,11 +195,17 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 	}
 	counts["group_substitutions"] = substitutions
 
-	instanceAssignments, err := s.instanceStaffRepo.DeleteFutureByStaffID(ctx, staffID, today)
+	instanceAssignments, err := s.instanceStaffRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["timetable_instance_staff"] = instanceAssignments
+
+	absences, err := s.staffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
+	if err != nil {
+		return nil, &UsersError{Op: opOffboardStaff, Err: err}
+	}
+	counts["staff_absences"] = absences
 
 	return counts, nil
 }
@@ -188,7 +213,8 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 // offboardPersonAndAccount unlinks the person from RFID card and account and
 // revokes the account's access for the current tenant. The person row itself
 // is kept so historical records keep resolving the staff member's name.
-func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, personID int64) error {
+// Deletion counts for the audit record are added to counts.
+func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, personID int64, counts map[string]any) error {
 	person, err := s.personRepo.FindByID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -212,23 +238,59 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	accountID := *person.AccountID
 
 	// Remove tenant-scoped roles (also revokes this tenant's tokens per role).
+	// The guardian role is kept: a dual-role teacher/guardian account must stay
+	// able to log into the parents portal after losing staff access. Matching
+	// by name mirrors the parent login gate (auth_login_parent.go); custom
+	// roles that merely map to the guardian base role are removed because they
+	// grant no parent access yet would keep the staff portal open.
 	roles, err := s.roleRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("load account roles: %w", err)}
 	}
+	hasGuardian := false
 	for _, role := range roles {
+		if strings.EqualFold(role.Name, authModels.BaseRoleGuardian) {
+			hasGuardian = true
+			continue
+		}
 		if err := s.authService.RemoveRoleFromAccount(ctx, int(accountID), int(role.ID)); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("remove role %q: %w", role.Name, err)}
 		}
 	}
 
+	// Clear direct tenant-scoped permission grants. Re-invitation reactivates
+	// the same account ID, so leftover grants would silently restore old
+	// elevated permissions on a lower-privilege re-invite.
+	permissionsDeleted, err := s.accountPermissionRepo.DeleteByAccountID(ctx, accountID)
+	if err != nil {
+		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("delete direct account permissions: %w", err)}
+	}
+	counts["account_permissions"] = permissionsDeleted
+
 	// Free the partial unique index on persons.account_id so a re-invitation
-	// can link a fresh person to the same account.
+	// can link a fresh person to the same account. Guardian portal access does
+	// not depend on this link (guardians link via guardian_profiles.account_id).
 	if err := s.personRepo.UnlinkFromAccount(ctx, person.ID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("unlink account: %w", err)}
 	}
 
 	tenantID := tenant.FromContext(ctx)
+
+	if hasGuardian {
+		// Keep the tenant mapping and the account active so the parents portal
+		// keeps working. Consequence: a staff re-invite for this email at this
+		// school stays blocked (ErrAccountAlreadyHasTenantAccess) while the
+		// guardian mapping is active — the same limitation any active guardian
+		// account has today.
+		s.getLogger().Info("staff account offboarded",
+			"account_id", accountID,
+			"tenant_id", tenantID,
+			"account_deactivated", false,
+			"guardian_access_preserved", true,
+		)
+		return nil
+	}
+
 	if err := s.accountTenantRepo.Deactivate(ctx, accountID, tenantID); err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate tenant mapping: %w", err)}
 	}
@@ -249,6 +311,7 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 		"account_id", accountID,
 		"tenant_id", tenantID,
 		"account_deactivated", len(remaining) == 0,
+		"guardian_access_preserved", false,
 	)
 
 	return nil

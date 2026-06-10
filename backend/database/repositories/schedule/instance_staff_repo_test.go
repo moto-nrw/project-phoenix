@@ -160,7 +160,7 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
-func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
+func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -170,8 +170,13 @@ func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
 	cutoff := timezone.NewDate(2026, 10, 1)
 	pastInst, cleanupPast := createInstanceFixture(t, db, "offb-past", cutoff.AddDays(-7))
 	defer cleanupPast()
-	sameDayInst, cleanupSameDay := createInstanceFixture(t, db, "offb-today", cutoff)
-	defer cleanupSameDay()
+	sameDayPlannedInst, cleanupSameDayPlanned := createInstanceFixture(t, db, "offb-today", cutoff)
+	defer cleanupSameDayPlanned()
+	sameDayDoneInst, cleanupSameDayDone := createInstanceFixture(t, db, "offb-today-done", cutoff)
+	defer cleanupSameDayDone()
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE schedule.activity_instances SET status = 'completed' WHERE id = ?`, sameDayDoneInst.ID)
+	require.NoError(t, err)
 	futureInst, cleanupFuture := createInstanceFixture(t, db, "offb-future", cutoff.AddDays(7))
 	defer cleanupFuture()
 
@@ -188,13 +193,14 @@ func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
 		return row
 	}
 	pastRow := makeRow(pastInst.ID, staff.ID)
-	sameDayRow := makeRow(sameDayInst.ID, staff.ID)
+	sameDayPlannedRow := makeRow(sameDayPlannedInst.ID, staff.ID)
+	sameDayDoneRow := makeRow(sameDayDoneInst.ID, staff.ID)
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	affected, err := repo.DeleteFutureByStaffID(ctx, staff.ID, cutoff)
+	affected, err := repo.DeleteUpcomingByStaffID(ctx, staff.ID, cutoff)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), affected)
+	assert.Equal(t, int64(2), affected)
 
 	remaining := func(instanceID int64) []int64 {
 		rows, findErr := repo.FindByInstanceID(ctx, instanceID)
@@ -206,7 +212,10 @@ func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
 		return ids
 	}
 	assert.Contains(t, remaining(pastInst.ID), pastRow.ID, "past assignment must stay")
-	assert.Contains(t, remaining(sameDayInst.ID), sameDayRow.ID, "same-day assignment must stay")
+	assert.NotContains(t, remaining(sameDayPlannedInst.ID), sameDayPlannedRow.ID,
+		"same-day planned assignment must be deleted")
+	assert.Contains(t, remaining(sameDayDoneInst.ID), sameDayDoneRow.ID,
+		"same-day completed assignment must stay as history")
 	futureIDs := remaining(futureInst.ID)
 	assert.NotContains(t, futureIDs, futureRow.ID, "future assignment must be deleted")
 	assert.Contains(t, futureIDs, otherFutureRow.ID, "other staff's assignment must stay")

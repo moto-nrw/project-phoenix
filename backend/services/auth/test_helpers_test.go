@@ -1326,6 +1326,10 @@ func (r *stubStaffRepository) UpdateNotes(context.Context, int64, string) error 
 	panic("UpdateNotes not implemented")
 }
 
+func (r *stubStaffRepository) ClearWorkTimeModel(context.Context, int64) error {
+	panic("ClearWorkTimeModel not implemented")
+}
+
 func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel.Staff, error) {
 	panic("FindWithPerson not implemented")
 }

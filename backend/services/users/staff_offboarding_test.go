@@ -10,7 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -53,8 +56,10 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
+		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
+		AccountPermissionRepo:  repos.AccountPermission,
 		DataDeletionRepo:       repos.DataDeletion,
 		AuthService:            authService,
 		DB:                     db,
@@ -471,4 +476,258 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 	found, err := sc.repos.Staff.FindByID(sc.ctx, staff.ID)
 	assert.Error(t, err, "FindByID must not return soft-deleted staff")
 	assert.Nil(t, found)
+}
+
+// TestOffboardStaff_ClearsDirectPermissions: direct tenant-scoped permission
+// grants must not survive offboarding — re-invitation reuses the account ID,
+// so leftover grants would restore old elevated permissions.
+func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Direct", "Permission")
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
+	perm := testpkg.CreateTestPermission(t, sc.db,
+		fmt.Sprintf("offb-perm-%d", time.Now().UnixNano()), "students", "read")
+	require.NoError(t, sc.repos.AccountPermission.GrantPermission(sc.ctx, account.ID, perm.ID))
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM auth.account_permissions WHERE account_id = ?`, account.ID)
+		testpkg.CleanupTableRecords(t, sc.db, "auth.permissions", perm.ID)
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, &account.ID)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	var permCount int
+	err := sc.db.NewSelect().
+		TableExpr(`auth.account_permissions`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`account_id = ? AND tenant_id = ?`, account.ID, offboardingFixtureTenant).
+		Scan(context.Background(), &permCount)
+	require.NoError(t, err)
+	assert.Zero(t, permCount, "direct permission grants must be removed on offboarding")
+}
+
+// TestOffboardStaff_PreservesGuardianAccess: a dual-role teacher/guardian
+// account loses staff access but must keep the guardian role and an active
+// tenant mapping so the parents portal keeps working.
+func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	const password = "Offboard123!"
+	emailAddr := fmt.Sprintf("offboard-guardian-%d@test.local", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, password)
+	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Dual", "Role", account.ID)
+	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
+	staffRole := testpkg.GetOrCreateTestRole(t, sc.db, "user")
+	assignTenantRole(t, sc.db, account.ID, staffRole.ID)
+	guardianRole := testpkg.GetOrCreateTestRole(t, sc.db, "guardian")
+	assignTenantRole(t, sc.db, account.ID, guardianRole.ID)
+
+	t.Cleanup(func() {
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	countRole := func(roleID int64) int {
+		var n int
+		require.NoError(t, sc.db.NewSelect().
+			TableExpr(`auth.account_roles`).
+			ColumnExpr(`COUNT(*)`).
+			Where(`account_id = ? AND role_id = ?`, account.ID, roleID).
+			Scan(context.Background(), &n))
+		return n
+	}
+	assert.Zero(t, countRole(staffRole.ID), "staff role must be removed")
+	assert.Equal(t, 1, countRole(guardianRole.ID), "guardian role must be kept")
+
+	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, offboardingFixtureTenant)
+	require.NoError(t, err)
+	assert.True(t, exists, "tenant mapping must stay active for the guardian")
+
+	var active bool
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`auth.accounts`).
+		ColumnExpr(`active`).
+		Where(`id = ?`, account.ID).
+		Scan(context.Background(), &active))
+	assert.True(t, active, "guardian account must stay active")
+
+	var personAccountID *int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.persons`).
+		ColumnExpr(`account_id`).
+		Where(`id = ?`, person.ID).
+		Scan(context.Background(), &personAccountID))
+	assert.Nil(t, personAccountID, "staff person must still be unlinked from the account")
+
+	// Staff portal login is refused for the now guardian-only account; the
+	// parents portal remains the entry point.
+	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, password)
+	require.Error(t, err, "staff login must be refused for the guardian-only account")
+	assert.ErrorIs(t, err, authSvcPkg.ErrParentMustUseParentPortal)
+}
+
+// TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments: same-day
+// timetable assignments on instances that have not started yet must be
+// removed (instance Start would copy them into active supervisors), while
+// already-completed same-day instances keep their rows as history.
+func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff := testpkg.CreateTestStaff(t, sc.db, "SameDay", "Planned")
+	room := testpkg.CreateTestRoom(t, sc.db, fmt.Sprintf("OffbInstRoom-%d", time.Now().UnixNano()))
+	today := timezone.TodayDate()
+
+	makeInstance := func(title string) *scheduleModels.ActivityInstance {
+		inst := &scheduleModels.ActivityInstance{
+			Date:          today,
+			Title:         title,
+			StartTime:     time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			EndTime:       time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+			RoomID:        room.ID,
+			Status:        scheduleModels.InstanceStatusPlanned,
+			IsSpontaneous: true,
+		}
+		inst.SetTenantID(offboardingFixtureTenant)
+		require.NoError(t, sc.repos.ActivityInstance.Create(sc.ctx, inst))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.activity_instances", inst.ID) })
+		return inst
+	}
+	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
+	completedInst := makeInstance(fmt.Sprintf("offb-completed-%d", time.Now().UnixNano()))
+	_, err := sc.db.ExecContext(context.Background(),
+		`UPDATE schedule.activity_instances SET status = 'completed' WHERE id = ?`, completedInst.ID)
+	require.NoError(t, err)
+
+	makeAssignment := func(instanceID int64) *scheduleModels.InstanceStaff {
+		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}
+		row.SetTenantID(offboardingFixtureTenant)
+		require.NoError(t, sc.repos.InstanceStaff.Create(sc.ctx, row))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.instance_staff", row.ID) })
+		return row
+	}
+	plannedRow := makeAssignment(plannedInst.ID)
+	completedRow := makeAssignment(completedInst.ID)
+
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, sc.db, room.ID)
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	countAssignment := func(id int64) int {
+		var n int
+		require.NoError(t, sc.db.NewSelect().
+			TableExpr(`schedule.instance_staff`).
+			ColumnExpr(`COUNT(*)`).
+			Where(`id = ?`, id).
+			Scan(context.Background(), &n))
+		return n
+	}
+	assert.Zero(t, countAssignment(plannedRow.ID),
+		"same-day planned assignment must be removed so instance Start cannot copy it")
+	assert.Equal(t, 1, countAssignment(completedRow.ID),
+		"same-day completed assignment must stay as history")
+}
+
+// TestOffboardStaff_RemovesPendingAndFutureAbsences: pending requests and
+// not-yet-over absences must disappear from operational queries; past decided
+// absences stay as history.
+func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff := testpkg.CreateTestStaff(t, sc.db, "Absent", "Staff")
+	today := timezone.TodayDate()
+
+	makeAbsence := func(absenceType, status string, start, end timezone.Date) *activeModels.StaffAbsence {
+		absence := &activeModels.StaffAbsence{
+			StaffID:     staff.ID,
+			AbsenceType: absenceType,
+			DateStart:   start,
+			DateEnd:     end,
+			Status:      status,
+			CreatedBy:   staff.ID,
+		}
+		require.NoError(t, sc.repos.StaffAbsence.Create(sc.ctx, absence))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "active.staff_absences", absence.ID) })
+		return absence
+	}
+	pendingRequest := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusRequested,
+		today.AddDays(3), today.AddDays(5))
+	futureApproved := makeAbsence(activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
+		today.AddDays(10), today.AddDays(12))
+	pastApproved := makeAbsence(activeModels.AbsenceTypeSick, activeModels.AbsenceStatusApproved,
+		today.AddDays(-10), today.AddDays(-8))
+
+	t.Cleanup(func() {
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	countAbsence := func(id int64) int {
+		var n int
+		require.NoError(t, sc.db.NewSelect().
+			TableExpr(`active.staff_absences`).
+			ColumnExpr(`COUNT(*)`).
+			Where(`id = ?`, id).
+			Scan(context.Background(), &n))
+		return n
+	}
+	assert.Zero(t, countAbsence(pendingRequest.ID), "pending request must be removed")
+	assert.Zero(t, countAbsence(futureApproved.ID), "future approved absence must be removed")
+	assert.Equal(t, 1, countAbsence(pastApproved.ID), "past absence must stay as history")
+
+	var auditedCount string
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`audit.data_deletions`).
+		ColumnExpr(`metadata->>'staff_absences'`).
+		Where(`staff_id = ?`, staff.ID).
+		Scan(context.Background(), &auditedCount))
+	assert.Equal(t, "2", auditedCount, "audit record must count the deleted absences")
+}
+
+// TestOffboardStaff_ClearsWorkTimeModelAssignment: the soft-deleted staff row
+// must not keep its work_time_model_id, or the RESTRICT FK blocks model
+// deletion while the live-staff pre-check reports zero assignments.
+func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff := testpkg.CreateTestStaff(t, sc.db, "Modeled", "Staff")
+	model := &configModel.WorkTimeModel{
+		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
+		RotationLength:     1,
+		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
+	}
+	require.NoError(t, sc.repos.WorkTimeModel.Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
+		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
+	}))
+	_, err := sc.db.ExecContext(context.Background(),
+		`UPDATE users.staff SET work_time_model_id = ? WHERE id = ?`, model.ID, staff.ID)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_model_entries WHERE work_time_model_id = ?`, model.ID)
+		_, _ = sc.db.ExecContext(ctx, `DELETE FROM config.work_time_models WHERE id = ?`, model.ID)
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	var workTimeModelID *int64
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`users.staff`).
+		ColumnExpr(`work_time_model_id`).
+		Where(`id = ?`, staff.ID).
+		Scan(context.Background(), &workTimeModelID))
+	assert.Nil(t, workTimeModelID, "work_time_model_id must be cleared on offboarding")
+
+	require.NoError(t, sc.repos.WorkTimeModel.Delete(sc.ctx, model.ID),
+		"work-time-model deletion must succeed once the offboarded staff no longer references it")
 }

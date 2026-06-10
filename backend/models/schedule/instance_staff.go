@@ -89,8 +89,9 @@ type InstanceStaffRepository interface {
 	// for the "re-plan week" flow where the instance is kept but repopulated.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
-	// DeleteFutureByStaffID removes the staff member's assignments on instances
-	// dated strictly after the given date (staff offboarding cleanup). Past and
-	// same-day assignments stay as history.
-	DeleteFutureByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error)
+	// DeleteUpcomingByStaffID removes the staff member's assignments on
+	// instances dated strictly after the given date, plus same-day instances
+	// still in 'planned' status (staff offboarding cleanup). Past and same-day
+	// already-started assignments stay as history.
+	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error)
 }

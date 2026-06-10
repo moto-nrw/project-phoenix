@@ -163,6 +163,7 @@ type AccountPermissionRepository interface {
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
+	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
 }
 

@@ -77,6 +77,31 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 	return base.AssertRowsAffected(result, 1, "update notes")
 }
 
+// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
+// offboarding before the soft delete so the retained row does not block
+// work-time-model deletion via the RESTRICT FK.
+func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Staff)(nil)).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set(`work_time_model_id = NULL`).
+		Where(`"staff".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "clear work time model",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "clear work time model")
+}
+
 // Create overrides the base Create method to handle validation
 func (r *StaffRepository) Create(ctx context.Context, staff *users.Staff) error {
 	if staff == nil {
