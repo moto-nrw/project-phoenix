@@ -60,8 +60,10 @@ jobs:
           echo "🔍 Running dead code detection..."
 
           # Run deadcode (a go.mod tool directive, locked via go.sum) and
-          # capture output
-          DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 || true)
+          # capture output. On a cold module cache the go toolchain prints
+          # "go: downloading ..." progress to stderr — strip it, or it gets
+          # mistaken for findings.
+          DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
 
           # Define exclusion patterns (false positives or planned-but-unwired code)
           # cmd/root.go:Execute is the Cobra CLI entry point called by main()
