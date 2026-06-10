@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
@@ -70,17 +71,17 @@ func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {
 // EnrollablePhaseResponse is the wire shape for /me/enrollable-schools.
 // Mirrors models/parent.EnrollablePhase but stringifies int64 ids.
 type EnrollablePhaseResponse struct {
-	SchoolID          string     `json:"school_id"`
-	SchoolName        string     `json:"school_name"`
-	SchoolSlug        string     `json:"school_slug"`
-	PhaseID           string     `json:"phase_id"`
-	PhaseName         string     `json:"phase_name"`
-	PhaseKind         string     `json:"phase_kind"`
-	ServiceStartDate  time.Time  `json:"service_start_date"`
-	ServiceEndDate    time.Time  `json:"service_end_date"`
-	EnrollmentOpenAt  *time.Time `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt *time.Time `json:"enrollment_close_at,omitempty"`
-	AlreadyLinked     bool       `json:"already_linked"`
+	SchoolID          string        `json:"school_id"`
+	SchoolName        string        `json:"school_name"`
+	SchoolSlug        string        `json:"school_slug"`
+	PhaseID           string        `json:"phase_id"`
+	PhaseName         string        `json:"phase_name"`
+	PhaseKind         string        `json:"phase_kind"`
+	ServiceStartDate  timezone.Date `json:"service_start_date"`
+	ServiceEndDate    timezone.Date `json:"service_end_date"`
+	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
+	AlreadyLinked     bool          `json:"already_linked"`
 }
 
 // listEnrollableSchools returns every (school, open phase) pair the
@@ -142,8 +143,8 @@ type EnrollmentRequestResponse struct {
 	WithdrawnAt      *time.Time                       `json:"withdrawn_at,omitempty"`
 	PhaseID          string                           `json:"phase_id"`
 	PhaseName        string                           `json:"phase_name"`
-	ServiceStartDate time.Time                        `json:"service_start_date"`
-	ServiceEndDate   time.Time                        `json:"service_end_date"`
+	ServiceStartDate timezone.Date                    `json:"service_start_date"`
+	ServiceEndDate   timezone.Date                    `json:"service_end_date"`
 	SchoolName       string                           `json:"school_name"`
 	SchoolSlug       string                           `json:"school_slug"`
 	Children         []EnrollmentRequestChildResponse `json:"children"`

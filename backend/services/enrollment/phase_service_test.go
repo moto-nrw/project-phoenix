@@ -13,6 +13,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -55,8 +57,8 @@ func minimalPhase(suffix string) *enrollmentModels.Phase {
 	p := &enrollmentModels.Phase{
 		Name:             "phase-" + suffix,
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -82,8 +84,8 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 
 	bad := minimalPhase(t.Name())
-	bad.ServiceStartDate = time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
-	bad.ServiceEndDate = time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)
+	bad.ServiceStartDate = timezone.NewDate(2027, 9, 1)
+	bad.ServiceEndDate = timezone.NewDate(2026, 7, 31)
 
 	_, err := svc.Create(ctx, bad)
 	require.Error(t, err, "service_end_date < service_start_date must be rejected")
@@ -250,7 +252,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		RequestID:        req.ID,
 		FirstName:        "Kept",
 		LastName:         "Child",
-		DateOfBirth:      time.Date(2019, 5, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 5, 1),
 		CreatedStudentID: &student.ID,
 	}
 	child.SetTenantID(1)
@@ -316,7 +318,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		RequestID:        req.ID,
 		FirstName:        "Impact",
 		LastName:         "Child",
-		DateOfBirth:      time.Date(2019, 5, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 5, 1),
 		CreatedStudentID: &student.ID,
 	}
 	child.SetTenantID(1)

@@ -11,6 +11,8 @@ package parent
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // ChildSummary is the cross-tenant view of one student linked to a
@@ -76,17 +78,17 @@ type ChildRepository interface {
 // child here). The frontend uses it to sort linked schools first and
 // label them differently from "new" schools.
 type EnrollablePhase struct {
-	SchoolID          int64      `json:"school_id"`
-	SchoolName        string     `json:"school_name"`
-	SchoolSlug        string     `json:"school_slug"`
-	PhaseID           int64      `json:"phase_id"`
-	PhaseName         string     `json:"phase_name"`
-	PhaseKind         string     `json:"phase_kind"`
-	ServiceStartDate  time.Time  `json:"service_start_date"`
-	ServiceEndDate    time.Time  `json:"service_end_date"`
-	EnrollmentOpenAt  *time.Time `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt *time.Time `json:"enrollment_close_at,omitempty"`
-	AlreadyLinked     bool       `json:"already_linked"`
+	SchoolID          int64         `json:"school_id"`
+	SchoolName        string        `json:"school_name"`
+	SchoolSlug        string        `json:"school_slug"`
+	PhaseID           int64         `json:"phase_id"`
+	PhaseName         string        `json:"phase_name"`
+	PhaseKind         string        `json:"phase_kind"`
+	ServiceStartDate  timezone.Date `json:"service_start_date"`
+	ServiceEndDate    timezone.Date `json:"service_end_date"`
+	EnrollmentOpenAt  *time.Time    `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt *time.Time    `json:"enrollment_close_at,omitempty"`
+	AlreadyLinked     bool          `json:"already_linked"`
 }
 
 // EnrollablePhaseRepository is the cross-tenant lookup for the parent
@@ -111,10 +113,10 @@ type EnrollmentRequestSummary struct {
 	SubmittedAt time.Time  `json:"submitted_at"`
 	WithdrawnAt *time.Time `json:"withdrawn_at,omitempty"`
 
-	PhaseID          int64     `json:"phase_id"`
-	PhaseName        string    `json:"phase_name"`
-	ServiceStartDate time.Time `json:"service_start_date"`
-	ServiceEndDate   time.Time `json:"service_end_date"`
+	PhaseID          int64         `json:"phase_id"`
+	PhaseName        string        `json:"phase_name"`
+	ServiceStartDate timezone.Date `json:"service_start_date"`
+	ServiceEndDate   timezone.Date `json:"service_end_date"`
 
 	// ShowStatusReasonToParent mirrors the owning phase flag. Internal
 	// plumbing only (json:"-"): the parent service uses it to redact

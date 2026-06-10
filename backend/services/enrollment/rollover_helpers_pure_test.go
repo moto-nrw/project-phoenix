@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun/driver/pgdriver"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -18,8 +19,8 @@ func validRolloverReq() CreatePhaseFromSourceRequest {
 	return CreatePhaseFromSourceRequest{
 		SourcePhaseID:    42,
 		Name:             "Schuljahr 2027/28",
-		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 		RolloverDeadline: time.Date(2027, 7, 1, 0, 0, 0, 0, time.UTC),
 		RolloverMode:     enrollmentModels.PhaseRolloverModeOptOut,
 	}
@@ -57,7 +58,7 @@ func TestValidateCreateRequest_RequiresName(t *testing.T) {
 
 func TestValidateCreateRequest_RequiresServiceStartDate(t *testing.T) {
 	r := validRolloverReq()
-	r.ServiceStartDate = time.Time{}
+	r.ServiceStartDate = timezone.Date{}
 	err := newSvc().validateCreateRequest(r)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service dates")
@@ -65,7 +66,7 @@ func TestValidateCreateRequest_RequiresServiceStartDate(t *testing.T) {
 
 func TestValidateCreateRequest_RequiresServiceEndDate(t *testing.T) {
 	r := validRolloverReq()
-	r.ServiceEndDate = time.Time{}
+	r.ServiceEndDate = timezone.Date{}
 	err := newSvc().validateCreateRequest(r)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service dates")
@@ -73,8 +74,8 @@ func TestValidateCreateRequest_RequiresServiceEndDate(t *testing.T) {
 
 func TestValidateCreateRequest_RejectsEndBeforeStart(t *testing.T) {
 	r := validRolloverReq()
-	r.ServiceStartDate = time.Date(2028, 1, 1, 0, 0, 0, 0, time.UTC)
-	r.ServiceEndDate = time.Date(2027, 12, 31, 0, 0, 0, 0, time.UTC)
+	r.ServiceStartDate = timezone.NewDate(2028, 1, 1)
+	r.ServiceEndDate = timezone.NewDate(2027, 12, 31)
 	err := newSvc().validateCreateRequest(r)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")
@@ -83,7 +84,7 @@ func TestValidateCreateRequest_RejectsEndBeforeStart(t *testing.T) {
 func TestValidateCreateRequest_AcceptsEqualStartAndEnd(t *testing.T) {
 	// Single-day rollover phase is legal — "Before" is strict, not "<=".
 	r := validRolloverReq()
-	same := time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
+	same := timezone.NewDate(2027, 9, 1)
 	r.ServiceStartDate = same
 	r.ServiceEndDate = same
 	assert.NoError(t, newSvc().validateCreateRequest(r))

@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,8 +21,8 @@ func validPhase() *Phase {
 	return &Phase{
 		Name:             "Schuljahr 2026/27",
 		Kind:             PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		CareOverflowMode: PhaseCareOverflowWaitlist,
 	}
 }
@@ -69,7 +71,7 @@ func TestPhase_Validate_AcceptsAllKnownKinds(t *testing.T) {
 
 func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 	p := validPhase()
-	p.ServiceStartDate = time.Time{}
+	p.ServiceStartDate = timezone.Date{}
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_start_date")
@@ -77,7 +79,7 @@ func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 
 func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 	p := validPhase()
-	p.ServiceEndDate = time.Time{}
+	p.ServiceEndDate = timezone.Date{}
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")
@@ -85,8 +87,8 @@ func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 
 func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
 	p := validPhase()
-	p.ServiceStartDate = time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
-	p.ServiceEndDate = time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	p.ServiceStartDate = timezone.NewDate(2027, 1, 1)
+	p.ServiceEndDate = timezone.NewDate(2026, 12, 31)
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")
@@ -95,7 +97,7 @@ func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
 func TestPhase_Validate_AcceptsEqualStartAndEnd(t *testing.T) {
 	// One-day phase (e.g. an info day) is legal — `Before` is strict.
 	p := validPhase()
-	same := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	same := timezone.NewDate(2026, 9, 1)
 	p.ServiceStartDate = same
 	p.ServiceEndDate = same
 	assert.NoError(t, p.Validate())

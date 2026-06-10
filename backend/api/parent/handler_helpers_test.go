@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -69,7 +70,7 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 	assert.Equal(t, "203.0.113.42", out.RemoteIP,
 		"RemoteIP is forwarded so per-IP rate limiting applies even on authenticated parent submits")
 	require.Len(t, out.Children, 1)
-	assert.Equal(t, time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC), out.Children[0].DateOfBirth)
+	assert.Equal(t, timezone.NewDate(2018, 3, 4), out.Children[0].DateOfBirth)
 }
 
 func TestBuildParentServiceRequest_PreservesOfferingDays(t *testing.T) {

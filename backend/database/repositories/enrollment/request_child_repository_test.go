@@ -3,13 +3,13 @@ package enrollment_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -56,7 +56,7 @@ func makeChild(requestID int64, firstName, lastName string) *enrollmentModels.Re
 		RequestID:      requestID,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:    timezone.NewDate(2018, 4, 15),
 		Status:         enrollmentModels.ChildStatusSubmitted,
 		ActivationMode: enrollmentModels.ChildActivationScheduled,
 		CustomData:     map[string]any{},
@@ -336,7 +336,7 @@ func TestRequestChildRepository_UpdateActivationPlan_StampsScheduledDate(t *test
 		return repo.Create(ctx, child)
 	}))
 
-	activateOn := time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
+	activateOn := timezone.NewDate(2027, 9, 1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdateActivationPlan(ctx, child.ID, enrollmentModels.ChildActivationScheduled, &activateOn)
 	}))

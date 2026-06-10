@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -39,8 +38,8 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	phase := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -340,8 +339,8 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	target := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -387,8 +386,8 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	target := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}

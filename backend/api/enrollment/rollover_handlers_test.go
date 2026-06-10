@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -97,8 +98,8 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 			Phase: &enrollmentModels.Phase{
 				Name:             "Schuljahr 2027",
 				Kind:             enrollmentModels.PhaseKindSchoolYear,
-				ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-				ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+				ServiceStartDate: timezone.NewDate(2027, 9, 1),
+				ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 				IsActive:         true,
 				CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 			},
@@ -128,7 +129,7 @@ func TestCreateRolloverHandler_HappyPathReturns201(t *testing.T) {
 	assert.Equal(t, "Schuljahr 2027", mock.createRequest.Name)
 	assert.Equal(t, "opt_out", mock.createRequest.RolloverMode)
 	assert.True(t, mock.createRequest.RolloverBumpsGrade, "bumps_grade defaults to true when omitted")
-	assert.Equal(t, time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC), mock.createRequest.ServiceStartDate)
+	assert.Equal(t, timezone.NewDate(2027, 9, 1), mock.createRequest.ServiceStartDate)
 	assert.Equal(t, time.Date(2027, 8, 15, 0, 0, 0, 0, time.UTC), mock.createRequest.RolloverDeadline)
 }
 

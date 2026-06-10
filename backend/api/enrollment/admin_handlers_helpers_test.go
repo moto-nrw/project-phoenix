@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -51,7 +52,7 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC)
+	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
 	child.Status = "submitted"
 	child.ActivationMode = "auto"
 
@@ -111,7 +112,7 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC)
+	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
 	child.Status = "submitted"
 
 	in := &enrollmentService.RequestSummary{
@@ -135,7 +136,7 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC)
+	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
 	child.TargetGradeLevel = &g
 	child.Status = "pending_admin_review"
 	child.StatusReason = &reason
@@ -159,7 +160,7 @@ func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"
-	child.DateOfBirth = time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC)
+	child.DateOfBirth = timezone.NewDate(2018, 3, 4)
 	child.CustomData = map[string]any{"allergies": "Nüsse"}
 
 	in := &enrollmentService.RequestSummary{

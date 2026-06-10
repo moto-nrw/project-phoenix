@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -15,7 +16,7 @@ import (
 func TestParseDateField_HappyPath(t *testing.T) {
 	got, err := parseDateField("service_start_date", "2027-09-01")
 	require.NoError(t, err)
-	assert.Equal(t, time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC), got)
+	assert.Equal(t, timezone.NewDate(2027, 9, 1), got)
 }
 
 func TestParseDateField_RejectsEmpty(t *testing.T) {
@@ -91,8 +92,8 @@ func TestParseRolloverCreateRequest_HappyPath(t *testing.T) {
 	assert.Equal(t, enrollmentModels.PhaseRolloverModeOptOut, req.RolloverMode)
 	assert.True(t, req.RolloverBumpsGrade, "bumps_grade defaults to true (yearly cadence)")
 	assert.Equal(t, int64(99), req.AdminAccountID)
-	assert.Equal(t, time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC), req.ServiceStartDate)
-	assert.Equal(t, time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC), req.ServiceEndDate)
+	assert.Equal(t, timezone.NewDate(2027, 9, 1), req.ServiceStartDate)
+	assert.Equal(t, timezone.NewDate(2028, 7, 31), req.ServiceEndDate)
 	assert.Equal(t, time.Date(2027, 7, 15, 18, 0, 0, 0, time.UTC), req.RolloverDeadline)
 }
 

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -258,9 +257,7 @@ func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *sc
 	if phase == nil || period == nil {
 		return nil
 	}
-	phaseStart := timezone.DateFromTime(phase.ServiceStartDate)
-	phaseEnd := timezone.DateFromTime(phase.ServiceEndDate)
-	if phaseStart.Before(period.StartDate) || phaseEnd.After(period.EndDate) {
+	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
 		return fmt.Errorf("care offering phase must be within the linked timetable template period")
 	}
 	return nil

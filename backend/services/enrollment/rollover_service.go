@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -140,8 +141,8 @@ type CreatePhaseFromSourceRequest struct {
 	SourcePhaseID     int64
 	Name              string
 	Kind              string
-	ServiceStartDate  time.Time
-	ServiceEndDate    time.Time
+	ServiceStartDate  timezone.Date
+	ServiceEndDate    timezone.Date
 	EnrollmentOpenAt  *time.Time
 	EnrollmentCloseAt *time.Time
 
