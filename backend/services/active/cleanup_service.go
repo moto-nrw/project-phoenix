@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -13,14 +12,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-)
-
-const (
-	// attendanceTableName is the fully-qualified table name for attendance records
-	attendanceTableName = "active.attendance"
-
-	// supervisorTableName is the fully-qualified table name for group supervisor records
-	supervisorTableName = "active.group_supervisors"
 )
 
 // ConsentRetentionResolver resolves the data-retention window for a privacy
@@ -33,10 +24,11 @@ type ConsentRetentionResolver interface {
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
+	attendanceRepo     active.AttendanceRepository
+	supervisorRepo     active.GroupSupervisorRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
 	consentRetention   ConsentRetentionResolver
-	db                 *bun.DB
 	txHandler          *base.TxHandler
 	batchSize          int
 }
@@ -44,6 +36,8 @@ type cleanupService struct {
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
 	visitRepo active.VisitRepository,
+	attendanceRepo active.AttendanceRepository,
+	supervisorRepo active.GroupSupervisorRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	dataDeletionRepo audit.DataDeletionRepository,
 	consentRetention ConsentRetentionResolver,
@@ -51,10 +45,11 @@ func NewCleanupService(
 ) CleanupService {
 	return &cleanupService{
 		visitRepo:          visitRepo,
+		attendanceRepo:     attendanceRepo,
+		supervisorRepo:     supervisorRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
 		consentRetention:   consentRetention,
-		db:                 db,
 		txHandler:          base.NewTxHandler(db),
 		batchSize:          100, // Process 100 students at a time
 	}
@@ -69,7 +64,7 @@ func (s *cleanupService) CleanupExpiredVisits(ctx context.Context) (*CleanupResu
 	}
 
 	// Get all students with privacy consents
-	students, err := s.getStudentsWithRetentionSettings(ctx)
+	students, err := s.privacyConsentRepo.ListAcceptedRetentionSettings(ctx)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -186,41 +181,12 @@ func (s *cleanupService) GetRetentionStatistics(ctx context.Context) (*Retention
 	stats.StudentsAffected = len(studentStats)
 
 	// Get oldest expired visit
-	var oldestVisit struct {
-		CreatedAt time.Time `bun:"created_at"`
-	}
-	err = s.db.NewRaw(`
-		SELECT MIN(v.created_at) as created_at
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-	`).Scan(ctx, &oldestVisit)
-
-	if err == nil && !oldestVisit.CreatedAt.IsZero() {
-		stats.OldestExpiredVisit = &oldestVisit.CreatedAt
+	if oldest, err := s.visitRepo.OldestExpiredVisitDate(ctx); err == nil && oldest != nil {
+		stats.OldestExpiredVisit = oldest
 
 		// Get monthly breakdown
-		var monthlyStats []struct {
-			Month string `bun:"month"`
-			Count int64  `bun:"count"`
-		}
-		err = s.db.NewRaw(`
-			SELECT 
-				TO_CHAR(v.created_at, 'YYYY-MM') as month,
-				COUNT(*) as count
-			FROM active.visits v
-			INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-			WHERE v.exit_time IS NOT NULL
-				AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-			GROUP BY TO_CHAR(v.created_at, 'YYYY-MM')
-			ORDER BY month
-		`).Scan(ctx, &monthlyStats)
-
-		if err == nil {
-			for _, ms := range monthlyStats {
-				stats.ExpiredVisitsByMonth[ms.Month] = ms.Count
-			}
+		if monthly, err := s.visitRepo.ExpiredVisitMonthlyCounts(ctx); err == nil {
+			stats.ExpiredVisitsByMonth = monthly
 		}
 	}
 
@@ -249,19 +215,8 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 	preview.TotalVisits = total
 
 	// Get oldest visit that would be deleted
-	var oldestVisit struct {
-		CreatedAt time.Time `bun:"created_at"`
-	}
-	err = s.db.NewRaw(`
-		SELECT MIN(v.created_at) as created_at
-		FROM active.visits v
-		INNER JOIN users.privacy_consents pc ON pc.student_id = v.student_id
-		WHERE v.exit_time IS NOT NULL
-			AND v.created_at < NOW() - (pc.data_retention_days || ' days')::INTERVAL
-	`).Scan(ctx, &oldestVisit)
-
-	if err == nil && !oldestVisit.CreatedAt.IsZero() {
-		preview.OldestVisit = &oldestVisit.CreatedAt
+	if oldest, err := s.visitRepo.OldestExpiredVisitDate(ctx); err == nil && oldest != nil {
+		preview.OldestVisit = oldest
 	}
 
 	return preview, nil
@@ -269,37 +224,13 @@ func (s *cleanupService) PreviewCleanup(ctx context.Context) (*CleanupPreview, e
 
 // Helper methods
 
-type studentWithConsent struct {
-	StudentID         int64
-	DataRetentionDays int
-}
-
-func (s *cleanupService) getStudentsWithRetentionSettings(ctx context.Context) ([]studentWithConsent, error) {
-	var students []studentWithConsent
-
-	err := s.db.NewRaw(`
-		SELECT DISTINCT 
-			pc.student_id,
-			pc.data_retention_days
-		FROM users.privacy_consents pc
-		WHERE pc.accepted = true
-		ORDER BY pc.student_id
-	`).Scan(ctx, &students)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return students, nil
-}
-
 type batchResult struct {
 	processed int
 	deleted   int64
 	errors    []CleanupError
 }
 
-func (s *cleanupService) processBatch(ctx context.Context, students []studentWithConsent) batchResult {
+func (s *cleanupService) processBatch(ctx context.Context, students []userModels.StudentRetentionSetting) batchResult {
 	result := batchResult{
 		errors: make([]CleanupError, 0),
 	}
@@ -326,7 +257,7 @@ func (s *cleanupService) processBatch(ctx context.Context, students []studentWit
 // Phase 3 deviation: RunInTx retained because processStudent runs from the scheduler's forEachTenant loop,
 // which already injects tenant context per-iteration. Handler-level WithTenantTx is not applicable
 // because there is no HTTP handler or JWT involved in scheduled batch cleanup.
-func (s *cleanupService) processStudent(ctx context.Context, student studentWithConsent) (int64, error) {
+func (s *cleanupService) processStudent(ctx context.Context, student userModels.StudentRetentionSetting) (int64, error) {
 	var deletedCount int64
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
@@ -373,22 +304,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	today := timezone.TodayUTC()
 
 	// Find all attendance records from before today that don't have check-out times
-	var staleRecords []struct {
-		ID          int64     `bun:"id"`
-		StudentID   int64     `bun:"student_id"`
-		Date        time.Time `bun:"date"`
-		CheckInTime time.Time `bun:"check_in_time"`
-	}
-
-	db := repoBase.GetDB(ctx, s.db)
-
-	err := db.NewSelect().
-		Table(attendanceTableName).
-		Column("id", "student_id", "date", "check_in_time").
-		Where("date < ?", today).
-		Where("check_out_time IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -420,14 +336,9 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		}
 
 		// Update the record
-		_, err := db.NewUpdate().
-			Table(attendanceTableName).
-			Set("check_out_time = ?", checkOutTime).
-			Set("updated_at = ?", time.Now()).
-			Where("id = ?", record.ID).
-			Exec(ctx)
-
-		if err != nil {
+		record.CheckOutTime = &checkOutTime
+		record.UpdatedAt = time.Now()
+		if _, err := s.attendanceRepo.UpdateColumns(ctx, record, "check_out_time", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
@@ -461,20 +372,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	today := timezone.TodayUTC()
 
 	// Find all stale attendance records
-	var staleRecords []struct {
-		StudentID int64     `bun:"student_id"`
-		Date      time.Time `bun:"date"`
-	}
-
-	db := repoBase.GetDB(ctx, s.db)
-
-	err := db.NewSelect().
-		Table(attendanceTableName).
-		Column("student_id", "date").
-		Where("date < ?", today).
-		Where("check_out_time IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		return nil, fmt.Errorf("failed to preview stale attendance records: %w", err)
 	}
@@ -511,20 +409,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 	today := timezone.TodayUTC()
 
 	// Find all supervisor records from before today that don't have end_date
-	var staleRecords []struct {
-		ID        int64     `bun:"id"`
-		StaffID   int64     `bun:"staff_id"`
-		GroupID   int64     `bun:"group_id"`
-		StartDate time.Time `bun:"start_date"`
-	}
-
-	err := s.db.NewSelect().
-		Table(supervisorTableName).
-		Column("id", "staff_id", "group_id", "start_date").
-		Where("start_date < ?", today).
-		Where("end_date IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -549,14 +434,9 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 		)
 
 		// Update the record
-		_, err := s.db.NewUpdate().
-			Table(supervisorTableName).
-			Set("end_date = ?", endDate).
-			Set("updated_at = ?", time.Now()).
-			Where("id = ?", record.ID).
-			Exec(ctx)
-
-		if err != nil {
+		record.EndDate = &endDate
+		record.UpdatedAt = time.Now()
+		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close supervisor record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
@@ -590,18 +470,7 @@ func (s *cleanupService) PreviewSupervisorCleanup(ctx context.Context) (*Supervi
 	today := timezone.TodayUTC()
 
 	// Find all stale supervisor records
-	var staleRecords []struct {
-		StaffID   int64     `bun:"staff_id"`
-		StartDate time.Time `bun:"start_date"`
-	}
-
-	err := s.db.NewSelect().
-		Table(supervisorTableName).
-		Column("staff_id", "start_date").
-		Where("start_date < ?", today).
-		Where("end_date IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		return nil, fmt.Errorf("failed to preview stale supervisor records: %w", err)
 	}

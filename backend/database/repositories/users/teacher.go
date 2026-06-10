@@ -8,8 +8,10 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -455,4 +457,83 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 	}
 
 	return teachers, nil
+}
+
+// activeCaregiverQuery builds the canonical operational caregiver lookup:
+// teachers joined through staff/person/account to active tenant mappings and
+// the system "user"/"teacher" roles. Shared by ListActiveCaregivers and
+// FindActiveCaregiverByAccountID. Custom query (backend-conventions Rule 2):
+// seven-table join projecting into the ActiveCaregiver read model.
+func (r *TeacherRepository) activeCaregiverQuery(ctx context.Context) *bun.SelectQuery {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.ActiveCaregiver)(nil)).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		ColumnExpr(`"account".id AS account_id`).
+		ColumnExpr(`"person".id AS person_id`).
+		ColumnExpr(`"staff".id AS staff_id`).
+		ColumnExpr(`"teacher".id AS teacher_id`).
+		ColumnExpr(`"person".first_name`).
+		ColumnExpr(`"person".last_name`).
+		ColumnExpr(`"account".email`).
+		ColumnExpr(`"staff".created_at`).
+		ColumnExpr(`"staff".updated_at`).
+		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Join(`INNER JOIN auth.account_tenants AS "at" ON "at".account_id = "account".id AND "at".tenant_id = "teacher".tenant_id`).
+		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id AND "ar".tenant_id = "teacher".tenant_id`).
+		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+		Where(`"account".active = TRUE`).
+		Where(`"at".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"role".is_system = TRUE`).
+		Where(`"role".tenant_id IS NULL`).
+		Where(`LOWER("role".name) IN (?, ?)`, "user", "teacher").
+		Distinct()
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.
+			Where(`"at".tenant_id = ?`, tenantID).
+			Where(`"teacher".tenant_id = ?`, tenantID).
+			Where(`"staff".tenant_id = ?`, tenantID).
+			Where(`"person".tenant_id = ?`, tenantID).
+			Where(`"ar".tenant_id = ?`, tenantID)
+	}
+
+	return query
+}
+
+// ListActiveCaregivers returns every active caregiver for the tenant in
+// context, ordered by name then staff id.
+func (r *TeacherRepository) ListActiveCaregivers(ctx context.Context) ([]*users.ActiveCaregiver, error) {
+	var caregivers []*users.ActiveCaregiver
+	query := r.activeCaregiverQuery(ctx).
+		OrderExpr(`"person".first_name ASC, "person".last_name ASC, "staff".id ASC`)
+
+	if err := query.Scan(ctx, &caregivers); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active caregivers",
+			Err: err,
+		}
+	}
+	return caregivers, nil
+}
+
+// FindActiveCaregiverByAccountID returns the active caregiver bound to the
+// account, or nil when the account is not an active caregiver.
+func (r *TeacherRepository) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*users.ActiveCaregiver, error) {
+	var caregivers []*users.ActiveCaregiver
+	query := r.activeCaregiverQuery(ctx).
+		Where(`"account".id = ?`, accountID).
+		Limit(1)
+
+	if err := query.Scan(ctx, &caregivers); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active caregiver by account ID",
+			Err: err,
+		}
+	}
+	if len(caregivers) == 0 {
+		return nil, nil
+	}
+	return caregivers[0], nil
 }

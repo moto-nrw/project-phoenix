@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Combined Group operations
@@ -145,29 +144,22 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 		seen[gid] = true
 	}
 
-	// Get tx from context (handler's WithTenantTx provides it)
-	tx, ok := base.TxFromContext(ctx)
-	if !ok {
+	// The repository calls below join the handler's WithTenantTx transaction
+	// via the context; without it the multi-step create would not be atomic.
+	if _, ok := base.TxFromContext(ctx); !ok {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("no transaction in context")}
 	}
 
 	// Step 1: Create the combined group
 	group.SetTenantID(tenant.FromContext(ctx))
-	_, err := (*tx).NewInsert().
-		Model(group).
-		ModelTableExpr("active.combined_groups").
-		Exec(ctx)
-	if err != nil {
+	if err := s.combinedGroupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
 
 	// Step 2: Verify all active group IDs exist
-	var existCount int
-	err = (*tx).NewSelect().
-		TableExpr("active.groups").
-		ColumnExpr("COUNT(*)").
-		Where("id IN (?)", bun.List(groupIDs)).
-		Scan(ctx, &existCount)
+	existOptions := base.NewQueryOptions()
+	existOptions.Filter = base.NewFilter().In("id", int64Args(groupIDs)...)
+	existCount, err := s.groupRepo.CountWithOptions(ctx, existOptions)
 	if err != nil {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
@@ -182,11 +174,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 			ActiveGroupID:         gid,
 		}
 		mapping.SetTenantID(tenant.FromContext(ctx))
-		_, err := (*tx).NewInsert().
-			Model(mapping).
-			ModelTableExpr("active.group_mappings").
-			Exec(ctx)
-		if err != nil {
+		if err := s.groupMappingRepo.Create(ctx, mapping); err != nil {
 			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 		}
 	}
@@ -243,4 +231,13 @@ func (s *service) GetGroupMappingsByCombinedGroupID(ctx context.Context, combine
 		return nil, &ActiveError{Op: "GetGroupMappingsByCombinedGroupID", Err: ErrDatabaseOperation}
 	}
 	return mappings, nil
+}
+
+// int64Args widens an int64 slice for the variadic Filter.In helper.
+func int64Args(ids []int64) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
 }

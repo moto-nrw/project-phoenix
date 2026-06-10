@@ -279,3 +279,73 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 	}
 	return &instance, nil
 }
+
+// CompleteActiveByActiveGroupIDs marks every still-active instance bridged to
+// one of the given active.groups as completed and returns the number of rows
+// changed. Custom method (backend-conventions Rule 2): lifecycle bulk update
+// keyed on the active-group bridge, paired with MarkCompleted's
+// column-restricted shape. Used by the scheduler's daily session-end bridge.
+func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if len(activeGroupIDs) == 0 {
+		return 0, nil
+	}
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Set(`status = ?`, schedule.InstanceStatusCompleted).
+		Set(`completed_at = ?`, completedAt).
+		Set(`updated_at = ?`, completedAt).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
+		Where(`"activity_instance".active_group_id IN (?)`, bun.List(activeGroupIDs))
+
+	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "complete active instances by active group ids",
+			Err: err,
+		}
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "complete active instances by active group ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
+// DeletePlannedNonSpontaneousInWindow removes every still-planned,
+// template-backed instance whose date falls in the inclusive [from, to]
+// window and returns the number of rows deleted. CASCADE removes the
+// instance_staff / instance_students children (declared at DDL level).
+// Custom method (backend-conventions Rule 2): multi-predicate lifecycle
+// delete for the ReplanWeek admin action.
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to time.Time) (int64, error) {
+	q := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
+		Where(`"activity_instance".is_spontaneous = ?`, false)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete planned non-spontaneous in window",
+			Err: err,
+		}
+	}
+	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return deleted, nil
+}

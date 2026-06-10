@@ -92,6 +92,13 @@ type RequestRepository interface {
 	// flows never call it.
 	ListAdmin(ctx context.Context, filters RequestListFilters) ([]*Request, error)
 
+	// UpdateGuardianData writes the guardian-editable fields (names, phone,
+	// consent flags, custom answers) and bumps updated_at.
+	UpdateGuardianData(ctx context.Context, req *Request) error
+
+	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
+	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error
+
 	// FindActiveDuplicate returns the names of any children for which a
 	// non-terminal-rejected/withdrawn enrollment already exists for the
 	// same (phase_id, guardian_email). Empty result means safe to

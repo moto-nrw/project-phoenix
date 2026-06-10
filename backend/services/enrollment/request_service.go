@@ -804,19 +804,8 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 
 	tenantID := req.GetTenantID()
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
-	return tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		_, err := tx.NewUpdate().
-			Model(req).
-			ModelTableExpr(`enrollment.requests AS "request"`).
-			Set("guardian_first_name = ?", req.GuardianFirstName).
-			Set("guardian_last_name = ?", req.GuardianLastName).
-			Set("guardian_phone = ?", req.GuardianPhone).
-			Set("consent_flags = ?", req.ConsentFlags).
-			Set("custom_data = ?", req.CustomData).
-			Set("updated_at = NOW()").
-			Where(`"request".id = ?`, req.ID).
-			Exec(txCtx)
-		return err
+	return tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return s.requestRepo.UpdateGuardianData(txCtx, req)
 	})
 }
 
@@ -852,15 +841,7 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 			anyWithdrawn = true
 		}
 		if childID == 0 && anyWithdrawn {
-			now := time.Now()
-			_, err := tx.NewUpdate().
-				Model((*enrollmentModels.Request)(nil)).
-				ModelTableExpr(`enrollment.requests AS "request"`).
-				Set("withdrawn_at = ?", now).
-				Set("updated_at = NOW()").
-				Where(`"request".id = ?`, req.ID).
-				Exec(txCtx)
-			return err
+			return s.requestRepo.MarkWithdrawn(txCtx, req.ID, time.Now())
 		}
 		return nil
 	})
