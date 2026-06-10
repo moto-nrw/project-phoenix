@@ -53,7 +53,6 @@ var legacyTimeTimeDateColumns = map[string]string{
 	"enrollment.phases.service_start_date":               "pending migration in this PR",
 	"enrollment.request_children.activate_on":            "pending migration in this PR",
 	"enrollment.request_children.date_of_birth":          "pending migration in this PR",
-	"feedback.entries.day":                               "pending migration in this PR",
 	"schedule.activity_exceptions.exception_date":        "pending migration in this PR",
 	"schedule.activity_instances.date":                   "pending migration in this PR",
 	"schedule.calendar_periods.end_date":                 "pending migration in this PR",

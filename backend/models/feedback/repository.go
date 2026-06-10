@@ -2,7 +2,8 @@ package feedback
 
 import (
 	"context"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // EntryRepository defines operations for managing feedback entries
@@ -16,13 +17,13 @@ type EntryRepository interface {
 
 	// Specialized query methods
 	FindByStudentID(ctx context.Context, studentID int64) ([]*Entry, error)
-	FindByDay(ctx context.Context, day time.Time) ([]*Entry, error)
-	FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*Entry, error)
+	FindByDay(ctx context.Context, day timezone.Date) ([]*Entry, error)
+	FindByDateRange(ctx context.Context, startDate, endDate timezone.Date) ([]*Entry, error)
 	FindMensaFeedback(ctx context.Context, isMensaFeedback bool) ([]*Entry, error)
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*Entry, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*Entry, error)
 
 	// Aggregation methods
-	CountByDay(ctx context.Context, day time.Time) (int, error)
+	CountByDay(ctx context.Context, day timezone.Date) (int, error)
 	CountByStudentID(ctx context.Context, studentID int64) (int, error)
 	CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error)
 

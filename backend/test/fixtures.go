@@ -2253,7 +2253,7 @@ func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 
 	entry := &feedback.Entry{
 		Value:     feedback.ValuePositive,
-		Day:       now,
+		Day:       timezone.DateFromTime(now),
 		Time:      now,
 		StudentID: studentID,
 	}
