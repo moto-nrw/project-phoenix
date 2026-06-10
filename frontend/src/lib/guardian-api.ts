@@ -524,7 +524,7 @@ export async function removeGuardianFromStudent(
 }
 
 // Outcome returned by the unified invite resolve, mirroring the backend.
-export type InviteGuardianOutcome =
+type InviteGuardianOutcome =
   | "linked_existing_account"
   | "already_linked"
   | "invited"
