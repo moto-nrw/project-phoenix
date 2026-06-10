@@ -3,6 +3,8 @@ package base
 import (
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func TestNewFilter(t *testing.T) {
@@ -260,7 +262,7 @@ func TestFilter_DateRange(t *testing.T) {
 }
 
 func TestFilter_DateBetween(t *testing.T) {
-	date := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, time.June, 15)
 
 	f := NewFilter().DateBetween("start_date", "end_date", date)
 

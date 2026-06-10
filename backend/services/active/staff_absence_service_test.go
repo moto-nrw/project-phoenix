@@ -23,9 +23,9 @@ type absStaffAbsenceRepoMock struct {
 	updateFunc                 func(ctx context.Context, entity *activeModels.StaffAbsence) error
 	deleteFunc                 func(ctx context.Context, id any) error
 	listFunc                   func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.StaffAbsence, error)
-	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeModels.StaffAbsence, error)
-	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date time.Time) (*activeModels.StaffAbsence, error)
-	getByDateRangeFunc         func(ctx context.Context, from, to time.Time) ([]*activeModels.StaffAbsence, error)
+	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
+	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error)
+	getByDateRangeFunc         func(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
 	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
 }
 
@@ -64,21 +64,21 @@ func (m *absStaffAbsenceRepoMock) List(ctx context.Context, options *base.QueryO
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*activeModels.StaffAbsence, error) {
+func (m *absStaffAbsenceRepoMock) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error) {
 	if m.getByStaffAndDateRangeFunc != nil {
 		return m.getByStaffAndDateRangeFunc(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*activeModels.StaffAbsence, error) {
+func (m *absStaffAbsenceRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.StaffAbsence, error) {
 	if m.getByStaffAndDateFunc != nil {
 		return m.getByStaffAndDateFunc(ctx, staffID, date)
 	}
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to time.Time) ([]*activeModels.StaffAbsence, error) {
+func (m *absStaffAbsenceRepoMock) GetByDateRange(ctx context.Context, from, to timezone.Date) ([]*activeModels.StaffAbsence, error) {
 	if m.getByDateRangeFunc != nil {
 		return m.getByDateRangeFunc(ctx, from, to)
 	}
@@ -163,10 +163,10 @@ type absWorkSessionRepoMock struct {
 	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
 	deleteFunc              func(ctx context.Context, id any) error
 	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date time.Time) (*activeModels.WorkSession, error)
+	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to time.Time) ([]*activeModels.WorkSession, error)
-	getOpenSessionsFunc     func(ctx context.Context, beforeDate time.Time) ([]*activeModels.WorkSession, error)
+	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
 	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
@@ -207,7 +207,7 @@ func (m *absWorkSessionRepoMock) List(ctx context.Context, options *base.QueryOp
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*activeModels.WorkSession, error) {
+func (m *absWorkSessionRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
 	if m.getByStaffAndDateFunc != nil {
 		return m.getByStaffAndDateFunc(ctx, staffID, date)
 	}
@@ -221,14 +221,14 @@ func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffI
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*activeModels.WorkSession, error) {
+func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
 	}
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*activeModels.WorkSession, error) {
+func (m *absWorkSessionRepoMock) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getOpenSessionsFunc != nil {
 		return m.getOpenSessionsFunc(ctx, beforeDate)
 	}
@@ -283,11 +283,11 @@ func TestAbsCreateAbsence_Success(t *testing.T) {
 	ctx := context.Background()
 	staffID := int64(100)
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
-	workRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	workRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, nil
 	}
 
@@ -365,13 +365,13 @@ func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			{
 				Model:       base.Model{ID: 50},
 				AbsenceType: activeModels.AbsenceTypeVacation,
-				DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-				DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+				DateStart:   timezone.NewDate(2026, 2, 10),
+				DateEnd:     timezone.NewDate(2026, 2, 12),
 				Status:      activeModels.AbsenceStatusApproved,
 			},
 		}, nil
@@ -398,12 +398,12 @@ func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
 		Model:       base.Model{ID: 60},
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
-		DateEnd:     time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
+		DateStart:   timezone.NewDate(2026, 2, 8),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
 		Status:      activeModels.AbsenceStatusReported,
 	}
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{existing}, nil
 	}
 
@@ -432,22 +432,22 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 	ctx := context.Background()
 	staffID := int64(100)
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			{
 				Model:       base.Model{ID: 60},
 				StaffID:     staffID,
 				AbsenceType: activeModels.AbsenceTypeSick,
-				DateStart:   time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC),
-				DateEnd:     time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
+				DateStart:   timezone.NewDate(2026, 2, 5),
+				DateEnd:     timezone.NewDate(2026, 2, 8),
 				Status:      activeModels.AbsenceStatusReported,
 			},
 			{
 				Model:       base.Model{ID: 61},
 				StaffID:     staffID,
 				AbsenceType: activeModels.AbsenceTypeSick,
-				DateStart:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
-				DateEnd:     time.Date(2026, 2, 14, 0, 0, 0, 0, time.UTC),
+				DateStart:   timezone.NewDate(2026, 2, 12),
+				DateEnd:     timezone.NewDate(2026, 2, 14),
 				Status:      activeModels.AbsenceStatusReported,
 			},
 		}, nil
@@ -478,7 +478,7 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 func TestAbsCreateAbsence_RepoCheckError(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, errors.New("db error")
 	}
 
@@ -497,10 +497,10 @@ func TestAbsCreateAbsence_RepoCheckError(t *testing.T) {
 func TestAbsCreateAbsence_RepoCreateError(t *testing.T) {
 	svc, absRepo, workRepo := absSetupService()
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
-	workRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	workRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, nil
 	}
 	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
@@ -533,8 +533,8 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 		Model:       base.Model{ID: absenceID},
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-		DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 12),
 		HalfDay:     false,
 		Note:        "Flu",
 		Status:      activeModels.AbsenceStatusReported,
@@ -545,7 +545,7 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 		return existing, nil
 	}
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{existing}, nil // Only itself
 	}
 
@@ -628,8 +628,8 @@ func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
 		return &activeModels.StaffAbsence{
 			Model:     base.Model{ID: 100},
 			StaffID:   staffID,
-			DateStart: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2026, 2, 10),
+			DateEnd:   timezone.NewDate(2026, 2, 12),
 		}, nil
 	}
 
@@ -650,8 +650,8 @@ func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
 		return &activeModels.StaffAbsence{
 			Model:     base.Model{ID: 100},
 			StaffID:   staffID,
-			DateStart: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2026, 2, 10),
+			DateEnd:   timezone.NewDate(2026, 2, 12),
 		}, nil
 	}
 
@@ -673,8 +673,8 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 		Model:       base.Model{ID: absenceID},
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-		DateEnd:     time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 12),
 		Status:      activeModels.AbsenceStatusReported,
 	}
 
@@ -682,14 +682,14 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 		return existing, nil
 	}
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			existing,
 			{
 				Model:     base.Model{ID: 200},
 				StaffID:   staffID,
-				DateStart: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
-				DateEnd:   time.Date(2026, 2, 17, 0, 0, 0, 0, time.UTC),
+				DateStart: timezone.NewDate(2026, 2, 15),
+				DateEnd:   timezone.NewDate(2026, 2, 17),
 				Status:    activeModels.AbsenceStatusReported,
 			},
 		}, nil
@@ -854,20 +854,20 @@ func TestAbsGetAbsencesForRange_Success(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
-	from := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC)
+	from := timezone.NewDate(2026, 2, 1)
+	to := timezone.NewDate(2026, 2, 28)
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			{
 				Model:     base.Model{ID: 1},
-				DateStart: time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC),
-				DateEnd:   time.Date(2026, 2, 12, 0, 0, 0, 0, time.UTC),
+				DateStart: timezone.NewDate(2026, 2, 10),
+				DateEnd:   timezone.NewDate(2026, 2, 12),
 			},
 			{
 				Model:     base.Model{ID: 2},
-				DateStart: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
-				DateEnd:   time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+				DateStart: timezone.NewDate(2026, 2, 15),
+				DateEnd:   timezone.NewDate(2026, 2, 15),
 			},
 		}, nil
 	}
@@ -882,12 +882,12 @@ func TestAbsGetAbsencesForRange_Success(t *testing.T) {
 func TestAbsGetAbsencesForRange_Empty(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
-	from := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC)
+	from := timezone.NewDate(2026, 2, 1)
+	to := timezone.NewDate(2026, 2, 28)
 
 	results, err := svc.GetAbsencesForRange(context.Background(), 1, from, to)
 	require.NoError(t, err)
@@ -897,12 +897,12 @@ func TestAbsGetAbsencesForRange_Empty(t *testing.T) {
 func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, errors.New("database error")
 	}
 
-	from := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC)
+	from := timezone.NewDate(2026, 2, 1)
+	to := timezone.NewDate(2026, 2, 28)
 
 	results, err := svc.GetAbsencesForRange(context.Background(), 1, from, to)
 	require.Error(t, err)
@@ -917,9 +917,9 @@ func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
-	date := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 2, 11)
 
-	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
 		return &activeModels.StaffAbsence{
 			Model:       base.Model{ID: 100},
 			StaffID:     staffID,
@@ -938,11 +938,11 @@ func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 func TestAbsHasAbsenceOnDate_NotFound(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 
-	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
-	has, absence, err := svc.HasAbsenceOnDate(context.Background(), 1, time.Now())
+	has, absence, err := svc.HasAbsenceOnDate(context.Background(), 1, timezone.TodayDate())
 	require.NoError(t, err)
 	assert.False(t, has)
 	assert.Nil(t, absence)
@@ -951,11 +951,11 @@ func TestAbsHasAbsenceOnDate_NotFound(t *testing.T) {
 func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 
-	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
 		return nil, errors.New("database error")
 	}
 
-	has, absence, err := svc.HasAbsenceOnDate(context.Background(), 1, time.Now())
+	has, absence, err := svc.HasAbsenceOnDate(context.Background(), 1, timezone.TodayDate())
 	require.Error(t, err)
 	assert.False(t, has)
 	assert.Nil(t, absence)
@@ -965,7 +965,7 @@ func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
 func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
-	date := time.Date(2026, 2, 11, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 2, 11)
 
 	for _, status := range []string{
 		activeModels.AbsenceStatusRequested,
@@ -973,7 +973,7 @@ func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
 		activeModels.AbsenceStatusCanceled,
 	} {
 		t.Run(status, func(t *testing.T) {
-			absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.StaffAbsence, error) {
+			absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
 				return &activeModels.StaffAbsence{
 					Model:       base.Model{ID: 100},
 					StaffID:     staffID,
@@ -991,8 +991,8 @@ func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
 }
 
 func TestAbsCountWorkingDays_HalfDayOnWeekendDoesNotGoNegative(t *testing.T) {
-	saturday := time.Date(2027, 2, 13, 0, 0, 0, 0, time.UTC)
-	sunday := time.Date(2027, 2, 14, 0, 0, 0, 0, time.UTC)
+	saturday := timezone.NewDate(2027, 2, 13)
+	sunday := timezone.NewDate(2027, 2, 14)
 
 	assert.Equal(t, 0.0, countWorkingDays(saturday, sunday, true, true))
 }
@@ -1001,7 +1001,7 @@ func TestAbsRequestVacation_RejectsWeekendOnlyHalfDayRange(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
@@ -1022,14 +1022,14 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			{
 				Model:       base.Model{ID: 100},
 				StaffID:     staffID,
 				AbsenceType: activeModels.AbsenceTypeVacation,
-				DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
-				DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+				DateStart:   timezone.NewDate(2027, 2, 15),
+				DateEnd:     timezone.NewDate(2027, 2, 16),
 				Status:      activeModels.AbsenceStatusDeclined,
 			},
 		}, nil
@@ -1069,8 +1069,8 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 			Model:       base.Model{ID: absenceID},
 			StaffID:     int64(4000),
 			AbsenceType: activeModels.AbsenceTypeVacation,
-			DateStart:   time.Date(2027, 2, 15, 0, 0, 0, 0, time.UTC),
-			DateEnd:     time.Date(2027, 2, 16, 0, 0, 0, 0, time.UTC),
+			DateStart:   timezone.NewDate(2027, 2, 15),
+			DateEnd:     timezone.NewDate(2027, 2, 16),
 			Status:      activeModels.AbsenceStatusRequested,
 		}, nil
 	}
@@ -1113,8 +1113,8 @@ func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
 			Model:       base.Model{ID: absenceID},
 			StaffID:     int64(4001),
 			AbsenceType: activeModels.AbsenceTypeVacation,
-			DateStart:   time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:     time.Date(2027, 3, 2, 0, 0, 0, 0, time.UTC),
+			DateStart:   timezone.NewDate(2027, 3, 1),
+			DateEnd:     timezone.NewDate(2027, 3, 2),
 			Status:      activeModels.AbsenceStatusRequested,
 		}, nil
 	}
@@ -1156,8 +1156,8 @@ func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
 			Model:       base.Model{ID: absenceID},
 			StaffID:     staffID,
 			AbsenceType: activeModels.AbsenceTypeVacation,
-			DateStart:   time.Date(2027, 4, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:     time.Date(2027, 4, 2, 0, 0, 0, 0, time.UTC),
+			DateStart:   timezone.NewDate(2027, 4, 1),
+			DateEnd:     timezone.NewDate(2027, 4, 2),
 			Status:      activeModels.AbsenceStatusApproved,
 		}, nil
 	}
@@ -1181,8 +1181,8 @@ func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
 
 func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
 	now := time.Date(2026, 6, 7, 0, 30, 0, 0, timezone.Berlin)
-	yesterday := time.Date(2026, 6, 6, 0, 0, 0, 0, time.UTC)
-	today := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+	yesterday := timezone.NewDate(2026, 6, 6)
+	today := timezone.NewDate(2026, 6, 7)
 
 	assert.True(t, isBeforeLocalToday(yesterday, now))
 	assert.False(t, isBeforeLocalToday(today, now))
@@ -1206,14 +1206,14 @@ func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
 			CarryoverDays: 0,
 		}, nil
 	}
-	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return []*activeModels.StaffAbsence{
 			{
 				Model:       base.Model{ID: 100},
 				StaffID:     staffID,
 				AbsenceType: activeModels.AbsenceTypeVacation,
-				DateStart:   time.Date(2025, 12, 29, 0, 0, 0, 0, time.UTC),
-				DateEnd:     time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC),
+				DateStart:   timezone.NewDate(2025, 12, 29),
+				DateEnd:     timezone.NewDate(2026, 1, 2),
 				Status:      activeModels.AbsenceStatusApproved,
 				WorkingDays: &workingDays,
 			},
@@ -1233,11 +1233,11 @@ func (m *absStaffAbsenceRepoMock) CountWithOptions(context.Context, *base.QueryO
 	return 0, nil
 }
 
-func (m *absStaffAbsenceRepoMock) OldestBefore(context.Context, string, *time.Time) (*time.Time, error) {
+func (m *absStaffAbsenceRepoMock) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
 	return nil, nil
 }
 
-func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
+func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
 	return 0, nil
 }
 
@@ -1245,10 +1245,10 @@ func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *base.QueryOp
 	return 0, nil
 }
 
-func (m *absWorkSessionRepoMock) OldestBefore(context.Context, string, *time.Time) (*time.Time, error) {
+func (m *absWorkSessionRepoMock) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
+func (m *absWorkSessionRepoMock) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
 	return 0, nil
 }

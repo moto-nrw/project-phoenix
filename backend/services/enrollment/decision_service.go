@@ -607,8 +607,8 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 		ActorAccountID: actorAccountID,
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
-		RangeStart:     phase.ServiceStartDate,
-		RangeEnd:       phase.ServiceEndDate,
+		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
+		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
 	entry.SetMetadata("phase_id", phase.ID)
@@ -771,7 +771,7 @@ func (s *decisionService) resolveActivationMode(ctx context.Context) string {
 
 type approvalActivationPlan struct {
 	Mode          string
-	ActivateOn    *time.Time
+	ActivateOn    *timezone.Date
 	StudentStatus users.StudentStatus
 }
 
@@ -786,7 +786,7 @@ func (s *decisionService) approvalActivationPlan(ctx context.Context, phase *enr
 
 	activateOn := phase.ServiceStartDate
 	status := users.StudentStatusPending
-	if !timezone.DateOfUTC(activateOn).After(timezone.TodayUTC()) {
+	if !activateOn.After(timezone.TodayDate()) {
 		status = users.StudentStatusActive
 	}
 	return approvalActivationPlan{

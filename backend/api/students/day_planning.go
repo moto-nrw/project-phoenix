@@ -35,7 +35,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	arrivals := map[int64]*scheduleService.EffectiveArrivalTime{}
 	if rs.ArrivalScheduleService != nil {
 		var err error
-		arrivals, err = rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, fullAccessIDs, now)
+		arrivals, err = rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
 		if err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	pickups := map[int64]*scheduleService.EffectivePickupTime{}
 	if rs.PickupScheduleService != nil {
 		var err error
-		pickups, err = rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, fullAccessIDs, now)
+		pickups, err = rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
 		if err != nil {
 			return err
 		}
@@ -52,7 +52,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 
 	timetableIDs := map[int64]struct{}{}
 	if rs.InstanceStudentRepo != nil {
-		plannedIDs, err := rs.InstanceStudentRepo.FindPlannedStudentIDsByDate(ctx, fullAccessIDs, timezone.DateOfUTC(now))
+		plannedIDs, err := rs.InstanceStudentRepo.FindPlannedStudentIDsByDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
 		if err != nil {
 			return err
 		}

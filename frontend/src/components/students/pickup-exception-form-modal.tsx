@@ -9,6 +9,7 @@ import type {
   PickupExceptionFormData,
 } from "@/lib/pickup-schedule-helpers";
 import { formatPickupTime } from "@/lib/pickup-schedule-helpers";
+import { toISODate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PickupExceptionForm" });
@@ -56,7 +57,7 @@ export function PickupExceptionFormModal({
         } else {
           const tomorrow = new Date();
           tomorrow.setDate(tomorrow.getDate() + 1);
-          setExceptionDate(tomorrow.toISOString().split("T")[0] ?? "");
+          setExceptionDate(toISODate(tomorrow));
         }
         setPickupTime("");
         setReason("");
@@ -180,7 +181,7 @@ export function PickupExceptionFormModal({
               value={exceptionDate}
               onChange={(e) => setExceptionDate(e.target.value)}
               className={`w-full rounded-lg border ${errorFieldName === "exception-date" ? "border-red-400" : "border-gray-300"} px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none`}
-              min={new Date().toISOString().split("T")[0]}
+              min={todayISO()}
               required
             />
           </div>

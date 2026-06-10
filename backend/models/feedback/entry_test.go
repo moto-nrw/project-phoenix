@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -18,7 +19,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Valid entry",
 			entry: Entry{
 				Value:     "positive",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},
@@ -28,7 +29,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Empty value",
 			entry: Entry{
 				Value:     "",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},
@@ -38,7 +39,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Invalid enum value",
 			entry: Entry{
 				Value:     "good",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},
@@ -48,7 +49,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Invalid student ID",
 			entry: Entry{
 				Value:     "positive",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 0,
 			},
@@ -58,7 +59,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Missing day",
 			entry: Entry{
 				Value:     "neutral",
-				Day:       time.Time{},
+				Day:       timezone.Date{},
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},
@@ -68,7 +69,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Missing time",
 			entry: Entry{
 				Value:     "negative",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Time{},
 				StudentID: 1,
 			},
@@ -78,7 +79,7 @@ func TestEntry_Validate(t *testing.T) {
 			name: "Value trimming",
 			entry: Entry{
 				Value:     "  positive  ",
-				Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+				Day:       timezone.NewDate(2025, 5, 9),
 				Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 				StudentID: 1,
 			},
@@ -106,7 +107,7 @@ func TestEntry_Validate(t *testing.T) {
 func TestEntry_GetTimestamp(t *testing.T) {
 	entry := Entry{
 		Value:     "positive",
-		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:       timezone.NewDate(2025, 5, 9),
 		Time:      time.Date(0, 0, 0, 12, 30, 45, 0, time.UTC),
 		StudentID: 1,
 	}
@@ -122,7 +123,7 @@ func TestEntry_GetTimestamp(t *testing.T) {
 func TestEntry_IsForMensa(t *testing.T) {
 	entry := Entry{
 		Value:           "positive",
-		Day:             time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:             timezone.NewDate(2025, 5, 9),
 		Time:            time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 		StudentID:       1,
 		IsMensaFeedback: true,
@@ -141,7 +142,7 @@ func TestEntry_IsForMensa(t *testing.T) {
 func TestEntry_FormatMethods(t *testing.T) {
 	entry := Entry{
 		Value:     "neutral",
-		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:       timezone.NewDate(2025, 5, 9),
 		Time:      time.Date(0, 0, 0, 12, 30, 45, 0, time.UTC),
 		StudentID: 1,
 	}
@@ -159,7 +160,7 @@ func TestEntry_SetStudent(t *testing.T) {
 	t.Run("set with student", func(t *testing.T) {
 		entry := &Entry{
 			Value:     "positive",
-			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Day:       timezone.NewDate(2025, 5, 9),
 			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 			StudentID: 0,
 		}
@@ -181,7 +182,7 @@ func TestEntry_SetStudent(t *testing.T) {
 	t.Run("set with nil student", func(t *testing.T) {
 		entry := &Entry{
 			Value:     "positive",
-			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Day:       timezone.NewDate(2025, 5, 9),
 			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 			StudentID: 10,
 		}
@@ -202,7 +203,7 @@ func TestEntry_BeforeAppendModel(t *testing.T) {
 	t.Run("handles nil query", func(t *testing.T) {
 		entry := &Entry{
 			Value:     "positive",
-			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Day:       timezone.NewDate(2025, 5, 9),
 			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 			StudentID: 1,
 		}
@@ -215,7 +216,7 @@ func TestEntry_BeforeAppendModel(t *testing.T) {
 	t.Run("returns no error for unknown query type", func(t *testing.T) {
 		entry := &Entry{
 			Value:     "positive",
-			Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+			Day:       timezone.NewDate(2025, 5, 9),
 			Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 			StudentID: 1,
 		}
@@ -237,7 +238,7 @@ func TestEntry_GetID(t *testing.T) {
 	entry := &Entry{
 		Model:     base.Model{ID: 42},
 		Value:     "positive",
-		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:       timezone.NewDate(2025, 5, 9),
 		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 		StudentID: 1,
 	}
@@ -252,7 +253,7 @@ func TestEntry_GetCreatedAt(t *testing.T) {
 	entry := &Entry{
 		Model:     base.Model{CreatedAt: now},
 		Value:     "positive",
-		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:       timezone.NewDate(2025, 5, 9),
 		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 		StudentID: 1,
 	}
@@ -267,7 +268,7 @@ func TestEntry_GetUpdatedAt(t *testing.T) {
 	entry := &Entry{
 		Model:     base.Model{UpdatedAt: now},
 		Value:     "positive",
-		Day:       time.Date(2025, 5, 9, 0, 0, 0, 0, time.UTC),
+		Day:       timezone.NewDate(2025, 5, 9),
 		Time:      time.Date(0, 0, 0, 12, 30, 0, 0, time.UTC),
 		StudentID: 1,
 	}

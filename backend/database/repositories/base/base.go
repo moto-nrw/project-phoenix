@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 	"unicode"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -297,7 +297,7 @@ func (r *Repository[T]) CountWithOptions(ctx context.Context, options *modelBase
 // absolute minimum). Returns nil when no rows match. Intended for
 // retention/cleanup statistics (oldest expired record, preview output).
 // dateColumn must be a compile-time constant column name, never user input.
-func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error) {
+func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error) {
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
@@ -314,7 +314,7 @@ func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cut
 		query = query.Where("? < ?", bun.Ident(dateColumn), *cutoff)
 	}
 
-	var oldest *time.Time
+	var oldest *timezone.Date
 	if err := query.Scan(ctx, &oldest); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "oldest before",
@@ -329,7 +329,7 @@ func (r *Repository[T]) OldestBefore(ctx context.Context, dateColumn string, cut
 // before cutoff and returns the number of rows deleted. Intended for
 // retention/cleanup jobs (GDPR data expiry, stale-record pruning).
 // dateColumn must be a compile-time constant column name, never user input.
-func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error) {
+func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error) {
 	entityVal := r.newEntityValue()
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))

@@ -21,6 +21,7 @@ import (
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -135,7 +136,7 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 	s := buildStudentDaySetup(t)
 
 	// Create a planned instance on Wed 2026-04-22.
-	inst := testpkg.CreateTestActivityInstance(t, s.db, time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID, testpkg.ActivityInstanceOpts{
+	inst := testpkg.CreateTestActivityInstance(t, s.db, timezone.NewDate(2026, 4, 22), s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &s.activityID,
 		StartHHMM:       "14:00",
 		EndHHMM:         "15:00",
@@ -195,7 +196,7 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 
 	arrSched := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
 	arrExc := testpkg.CreateTestArrivalException(t, s.db, s.studentID,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.staffID, "10:30", "Wandertag")
+		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
 	t.Cleanup(func() {
 		testpkg.CleanupScheduleFixturesB11(t, s.db,
 			[]int64{arrSched.ID}, []int64{arrExc.ID}, nil, nil, nil, nil)
@@ -221,7 +222,7 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
 	// the day. Source must still be "exception", ExpectedTime must be nil.
 	exc := testpkg.CreateTestPickupException(t, s.db, s.studentID,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.staffID, "", "Krank")
+		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
 	t.Cleanup(func() {
 		testpkg.CleanupScheduleFixturesB11(t, s.db,
 			nil, nil, nil, []int64{exc.ID}, nil, nil)
@@ -272,7 +273,7 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID,
+		timezone.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,
@@ -318,7 +319,7 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID,
+		timezone.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,

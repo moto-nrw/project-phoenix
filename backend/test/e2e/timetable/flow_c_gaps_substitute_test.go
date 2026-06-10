@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -24,8 +25,8 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	defer s.teardown()
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).
-	target := nextWeekday(time.Now().UTC(), 2, 7)
-	fromS := target.Format("2006-01-02")
+	target := nextWeekday(timezone.TodayDate(), 2, 7)
+	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-C-%d", time.Now().UnixNano()), target)
 
@@ -203,7 +204,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	gapInstance := &scheduleModel.ActivityInstance{
-		Date:          target.UTC().Truncate(24 * time.Hour),
+		Date:          target,
 		Title:         "FlowC-Gap-Instance",
 		StartTime:     startFixture,
 		EndTime:       endFixture,

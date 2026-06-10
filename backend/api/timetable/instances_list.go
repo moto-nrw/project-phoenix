@@ -139,11 +139,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Range query is UTC-midnight aligned via DateOfUTC so the DB DATE columns
-	// match without timezone drift — same pattern as gaps.go.
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(
-		ctx, timezone.DateOfUTC(from), timezone.DateOfUTC(to),
-	)
+	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"load instances failed", err))
@@ -278,7 +274,7 @@ func (rs *Resource) instanceConflictWarnings(
 	if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	if !timezone.DateOfUTC(inst.Date).Equal(timezone.TodayUTC()) {
+	if inst.Date != timezone.TodayDate() {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
 	if rs.activeGroupRepo == nil || rs.supervisorRepo == nil ||

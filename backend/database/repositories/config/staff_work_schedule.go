@@ -6,6 +6,7 @@ import (
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -46,7 +47,7 @@ func (r *StaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, s
 }
 
 // GetByStaffIDAndDate returns schedule entries valid for a specific date
-func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date time.Time) ([]*config.StaffWorkSchedule, error) {
+func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*config.StaffWorkSchedule, error) {
 	var entries []*config.StaffWorkSchedule
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
@@ -74,7 +75,7 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 	db := repoBase.GetDB(ctx, r.db)
 	tenantID := tenant.FromContext(ctx)
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayDate()
 
 	for _, e := range entries {
 		e.StaffID = staffID

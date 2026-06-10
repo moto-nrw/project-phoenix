@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -587,7 +588,7 @@ type fakeOperationsService struct {
 
 	lastAccountID      int64
 	lastIsAdmin        bool
-	lastDate           time.Time
+	lastDate           timezone.Date
 	lastPlannedOptions scheduleSvc.PlannedNowOptions
 	lastInstanceID     int64
 	lastActiveGroupID  int64
@@ -688,7 +689,7 @@ func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ in
 	return r.hasRoomConflict, nil, nil
 }
 
-func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
+func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date timezone.Date, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
 	s.lastDate = date

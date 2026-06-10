@@ -116,7 +116,7 @@ func seedApprovedChildWithStudent(
 			{
 				FirstName:        childFirst,
 				LastName:         childLast,
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
 			},
 		},
@@ -130,7 +130,7 @@ func seedApprovedChildWithStudent(
 		FirstName: childFirst,
 		LastName:  childLast,
 	}
-	dob := time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC)
+	dob := timezone.NewDate(2018, 4, 15)
 	person.Birthday = &dob
 	person.SetTenantID(1)
 	require.NoError(t, env.repos.Person.Create(ctx, person))
@@ -360,8 +360,8 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
 	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
-	req.ServiceStartDate = timezone.TodayUTC().AddDate(0, 0, -1)
-	req.ServiceEndDate = req.ServiceStartDate.AddDate(0, 10, 0)
+	req.ServiceStartDate = timezone.TodayDate().AddDays(-1)
+	req.ServiceEndDate = timezone.NewDate(req.ServiceStartDate.Year, req.ServiceStartDate.Month+10, req.ServiceStartDate.Day)
 	req.Name = "inactive-scheduled-past-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)

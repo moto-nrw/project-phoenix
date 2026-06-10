@@ -645,7 +645,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 		Model(&records).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, student.ID).
-		Where(`"attendance".date = ?`, timezone.TodayUTC()).
+		Where(`"attendance".date = ?`, timezone.TodayDate()).
 		Scan(context.Background())
 	require.NoError(t, err)
 	require.Len(t, records, 1, "daily checkout must close the existing row instead of inserting a new one")

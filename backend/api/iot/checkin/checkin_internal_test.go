@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -1732,7 +1733,7 @@ type mockPickupScheduleService struct {
 	err                 error
 }
 
-func (m *mockPickupScheduleService) GetEffectivePickupTimeForDate(_ context.Context, _ int64, _ time.Time) (*scheduleSvc.EffectivePickupTime, error) {
+func (m *mockPickupScheduleService) GetEffectivePickupTimeForDate(_ context.Context, _ int64, _ timezone.Date) (*scheduleSvc.EffectivePickupTime, error) {
 	return m.effectivePickupTime, m.err
 }
 

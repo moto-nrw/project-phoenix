@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -30,16 +29,16 @@ func uniquePositiveIDs(ids []int64) []int64 {
 	return out
 }
 
-func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodID *int64) (time.Time, error) {
+func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodID *int64) (timezone.Date, error) {
 	if calendarPeriodID == nil {
-		return timezone.TodayUTC(), nil
+		return timezone.TodayDate(), nil
 	}
 	if rs.calendarPeriodService == nil {
-		return time.Time{}, errors.New("calendar period service not wired")
+		return timezone.Date{}, errors.New("calendar period service not wired")
 	}
 	period, err := rs.calendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
 	if err != nil {
-		return time.Time{}, err
+		return timezone.Date{}, err
 	}
 	return period.StartDate, nil
 }
@@ -52,7 +51,7 @@ func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err
 	common.RenderError(w, r, common.ErrorInternalServerWrap("load calendar period failed", err))
 }
 
-func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, studentIDs []int64, calendarPeriodID *int64, validFrom time.Time) error {
+func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, studentIDs []int64, calendarPeriodID *int64, validFrom timezone.Date) error {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return nil
@@ -86,7 +85,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 	return nil
 }
 
-func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, staffIDs []int64, primaryStaffID *int64, calendarPeriodID *int64, validFrom time.Time) error {
+func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, staffIDs []int64, primaryStaffID *int64, calendarPeriodID *int64, validFrom timezone.Date) error {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return nil

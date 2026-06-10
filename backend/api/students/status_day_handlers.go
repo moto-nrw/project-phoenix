@@ -82,7 +82,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
@@ -151,12 +151,12 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	from, err := time.Parse(dateFormatYYYYMMDD, req.From)
+	from, err := timezone.ParseDate(req.From)
 	if err != nil {
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
-	to, err := time.Parse(dateFormatYYYYMMDD, req.To)
+	to, err := timezone.ParseDate(req.To)
 	if err != nil {
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -165,7 +165,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 		renderError(w, r, ErrorInvalidRequest(errors.New("to must be after from")))
 		return
 	}
-	if to.After(from.AddDate(0, 0, maxStudentStatusDayRangeDays-1)) {
+	if to.After(from.AddDays(maxStudentStatusDayRangeDays - 1)) {
 		renderError(w, r, ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
 		return
 	}
@@ -173,7 +173,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		for _, studentID := range req.StudentIDs {
@@ -252,7 +252,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		row, err := rs.StudentStatusDayRepo.FindActiveByID(ctx, statusDayID)
@@ -274,7 +274,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		if err := rs.StudentStatusDayRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}
-		if timezone.DateOfUTC(row.Date).Equal(today) {
+		if row.Date == today {
 			clearLiveStatusForToday(fresh, row.Status)
 			if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
 				return err
@@ -303,56 +303,52 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, map[string]bool{"deleted": true}, "Student status day deleted successfully")
 }
 
-func parseStatusDayRange(r *http.Request) (time.Time, time.Time, error) {
-	now := time.Now()
+func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
+	today := timezone.TodayDate()
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
-	if fromRaw == "" {
-		fromRaw = timezone.DateOfUTC(now).Format(dateFormatYYYYMMDD)
-	}
-	if toRaw == "" {
-		toRaw = timezone.DateOfUTC(now.AddDate(0, 2, 0)).Format(dateFormatYYYYMMDD)
-	}
 
-	from, err := time.Parse(dateFormatYYYYMMDD, fromRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid from date format, expected YYYY-MM-DD")
+	from := today
+	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
+	to := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	var err error
+	if fromRaw != "" {
+		if from, err = timezone.ParseDate(fromRaw); err != nil {
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid from date format, expected YYYY-MM-DD")
+		}
 	}
-	to, err := time.Parse(dateFormatYYYYMMDD, toRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid to date format, expected YYYY-MM-DD")
+	if toRaw != "" {
+		if to, err = timezone.ParseDate(toRaw); err != nil {
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid to date format, expected YYYY-MM-DD")
+		}
 	}
-	from = timezone.DateOfUTC(from)
-	to = timezone.DateOfUTC(to)
 	if to.Before(from) {
-		return time.Time{}, time.Time{}, errors.New("to must be after from")
+		return timezone.Date{}, timezone.Date{}, errors.New("to must be after from")
 	}
 	return from, to, nil
 }
 
-func parseStatusDayDates(rawDates []string) ([]time.Time, error) {
-	dates := make([]time.Time, 0, len(rawDates))
+func parseStatusDayDates(rawDates []string) ([]timezone.Date, error) {
+	dates := make([]timezone.Date, 0, len(rawDates))
 	for _, rawDate := range rawDates {
-		date, err := time.Parse(dateFormatYYYYMMDD, rawDate)
+		date, err := timezone.ParseDate(rawDate)
 		if err != nil {
 			return nil, errors.New("invalid date format, expected YYYY-MM-DD")
 		}
-		dates = append(dates, timezone.DateOfUTC(date))
+		dates = append(dates, date)
 	}
 	return dates, nil
 }
 
-func datesBetweenInclusive(from, to time.Time) []time.Time {
-	start := timezone.DateOfUTC(from)
-	end := timezone.DateOfUTC(to)
-	dates := make([]time.Time, 0, int(end.Sub(start).Hours()/24)+1)
-	for date := start; !date.After(end); date = date.AddDate(0, 0, 1) {
+func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
+	dates := make([]timezone.Date, 0, from.DaysUntil(to)+1)
+	for date := from; !date.After(to); date = date.AddDays(1) {
 		dates = append(dates, date)
 	}
 	return dates
 }
 
-func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []time.Time, now time.Time) error {
+func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
 	for _, otherStatus := range active.StudentStatusDayStatusesExcept(status) {
 		if err := rs.StudentStatusDayRepo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
 			return err
@@ -400,17 +396,16 @@ func clearLiveStatusForToday(student *users.Student, status string) {
 	}
 }
 
-func containsDate(dates []time.Time, needle time.Time) bool {
-	needle = timezone.DateOfUTC(needle)
+func containsDate(dates []timezone.Date, needle timezone.Date) bool {
 	for _, date := range dates {
-		if timezone.DateOfUTC(date).Equal(needle) {
+		if date == needle {
 			return true
 		}
 	}
 	return false
 }
 
-func minDate(dates []time.Time) time.Time {
+func minDate(dates []timezone.Date) timezone.Date {
 	min := dates[0]
 	for _, date := range dates[1:] {
 		if date.Before(min) {
@@ -420,7 +415,7 @@ func minDate(dates []time.Time) time.Time {
 	return min
 }
 
-func maxDate(dates []time.Time) time.Time {
+func maxDate(dates []timezone.Date) timezone.Date {
 	max := dates[0]
 	for _, date := range dates[1:] {
 		if date.After(max) {

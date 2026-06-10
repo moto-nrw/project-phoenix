@@ -307,7 +307,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since", "excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
@@ -378,7 +378,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
@@ -429,7 +429,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeM
 		Model(&attendance).
 		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Where("student_id = ?", studentID).
-		Where("date = ?", timezone.TodayUTC()).
+		Where("date = ?", timezone.TodayDate()).
 		Order("check_in_time DESC").
 		Limit(1).
 		Scan(context.Background())
@@ -446,7 +446,7 @@ func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, 
 	checkedOutBy := staffID
 	attendance := &activeModels.Attendance{
 		StudentID:    studentID,
-		Date:         timezone.TodayUTC(),
+		Date:         timezone.TodayDate(),
 		CheckInTime:  time.Now().Add(-4 * time.Hour),
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  staffID,

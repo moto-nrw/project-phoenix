@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,8 +26,8 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	s := newScenario(t)
 	defer s.teardown()
 
-	target := nextWeekday(time.Now().UTC(), 4, 7) // Thursday, >=7 days out
-	fromS := target.Format("2006-01-02")
+	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday, >=7 days out
+	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-D-%d", time.Now().UnixNano()), target)
 
@@ -98,7 +99,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	spont := &scheduleModel.ActivityInstance{
-		Date:          target.UTC().Truncate(24 * time.Hour),
+		Date:          target,
 		Title:         "D-Spontaneous",
 		StartTime:     startFixture,
 		EndTime:       endFixture,

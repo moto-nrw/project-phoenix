@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
@@ -98,9 +99,11 @@ func EndVisitRecord(visit *active.Visit, now time.Time) {
 	visit.ExitTime = &now
 }
 
-// EndSupervisionRecord stamps a supervision's EndDate with the supplied clock.
+// EndSupervisionRecord stamps a supervision's EndDate with the supplied
+// clock's Berlin calendar day.
 func EndSupervisionRecord(supervisor *active.GroupSupervisor, now time.Time) {
-	supervisor.EndDate = &now
+	endDate := timezone.DateFromTime(now)
+	supervisor.EndDate = &endDate
 }
 
 // EndCombinationRecord stamps a combined group's EndTime with the supplied clock.
@@ -115,7 +118,7 @@ func IsSupervisorActive(supervisor *active.GroupSupervisor, now time.Time) bool 
 	if supervisor.EndDate == nil {
 		return true
 	}
-	return now.Before(*supervisor.EndDate)
+	return timezone.DateFromTime(now).Before(*supervisor.EndDate)
 }
 
 // IsCombinedGroupActive decides whether a combined group is still active as of

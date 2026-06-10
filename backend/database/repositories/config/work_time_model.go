@@ -8,6 +8,7 @@ import (
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -211,7 +212,7 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	}
 
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayDate()
 	closeQuery := db.NewUpdate().
 		TableExpr(tableStaffWorkSchedules).
 		Set("valid_until = ?", today).

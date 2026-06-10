@@ -3,8 +3,8 @@ package schedule
 import (
 	"context"
 	"log/slog"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -20,7 +20,7 @@ type CalendarPeriodService interface {
 	DeletePeriod(ctx context.Context, id int64) error
 
 	// A/B week resolution — weekPattern: 0=every, 1=week A, 2=week B
-	ShouldMaterialize(weekPattern int, instanceDate time.Time, period *schedule.CalendarPeriod) bool
+	ShouldMaterialize(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool
 }
 
 // calendarPeriodService implements CalendarPeriodService
@@ -139,14 +139,12 @@ func (s *calendarPeriodService) DeletePeriod(ctx context.Context, id int64) erro
 // Uses day-based difference calculation (NOT ISO week numbers) to avoid
 // year-boundary bugs. See timetable-system-plan.md §6.1 for algorithm details.
 //
-// Both anchor and instance dates are normalized to UTC midnight on their civil
-// date components before subtraction so that DST transitions in the caller's
-// timezone (Europe/Berlin's 167- or 169-hour weeks at the end of March/October)
-// do not skew the day count. Integer arithmetic replaces the earlier float
-// division, which truncated 167h/24 to 6 days instead of 7.
+// timezone.Date.DaysUntil anchors both calendar days at UTC midnight before
+// subtracting, so DST transitions in Europe/Berlin (167- or 169-hour weeks at
+// the end of March/October) can never skew the day count.
 //
 // weekPattern: 0=every week, 1=week A, 2=week B (maps to currentPattern 1, 2, ...)
-func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate time.Time, period *schedule.CalendarPeriod) bool {
+func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool {
 	if weekPattern == 0 {
 		return true // every week
 	}
@@ -157,16 +155,7 @@ func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate 
 		return true // no anchor set, can't compute — allow by default
 	}
 
-	anchorUTC := time.Date(
-		period.WeekCycleAnchor.Year(), period.WeekCycleAnchor.Month(), period.WeekCycleAnchor.Day(),
-		0, 0, 0, 0, time.UTC,
-	)
-	instUTC := time.Date(
-		instanceDate.Year(), instanceDate.Month(), instanceDate.Day(),
-		0, 0, 0, 0, time.UTC,
-	)
-
-	daysDiff := int(instUTC.Sub(anchorUTC) / (24 * time.Hour))
+	daysDiff := period.WeekCycleAnchor.DaysUntil(instanceDate)
 	weeksDiff := daysDiff / 7
 	// Go's integer division truncates toward zero, so for negative daysDiff
 	// we need an explicit floor when the division isn't exact.

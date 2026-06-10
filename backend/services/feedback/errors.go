@@ -3,7 +3,8 @@ package feedback
 import (
 	"errors"
 	"fmt"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Common error types
@@ -43,12 +44,12 @@ func (e *InvalidEntryDataError) Unwrap() error {
 
 // InvalidDateRangeError wraps an invalid date range error
 type InvalidDateRangeError struct {
-	StartDate time.Time
-	EndDate   time.Time
+	StartDate timezone.Date
+	EndDate   timezone.Date
 }
 
 func (e *InvalidDateRangeError) Error() string {
-	return fmt.Sprintf("invalid date range: %s to %s", e.StartDate.Format("2006-01-02"), e.EndDate.Format("2006-01-02"))
+	return fmt.Sprintf("invalid date range: %s to %s", e.StartDate, e.EndDate)
 }
 
 func (e *InvalidDateRangeError) Unwrap() error {

@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
-import { getStartDateForTimeRange } from "~/lib/date-helpers";
+import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
@@ -143,7 +143,7 @@ export default function StudentFeedbackHistoryPage() {
 
     for (const entry of filteredFeedbackHistory) {
       const d = new Date(entry.timestamp);
-      const key = d.toISOString().slice(0, 10);
+      const key = toISODate(d);
       const existing = dayMap.get(key) ?? {
         date: d,
         positive: 0,

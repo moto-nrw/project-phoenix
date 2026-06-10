@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -53,7 +53,7 @@ func TestBuildServiceRequest_ParsesDateOfBirth(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out.Children, 1)
 	assert.Equal(t,
-		time.Date(2018, 3, 4, 0, 0, 0, 0, time.UTC),
+		timezone.NewDate(2018, 3, 4),
 		out.Children[0].DateOfBirth)
 }
 

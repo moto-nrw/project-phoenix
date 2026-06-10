@@ -704,12 +704,10 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "TZ", "Staff")
 	device := testpkg.CreateTestDevice(t, db, "tz-device-001")
 
-	// Create a stale attendance record (yesterday, no checkout).
-	// Use TodayUTC for the date column — pgdriver converts time.Time to UTC before
-	// PostgreSQL extracts the DATE, so Berlin midnight (23:00 UTC previous day) would
-	// store the wrong calendar date. TodayUTC avoids this by using UTC midnight.
-	yesterday := timezone.TodayUTC().AddDate(0, 0, -1)
-	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 UTC yesterday
+	// Create a stale attendance record (yesterday, no checkout). The DATE
+	// column takes a timezone.Date, which binds as a calendar-day literal.
+	yesterday := timezone.TodayDate().AddDays(-1)
+	checkInTime := yesterday.UTCMidnight().Add(8 * time.Hour) // 8:00 UTC yesterday
 
 	var attendanceID int64
 	err := db.NewRaw(`
@@ -747,12 +745,11 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	// The fix converts to Berlin before building 23:59:59, so the checkout
 	// must be 23:59:59 Berlin on the correct calendar date.
 	checkOutInBerlin := checkOutTime.In(timezone.Berlin)
-	yesterdayInBerlin := yesterday.In(timezone.Berlin)
 
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")
 	assert.Equal(t, 59, checkOutInBerlin.Second(), "second should be 59")
-	assert.Equal(t, yesterdayInBerlin.Day(), checkOutInBerlin.Day(),
+	assert.Equal(t, yesterday.Day, checkOutInBerlin.Day(),
 		"date should be the same day as the attendance record, not the next day")
 }
 

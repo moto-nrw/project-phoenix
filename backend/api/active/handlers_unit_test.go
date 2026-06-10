@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -77,9 +78,9 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 		StartTime: now,
 		EndTime:   nil,
 		Supervisors: []*active.GroupSupervisor{
-			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: now, EndDate: nil},    // Active
-			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: now, EndDate: &now},    // Inactive (has end date)
-			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: now, EndDate: nil}, // Active
+			{Model: base.Model{ID: 1}, StaffID: 10, Role: "Teacher", StartDate: timezone.DateFromTime(now), EndDate: nil},                          // Active
+			{Model: base.Model{ID: 2}, StaffID: 20, Role: "Helper", StartDate: timezone.DateFromTime(now), EndDate: ptrDate(timezone.TodayDate())}, // Inactive (has end date)
+			{Model: base.Model{ID: 3}, StaffID: 30, Role: "Supervisor", StartDate: timezone.DateFromTime(now), EndDate: nil},                       // Active
 		},
 	}
 
@@ -198,13 +199,13 @@ func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
 
 func TestNewSupervisorResponse_BasicFields(t *testing.T) {
 	now := time.Now()
-	endDate := now.Add(-time.Hour) // End date in the past = inactive
+	endDate := timezone.TodayDate().AddDays(-1) // End date in the past = inactive
 
 	supervisor := &active.GroupSupervisor{
 		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: now.Add(-2 * time.Hour),
+		StartDate: timezone.TodayDate().AddDays(-1),
 		EndDate:   &endDate,
 	}
 
@@ -224,7 +225,7 @@ func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
 		Model:     base.Model{ID: 1},
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 		EndDate:   nil, // Active
 	}
 
@@ -240,7 +241,7 @@ func TestNewSupervisorResponse_WithStaff(t *testing.T) {
 		Model:     base.Model{ID: 1},
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 		Staff: &users.Staff{
 			Model: base.Model{ID: 100},
 			Person: &users.Person{
@@ -263,7 +264,7 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 		Model:     base.Model{ID: 1},
 		StaffID:   100,
 		GroupID:   200,
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
 			GroupID: base.Int64Ptr(300),
@@ -858,3 +859,5 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	assert.Equal(t, "Internal Server Error", errResp.StatusText)
 	assert.Equal(t, "unknown error", errResp.ErrorText)
 }
+
+func ptrDate(d timezone.Date) *timezone.Date { return &d }

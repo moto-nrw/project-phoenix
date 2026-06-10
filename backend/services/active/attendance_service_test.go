@@ -100,8 +100,8 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
-	// Service uses timezone.Today() for consistent Europe/Berlin timezone handling
-	expectedDate := timezone.Today()
+	// Service uses timezone.TodayDate() — today's Berlin calendar day
+	expectedDate := timezone.TodayDate()
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -101,8 +102,8 @@ func makePhaseModel(id int64, name string) *enrollmentModels.Phase {
 		Model:            baseModel.Model{ID: id, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		Name:             name,
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}

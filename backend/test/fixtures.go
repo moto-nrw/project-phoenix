@@ -368,9 +368,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use TodayUTC() so the DATE column gets UTC midnight of the Berlin calendar
-	// date, matching how performCheckIn stores attendance records in production.
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
@@ -904,7 +902,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
-		StartDate: time.Now(),
+		StartDate: timezone.TodayDate(),
 	}
 	supervisor.SetTenantID(1)
 
@@ -1561,7 +1559,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *education.GroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2320,7 +2318,7 @@ func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 
 	entry := &feedback.Entry{
 		Value:     feedback.ValuePositive,
-		Day:       now,
+		Day:       timezone.DateFromTime(now),
 		Time:      now,
 		StudentID: studentID,
 	}
@@ -2637,7 +2635,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 
 // CreateTestArrivalException inserts a date-specific arrival exception.
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
-func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2645,7 +2643,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &schedule.StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2690,7 +2688,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 
 // CreateTestPickupException inserts a date-specific pickup exception.
 // Pass pickupHHMM="" for absence (PickupTime=NULL).
-func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2698,7 +2696,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2733,7 +2731,7 @@ type ActivityInstanceOpts struct {
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
-func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2757,7 +2755,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomI
 	}
 
 	row := &schedule.ActivityInstance{
-		Date:            timezone.DateOfUTC(date),
+		Date:            date,
 		ActivityGroupID: opts.ActivityGroupID,
 		ActiveGroupID:   opts.ActiveGroupID,
 		Title:           title,

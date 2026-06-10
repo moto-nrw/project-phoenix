@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -28,7 +29,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// --- Setup: period, room, staff, students, template --------------------
 	// Pick a Wednesday far enough ahead that the scheduler accepts the window.
-	target := nextWeekday(time.Now().UTC(), 3, 7) // Wed, ≥7 days out
+	target := nextWeekday(timezone.TodayDate(), 3, 7) // Wed, ≥7 days out
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-A-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")
@@ -58,7 +59,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 	_ = tmpl
 
 	// --- Step 1: materialize the target week -------------------------------
-	fromS := target.Format("2006-01-02")
+	fromS := target.String()
 	toS := fromS
 	matReq := map[string]any{"from_date": fromS, "to_date": toS}
 	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
@@ -190,17 +191,17 @@ func TestFlowA_PlanToReport(t *testing.T) {
 }
 
 // fetchOneInstance fetches the single materialized instance for (template, date).
-func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date time.Time) *scheduleModel.ActivityInstance {
+func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone.Date) *scheduleModel.ActivityInstance {
 	t.Helper()
 	var inst scheduleModel.ActivityInstance
 	err := s.db.NewSelect().
 		Model(&inst).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".activity_group_id = ?`, templateID).
-		Where(`"activity_instance".date = ?`, date.UTC().Truncate(24*time.Hour)).
+		Where(`"activity_instance".date = ?`, date).
 		Where(`"activity_instance".tenant_id = ?`, primaryTenantID).
 		Scan(s.tenantCtx())
-	require.NoError(t, err, "fetch instance for template %d on %s", templateID, date.Format("2006-01-02"))
+	require.NoError(t, err, "fetch instance for template %d on %s", templateID, date)
 	return &inst
 }
 

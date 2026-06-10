@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -103,7 +104,7 @@ func sampleExport() *enrollmentService.PhaseExport {
 	child := &enrollmentModels.RequestChild{
 		FirstName:        "Lina",
 		LastName:         "Muster",
-		DateOfBirth:      time.Date(2018, 5, 12, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2018, 5, 12),
 		TargetGradeLevel: &grade,
 		Status:           enrollmentModels.ChildStatusApproved,
 		ActivationMode:   enrollmentModels.ChildActivationScheduled,
@@ -299,7 +300,7 @@ func statusExportSample() *enrollmentService.PhaseExport {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName:   first,
 			LastName:    last,
-			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+			DateOfBirth: timezone.NewDate(2018, 1, 1),
 			Status:      status,
 		}}
 	}
@@ -384,7 +385,7 @@ func TestBuildPhaseExportRecords_OrdersChildrenBySurname(t *testing.T) {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+			DateOfBirth: timezone.NewDate(2018, 1, 1),
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}
@@ -417,7 +418,7 @@ func TestPhaseExport_PDFAndXLSXShareRowOrder(t *testing.T) {
 		return enrollmentService.ExportChildRow{Child: &enrollmentModels.RequestChild{
 			FirstName: first, LastName: last,
 			Status:      enrollmentModels.ChildStatusApproved,
-			DateOfBirth: time.Date(2018, 1, 1, 0, 0, 0, 0, time.UTC),
+			DateOfBirth: timezone.NewDate(2018, 1, 1),
 		}}
 	}
 	reqA := &enrollmentModels.Request{GuardianFirstName: "G", GuardianLastName: "A", SubmittedAt: time.Now()}

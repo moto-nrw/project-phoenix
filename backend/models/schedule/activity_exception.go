@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -40,14 +41,14 @@ type ActivityException struct {
 	base.Model `bun:"schema:schedule,table:activity_exceptions"`
 	base.TenantModel
 
-	ActivityGroupID int64      `bun:"activity_group_id,notnull" json:"activity_group_id"`
-	ExceptionDate   time.Time  `bun:"exception_date,notnull" json:"exception_date"`
-	ExceptionType   string     `bun:"exception_type,notnull" json:"exception_type"`
-	StartTime       *time.Time `bun:"start_time" json:"start_time,omitempty"`
-	EndTime         *time.Time `bun:"end_time" json:"end_time,omitempty"`
-	RoomID          *int64     `bun:"room_id" json:"room_id,omitempty"`
-	Reason          *string    `bun:"reason" json:"reason,omitempty"`
-	CreatedBy       *int64     `bun:"created_by" json:"created_by,omitempty"`
+	ActivityGroupID int64         `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	ExceptionDate   timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	ExceptionType   string        `bun:"exception_type,notnull" json:"exception_type"`
+	StartTime       *time.Time    `bun:"start_time" json:"start_time,omitempty"`
+	EndTime         *time.Time    `bun:"end_time" json:"end_time,omitempty"`
+	RoomID          *int64        `bun:"room_id" json:"room_id,omitempty"`
+	Reason          *string       `bun:"reason" json:"reason,omitempty"`
+	CreatedBy       *int64        `bun:"created_by" json:"created_by,omitempty"`
 }
 
 func (e *ActivityException) BeforeAppendModel(query any) error {
@@ -129,16 +130,16 @@ type ActivityExceptionRepository interface {
 
 	// FindByActivityGroupAndDate returns the exception for a specific
 	// (template, date) pair, or nil if none exists.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date time.Time) (*ActivityException, error)
+	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) (*ActivityException, error)
 
 	// FindByDateRange returns all exceptions across all templates within the
 	// inclusive range. Used by the materialization service to apply exceptions
 	// efficiently for an entire week.
-	FindByDateRange(ctx context.Context, from, to time.Time) ([]*ActivityException, error)
+	FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityException, error)
 
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the timetable retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,8 +14,8 @@ func TestStaffAbsence_Validate(t *testing.T) {
 		return &StaffAbsence{
 			StaffID:     1,
 			AbsenceType: AbsenceTypeSick,
-			DateStart:   time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:     time.Date(2024, 3, 3, 0, 0, 0, 0, time.UTC),
+			DateStart:   timezone.NewDate(2024, 3, 1),
+			DateEnd:     timezone.NewDate(2024, 3, 3),
 			Status:      AbsenceStatusReported,
 			CreatedBy:   1,
 		}
@@ -66,7 +67,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("missing date_start", func(t *testing.T) {
 		a := validAbsence()
-		a.DateStart = time.Time{}
+		a.DateStart = timezone.Date{}
 		err := a.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "date_start is required")
@@ -74,7 +75,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("missing date_end", func(t *testing.T) {
 		a := validAbsence()
-		a.DateEnd = time.Time{}
+		a.DateEnd = timezone.Date{}
 		err := a.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "date_end is required")
@@ -82,8 +83,8 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("date_start after date_end", func(t *testing.T) {
 		a := validAbsence()
-		a.DateStart = time.Date(2024, 3, 5, 0, 0, 0, 0, time.UTC)
-		a.DateEnd = time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+		a.DateStart = timezone.NewDate(2024, 3, 5)
+		a.DateEnd = timezone.NewDate(2024, 3, 1)
 		err := a.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "date_start must be before or equal to date_end")
@@ -91,7 +92,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 
 	t.Run("same start and end date is valid", func(t *testing.T) {
 		a := validAbsence()
-		d := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+		d := timezone.NewDate(2024, 3, 1)
 		a.DateStart = d
 		a.DateEnd = d
 		assert.NoError(t, a.Validate())
@@ -109,32 +110,32 @@ func TestStaffAbsence_Validate(t *testing.T) {
 func TestStaffAbsence_DurationDays(t *testing.T) {
 	t.Run("single day", func(t *testing.T) {
 		a := &StaffAbsence{
-			DateStart: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2024, 3, 1),
+			DateEnd:   timezone.NewDate(2024, 3, 1),
 		}
 		assert.Equal(t, 1, a.DurationDays())
 	})
 
 	t.Run("three days", func(t *testing.T) {
 		a := &StaffAbsence{
-			DateStart: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2024, 3, 3, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2024, 3, 1),
+			DateEnd:   timezone.NewDate(2024, 3, 3),
 		}
 		assert.Equal(t, 3, a.DurationDays())
 	})
 
 	t.Run("week", func(t *testing.T) {
 		a := &StaffAbsence{
-			DateStart: time.Date(2024, 3, 4, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2024, 3, 10, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2024, 3, 4),
+			DateEnd:   timezone.NewDate(2024, 3, 10),
 		}
 		assert.Equal(t, 7, a.DurationDays())
 	})
 
 	t.Run("minimum is 1 day", func(t *testing.T) {
 		a := &StaffAbsence{
-			DateStart: time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
-			DateEnd:   time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC),
+			DateStart: timezone.NewDate(2024, 3, 1),
+			DateEnd:   timezone.NewDate(2024, 3, 1),
 		}
 		assert.GreaterOrEqual(t, a.DurationDays(), 1)
 	})

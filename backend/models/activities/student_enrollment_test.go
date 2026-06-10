@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 )
@@ -61,7 +62,7 @@ func TestIsValidAttendanceStatus(t *testing.T) {
 }
 
 func TestStudentEnrollmentValidate(t *testing.T) {
-	now := time.Now()
+	now := timezone.TodayDate()
 	present := AttendancePresent
 	absent := AttendanceAbsent
 	invalid := "INVALID"

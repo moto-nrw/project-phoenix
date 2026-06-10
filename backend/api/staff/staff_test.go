@@ -327,7 +327,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 
 	tenantID := int64(testutil.DefaultTestClaims().TenantID)
 	tenantCtx := testpkg.TenantContext(tenantID)
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	session := &active.WorkSession{
 		StaffID:     staff.ID,
 		Date:        today,
