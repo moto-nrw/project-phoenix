@@ -265,3 +265,71 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 	err = svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.Error(t, err, "can-remove resolve failure must surface")
 }
+
+// failingInvites errors on delegation so the parent service's error-return
+// branches around the guardian invitation service are exercised.
+type failingInvites struct {
+	authService.GuardianInvitationService
+}
+
+func (failingInvites) InviteToStudent(_ context.Context, _ authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
+	return nil, errors.New("invite failed")
+}
+func (failingInvites) RevokeAccess(_ context.Context, _ authService.RevokeAccessRequest) error {
+	return errors.New("revoke failed")
+}
+
+func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites authService.GuardianInvitationService) (parentService.Service, *bun.DB) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		NoteRepo:            repos.StudentParentNote,
+		Settings:            relAcctSettings{inviteMode: inviteMode, canRemove: canRemove},
+		GuardianInvites:     invites,
+		StudentGuardianRepo: repos.StudentGuardian,
+		GuardianProfileRepo: repos.GuardianProfile,
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+	return svc, db
+}
+
+func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
+	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	other := testpkg.CreateTestStudent(t, db, "Not", "Owned", "9z")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", other.ID).Exec(context.Background())
+	}()
+
+	_, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, other.ID)
+	require.Error(t, err, "listing an unowned child must be rejected")
+}
+
+func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
+	t.Run("invite delegate error", func(t *testing.T) {
+		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
+		defer func() { _ = db.Close() }()
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+		_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "")
+		require.Error(t, err)
+	})
+
+	t.Run("revoke delegate error", func(t *testing.T) {
+		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
+		defer func() { _ = db.Close() }()
+		chain := testpkg.CreateTestParentGuardianChain(t, db)
+		defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+		err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+		require.Error(t, err)
+	})
+}
