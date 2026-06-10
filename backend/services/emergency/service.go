@@ -2,19 +2,15 @@ package emergency
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 const presenceModeBinary = "binary"
@@ -41,22 +37,32 @@ type activePresenceReader interface {
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeService.AttendanceStatus, error)
 }
 
+type visitLocationReader interface {
+	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+}
+
+type guardianContactReader interface {
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModel.GuardianEmergencyContactRow, error)
+}
+
 type Dependencies struct {
-	AttendanceRepo attendanceReader
-	StudentRepo    studentReader
-	PersonRepo     personReader
-	ActiveService  activePresenceReader
-	ListExport     listexport.Service
-	DB             *bun.DB
+	AttendanceRepo      attendanceReader
+	StudentRepo         studentReader
+	PersonRepo          personReader
+	VisitRepo           visitLocationReader
+	StudentGuardianRepo guardianContactReader
+	ActiveService       activePresenceReader
+	ListExport          listexport.Service
 }
 
 type service struct {
-	attendanceRepo attendanceReader
-	studentRepo    studentReader
-	personRepo     personReader
-	activeService  activePresenceReader
-	listExport     listexport.Service
-	db             *bun.DB
+	attendanceRepo      attendanceReader
+	studentRepo         studentReader
+	personRepo          personReader
+	visitRepo           visitLocationReader
+	studentGuardianRepo guardianContactReader
+	activeService       activePresenceReader
+	listExport          listexport.Service
 }
 
 type snapshotRow struct {
@@ -71,21 +77,15 @@ type snapshotRow struct {
 	GuardianPhone   string
 }
 
-type guardianContactRow struct {
-	StudentID   int64          `bun:"student_id"`
-	FirstName   sql.NullString `bun:"first_name"`
-	LastName    sql.NullString `bun:"last_name"`
-	PhoneNumber sql.NullString `bun:"phone_number"`
-}
-
 func NewService(deps Dependencies) Service {
 	return &service{
-		attendanceRepo: deps.AttendanceRepo,
-		studentRepo:    deps.StudentRepo,
-		personRepo:     deps.PersonRepo,
-		activeService:  deps.ActiveService,
-		listExport:     deps.ListExport,
-		db:             deps.DB,
+		attendanceRepo:      deps.AttendanceRepo,
+		studentRepo:         deps.StudentRepo,
+		personRepo:          deps.PersonRepo,
+		visitRepo:           deps.VisitRepo,
+		studentGuardianRepo: deps.StudentGuardianRepo,
+		activeService:       deps.ActiveService,
+		listExport:          deps.ListExport,
 	}
 }
 
@@ -98,7 +98,7 @@ func (s *service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
 }
 
 func (s *service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error) {
-	if s.attendanceRepo == nil || s.studentRepo == nil || s.personRepo == nil || s.listExport == nil || s.db == nil {
+	if s.attendanceRepo == nil || s.studentRepo == nil || s.personRepo == nil || s.listExport == nil || s.visitRepo == nil || s.studentGuardianRepo == nil {
 		return listexport.Document{}, fmt.Errorf("emergency snapshot service is not configured")
 	}
 
@@ -212,38 +212,7 @@ func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) 
 		return s.loadBinaryLocations(ctx, studentIDs)
 	}
 
-	type currentLocationRow struct {
-		StudentID int64          `bun:"student_id"`
-		RoomName  sql.NullString `bun:"room_name"`
-	}
-
-	var rows []currentLocationRow
-	query := repoBase.GetDB(ctx, s.db).NewSelect().
-		TableExpr(`active.visits AS "visit"`).
-		ColumnExpr(`DISTINCT ON ("visit".student_id) "visit".student_id`).
-		ColumnExpr(`"room".name AS "room_name"`).
-		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id AND "group".end_time IS NULL`).
-		Join(`JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
-		Where(`"visit".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"visit".exit_time IS NULL`).
-		OrderExpr(`"visit".student_id ASC`).
-		OrderExpr(`"visit".entry_time DESC`)
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, err
-	}
-
-	locations := make(map[int64]string, len(rows))
-	for _, row := range rows {
-		if row.RoomName.Valid {
-			locations[row.StudentID] = row.RoomName.String
-		}
-	}
-	return locations, nil
+	return s.visitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
 }
 
 func (s *service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
@@ -279,31 +248,8 @@ type guardianContact struct {
 }
 
 func (s *service) loadGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64]guardianContact, error) {
-	var rows []guardianContactRow
-	query := repoBase.GetDB(ctx, s.db).NewSelect().
-		TableExpr(`users.students_guardians AS "student_guardian"`).
-		ColumnExpr(`"student_guardian".student_id`).
-		ColumnExpr(`"guardian".first_name`).
-		ColumnExpr(`"guardian".last_name`).
-		ColumnExpr(`"phone".phone_number`).
-		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
-		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
-		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
-		OrderExpr(`"student_guardian".is_emergency_contact DESC`).
-		OrderExpr(`"student_guardian".is_primary DESC`).
-		OrderExpr(`"student_guardian".emergency_priority ASC`).
-		OrderExpr(`"phone".is_primary DESC NULLS LAST`).
-		OrderExpr(`"phone".priority ASC NULLS LAST`).
-		OrderExpr(`"student_guardian".student_id ASC`).
-		OrderExpr(`"guardian".id ASC`)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`"guardian".tenant_id = ?`, tenantID)
-		query = query.Where(`("phone".tenant_id = ? OR "phone".tenant_id IS NULL)`, tenantID)
-	}
-
-	if err := query.Scan(ctx, &rows); err != nil {
+	rows, err := s.studentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
+	if err != nil {
 		return nil, err
 	}
 

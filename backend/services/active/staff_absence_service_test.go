@@ -1226,3 +1226,29 @@ func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
 	assert.Equal(t, 2.0, summary.TakenDays)
 	assert.Equal(t, 28.0, summary.RemainingDays)
 }
+
+// Generic query helper stubs (interface additions for the issue #585
+// cleanup refactor) — unused by these tests.
+func (m *absStaffAbsenceRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *absStaffAbsenceRepoMock) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *absWorkSessionRepoMock) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (m *absWorkSessionRepoMock) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}

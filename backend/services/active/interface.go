@@ -375,19 +375,19 @@ type AttendanceCleanupPreview struct {
 
 // SupervisorCleanupResult represents the result of cleaning stale supervisor records
 type SupervisorCleanupResult struct {
-	StartedAt        time.Time  `json:"started_at"`
-	CompletedAt      time.Time  `json:"completed_at"`
-	RecordsClosed    int        `json:"records_closed"`
-	StaffAffected    int        `json:"staff_affected"`
-	OldestRecordDate *time.Time `json:"oldest_record_date,omitempty"`
-	Success          bool       `json:"success"`
-	Errors           []string   `json:"errors,omitempty"`
+	StartedAt        time.Time      `json:"started_at"`
+	CompletedAt      time.Time      `json:"completed_at"`
+	RecordsClosed    int            `json:"records_closed"`
+	StaffAffected    int            `json:"staff_affected"`
+	OldestRecordDate *timezone.Date `json:"oldest_record_date,omitempty"`
+	Success          bool           `json:"success"`
+	Errors           []string       `json:"errors,omitempty"`
 }
 
 // SupervisorCleanupPreview shows what supervisor records would be cleaned
 type SupervisorCleanupPreview struct {
 	TotalRecords  int            `json:"total_records"`
 	StaffRecords  map[int64]int  `json:"staff_records"` // staffID -> count
-	OldestRecord  *time.Time     `json:"oldest_record,omitempty"`
+	OldestRecord  *timezone.Date `json:"oldest_record,omitempty"`
 	RecordsByDate map[string]int `json:"records_by_date"` // date -> count
 }

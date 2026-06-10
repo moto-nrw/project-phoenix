@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -60,7 +58,6 @@ type userContextService struct {
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
-	db                 *bun.DB
 	logger             *slog.Logger
 }
 
@@ -73,7 +70,7 @@ func (s *userContextService) getLogger() *slog.Logger {
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, logger *slog.Logger) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.Logger) UserContextService {
 	return &userContextService{
 		accountRepo:        repos.AccountRepo,
 		personRepo:         repos.PersonRepo,
@@ -87,7 +84,6 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, l
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
-		db:                 db,
 		logger:             logger,
 	}
 }

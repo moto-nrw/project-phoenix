@@ -367,3 +367,27 @@ func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBa
 
 	return supervisors, nil
 }
+
+// ListPlannedSupervisionBlockers returns the staff member's planned activity
+// supervisions as caregiver-capability blocker rows. Custom raw-SQL method
+// (backend-conventions Rule 2): join into the users blocker read model.
+func (r *SupervisorPlannedRepository) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error) {
+	var results []users.BlockerActivity
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT s.id, s.group_id AS activity_id,
+		       COALESCE(ag.name, 'Unbekannte Aktivität') AS activity_name,
+		       COALESCE(s.is_primary, false) AS is_primary
+		FROM activities.supervisors AS s
+		LEFT JOIN activities.groups AS ag ON ag.id = s.group_id AND ag.tenant_id = s.tenant_id
+		WHERE s.tenant_id = ?
+		  AND s.staff_id = ?
+		ORDER BY ag.name ASC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list planned supervision blockers",
+			Err: err,
+		}
+	}
+	return results, nil
+}

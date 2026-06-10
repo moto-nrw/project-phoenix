@@ -680,8 +680,8 @@ func printSupervisorPreviewHeader(preview *active.SupervisorCleanupPreview) {
 	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
 
 	if preview.OldestRecord != nil {
-		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
-		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+		daysAgo := preview.OldestRecord.DaysUntil(timezone.TodayDate())
+		fmt.Printf("Oldest record: %s (%d days ago)\n",
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 

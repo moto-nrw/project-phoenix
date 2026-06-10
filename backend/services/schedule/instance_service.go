@@ -29,7 +29,6 @@ import (
 	"log/slog"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -629,15 +628,7 @@ func (s *instanceService) updateLifecycleColumns(ctx context.Context, instance *
 	if len(columns) == 0 {
 		return nil
 	}
-	q := repoBase.GetDB(ctx, s.deps.DB).NewUpdate().
-		Model(instance).
-		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
-		Where(`"activity_instance".id = ?`, instance.ID).
-		Where(`"activity_instance".tenant_id = ?`, tenant.FromContext(ctx))
-	for _, col := range columns {
-		q = q.Column(col)
-	}
-	_, err := q.Exec(ctx)
+	_, err := s.deps.InstanceRepo.UpdateColumns(ctx, instance, columns...)
 	return err
 }
 
@@ -660,18 +651,10 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 
-	res, err := repoBase.GetDB(ctx, s.deps.DB).NewDelete().
-		Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).
-		Where("date >= ?", from).
-		Where("date <= ?", to).
-		Where("status = ?", scheduleModel.InstanceStatusPlanned).
-		Where("is_spontaneous = ?", false).
-		Exec(ctx)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, to)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
-	deleted, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
 
 	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, MaterializationSourceManual)
 	if err != nil {

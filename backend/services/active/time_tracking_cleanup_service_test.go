@@ -39,7 +39,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	defer cleanupTimeTrackingRows(t, db, freshSessionID, freshAbsenceID)
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -195,7 +195,8 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 	insertSession(t, db, staff.ID, daysAgo(800))
 
-	svc := activeSvc.NewTimeTrackingCleanupService(db, nil, nil, nil)
+	repos := repoFactory.NewFactory(db)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, nil, nil, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "audit repo not configured")
@@ -215,7 +216,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)

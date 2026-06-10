@@ -380,3 +380,29 @@ func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64
 
 	return count, nil
 }
+
+// FindStaleOpen returns attendance rows dated before the given day that still
+// lack a check-out time. Feeds the nightly stale-attendance cleanup and its
+// preview (services/active/cleanup_service.go).
+func (r *AttendanceRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*active.Attendance, error) {
+	var records []*active.Attendance
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&records).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".date < ?`, before).
+		Where(`"attendance".check_out_time IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find stale open attendance",
+			Err: err,
+		}
+	}
+
+	return records, nil
+}

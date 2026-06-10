@@ -483,3 +483,8 @@ func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
 	var _ authModels.AccountTenantRepository = stubStaffAccountTenantRepo{}
 	var _ platformModels.SchoolRepository = stubStaffSchoolRepo{}
 }
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (r stubStaffAccountRepo) AnonymizeForDeletion(context.Context, int64, string) error {
+	return nil
+}

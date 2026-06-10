@@ -2,15 +2,14 @@ package test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -564,10 +563,15 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// Active domain cleanup (continued)
 		// ========================================
 
-		// Delete from active.group_supervisors
+		// Delete from active.group_supervisors. Match only the FK columns:
+		// matching the row's own PK against a generic entity ID deletes
+		// FOREIGN supervisor rows whenever another fixture's auto-increment
+		// ID collides numerically (the same cross-domain collision the auth
+		// NOTE below describes). Tests that own a supervisor row clean it
+		// via CleanupTableRecords("active.group_supervisors", id) instead.
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
+			Where("staff_id = ? OR group_id = ?", id, id).
 			Where("tenant_id = ?", tenantID),
 			"active.group_supervisors")
 
@@ -1087,40 +1091,37 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	return account
 }
 
-// hashPassword hashes a password using Argon2id (matches auth/userpass)
-func hashPassword(password string) (string, error) {
-	// Import the userpass package inline to hash the password
-	// This uses the same algorithm as the auth service
-	params := &argon2Params{
-		memory:      64 * 1024,
-		iterations:  1,
-		parallelism: 2,
-		saltLength:  16,
-		keyLength:   32,
-	}
+var (
+	hashCacheMu sync.Mutex
+	hashCache   = map[string]string{}
+)
 
-	salt := make([]byte, params.saltLength)
-	if _, err := rand.Read(salt); err != nil {
+// hashPassword returns an Argon2id hash for the password, memoizing per
+// password string. Fixtures reuse a handful of passwords across thousands
+// of tests, and each uncached hash costs real CPU and memory. Reused salts
+// are fine for test data; verification decodes params and salt from the
+// hash itself. The mutex is held across the hash on purpose so concurrent
+// requests for the same password compute it once.
+func hashPassword(password string) (string, error) {
+	hashCacheMu.Lock()
+	defer hashCacheMu.Unlock()
+	if h, ok := hashCache[password]; ok {
+		return h, nil
+	}
+	h, err := hashPasswordUncached(password)
+	if err != nil {
 		return "", err
 	}
-
-	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
-
-	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
-	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
-
-	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, params.memory, params.iterations, params.parallelism, b64Salt, b64Hash), nil
+	hashCache[password] = h
+	return h, nil
 }
 
-// argon2Params holds parameters for Argon2id hashing
-type argon2Params struct {
-	memory      uint32
-	iterations  uint32
-	parallelism uint8
-	saltLength  uint32
-	keyLength   uint32
+// hashPasswordUncached hashes a password with the same algorithm as the
+// auth service, using the cheap test-only params: these are throwaway test
+// credentials, and the params travel inside the encoded hash, so
+// verification still works.
+func hashPasswordUncached(password string) (string, error) {
+	return userpass.HashPassword(password, cheapArgon2Params)
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.

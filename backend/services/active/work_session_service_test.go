@@ -1995,3 +1995,41 @@ func TestWSUpdateSession_CannotEditActiveBreak(t *testing.T) {
 func wsStrPtr(s string) *string {
 	return &s
 }
+
+// Generic query helper stubs (interface additions for the issue #585
+// cleanup refactor) — unused by these tests.
+func (m *wsMockWorkSessionRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *wsMockWorkSessionRepository) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (m *wsMockWorkSessionRepository) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
+	return nil, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) FindStaleOpen(context.Context, timezone.Date) ([]*activeModels.GroupSupervisor, error) {
+	return nil, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) UpdateColumns(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
+	return 0, nil
+}

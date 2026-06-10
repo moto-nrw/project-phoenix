@@ -128,6 +128,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	_, _ = db.ExecContext(context.Background(),
 		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
 
+	// Spread PK sequences into disjoint per-table ranges so fixture IDs from
+	// different tables never collide numerically (see sequence_offsets.go).
+	applySequenceOffsets(t, db)
+
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// All fixtures use tenant_id=1, which requires a FK target row.
 	EnsureTestTenant(t, db, 1)

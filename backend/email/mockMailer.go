@@ -1,11 +1,16 @@
 package email
 
-import "log/slog"
+import (
+	"log/slog"
+	"sync/atomic"
+)
 
 // MockMailer is a mock Mailer
 type MockMailer struct {
-	SendFn      func(m Message) error
-	SendInvoked bool
+	SendFn func(m Message) error
+	// SendInvoked is atomic because Dispatcher delivers each message on its
+	// own goroutine; flows that send several emails write this concurrently.
+	SendInvoked atomic.Bool
 }
 
 func logMessage(m Message) {
@@ -26,6 +31,6 @@ func NewMockMailer() *MockMailer {
 }
 
 func (s *MockMailer) Send(m Message) error {
-	s.SendInvoked = true
+	s.SendInvoked.Store(true)
 	return s.SendFn(m)
 }

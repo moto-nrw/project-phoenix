@@ -6,11 +6,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // GroupRepository defines operations for managing active groups
 type GroupRepository interface {
 	base.Repository[*Group]
+
+	// CountWithOptions is the generic filtered count promoted from the
+	// embedded base repository.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
@@ -101,6 +106,10 @@ type VisitRepository interface {
 	// FindActiveByStudentID finds all active visits for a specific student
 	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
 
+	// GetCurrentRoomNamesForStudents returns the room name of each student's
+	// current open visit; students without one are absent from the map.
+	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+
 	// FindByActiveGroupID finds all visits for a specific active group
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
 
@@ -135,6 +144,14 @@ type VisitRepository interface {
 
 	// CountExpiredVisits counts visits that are older than retention period for all students
 	CountExpiredVisits(ctx context.Context) (int64, error)
+
+	// OldestExpiredVisitDate returns the created_at of the oldest visit past
+	// its per-student retention window, or nil when no visit is expired.
+	OldestExpiredVisitDate(ctx context.Context) (*time.Time, error)
+
+	// ExpiredVisitMonthlyCounts groups expired visits by calendar month of
+	// created_at, keyed YYYY-MM. Feeds the GDPR retention statistics.
+	ExpiredVisitMonthlyCounts(ctx context.Context) (map[string]int64, error)
 
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
@@ -177,6 +194,10 @@ type VisitRepository interface {
 type GroupSupervisorRepository interface {
 	base.Repository[*GroupSupervisor]
 
+	// ListActiveSupervisionBlockers returns still-open supervisions as
+	// caregiver-capability blocker rows.
+	ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSupervision, error)
+
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
@@ -216,6 +237,16 @@ type GroupSupervisorRepository interface {
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.
 	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
+
+	// FindStaleOpen returns supervisor rows started before the given day that
+	// still lack an end_date. Feeds the nightly stale-supervisor cleanup and
+	// its preview.
+	FindStaleOpen(ctx context.Context, before timezone.Date) ([]*GroupSupervisor, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key and returns the number of rows affected.
+	UpdateColumns(ctx context.Context, supervisor *GroupSupervisor, columns ...string) (int64, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups
@@ -281,6 +312,12 @@ type WorkSessionRepository interface {
 
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }
 
 // StaffAbsenceRepository defines operations for managing staff absences
@@ -305,6 +342,12 @@ type StaffAbsenceRepository interface {
 
 	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
 	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }
 
 type StaffAbsenceAuditRepository interface {

@@ -236,10 +236,10 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "Ender")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "broadcast-end")
 	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, session.ID, "supervisor")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, session.ID, "supervisor")
 	student := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchEnd", "2a")
 	visit := testpkg.CreateTestVisit(t, db, student.ID, session.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID, staff.ID, activityGroup.ID, session.ID, supervisor.ID, student.ID, visit.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, room.ID, staff.ID, activityGroup.ID, session.ID, student.ID, visit.ID)
 
 	broadcaster.mu.Lock()
 	broadcaster.allCalls = nil

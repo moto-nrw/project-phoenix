@@ -1175,18 +1175,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	today := timezone.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
-	var staleRecords []struct {
-		ID        int64         `bun:"id"`
-		StartDate timezone.Date `bun:"start_date"`
-	}
-
-	err := s.db.NewSelect().
-		Table("active.group_supervisors").
-		Column("id", "start_date").
-		Where("start_date < ?", today).
-		Where("end_date IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to find orphaned supervisors: %v", err)
 		result.Errors = append(result.Errors, errMsg)
@@ -1196,14 +1185,11 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 
 	for _, record := range staleRecords {
 		// end_date is a DATE column, so set it to the start_date itself
-		_, err := s.db.NewUpdate().
-			Table("active.group_supervisors").
-			Set("end_date = ?", record.StartDate).
-			Set("updated_at = ?", time.Now()).
-			Where("id = ?", record.ID).
-			Exec(ctx)
+		endDate := record.StartDate
 
-		if err != nil {
+		record.EndDate = &endDate
+		record.UpdatedAt = time.Now()
+		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false

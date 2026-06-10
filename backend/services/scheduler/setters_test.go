@@ -631,3 +631,29 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 	val := s.resolveIntSetting(context.Background(), "some.key", "NEVER_SET_EEE", 11)
 	assert.Equal(t, 11, val)
 }
+
+// Stubs for the issue #585 cleanup refactor interface additions — unused by
+// the setter tests.
+func (f *fakeInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
+}

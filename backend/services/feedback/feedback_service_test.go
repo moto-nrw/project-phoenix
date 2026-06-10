@@ -21,7 +21,7 @@ func setupFeedbackService(t *testing.T, db *bun.DB) feedbackSvc.Service {
 
 	repoFactory := repositories.NewFactory(db)
 
-	return feedbackSvc.NewService(repoFactory.FeedbackEntry, db)
+	return feedbackSvc.NewService(repoFactory.FeedbackEntry)
 }
 
 // ============================================================================

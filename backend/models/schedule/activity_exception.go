@@ -136,4 +136,10 @@ type ActivityExceptionRepository interface {
 	// inclusive range. Used by the materialization service to apply exceptions
 	// efficiently for an entire week.
 	FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityException, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the timetable retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }

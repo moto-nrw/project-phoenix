@@ -158,8 +158,8 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const handleWithdraw = async (childID?: string) => {
     if (!status) return;
     const confirmMessage = childID
-      ? "Möchtest du diese Anmeldung wirklich zurückziehen?"
-      : "Möchtest du die gesamte Anmeldung zurückziehen?";
+      ? "Möchten Sie diese Anmeldung wirklich zurückziehen?"
+      : "Möchten Sie die gesamte Anmeldung zurückziehen?";
     if (!window.confirm(confirmMessage)) return;
     setWithdrawingChild(childID ?? "__all__");
     setError(null);
@@ -559,7 +559,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         {!allEditable && !editing && (
           <p className="text-sm text-gray-500">
             Änderungen sind nur möglich, solange noch keine Entscheidung
-            getroffen wurde. Für Änderungen wende dich bitte an die OGS.
+            getroffen wurde. Für Änderungen wenden Sie sich bitte an die OGS.
           </p>
         )}
       </section>

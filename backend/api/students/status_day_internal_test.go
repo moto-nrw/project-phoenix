@@ -596,3 +596,12 @@ func executeStatusDayHandler(router chi.Router, req *http.Request, claims jwt.Ap
 	router.ServeHTTP(rr, req)
 	return rr
 }
+
+// Stubs for the issue #585 refactor interface additions — unused here.
+func (r *fakeStatusDayRepo) ArchiveAndClearStatusFlag(context.Context, string, string, string, timezone.Date, time.Time, string) (int64, error) {
+	return 0, nil
+}
+
+func (r *fakeStatusDayRepo) CountActiveClassTripStudents(context.Context, timezone.Date) (int, error) {
+	return 0, nil
+}

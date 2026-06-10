@@ -149,6 +149,33 @@ func (r *PrivacyConsentRepository) FindNeedingRenewal(ctx context.Context) ([]*u
 	return consents, nil
 }
 
+// ListAcceptedRetentionSettings returns the distinct (student_id,
+// data_retention_days) pairs of accepted privacy consents, ordered by
+// student_id. Custom method: the DISTINCT projection is not expressible via
+// the generic List shape. Feeds the GDPR visit-cleanup worklist.
+func (r *PrivacyConsentRepository) ListAcceptedRetentionSettings(ctx context.Context) ([]users.StudentRetentionSetting, error) {
+	var settings []users.StudentRetentionSetting
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.privacy_consents AS "privacy_consent"`).
+		ColumnExpr(`DISTINCT "privacy_consent".student_id, "privacy_consent".data_retention_days`).
+		Where(`"privacy_consent".accepted = TRUE`).
+		OrderExpr(`"privacy_consent".student_id`)
+
+	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &settings); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list accepted retention settings",
+			Err: err,
+		}
+	}
+
+	return settings, nil
+}
+
 // Accept marks a privacy consent as accepted
 func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, acceptedAt time.Time) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().

@@ -4,9 +4,7 @@ import (
 	"context"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -94,22 +92,8 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 }
 
 func (s *service) countClassTripStudentsForDate(ctx context.Context, date timezone.Date) (int, error) {
-	if s.db == nil {
+	if s.studentStatusRepo == nil {
 		return 0, nil
 	}
-	var count int
-	query := repoBase.GetDB(ctx, s.db).NewSelect().
-		TableExpr(`active.student_status_days AS "student_status_day"`).
-		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
-		Where(`"student_status_day".date = ?`, date).
-		Where(`"student_status_day".status = ?`, activeModel.StudentStatusDayClassTrip).
-		Where(`"student_status_day".cleared_at IS NULL`).
-		Where(`COALESCE("student".sick, FALSE) = FALSE`).
-		Where(`COALESCE("student".excused, FALSE) = FALSE`).
-		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`)
-	if where, val, ok := repoBase.TenantWhere(ctx, "student_status_day"); ok {
-		query = query.Where(where, val)
-	}
-	err := query.Scan(ctx, &count)
-	return count, err
+	return s.studentStatusRepo.CountActiveClassTripStudents(ctx, date)
 }

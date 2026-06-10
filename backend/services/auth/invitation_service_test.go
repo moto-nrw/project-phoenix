@@ -442,7 +442,11 @@ func TestResendInvitationSendsEmail(t *testing.T) {
 		return updated.EmailSentAt != nil && updated.EmailError == nil && updated.EmailRetryCount == 1 &&
 			mock.ExpectationsWereMet() == nil
 	}, 2*time.Second, 10*time.Millisecond)
-	require.True(t, token.UpdatedAt.After(time.Now().Add(-30*time.Second)), "updated_at should be refreshed")
+	// Re-read from the repo: FindByID returns a copy (like a real repo), so
+	// the local token variable no longer aliases the stored row.
+	refreshed, err := invitations.FindByID(ctx, token.ID)
+	require.NoError(t, err)
+	require.True(t, refreshed.UpdatedAt.After(time.Now().Add(-30*time.Second)), "updated_at should be refreshed")
 }
 
 func TestResendInvitationExpired(t *testing.T) {

@@ -29,6 +29,8 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	repoFactory := repositories.NewFactory(db)
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
+		repoFactory.Attendance,
+		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
@@ -49,6 +51,8 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	require.NoError(t, err, "Failed to create service factory")
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
+		repoFactory.Attendance,
+		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
@@ -490,7 +494,7 @@ func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 }
 
 func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
-	oldestRecord := time.Now().Add(-24 * time.Hour)
+	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.SupervisorCleanupPreview{
 		TotalRecords: 15,
 		StaffRecords: map[int64]int{1: 10, 2: 5},
@@ -526,7 +530,7 @@ func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 }
 
 func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
-	oldestDate := time.Now().Add(-48 * time.Hour)
+	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
 		CompletedAt:      time.Now().Add(time.Second),

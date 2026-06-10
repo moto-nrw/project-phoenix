@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -76,7 +77,9 @@ func (s *stubSettingsService) ClearLoginImageURL(context.Context, int64) (string
 // buildSvc wires a TimetableCleanupService with the given settings stub.
 func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.TimetableCleanupService {
 	return scheduleSvc.NewTimetableCleanupService(
-		db,
+		scheduleRepoPkg.NewActivityInstanceRepository(db),
+		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
 		settings,
 		slog.Default(),
@@ -268,7 +271,14 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 	f.attachStudent(t, instID, stud.ID, nil)
 
 	// Build service with nil audit repo.
-	svc := scheduleSvc.NewTimetableCleanupService(f.db, nil, nil, slog.Default())
+	svc := scheduleSvc.NewTimetableCleanupService(
+		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
+		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		nil,
+		nil,
+		slog.Default(),
+	)
 
 	_, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.Error(t, err)
@@ -288,7 +298,9 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	// Pass nil logger — constructor must substitute slog.Default() so calls
 	// inside the service do not panic.
 	svc := scheduleSvc.NewTimetableCleanupService(
-		db,
+		scheduleRepoPkg.NewActivityInstanceRepository(db),
+		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
 		nil,
 		nil,

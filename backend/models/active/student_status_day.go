@@ -80,6 +80,15 @@ func (s *StudentStatusDay) TableName() string       { return tableActiveStudentS
 
 type StudentStatusDayRepository interface {
 	UpsertReported(ctx context.Context, entry *StudentStatusDay) error
+	// ArchiveAndClearStatusFlag archives a legacy boolean student flag into
+	// student_status_days for the date and clears the flag on
+	// users.students. Returns the number of students cleared. Column names
+	// must be trusted constants, never user input.
+	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date timezone.Date, reportedFallback time.Time, source string) (int64, error)
+	// CountActiveClassTripStudents counts distinct students with an
+	// uncleared class-trip entry for the date, excluding currently
+	// sick/excused students. Used by the dashboard analytics.
+	CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error)
 	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
 	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
 	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error

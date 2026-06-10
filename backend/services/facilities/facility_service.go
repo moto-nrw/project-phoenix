@@ -10,12 +10,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
@@ -30,7 +28,6 @@ const (
 type service struct {
 	roomRepo        facilities.RoomRepository
 	activeGroupRepo active.GroupRepository
-	db              *bun.DB
 }
 
 // wcRoomAliasNames lists the accepted canonical toilet-room aliases in
@@ -45,11 +42,10 @@ type service struct {
 var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasName}
 
 // NewService creates a new facilities service
-func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository, db *bun.DB) Service {
+func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository) Service {
 	return &service{
 		roomRepo:        roomRepo,
 		activeGroupRepo: activeGroupRepo,
-		db:              db,
 	}
 }
 
@@ -64,72 +60,7 @@ func (s *service) GetRoom(ctx context.Context, id int64) (*facilities.Room, erro
 
 // GetRoomWithOccupancy retrieves a room by its ID with occupancy status
 func (s *service) GetRoomWithOccupancy(ctx context.Context, id int64) (RoomWithOccupancy, error) {
-	// Define result structure for scanning
-	type roomQueryResult struct {
-		// Room fields
-		ID        int64     `bun:"id"`
-		Name      string    `bun:"name"`
-		Building  string    `bun:"building"`
-		Floor     *int      `bun:"floor"`
-		Capacity  *int      `bun:"capacity"`
-		Category  *string   `bun:"category"`
-		Color     *string   `bun:"color"`
-		CreatedAt time.Time `bun:"created_at"`
-		UpdatedAt time.Time `bun:"updated_at"`
-
-		// Occupancy fields
-		IsOccupied      bool    `bun:"is_occupied"`
-		GroupName       *string `bun:"group_name"`
-		CategoryName    *string `bun:"category_name"`
-		StudentCount    int     `bun:"student_count"`
-		SupervisorNames *string `bun:"supervisor_names"`
-	}
-
-	// Aggregate occupancy across ALL active groups in the room (not a single
-	// arbitrary one). The "Kinder im Raum" view in the room detail modal
-	// (#1374) unions visits from every active group in the room, so the
-	// header summary has to follow the same union — otherwise the header
-	// can read "1 Gruppe / 4 Kinder" while the section below lists 8.
-	// Rooms that legitimately host concurrent groups (Schulhof Freispiel +
-	// Garten, Sporthalle combined groups) make this visibly contradictory.
-	var result roomQueryResult
-	err := repoBase.GetDB(ctx, s.db).NewSelect().
-		TableExpr("facilities.rooms AS r").
-		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr(`EXISTS (
-			SELECT 1 FROM active.groups ag
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS is_occupied`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT act_group.name, ', ' ORDER BY act_group.name)
-			FROM active.groups ag
-			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS group_name`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT cat.name, ', ' ORDER BY cat.name)
-			FROM active.groups ag
-			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
-			INNER JOIN activities.categories cat ON cat.id = act_group.category_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS category_name`).
-		ColumnExpr(`COALESCE((
-			SELECT COUNT(DISTINCT v.student_id)
-			FROM active.visits v
-			INNER JOIN active.groups ag ON ag.id = v.active_group_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
-		), 0)::int AS student_count`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
-			FROM active.group_supervisors gs
-			INNER JOIN active.groups ag ON ag.id = gs.group_id
-			INNER JOIN users.staff st ON st.id = gs.staff_id
-			INNER JOIN users.persons p ON p.id = st.person_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
-		) AS supervisor_names`).
-		Where("r.id = ?", id).
-		Scan(ctx, &result)
-
+	result, err := s.roomRepo.FindWithOccupancy(ctx, id)
 	if err != nil {
 		// Only treat "no rows" as "room not found" - preserve other database errors
 		if errors.Is(err, sql.ErrNoRows) {
@@ -433,77 +364,8 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 
 // ListRooms retrieves all rooms with occupancy status
 func (s *service) ListRooms(ctx context.Context, options *base.QueryOptions) ([]RoomWithOccupancy, error) {
-	// Define result structure for scanning
-	type roomQueryResult struct {
-		// Room fields
-		ID        int64     `bun:"id"`
-		Name      string    `bun:"name"`
-		Building  string    `bun:"building"`
-		Floor     *int      `bun:"floor"`
-		Capacity  *int      `bun:"capacity"`
-		Category  *string   `bun:"category"`
-		Color     *string   `bun:"color"`
-		CreatedAt time.Time `bun:"created_at"`
-		UpdatedAt time.Time `bun:"updated_at"`
-
-		// Occupancy fields
-		IsOccupied      bool    `bun:"is_occupied"`
-		GroupName       *string `bun:"group_name"`
-		CategoryName    *string `bun:"category_name"`
-		StudentCount    int     `bun:"student_count"`
-		SupervisorNames *string `bun:"supervisor_names"`
-	}
-
-	// Aggregate occupancy across ALL active groups in each room (not a
-	// single arbitrary one). See GetRoomWithOccupancy above for the
-	// motivation — same query shape so the list and detail surfaces stay
-	// consistent for multi-group rooms (#1374).
-	query := repoBase.GetDB(ctx, s.db).NewSelect().
-		TableExpr("facilities.rooms AS r").
-		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
-		ColumnExpr(`EXISTS (
-			SELECT 1 FROM active.groups ag
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS is_occupied`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT act_group.name, ', ' ORDER BY act_group.name)
-			FROM active.groups ag
-			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS group_name`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT cat.name, ', ' ORDER BY cat.name)
-			FROM active.groups ag
-			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
-			INNER JOIN activities.categories cat ON cat.id = act_group.category_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL
-		) AS category_name`).
-		ColumnExpr(`COALESCE((
-			SELECT COUNT(DISTINCT v.student_id)
-			FROM active.visits v
-			INNER JOIN active.groups ag ON ag.id = v.active_group_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
-		), 0)::int AS student_count`).
-		ColumnExpr(`(
-			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
-			FROM active.group_supervisors gs
-			INNER JOIN active.groups ag ON ag.id = gs.group_id
-			INNER JOIN users.staff st ON st.id = gs.staff_id
-			INNER JOIN users.persons p ON p.id = st.person_id
-			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
-		) AS supervisor_names`).
-		OrderExpr("r.name ASC")
-
-	// Apply filters if provided
-	if options != nil && options.Filter != nil {
-		// Set table alias for the filter and apply to query
-		options.Filter.WithTableAlias("r")
-		query = options.Filter.ApplyToQuery(query)
-	}
-
-	// Execute query
-	var results []roomQueryResult
-	if err := query.Scan(ctx, &results); err != nil {
+	results, err := s.roomRepo.ListWithOccupancy(ctx, options)
+	if err != nil {
 		// sql.ErrNoRows for list queries should return empty array, not error
 		if errors.Is(err, sql.ErrNoRows) {
 			return []RoomWithOccupancy{}, nil

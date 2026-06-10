@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // GroupRepository defines operations for managing education groups
@@ -33,11 +34,17 @@ type GroupTeacherRepository interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupTeacher, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*GroupTeacher, error)
+	// ListGroupTeacherBlockers returns group assignments as
+	// caregiver-capability blocker rows.
+	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]users.BlockerGroup, error)
 }
 
 // GroupSubstitutionRepository defines operations for managing group substitutions
 type GroupSubstitutionRepository interface {
 	Create(ctx context.Context, substitution *GroupSubstitution) error
+	// ListActiveSubstitutionBlockers returns current/upcoming substitutions
+	// as caregiver-capability blocker rows.
+	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error)
 	FindByID(ctx context.Context, id interface{}) (*GroupSubstitution, error)
 	Update(ctx context.Context, substitution *GroupSubstitution) error
 	Delete(ctx context.Context, id interface{}) error

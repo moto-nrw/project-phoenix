@@ -601,3 +601,30 @@ func (r *GroupSubstitutionRepository) FindActiveByGroupWithRelations(ctx context
 
 	return r.ListWithRelations(ctx, options)
 }
+
+// ListActiveSubstitutionBlockers returns the staff member's current or
+// upcoming substitutions (as substitute or regular) as caregiver-capability
+// blocker rows. Custom raw-SQL method (backend-conventions Rule 2):
+// role CASE projection into the users blocker read model.
+func (r *GroupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error) {
+	var results []users.BlockerSubstitution
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       CASE WHEN gs.substitute_staff_id = ? THEN 'substitute' ELSE 'regular' END AS role,
+		       gs.start_date::text AS start_date,
+		       gs.end_date::text AS end_date
+		FROM education.group_substitution AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
+		WHERE gs.tenant_id = ?
+		  AND (gs.substitute_staff_id = ? OR gs.regular_staff_id = ?)
+		  AND gs.end_date >= CURRENT_DATE
+		ORDER BY gs.start_date DESC
+	`, staffID, tenantID, staffID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active substitution blockers",
+			Err: err,
+		}
+	}
+	return results, nil
+}

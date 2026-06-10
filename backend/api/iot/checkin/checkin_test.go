@@ -587,7 +587,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 
 		// Pre-assign staff as supervisor BEFORE scanning
 		sup := testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, ctx.db, sup.ID)
+		defer testpkg.CleanupTableRecords(t, ctx.db, "active.group_supervisors", sup.ID)
 
 		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())

@@ -404,16 +404,16 @@ A service may hold `*bun.DB` for two reasons:
 
 Calling repo methods inside `RunInTx` is the correct pattern. Constructing queries inside a service — even via `repoBase.GetDB(ctx, s.db).NewSelect(...)` — is not.
 
-### Forbidden (real examples in the codebase today)
+### Forbidden (real examples that used to live in the codebase — since refactored)
 
 ```go
-// services/active/session_service.go:1096 — service issues direct SELECT
+// formerly services/active/session_service.go — service issues direct SELECT
 err := s.db.NewSelect().Model(&groups).Where(...).Scan(ctx)
 
-// services/active/cleanup_service.go:181 — raw SQL in service
+// formerly services/active/cleanup_service.go — raw SQL in service
 err = s.db.NewRaw("DELETE FROM ... WHERE ...").Scan(ctx)
 
-// services/facilities/facility_service.go:77 — query constructed via tenant helper
+// formerly services/facilities/facility_service.go — query constructed via tenant helper
 err := repoBase.GetDB(ctx, s.db).NewSelect().Model(&rooms).Where(...).Scan(ctx)
 ```
 
@@ -436,11 +436,11 @@ Cross-repo / cross-schema cleanup operations that genuinely don't fit a single r
 
 ### Detection
 
+This rule is CI-enforced by `backend/test/architecture_ratchet_test.go` (`TestServiceRepositoryRatchet`). Its `serviceQueryRatchetAllowlist` is the source of truth for the tolerated remainder: a shrink-only, per-file count covering exclusively transaction-control statements (SAVEPOINT triplets, `pg_advisory_xact_lock`, `LOCK TABLE`) — transaction orchestration is legitimately service-layer. Any new query-construction site in `services/` fails the test; allowlist numbers may only ever go down. For a quick manual sweep:
+
 ```bash
 rg --type go -g '!*_test.go' '\.(NewSelect|NewUpdate|NewInsert|NewDelete|NewRaw)\(' backend/services/
 ```
-
-Today returns ~50 hits across ~15 service files (the worst offenders: `services/active/cleanup_service.go` with 10, `services/schedule/timetable_cleanup_service.go` and `services/platform/operator_provisioning_service.go` with 8 each). New code MUST NOT add to this count.
 
 ### Why
 
