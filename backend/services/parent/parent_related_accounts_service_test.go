@@ -210,3 +210,58 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 		assert.False(t, flags.RelatedAccountsRemoveEnabled)
 	})
 }
+
+// erroringSettings makes every resolve fail, to exercise the parent service's
+// error-wrapping branches.
+type erroringSettings struct{ configService.SettingsService }
+
+func (erroringSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
+	return "", errors.New("settings unavailable")
+}
+func (erroringSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
+	return false, errors.New("settings unavailable")
+}
+
+func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsService) (parentService.Service, *bun.DB) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		NoteRepo:            repos.StudentParentNote,
+		Settings:            settings,
+		GuardianInvites:     &stubInvites{},
+		StudentGuardianRepo: repos.StudentGuardian,
+		GuardianProfileRepo: repos.GuardianProfile,
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+	return svc, db
+}
+
+func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
+	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, parentService.ErrEmailRequired))
+	assert.Nil(t, invites.lastInvite)
+}
+
+func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
+	svc, db := buildRelAcctServiceWith(t, erroringSettings{})
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "x@example.test", "", "")
+	require.Error(t, err, "invite-mode resolve failure must surface")
+
+	err = svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	require.Error(t, err, "can-remove resolve failure must surface")
+}

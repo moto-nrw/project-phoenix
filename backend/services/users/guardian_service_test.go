@@ -2241,3 +2241,54 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 		assert.Nil(t, result)
 	})
 }
+
+func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(db)
+	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
+
+	cases := []struct {
+		name   string
+		mutate func(*authModels.GuardianInvitation)
+	}{
+		{"accepted", func(i *authModels.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
+		{"expired", func(i *authModels.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
+		{"rejected", func(i *authModels.GuardianInvitation) {
+			i.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
+			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
+			defer func() {
+				_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(ctx)
+				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
+			}()
+
+			_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+			})
+			require.NoError(t, err)
+
+			inv := &authModels.GuardianInvitation{
+				Token:             fmt.Sprintf("state-%s-%d", c.name, time.Now().UnixNano()),
+				GuardianProfileID: guardian.ID,
+				CreatedBy:         inviter.ID,
+				ExpiresAt:         time.Now().Add(48 * time.Hour),
+				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+			}
+			c.mutate(inv)
+			inv.SetTenantID(1)
+			require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+
+			res, err := service.GetStudentGuardians(ctx, student.ID)
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			assert.False(t, res[0].InvitationPending, c.name+" invitation must not count as pending")
+		})
+	}
+}
