@@ -129,7 +129,7 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
 ] as const;
 
 /** German labels for the three departure modes (shown in forms and badges). */
-export const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
+const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht alleine",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",

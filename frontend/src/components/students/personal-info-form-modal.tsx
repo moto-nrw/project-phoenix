@@ -11,6 +11,7 @@ import {
   normalizeDepartureDays,
   departureToBusDays,
   departureToPickupDays,
+  departureDaysFromLegacy,
 } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -121,7 +122,13 @@ export function PersonalInfoFormModal({
           onChange={(value) => updateField("birthday", value)}
         />
         <DepartureSection
-          days={editedStudent.departure_days}
+          days={
+            editedStudent.departure_days ??
+            departureDaysFromLegacy(
+              editedStudent.bus_days,
+              editedStudent.pickup_days,
+            )
+          }
           onChange={(value) => {
             const departure = normalizeDepartureDays(value);
             const busDays = departureToBusDays(departure);
