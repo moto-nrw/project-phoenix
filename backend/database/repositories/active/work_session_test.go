@@ -28,7 +28,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("creates work session with valid data", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -45,7 +45,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates work session with home office status", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -69,7 +69,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -98,7 +98,7 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("finds existing session by staff and date", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -117,7 +117,7 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("returns error for non-existent session", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		_, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
 		require.Error(t, err)
 	})
@@ -134,7 +134,7 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("finds active session for staff today", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -158,7 +158,7 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 	})
 
 	t.Run("ignores checked-out sessions", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		checkOutTime := time.Now()
 		session := &active.WorkSession{
 			StaffID:      staff.ID,
@@ -188,9 +188,9 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("returns sessions in date range", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		yesterday := today.AddDate(0, 0, -1)
-		twoDaysAgo := today.AddDate(0, 0, -2)
+		today := timezone.TodayDate()
+		yesterday := today.AddDays(-1)
+		twoDaysAgo := today.AddDays(-2)
 
 		// Create sessions across multiple days
 		session1 := &active.WorkSession{
@@ -223,7 +223,7 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 	})
 
 	t.Run("returns empty for date range with no sessions", func(t *testing.T) {
-		futureDate := timezone.DateOfUTC(time.Now().AddDate(1, 0, 0))
+		futureDate := timezone.TodayDate().AddDays(365)
 		history, err := repo.GetHistoryByStaffID(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
 		assert.Empty(t, history)
@@ -241,7 +241,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("finds sessions without check-out before date", func(t *testing.T) {
-		yesterday := timezone.DateOfUTC(time.Now().AddDate(0, 0, -1))
+		yesterday := timezone.TodayDate().AddDays(-1)
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        yesterday,
@@ -253,7 +253,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
-		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayUTC())
+		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayDate())
 		require.NoError(t, err)
 		assert.NotEmpty(t, openSessions)
 
@@ -268,7 +268,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 	})
 
 	t.Run("excludes sessions with check-out time", func(t *testing.T) {
-		yesterday := timezone.DateOfUTC(time.Now().AddDate(0, 0, -1))
+		yesterday := timezone.TodayDate().AddDays(-1)
 		checkOutTime := time.Now().AddDate(0, 0, -1).Add(4 * time.Hour)
 		session := &active.WorkSession{
 			StaffID:      staff.ID,
@@ -282,7 +282,7 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
-		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayUTC())
+		openSessions, err := repo.GetOpenSessions(ctx, timezone.TodayDate())
 		require.NoError(t, err)
 
 		for _, s := range openSessions {
@@ -306,7 +306,7 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 	}()
 
 	t.Run("returns presence map for today", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 
 		// Active session
 		session1 := &active.WorkSession{
@@ -355,7 +355,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("lists all work sessions", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -373,7 +373,7 @@ func TestWorkSessionRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with query options", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -409,7 +409,7 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("updates break minutes", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:      staff.ID,
 			Date:         today,
@@ -442,7 +442,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("closes session with check-out time", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -465,7 +465,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	})
 
 	t.Run("closes session with auto-checkout flag", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -488,7 +488,7 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 	})
 
 	t.Run("does not close already closed session", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		firstCheckOut := time.Now()
 		session := &active.WorkSession{
 			StaffID:      staff.ID,

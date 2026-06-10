@@ -37,7 +37,7 @@ type ArrivalScheduleService interface {
 	// Note operations
 	GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*schedule.StudentArrivalNote, error)
 	GetStudentArrivalNotes(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalNote, error)
-	GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentArrivalNote, error)
+	GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentArrivalNote, error)
 	CreateStudentArrivalNote(ctx context.Context, note *schedule.StudentArrivalNote) error
 	UpdateStudentArrivalNote(ctx context.Context, note *schedule.StudentArrivalNote) error
 	DeleteStudentArrivalNote(ctx context.Context, noteID int64) error
@@ -45,8 +45,8 @@ type ArrivalScheduleService interface {
 
 	// Computed operations
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
-	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectiveArrivalTime, error)
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error)
+	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 
 	// Bulk class operation
 	BulkUpsertBySchoolClass(ctx context.Context, schoolClass string, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
@@ -67,7 +67,7 @@ type ArrivalNoteData struct {
 
 // EffectiveArrivalTime represents the arrival time for a specific date
 type EffectiveArrivalTime struct {
-	Date        time.Time         `json:"date"`
+	Date        timezone.Date     `json:"date"`
 	ArrivalTime *time.Time        `json:"arrival_time"`
 	WeekdayName string            `json:"weekday_name"`
 	IsException bool              `json:"is_exception"`
@@ -333,7 +333,7 @@ func (s *arrivalScheduleService) GetStudentArrivalNotes(ctx context.Context, stu
 }
 
 // GetStudentArrivalNotesForDate returns arrival notes for a student on a specific date
-func (s *arrivalScheduleService) GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentArrivalNote, error) {
+func (s *arrivalScheduleService) GetStudentArrivalNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentArrivalNote, error) {
 	notes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student arrival notes for date", Err: err}
@@ -410,9 +410,8 @@ func (s *arrivalScheduleService) GetStudentArrivalData(ctx context.Context, stud
 }
 
 // GetEffectiveArrivalTimeForDate calculates the effective arrival time for a specific date
-func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectiveArrivalTime, error) {
-	dateOnly := timezone.DateOf(date)
-	weekday := int(dateOnly.Weekday())
+func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error) {
+	weekday := int(date.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
 	if weekday == 0 {
@@ -420,7 +419,7 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Cont
 	}
 
 	result := &EffectiveArrivalTime{
-		Date:        dateOnly,
+		Date:        date,
 		WeekdayName: schedule.WeekdayNames[weekday],
 	}
 
@@ -430,7 +429,7 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Cont
 	}
 
 	// Check for exception on this date first
-	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
+	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
 	}
@@ -461,7 +460,7 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Cont
 	}
 
 	// Load day notes
-	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
+	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetEffectiveArrivalTime, Err: err}
 	}
@@ -474,13 +473,12 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(ctx context.Cont
 
 // GetBulkEffectiveArrivalTimesForDate calculates effective arrival times for multiple students on a given date
 // Uses bulk database queries for optimal performance (O(3) queries instead of O(N))
-func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error) {
+func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error) {
 	if len(studentIDs) == 0 {
 		return make(map[int64]*EffectiveArrivalTime), nil
 	}
 
-	dateOnly := timezone.DateOf(date)
-	weekday := int(dateOnly.Weekday())
+	weekday := int(date.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
 	if weekday == 0 {
@@ -492,7 +490,7 @@ func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context
 	// Initialize results for all students
 	for _, studentID := range studentIDs {
 		result[studentID] = &EffectiveArrivalTime{
-			Date:        dateOnly,
+			Date:        date,
 			WeekdayName: schedule.WeekdayNames[weekday],
 		}
 	}
@@ -503,7 +501,7 @@ func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context
 	}
 
 	// Bulk fetch all exceptions for the given date (single query)
-	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
+	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetBulkEffectiveArrivalTimes, Err: err}
 	}
@@ -527,7 +525,7 @@ func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(ctx context
 	}
 
 	// Bulk fetch all notes for the given date (single query)
-	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
+	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetBulkEffectiveArrivalTimes, Err: err}
 	}

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -18,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -196,7 +196,7 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 	if req.RotationAnchorDate == "" {
 		return nil, nil, errors.New("rotation_anchor_date is required")
 	}
-	anchor, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+	anchor, err := timezone.ParseDate(req.RotationAnchorDate)
 	if err != nil {
 		return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 	}
@@ -249,7 +249,7 @@ func toResponse(m *config.WorkTimeModel) ModelResponse {
 		ID:                 m.ID,
 		Name:               m.Name,
 		RotationLength:     m.RotationLength,
-		RotationAnchorDate: m.RotationAnchorDate.Format("2006-01-02"),
+		RotationAnchorDate: m.RotationAnchorDate.String(),
 		Entries:            entries,
 		WeeklyTotals:       totals,
 	}

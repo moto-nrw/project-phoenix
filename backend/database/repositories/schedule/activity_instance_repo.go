@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -181,7 +182,7 @@ func (r *ActivityInstanceRepository) List(ctx context.Context, options *modelBas
 }
 
 // FindByTenantAndDate returns instances for the current tenant on a given date.
-func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date time.Time) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -204,7 +205,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 }
 
 // FindByTenantAndDateRange returns instances within an inclusive date range.
-func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to time.Time) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -228,7 +229,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Contex
 }
 
 // FindByActivityGroupAndDate returns instances for a template on a given date.
-func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date time.Time) ([]*schedule.ActivityInstance, error) {
+func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&instances).
@@ -326,7 +327,7 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 // instance_staff / instance_students children (declared at DDL level).
 // Custom method (backend-conventions Rule 2): multi-predicate lifecycle
 // delete for the ReplanWeek admin action.
-func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to time.Time) (int64, error) {
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to timezone.Date) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).

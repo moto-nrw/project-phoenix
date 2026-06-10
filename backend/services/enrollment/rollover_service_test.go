@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -88,8 +89,8 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	sourcePhase := &enrollmentModels.Phase{
 		Name:             "rollover-source-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     &schema.ID,
@@ -174,7 +175,7 @@ func seedApprovedChild(t *testing.T, env *rolloverTestEnv, phaseID int64, guardi
 			{
 				FirstName:        childFirst,
 				LastName:         childLast,
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
 			},
 		},
@@ -210,8 +211,8 @@ func validRolloverRequest(env *rolloverTestEnv, mode string, bumpsGrade bool) en
 		SourcePhaseID:      env.sourcePhase.ID,
 		Name:               "rollover-target-" + mode,
 		Kind:               enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:   time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:     time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate:   timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:     timezone.NewDate(2028, 7, 31),
 		RolloverMode:       mode,
 		RolloverDeadline:   time.Date(2027, 8, 15, 0, 0, 0, 0, time.UTC),
 		RolloverBumpsGrade: bumpsGrade,
@@ -324,7 +325,7 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 			{
 				FirstName:        "Lina",
 				LastName:         "Beispiel",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(1),
 			},
 		},
@@ -385,7 +386,7 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 		GuardianEmail:     "withdrawn@example.com",
 		ConsentFlags:      rolloverConsentFlags(),
 		Children: []enrollmentService.SubmitChild{
-			{FirstName: "Max", LastName: "Withdrawn", DateOfBirth: time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC), TargetGradeLevel: &one},
+			{FirstName: "Max", LastName: "Withdrawn", DateOfBirth: timezone.NewDate(2018, 4, 15), TargetGradeLevel: &one},
 		},
 	})
 	require.NoError(t, err)

@@ -4,21 +4,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 )
 
 func TestSubstitutionIsActive(t *testing.T) {
-	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	yesterday := now.AddDate(0, 0, -1)
-	tomorrow := now.AddDate(0, 0, 1)
-	dayAfterTomorrow := now.AddDate(0, 0, 2)
-	lastWeek := now.AddDate(0, 0, -7)
-	nextWeek := now.AddDate(0, 0, 7)
+	now := timezone.NewDate(2026, 6, 9)
+	yesterday := now.AddDays(-1)
+	tomorrow := now.AddDays(1)
+	dayAfterTomorrow := now.AddDays(2)
+	lastWeek := now.AddDays(-7)
+	nextWeek := now.AddDays(7)
 
 	tests := []struct {
 		name         string
 		substitution education.GroupSubstitution
-		checkDate    time.Time
+		checkDate    timezone.Date
 		want         bool
 	}{
 		{
@@ -71,9 +72,10 @@ func TestSubstitutionIsActive(t *testing.T) {
 
 func TestSubstitutionIsActiveNow(t *testing.T) {
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	yesterday := now.AddDate(0, 0, -1)
-	tomorrow := now.AddDate(0, 0, 1)
-	lastWeek := now.AddDate(0, 0, -7)
+	today := timezone.DateFromTime(now)
+	yesterday := today.AddDays(-1)
+	tomorrow := today.AddDays(1)
+	lastWeek := today.AddDays(-7)
 
 	tests := []struct {
 		name string
@@ -92,7 +94,7 @@ func TestSubstitutionIsActiveNow(t *testing.T) {
 		},
 		{
 			name: "not yet started",
-			gs:   &education.GroupSubstitution{StartDate: tomorrow, EndDate: tomorrow.AddDate(0, 0, 1)},
+			gs:   &education.GroupSubstitution{StartDate: tomorrow, EndDate: tomorrow.AddDays(1)},
 			want: false,
 		},
 	}
@@ -107,7 +109,7 @@ func TestSubstitutionIsActiveNow(t *testing.T) {
 }
 
 func TestSubstitutionIsActive_Nil(t *testing.T) {
-	if SubstitutionIsActive(nil, time.Now()) {
+	if SubstitutionIsActive(nil, timezone.TodayDate()) {
 		t.Error("SubstitutionIsActive(nil) = true, want false")
 	}
 }

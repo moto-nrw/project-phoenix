@@ -57,9 +57,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
-	date := timezone.TodayUTC()
+	date := timezone.TodayDate()
 	if raw := r.URL.Query().Get("date"); raw != "" {
-		parsed, err := time.Parse(dateLayout, raw)
+		parsed, err := timezone.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
@@ -232,7 +232,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 }
 
 type spontaneousActivityWindow struct {
-	date      time.Time
+	date      timezone.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -311,7 +311,7 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	startMinutes := min(currentMinutes, 23*60+30)
 	endMinutes := min(startMinutes+60, 23*60+59)
 	return spontaneousActivityWindow{
-		date:      timezone.DateOfUTC(now),
+		date:      timezone.DateFromTime(now),
 		startTime: clockTimeFromMinutes(startMinutes),
 		endTime:   clockTimeFromMinutes(endMinutes),
 	}

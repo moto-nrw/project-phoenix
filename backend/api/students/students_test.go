@@ -282,7 +282,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, planned.ID, notPlanned.ID, walkIn.ID, sick.ID, exceptionAbsent.ID, staff.ID, device.ID)
 
-	today := timezone.DateOfUTC(fixedNow)
+	today := timezone.DateFromTime(fixedNow)
 	pickupSchedule := testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
 	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 

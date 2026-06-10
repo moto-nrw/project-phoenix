@@ -257,7 +257,7 @@ SELECT
 	"p".last_name,
 	("p".account_id IS NOT NULL) AS has_account,
 	"a".email AS account_email,
-	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id)) AS is_staff,
+	(EXISTS (SELECT 1 FROM users.staff WHERE person_id = "p".id AND deleted_at IS NULL)) AS is_staff,
 	(EXISTS (SELECT 1 FROM users.students WHERE person_id = "p".id)) AS is_student,
 	("p".tag_id IS NOT NULL) AS has_rfid_card,
 	"s".id AS school_id,

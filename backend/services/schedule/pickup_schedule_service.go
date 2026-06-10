@@ -34,7 +34,7 @@ type PickupScheduleService interface {
 	// Note operations
 	GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*schedule.StudentPickupNote, error)
 	GetStudentPickupNotes(ctx context.Context, studentID int64) ([]*schedule.StudentPickupNote, error)
-	GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentPickupNote, error)
+	GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentPickupNote, error)
 	CreateStudentPickupNote(ctx context.Context, note *schedule.StudentPickupNote) error
 	UpdateStudentPickupNote(ctx context.Context, note *schedule.StudentPickupNote) error
 	DeleteStudentPickupNote(ctx context.Context, noteID int64) error
@@ -42,8 +42,8 @@ type PickupScheduleService interface {
 
 	// Computed operations
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
-	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectivePickupTime, error)
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectivePickupTime, error)
+	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
 }
 
 // StudentPickupData contains combined pickup schedule and exception data
@@ -61,12 +61,12 @@ type NoteData struct {
 
 // EffectivePickupTime represents the pickup time for a specific date
 type EffectivePickupTime struct {
-	Date        time.Time  `json:"date"`
-	PickupTime  *time.Time `json:"pickup_time"`
-	WeekdayName string     `json:"weekday_name"`
-	IsException bool       `json:"is_exception"`
-	Notes       string     `json:"notes,omitempty"`
-	DayNotes    []NoteData `json:"day_notes,omitempty"`
+	Date        timezone.Date `json:"date"`
+	PickupTime  *time.Time    `json:"pickup_time"`
+	WeekdayName string        `json:"weekday_name"`
+	IsException bool          `json:"is_exception"`
+	Notes       string        `json:"notes,omitempty"`
+	DayNotes    []NoteData    `json:"day_notes,omitempty"`
 }
 
 // Operation names for ScheduleError.
@@ -291,7 +291,7 @@ func (s *pickupScheduleService) GetStudentPickupNotes(ctx context.Context, stude
 }
 
 // GetStudentPickupNotesForDate returns pickup notes for a student on a specific date
-func (s *pickupScheduleService) GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date time.Time) ([]*schedule.StudentPickupNote, error) {
+func (s *pickupScheduleService) GetStudentPickupNotesForDate(ctx context.Context, studentID int64, date timezone.Date) ([]*schedule.StudentPickupNote, error) {
 	notes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student pickup notes for date", Err: err}
@@ -368,9 +368,8 @@ func (s *pickupScheduleService) GetStudentPickupData(ctx context.Context, studen
 }
 
 // GetEffectivePickupTimeForDate calculates the effective pickup time for a specific date
-func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date time.Time) (*EffectivePickupTime, error) {
-	dateOnly := timezone.DateOf(date)
-	weekday := int(dateOnly.Weekday())
+func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error) {
+	weekday := int(date.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
 	if weekday == 0 {
@@ -378,7 +377,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	}
 
 	result := &EffectivePickupTime{
-		Date:        dateOnly,
+		Date:        date,
 		WeekdayName: schedule.WeekdayNames[weekday],
 	}
 
@@ -388,7 +387,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	}
 
 	// Check for exception on this date first
-	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
+	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
 	}
@@ -419,7 +418,7 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 	}
 
 	// Load day notes
-	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, dateOnly)
+	dayNotes, err := s.noteRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetEffectivePickupTime, Err: err}
 	}
@@ -432,13 +431,12 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(ctx context.Contex
 
 // GetBulkEffectivePickupTimesForDate calculates effective pickup times for multiple students on a given date
 // Uses bulk database queries for optimal performance (O(2) queries instead of O(N))
-func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectivePickupTime, error) {
+func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error) {
 	if len(studentIDs) == 0 {
 		return make(map[int64]*EffectivePickupTime), nil
 	}
 
-	dateOnly := timezone.DateOf(date)
-	weekday := int(dateOnly.Weekday())
+	weekday := int(date.Weekday())
 
 	// Convert Go weekday (Sunday=0) to ISO weekday (Monday=1)
 	if weekday == 0 {
@@ -450,7 +448,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	// Initialize results for all students
 	for _, studentID := range studentIDs {
 		result[studentID] = &EffectivePickupTime{
-			Date:        dateOnly,
+			Date:        date,
 			WeekdayName: schedule.WeekdayNames[weekday],
 		}
 	}
@@ -461,7 +459,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	}
 
 	// Bulk fetch all exceptions for the given date (single query)
-	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
+	exceptions, err := s.exceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
 	}
@@ -485,7 +483,7 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(ctx context.C
 	}
 
 	// Bulk fetch all notes for the given date (single query)
-	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, dateOnly)
+	notes, err := s.noteRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: opGetBulkEffectivePickupTimes, Err: err}
 	}

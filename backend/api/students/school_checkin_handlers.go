@@ -202,21 +202,12 @@ func (rs *Resource) applySchoolCheckinAction(
 			return nil, err
 		}
 	case schoolCheckinActionOut:
+		// CheckOutStudent also ends any open room visit in the same request
+		// transaction (issue #895 — see services/active.performCheckOut), so
+		// detailed-mode supervisor views never show "still in Room X" after
+		// a web checkout. No separate EndVisit call is needed here.
 		if _, err := rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true); err != nil {
 			return nil, err
-		}
-		// End any open room visit so detailed-mode supervisor views don't
-		// show "still in Room X" after a web checkout. In binary mode
-		// EndVisit is a no-op (see services/active.EndVisit gate).
-		//
-		// Bubble any failure up so the TenantTxMiddleware rolls the whole
-		// request back — leaving an open visit while attendance says
-		// checked-out is exactly the inconsistency this PR exists to
-		// prevent.
-		if visit, vErr := rs.ActiveService.GetStudentCurrentVisit(ctx, student.ID); vErr == nil && visit != nil {
-			if endErr := rs.ActiveService.EndVisit(ctx, visit.ID); endErr != nil {
-				return nil, fmt.Errorf("end open visit on school checkout (visit_id=%d): %w", visit.ID, endErr)
-			}
 		}
 	}
 

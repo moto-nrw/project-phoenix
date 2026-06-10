@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1080,7 +1080,7 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 // FindPendingDueForActivation returns students whose status='pending' and
 // enrolled_from <= asOf within the current tenant context. Drives the
 // pending→active half of the activate-students scheduler tick.
-func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
@@ -1106,7 +1106,7 @@ func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asO
 // FindActiveDueForDeactivation returns students whose status='active' and
 // enrolled_until <= asOf within the current tenant context. Drives the
 // active→inactive half of the activate-students scheduler tick.
-func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).

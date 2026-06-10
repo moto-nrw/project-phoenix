@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -151,12 +152,12 @@ type StudentRepository interface {
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.
-	FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
 	// FindActiveDueForDeactivation returns students whose status='active' AND
 	// enrolled_until <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick to flip rows to 'inactive'.
-	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
 	// PurgeAllPhotos clears photo_path on every student row visible in the
 	// current tenant context (RLS scopes it) and returns the list of stored
@@ -212,6 +213,12 @@ type StaffRepository interface {
 
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
+
+	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
+	// offboarding: soft-deleted staff must not keep the reference, or the
+	// RESTRICT FK blocks work-time-model deletion while the live-staff
+	// pre-check reports zero assignments.
+	ClearWorkTimeModel(ctx context.Context, id int64) error
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
@@ -312,7 +319,7 @@ type GuestRepository interface {
 	FindActive(ctx context.Context) ([]*Guest, error)
 
 	// SetDateRange sets a guest's start and end dates
-	SetDateRange(ctx context.Context, id int64, startDate, endDate time.Time) error
+	SetDateRange(ctx context.Context, id int64, startDate, endDate timezone.Date) error
 }
 
 // ProfileRepository defines operations for managing profiles

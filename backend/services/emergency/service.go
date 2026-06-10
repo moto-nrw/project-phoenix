@@ -21,7 +21,7 @@ type Service interface {
 }
 
 type attendanceReader interface {
-	ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error)
+	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
 }
 
 type studentReader interface {
@@ -102,7 +102,7 @@ func (s *service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Ti
 		return listexport.Document{}, fmt.Errorf("emergency snapshot service is not configured")
 	}
 
-	studentIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayUTC())
+	studentIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return listexport.Document{}, err
 	}

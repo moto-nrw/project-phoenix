@@ -9,6 +9,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
@@ -36,18 +37,18 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 	}
 
 	type row struct {
-		RequestID                int64      `bun:"request_id"`
-		TenantID                 int64      `bun:"tenant_id"`
-		StatusToken              string     `bun:"status_token"`
-		SubmittedAt              time.Time  `bun:"submitted_at"`
-		WithdrawnAt              *time.Time `bun:"withdrawn_at"`
-		PhaseID                  int64      `bun:"phase_id"`
-		PhaseName                string     `bun:"phase_name"`
-		ServiceStartDate         time.Time  `bun:"service_start_date"`
-		ServiceEndDate           time.Time  `bun:"service_end_date"`
-		ShowStatusReasonToParent bool       `bun:"show_status_reason_to_parent"`
-		SchoolName               string     `bun:"school_name"`
-		SchoolSlug               string     `bun:"school_slug"`
+		RequestID                int64         `bun:"request_id"`
+		TenantID                 int64         `bun:"tenant_id"`
+		StatusToken              string        `bun:"status_token"`
+		SubmittedAt              time.Time     `bun:"submitted_at"`
+		WithdrawnAt              *time.Time    `bun:"withdrawn_at"`
+		PhaseID                  int64         `bun:"phase_id"`
+		PhaseName                string        `bun:"phase_name"`
+		ServiceStartDate         timezone.Date `bun:"service_start_date"`
+		ServiceEndDate           timezone.Date `bun:"service_end_date"`
+		ShowStatusReasonToParent bool          `bun:"show_status_reason_to_parent"`
+		SchoolName               string        `bun:"school_name"`
+		SchoolSlug               string        `bun:"school_slug"`
 	}
 
 	// Two-pronged match:

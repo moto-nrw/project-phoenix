@@ -16,6 +16,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -181,8 +183,8 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	phase := &enrollmentModels.Phase{
 		Name:             "request-test-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
@@ -252,7 +254,7 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 			{
 				FirstName:        "Lina",
 				LastName:         "Beispiel",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(1),
 			},
 		},
@@ -857,7 +859,7 @@ func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
 		LastName:         "Beispiel",
-		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
 		TargetGradeLevel: testpkg.Int16Ptr(2),
 	})
 	result, err := env.svc.Submit(ctx, req)
@@ -1168,7 +1170,7 @@ func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
 		LastName:         "Beispiel",
-		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
 		TargetGradeLevel: testpkg.Int16Ptr(2),
 		OfferingIDs:      []int64{offering.ID},
 	})

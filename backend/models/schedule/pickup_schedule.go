@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -116,11 +117,11 @@ type StudentPickupException struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
 	base.TenantModel
 
-	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate time.Time  `bun:"exception_date,notnull" json:"exception_date"`
-	PickupTime    *time.Time `bun:"pickup_time" json:"pickup_time,omitempty"`
-	Reason        *string    `bun:"reason" json:"reason,omitempty"`
-	CreatedBy     int64      `bun:"created_by,notnull" json:"created_by"`
+	StudentID     int64         `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	PickupTime    *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
+	Reason        *string       `bun:"reason" json:"reason,omitempty"`
+	CreatedBy     int64         `bun:"created_by,notnull" json:"created_by"`
 }
 
 func (e *StudentPickupException) BeforeAppendModel(query any) error {
@@ -206,22 +207,22 @@ type StudentPickupExceptionRepository interface {
 	FindUpcomingByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupException, error)
 
 	// FindByStudentIDAndDate finds a pickup exception for a specific student and date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) (*StudentPickupException, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentPickupException, error)
 
 	// FindByStudentIDsAndDate finds pickup exceptions for multiple students and a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentPickupException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentPickupException, error)
 
 	// FindByStudentIDAndDateRange finds pickup exceptions for a student whose
 	// exception_date falls within the inclusive [from, to] range, sorted by
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
-	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*StudentPickupException, error)
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*StudentPickupException, error)
 
 	// DeleteByStudentID deletes all pickup exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastExceptions deletes all exceptions older than the given date
-	DeletePastExceptions(ctx context.Context, beforeDate time.Time) (int64, error)
+	DeletePastExceptions(ctx context.Context, beforeDate timezone.Date) (int64, error)
 }
 
 // StudentPickupNote represents a date-specific note for a student's pickup
@@ -229,10 +230,10 @@ type StudentPickupNote struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_notes"`
 	base.TenantModel
 
-	StudentID int64     `bun:"student_id,notnull" json:"student_id"`
-	NoteDate  time.Time `bun:"note_date,notnull" json:"note_date"`
-	Content   string    `bun:"content,notnull" json:"content"`
-	CreatedBy int64     `bun:"created_by,notnull" json:"created_by"`
+	StudentID int64         `bun:"student_id,notnull" json:"student_id"`
+	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
+	Content   string        `bun:"content,notnull" json:"content"`
+	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
 }
 
 func (n *StudentPickupNote) BeforeAppendModel(query any) error {
@@ -293,14 +294,14 @@ type StudentPickupNoteRepository interface {
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupNote, error)
 
 	// FindByStudentIDAndDate finds all pickup notes for a student on a specific date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date time.Time) ([]*StudentPickupNote, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*StudentPickupNote, error)
 
 	// FindByStudentIDsAndDate finds all pickup notes for multiple students on a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentPickupNote, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentPickupNote, error)
 
 	// DeleteByStudentID deletes all pickup notes for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastNotes deletes all notes older than the given date
-	DeletePastNotes(ctx context.Context, beforeDate time.Time) (int64, error)
+	DeletePastNotes(ctx context.Context, beforeDate timezone.Date) (int64, error)
 }

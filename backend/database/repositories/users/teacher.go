@@ -370,7 +370,9 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"teacher".deleted_at IS NULL`).
+		Where(`"staff".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
 		query = query.Where(where, val)

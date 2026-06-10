@@ -628,6 +628,18 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 
 ---
 
+## Date & Time Handling (MANDATORY)
+
+**Calendar dates and timestamps are different types.** Backend DATE columns travel as `"YYYY-MM-DD"` strings (the backend uses a dedicated `timezone.Date` type); timestamps travel as RFC3339. A JS `Date`'s UTC fields disagree with the Berlin calendar day between 00:00 and 02:00, so **never derive a calendar date via `.toISOString()`** — the oxlint rule `date-safety/no-utc-date-extraction` (custom plugin in `scripts/oxlint-plugin-date-safety.mjs`) rejects it. Use the canonical helpers in `~/lib/date-helpers` (`toISODate` is re-exported by `timetable-helpers`, and as `formatDateISO` by `arrival-schedule-helpers`/`pickup-schedule-helpers` — same function).
+
+| Need | Use | Never |
+|---|---|---|
+| `Date` → `"YYYY-MM-DD"` | `toISODate(d)` | `d.toISOString().split("T")[0]` / `.slice(0, 10)` |
+| Today as `"YYYY-MM-DD"` | `todayISO()` | `new Date().toISOString()...` |
+| `"YYYY-MM-DD"` → `Date` (local midnight) | `parseISODate(s)` | `new Date("YYYY-MM-DD")` (UTC midnight) |
+| Render date string in German | `formatDate(s)` from `~/lib/date-helpers` (handles both date-only and timestamps) | new file-local `formatDate` duplicates |
+| Timestamps (`created_at`, …) | keep ISO string; `new Date(ts)` is fine | extracting a calendar day from them via `toISOString()` |
+
 ## Frontend Logging: Use Structured Logger Only (MANDATORY)
 
 **ABSOLUTE RULE: All frontend TypeScript/React code MUST use `createLogger` from `~/lib/logger` for logging. NEVER use bare `console.log`, `console.error`, `console.warn`, or `console.info`.**

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -113,6 +114,10 @@ type SupervisorPlannedRepository interface {
 
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
+
+	// DeleteByStaffID removes all planned supervisions for a staff member
+	// (staff offboarding cleanup).
+	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
@@ -129,7 +134,7 @@ type StudentEnrollmentRepository interface {
 	CountByGroupID(ctx context.Context, groupID int64) (int, error)
 
 	// FindByValidFromRange finds enrollments within a valid_from date range
-	FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*StudentEnrollment, error)
+	FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*StudentEnrollment, error)
 
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error

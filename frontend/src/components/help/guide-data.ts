@@ -484,16 +484,40 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mitarbeiter",
         icon: ClipboardList,
         summary:
-          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum oder im Homeoffice.",
+          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend.",
         steps: [
           "`Mitarbeiter` öffnen.",
           "Nach Name suchen.",
-          "Nach Status filtern, zum Beispiel `Anwesend` oder `Homeoffice`.",
-          "Eine Person öffnen, um Details zu sehen.",
+          "Nach Status filtern, zum Beispiel `Anwesend`, `Abwesend`, `Im Raum`, `Homeoffice` oder `Krank/Urlaub`.",
+          "Bei Karten mit Raumangabe die aktuelle Aufsicht direkt in der Liste prüfen.",
+          "Als Admin eine Person öffnen, um das Mitarbeiterprofil zu sehen.",
         ],
         screenshot:
           "Mitarbeiterliste mit Status-Badges und aktiven Aufsichten.",
         image: "/help/screens/mitarbeiter.webp",
+      },
+      {
+        id: "mitarbeiter-admin-profil",
+        title: "Mitarbeiterprofil für Admins",
+        icon: Eye,
+        summary:
+          "Bündelt Auswertung, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten einer Person.",
+        steps: [
+          "`Mitarbeiter` öffnen und eine Person auswählen. Die Detailansicht ist nur für Admins erreichbar.",
+          "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
+          "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren.",
+          "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
+          "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen.",
+          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
+        ],
+        callout: {
+          title: "Änderungen bleiben nachvollziehbar",
+          body: "Zeitkorrekturen und nachgetragene Einträge werden mit Begründung gespeichert. Zeilen mit Änderungshistorie lassen sich aufklappen, damit die Leitung spätere Korrekturen prüfen kann.",
+          tone: "orange",
+        },
+        screenshot:
+          "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
+        printCompact: true,
       },
       {
         id: "vertretungen",
@@ -548,17 +572,48 @@ export const appChapters: readonly GuideChapter[] = [
         id: "zeiterfassung",
         title: "Zeiterfassung",
         icon: Clock3,
-        summary: "Erfasst Arbeitszeit, Pausen und Abwesenheiten.",
+        summary:
+          "Erfasst Arbeitszeit, Pausen, Arbeitsort und einfache Abwesenheiten.",
         steps: [
           "`Zeiterfassung` öffnen.",
-          "`In der OGS` oder `Homeoffice` wählen.",
+          "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
-          "Pausen starten und beenden.",
-          "Für Krankheit oder Urlaub `Abwesenheit melden` mit `Art der Abwesenheit` und Zeitraum.",
+          "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
+          "Bei langen Arbeitstagen die Pausenhinweise beachten.",
+          "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",
         ],
+        callout: {
+          title: "Arbeitsort bewusst wählen",
+          body: "Die App setzt keinen Arbeitsort voraus. Vor dem Einstempeln muss bewusst `In der OGS` oder `Homeoffice` gewählt werden, damit die Zeiterfassung später eindeutig bleibt.",
+          tone: "orange",
+        },
         screenshot:
           "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
         image: "/help/screens/zeiterfassung.webp",
+      },
+      {
+        id: "zeiterfassung-urlaub-historie",
+        title: "Urlaub, Historie und Korrekturen",
+        icon: CalendarRange,
+        summary:
+          "Zeigt Resturlaub, Anträge, Wochen- oder Monatsansichten und nachvollziehbare Korrekturen.",
+        steps: [
+          "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
+          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
+          "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
+          "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",
+          "Tageszeilen prüfen: Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
+          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren oder fehlende Arbeitstage nachtragen. Bei jeder Arbeitszeit-Korrektur einen Grund angeben.",
+          "Geänderte Tage aufklappen, um die Änderungshistorie zu sehen. Für Auswertungen den Export im Tabellenkopf nutzen.",
+        ],
+        callout: {
+          title: "Urlaub und Krankheit unterscheiden",
+          body: "Urlaub läuft über den Antragsbereich und kann genehmigt oder abgelehnt werden. Krank, Fortbildung und sonstige Abwesenheiten werden über `Abwesend` in der Stempeluhr gemeldet.",
+          tone: "blue",
+        },
+        screenshot:
+          "Zeiterfassung mit Urlaubskarte, Wochen- oder Monatsansicht, Änderungshistorie und Export.",
+        printCompact: true,
       },
     ],
   },

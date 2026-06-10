@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -41,22 +42,24 @@ type Student struct {
 	PickupStatus    *string `bun:"pickup_status" json:"pickup_status,omitempty"`
 	// DepartureDays is the single source of truth for how a child leaves each
 	// weekday (#1610): alone / bus / pickup. It unifies the formerly independent
-	// BusDays and PickupDays maps so a day can no longer contradict itself. The
-	// repository persists departure_days and derives bus_days, pickup_days and
-	// the legacy pickup_status from it; on read it hydrates DepartureDays and
-	// populates the derived BusDays/PickupDays fields below for compatibility.
+	// BusDays (#1582) and PickupDays maps so a day can no longer contradict
+	// itself. The repository persists departure_days and derives bus_days,
+	// pickup_days and the legacy pickup_status from it; on read it hydrates
+	// DepartureDays and populates the derived BusDays/PickupDays fields below
+	// for compatibility. The legacy boolean bus column was dropped in migration
+	// 1.15.119; the API derives a compatibility bus flag from BusDays.HasAny().
 	DepartureDays DepartureDays `bun:"departure_days,type:jsonb,scanonly" json:"departure_days,omitempty"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
-	PickupDays    PickupDays    `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
-	BusDays       BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`       // Weekdays on which the child rides the bus
-	Sick          *bool         `bun:"sick" json:"sick,omitempty"`                                   // true = currently sick
-	SickSince     *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`                       // When sickness was reported
-	Excused       *bool         `bun:"excused" json:"excused,omitempty"`                             // true = currently excused (not attending today)
-	ExcusedSince  *time.Time    `bun:"excused_since" json:"excused_since,omitempty"`                 // When excused status was reported
-	Status        StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
-	EnrolledFrom  *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
-	EnrolledUntil *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
+	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
+	BusDays       BusDays        `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`       // Weekdays on which the child rides the bus
+	Sick          *bool          `bun:"sick" json:"sick,omitempty"`                                   // true = currently sick
+	SickSince     *time.Time     `bun:"sick_since" json:"sick_since,omitempty"`                       // When sickness was reported
+	Excused       *bool          `bun:"excused" json:"excused,omitempty"`                             // true = currently excused (not attending today)
+	ExcusedSince  *time.Time     `bun:"excused_since" json:"excused_since,omitempty"`                 // When excused status was reported
+	Status        StudentStatus  `bun:"status,notnull,default:'active'" json:"status"`
+	EnrolledFrom  *timezone.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil *timezone.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).

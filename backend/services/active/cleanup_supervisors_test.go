@@ -14,9 +14,9 @@ import (
 )
 
 // utcToday returns today's date (Berlin calendar day) at midnight UTC,
-// matching the cleanup service's timezone.TodayUTC() approach.
+// matching how DATE values scan back into instants.
 func utcToday() time.Time {
-	return timezone.TodayUTC()
+	return timezone.TodayDate().UTCMidnight()
 }
 
 // =============================================================================

@@ -25,7 +25,7 @@ func departureDaysColumnExists(t *testing.T, db *bun.DB) bool {
 	return exists
 }
 
-// TestStudentsDepartureDaysMigration verifies migration 1.15.120 (#1610): the
+// TestStudentsDepartureDaysMigration verifies migration 1.15.121 (#1610): the
 // backfill folds the legacy bus_days/pickup_days maps into departure_days, with
 // pickup winning on a contradictory day, and the column survives a Down/Up
 // round-trip.

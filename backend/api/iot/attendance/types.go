@@ -6,6 +6,8 @@ import (
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // AttendanceStatusResponse represents the response for checking a student's attendance status
@@ -22,14 +24,17 @@ type AttendanceStudentInfo struct {
 	Group     *AttendanceGroupInfo `json:"group,omitempty"`
 }
 
-// AttendanceInfo represents attendance status and timing information
+// AttendanceInfo represents attendance status and timing information.
+// Date is a calendar day and marshals as "YYYY-MM-DD" (not RFC3339) —
+// PyrePortal types the field as string and never reads it, so the wire
+// shape change is safe.
 type AttendanceInfo struct {
-	Status       string     `json:"status"` // "not_checked_in", "checked_in", "checked_out"
-	Date         time.Time  `json:"date"`
-	CheckInTime  *time.Time `json:"check_in_time"`
-	CheckOutTime *time.Time `json:"check_out_time"`
-	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
-	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+	Status       string        `json:"status"` // "not_checked_in", "checked_in", "checked_out"
+	Date         timezone.Date `json:"date"`
+	CheckInTime  *time.Time    `json:"check_in_time"`
+	CheckOutTime *time.Time    `json:"check_out_time"`
+	CheckedInBy  string        `json:"checked_in_by"`  // Formatted as "FirstName LastName"
+	CheckedOutBy string        `json:"checked_out_by"` // Formatted as "FirstName LastName"
 }
 
 // AttendanceGroupInfo represents group information from education.groups table

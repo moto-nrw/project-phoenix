@@ -242,29 +242,24 @@ func TestCheckinError_Respond(t *testing.T) {
 // =============================================================================
 
 func TestCheckoutContext_Fields(t *testing.T) {
-	visit := &active.Visit{StudentID: 123}
 	attendance := &activeService.AttendanceStatus{Status: "checked_in"}
 
 	ctx := &checkoutContext{
 		StudentID:        123,
-		CurrentVisit:     visit,
 		AttendanceStatus: attendance,
 	}
 
 	assert.Equal(t, int64(123), ctx.StudentID)
-	assert.Equal(t, visit, ctx.CurrentVisit)
 	assert.Equal(t, attendance, ctx.AttendanceStatus)
 }
 
 func TestCheckoutContext_NilFields(t *testing.T) {
 	ctx := &checkoutContext{
 		StudentID:        456,
-		CurrentVisit:     nil,
 		AttendanceStatus: nil,
 	}
 
 	assert.Equal(t, int64(456), ctx.StudentID)
-	assert.Nil(t, ctx.CurrentVisit)
 	assert.Nil(t, ctx.AttendanceStatus)
 }
 

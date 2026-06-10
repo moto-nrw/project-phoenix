@@ -77,6 +77,31 @@ func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes strin
 	return base.AssertRowsAffected(result, 1, "update notes")
 }
 
+// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
+// offboarding before the soft delete so the retained row does not block
+// work-time-model deletion via the RESTRICT FK.
+func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Staff)(nil)).
+		ModelTableExpr(`users.staff AS "staff"`).
+		Set(`work_time_model_id = NULL`).
+		Where(`"staff".id = ?`, id)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "clear work time model",
+			Err: err,
+		}
+	}
+
+	return base.AssertRowsAffected(result, 1, "clear work time model")
+}
+
 // Create overrides the base Create method to handle validation
 func (r *StaffRepository) Create(ctx context.Context, staff *users.Staff) error {
 	if staff == nil {
@@ -176,7 +201,8 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Where(`"staff".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		query = query.Where(where, val)
@@ -367,7 +393,8 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "ar" ON "ar".account_id = "account".id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "ar".role_id = "role".id`).
-		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles))
+		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles)).
+		Where(`"staff".deleted_at IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
 		query = query.Where(where, val)

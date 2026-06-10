@@ -6,6 +6,7 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,9 +25,9 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("SD-%d", time.Now().UnixNano()), "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	dayA := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
-	dayB := time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)
-	dayOutside := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	dayA := timezone.NewDate(2026, 10, 5)
+	dayB := timezone.NewDate(2026, 10, 6)
+	dayOutside := timezone.NewDate(2026, 11, 1)
 
 	instA, cleanA := createInstanceFixture(t, db, "sd-A", dayA)
 	defer cleanA()
@@ -96,8 +97,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	t.Run("empty range returns empty slice", func(t *testing.T) {
 		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(
 			ctx, student.ID,
-			time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
-			time.Date(2027, 1, 2, 0, 0, 0, 0, time.UTC),
+			timezone.NewDate(2027, 1, 1),
+			timezone.NewDate(2027, 1, 2),
 		)
 		require.NoError(t, err)
 		assert.Empty(t, rows)

@@ -491,7 +491,10 @@ describe("substitution-helpers", () => {
     });
 
     it("should handle different dates", () => {
-      const date = new Date("2024-12-31T23:59:59Z");
+      // Local-constructed boundary instant: must serialize to the LOCAL
+      // calendar date regardless of machine timezone (the old UTC-based
+      // implementation shifted early-morning Berlin times to the prior day).
+      const date = new Date(2024, 11, 31, 0, 30, 0);
       expect(formatDateForBackend(date)).toBe("2024-12-31");
     });
   });

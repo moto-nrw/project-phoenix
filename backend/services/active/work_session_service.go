@@ -52,6 +52,10 @@ type SessionUpdateRequest struct {
 // clock times directly, no Anwesenheit, no kiosk involvement. Status and
 // Notes are mandatory; everything else is optional with sensible defaults
 // (break_minutes defaults to 0).
+//
+// Date stays a time.Time on the wire (the frontend sends RFC3339 UTC
+// midnight); the service converts it to the Berlin calendar day via
+// timezone.DateFromTime before it touches the DATE column.
 type AdminCreateSessionRequest struct {
 	Date         time.Time `json:"date"`
 	CheckInTime  time.Time `json:"check_in_time"`
@@ -155,7 +159,7 @@ type WorkSessionService interface {
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error)
+	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
@@ -173,7 +177,7 @@ type WorkSessionService interface {
 	// be silently mislabelled as NFC. Returns nil if the staff member is
 	// already checked out today (no re-open).
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
-	ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error)
+	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
 
@@ -214,8 +218,8 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
 	}
 
-	// Get today's date as UTC midnight for PostgreSQL DATE column
-	today := timezone.TodayUTC()
+	// Today's Berlin calendar day for the PostgreSQL DATE column
+	today := timezone.TodayDate()
 
 	// Check if there's already a session today
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
@@ -652,9 +656,10 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	}
 
 	checkOut := req.CheckOutTime
+	date := timezone.DateFromTime(req.Date)
 	session := &activeModels.WorkSession{
 		StaffID:      targetStaffID,
-		Date:         req.Date,
+		Date:         date,
 		Status:       req.Status,
 		Source:       activeModels.WorkSessionSourceApp,
 		CheckInTime:  req.CheckInTime,
@@ -695,7 +700,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		return e
 	}
 	edits := []*auditModels.WorkSessionEdit{
-		baseEdit(auditModels.FieldDate, req.Date.Format("2006-01-02")),
+		baseEdit(auditModels.FieldDate, date.String()),
 		baseEdit(auditModels.FieldCheckInTime, req.CheckInTime.Format(time.RFC3339)),
 		baseEdit(auditModels.FieldCheckOutTime, req.CheckOutTime.Format(time.RFC3339)),
 		baseEdit(auditModels.FieldBreakMinutes, fmt.Sprintf("%d", req.BreakMinutes)),
@@ -719,14 +724,12 @@ func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, upd
 	strPtr := func(str string) *string { return &str }
 
 	if updates.Date != nil {
-		// Compare DATE portion only; the underlying column is a DATE so any
-		// time-of-day in the incoming pointer is ignored.
-		const dateFmt = "2006-01-02"
-		oldDate := uc.session.Date.Format(dateFmt)
-		newDate := updates.Date.Format(dateFmt)
-		if oldDate != newDate {
-			uc.addAuditEdit(auditModels.FieldDate, strPtr(oldDate), strPtr(newDate))
-			uc.session.Date = *updates.Date
+		// The wire carries an RFC3339 instant; only its Berlin calendar day
+		// matters for the DATE column.
+		newDate := timezone.DateFromTime(*updates.Date)
+		if uc.session.Date != newDate {
+			uc.addAuditEdit(auditModels.FieldDate, strPtr(uc.session.Date.String()), strPtr(newDate.String()))
+			uc.session.Date = newDate
 		}
 	}
 
@@ -859,7 +862,7 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 }
 
 // GetHistory returns work sessions for a staff member in a date range with weekly aggregation
-func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to time.Time) (*HistoryResponse, error) {
+func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
@@ -913,7 +916,7 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 	var weekOrder []summaryWeekKey
 
 	for _, session := range sessions {
-		year, week := session.Date.ISOWeek()
+		year, week := session.Date.UTCMidnight().ISOWeek()
 		key := summaryWeekKey{Year: year, Week: week}
 
 		summary, exists := weekMap[key]
@@ -1002,7 +1005,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	targetsByWeek := make(map[summaryWeekKey]int)
 	seen := make(map[summaryWeekKey]bool)
 	for _, session := range sessions {
-		year, week := session.Date.ISOWeek()
+		year, week := session.Date.UTCMidnight().ISOWeek()
 		key := summaryWeekKey{Year: year, Week: week}
 		if seen[key] {
 			continue
@@ -1023,12 +1026,12 @@ func (s *workSessionService) weeklyTargetFromDateValidSchedule(
 	ctx context.Context,
 	staffID int64,
 	staff *userModels.Staff,
-	weekStart time.Time,
+	weekStart timezone.Date,
 ) (int, bool) {
 	total := 0
 	found := false
 	for offset := 0; offset < 7; offset++ {
-		date := weekStart.AddDate(0, 0, offset)
+		date := weekStart.AddDays(offset)
 		entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, date)
 		if err != nil || len(entries) == 0 {
 			continue
@@ -1046,7 +1049,7 @@ func (s *workSessionService) weeklyTargetFromDateValidSchedule(
 	return total, found
 }
 
-func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
 	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
 		return nil
 	}
@@ -1061,13 +1064,13 @@ func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time,
 	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
 }
 
-func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
 	if len(targetsByRotationWeek) == 0 {
 		return nil
 	}
 	targetsByWeek := make(map[summaryWeekKey]int)
 	for _, session := range sessions {
-		year, week := session.Date.ISOWeek()
+		year, week := session.Date.UTCMidnight().ISOWeek()
 		key := summaryWeekKey{Year: year, Week: week}
 		if _, ok := targetsByWeek[key]; ok {
 			continue
@@ -1081,11 +1084,11 @@ func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotatio
 	return targetsByWeek
 }
 
-func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) time.Time {
+func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) timezone.Date {
 	if staff != nil && staff.RotationAnchorDate != nil {
 		return *staff.RotationAnchorDate
 	}
-	var earliest time.Time
+	var earliest timezone.Date
 	for _, e := range entries {
 		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
 			earliest = e.ValidFrom
@@ -1107,16 +1110,15 @@ func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
 	return rotation
 }
 
-func isoWeekStart(date time.Time) time.Time {
-	normalized := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	weekday := int(normalized.Weekday())
+func isoWeekStart(date timezone.Date) timezone.Date {
+	weekday := int(date.Weekday())
 	if weekday == 0 {
 		weekday = 7
 	}
-	return normalized.AddDate(0, 0, 1-weekday)
+	return date.AddDays(1 - weekday)
 }
 
-func isoDayIndex(date time.Time) int {
+func isoDayIndex(date timezone.Date) int {
 	weekday := int(date.Weekday())
 	if weekday == 0 {
 		return configModels.DaySunday
@@ -1220,8 +1222,8 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 
 // CleanupOpenSessions closes all sessions that are still open before today
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
-	// Get today's date as UTC midnight for PostgreSQL DATE column
-	today := timezone.TodayUTC()
+	// Today's Berlin calendar day for the PostgreSQL DATE column
+	today := timezone.TodayDate()
 
 	// Get all open sessions before today
 	openSessions, err := s.repo.GetOpenSessions(ctx, today)
@@ -1240,9 +1242,7 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		}
 
 		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
-		// session.Date is stored as UTC midnight (via TodayUTC), so we must convert
-		// to Berlin to get the correct calendar date before constructing end-of-day.
-		endOfDay := timezone.EndOfDay(session.Date)
+		endOfDay := session.Date.EndOfDay()
 
 		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
@@ -1266,8 +1266,8 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 		return currentSession, nil
 	}
 
-	// Check if there's already a checked-out session today (use UTC for DATE column)
-	today := timezone.TodayUTC()
+	// Check if there's already a checked-out session today
+	today := timezone.TodayDate()
 	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
@@ -1295,12 +1295,12 @@ var germanAbsenceTypeLabels = map[string]string{
 
 // exportRow represents a single row in the export (either a work session or an absence day)
 type exportRow struct {
-	Date time.Time
+	Date timezone.Date
 	Row  []string
 }
 
 // ExportSessions generates a CSV or XLSX export of work sessions and absences
-func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to time.Time, format string) ([]byte, string, error) {
+func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error) {
 	historyResp, err := s.GetHistory(ctx, staffID, from, to)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get sessions for export: %w", err)
@@ -1318,8 +1318,8 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 	// Build merged rows sorted by date
 	rows := s.buildExportRows(historyResp.Sessions, absences)
 
-	fromStr := from.Format("2006-01-02")
-	toStr := to.Format("2006-01-02")
+	fromStr := from.String()
+	toStr := to.String()
 
 	switch format {
 	case "xlsx":
@@ -1374,7 +1374,7 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 				Date: d,
 				Row:  []string{datum, wochentag, "--", "--", "--", "--", label, "", absence.Note},
 			})
-			d = d.AddDate(0, 0, 1)
+			d = d.AddDays(1)
 		}
 	}
 

@@ -38,6 +38,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -71,7 +72,7 @@ type TimetableCleanupResult struct {
 	ExceptionsDeleted int
 	StudentsAffected  int
 	RetentionDays     int
-	CutoffDate        time.Time
+	CutoffDate        timezone.Date
 	DurationMS        int64
 }
 
@@ -82,9 +83,9 @@ type TimetableCleanupPreview struct {
 	ExceptionsToDelete int
 	StudentsAffected   int
 	RetentionDays      int
-	CutoffDate         time.Time
-	OldestInstance     *time.Time
-	OldestException    *time.Time
+	CutoffDate         timezone.Date
+	OldestInstance     *timezone.Date
+	OldestException    *timezone.Date
 }
 
 // TimetableCleanupStats returns row counts and oldest timestamps across the
@@ -92,10 +93,10 @@ type TimetableCleanupPreview struct {
 type TimetableCleanupStats struct {
 	TotalInstances  int
 	TotalExceptions int
-	OldestInstance  *time.Time
-	OldestException *time.Time
+	OldestInstance  *timezone.Date
+	OldestException *timezone.Date
 	RetentionDays   int
-	CutoffDate      time.Time
+	CutoffDate      timezone.Date
 }
 
 // TimetableCleanupService drives GDPR retention cleanup for the timetable
@@ -314,16 +315,14 @@ func (s *timetableCleanupService) resolveRetentionDays(ctx context.Context) int 
 	return timetableRetentionDefaultDays
 }
 
-// cutoffFor returns the UTC start-of-day cutoff for the retention window.
-func cutoffFor(retentionDays int) time.Time {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return today.AddDate(0, 0, -retentionDays)
+// cutoffFor returns the calendar-day cutoff for the retention window.
+func cutoffFor(retentionDays int) timezone.Date {
+	return timezone.TodayDate().AddDays(-retentionDays)
 }
 
 // expiredOptions builds query options selecting rows whose dateColumn is
 // strictly before the cutoff.
-func expiredOptions(dateColumn string, cutoff time.Time) *modelBase.QueryOptions {
+func expiredOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOptions {
 	options := modelBase.NewQueryOptions()
 	options.Filter = modelBase.NewFilter().LessThan(dateColumn, cutoff)
 	return options
@@ -339,7 +338,7 @@ type perStudentSamples map[int64][]int64
 // a bounded sample of instance IDs per student for forensic lookup.
 func (s *timetableCleanupService) collectStudentImpact(
 	ctx context.Context,
-	cutoff time.Time,
+	cutoff timezone.Date,
 ) (perStudentCounts, perStudentSamples, error) {
 	refs, err := s.instanceStudentRepo.ListStudentInstanceRefsBefore(ctx, cutoff)
 	if err != nil {
@@ -363,14 +362,14 @@ func (s *timetableCleanupService) writeStudentAuditRows(
 	ctx context.Context,
 	tenantID int64,
 	retentionDays int,
-	cutoff time.Time,
+	cutoff timezone.Date,
 	counts perStudentCounts,
 	samples perStudentSamples,
 ) error {
 	if s.auditRepo == nil {
 		return fmt.Errorf("audit repo not configured")
 	}
-	cutoffStr := cutoff.Format("2006-01-02")
+	cutoffStr := cutoff.String()
 	for studentID, n := range counts {
 		deletion := audit.NewDataDeletion(
 			studentID,

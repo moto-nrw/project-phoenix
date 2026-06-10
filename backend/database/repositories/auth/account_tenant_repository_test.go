@@ -118,6 +118,75 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 	assert.Nil(t, mapping.DeactivatedAt)
 }
 
+func TestAccountTenantRepository_Deactivate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := authRepo.NewAccountTenantRepository(db)
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "acctenant-deactivate")
+	tenantID := account.ID + 3000
+	otherTenantID := account.ID + 3001
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
+		cleanupAccountRecords(t, db, account.ID)
+	})
+
+	for _, tid := range []int64{tenantID, otherTenantID} {
+		require.NoError(t, repo.Create(ctx, &authModels.AccountTenant{
+			AccountID: account.ID,
+			TenantID:  tid,
+			Status:    authModels.AccountTenantStatusActive,
+		}))
+	}
+
+	require.NoError(t, repo.Deactivate(ctx, account.ID, tenantID))
+
+	t.Run("deactivated mapping is inactive with timestamp", func(t *testing.T) {
+		var mapping authModels.AccountTenant
+		err := db.NewSelect().
+			Model(&mapping).
+			ModelTableExpr(`auth.account_tenants AS "account_tenant"`).
+			Where(`"account_tenant".account_id = ?`, account.ID).
+			Where(`"account_tenant".tenant_id = ?`, tenantID).
+			Scan(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, authModels.AccountTenantStatusInactive, mapping.Status)
+		assert.NotNil(t, mapping.DeactivatedAt)
+	})
+
+	t.Run("exists check no longer matches deactivated mapping", func(t *testing.T) {
+		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("other tenant mapping stays active", func(t *testing.T) {
+		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, otherTenantID)
+		require.NoError(t, err)
+		assert.True(t, exists)
+
+		active, err := repo.FindActiveByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		require.Len(t, active, 1)
+		assert.Equal(t, otherTenantID, active[0].TenantID)
+	})
+
+	t.Run("EnsureActive reactivates the deactivated mapping", func(t *testing.T) {
+		now := time.Now()
+		require.NoError(t, repo.EnsureActive(ctx, &authModels.AccountTenant{
+			AccountID:   account.ID,
+			TenantID:    tenantID,
+			ActivatedAt: &now,
+		}))
+		exists, err := repo.ExistsByAccountAndTenant(ctx, account.ID, tenantID)
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+}
+
 func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()

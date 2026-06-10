@@ -639,8 +639,8 @@ func departurePlanFromImportRow(row importModels.StudentImportRow) users.Departu
 
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
-	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
-	enrolledUntil := parseOptionalImportDate(row.EnrolledUntil)
+	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
+	enrolledUntil := parseOptionalImportCalendarDate(row.EnrolledUntil)
 
 	student := &users.Student{
 		PersonID:        personID,
@@ -678,8 +678,8 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	return student, nil
 }
 
-func enrollmentStartsInFuture(enrolledFrom *time.Time) bool {
-	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayUTC())
+func enrollmentStartsInFuture(enrolledFrom *timezone.Date) bool {
+	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayDate())
 }
 
 // createGuardianRelationships creates all guardian relationships
@@ -1005,8 +1005,19 @@ func parseOptionalImportDate(dateStr string) *time.Time {
 	return &parsed
 }
 
+// parseOptionalImportCalendarDate is the calendar-date sibling of
+// parseOptionalImportDate for DATE-typed columns (enrollment window).
+func parseOptionalImportCalendarDate(dateStr string) *timezone.Date {
+	parsed := parseOptionalImportDate(dateStr)
+	if parsed == nil {
+		return nil
+	}
+	d := timezone.DateFromTime(*parsed)
+	return &d
+}
+
 // parseOptionalDate parses a date string or returns nil
-func parseOptionalDate(dateStr string) (*time.Time, error) {
+func parseOptionalDate(dateStr string) (*timezone.Date, error) {
 	trimmed := strings.TrimSpace(dateStr)
 	if trimmed == "" {
 		return nil, nil
@@ -1017,7 +1028,8 @@ func parseOptionalDate(dateStr string) (*time.Time, error) {
 		return nil, err
 	}
 
-	return &t, nil
+	d := timezone.DateFromTime(t)
+	return &d, nil
 }
 
 // stringPtr returns a pointer to a string, or nil if empty

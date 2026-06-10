@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -49,8 +50,8 @@ func makeValidPhase(name string) *enrollmentModels.Phase {
 	return &enrollmentModels.Phase{
 		Name:             name,
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -137,7 +138,7 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 	newName := uniquePhaseName("updated")
 	defer wipePhases(db, tenantID, newName)
 	phase.Name = newName
-	phase.ServiceEndDate = time.Date(2027, 8, 15, 0, 0, 0, 0, time.UTC)
+	phase.ServiceEndDate = timezone.NewDate(2027, 8, 15)
 	phase.IsActive = false
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -152,7 +153,7 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 	}))
 	assert.Equal(t, newName, got.Name)
 	assert.False(t, got.IsActive)
-	assert.Equal(t, time.Date(2027, 8, 15, 0, 0, 0, 0, time.UTC).UTC(), got.ServiceEndDate.UTC())
+	assert.Equal(t, timezone.NewDate(2027, 8, 15), got.ServiceEndDate)
 }
 
 func TestPhaseRepository_Update_RejectsZeroID(t *testing.T) {
@@ -190,8 +191,8 @@ func TestPhaseRepository_Update_RejectsInvalidPhase(t *testing.T) {
 	}))
 
 	// End-before-start is rejected by Validate.
-	phase.ServiceStartDate = time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
-	phase.ServiceEndDate = time.Date(2029, 12, 31, 0, 0, 0, 0, time.UTC)
+	phase.ServiceStartDate = timezone.NewDate(2030, 1, 1)
+	phase.ServiceEndDate = timezone.NewDate(2029, 12, 31)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Update(ctx, phase)
 	})
@@ -245,16 +246,16 @@ func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
 	defer wipePhases(db, tenantID, a, b, c)
 
 	phaseA := makeValidPhase(a)
-	phaseA.ServiceStartDate = time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
-	phaseA.ServiceEndDate = time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)
+	phaseA.ServiceStartDate = timezone.NewDate(2025, 9, 1)
+	phaseA.ServiceEndDate = timezone.NewDate(2026, 7, 31)
 
 	phaseB := makeValidPhase(b)
-	phaseB.ServiceStartDate = time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-	phaseB.ServiceEndDate = time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC)
+	phaseB.ServiceStartDate = timezone.NewDate(2026, 9, 1)
+	phaseB.ServiceEndDate = timezone.NewDate(2027, 7, 31)
 
 	phaseC := makeValidPhase(c)
-	phaseC.ServiceStartDate = time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
-	phaseC.ServiceEndDate = time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC)
+	phaseC.ServiceStartDate = timezone.NewDate(2027, 9, 1)
+	phaseC.ServiceEndDate = timezone.NewDate(2028, 7, 31)
 
 	for _, p := range []*enrollmentModels.Phase{phaseA, phaseB, phaseC} {
 		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -486,8 +487,8 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *test
 
 	mode := enrollmentModels.PhaseRolloverModeOptOut
 	rollover := makeValidPhase(rolloverName)
-	rollover.ServiceStartDate = time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
-	rollover.ServiceEndDate = time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC)
+	rollover.ServiceStartDate = timezone.NewDate(2027, 9, 1)
+	rollover.ServiceEndDate = timezone.NewDate(2028, 7, 31)
 	rollover.RolloverSourcePhaseID = &source.ID
 	rollover.RolloverMode = &mode
 	rolloverDeadline := time.Date(2027, 7, 1, 0, 0, 0, 0, time.UTC)

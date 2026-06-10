@@ -2,13 +2,14 @@ package active
 
 import (
 	"testing"
-	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func TestGroupSupervisorValidate(t *testing.T) {
-	nowDate := time.Now()
-	futureDate := nowDate.Add(30 * 24 * time.Hour) // 30 days in the future
-	pastDate := nowDate.Add(-30 * 24 * time.Hour)  // 30 days in the past
+	nowDate := timezone.TodayDate()
+	futureDate := nowDate.AddDays(30) // 30 days in the future
+	pastDate := nowDate.AddDays(-30)  // 30 days in the past
 
 	tests := []struct {
 		name            string
@@ -116,14 +117,14 @@ func TestGroupSupervisorValidate(t *testing.T) {
 }
 
 func TestGroupSupervisorSetEndDate(t *testing.T) {
-	nowDate := time.Now()
-	futureDate := nowDate.Add(30 * 24 * time.Hour) // 30 days in the future
-	pastDate := nowDate.Add(-30 * 24 * time.Hour)  // 30 days in the past
+	nowDate := timezone.TodayDate()
+	futureDate := nowDate.AddDays(30) // 30 days in the future
+	pastDate := nowDate.AddDays(-30)  // 30 days in the past
 
 	tests := []struct {
 		name            string
 		groupSupervisor *GroupSupervisor
-		endDate         time.Time
+		endDate         timezone.Date
 		wantErr         bool
 	}{
 		{
@@ -152,7 +153,7 @@ func TestGroupSupervisorSetEndDate(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && (tt.groupSupervisor.EndDate == nil || !tt.endDate.Equal(*tt.groupSupervisor.EndDate)) {
+			if !tt.wantErr && (tt.groupSupervisor.EndDate == nil || tt.endDate != *tt.groupSupervisor.EndDate) {
 				t.Errorf("GroupSupervisor.SetEndDate() did not correctly set the end date")
 			}
 		})

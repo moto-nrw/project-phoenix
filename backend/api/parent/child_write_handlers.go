@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	dateFormatYYYYMMDD = "2006-01-02"
 	// maxSickNoteDays caps a single submission so a parent can't report
 	// hundreds of days in one request. A term-length range stays well
 	// under this.
@@ -50,7 +49,7 @@ func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
 	return StatusDayResponse{
 		ID:         strconv.FormatInt(d.ID, 10),
 		StudentID:  strconv.FormatInt(d.StudentID, 10),
-		Date:       d.Date.Format(dateFormatYYYYMMDD),
+		Date:       d.Date.String(),
 		Status:     d.Status,
 		ReportedAt: d.ReportedAt,
 		Source:     d.Source,
@@ -127,33 +126,31 @@ func (rs *Resource) listSickDays(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Sick days retrieved")
 }
 
-func parseSickDayRange(r *http.Request) (time.Time, time.Time, error) {
-	// Default to the current Berlin school day (as UTC midnight, matching the
-	// DATE-column comparison). Raw time.Now().UTC() would roll to "yesterday"
-	// in the first hours after Berlin midnight.
-	today := timezone.TodayUTC()
+func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
+	today := timezone.TodayDate()
 
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
 
 	from := today
-	to := today.AddDate(0, 2, 0)
+	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
+	to := timezone.NewDate(today.Year, today.Month+2, today.Day)
 	if fromRaw != "" {
-		parsed, err := time.Parse(dateFormatYYYYMMDD, fromRaw)
+		parsed, err := timezone.ParseDate(fromRaw)
 		if err != nil {
-			return time.Time{}, time.Time{}, errors.New("invalid from date, expected YYYY-MM-DD")
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid from date, expected YYYY-MM-DD")
 		}
 		from = parsed
 	}
 	if toRaw != "" {
-		parsed, err := time.Parse(dateFormatYYYYMMDD, toRaw)
+		parsed, err := timezone.ParseDate(toRaw)
 		if err != nil {
-			return time.Time{}, time.Time{}, errors.New("invalid to date, expected YYYY-MM-DD")
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid to date, expected YYYY-MM-DD")
 		}
 		to = parsed
 	}
 	if to.Before(from) {
-		return time.Time{}, time.Time{}, errors.New("to must be on or after from")
+		return timezone.Date{}, timezone.Date{}, errors.New("to must be on or after from")
 	}
 	return from, to, nil
 }
@@ -287,24 +284,24 @@ func parsePathStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return studentID, true
 }
 
-func parseSickNoteDates(raw []string) ([]time.Time, error) {
+func parseSickNoteDates(raw []string) ([]timezone.Date, error) {
 	if len(raw) == 0 {
 		return nil, errors.New("at least one date is required")
 	}
 	if len(raw) > maxSickNoteDays {
 		return nil, errors.New("too many dates in a single submission")
 	}
-	seen := make(map[string]struct{}, len(raw))
-	dates := make([]time.Time, 0, len(raw))
+	seen := make(map[timezone.Date]struct{}, len(raw))
+	dates := make([]timezone.Date, 0, len(raw))
 	for _, s := range raw {
-		if _, dup := seen[s]; dup {
-			continue
-		}
-		seen[s] = struct{}{}
-		d, err := time.Parse(dateFormatYYYYMMDD, s)
+		d, err := timezone.ParseDate(s)
 		if err != nil {
 			return nil, errors.New("invalid date format, expected YYYY-MM-DD")
 		}
+		if _, dup := seen[d]; dup {
+			continue
+		}
+		seen[d] = struct{}{}
 		dates = append(dates, d)
 	}
 	return dates, nil

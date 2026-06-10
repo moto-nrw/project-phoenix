@@ -137,6 +137,10 @@ func (m *mockAccountTenantRepo) EnsureActive(ctx context.Context, mapping *auth.
 	return nil
 }
 
+func (m *mockAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
+	return nil
+}
+
 func (m *mockAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
 	if m.findActiveByAccountIDFn != nil {
 		return m.findActiveByAccountIDFn(ctx, accountID)

@@ -3,6 +3,7 @@ package users
 import (
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -25,16 +26,18 @@ func GuestIsActive(g *userModels.Guest, now time.Time) bool {
 		return true
 	}
 
+	day := timezone.DateFromTime(now)
+
 	// Only start date set => active once it has been reached.
 	if g.StartDate != nil && g.EndDate == nil {
-		return !now.Before(*g.StartDate)
+		return !day.Before(*g.StartDate)
 	}
 
 	// Only end date set => active until it passes.
 	if g.StartDate == nil && g.EndDate != nil {
-		return !now.After(*g.EndDate)
+		return !day.After(*g.EndDate)
 	}
 
 	// Both dates set => active inside the inclusive window.
-	return !now.Before(*g.StartDate) && !now.After(*g.EndDate)
+	return !day.Before(*g.StartDate) && !day.After(*g.EndDate)
 }

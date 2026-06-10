@@ -36,6 +36,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -70,7 +71,7 @@ type TimeTrackingCleanupResult struct {
 	AbsencesDeleted int
 	StaffAffected   int
 	RetentionDays   int
-	CutoffDate      time.Time
+	CutoffDate      timezone.Date
 	DurationMS      int64
 }
 
@@ -81,9 +82,9 @@ type TimeTrackingCleanupPreview struct {
 	AbsencesToDelete int
 	StaffAffected    int
 	RetentionDays    int
-	CutoffDate       time.Time
-	OldestSession    *time.Time
-	OldestAbsence    *time.Time
+	CutoffDate       timezone.Date
+	OldestSession    *timezone.Date
+	OldestAbsence    *timezone.Date
 }
 
 // TimeTrackingCleanupStats returns the current state of the time-tracking
@@ -91,10 +92,10 @@ type TimeTrackingCleanupPreview struct {
 type TimeTrackingCleanupStats struct {
 	TotalSessions int
 	TotalAbsences int
-	OldestSession *time.Time
-	OldestAbsence *time.Time
+	OldestSession *timezone.Date
+	OldestAbsence *timezone.Date
 	RetentionDays int
-	CutoffDate    time.Time
+	CutoffDate    timezone.Date
 }
 
 // TimeTrackingCleanupService drives GDPR retention cleanup for the
@@ -191,7 +192,7 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 		slog.Int("absences_deleted", result.AbsencesDeleted),
 		slog.Int("staff_affected", result.StaffAffected),
 		slog.Int("retention_days", retentionDays),
-		slog.String("cutoff", cutoff.Format("2006-01-02")),
+		slog.String("cutoff", cutoff.String()),
 		slog.Int64("duration_ms", result.DurationMS),
 	)
 
@@ -305,17 +306,15 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 	return timeTrackingRetentionDefaultDays
 }
 
-// cutoffForDays returns the UTC start-of-day cutoff: anything older than
+// cutoffForDays returns the calendar-day cutoff: anything older than
 // today minus retentionDays will be deleted.
-func cutoffForDays(retentionDays int) time.Time {
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return today.AddDate(0, 0, -retentionDays)
+func cutoffForDays(retentionDays int) timezone.Date {
+	return timezone.TodayDate().AddDays(-retentionDays)
 }
 
 // olderThanOptions builds query options selecting rows whose dateColumn is
 // strictly before the cutoff.
-func olderThanOptions(dateColumn string, cutoff time.Time) *modelBase.QueryOptions {
+func olderThanOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOptions {
 	options := modelBase.NewQueryOptions()
 	options.Filter = modelBase.NewFilter().LessThan(dateColumn, cutoff)
 	return options
@@ -323,7 +322,7 @@ func olderThanOptions(dateColumn string, cutoff time.Time) *modelBase.QueryOptio
 
 // staffImpactOptions extends olderThanOptions with the (staff_id, id)
 // ordering the audit sample bookkeeping relies on.
-func staffImpactOptions(dateColumn string, cutoff time.Time) *modelBase.QueryOptions {
+func staffImpactOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOptions {
 	options := olderThanOptions(dateColumn, cutoff)
 	sorting := &modelBase.Sorting{}
 	sorting.AddField("staff_id", modelBase.SortAsc).AddField("id", modelBase.SortAsc)
@@ -351,7 +350,7 @@ type perStaffSampleIDs struct {
 // caller's RLS transaction.
 func (s *timeTrackingCleanupService) collectStaffImpact(
 	ctx context.Context,
-	cutoff time.Time,
+	cutoff timezone.Date,
 ) (perStaffCounts, perStaffSamples, error) {
 	counts := make(perStaffCounts)
 	samples := make(perStaffSamples)
@@ -392,14 +391,14 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	ctx context.Context,
 	tenantID int64,
 	retentionDays int,
-	cutoff time.Time,
+	cutoff timezone.Date,
 	counts perStaffCounts,
 	samples perStaffSamples,
 ) error {
 	if s.auditRepo == nil {
 		return fmt.Errorf("audit repo not configured")
 	}
-	cutoffStr := cutoff.Format("2006-01-02")
+	cutoffStr := cutoff.String()
 	for staffID, n := range counts {
 		deletion := audit.NewStaffDataDeletion(
 			staffID,

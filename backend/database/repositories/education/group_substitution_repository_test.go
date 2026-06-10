@@ -2,7 +2,6 @@ package education_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -67,8 +66,8 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 		defer cleanupGroupRecords(t, db, group.ID)
 		defer cleanupStaffChain(t, db, substitute.ID)
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 
 		sub := &education.GroupSubstitution{
 			GroupID:           group.ID,
@@ -94,8 +93,8 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 		defer cleanupStaffChain(t, db, regular.ID)
 		defer cleanupStaffChain(t, db, substitute.ID)
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -106,6 +105,55 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 		assert.Equal(t, regular.ID, *sub.RegularStaffID)
 		assert.Equal(t, substitute.ID, sub.SubstituteStaffID)
 	})
+}
+
+func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSubstitution
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestEducationGroup(t, db, "SubDelOffboard")
+	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+
+	defer cleanupGroupRecords(t, db, group.ID)
+	defer cleanupStaffChain(t, db, staff.ID)
+	defer cleanupStaffChain(t, db, otherStaff.ID)
+
+	today := timezone.TodayDate()
+	// Past substitution (ended yesterday) — must stay as history.
+	past := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID,
+		today.AddDays(-10), today.AddDays(-1))
+	// Active substitution (running today) where staff is the substitute — must go.
+	activeSub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID,
+		today.AddDays(-2), today.AddDays(2))
+	// Future substitution where staff is the regular (being substituted) — must go.
+	futureRegular := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &staff.ID, otherStaff.ID,
+		today.AddDays(5), today.AddDays(10))
+	// Future substitution of an unrelated staff member — must stay.
+	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
+		today.AddDays(5), today.AddDays(10))
+	defer cleanupSubstitutionRecords(t, db, past.ID, activeSub.ID, futureRegular.ID, otherFuture.ID)
+
+	affected, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, today)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), affected)
+
+	remainingIDs := func() map[int64]bool {
+		subs, listErr := repo.FindByGroup(ctx, group.ID)
+		require.NoError(t, listErr)
+		ids := make(map[int64]bool, len(subs))
+		for _, s := range subs {
+			ids[s.ID] = true
+		}
+		return ids
+	}()
+	assert.True(t, remainingIDs[past.ID], "past substitution must stay as history")
+	assert.False(t, remainingIDs[activeSub.ID], "active substitution must be deleted")
+	assert.False(t, remainingIDs[futureRegular.ID], "future substitution naming staff as regular must be deleted")
+	assert.True(t, remainingIDs[otherFuture.ID], "unrelated staff's substitution must stay")
 }
 
 func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
@@ -119,8 +167,8 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubFindByID")
 		substitute := testpkg.CreateTestStaff(t, db, "FindSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -150,8 +198,8 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubUpdate")
 		substitute := testpkg.CreateTestStaff(t, db, "UpdateSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -179,8 +227,8 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDelete")
 		substitute := testpkg.CreateTestStaff(t, db, "DeleteSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupGroupRecords(t, db, group.ID)
@@ -209,8 +257,8 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubList")
 		substitute := testpkg.CreateTestStaff(t, db, "ListSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -234,8 +282,8 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubListOpts")
 		substitute := testpkg.CreateTestStaff(t, db, "ListOptsSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -262,8 +310,8 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubByGroup")
 		substitute := testpkg.CreateTestStaff(t, db, "ByGroupSubstitute", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -296,8 +344,8 @@ func TestGroupSubstitutionRepository_FindBySubstituteStaff(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubBySubstitute")
 		substitute := testpkg.CreateTestStaff(t, db, "BySubstituteStaff", "Staff")
 
-		startDate := time.Now()
-		endDate := startDate.Add(7 * 24 * time.Hour)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -322,9 +370,9 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
 
 		// Create substitution that's active today
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour) // Yesterday
-		endDate := today.Add(7 * 24 * time.Hour)    // Week from now
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1) // Yesterday
+		endDate := today.AddDays(7)    // Week from now
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -348,9 +396,9 @@ func TestGroupSubstitutionRepository_FindActiveByGroup(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroup")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupSubstitute", "Staff")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -375,9 +423,9 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "OverlapSubstitute", "Staff")
 
 		// Create substitution from today for 7 days
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -385,8 +433,8 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		defer cleanupStaffChain(t, db, substitute.ID)
 
 		// Check for overlapping period (3 days in the middle)
-		checkStart := today.Add(2 * 24 * time.Hour)
-		checkEnd := today.Add(5 * 24 * time.Hour)
+		checkStart := today.AddDays(2)
+		checkEnd := today.AddDays(5)
 
 		subs, err := repo.FindOverlapping(ctx, substitute.ID, checkStart, checkEnd)
 		require.NoError(t, err)
@@ -398,9 +446,9 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "NoOverlapSubstitute", "Staff")
 
 		// Create substitution for next week
-		today := timezone.Today()
-		startDate := today.Add(7 * 24 * time.Hour)
-		endDate := today.Add(14 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(7)
+		endDate := today.AddDays(14)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -409,7 +457,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 
 		// Check for this week (should not overlap)
 		checkStart := today
-		checkEnd := today.Add(3 * 24 * time.Hour)
+		checkEnd := today.AddDays(3)
 
 		subs, err := repo.FindOverlapping(ctx, substitute.ID, checkStart, checkEnd)
 		require.NoError(t, err)
@@ -429,9 +477,9 @@ func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
 		regular := testpkg.CreateTestStaff(t, db, "Regular", "Staff")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Staff")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -474,9 +522,9 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubstitute")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubstitute", "Staff")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -502,9 +550,9 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 		substitute := testpkg.CreateTestStaff(t, db, "InactiveSubstitute", "Staff")
 
 		// Create substitution for last week (expired)
-		today := timezone.Today()
-		startDate := today.Add(-14 * 24 * time.Hour)
-		endDate := today.Add(-7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-14)
+		endDate := today.AddDays(-7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -540,12 +588,12 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 		defer cleanupGroupRecords(t, db, group.ID)
 		defer cleanupStaffChain(t, db, substitute.ID)
 
-		today := time.Now()
+		today := timezone.TodayDate()
 		sub := &education.GroupSubstitution{
 			GroupID:           group.ID,
 			SubstituteStaffID: substitute.ID,
 			StartDate:         today,
-			EndDate:           today.Add(-7 * 24 * time.Hour), // End before start
+			EndDate:           today.AddDays(-7), // End before start
 		}
 
 		err := repo.Create(ctx, sub)
@@ -582,9 +630,9 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveFilterSub", "Staff")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -604,9 +652,9 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubDateFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "DateFilterSub", "Staff")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -614,7 +662,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		defer cleanupStaffChain(t, db, substitute.ID)
 
 		filters := map[string]interface{}{
-			"date": today.Add(3 * 24 * time.Hour), // Middle of range
+			"date": today.AddDays(3), // Middle of range
 		}
 
 		subs, err := repo.List(ctx, filters)
@@ -626,9 +674,9 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubReasonFilter")
 		substitute := testpkg.CreateTestStaff(t, db, "ReasonFilterSub", "Staff")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 
 		sub := &education.GroupSubstitution{
 			GroupID:           group.ID,
@@ -679,9 +727,9 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 		regular := testpkg.CreateTestStaff(t, db, "Regular", "Person")
 		substitute := testpkg.CreateTestStaff(t, db, "Substitute", "Person")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &regular.ID, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -719,9 +767,9 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubNoRegular")
 		substitute := testpkg.CreateTestStaff(t, db, "OnlySubstitute", "Person")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -751,9 +799,9 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		substitute1 := testpkg.CreateTestStaff(t, db, "Sub1", "Person")
 		substitute2 := testpkg.CreateTestStaff(t, db, "Sub2", "Person")
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		startDate := today
-		endDate := today.Add(7 * 24 * time.Hour)
+		endDate := today.AddDays(7)
 
 		sub1 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute1.ID, startDate, endDate)
 		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
@@ -806,9 +854,9 @@ func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveRelSub", "Person")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -846,9 +894,9 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveSubRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveSubRel", "Person")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)
@@ -878,9 +926,9 @@ func TestGroupSubstitutionRepository_FindActiveByGroupWithRelations(t *testing.T
 		group := testpkg.CreateTestEducationGroup(t, db, "SubActiveGroupRel")
 		substitute := testpkg.CreateTestStaff(t, db, "ActiveGroupRelSub", "Person")
 
-		today := timezone.Today()
-		startDate := today.Add(-1 * 24 * time.Hour)
-		endDate := today.Add(7 * 24 * time.Hour)
+		today := timezone.TodayDate()
+		startDate := today.AddDays(-1)
+		endDate := today.AddDays(7)
 		sub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
 		defer cleanupSubstitutionRecords(t, db, sub.ID)

@@ -4,8 +4,8 @@ package active_test
 import (
 	"context"
 	"testing"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -34,7 +34,7 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// Create supervisor
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -93,7 +93,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -123,7 +123,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   99999999, // invalid
 			StaffID:   staff.ID,
@@ -158,7 +158,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -224,7 +224,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -281,7 +281,7 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -334,7 +334,7 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -390,7 +390,7 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -450,7 +450,7 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
 		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, group1.ID, group2.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		sup1 := &activeModels.GroupSupervisor{GroupID: group1.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
 		sup2 := &activeModels.GroupSupervisor{GroupID: group2.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
 		err := service.CreateGroupSupervisor(ctx, sup1)
@@ -496,7 +496,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -561,7 +561,7 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions")
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
-		now := time.Now()
+		now := timezone.TodayDate()
 		supervisor := &activeModels.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,

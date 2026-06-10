@@ -4,9 +4,9 @@ package active
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -78,7 +78,7 @@ func (r *GroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*activ
 // FindStaleOpen returns supervisor rows started before the given day that
 // still lack an end_date. Feeds the nightly stale-supervisor cleanup and its
 // preview (services/active/cleanup_service.go, session_service.go).
-func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before time.Time) ([]*active.GroupSupervisor, error) {
+func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*active.GroupSupervisor, error) {
 	var supervisions []*active.GroupSupervisor
 
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -180,7 +180,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", time.Now()).
+		Set("end_date = ?", timezone.TodayDate()).
 		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {

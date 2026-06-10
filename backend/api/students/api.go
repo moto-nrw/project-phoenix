@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -690,7 +691,7 @@ func createPersonFromStudentRequest(req *StudentRequest) (*users.Person, error) 
 
 	// Set optional Birthday if provided
 	if req.Birthday != "" {
-		parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, req.Birthday)
+		parsedBirthday, err := timezone.ParseDate(req.Birthday)
 		if err != nil {
 			return nil, fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 		}
@@ -1046,7 +1047,7 @@ func applyPersonUpdates(req *UpdateStudentRequest, person *users.Person) personU
 	}
 	if req.Birthday != nil {
 		if *req.Birthday != "" {
-			parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, *req.Birthday)
+			parsedBirthday, err := timezone.ParseDate(*req.Birthday)
 			if err != nil {
 				result.err = fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 				return result

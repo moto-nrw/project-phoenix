@@ -576,6 +576,7 @@ func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff,
 	return nil, nil
 }
 func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
+func (m *mockStaffRepo) ClearWorkTimeModel(context.Context, int64) error  { return nil }
 func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
 	return nil, nil
 }

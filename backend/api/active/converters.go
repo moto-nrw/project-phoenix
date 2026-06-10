@@ -100,12 +100,20 @@ func newVisitResponse(visit *active.Visit) VisitResponse {
 
 // newSupervisorResponse converts a group supervisor model to a response object
 func newSupervisorResponse(supervisor *active.GroupSupervisor) SupervisorResponse {
+	// The supervisor wire shape keeps start_time/end_time as ISO timestamps
+	// (UTC midnight of the DATE), matching how the DATE columns serialized
+	// before the timezone.Date migration.
+	var endTime *time.Time
+	if supervisor.EndDate != nil {
+		t := supervisor.EndDate.UTCMidnight()
+		endTime = &t
+	}
 	response := SupervisorResponse{
 		ID:            supervisor.ID,
 		StaffID:       supervisor.StaffID,
 		ActiveGroupID: supervisor.GroupID,
-		StartTime:     supervisor.StartDate,
-		EndTime:       supervisor.EndDate,
+		StartTime:     supervisor.StartDate.UTCMidnight(),
+		EndTime:       endTime,
 		IsActive:      activeService.IsSupervisorActive(supervisor, time.Now()),
 		CreatedAt:     supervisor.CreatedAt,
 		UpdatedAt:     supervisor.UpdatedAt,

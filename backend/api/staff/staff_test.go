@@ -41,7 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	// Create repo factory to get GroupSupervisor repository
 	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, svc.StaffAbsence, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, svc.StaffAbsence, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, slog.Default())
 
 	return &testContext{
 		db:       db,
@@ -327,7 +327,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 
 	tenantID := int64(testutil.DefaultTestClaims().TenantID)
 	tenantCtx := testpkg.TenantContext(tenantID)
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	session := &active.WorkSession{
 		StaffID:     staff.ID,
 		Date:        today,
@@ -587,7 +587,12 @@ func TestDeleteStaff_Success(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteStaff", "Test")
-	// Note: No defer cleanup needed since we're deleting it
+	t.Cleanup(func() {
+		// Offboarding soft-deletes; remove the row for real.
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM audit.data_deletions WHERE staff_id = ?`, staff.ID)
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	})
 
 	router := chi.NewRouter()
 	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
@@ -600,6 +605,16 @@ func TestDeleteStaff_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// The staff row must be soft-deleted (kept for history), not hard-deleted.
+	var deletedAt *time.Time
+	err := ctx.db.NewSelect().
+		TableExpr(`users.staff`).
+		ColumnExpr(`deleted_at`).
+		Where(`id = ?`, staff.ID).
+		Scan(context.Background(), &deletedAt)
+	require.NoError(t, err)
+	assert.NotNil(t, deletedAt, "delete must soft-delete the staff row")
 }
 
 func TestDeleteStaff_NotFound(t *testing.T) {

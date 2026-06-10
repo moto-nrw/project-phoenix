@@ -7,6 +7,7 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,7 +37,7 @@ func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activ
 	}
 }
 
-func buildInstance(tenantID, roomID int64, activityID *int64, date time.Time, start, end time.Time, title string) *scheduleModels.ActivityInstance {
+func buildInstance(tenantID, roomID int64, activityID *int64, date timezone.Date, start, end time.Time, title string) *scheduleModels.ActivityInstance {
 	inst := &scheduleModels.ActivityInstance{
 		Date:            date,
 		ActivityGroupID: activityID,
@@ -63,7 +64,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		inst := buildInstance(
 			1, fx.roomID, &fx.activityID,
-			time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+			timezone.NewDate(2026, 9, 15),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 			"Lernzeit",
@@ -82,7 +83,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 
 		inst := buildInstance(
 			1, fx.roomID, nil,
-			time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC),
+			timezone.NewDate(2026, 9, 16),
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
 			"Spontanes Kochen",
@@ -109,7 +110,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		inst := buildInstance(1, fx.roomID, &fx.activityID,
-			time.Date(2026, 9, 17, 0, 0, 0, 0, time.UTC),
+			timezone.NewDate(2026, 9, 17),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 			"Broken",
@@ -124,7 +125,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-spon-dup")
 		defer fx.cleanup()
 
-		date := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
+		date := timezone.NewDate(2026, 9, 18)
 		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 
@@ -143,7 +144,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-dup")
 		defer fx.cleanup()
 
-		date := time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC)
+		date := timezone.NewDate(2026, 9, 19)
 		start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
@@ -166,7 +167,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent")
 	defer fx.cleanup()
 
-	date := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 9, 21)
 	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 	var createdIDs []int64
@@ -202,7 +203,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent-invalid")
 	defer fx.cleanup()
 
-	date := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 9, 22)
 	start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
@@ -258,7 +259,7 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 
 	inst := buildInstance(
 		1, fx.roomID, &fx.activityID,
-		time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+		timezone.NewDate(2026, 9, 15),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit",
@@ -305,7 +306,7 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 
 	inst := buildInstance(
 		1, fx.roomID, &fx.activityID,
-		time.Date(2026, 9, 16, 0, 0, 0, 0, time.UTC),
+		timezone.NewDate(2026, 9, 16),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit Lifecycle",
@@ -338,8 +339,8 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "by-date")
 	defer fx.cleanup()
 
-	date := time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC)
-	other := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 9, 20)
+	other := timezone.NewDate(2026, 9, 21)
 
 	a := buildInstance(1, fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -387,10 +388,10 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "range")
 	defer fx.cleanup()
 
-	start := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
-	mid := time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC)
-	end := time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)
-	outside := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
+	start := timezone.NewDate(2026, 9, 22)
+	mid := timezone.NewDate(2026, 9, 24)
+	end := timezone.NewDate(2026, 9, 26)
+	outside := timezone.NewDate(2026, 10, 5)
 
 	s1 := buildInstance(1, fx.roomID, &fx.activityID, start,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -433,7 +434,7 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 	fx := newActivityInstanceFixtures(t, db, "grp-date")
 	defer fx.cleanup()
 
-	date := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 10, 1)
 
 	a := buildInstance(1, fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -472,7 +473,7 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 
 		inst := buildInstance(1, fx.roomID, &fx.activityID,
-			time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC),
+			timezone.NewDate(2026, 10, 14),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 			"linked")
@@ -502,7 +503,7 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 
 	ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 
-	date := time.Date(2026, 10, 13, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2026, 10, 13)
 
 	first := buildInstance(1, fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
@@ -560,7 +561,7 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 	defer fx.cleanup()
 
 	inst := buildInstance(1, fx.roomID, &fx.activityID,
-		time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC),
+		timezone.NewDate(2026, 10, 7),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		"List-entry")

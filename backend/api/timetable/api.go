@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -331,41 +332,41 @@ func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
 		ID:              p.ID,
 		Name:            p.Name,
 		PeriodType:      p.PeriodType,
-		StartDate:       p.StartDate.Format(dateLayout),
-		EndDate:         p.EndDate.Format(dateLayout),
+		StartDate:       p.StartDate.String(),
+		EndDate:         p.EndDate.String(),
 		WeekCycleLength: p.WeekCycleLength,
 		IsActive:        p.IsActive,
 		CreatedAt:       p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       p.UpdatedAt.Format(time.RFC3339),
 	}
 	if p.WeekCycleAnchor != nil {
-		anchor := p.WeekCycleAnchor.Format(dateLayout)
+		anchor := p.WeekCycleAnchor.String()
 		resp.WeekCycleAnchor = &anchor
 	}
 	return resp
 }
 
 // parseDates extracts start_date, end_date, and optional week_cycle_anchor from a request.
-// Returns parsed times and true on success, or renders an error and returns false.
-func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate time.Time, anchor *time.Time, ok bool) {
+// Returns parsed calendar dates and true on success, or renders an error and returns false.
+func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate timezone.Date, anchor *timezone.Date, ok bool) {
 	var err error
-	startDate, err = time.Parse(dateLayout, req.StartDate)
+	startDate, err = timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return time.Time{}, time.Time{}, nil, false
+		return timezone.Date{}, timezone.Date{}, nil, false
 	}
 
-	endDate, err = time.Parse(dateLayout, req.EndDate)
+	endDate, err = timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return time.Time{}, time.Time{}, nil, false
+		return timezone.Date{}, timezone.Date{}, nil, false
 	}
 
 	if req.WeekCycleAnchor != nil {
-		a, err := time.Parse(dateLayout, *req.WeekCycleAnchor)
+		a, err := timezone.ParseDate(*req.WeekCycleAnchor)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return time.Time{}, time.Time{}, nil, false
+			return timezone.Date{}, timezone.Date{}, nil, false
 		}
 		anchor = &a
 	}
@@ -375,7 +376,7 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 
 // validatePeriodRules checks business rules after dates have been parsed.
 // Returns true on success, or renders an error and returns false.
-func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate time.Time, anchor *time.Time) bool {
+func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) bool {
 	if !endDate.After(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must be after start_date")))
 		return false

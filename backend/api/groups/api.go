@@ -882,9 +882,9 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get active substitutions for this group
-	date := time.Now()
+	date := timezone.TodayDate()
 	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		parsedDate, err := timezone.ParseDate(dateStr)
 		if err == nil {
 			date = parsedDate
 		}
@@ -995,7 +995,7 @@ func (rs *Resource) translateTransferRequestError(err error) string {
 
 // checkDuplicateTransfer verifies target doesn't already have access to this group
 func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -1048,8 +1048,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	today := timezone.TodayUTC()
-	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	today := timezone.TodayDate()
 
 	// Create substitution (without regular_staff_id = additional access, not replacement)
 	substitution := &education.GroupSubstitution{
@@ -1057,7 +1056,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		RegularStaffID:    nil, // NULL = additional access, not replacement
 		SubstituteStaffID: targetStaff.ID,
 		StartDate:         today,
-		EndDate:           endOfDay,
+		EndDate:           today, // single-day transfer; access ends with the calendar day
 		Reason:            "Gruppenübergabe",
 	}
 
@@ -1081,7 +1080,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		"substitution_id": substitution.ID,
 		"group_id":        groupID,
 		"target_staff_id": targetStaff.ID,
-		"valid_until":     endOfDay.Format(time.RFC3339),
+		"valid_until":     today.EndOfDay().Format(time.RFC3339),
 	}, "Group access transferred successfully")
 }
 
