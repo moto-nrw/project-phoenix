@@ -165,8 +165,11 @@ func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDailyCheckout handles the "confirm_daily_checkout" action.
-// The student's visit was already ended by the checkin handler (student is "unterwegs").
-// This endpoint only updates the attendance record when the student confirms "nach Hause".
+// Normally the student's visit was already ended by the checkin handler
+// (student is "unterwegs") and this endpoint only updates the attendance
+// record when the student confirms "nach Hause". If a visit is still open,
+// CheckOutStudent ends it in the same request transaction (issue #895 — see
+// services/active.performCheckOut).
 func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
