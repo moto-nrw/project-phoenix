@@ -105,6 +105,41 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, openVisits[0].ID)
 	})
 
+	t.Run("still 409 when checked in without a visit", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		webDevice := testpkg.EnsureWebManualDevice(t, db)
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "NoVisit", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "No Visit Conflict Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		student := testpkg.CreateTestStudent(t, db, "NoVisit", "Student", "5c")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		targetActivity := testpkg.CreateTestActivityGroup(t, db, "no-visit-target")
+		targetRoom := testpkg.CreateTestRoom(t, db, "No Visit Target Room")
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID,
+			targetActivity.ID, targetRoom.ID, targetGroup.ID, webDevice.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		// Checked in for the day but not in any room (open attendance, no visit).
+		checkInTime := time.Now().Add(-1 * time.Hour)
+		testpkg.CreateTestAttendance(t, db, student.ID, teacher.Staff.ID, webDevice.ID, checkInTime, nil)
+
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+		body := active.CheckinRequest{ActiveGroupID: targetGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+
+		router := handler.Router()
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), "Student is already checked in")
+	})
+
 	t.Run("still 409 when student is genuinely in another room", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 

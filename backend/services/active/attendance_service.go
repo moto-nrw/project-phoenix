@@ -330,9 +330,6 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) e
 		}
 		return err
 	}
-	if visit == nil {
-		return nil
-	}
 	if err := s.EndVisit(ctx, visit.ID); err != nil && !errors.Is(err, ErrVisitAlreadyEnded) {
 		return err
 	}
