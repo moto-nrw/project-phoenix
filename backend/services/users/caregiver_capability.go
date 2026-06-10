@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -18,6 +20,7 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // CaregiverCapabilityServiceDependencies contains the repositories and services
@@ -69,6 +72,54 @@ var caregiverCapabilityBindingTables = []string{
 }
 
 const caregiverCapabilityAuditIP = "0.0.0.0"
+
+// caregiverDisableDeadlockAttempts bounds how often the disable transaction
+// is retried after Postgres aborts it as a deadlock victim (SQLSTATE 40P01).
+// The four SHARE ROW EXCLUSIVE locks in lockCaregiverCapabilityBindings can
+// deadlock against concurrent writers that touch the same tables in a
+// different order; Postgres resolves that by killing one side, and the
+// documented remedy is to retry the killed transaction.
+const caregiverDisableDeadlockAttempts = 3
+
+// isDeadlockError reports whether err is a Postgres deadlock abort (40P01).
+func isDeadlockError(err error) bool {
+	var pgErr pgdriver.Error
+	return errors.As(err, &pgErr) && pgErr.Field('C') == "40P01"
+}
+
+// runDisableTxWithDeadlockRetry executes fn via RunInTx and retries when the
+// transaction was aborted as a deadlock victim. It retries only when this
+// service owns the transaction: with an outer transaction in ctx the abort
+// has already poisoned the whole request transaction, so only the caller can
+// retry and we return the error unchanged.
+func (s *caregiverCapabilityService) runDisableTxWithDeadlockRetry(
+	ctx context.Context,
+	fn func(txCtx context.Context, tx bun.Tx) error,
+) error {
+	if _, hasOuterTx := modelBase.TxFromContext(ctx); hasOuterTx {
+		return s.txHandler.RunInTx(ctx, fn)
+	}
+
+	var err error
+	for attempt := 1; attempt <= caregiverDisableDeadlockAttempts; attempt++ {
+		err = s.txHandler.RunInTx(ctx, fn)
+		if err == nil || !isDeadlockError(err) {
+			return err
+		}
+		if attempt == caregiverDisableDeadlockAttempts {
+			break
+		}
+		slog.Default().WarnContext(ctx, "caregiver capability disable aborted as deadlock victim, retrying",
+			slog.Int("attempt", attempt),
+		)
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(time.Duration(attempt) * 50 * time.Millisecond):
+		}
+	}
+	return err
+}
 
 // NewCaregiverCapabilityService creates a tenant-scoped caregiver capability service.
 func NewCaregiverCapabilityService(
@@ -230,7 +281,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	}
 
 	var result *userModels.CaregiverCapabilityState
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	if err := s.runDisableTxWithDeadlockRetry(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
 			return err
 		}
