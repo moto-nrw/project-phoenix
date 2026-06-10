@@ -2025,3 +2025,11 @@ func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, 
 func (m *wsMockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
 	return nil, nil
 }
+
+func (m *wsMockGroupSupervisorRepository) FindStaleOpen(context.Context, time.Time) ([]*activeModels.GroupSupervisor, error) {
+	return nil, nil
+}
+
+func (m *wsMockGroupSupervisorRepository) UpdateColumns(context.Context, *activeModels.GroupSupervisor, ...string) (int64, error) {
+	return 0, nil
+}

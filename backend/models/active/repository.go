@@ -144,6 +144,14 @@ type VisitRepository interface {
 	// CountExpiredVisits counts visits that are older than retention period for all students
 	CountExpiredVisits(ctx context.Context) (int64, error)
 
+	// OldestExpiredVisitDate returns the created_at of the oldest visit past
+	// its per-student retention window, or nil when no visit is expired.
+	OldestExpiredVisitDate(ctx context.Context) (*time.Time, error)
+
+	// ExpiredVisitMonthlyCounts groups expired visits by calendar month of
+	// created_at, keyed YYYY-MM. Feeds the GDPR retention statistics.
+	ExpiredVisitMonthlyCounts(ctx context.Context) (map[string]int64, error)
+
 	// GetCurrentByStudentID finds the current active visit for a student
 	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
 
@@ -228,6 +236,16 @@ type GroupSupervisorRepository interface {
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.
 	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
+
+	// FindStaleOpen returns supervisor rows started before the given day that
+	// still lack an end_date. Feeds the nightly stale-supervisor cleanup and
+	// its preview.
+	FindStaleOpen(ctx context.Context, before time.Time) ([]*GroupSupervisor, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key and returns the number of rows affected.
+	UpdateColumns(ctx context.Context, supervisor *GroupSupervisor, columns ...string) (int64, error)
 }
 
 // CombinedGroupRepository defines operations for managing active combined groups

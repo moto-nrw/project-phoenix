@@ -622,3 +622,19 @@ func (m *mockVisitRepository) GetCurrentRoomNamesForStudents(context.Context, []
 func (m *mockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
 	return nil, nil
 }
+
+func (m *mockVisitRepository) OldestExpiredVisitDate(context.Context) (*time.Time, error) {
+	return nil, nil
+}
+
+func (m *mockVisitRepository) ExpiredVisitMonthlyCounts(context.Context) (map[string]int64, error) {
+	return nil, nil
+}
+
+func (m *mockGroupSupervisorRepository) FindStaleOpen(context.Context, time.Time) ([]*active.GroupSupervisor, error) {
+	return nil, nil
+}
+
+func (m *mockGroupSupervisorRepository) UpdateColumns(context.Context, *active.GroupSupervisor, ...string) (int64, error) {
+	return 0, nil
+}
