@@ -29,6 +29,7 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
 		repoFactory.Attendance,
+		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
@@ -50,6 +51,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
 		repoFactory.Attendance,
+		repoFactory.GroupSupervisor,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),

@@ -96,6 +96,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 	ctx.CleanupService = active.NewCleanupService(
 		ctx.RepoFactory.ActiveVisit,
 		ctx.RepoFactory.Attendance,
+		ctx.RepoFactory.GroupSupervisor,
 		ctx.RepoFactory.PrivacyConsent,
 		ctx.RepoFactory.DataDeletion,
 		consentService,

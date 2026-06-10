@@ -31,13 +31,9 @@ import (
 // file's allowance: transaction orchestration is legitimately service-layer,
 // but new ones still deserve the review friction of touching this list.
 var serviceQueryRatchetAllowlist = map[string]int{
-	// Bare-pool tenant-tx escapes, deferred to a dedicated bug PR (the
-	// scoping fix is a behavior change). See issue #585.
-	"services/active/cleanup_service.go": 7,
-	"services/active/session_service.go": 3, // 2 bare-pool sites + 1 advisory lock
-
 	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
 	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
+	"services/active/session_service.go":                1, // advisory lock (pg_advisory_xact_lock)
 	"services/enrollment/request_service.go":            1,
 	"services/import/student_import_config.go":          3,
 	"services/platform/operator_suggestions_service.go": 3,

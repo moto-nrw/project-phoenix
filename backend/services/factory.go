@@ -722,6 +722,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
 		repos.Attendance,
+		repos.GroupSupervisor,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
 		privacyConsentService,
