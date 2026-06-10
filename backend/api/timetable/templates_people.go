@@ -41,7 +41,7 @@ func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodI
 	if err != nil {
 		return time.Time{}, err
 	}
-	return period.StartDate, nil
+	return period.StartDate.UTCMidnight(), nil
 }
 
 func renderTemplatePeriodLookupError(w http.ResponseWriter, r *http.Request, err error) {

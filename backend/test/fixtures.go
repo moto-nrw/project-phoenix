@@ -2568,7 +2568,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 
 // CreateTestArrivalException inserts a date-specific arrival exception.
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
-func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2576,7 +2576,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &schedule.StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2621,7 +2621,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 
 // CreateTestPickupException inserts a date-specific pickup exception.
 // Pass pickupHHMM="" for absence (PickupTime=NULL).
-func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2629,7 +2629,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2664,7 +2664,7 @@ type ActivityInstanceOpts struct {
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
-func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2688,7 +2688,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomI
 	}
 
 	row := &schedule.ActivityInstance{
-		Date:            timezone.DateOfUTC(date),
+		Date:            date,
 		ActivityGroupID: opts.ActivityGroupID,
 		ActiveGroupID:   opts.ActiveGroupID,
 		Title:           title,

@@ -617,8 +617,8 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
 	defer func() {
@@ -787,8 +787,8 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().

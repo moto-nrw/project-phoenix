@@ -145,7 +145,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents bool) *scheduleModels.ActivityInstance {
 	t.Helper()
 	ai := &scheduleModels.ActivityInstance{
-		Date:            time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC),
+		Date:            timezone.NewDate(2026, 4, 20),
 		ActivityGroupID: &s.tmplID,
 		Title:           "Lifecycle-Test",
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -580,15 +580,15 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	s := buildLifecycle(t)
 
-	from := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
-	to := from.AddDate(0, 0, 6)
+	from := timezone.NewDate(2026, 4, 20)
+	to := from.AddDays(6)
 
 	// Five seeded rows inside the window — one of each protected kind.
 	plannedNormal := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
-	plannedSpont := insertInstance(t, s, from.AddDate(0, 0, 1), scheduleModels.InstanceStatusPlanned, true)
-	active := insertInstance(t, s, from.AddDate(0, 0, 2), scheduleModels.InstanceStatusActive, false)
-	completed := insertInstance(t, s, from.AddDate(0, 0, 3), scheduleModels.InstanceStatusCompleted, false)
-	cancelled := insertInstance(t, s, from.AddDate(0, 0, 4), scheduleModels.InstanceStatusCancelled, false)
+	plannedSpont := insertInstance(t, s, from.AddDays(1), scheduleModels.InstanceStatusPlanned, true)
+	active := insertInstance(t, s, from.AddDays(2), scheduleModels.InstanceStatusActive, false)
+	completed := insertInstance(t, s, from.AddDays(3), scheduleModels.InstanceStatusCompleted, false)
+	cancelled := insertInstance(t, s, from.AddDays(4), scheduleModels.InstanceStatusCancelled, false)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
 	// by ReplanWeek; if so, the cleanup becomes a no-op).
@@ -609,8 +609,8 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 
 func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) {
 	s := buildLifecycle(t)
-	from := time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+	from := timezone.NewDate(2026, 4, 27)
+	to := timezone.NewDate(2026, 4, 20)
 
 	_, err := s.svc.ReplanWeek(s.ctx, from, to)
 	require.Error(t, err)
@@ -626,7 +626,7 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 	createdBy := s.staffID
 
 	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
-		Date:             time.Date(2026, 5, 4, 0, 0, 0, 0, time.UTC),
+		Date:             timezone.NewDate(2026, 5, 4),
 		StartTime:        time.Date(1, 1, 1, 9, 30, 0, 0, time.UTC),
 		EndTime:          time.Date(1, 1, 1, 10, 15, 0, 0, time.UTC),
 		Title:            "Create service test",
@@ -663,7 +663,7 @@ func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
 	foreignTemplate := testpkg.CreateTestActivityGroupForTenant(t, s.db, foreignTenantID, "LC-Foreign-Template")
 
 	valid := scheduleSvc.CreateInstanceInput{
-		Date:            time.Date(2026, 5, 9, 0, 0, 0, 0, time.UTC),
+		Date:            timezone.NewDate(2026, 5, 9),
 		StartTime:       time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		Title:           "Cross tenant should fail",
@@ -704,7 +704,7 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	s := buildLifecycle(t)
 
 	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
-		Date:      time.Date(2026, 5, 5, 0, 0, 0, 0, time.UTC),
+		Date:      timezone.NewDate(2026, 5, 5),
 		StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		Title:     "Spontaneous service test",
@@ -717,7 +717,7 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 
 	isSpontaneous := true
 	linked, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
-		Date:            time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC),
+		Date:            timezone.NewDate(2026, 5, 7),
 		StartTime:       time.Date(1, 1, 1, 13, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		Title:           "Linked spontaneous service test",
@@ -732,7 +732,7 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	assert.Equal(t, s.tmplID, *linked.ActivityGroupID)
 
 	_, err = s.svc.Create(context.Background(), scheduleSvc.CreateInstanceInput{
-		Date:      time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC),
+		Date:      timezone.NewDate(2026, 5, 6),
 		StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		Title:     "No tenant",
@@ -747,7 +747,7 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 	ai := seedInstance(t, s, true, true)
 
 	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
-		Date:       time.Date(2026, 5, 7, 0, 0, 0, 0, time.UTC),
+		Date:       timezone.NewDate(2026, 5, 7),
 		StartTime:  time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		EndTime:    time.Date(1, 1, 1, 17, 30, 0, 0, time.UTC),
 		Title:      "Updated planned instance",
@@ -781,7 +781,7 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 
 	ai := seedInstance(t, s, true, true)
 	valid := scheduleSvc.UpdateInstanceInput{
-		Date:            time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		Date:            timezone.NewDate(2026, 5, 10),
 		StartTime:       time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		EndTime:         time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
 		Title:           "Cross tenant update should fail",
@@ -829,7 +829,7 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 			forceSetInstanceStatus(t, s, ai.ID, status)
 
 			_, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
-				Date:      time.Date(2026, 5, 8, 0, 0, 0, 0, time.UTC),
+				Date:      timezone.NewDate(2026, 5, 8),
 				StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 				Title:     "Should fail",
@@ -869,7 +869,7 @@ func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
 	})
 }
 
-func insertInstance(t *testing.T, s *lifecycleSetup, date time.Time, status string, spontaneous bool) int64 {
+func insertInstance(t *testing.T, s *lifecycleSetup, date timezone.Date, status string, spontaneous bool) int64 {
 	t.Helper()
 	row := &scheduleModels.ActivityInstance{
 		Date:          date,

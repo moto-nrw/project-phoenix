@@ -74,8 +74,8 @@ const (
 // no-ops; without them the admin sees `created:0, skipped_*:0` and has no way
 // to tell why.
 type MaterializationResult struct {
-	From                        time.Time
-	To                          time.Time
+	From                        timezone.Date
+	To                          timezone.Date
 	InstancesCreated            int
 	CandidatesSkippedExisting   int // merge-strategy protection: row already present
 	CandidatesSkippedException  int // activity_exceptions row with type='cancelled'
@@ -113,14 +113,14 @@ type MaterializationService interface {
 	//
 	// source is a logging tag only — it has no behavioural effect. Use
 	// MaterializationSourceScheduler or MaterializationSourceManual.
-	MaterializeForTenant(ctx context.Context, from, to time.Time, source MaterializationSource) (*MaterializationResult, error)
+	MaterializeForTenant(ctx context.Context, from, to timezone.Date, source MaterializationSource) (*MaterializationResult, error)
 
 	// ResolveWindow returns the default (from, to) pair the scheduler uses
 	// when no window is explicitly supplied. `from` is the next Monday
 	// strictly after `baseDate` (a baseDate that is itself a Monday rolls
 	// forward to the following Monday — we never plan the current partial
 	// week); `to` is `from + weeksAhead*7 − 1` days.
-	ResolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time)
+	ResolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date)
 }
 
 // materializationService is the concrete implementation.
@@ -187,7 +187,7 @@ func (s *materializationService) getLogger() *slog.Logger {
 // weeks. When baseDate is itself a Monday the window starts the following
 // Monday — by design, the scheduler never materialises the current partial
 // week (planning is always for the next block).
-func (s *materializationService) ResolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time) {
+func (s *materializationService) ResolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date) {
 	return resolveWindow(baseDate, weeksAhead)
 }
 
@@ -195,21 +195,16 @@ func (s *materializationService) ResolveWindow(baseDate time.Time, weeksAhead in
 // for contract. The caller supplies tenant context + transaction.
 func (s *materializationService) MaterializeForTenant(
 	ctx context.Context,
-	from, to time.Time,
+	from, to timezone.Date,
 	source MaterializationSource,
 ) (*MaterializationResult, error) {
 	start := time.Now()
 	tenantID := tenant.FromContext(ctx)
 
-	// Normalise the window to civil date (UTC midnight) — we always compare
-	// and persist dates this way regardless of the caller's zone.
-	from = civilDate(from)
-	to = civilDate(to)
-
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "materialize for tenant", Err: errors.New("to_date must not be before from_date")}
 	}
-	if days := int(to.Sub(from)/(24*time.Hour)) + 1; days > MaxMaterializationWindowDays {
+	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
 		return nil, &ScheduleError{Op: "materialize for tenant", Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
 	}
 
@@ -218,8 +213,8 @@ func (s *materializationService) MaterializeForTenant(
 	s.getLogger().Info("materialization starting",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("source", string(source)),
-		slog.String("from", from.Format("2006-01-02")),
-		slog.String("to", to.Format("2006-01-02")),
+		slog.String("from", from.String()),
+		slog.String("to", to.String()),
 	)
 
 	// Load the world once up front. The window is bounded (≤ 56 days), a
@@ -300,8 +295,8 @@ func (s *materializationService) finishLog(tenantID int64, source Materializatio
 	s.getLogger().Info("materialization completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("source", string(source)),
-		slog.String("from", r.From.Format("2006-01-02")),
-		slog.String("to", r.To.Format("2006-01-02")),
+		slog.String("from", r.From.String()),
+		slog.String("to", r.To.String()),
 		slog.Int("created", r.InstancesCreated),
 		slog.Int("skipped_existing", r.CandidatesSkippedExisting),
 		slog.Int("skipped_exception", r.CandidatesSkippedException),
@@ -320,7 +315,7 @@ func (s *materializationService) finishLog(tenantID int64, source Materializatio
 func (s *materializationService) materializeTemplate(
 	ctx context.Context,
 	tmpl *activities.Group,
-	from, to time.Time,
+	from, to timezone.Date,
 	periods []*schedule.CalendarPeriod,
 	existingIdx map[existingKey]struct{},
 	exceptionIdx map[exceptionKey]*schedule.ActivityException,
@@ -344,7 +339,7 @@ func (s *materializationService) materializeTemplate(
 		return &ScheduleError{Op: "materialize template: load supervisors", Err: err}
 	}
 
-	for date := from; !date.After(to); date = date.AddDate(0, 0, 1) {
+	for date := from; !date.After(to); date = date.AddDays(1) {
 		isoWd := isoWeekday(date)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {
@@ -384,7 +379,7 @@ func (s *materializationService) materializeTemplate(
 				base.RoomID = *tmpl.PlannedRoomID
 			}
 
-			exc := exceptionIdx[exceptionKey{tmpl.ID, formatCivilDate(date)}]
+			exc := exceptionIdx[exceptionKey{tmpl.ID, date}]
 			effective, skip := applyException(base, exc)
 			if skip {
 				result.CandidatesSkippedException++
@@ -399,7 +394,7 @@ func (s *materializationService) materializeTemplate(
 
 			key := existingKey{
 				ActivityGroupID: tmpl.ID,
-				Date:            formatCivilDate(date),
+				Date:            date,
 				StartTime:       formatTimeOfDay(effective.StartTime),
 			}
 			if _, exists := existingIdx[key]; exists {
@@ -430,7 +425,7 @@ func (s *materializationService) materializeTemplate(
 						tenant.FromContext(ctx),
 						tmpl.ID,
 						sch.ID,
-						date.Format("2006-01-02"),
+						date.String(),
 						period.ID,
 						effective.RoomID,
 						formatTimeOfDay(effective.StartTime),
@@ -443,7 +438,7 @@ func (s *materializationService) materializeTemplate(
 				result.CandidatesRaced++
 				s.getLogger().Warn("materialization race: instance already present",
 					slog.Int64("template_id", tmpl.ID),
-					slog.String("date", date.Format("2006-01-02")),
+					slog.String("date", date.String()),
 					slog.String("start_time", effective.StartTime.Format("15:04:05")),
 				)
 				// Mark it in the index so a second schedule row on the same
@@ -470,7 +465,7 @@ func (s *materializationService) copyEnrollments(
 	ctx context.Context,
 	instanceID int64,
 	enrollments []*activities.StudentEnrollment,
-	date time.Time,
+	date timezone.Date,
 	periodID int64,
 	result *MaterializationResult,
 ) error {
@@ -483,7 +478,7 @@ func (s *materializationService) copyEnrollments(
 			s.getLogger().Warn("student listed twice on template — skipping duplicate",
 				slog.Int64("instance_id", instanceID),
 				slog.Int64("student_id", e.StudentID),
-				slog.String("date", date.Format("2006-01-02")),
+				slog.String("date", date.String()),
 			)
 			continue
 		}
@@ -505,7 +500,7 @@ func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
 	supervisors []*activities.SupervisorPlanned,
-	date time.Time,
+	date timezone.Date,
 	periodID int64,
 	result *MaterializationResult,
 ) error {
@@ -523,7 +518,7 @@ func (s *materializationService) copySupervisors(
 			s.getLogger().Warn("supervisor listed twice on template — skipping duplicate",
 				slog.Int64("instance_id", instanceID),
 				slog.Int64("staff_id", sup.StaffID),
-				slog.String("date", date.Format("2006-01-02")),
+				slog.String("date", date.String()),
 			)
 			continue
 		}
@@ -554,33 +549,25 @@ type materialParams struct {
 }
 
 // existingKey identifies a row in the (template, date, start_time) search
-// space. We key by formatted civil-date + time-of-day strings rather than by
-// Unix timestamp because bun reads PostgreSQL DATE/TIME columns back with
-// arbitrary (driver-chosen) time zones on the Go side — string formatting
-// via civilDate → "2006-01-02" and StartTime → "15:04:05" makes the key
-// timezone-independent by construction.
+// space. The date is a timezone.Date (comparable, no instant); the start time
+// stays a formatted "15:04:05" string because bun reads PostgreSQL TIME
+// columns back with arbitrary (driver-chosen) time zones on the Go side —
+// string formatting makes the key timezone-independent by construction.
 type existingKey struct {
 	ActivityGroupID int64
-	Date            string // "2006-01-02"
+	Date            timezone.Date
 	StartTime       string // "15:04:05"
 }
 
 type exceptionKey struct {
 	ActivityGroupID int64
-	Date            string
+	Date            timezone.Date
 }
 
-// civilDate strips the time component and returns UTC midnight for the civil
-// date. Matches the normalization used in CalendarPeriodService.ShouldMaterialize
-// so A/B math, index keys and DB-side DATE columns all line up.
-func civilDate(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-}
-
-// isoWeekday returns the ISO 8601 weekday number for t (1=Mon … 7=Sun),
+// isoWeekday returns the ISO 8601 weekday number for d (1=Mon … 7=Sun),
 // matching the storage convention of activities.schedules.weekday.
-func isoWeekday(t time.Time) int {
-	wd := t.Weekday()
+func isoWeekday(d timezone.Date) int {
+	wd := d.Weekday()
 	if wd == time.Sunday {
 		return 7
 	}
@@ -591,28 +578,27 @@ func isoWeekday(t time.Time) int {
 // uses by default. If baseDate is a Monday we intentionally skip to the
 // following Monday — planning always targets the next block, never the
 // current partial one. weeksAhead is clamped to [1, 8].
-func resolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time) {
+func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date) {
 	if weeksAhead < 1 {
 		weeksAhead = 1
 	}
 	if weeksAhead > 8 {
 		weeksAhead = 8
 	}
-	d := civilDate(baseDate)
 	// Go's Weekday: Sunday=0, Monday=1, ..., Saturday=6.
-	// Days until next Monday (strictly after d):
+	// Days until next Monday (strictly after baseDate):
 	//   Sunday → 1, Monday → 7, Tuesday → 6, ..., Saturday → 2.
 	var delta int
-	switch d.Weekday() {
+	switch baseDate.Weekday() {
 	case time.Sunday:
 		delta = 1
 	case time.Monday:
 		delta = 7
 	default:
-		delta = int(time.Saturday-d.Weekday()) + 2
+		delta = int(time.Saturday-baseDate.Weekday()) + 2
 	}
-	from = d.AddDate(0, 0, delta)
-	to = from.AddDate(0, 0, weeksAhead*7-1)
+	from = baseDate.AddDays(delta)
+	to = from.AddDays(weeksAhead*7 - 1)
 	return from, to
 }
 
@@ -625,22 +611,21 @@ func resolveWindow(baseDate time.Time, weeksAhead int) (from, to time.Time) {
 //     whose valid_until equals the instance date is NO LONGER contributing)
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
 //   - selected_weekdays IS NULL/empty OR contains date's ISO weekday
-func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, periodID int64) bool {
+func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64) bool {
 	if e == nil {
 		return false
 	}
-	d := civilDate(date)
-	if !e.ValidFrom.IsZero() && civilDate(e.ValidFrom).After(d) {
+	if !e.ValidFrom.IsZero() && timezone.DateFromTime(e.ValidFrom).After(date) {
 		return false
 	}
-	if e.ValidUntil != nil && !civilDate(*e.ValidUntil).After(d) {
+	if e.ValidUntil != nil && !timezone.DateFromTime(*e.ValidUntil).After(date) {
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
 		return false
 	}
 	if len(e.SelectedWeekdays) > 0 {
-		weekday := isoWeekday(d)
+		weekday := isoWeekday(date)
 		for _, selected := range e.SelectedWeekdays {
 			if selected == weekday {
 				return true
@@ -652,15 +637,14 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date time.Time, period
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
-func isSupervisorValidOn(sp *activities.SupervisorPlanned, date time.Time, periodID int64) bool {
+func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64) bool {
 	if sp == nil {
 		return false
 	}
-	d := civilDate(date)
-	if !sp.ValidFrom.IsZero() && civilDate(sp.ValidFrom).After(d) {
+	if !sp.ValidFrom.IsZero() && timezone.DateFromTime(sp.ValidFrom).After(date) {
 		return false
 	}
-	if sp.ValidUntil != nil && !civilDate(*sp.ValidUntil).After(d) {
+	if sp.ValidUntil != nil && !timezone.DateFromTime(*sp.ValidUntil).After(date) {
 		return false
 	}
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {
@@ -716,7 +700,7 @@ func applyException(base materialParams, exc *schedule.ActivityException) (mater
 func selectPeriod(
 	tmpl *activities.Group,
 	sch *activities.Schedule,
-	date time.Time,
+	date timezone.Date,
 	periods []*schedule.CalendarPeriod,
 	logger *slog.Logger,
 ) *schedule.CalendarPeriod {
@@ -724,7 +708,7 @@ func selectPeriod(
 	if pinned != nil {
 		for _, p := range periods {
 			if p.ID == *pinned {
-				if p.ContainsDate(date) {
+				if p.ContainsDay(date) {
 					return p
 				}
 				return nil
@@ -737,7 +721,7 @@ func selectPeriod(
 	// Collect active periods containing the date, sorted ascending by ID.
 	var matches []*schedule.CalendarPeriod
 	for _, p := range periods {
-		if p.ContainsDate(date) {
+		if p.ContainsDay(date) {
 			matches = append(matches, p)
 		}
 	}
@@ -753,7 +737,7 @@ func selectPeriod(
 		if logger != nil {
 			logger.Warn("overlapping active calendar periods for materialization",
 				slog.Int64("template_id", tmpl.ID),
-				slog.String("date", date.Format("2006-01-02")),
+				slog.String("date", date.String()),
 				slog.Any("candidate_period_ids", ids),
 				slog.Int64("chosen_period_id", matches[0].ID),
 			)
@@ -806,7 +790,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 		}
 		k := existingKey{
 			ActivityGroupID: *inst.ActivityGroupID,
-			Date:            formatCivilDate(inst.Date),
+			Date:            inst.Date,
 			StartTime:       formatTimeOfDay(inst.StartTime),
 		}
 		idx[k] = struct{}{}
@@ -817,16 +801,9 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 func buildExceptionIndex(exceptions []*schedule.ActivityException) map[exceptionKey]*schedule.ActivityException {
 	idx := make(map[exceptionKey]*schedule.ActivityException, len(exceptions))
 	for _, e := range exceptions {
-		idx[exceptionKey{e.ActivityGroupID, formatCivilDate(e.ExceptionDate)}] = e
+		idx[exceptionKey{e.ActivityGroupID, e.ExceptionDate}] = e
 	}
 	return idx
-}
-
-// formatCivilDate formats t as a civil date string ("2006-01-02"), based on
-// the time's own Year/Month/Day components. This is independent of the
-// time.Location the bun driver returns DATE columns with.
-func formatCivilDate(t time.Time) string {
-	return fmt.Sprintf("%04d-%02d-%02d", t.Year(), int(t.Month()), t.Day())
 }
 
 // formatTimeOfDay formats the time-of-day component of t as "15:04:05", based

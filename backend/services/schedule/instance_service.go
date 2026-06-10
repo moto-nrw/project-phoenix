@@ -73,7 +73,7 @@ type InstanceService interface {
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
-	ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error)
+	ReplanWeek(ctx context.Context, from, to timezone.Date) (*ReplanWeekResult, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
 	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
 }
@@ -87,7 +87,7 @@ type InstanceService interface {
 // but on a date that materialization would not have emitted). Operational
 // spontaneous starts may override this while still linking template metadata.
 type CreateInstanceInput struct {
-	Date             time.Time // YYYY-MM-DD anchored at UTC midnight
+	Date             timezone.Date
 	StartTime        time.Time // 2000-01-01 HH:MM in UTC
 	EndTime          time.Time // 2000-01-01 HH:MM in UTC
 	Title            string
@@ -102,7 +102,7 @@ type CreateInstanceInput struct {
 }
 
 type UpdateInstanceInput struct {
-	Date            time.Time
+	Date            timezone.Date
 	StartTime       time.Time
 	EndTime         time.Time
 	Title           string
@@ -125,8 +125,8 @@ type StartInstanceResult struct {
 // ReplanWeekResult wraps the materialization result plus the delete count so
 // admins see both numbers in one response.
 type ReplanWeekResult struct {
-	From             time.Time
-	To               time.Time
+	From             timezone.Date
+	To               timezone.Date
 	DeletedInstances int
 	Materialization  *MaterializationResult
 }
@@ -373,7 +373,7 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 	s.getLogger().Info("cancelled instance deleted",
 		slog.Int64("tenant_id", tenant.FromContext(ctx)),
 		slog.Int64("instance_id", instance.ID),
-		slog.String("date", instance.Date.Format("2006-01-02")),
+		slog.String("date", instance.Date.String()),
 	)
 	return nil
 }
@@ -451,7 +451,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	s.getLogger().Info("instance created",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int64("instance_id", inst.ID),
-		slog.String("date", inst.Date.Format("2006-01-02")),
+		slog.String("date", inst.Date.String()),
 		slog.Bool("spontaneous", inst.IsSpontaneous),
 		slog.Int("staff_assigned", len(req.StaffIDs)),
 	)
@@ -646,9 +646,7 @@ func (s *instanceService) updateLifecycleColumns(ctx context.Context, instance *
 // Everything else survives. The DELETE is one raw statement so the predicate
 // stays explicit and readable; the cascade on instance_staff / instance_students
 // is declared at the DDL level (ON DELETE CASCADE).
-func (s *instanceService) ReplanWeek(ctx context.Context, from, to time.Time) (*ReplanWeekResult, error) {
-	from = truncateToDay(from)
-	to = truncateToDay(to)
+func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date) (*ReplanWeekResult, error) {
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
 	}
@@ -682,8 +680,8 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to time.Time) (*
 
 	s.getLogger().Info("replan week completed",
 		slog.Int64("tenant_id", tenantID),
-		slog.String("from", from.Format("2006-01-02")),
-		slog.String("to", to.Format("2006-01-02")),
+		slog.String("from", from.String()),
+		slog.String("to", to.String()),
 		slog.Int64("deleted_instances", deleted),
 		slog.Int("instances_created", mat.InstancesCreated),
 	)
@@ -731,7 +729,7 @@ func (s *instanceService) broadcastInstanceEvent(
 	}
 
 	instanceIDStr := fmt.Sprintf("%d", instance.ID)
-	instanceDate := instance.Date.Format("2006-01-02")
+	instanceDate := instance.Date.String()
 	instanceStart := instance.StartTime.Format("15:04:05")
 
 	data := realtime.EventData{
@@ -826,13 +824,6 @@ func instanceRefreshReason(eventType realtime.EventType) string {
 	default:
 		return "instance_changed"
 	}
-}
-
-// truncateToDay strips the time component to UTC midnight. Matches the civil-
-// date normalization the materialization service uses so the ReplanWeek
-// window aligns exactly with the re-materialization run.
-func truncateToDay(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 // isNotFoundDBError unwraps models/base.DatabaseError and reports whether

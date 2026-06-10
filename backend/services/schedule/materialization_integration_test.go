@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -86,7 +87,7 @@ func (s *scenarioSetup) runCleanup(tb testing.TB) {
 // students of which two have valid enrollments at `materializeDate` and one
 // has expired. Returns the setup; caller registers additional fixtures and
 // calls runCleanup on teardown.
-func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenarioSetup {
+func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *scenarioSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
@@ -119,8 +120,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       time.Date(materializeDate.Year()-1, 8, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(materializeDate.Year()+1, 7, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(materializeDate.Year-1, 8, 1),
+		EndDate:         timezone.NewDate(materializeDate.Year+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -165,8 +166,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 
 	// 6. Enrollments: student1 + student2 valid unbounded; student3 expired
 	// the day before materializeDate.
-	expiredUntil := materializeDate.AddDate(0, 0, -1)
-	validFrom := materializeDate.AddDate(0, 0, -30)
+	expiredUntil := materializeDate.AddDays(-1).UTCMidnight()
+	validFrom := materializeDate.AddDays(-30).UTCMidnight()
 	enroll1 := &activitiesModels.StudentEnrollment{StudentID: student1.ID, ActivityGroupID: template.ID, ValidFrom: validFrom}
 	enroll1.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(enroll1).ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(ctx)
@@ -229,12 +230,12 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 	// Target Monday inside the wide period window; use a deterministic date
 	// in the middle of a "school year" so the period bounds are obviously
 	// satisfied.
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC) // Mon
+	materializeDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
 	from := materializeDate
-	to := materializeDate.AddDate(0, 0, 6) // Sun
+	to := materializeDate.AddDays(6) // Sun
 
 	// --- Happy path ---
 	r, err := s.svc.MaterializeForTenant(s.ctx, from, to, scheduleSvc.MaterializationSourceManual)
@@ -274,7 +275,7 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 }
 
 func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
@@ -289,14 +290,14 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 	require.NoError(t, err)
 	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
-	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r.InstancesCreated)
 	assert.Equal(t, 1, r.CandidatesSkippedException)
 }
 
 func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T) {
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
@@ -315,7 +316,7 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 	require.NoError(t, err)
 	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
-	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Equal(t, 1, r.InstancesCreated)
 
@@ -345,8 +346,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	// the `tenant_id` key itself. We still must not use int64(1)-int64(9).
 	const emptyTenantID = int64(990001)
 	ctx := testpkg.TenantContext(emptyTenantID)
-	from := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
-	to := from.AddDate(0, 0, 6)
+	from := timezone.NewDate(2026, 4, 20)
+	to := from.AddDays(6)
 
 	r, err := svc.MaterializeForTenant(ctx, from, to, scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
@@ -387,13 +388,13 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id = ?`, emptyTemplateTenantID)
 	}()
 
-	from := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
-	to := from.AddDate(0, 0, 6)
+	from := timezone.NewDate(2026, 4, 20)
+	to := from.AddDays(6)
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "No Templates Test 2025/2026",
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2025, 8, 1),
+		EndDate:         timezone.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -418,11 +419,11 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 	// race branch (pre-fetch misses + concurrent insert wins) is exercised by
 	// a unit test on isUniqueViolation — simulating it end-to-end would
 	// require contrived concurrency that does not model real production.
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
-	r1, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r1, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	require.Equal(t, 1, r1.InstancesCreated)
 
@@ -430,7 +431,7 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 	require.Len(t, rows, 1)
 	s.registerCleanup("schedule.activity_instances", rows[0].ID)
 
-	r2, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r2, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r2.InstancesCreated)
 	assert.Equal(t, 1, r2.CandidatesSkippedExisting)
@@ -438,7 +439,7 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 }
 
 func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *testing.T) {
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC)
+	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
@@ -446,8 +447,8 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 	holiday := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Herbstferien-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 10, 25, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2026, 10, 14),
+		EndDate:         timezone.NewDate(2026, 10, 25),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -468,7 +469,7 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r.InstancesCreated)
 	assert.Equal(t, 1, r.CandidatesSkippedNoPeriod,
@@ -476,7 +477,7 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 }
 
 func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
-	materializeDate := time.Date(2026, time.April, 20, 0, 0, 0, 0, time.UTC) // Mon, "Week A"
+	materializeDate := timezone.NewDate(2026, time.April, 20) // Mon, "Week A"
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
 
@@ -505,14 +506,14 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 
 	// With schedule as Week B and anchor week as Week A, materializeDate must
 	// be skipped by the A/B filter.
-	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	r, err := s.svc.MaterializeForTenant(s.ctx, materializeDate, materializeDate.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Zero(t, r.InstancesCreated, "Week-B schedule should not materialize in anchor week (Week A)")
 	assert.Equal(t, 1, r.CandidatesSkippedABWeek)
 
 	// Next week is Week B → same schedule should now materialize.
-	nextMon := materializeDate.AddDate(0, 0, 7)
-	r2, err := s.svc.MaterializeForTenant(s.ctx, nextMon, nextMon.AddDate(0, 0, 6), scheduleSvc.MaterializationSourceManual)
+	nextMon := materializeDate.AddDays(7)
+	r2, err := s.svc.MaterializeForTenant(s.ctx, nextMon, nextMon.AddDays(6), scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
 	assert.Equal(t, 1, r2.InstancesCreated, "Week-B schedule must materialize in a Week-B calendar week")
 
@@ -526,7 +527,7 @@ func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
 // Helpers
 // -----------------------------------------------------------------------------
 
-func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date time.Time) []*scheduleModels.ActivityInstance {
+func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date timezone.Date) []*scheduleModels.ActivityInstance {
 	tb.Helper()
 	var rows []*scheduleModels.ActivityInstance
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

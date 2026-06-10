@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -436,7 +437,7 @@ func createTestScheduleModel(studentID int64, weekday int, pickupTime string, no
 }
 
 func createTestExceptionModel(studentID int64, date, pickupTime, reason string) *schedule.StudentPickupException {
-	parsedDate, _ := time.Parse("2006-01-02", date)
+	parsedDate, _ := timezone.ParseDate(date)
 	parsedTime, _ := parseTimeOnly(pickupTime)
 	return &schedule.StudentPickupException{
 		StudentID:     studentID,
@@ -448,7 +449,7 @@ func createTestExceptionModel(studentID int64, date, pickupTime, reason string) 
 }
 
 func createTestExceptionModelAbsent(studentID int64, date, reason string) *schedule.StudentPickupException {
-	parsedDate, _ := time.Parse("2006-01-02", date)
+	parsedDate, _ := timezone.ParseDate(date)
 	return &schedule.StudentPickupException{
 		StudentID:     studentID,
 		ExceptionDate: parsedDate,
@@ -707,7 +708,7 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		reason := "Test"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
-			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: timezone.NewDate(2026, 2, 15),
 			PickupTime:    &pickupTime,
 			Reason:        &reason,
 			CreatedBy:     createdBy,
@@ -954,7 +955,7 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		reason := "Student is absent"
 		exc := &schedule.StudentPickupException{
 			StudentID:     studentID,
-			ExceptionDate: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: timezone.NewDate(2026, 2, 15),
 			PickupTime:    nil, // Explicitly nil
 			Reason:        &reason,
 			CreatedBy:     createdBy,

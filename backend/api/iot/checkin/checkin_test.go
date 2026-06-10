@@ -94,7 +94,7 @@ func (r *failingStaffRepository) FindByPersonID(context.Context, int64) (*userMo
 }
 
 func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
-	context.Context, int64, time.Time,
+	context.Context, int64, timezone.Date,
 ) (*scheduleSvc.EffectivePickupTime, error) {
 	return nil, s.err
 }
@@ -2757,7 +2757,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	// timezone (UTC). DateOf returns midnight Berlin which can shift to the previous day
 	// in UTC (e.g. 2026-04-01 00:00+02 → 2026-03-31 22:00 UTC → DATE 2026-03-31).
 	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 
 	tenantCtx := testpkg.TenantContext(1)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -3012,7 +3012,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 		t.Skip("Skipping pickup query note precedence test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 	tenantCtx := testpkg.TenantContext(1)
 	recurringNote := "Papa holt normalerweise ab"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -3087,7 +3087,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 		t.Skip("Skipping pickup query exception fallback test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 	tenantCtx := testpkg.TenantContext(1)
 	recurringNote := "Bitte am Seiteneingang klingeln"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)

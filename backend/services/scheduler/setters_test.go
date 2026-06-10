@@ -14,6 +14,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -172,7 +173,7 @@ func (f *fakeInstanceRepo) Update(_ context.Context, _ *scheduleModel.ActivityIn
 	return nil
 }
 func (f *fakeInstanceRepo) Delete(_ context.Context, _ any) error { return nil }
-func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -181,10 +182,10 @@ func (f *fakeInstanceRepo) FindByTenantAndDate(_ context.Context, _ time.Time) (
 func (f *fakeInstanceRepo) List(_ context.Context, _ *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
@@ -400,7 +401,7 @@ func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 // emitInstanceOverdue's broadcaster-failure branch: spy with fail=true so the
 // broadcast call returns an error and the Warn log path is exercised.
 func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
-	today := time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC)
+	today := timezone.NewDate(2026, 4, 20)
 	startTime := time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC) // 10:00 local
 	inst := &scheduleModel.ActivityInstance{
 		Date:          today,
@@ -421,7 +422,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	}
 
 	// Use a `now` set to 10:30 local on the same day → 30 min past threshold=5.
-	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
+	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
 	s.runOverdueForTenant(context.Background(), 1, 5, now)
 
 	spy.mu.Lock()

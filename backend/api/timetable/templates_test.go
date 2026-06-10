@@ -16,6 +16,7 @@ import (
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -42,12 +43,12 @@ type templateSetup struct {
 type mockMaterializationService struct {
 	result *scheduleSvc.MaterializationResult
 	err    error
-	from   time.Time
-	to     time.Time
+	from   timezone.Date
+	to     timezone.Date
 	source scheduleSvc.MaterializationSource
 }
 
-func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to time.Time, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
 	m.from = from
 	m.to = to
 	m.source = source
@@ -57,8 +58,8 @@ func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, fro
 	return m.result, nil
 }
 
-func (m *mockMaterializationService) ResolveWindow(baseDate time.Time, weeksAhead int) (time.Time, time.Time) {
-	return baseDate, baseDate.AddDate(0, 0, weeksAhead*7-1)
+func (m *mockMaterializationService) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
+	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
 func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
@@ -502,7 +503,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        periodB.StartDate.UTCMidnight(),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(1)
@@ -519,7 +520,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          created.TemplateID,
-		ValidFrom:        periodB.StartDate,
+		ValidFrom:        periodB.StartDate.UTCMidnight(),
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(1)
@@ -606,8 +607,8 @@ func createTemplateTestPeriod(t *testing.T, db *bun.DB, name string) *scheduleMo
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeCustom,
-		StartDate:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2026, 1, 1),
+		EndDate:         timezone.NewDate(2026, 12, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

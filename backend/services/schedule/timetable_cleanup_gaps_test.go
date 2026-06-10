@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -123,8 +123,8 @@ func TestPreviewExpiredTimetableData_CountsOldRows(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
-	recent := time.Now().UTC().AddDate(0, 0, -30)
+	old := timezone.TodayDate().AddDays(-400)
+	recent := timezone.TodayDate().AddDays(-30)
 
 	oldInstID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	recentInstID := f.newInstance(t, recent, scheduleModels.InstanceStatusPlanned, roomID, nil)
@@ -163,8 +163,8 @@ func TestGetStats_ReportsTotals(t *testing.T) {
 	svc := buildSvc(f.db, nil)
 
 	// Seed: 2 instances (1 old, 1 recent), both count toward totals.
-	old := time.Now().UTC().AddDate(0, 0, -400)
-	recent := time.Now().UTC().AddDate(0, 0, -30)
+	old := timezone.TodayDate().AddDays(-400)
+	recent := timezone.TodayDate().AddDays(-30)
 	f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	f.newInstance(t, recent, scheduleModels.InstanceStatusPlanned, roomID, nil)
 
@@ -191,7 +191,7 @@ func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
 
 	// Insert a 50-day-old instance to verify: 42-day window deletes it, a
 	// 365-day default would have spared it.
-	fiftyDaysOld := time.Now().UTC().AddDate(0, 0, -50)
+	fiftyDaysOld := timezone.TodayDate().AddDays(-50)
 	f.newInstance(t, fiftyDaysOld, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	result, err := svc.CleanupExpiredTimetableData(f.ctx)
@@ -211,7 +211,7 @@ func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) 
 	}
 	svc := buildSvc(f.db, settings)
 
-	f.newInstance(t, time.Now().UTC().AddDate(0, 0, -400), scheduleModels.InstanceStatusCompleted, roomID, nil)
+	f.newInstance(t, timezone.TodayDate().AddDays(-400), scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	result, err := svc.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 	f, roomID := setupFixture(t)
 
 	// Seed one affected student so writeStudentAuditRows has work to do.
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	stud := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Nil", "AuditRepo", "3a")
 	f.studentIDs = append(f.studentIDs, stud.ID)
@@ -316,7 +316,7 @@ func TestCleanup_AuditMetadata_HasInstanceIDsSample(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	inst := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	stud := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Sample", "Student", "3a")

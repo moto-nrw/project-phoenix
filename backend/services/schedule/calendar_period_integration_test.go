@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -40,8 +41,8 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 		p1 := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("GetAll-A-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -51,8 +52,8 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 		p2 := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("GetAll-B-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -84,8 +85,8 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 		active := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Active-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -95,8 +96,8 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 		inactive := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Inactive-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -130,8 +131,8 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -170,8 +171,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -185,12 +186,12 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 
 	t.Run("creates period with week cycle", func(t *testing.T) {
 		name := fmt.Sprintf("Create-Cycle-%d", time.Now().UnixNano())
-		anchor := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
+		anchor := timezone.NewDate(2025, 9, 1)
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 			WeekCycleAnchor: &anchor,
 			IsActive:        true,
@@ -208,8 +209,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		first := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -220,8 +221,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		second := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -235,8 +236,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            "",
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
 
@@ -250,8 +251,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("BadDates-%d", time.Now().UnixNano()),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2025, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2026, 8, 1),
+			EndDate:         timezone.NewDate(2025, 7, 31),
 			WeekCycleLength: 1,
 		}
 
@@ -278,8 +279,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -308,8 +309,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -328,8 +329,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		first := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("First-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -339,8 +340,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		second := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Second-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -361,8 +362,8 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -394,8 +395,8 @@ func TestCalendarPeriodService_DeletePeriod(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}

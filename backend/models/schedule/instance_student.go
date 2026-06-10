@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -170,7 +171,7 @@ type InstanceStudentRepository interface {
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*InstanceStudent, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*InstanceStudent, error)
 
 	// FindByInstanceAndStudent returns a single attendance row, or nil if the
 	// student is not expected at the instance.
@@ -209,10 +210,10 @@ type InstanceStudentRepository interface {
 	// Instances the student has no attendance row for (e.g. a spontaneous
 	// instance they dropped into without being enrolled) are NOT included;
 	// the handler layer enriches those via the visits-side lookup.
-	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*ScheduledInstanceRow, error)
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
 
 	// FindPlannedStudentIDsByDate returns unique student IDs that have a
 	// non-cancelled materialized timetable row on the given date. Used by
 	// student search's "kommt heute" heuristic as an additive planning signal.
-	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error)
+	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
 }

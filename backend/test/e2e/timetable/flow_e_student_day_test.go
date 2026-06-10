@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,8 +28,8 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	defer s.teardown()
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).
-	target := nextWeekday(time.Now().UTC(), 5, 7) // Friday
-	fromS := target.Format("2006-01-02")
+	target := nextWeekday(timezone.TodayDate(), 5, 7) // Friday
+	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-E-%d", time.Now().UnixNano()), target)
 
@@ -145,8 +146,8 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s.db.AddQueryHook(qc)
 	qc.reset()
 
-	weekFrom := target.Format("2006-01-02")
-	weekTo := target.AddDate(0, 0, 13).Format("2006-01-02")
+	weekFrom := target.String()
+	weekTo := target.AddDays(13).Format("2006-01-02")
 	path := fmt.Sprintf("/student/%d/week?from=%s&to=%s", studentB.ID, weekFrom, weekTo)
 	rr = s.do("GET", path, nil, primaryAdminClaims())
 	weekQueryCount := qc.get()

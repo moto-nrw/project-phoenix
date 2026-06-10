@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -78,7 +77,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, err := rs.instanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
-		Date:            timezone.DateOfUTC(date),
+		Date:            date,
 		StartTime:       startTime,
 		EndTime:         endTime,
 		Title:           req.Title,

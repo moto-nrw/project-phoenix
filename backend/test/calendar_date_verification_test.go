@@ -34,34 +34,25 @@ import (
 // commit deletes the rows it converts; the stale-entry sub-test forces the
 // deletion. Seeded from the discovery scan when this test was introduced.
 var legacyTimeTimeDateColumns = map[string]string{
-	"activities.student_enrollments.valid_from":          "pending migration in this PR",
-	"activities.student_enrollments.valid_until":         "pending migration in this PR",
-	"activities.supervisors.valid_from":                  "pending migration in this PR",
-	"activities.supervisors.valid_until":                 "pending migration in this PR",
-	"config.staff_work_schedules.valid_from":             "pending migration in this PR",
-	"config.staff_work_schedules.valid_until":            "pending migration in this PR",
-	"config.work_time_models.rotation_anchor_date":       "pending migration in this PR",
-	"education.group_substitution.end_date":              "pending migration in this PR",
-	"education.group_substitution.start_date":            "pending migration in this PR",
-	"enrollment.phases.service_end_date":                 "pending migration in this PR",
-	"enrollment.phases.service_start_date":               "pending migration in this PR",
-	"enrollment.request_children.activate_on":            "pending migration in this PR",
-	"enrollment.request_children.date_of_birth":          "pending migration in this PR",
-	"schedule.activity_exceptions.exception_date":        "pending migration in this PR",
-	"schedule.activity_instances.date":                   "pending migration in this PR",
-	"schedule.calendar_periods.end_date":                 "pending migration in this PR",
-	"schedule.calendar_periods.start_date":               "pending migration in this PR",
-	"schedule.calendar_periods.week_cycle_anchor":        "pending migration in this PR",
-	"schedule.student_arrival_exceptions.exception_date": "pending migration in this PR",
-	"schedule.student_arrival_notes.note_date":           "pending migration in this PR",
-	"schedule.student_pickup_exceptions.exception_date":  "pending migration in this PR",
-	"schedule.student_pickup_notes.note_date":            "pending migration in this PR",
-	"users.guests.end_date":                              "pending migration in this PR",
-	"users.guests.start_date":                            "pending migration in this PR",
-	"users.persons.birthday":                             "pending migration in this PR",
-	"users.staff.rotation_anchor_date":                   "pending migration in this PR",
-	"users.students.enrolled_from":                       "pending migration in this PR",
-	"users.students.enrolled_until":                      "pending migration in this PR",
+	"activities.student_enrollments.valid_from":    "pending migration in this PR",
+	"activities.student_enrollments.valid_until":   "pending migration in this PR",
+	"activities.supervisors.valid_from":            "pending migration in this PR",
+	"activities.supervisors.valid_until":           "pending migration in this PR",
+	"config.staff_work_schedules.valid_from":       "pending migration in this PR",
+	"config.staff_work_schedules.valid_until":      "pending migration in this PR",
+	"config.work_time_models.rotation_anchor_date": "pending migration in this PR",
+	"education.group_substitution.end_date":        "pending migration in this PR",
+	"education.group_substitution.start_date":      "pending migration in this PR",
+	"enrollment.phases.service_end_date":           "pending migration in this PR",
+	"enrollment.phases.service_start_date":         "pending migration in this PR",
+	"enrollment.request_children.activate_on":      "pending migration in this PR",
+	"enrollment.request_children.date_of_birth":    "pending migration in this PR",
+	"users.guests.end_date":                        "pending migration in this PR",
+	"users.guests.start_date":                      "pending migration in this PR",
+	"users.persons.birthday":                       "pending migration in this PR",
+	"users.staff.rotation_anchor_date":             "pending migration in this PR",
+	"users.students.enrolled_from":                 "pending migration in this PR",
+	"users.students.enrolled_until":                "pending migration in this PR",
 }
 
 // unmappedDateColumns classifies DATE columns that have no models/ struct
@@ -89,13 +80,7 @@ var droppedDateColumns = map[string]string{
 
 // truncate24hAllowlist holds files still containing Truncate(24 * time.Hour)
 // date math (always wrong for Berlin calendar days). Shrink-only.
-var truncate24hAllowlist = map[string]string{
-	"test/e2e/timetable/flow_a_happy_path_test.go":       "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_b_cancel_conflicts_test.go": "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_c_gaps_substitute_test.go":  "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_d_replan_week_test.go":      "fixed in the lint-guard stage of this PR",
-	"test/e2e/timetable/flow_f_gdpr_cleanup_test.go":     "fixed in the lint-guard stage of this PR",
-}
+var truncate24hAllowlist = map[string]string{}
 
 func TestDateColumnTypes(t *testing.T) {
 	backendRoot, err := findBackendRoot()

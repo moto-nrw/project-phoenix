@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -13,7 +14,7 @@ import (
 func validActivityException() *ActivityException {
 	return &ActivityException{
 		ActivityGroupID: 17,
-		ExceptionDate:   time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+		ExceptionDate:   timezone.NewDate(2026, 9, 15),
 		ExceptionType:   ActivityExceptionCancelled,
 	}
 }
@@ -51,7 +52,7 @@ func TestActivityException_Validate(t *testing.T) {
 
 	t.Run("missing exception_date", func(t *testing.T) {
 		e := validActivityException()
-		e.ExceptionDate = time.Time{}
+		e.ExceptionDate = timezone.Date{}
 		err := e.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "exception_date is required")

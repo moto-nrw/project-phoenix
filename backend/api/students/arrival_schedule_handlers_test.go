@@ -78,7 +78,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		}()
 
 		// Insert an arrival exception
-		exceptionDate := time.Date(2026, 2, 15, 12, 0, 0, 0, timezone.Berlin)
+		exceptionDate := timezone.NewDate(2026, 2, 15)
 		exceptionTime := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
 		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentArrivalException{
@@ -424,7 +424,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrExcTeacher3")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-		exceptionDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin)
+		exceptionDate := timezone.NewDate(2026, 4, 15)
 		exceptionTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		originalReason := "Original reason"
 		exception := &scheduleModel.StudentArrivalException{
@@ -527,7 +527,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDelete", "Test", "AED1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		exceptionDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin)
+		exceptionDate := timezone.NewDate(2026, 6, 15)
 		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentArrivalException{
 			StudentID:     student.ID,
@@ -718,7 +718,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrNoteTeacher2")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-		noteDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 4, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
 			NoteDate:  noteDate,
@@ -795,7 +795,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDelete", "Test", "AND1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		noteDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 6, 15)
 		note := &scheduleModel.StudentArrivalNote{
 			StudentID: student.ID,
 			NoteDate:  noteDate,

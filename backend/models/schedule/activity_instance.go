@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -41,22 +42,22 @@ type ActivityInstance struct {
 	base.Model `bun:"schema:schedule,table:activity_instances"`
 	base.TenantModel
 
-	Date             time.Time  `bun:"date,notnull" json:"date"`
-	ActivityGroupID  *int64     `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	Title            string     `bun:"title,notnull" json:"title"`
-	Description      *string    `bun:"description" json:"description,omitempty"`
-	StartTime        time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime          time.Time  `bun:"end_time,notnull" json:"end_time"`
-	RoomID           int64      `bun:"room_id,notnull" json:"room_id"`
-	Status           string     `bun:"status,notnull,default:'planned'" json:"status"`
-	ActiveGroupID    *int64     `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous    bool       `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
-	Notes            *string    `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64     `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64     `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
+	Date             timezone.Date `bun:"date,notnull" json:"date"`
+	ActivityGroupID  *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
+	CalendarPeriodID *int64        `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	Title            string        `bun:"title,notnull" json:"title"`
+	Description      *string       `bun:"description" json:"description,omitempty"`
+	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
+	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
+	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
+	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
+	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
+	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	Notes            *string       `bun:"notes" json:"notes,omitempty"`
+	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
 }
 
 func (i *ActivityInstance) BeforeAppendModel(query any) error {
@@ -142,15 +143,15 @@ type ActivityInstanceRepository interface {
 	CreateTemplateBackedIfAbsent(ctx context.Context, instance *ActivityInstance) (inserted bool, err error)
 
 	// FindByTenantAndDate returns all instances for the current tenant on the given date.
-	FindByTenantAndDate(ctx context.Context, date time.Time) ([]*ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByTenantAndDateRange returns all instances within an inclusive date range.
-	FindByTenantAndDateRange(ctx context.Context, from, to time.Time) ([]*ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByActivityGroupAndDate returns instances for a specific template on a date.
 	// There can be multiple rows when a template schedule defines several start
 	// times on the same weekday.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date time.Time) ([]*ActivityInstance, error)
+	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.

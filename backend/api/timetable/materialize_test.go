@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,13 +28,13 @@ import (
 type mockMaterializer struct {
 	result   *scheduleSvc.MaterializationResult
 	err      error
-	lastFrom time.Time
-	lastTo   time.Time
+	lastFrom timezone.Date
+	lastTo   timezone.Date
 	lastSrc  scheduleSvc.MaterializationSource
 	called   int
 }
 
-func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to time.Time, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
 	m.called++
 	m.lastFrom = from
 	m.lastTo = to
@@ -49,13 +50,13 @@ func (m *mockMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	return &scheduleSvc.MaterializationResult{From: from, To: to}, nil
 }
 
-func (m *mockMaterializer) ResolveWindow(baseDate time.Time, weeksAhead int) (time.Time, time.Time) {
+func (m *mockMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
 	// Not used by the handler; provide a sensible default so any accidental
 	// caller still gets a non-zero window.
 	if weeksAhead < 1 {
 		weeksAhead = 1
 	}
-	return baseDate, baseDate.AddDate(0, 0, weeksAhead*7-1)
+	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
 // -----------------------------------------------------------------------------

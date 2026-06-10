@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -73,15 +74,15 @@ func (f *fakeInstanceRepo) List(context.Context, *modelsBase.QueryOptions) ([]*s
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, time.Time, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
@@ -139,11 +140,11 @@ func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []i
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
+func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezone.Date) ([]int64, error) {
 	panic("unused")
 }
 
@@ -159,7 +160,7 @@ func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, strin
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.ScheduledInstanceRow, error) {
+func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 

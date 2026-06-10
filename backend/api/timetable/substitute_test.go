@@ -124,12 +124,11 @@ func decodeSub(t *testing.T, w *httptest.ResponseRecorder) SubstituteResponse {
 	return out
 }
 
-// futureSubDate returns a YYYY-MM-DD in the future plus a UTC date.Time
-// anchored at midnight for fixture rows.
-func futureSubDate(offsetDays int) (string, time.Time) {
-	d := time.Now().AddDate(0, 0, offsetDays)
-	return d.Format("2006-01-02"),
-		time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+// futureSubDate returns a YYYY-MM-DD in the future plus the matching
+// timezone.Date for fixture rows.
+func futureSubDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
 }
 
 // readInstanceStaff pulls the row directly from the DB for atomicity
