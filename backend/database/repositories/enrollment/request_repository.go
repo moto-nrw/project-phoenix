@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -222,42 +221,4 @@ func (r *RequestRepository) FindByStatusToken(ctx context.Context, token string)
 		return nil, fmt.Errorf("failed to find enrollment request by token: %w", err)
 	}
 	return req, nil
-}
-
-// UpdateGuardianData writes the guardian-editable fields of the request
-// (names, phone, consent flags, custom answers) and bumps updated_at.
-// Custom method (backend-conventions Rule 2): fixed multi-column projection
-// for the parent-portal edit flow.
-func (r *RequestRepository) UpdateGuardianData(ctx context.Context, req *enrollment.Request) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model(req).
-		ModelTableExpr(requestTableExpr).
-		Set("guardian_first_name = ?", req.GuardianFirstName).
-		Set("guardian_last_name = ?", req.GuardianLastName).
-		Set("guardian_phone = ?", req.GuardianPhone).
-		Set("consent_flags = ?", req.ConsentFlags).
-		Set("custom_data = ?", req.CustomData).
-		Set("updated_at = NOW()").
-		Where(`"request".id = ?`, req.ID).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to update guardian data: %w", err)
-	}
-	return nil
-}
-
-// MarkWithdrawn stamps withdrawn_at on the request and bumps updated_at.
-// Used by the parent-portal withdraw flow once every child is withdrawn.
-func (r *RequestRepository) MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*enrollment.Request)(nil)).
-		ModelTableExpr(requestTableExpr).
-		Set("withdrawn_at = ?", withdrawnAt).
-		Set("updated_at = NOW()").
-		Where(`"request".id = ?`, requestID).
-		Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to mark request withdrawn: %w", err)
-	}
-	return nil
 }

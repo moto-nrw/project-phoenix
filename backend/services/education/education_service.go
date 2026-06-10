@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // service implements the Education Service interface
@@ -22,6 +23,7 @@ type service struct {
 	teacherRepo      users.TeacherRepository
 	staffRepo        users.StaffRepository
 	studentRepo      users.StudentRepository
+	db               *bun.DB
 }
 
 // NewService creates a new education service instance
@@ -33,6 +35,7 @@ func NewService(
 	teacherRepo users.TeacherRepository,
 	staffRepo users.StaffRepository,
 	studentRepo users.StudentRepository,
+	db *bun.DB,
 ) Service {
 	return &service{
 		groupRepo:        groupRepo,
@@ -42,6 +45,7 @@ func NewService(
 		teacherRepo:      teacherRepo,
 		staffRepo:        staffRepo,
 		studentRepo:      studentRepo,
+		db:               db,
 	}
 }
 

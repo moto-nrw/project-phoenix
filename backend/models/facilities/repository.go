@@ -2,9 +2,6 @@ package facilities
 
 import (
 	"context"
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // RoomRepository defines the interface for room repository operations
@@ -17,13 +14,6 @@ type RoomRepository interface {
 
 	// FindByName retrieves a room by its name (case-insensitive).
 	FindByName(ctx context.Context, name string) (*Room, error)
-
-	// FindWithOccupancy returns the room plus its live occupancy aggregate.
-	FindWithOccupancy(ctx context.Context, id int64) (*RoomOccupancyRow, error)
-
-	// ListWithOccupancy returns rooms (optionally filtered) plus their live
-	// occupancy aggregates, ordered by name.
-	ListWithOccupancy(ctx context.Context, options *base.QueryOptions) ([]RoomOccupancyRow, error)
 
 	// FindByBuilding retrieves rooms by building
 	FindByBuilding(ctx context.Context, building string) ([]*Room, error)
@@ -42,24 +32,4 @@ type RoomRepository interface {
 
 	// List retrieves rooms matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*Room, error)
-}
-
-// RoomOccupancyRow is the room + live-occupancy projection returned by the
-// occupancy lookups; the service maps it onto its RoomWithOccupancy view.
-type RoomOccupancyRow struct {
-	ID        int64     `bun:"id"`
-	Name      string    `bun:"name"`
-	Building  string    `bun:"building"`
-	Floor     *int      `bun:"floor"`
-	Capacity  *int      `bun:"capacity"`
-	Category  *string   `bun:"category"`
-	Color     *string   `bun:"color"`
-	CreatedAt time.Time `bun:"created_at"`
-	UpdatedAt time.Time `bun:"updated_at"`
-
-	IsOccupied      bool    `bun:"is_occupied"`
-	GroupName       *string `bun:"group_name"`
-	CategoryName    *string `bun:"category_name"`
-	StudentCount    int     `bun:"student_count"`
-	SupervisorNames *string `bun:"supervisor_names"`
 }

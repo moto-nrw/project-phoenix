@@ -675,6 +675,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
 			materializationAllowCalendarService{},
+			nil,
 			slog.Default(),
 		)
 
@@ -704,6 +705,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 			materializationFakeExceptionRepo{},
 			materializationFakeTimeframeRepo{},
 			materializationAllowCalendarService{},
+			nil,
 			slog.Default(),
 		)
 
@@ -754,6 +756,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 			exceptionRepo,
 			timeframeRepo,
 			materializationAllowCalendarService{},
+			nil,
 			slog.Default(),
 		)
 	}
@@ -1015,6 +1018,7 @@ func newMaterializationBranchService(instanceRepo materializationFakeInstanceRep
 			Model:     modelBase.Model{ID: timeframeID},
 		}}},
 		materializationAllowCalendarService{},
+		nil,
 		slog.Default(),
 	)
 

@@ -22,9 +22,6 @@ type AccountRepository interface {
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
-	// AnonymizeForDeletion overwrites the email with an anonymized
-	// placeholder and clears the username (GDPR person deletion).
-	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
 	// mfa_locked_until = now() + lockoutDuration when the post-increment
 	// value reaches threshold. The CAS-style UPDATE means N concurrent

@@ -502,12 +502,3 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 func int64Ptr(i int64) *int64 {
 	return &i
 }
-
-// Stubs for the issue #585 refactor interface additions — unused here.
-func (m *mockRoomRepo) FindWithOccupancy(context.Context, int64) (*facilities.RoomOccupancyRow, error) {
-	return nil, nil
-}
-
-func (m *mockRoomRepo) ListWithOccupancy(context.Context, *base.QueryOptions) ([]facilities.RoomOccupancyRow, error) {
-	return nil, nil
-}

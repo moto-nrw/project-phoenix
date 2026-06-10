@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Operation name constants to avoid string duplication
@@ -24,6 +25,7 @@ type service struct {
 	dateframeRepo      schedule.DateframeRepository
 	timeframeRepo      schedule.TimeframeRepository
 	recurrenceRuleRepo schedule.RecurrenceRuleRepository
+	db                 *bun.DB
 }
 
 // NewService creates a new schedule service
@@ -31,11 +33,13 @@ func NewService(
 	dateframeRepo schedule.DateframeRepository,
 	timeframeRepo schedule.TimeframeRepository,
 	recurrenceRuleRepo schedule.RecurrenceRuleRepository,
+	db *bun.DB,
 ) Service {
 	return &service{
 		dateframeRepo:      dateframeRepo,
 		timeframeRepo:      timeframeRepo,
 		recurrenceRuleRepo: recurrenceRuleRepo,
+		db:                 db,
 	}
 }
 

@@ -13,7 +13,6 @@ import (
 	"unsafe"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -1275,10 +1274,9 @@ func TestQueryDevices_NoWhereClause(t *testing.T) {
 	}))
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
-	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
+	result, err := svc.queryDevices(context.Background(), "")
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -1300,10 +1298,9 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 	}))
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
-	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: int64Ptr(42)})
+	result, err := svc.queryDevices(context.Background(), `"d".tenant_id = ?`, int64(42))
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -1321,10 +1318,9 @@ func TestQueryDevices_ScanError(t *testing.T) {
 	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
-	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
+	result, err := svc.queryDevices(context.Background(), "")
 	require.Error(t, err)
 	assert.Nil(t, result)
 }
@@ -1352,10 +1348,9 @@ func TestQueryDevices_UsesTxFromContext(t *testing.T) {
 	}))
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
-	result, err := svc.queryDevices(ctx, platformModels.OperatorDeviceFilter{})
+	result, err := svc.queryDevices(ctx, "")
 	require.NoError(t, err)
 	assert.Empty(t, result)
 
@@ -1388,8 +1383,7 @@ func TestListAllDevices_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
 	result, err := svc.ListAllDevices(context.Background())
 	require.NoError(t, err)
@@ -1420,7 +1414,6 @@ func TestListSchoolDevices_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		schoolRepo: &internalSchoolRepoStub{
 			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1464,7 +1457,6 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		organizationRepo: &internalOrgRepoStub{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
@@ -1620,7 +1612,6 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		schoolRepo: &internalSchoolRepoStub{
 			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1692,7 +1683,6 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		schoolRepo: &internalSchoolRepoStub{
 			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1788,7 +1778,6 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		schoolRepo: &internalSchoolRepoStub{
 			findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1978,10 +1967,9 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 				return &platformModels.School{Active: true}, nil
 			},
 		},
-		auditLogRepo:  &internalAuditLogRepoStub{},
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		logger:        slog.Default(),
+		auditLogRepo: &internalAuditLogRepoStub{},
+		txHandler:    modelBase.NewTxHandler(bunDB),
+		logger:       slog.Default(),
 	}
 
 	result, err := svc.SetDeviceAPIKey(context.Background(), 10, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -2026,7 +2014,6 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
 		deviceRepo: &internalDeviceRepoStub{
 			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 				return &iotModels.Device{
@@ -2111,11 +2098,10 @@ func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
 	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
 
 	svc := &operatorProvisioningService{
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
+		txHandler: modelBase.NewTxHandler(bunDB),
 	}
 
-	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", int64(10))
+	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", `"d".id = ?`, int64(10))
 	require.Nil(t, result)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, assert.AnError)
@@ -2139,12 +2125,11 @@ func TestQueryDeviceSingle_NoRows(t *testing.T) {
 	}))
 
 	svc := &operatorProvisioningService{
-		summariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB),
-		txHandler:     modelBase.NewTxHandler(bunDB),
-		logger:        slog.Default(),
+		txHandler: modelBase.NewTxHandler(bunDB),
+		logger:    slog.Default(),
 	}
 
-	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", int64(10))
+	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", `"d".id = ?`, int64(10))
 	require.Nil(t, result)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SetDeviceAPIKey: device not found after write")
@@ -2551,5 +2536,3 @@ func TestGenerateRandomSuffix(t *testing.T) {
 		assert.NotEqual(t, a, b, "two random suffixes should differ")
 	})
 }
-
-func int64Ptr(v int64) *int64 { return &v }

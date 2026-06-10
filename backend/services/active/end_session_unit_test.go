@@ -9,7 +9,6 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -607,18 +606,4 @@ func TestGetAllActiveSupervisions_FiltersInactive(t *testing.T) {
 	// Only the active one (no end date) should remain after IsActive() filter
 	assert.Len(t, result, 1)
 	assert.Equal(t, int64(10), result[0].ID)
-}
-
-// Stub for the issue #585 refactor interface addition — unused here.
-func (m *mockGroupRepository) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
-	return 0, nil
-}
-
-// Stubs for the issue #585 refactor interface additions — unused here.
-func (m *mockVisitRepository) GetCurrentRoomNamesForStudents(context.Context, []int64) (map[int64]string, error) {
-	return nil, nil
-}
-
-func (m *mockGroupSupervisorRepository) ListActiveSupervisionBlockers(context.Context, int64, int64) ([]userModels.BlockerSupervision, error) {
-	return nil, nil
 }

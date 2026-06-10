@@ -13,6 +13,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Error message constants to avoid string duplication
@@ -41,6 +42,7 @@ func isProtectedSystemDevice(device *iot.Device) bool {
 // service implements the Service interface
 type service struct {
 	deviceRepo iot.DeviceRepository
+	db         *bun.DB
 
 	// Optional: tenant-scoped settings resolver for the device-online window.
 	// When nil, IsDeviceOnline falls back to defaultDeviceOnlineWindow.
@@ -48,9 +50,10 @@ type service struct {
 }
 
 // NewService creates a new IoT service
-func NewService(deviceRepo iot.DeviceRepository) Service {
+func NewService(deviceRepo iot.DeviceRepository, db *bun.DB) Service {
 	return &service{
 		deviceRepo: deviceRepo,
+		db:         db,
 	}
 }
 

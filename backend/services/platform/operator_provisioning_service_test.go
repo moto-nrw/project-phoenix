@@ -3797,19 +3797,3 @@ func TestOperatorProvisioningService_LoadActiveSchool_RejectsDeletedSchool(t *te
 	var deletedErr *platformSvc.SchoolAlreadyDeletedError
 	require.ErrorAs(t, err, &deletedErr)
 }
-
-// Stub for the issue #585 refactor interface addition — unused here.
-func (m *mockPersonRepo) AnonymizeAndSoftDelete(context.Context, int64) error { return nil }
-
-// Stub for the issue #585 refactor interface addition — unused here.
-func (m *mockSummariesRepo) ListDeviceRows(context.Context, platformModels.OperatorDeviceFilter) ([]platformModels.OperatorDeviceRow, error) {
-	return nil, nil
-}
-
-func (m *mockTeacherRepo) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
-	return nil, nil
-}
-
-func (m *mockTeacherRepo) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
-	return nil, nil
-}

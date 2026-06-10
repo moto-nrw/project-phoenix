@@ -1477,24 +1477,3 @@ func (r *stubSchoolRepository) CountNonDeletedByOrganizationID(context.Context, 
 func newDefaultFromEmail() email.Email {
 	return email.NewEmail("moto", "no-reply@moto.example")
 }
-
-// Stubs for the issue #585 refactor interface additions — unused by auth tests.
-func (r *stubAccountRepository) AnonymizeForDeletion(context.Context, int64, string) error {
-	return nil
-}
-
-func (r *stubPersonRepository) AnonymizeAndSoftDelete(context.Context, int64) error {
-	return nil
-}
-
-func (noopAccountRepository) AnonymizeForDeletion(context.Context, int64, string) error {
-	return nil
-}
-
-func (r *stubTeacherRepository) ListActiveCaregivers(context.Context) ([]*userModel.ActiveCaregiver, error) {
-	return nil, nil
-}
-
-func (r *stubTeacherRepository) FindActiveCaregiverByAccountID(context.Context, int64) (*userModel.ActiveCaregiver, error) {
-	return nil, nil
-}

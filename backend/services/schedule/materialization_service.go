@@ -44,6 +44,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // MaxMaterializationWindowDays caps how many civil days a single call may
@@ -135,6 +136,7 @@ type materializationService struct {
 	exceptionRepo   schedule.ActivityExceptionRepository
 	timeframeRepo   schedule.TimeframeRepository
 	calendarService CalendarPeriodService
+	db              *bun.DB
 	logger          *slog.Logger
 }
 
@@ -154,6 +156,7 @@ func NewMaterializationService(
 	exceptionRepo schedule.ActivityExceptionRepository,
 	timeframeRepo schedule.TimeframeRepository,
 	calendarService CalendarPeriodService,
+	db *bun.DB,
 	logger *slog.Logger,
 ) MaterializationService {
 	return &materializationService{
@@ -168,6 +171,7 @@ func NewMaterializationService(
 		exceptionRepo:   exceptionRepo,
 		timeframeRepo:   timeframeRepo,
 		calendarService: calendarService,
+		db:              db,
 		logger:          logger,
 	}
 }

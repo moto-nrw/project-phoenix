@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -117,13 +118,11 @@ type Scheduler struct {
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
 	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
-	instanceRepo         scheduleModel.ActivityInstanceRepository
-	instanceStudentRepo  scheduleModel.InstanceStudentRepository
-	studentStatusDayRepo activeModel.StudentStatusDayRepository
-	overdueBroadcaster   realtime.Broadcaster
-	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
-	overdueEmittedDay    time.Time
-	overdueEmittedDayMu  sync.Mutex
+	instanceRepo        scheduleModel.ActivityInstanceRepository
+	overdueBroadcaster  realtime.Broadcaster
+	overdueEmitted      sync.Map // overdueKey{tenantID, instanceID} → time.Time
+	overdueEmittedDay   time.Time
+	overdueEmittedDayMu sync.Mutex
 
 	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
 	// Nil → activate-students task does not register.
@@ -261,22 +260,6 @@ func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
 func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, broadcaster realtime.Broadcaster) {
 	s.instanceRepo = repo
 	s.overdueBroadcaster = broadcaster
-}
-
-// SetTimetableBridgeRepos wires the schedule-side repositories used by the
-// daily session-end bridge (completeTimetableInstancesForEndedSessions).
-// Independent of the overdue-tick wiring: it also sets instanceRepo so the
-// bridge works even when SetInstanceOverdueDeps was never called. Without
-// this wiring the bridge is a no-op.
-func (s *Scheduler) SetTimetableBridgeRepos(instanceStudents scheduleModel.InstanceStudentRepository, instances scheduleModel.ActivityInstanceRepository) {
-	s.instanceStudentRepo = instanceStudents
-	s.instanceRepo = instances
-}
-
-// SetStudentStatusDayRepo wires the repository used by the nightly
-// status-flag clear (archive to student_status_days + clear legacy flags).
-func (s *Scheduler) SetStudentStatusDayRepo(repo activeModel.StudentStatusDayRepository) {
-	s.studentStatusDayRepo = repo
 }
 
 // forEachTenant executes fn for each active tenant inside a WithTenantTx.
@@ -664,22 +647,43 @@ func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
 func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *active.DailySessionCleanupResult) (int, error) {
-	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
-		return 0, nil
-	}
-	if s.instanceStudentRepo == nil || s.instanceRepo == nil {
+	if result == nil || len(result.EndedActiveGroupIDs) == 0 || s.db == nil {
 		return 0, nil
 	}
 
+	db := repoBase.GetDB(ctx, s.db)
 	now := time.Now()
 
-	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
+	if _, err := db.NewUpdate().
+		TableExpr(`schedule.instance_students AS "student"`).
+		Set("status = ?", scheduleModel.AttendanceStatusAbsent).
+		Set("updated_at = ?", now).
+		Where(`"student".status = ?`, scheduleModel.AttendanceStatusExpected).
+		Where(`"student".instance_id IN (
+			SELECT "instance".id
+			FROM schedule.activity_instances AS "instance"
+			WHERE "instance".status = ?
+				AND "instance".active_group_id IN (?)
+		)`, scheduleModel.InstanceStatusActive, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx); err != nil {
 		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
 	}
 
-	rows, err := s.instanceRepo.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
+	res, err := db.NewUpdate().
+		TableExpr(`schedule.activity_instances AS "instance"`).
+		Set("status = ?", scheduleModel.InstanceStatusCompleted).
+		Set("completed_at = ?", now).
+		Set("updated_at = ?", now).
+		Where(`"instance".status = ?`, scheduleModel.InstanceStatusActive).
+		Where(`"instance".active_group_id IN (?)`, bun.List(result.EndedActiveGroupIDs)).
+		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("complete active timetable instances: %w", err)
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("complete active timetable instances rows affected: %w", err)
 	}
 	return int(rows), nil
 }
@@ -1511,18 +1515,45 @@ func (s *Scheduler) checkAndRunStatusFlagClear(task *ScheduledTask) {
 // the current tenant transaction. Column names are trusted constants — the
 // caller picks them from a fixed set.
 func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn string) (int64, error) {
-	if s.studentStatusDayRepo == nil {
-		return 0, fmt.Errorf("scheduler student status day repo not configured")
+	if s.db == nil {
+		return 0, fmt.Errorf("scheduler db not configured")
 	}
 	status, err := statusForFlagColumn(flagColumn)
 	if err != nil {
 		return 0, err
 	}
+	now := time.Now()
+	today := timezone.TodayUTC()
+	db := repoBase.GetDB(ctx, s.db)
 
-	return s.studentStatusDayRepo.ArchiveAndClearStatusFlag(
-		ctx, flagColumn, sinceColumn, status,
-		timezone.TodayUTC(), time.Now(), activeModel.StudentStatusSourceEndOfDay,
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
+		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
+		FROM users.students
+		WHERE %s = TRUE
+		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
+		SET reported_at = EXCLUDED.reported_at,
+		    cleared_at = EXCLUDED.cleared_at,
+		    source = EXCLUDED.source;
+	`, sinceColumn, flagColumn)
+	if _, err := db.NewRaw(upsertQuery, today, status, now, now, activeModel.StudentStatusSourceEndOfDay).Exec(ctx); err != nil {
+		return 0, err
+	}
+
+	clearQuery := fmt.Sprintf(
+		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
+		flagColumn, sinceColumn, flagColumn,
 	)
+	res, err := db.NewRaw(clearQuery).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return affected, nil
 }
 
 func statusForFlagColumn(flagColumn string) (string, error) {

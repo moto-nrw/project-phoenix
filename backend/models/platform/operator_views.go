@@ -97,11 +97,6 @@ type OperatorPersonInfo struct {
 // query that participates in any transaction stored on the context via
 // modelBase.ContextWithTx, so it composes with TenantTx/AdminTx middleware.
 type OperatorSummariesRepository interface {
-	// ListDeviceRows returns the operator device listing (optionally
-	// filtered by device row, school, or organization), excluding devices
-	// of soft-deleted schools/organizations.
-	ListDeviceRows(ctx context.Context, filter OperatorDeviceFilter) ([]OperatorDeviceRow, error)
-
 	// Stats returns platform-wide counts (Träger, Schulen, Konten, Geräte).
 	// Konten count is DISTINCT account_id across all active account-tenant
 	// memberships; the same account active in multiple schools counts once.
@@ -127,33 +122,4 @@ type OperatorSummariesRepository interface {
 	// PersonsByOrganization returns non-deleted persons across every school
 	// belonging to the given organization with school/org context on each row.
 	PersonsByOrganization(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
-}
-
-// OperatorDeviceRow is one device in the operator device listings, joined
-// with its school and organization. MaskedAPIKey and IsOnline are derived
-// presentation fields the service computes after the read.
-type OperatorDeviceRow struct {
-	ID               int64      `bun:"id" json:"id"`
-	DeviceID         string     `bun:"device_id" json:"device_id"`
-	DeviceType       string     `bun:"device_type" json:"device_type"`
-	Name             *string    `bun:"name" json:"name,omitempty"`
-	Status           string     `bun:"status" json:"status"`
-	APIKey           *string    `bun:"api_key" json:"api_key,omitempty"`
-	MaskedAPIKey     string     `bun:"-" json:"masked_api_key"`
-	LastSeen         *time.Time `bun:"last_seen" json:"last_seen,omitempty"`
-	IsOnline         bool       `bun:"-" json:"is_online"`
-	SchoolID         int64      `bun:"school_id" json:"school_id"`
-	SchoolName       string     `bun:"school_name" json:"school_name"`
-	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`
-	OrganizationName string     `bun:"organization_name" json:"organization_name"`
-	CreatedAt        time.Time  `bun:"created_at" json:"created_at"`
-	UpdatedAt        time.Time  `bun:"updated_at" json:"updated_at"`
-}
-
-// OperatorDeviceFilter narrows the operator device listing. At most one
-// field is set; the zero value lists every device.
-type OperatorDeviceFilter struct {
-	DeviceRowID    *int64
-	SchoolID       *int64
-	OrganizationID *int64
 }

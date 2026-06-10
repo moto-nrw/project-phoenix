@@ -9,7 +9,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -46,7 +45,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
+	s := &Scheduler{db: db}
 
 	// Create two students: one sick, one not, both in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "Clear", "SickFlag", "1a")
@@ -215,7 +214,7 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
+	s := &Scheduler{db: db}
 
 	excStudent := testpkg.CreateTestStudent(t, db, "Clear", "ExcusedFlag", "1b")
 	defer testpkg.CleanupActivityFixtures(t, db, excStudent.ID)
@@ -322,9 +321,8 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	// forEachTenantSettings iterates every active tenant), fake settings
 	// resolver that pins the clock + both modes to what the task expects.
 	s := &Scheduler{
-		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		db:         db,
+		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -381,9 +379,8 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &Scheduler{
-		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		db:         db,
+		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": nowHHMM,
@@ -428,9 +425,8 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 
 	// Configure a clearly past time so timeMatchesNow always returns false.
 	s := &Scheduler{
-		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
-		studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db),
+		db:         db,
+		schoolRepo: platformRepo.NewSchoolRepository(db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
 				"operations.status_flag_clear_time": "25:99", // invalid, timeMatchesNow → false

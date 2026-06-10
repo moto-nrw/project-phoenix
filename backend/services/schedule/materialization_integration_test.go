@@ -106,6 +106,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate time.Time) *scenari
 		repoFactory.ActivityException,
 		repoFactory.Timeframe,
 		serviceFactory.CalendarPeriod,
+		db,
 		slog.Default(),
 	)
 
@@ -335,7 +336,7 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
 		repoFactory.ActivitySupervisor, repoFactory.CalendarPeriod, repoFactory.ActivityInstance,
 		repoFactory.InstanceStaff, repoFactory.InstanceStudent, repoFactory.ActivityException,
-		repoFactory.Timeframe, serviceFactory.CalendarPeriod, slog.Default(),
+		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, slog.Default(),
 	)
 
 	// Use a fresh tenant id that we know has no active periods.
@@ -372,7 +373,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 		repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.StudentEnrollment,
 		repoFactory.ActivitySupervisor, repoFactory.CalendarPeriod, repoFactory.ActivityInstance,
 		repoFactory.InstanceStaff, repoFactory.InstanceStudent, repoFactory.ActivityException,
-		repoFactory.Timeframe, serviceFactory.CalendarPeriod, slog.Default(),
+		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, slog.Default(),
 	)
 
 	const emptyTemplateTenantID = int64(990002)

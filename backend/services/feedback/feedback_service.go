@@ -6,17 +6,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // feedbackService implements the Service interface
 type feedbackService struct {
+	db        *bun.DB
 	entryRepo feedback.EntryRepository
 }
 
 // NewService creates a new feedback service
-func NewService(entryRepo feedback.EntryRepository) Service {
+func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
 	return &feedbackService{
 		entryRepo: entryRepo,
+		db:        db,
 	}
 }
 

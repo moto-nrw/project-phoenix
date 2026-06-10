@@ -131,16 +131,6 @@ type AttendanceRepository interface {
 	// attendance row for the given date.
 	ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error)
 
-	// FindStaleOpen returns attendance rows dated before the given day that
-	// still lack a check-out time. Feeds the nightly stale-attendance
-	// cleanup and its preview.
-	FindStaleOpen(ctx context.Context, before time.Time) ([]*Attendance, error)
-
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary
-	// key and returns the number of rows affected.
-	UpdateColumns(ctx context.Context, attendance *Attendance, columns ...string) (int64, error)
-
 	// CountByStaffID counts attendance records where the staff member checked in or checked out students
 	CountByStaffID(ctx context.Context, staffID int64) (int, error)
 }

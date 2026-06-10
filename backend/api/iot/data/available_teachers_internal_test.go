@@ -184,12 +184,3 @@ func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 
 var _ userModels.TeacherRepository = teacherRepositoryStub{}
 var _ usersSvc.PersonService = personServiceWithTeacherRepo{}
-
-// Stubs for the issue #585 refactor interface additions — unused here.
-func (s teacherRepositoryStub) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
-	return nil, nil
-}
-
-func (s teacherRepositoryStub) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
-	return nil, nil
-}
