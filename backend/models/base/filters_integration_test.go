@@ -3,6 +3,7 @@ package base_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -768,4 +769,43 @@ func TestContextWithTx_NoTxInContext(t *testing.T) {
 	tx, ok := base.TxFromContext(ctx)
 	assert.False(t, ok, "Should return false when no tx in context")
 	assert.Nil(t, tx)
+}
+
+func TestIsRetryableTxError(t *testing.T) {
+	assert.False(t, base.IsRetryableTxError(nil), "nil is not retryable")
+	assert.False(t, base.IsRetryableTxError(errors.New("some error")), "plain errors are not retryable")
+	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
+}
+
+func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	handler := base.NewTxHandler(db)
+
+	calls := 0
+	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+		calls++
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls, "a successful transaction runs exactly once")
+}
+
+func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	handler := base.NewTxHandler(db)
+
+	expected := errors.New("business rule violation")
+	calls := 0
+	err := handler.RunInTxWithRetry(ctx, func(ctx context.Context, _ bun.Tx) error {
+		calls++
+		return expected
+	})
+	require.ErrorIs(t, err, expected)
+	assert.Equal(t, 1, calls, "a non-retryable error must NOT be retried")
 }

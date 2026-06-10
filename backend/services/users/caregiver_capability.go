@@ -228,7 +228,11 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	}
 
 	var result *userModels.CaregiverCapabilityState
-	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	// This transaction LOCK TABLEs the four caregiver-binding tables (incl.
+	// active.group_supervisors). Concurrent room/supervision writes take row
+	// locks on the same tables in a different order, so a transient deadlock is
+	// possible — retry the whole transaction on 40P01/40001.
+	if err := s.txHandler.RunInTxWithRetry(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
 			return err
 		}
