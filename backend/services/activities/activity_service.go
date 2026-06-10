@@ -10,8 +10,8 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Service implements the ActivityService interface
@@ -22,7 +22,7 @@ type Service struct {
 	supervisorRepo  activities.SupervisorPlannedRepository
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activeModels.GroupRepository
-	staffRepo       userModels.StaffRepository
+	db              *bun.DB
 }
 
 // NewService creates a new activity service
@@ -33,7 +33,7 @@ func NewService(
 	supervisorRepo activities.SupervisorPlannedRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	activeGroupRepo activeModels.GroupRepository,
-	staffRepo userModels.StaffRepository,
+	db *bun.DB,
 ) (*Service, error) {
 	return &Service{
 		categoryRepo:    categoryRepo,
@@ -42,7 +42,7 @@ func NewService(
 		supervisorRepo:  supervisorRepo,
 		enrollmentRepo:  enrollmentRepo,
 		activeGroupRepo: activeGroupRepo,
-		staffRepo:       staffRepo,
+		db:              db,
 	}, nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/uptrace/bun"
 )
 
 // importerUserIDKey is a context key for the importing user's ID
@@ -27,13 +28,15 @@ func ImporterIDFromContext(ctx context.Context) int64 {
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
+	db        *bun.DB
 	batchSize int
 }
 
 // NewImportService creates a new import service
-func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
+func NewImportService[T any](config importModels.ImportConfig[T], db *bun.DB) *ImportService[T] {
 	return &ImportService[T]{
 		config:    config,
+		db:        db,
 		batchSize: 100, // Default batch size
 	}
 }

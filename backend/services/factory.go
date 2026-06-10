@@ -207,6 +207,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Teacher,
 		repos.Staff,
 		repos.Student,
+		db,
 	)
 
 	// Initialize grade transition service
@@ -314,6 +315,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize feedback service
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
+		db,
 	)
 
 	// Initialize suggestions service
@@ -334,6 +336,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Initialize IoT service
 	iotService := iot.NewService(
 		repos.Device,
+		db,
 	)
 
 	// Inject settings resolver into active service so auto-clear of sick /
@@ -353,7 +356,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivitySupervisor,
 		repos.StudentEnrollment,
 		repos.ActiveGroup,
-		repos.Staff,
+		db,
 	)
 	if err != nil {
 		return nil, err
@@ -363,6 +366,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	facilitiesService := facilities.NewService(
 		repos.Room,
 		repos.ActiveGroup,
+		db,
 	)
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
@@ -370,6 +374,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesService,
 		activitiesService,
 		activeService,
+		db,
 		facilitiesLogger,
 	)
 
@@ -385,6 +390,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Dateframe,
 		repos.Timeframe,
 		repos.RecurrenceRule,
+		db,
 	)
 
 	// Initialize pickup schedule service
@@ -392,11 +398,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		db,
 	)
 
 	// Initialize calendar period service
 	calendarPeriodService := schedule.NewCalendarPeriodService(
 		repos.CalendarPeriod,
+		db,
 		logger.With("service", "calendar-period"),
 	)
 
@@ -416,6 +424,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.Timeframe,
 		calendarPeriodService,
+		db,
 		logger.With("service", "materialization"),
 	)
 
@@ -424,9 +433,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// and schedule.activity_exceptions older than the tenant's retention window.
 	// Per-student audit rows via DataDeletion; exceptions slog-only.
 	timetableCleanupService := schedule.NewTimetableCleanupService(
-		repos.ActivityInstance,
-		repos.ActivityException,
-		repos.InstanceStudent,
+		db,
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
@@ -438,8 +445,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// tenant's retention window. Per-staff audit rows via DataDeletion
 	// (staff_id subject, added in migration 1.15.58).
 	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
-		repos.WorkSession,
-		repos.StaffAbsence,
+		db,
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "time-tracking-cleanup"),
@@ -672,7 +678,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TeacherRepo:            repos.Teacher,
 		GroupTeacherRepo:       repos.GroupTeacher,
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
-		GroupSupervisorRepo:    repos.GroupSupervisor,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		AuthService:            authService,
 		DB:                     db,
@@ -712,7 +717,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
-	}, usercontextLogger)
+	}, db, usercontextLogger)
 
 	// Initialize database stats service
 	databaseService := database.NewService(repos, databaseLogger)
@@ -721,7 +726,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		repos.ActiveVisit,
-		repos.Attendance,
 		repos.PrivacyConsent,
 		repos.DataDeletion,
 		privacyConsentService,
@@ -744,7 +748,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		},
 		db,
 	)
-	studentImportService := importService.NewImportService(studentImportConfig)
+	studentImportService := importService.NewImportService(studentImportConfig, db)
 
 	// Staff import bulk-creates invitations (reuses the invitation service);
 	// Person/Account/Staff/Teacher are created when each invitee accepts.
@@ -757,7 +761,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			SchoolRepo:        repos.School,
 		},
 	)
-	staffImportService := importService.NewImportService(staffImportConfig)
+	staffImportService := importService.NewImportService(staffImportConfig, db)
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -970,7 +974,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountTenantRepo:   repos.AccountTenant,
 		PersonRepo:          repos.Person,
 		StaffRepo:           repos.Staff,
-		AccountRepo:         repos.Account,
 		TeacherRepo:         repos.Teacher,
 		GroupSupervisorRepo: repos.GroupSupervisor,
 		InvitationService:   invitationService,
@@ -982,13 +985,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	listExportService := listexport.NewService()
 	emergencyService := emergency.NewService(emergency.Dependencies{
-		AttendanceRepo:      repos.Attendance,
-		StudentRepo:         repos.Student,
-		PersonRepo:          repos.Person,
-		VisitRepo:           repos.ActiveVisit,
-		StudentGuardianRepo: repos.StudentGuardian,
-		ActiveService:       activeService,
-		ListExport:          listExportService,
+		AttendanceRepo: repos.Attendance,
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		ActiveService:  activeService,
+		ListExport:     listExportService,
+		DB:             db,
 	})
 
 	factory := &Factory{

@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // CalendarPeriodService defines operations for managing calendar periods
@@ -26,16 +27,19 @@ type CalendarPeriodService interface {
 // calendarPeriodService implements CalendarPeriodService
 type calendarPeriodService struct {
 	repo   schedule.CalendarPeriodRepository
+	db     *bun.DB
 	logger *slog.Logger
 }
 
 // NewCalendarPeriodService creates a new calendar period service
 func NewCalendarPeriodService(
 	repo schedule.CalendarPeriodRepository,
+	db *bun.DB,
 	logger *slog.Logger,
 ) CalendarPeriodService {
 	return &calendarPeriodService{
 		repo:   repo,
+		db:     db,
 		logger: logger,
 	}
 }

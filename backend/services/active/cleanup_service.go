@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -15,6 +16,9 @@ import (
 )
 
 const (
+	// attendanceTableName is the fully-qualified table name for attendance records
+	attendanceTableName = "active.attendance"
+
 	// supervisorTableName is the fully-qualified table name for group supervisor records
 	supervisorTableName = "active.group_supervisors"
 )
@@ -29,7 +33,6 @@ type ConsentRetentionResolver interface {
 // cleanupService implements the CleanupService interface
 type cleanupService struct {
 	visitRepo          active.VisitRepository
-	attendanceRepo     active.AttendanceRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
 	dataDeletionRepo   audit.DataDeletionRepository
 	consentRetention   ConsentRetentionResolver
@@ -41,7 +44,6 @@ type cleanupService struct {
 // NewCleanupService creates a new cleanup service instance
 func NewCleanupService(
 	visitRepo active.VisitRepository,
-	attendanceRepo active.AttendanceRepository,
 	privacyConsentRepo userModels.PrivacyConsentRepository,
 	dataDeletionRepo audit.DataDeletionRepository,
 	consentRetention ConsentRetentionResolver,
@@ -49,7 +51,6 @@ func NewCleanupService(
 ) CleanupService {
 	return &cleanupService{
 		visitRepo:          visitRepo,
-		attendanceRepo:     attendanceRepo,
 		privacyConsentRepo: privacyConsentRepo,
 		dataDeletionRepo:   dataDeletionRepo,
 		consentRetention:   consentRetention,
@@ -372,7 +373,22 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 	today := timezone.TodayUTC()
 
 	// Find all attendance records from before today that don't have check-out times
-	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
+	var staleRecords []struct {
+		ID          int64     `bun:"id"`
+		StudentID   int64     `bun:"student_id"`
+		Date        time.Time `bun:"date"`
+		CheckInTime time.Time `bun:"check_in_time"`
+	}
+
+	db := repoBase.GetDB(ctx, s.db)
+
+	err := db.NewSelect().
+		Table(attendanceTableName).
+		Column("id", "student_id", "date", "check_in_time").
+		Where("date < ?", today).
+		Where("check_out_time IS NULL").
+		Scan(ctx, &staleRecords)
+
 	if err != nil {
 		result.Success = false
 		result.CompletedAt = time.Now()
@@ -404,9 +420,14 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		}
 
 		// Update the record
-		record.CheckOutTime = &checkOutTime
-		record.UpdatedAt = time.Now()
-		if _, err := s.attendanceRepo.UpdateColumns(ctx, record, "check_out_time", "updated_at"); err != nil {
+		_, err := db.NewUpdate().
+			Table(attendanceTableName).
+			Set("check_out_time = ?", checkOutTime).
+			Set("updated_at = ?", time.Now()).
+			Where("id = ?", record.ID).
+			Exec(ctx)
+
+		if err != nil {
 			errMsg := fmt.Sprintf("Failed to close attendance record %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false
@@ -440,7 +461,20 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 	today := timezone.TodayUTC()
 
 	// Find all stale attendance records
-	staleRecords, err := s.attendanceRepo.FindStaleOpen(ctx, today)
+	var staleRecords []struct {
+		StudentID int64     `bun:"student_id"`
+		Date      time.Time `bun:"date"`
+	}
+
+	db := repoBase.GetDB(ctx, s.db)
+
+	err := db.NewSelect().
+		Table(attendanceTableName).
+		Column("student_id", "date").
+		Where("date < ?", today).
+		Where("check_out_time IS NULL").
+		Scan(ctx, &staleRecords)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to preview stale attendance records: %w", err)
 	}

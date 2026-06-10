@@ -28,7 +28,6 @@ func setupTestCleanupContext(t *testing.T) *cleanupContext {
 	repoFactory := repositories.NewFactory(db)
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
-		repoFactory.Attendance,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),
@@ -49,7 +48,6 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 	require.NoError(t, err, "Failed to create service factory")
 	cleanupSvc := active.NewCleanupService(
 		repoFactory.ActiveVisit,
-		repoFactory.Attendance,
 		repoFactory.PrivacyConsent,
 		repoFactory.DataDeletion,
 		users.NewPrivacyConsentService(nil, slog.Default()),

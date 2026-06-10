@@ -18,8 +18,8 @@
 //
 //   - Caller supplies tenant context. The service trusts ctx has an active
 //     WithTenantTx — both deletes run inside the caller's transaction and
-//     RLS enforces the tenant boundary. The repositories add `tenant_id = ?`
-//     predicates as defense-in-depth.
+//     RLS enforces the tenant boundary. Explicit `tenant_id = ?` predicates
+//     are defense-in-depth.
 //
 //   - Per-student audit rows (one row per affected student, not per run).
 //     activity_exceptions carry no PII (template-scoped) and are not logged
@@ -38,19 +38,12 @@ import (
 	"log/slog"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
-)
-
-// instanceDateColumn / exceptionDateColumn are the retention-age columns the
-// cleanup predicates run on.
-const (
-	instanceDateColumn  = "date"
-	exceptionDateColumn = "exception_date"
+	"github.com/uptrace/bun"
 )
 
 // auditInstanceIDSampleCap bounds the number of instance IDs sampled into a
@@ -109,20 +102,16 @@ type TimetableCleanupService interface {
 
 // timetableCleanupService implements TimetableCleanupService.
 type timetableCleanupService struct {
-	instanceRepo        scheduleModel.ActivityInstanceRepository
-	exceptionRepo       scheduleModel.ActivityExceptionRepository
-	instanceStudentRepo scheduleModel.InstanceStudentRepository
-	auditRepo           audit.DataDeletionRepository
-	settings            config.SettingsService
-	logger              *slog.Logger
+	db        *bun.DB
+	auditRepo audit.DataDeletionRepository
+	settings  config.SettingsService
+	logger    *slog.Logger
 }
 
 // NewTimetableCleanupService constructs the cleanup service. settings may be
 // nil in tests; when nil, retention resolves to the last-resort default 365.
 func NewTimetableCleanupService(
-	instanceRepo scheduleModel.ActivityInstanceRepository,
-	exceptionRepo scheduleModel.ActivityExceptionRepository,
-	instanceStudentRepo scheduleModel.InstanceStudentRepository,
+	db *bun.DB,
 	auditRepo audit.DataDeletionRepository,
 	settings config.SettingsService,
 	logger *slog.Logger,
@@ -131,12 +120,10 @@ func NewTimetableCleanupService(
 		logger = slog.Default()
 	}
 	return &timetableCleanupService{
-		instanceRepo:        instanceRepo,
-		exceptionRepo:       exceptionRepo,
-		instanceStudentRepo: instanceStudentRepo,
-		auditRepo:           auditRepo,
-		settings:            settings,
-		logger:              logger,
+		db:        db,
+		auditRepo: auditRepo,
+		settings:  settings,
+		logger:    logger,
 	}
 }
 
@@ -153,8 +140,10 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffFor(retentionDays)
 
+	db := repoBase.GetDB(ctx, s.db)
+
 	// 1. Collect per-student impact for the audit log.
-	studentCounts, sampleIDs, err := s.collectStudentImpact(ctx, cutoff)
+	studentCounts, sampleIDs, err := s.collectStudentImpact(ctx, db, tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("collect student impact: %w", err)
 	}
@@ -167,21 +156,21 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 	}
 
 	// 3. Delete activity_instances. CASCADE handles instance_staff + instance_students.
-	instancesDeleted, err := s.instanceRepo.DeleteOlderThan(ctx, instanceDateColumn, cutoff)
+	instancesDeleted, err := deleteOldInstances(ctx, db, tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("delete activity_instances: %w", err)
 	}
 
 	// 4. Delete activity_exceptions.
-	exceptionsDeleted, err := s.exceptionRepo.DeleteOlderThan(ctx, exceptionDateColumn, cutoff)
+	exceptionsDeleted, err := deleteOldExceptions(ctx, db, tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("delete activity_exceptions: %w", err)
 	}
 
 	result := &TimetableCleanupResult{
 		Success:           true,
-		InstancesDeleted:  int(instancesDeleted),
-		ExceptionsDeleted: int(exceptionsDeleted),
+		InstancesDeleted:  instancesDeleted,
+		ExceptionsDeleted: exceptionsDeleted,
 		StudentsAffected:  len(studentCounts),
 		RetentionDays:     retentionDays,
 		CutoffDate:        cutoff,
@@ -190,8 +179,8 @@ func (s *timetableCleanupService) CleanupExpiredTimetableData(ctx context.Contex
 
 	s.logger.Info("timetable cleanup completed",
 		slog.Int64("tenant_id", tenantID),
-		slog.Int("instances_deleted", result.InstancesDeleted),
-		slog.Int("exceptions_deleted", result.ExceptionsDeleted),
+		slog.Int("instances_deleted", instancesDeleted),
+		slog.Int("exceptions_deleted", exceptionsDeleted),
 		slog.Int("students_affected", result.StudentsAffected),
 		slog.Int("retention_days", retentionDays),
 		slog.String("cutoff_date", cutoff.Format("2006-01-02")),
@@ -210,27 +199,40 @@ func (s *timetableCleanupService) PreviewExpiredTimetableData(ctx context.Contex
 
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffFor(retentionDays)
+	db := repoBase.GetDB(ctx, s.db)
 
-	instancesToDelete, err := s.instanceRepo.CountWithOptions(ctx, expiredOptions(instanceDateColumn, cutoff))
+	instancesToDelete, err := db.NewSelect().
+		Table("schedule.activity_instances").
+		Where("tenant_id = ?", tenantID).
+		Where("date < ?", cutoff).
+		Count(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	exceptionsToDelete, err := s.exceptionRepo.CountWithOptions(ctx, expiredOptions(exceptionDateColumn, cutoff))
+	exceptionsToDelete, err := db.NewSelect().
+		Table("schedule.activity_exceptions").
+		Where("tenant_id = ?", tenantID).
+		Where("exception_date < ?", cutoff).
+		Count(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}
 
-	studentCounts, _, err := s.collectStudentImpact(ctx, cutoff)
+	studentCounts, _, err := s.collectStudentImpact(ctx, db, tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("collect student impact: %w", err)
 	}
 
-	oldestInstance, err := s.instanceRepo.OldestBefore(ctx, instanceDateColumn, &cutoff)
+	oldestInstance, err := scanOldestTimestamp(ctx, db,
+		`SELECT MIN(date) AS t FROM schedule.activity_instances WHERE tenant_id = ? AND date < ?`,
+		tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_instance: %w", err)
 	}
-	oldestException, err := s.exceptionRepo.OldestBefore(ctx, exceptionDateColumn, &cutoff)
+	oldestException, err := scanOldestTimestamp(ctx, db,
+		`SELECT MIN(exception_date) AS t FROM schedule.activity_exceptions WHERE tenant_id = ? AND exception_date < ?`,
+		tenantID, cutoff)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_exception: %w", err)
 	}
@@ -257,22 +259,33 @@ func (s *timetableCleanupService) GetStats(ctx context.Context) (*TimetableClean
 
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffFor(retentionDays)
+	db := repoBase.GetDB(ctx, s.db)
 
-	totalInstances, err := s.instanceRepo.CountWithOptions(ctx, nil)
+	totalInstances, err := db.NewSelect().
+		Table("schedule.activity_instances").
+		Where("tenant_id = ?", tenantID).
+		Count(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_instances: %w", err)
 	}
 
-	totalExceptions, err := s.exceptionRepo.CountWithOptions(ctx, nil)
+	totalExceptions, err := db.NewSelect().
+		Table("schedule.activity_exceptions").
+		Where("tenant_id = ?", tenantID).
+		Count(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("count activity_exceptions: %w", err)
 	}
 
-	oldestInstance, err := s.instanceRepo.OldestBefore(ctx, instanceDateColumn, nil)
+	oldestInstance, err := scanOldestTimestamp(ctx, db,
+		`SELECT MIN(date) AS t FROM schedule.activity_instances WHERE tenant_id = ?`,
+		tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_instance: %w", err)
 	}
-	oldestException, err := s.exceptionRepo.OldestBefore(ctx, exceptionDateColumn, nil)
+	oldestException, err := scanOldestTimestamp(ctx, db,
+		`SELECT MIN(exception_date) AS t FROM schedule.activity_exceptions WHERE tenant_id = ?`,
+		tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("oldest activity_exception: %w", err)
 	}
@@ -321,14 +334,6 @@ func cutoffFor(retentionDays int) time.Time {
 	return today.AddDate(0, 0, -retentionDays)
 }
 
-// expiredOptions builds query options selecting rows whose dateColumn is
-// strictly before the cutoff.
-func expiredOptions(dateColumn string, cutoff time.Time) *modelBase.QueryOptions {
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().LessThan(dateColumn, cutoff)
-	return options
-}
-
 // studentImpact holds the per-student count and a bounded sample of instance
 // IDs for the audit metadata.
 type perStudentCounts map[int64]int
@@ -339,19 +344,34 @@ type perStudentSamples map[int64][]int64
 // a bounded sample of instance IDs per student for forensic lookup.
 func (s *timetableCleanupService) collectStudentImpact(
 	ctx context.Context,
+	db bun.IDB,
+	tenantID int64,
 	cutoff time.Time,
 ) (perStudentCounts, perStudentSamples, error) {
-	refs, err := s.instanceStudentRepo.ListStudentInstanceRefsBefore(ctx, cutoff)
+	type row struct {
+		StudentID  int64 `bun:"student_id"`
+		InstanceID int64 `bun:"instance_id"`
+	}
+	var rows []row
+	err := db.NewSelect().
+		TableExpr("schedule.instance_students AS i_s").
+		ColumnExpr("i_s.student_id AS student_id").
+		ColumnExpr("i_s.instance_id AS instance_id").
+		Join(`JOIN schedule.activity_instances AS i ON i.id = i_s.instance_id`).
+		Where("i.tenant_id = ?", tenantID).
+		Where("i.date < ?", cutoff).
+		Order("i_s.student_id", "i_s.instance_id").
+		Scan(ctx, &rows)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	counts := make(perStudentCounts)
 	samples := make(perStudentSamples)
-	for _, ref := range refs {
-		counts[ref.StudentID]++
-		if len(samples[ref.StudentID]) < auditInstanceIDSampleCap {
-			samples[ref.StudentID] = append(samples[ref.StudentID], ref.InstanceID)
+	for _, r := range rows {
+		counts[r.StudentID]++
+		if len(samples[r.StudentID]) < auditInstanceIDSampleCap {
+			samples[r.StudentID] = append(samples[r.StudentID], r.InstanceID)
 		}
 	}
 	return counts, samples, nil
@@ -390,4 +410,45 @@ func (s *timetableCleanupService) writeStudentAuditRows(
 		}
 	}
 	return nil
+}
+
+// deleteOldInstances issues the DELETE and returns the affected count.
+func deleteOldInstances(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+	res, err := db.NewDelete().
+		Table("schedule.activity_instances").
+		Where("tenant_id = ?", tenantID).
+		Where("date < ?", cutoff).
+		Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, _ := res.RowsAffected()
+	return int(affected), nil
+}
+
+// deleteOldExceptions mirrors deleteOldInstances for exceptions.
+func deleteOldExceptions(ctx context.Context, db bun.IDB, tenantID int64, cutoff time.Time) (int, error) {
+	res, err := db.NewDelete().
+		Table("schedule.activity_exceptions").
+		Where("tenant_id = ?", tenantID).
+		Where("exception_date < ?", cutoff).
+		Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, _ := res.RowsAffected()
+	return int(affected), nil
+}
+
+// scanOldestTimestamp runs a MIN() query and returns nil when no rows match.
+// The caller must include `AS t` on the MIN() column so bun can map it.
+func scanOldestTimestamp(ctx context.Context, db bun.IDB, query string, args ...any) (*time.Time, error) {
+	var nt struct {
+		T *time.Time `bun:"t"`
+	}
+	err := db.NewRaw(query, args...).Scan(ctx, &nt)
+	if err != nil {
+		return nil, err
+	}
+	return nt.T, nil
 }

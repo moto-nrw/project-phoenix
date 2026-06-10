@@ -38,7 +38,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
 	}
 
-	return usercontextSvc.NewUserContextServiceWithRepos(repos, slog.Default())
+	return usercontextSvc.NewUserContextServiceWithRepos(repos, db, slog.Default())
 }
 
 // contextWithClaims creates a context with JWT claims

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -32,7 +31,6 @@ type CaregiverCapabilityServiceDependencies struct {
 	TeacherRepo            userModels.TeacherRepository
 	GroupTeacherRepo       educationModels.GroupTeacherRepository
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
-	GroupSupervisorRepo    activeModels.GroupSupervisorRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	AuthService            authSvc.AuthService
 	DB                     *bun.DB
@@ -48,10 +46,10 @@ type caregiverCapabilityService struct {
 	teacherRepo            userModels.TeacherRepository
 	groupTeacherRepo       educationModels.GroupTeacherRepository
 	groupSubstitutionRepo  educationModels.GroupSubstitutionRepository
-	groupSupervisorRepo    activeModels.GroupSupervisorRepository
 	activitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	authService            authSvc.AuthService
 	txHandler              *modelBase.TxHandler
+	db                     *bun.DB
 }
 
 type caregiverRoleFlags struct {
@@ -84,10 +82,10 @@ func NewCaregiverCapabilityService(
 		teacherRepo:            deps.TeacherRepo,
 		groupTeacherRepo:       deps.GroupTeacherRepo,
 		groupSubstitutionRepo:  deps.GroupSubstitutionRepo,
-		groupSupervisorRepo:    deps.GroupSupervisorRepo,
 		activitySupervisorRepo: deps.ActivitySupervisorRepo,
 		authService:            deps.AuthService,
 		txHandler:              modelBase.NewTxHandler(deps.DB),
+		db:                     deps.DB,
 	}
 }
 
@@ -613,7 +611,23 @@ func (s *caregiverCapabilityService) listActiveGroupSupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerSupervision, error) {
-	return s.groupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerSupervision
+	err := db.NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gs.start_date::text AS start_date
+		FROM active.group_supervisors AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
+		WHERE gs.tenant_id = ?
+		  AND gs.staff_id = ?
+		  AND (gs.end_date IS NULL OR gs.end_date > NOW())
+		ORDER BY gs.start_date DESC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
@@ -621,7 +635,25 @@ func (s *caregiverCapabilityService) listActiveGroupSubstitutions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerSubstitution, error) {
-	return s.groupSubstitutionRepo.ListActiveSubstitutionBlockers(ctx, staffID, tenantID)
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerSubstitution
+	err := db.NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       CASE WHEN gs.substitute_staff_id = ? THEN 'substitute' ELSE 'regular' END AS role,
+		       gs.start_date::text AS start_date,
+		       gs.end_date::text AS end_date
+		FROM education.group_substitution AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
+		WHERE gs.tenant_id = ?
+		  AND (gs.substitute_staff_id = ? OR gs.regular_staff_id = ?)
+		  AND gs.end_date >= CURRENT_DATE
+		ORDER BY gs.start_date DESC
+	`, staffID, tenantID, staffID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
@@ -629,7 +661,23 @@ func (s *caregiverCapabilityService) listPlannedActivitySupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerActivity, error) {
-	return s.activitySupervisorRepo.ListPlannedSupervisionBlockers(ctx, staffID, tenantID)
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerActivity
+	err := db.NewRaw(`
+		SELECT s.id, s.group_id AS activity_id,
+		       COALESCE(ag.name, 'Unbekannte Aktivität') AS activity_name,
+		       COALESCE(s.is_primary, false) AS is_primary
+		FROM activities.supervisors AS s
+		LEFT JOIN activities.groups AS ag ON ag.id = s.group_id AND ag.tenant_id = s.tenant_id
+		WHERE s.tenant_id = ?
+		  AND s.staff_id = ?
+		ORDER BY ag.name ASC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (s *caregiverCapabilityService) listGroupTeacherAssignments(
@@ -637,5 +685,35 @@ func (s *caregiverCapabilityService) listGroupTeacherAssignments(
 	teacherID int64,
 	tenantID int64,
 ) ([]userModels.BlockerGroup, error) {
-	return s.groupTeacherRepo.ListGroupTeacherBlockers(ctx, teacherID, tenantID)
+	db := s.getDB(ctx)
+
+	var results []userModels.BlockerGroup
+	err := db.NewRaw(`
+		SELECT gt.id,
+		       gt.group_id,
+		       COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gt.teacher_id,
+		       COALESCE((
+		           SELECT ARRAY_AGG(gt_all.teacher_id ORDER BY gt_all.id)
+		           FROM education.group_teacher AS gt_all
+		           WHERE gt_all.tenant_id = gt.tenant_id
+		             AND gt_all.group_id = gt.group_id
+		       ), '{}'::bigint[]) AS teacher_ids
+		FROM education.group_teacher AS gt
+		LEFT JOIN education.groups AS g ON g.id = gt.group_id AND g.tenant_id = gt.tenant_id
+		WHERE gt.tenant_id = ?
+		  AND gt.teacher_id = ?
+		ORDER BY g.name ASC
+	`, tenantID, teacherID).Scan(ctx, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *caregiverCapabilityService) getDB(ctx context.Context) bun.IDB {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return tx
+	}
+	return s.db
 }

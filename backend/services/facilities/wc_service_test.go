@@ -48,6 +48,7 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 	facilityService := facilitiesSvc.NewService(
 		repoFactory.Room,
 		repoFactory.ActiveGroup,
+		db,
 	)
 
 	activityService, err := activitiesSvc.NewService(
@@ -57,7 +58,7 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 		repoFactory.ActivitySupervisor,
 		repoFactory.StudentEnrollment,
 		repoFactory.ActiveGroup,
-		repoFactory.Staff,
+		db,
 	)
 	require.NoError(t, err)
 

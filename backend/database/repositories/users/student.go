@@ -448,6 +448,40 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	return students, nil
 }
 
+// CountWithOptions counts students matching the query options
+func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Column("student.id")
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	// Apply query options with table alias
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias("student")
+			query = options.Filter.ApplyToQuery(query)
+		}
+		// Apply sorting if needed (but not pagination for counting)
+		if options.Sorting != nil {
+			query = options.Sorting.ApplyToQuery(query)
+		}
+	}
+
+	count, err := query.Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count with options",
+			Err: err,
+		}
+	}
+
+	return count, nil
+}
+
 // CountByGroupIDs counts students per group for multiple groups in a single query
 func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
 	if len(groupIDs) == 0 {

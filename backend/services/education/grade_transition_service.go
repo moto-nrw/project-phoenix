@@ -737,15 +737,27 @@ func (s *gradeTransitionService) revertStudentClass(
 	ctx context.Context,
 	h *education.GradeTransitionHistory,
 ) (bool, error) {
-	student := &users.Student{}
-	student.ID = h.StudentID
-	student.SchoolClass = h.FromClass
-	student.UpdatedAt = time.Now()
+	// Use transaction from context if available
+	var db bun.IDB = s.db
+	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
+		db = tx
+	}
 
-	// The repository joins the transition transaction via the context.
-	rowsAffected, err := s.studentRepo.UpdateColumns(ctx, student, "school_class", "updated_at")
+	result, err := db.NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(`users.students AS "student"`).
+		Set("school_class = ?", h.FromClass).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, h.StudentID).
+		Exec(ctx)
 	if err != nil {
 		// Real database error - return it to trigger rollback
+		return false, err
+	}
+
+	// Check if a row was actually updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
 		return false, err
 	}
 
