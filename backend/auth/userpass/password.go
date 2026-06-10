@@ -36,10 +36,21 @@ func DefaultParams() *PasswordParams {
 	}
 }
 
+// DefaultOverride, when non-nil, replaces DefaultParams for callers that
+// pass nil params to HashPassword. TEST-ONLY seam: set it from a TestMain
+// to make Argon2id cheap in that test binary (the params are encoded into
+// each hash, so verification self-describes and stays correct). Production
+// code must never set this.
+var DefaultOverride *PasswordParams
+
 // HashPassword generates a hashed password using Argon2id
 func HashPassword(password string, params *PasswordParams) (string, error) {
 	if params == nil {
-		params = DefaultParams()
+		if DefaultOverride != nil {
+			params = DefaultOverride
+		} else {
+			params = DefaultParams()
+		}
 	}
 
 	// Generate a random salt
