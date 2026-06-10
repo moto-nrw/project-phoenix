@@ -1383,3 +1383,145 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 		assert.ElementsMatch(t, []int64{data.Student1.ID, data.Student2.ID}, ids)
 	})
 }
+
+// ============================================================================
+// OldestExpiredVisitDate / ExpiredVisitMonthlyCounts Tests
+// ============================================================================
+
+// createAcceptedConsentForTenant inserts an accepted privacy consent with the
+// given retention window under the supplied tenant.
+func createAcceptedConsentForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64, policyVersion string, retentionDays int) {
+	t.Helper()
+	_, err := db.NewRaw(`
+		INSERT INTO users.privacy_consents (student_id, policy_version, accepted, renewal_required, data_retention_days, tenant_id, created_at, updated_at)
+		VALUES (?, ?, true, false, ?, ?, NOW(), NOW())
+	`, studentID, policyVersion, retentionDays, tenantID).Exec(testpkg.TenantContext(tenantID))
+	require.NoError(t, err)
+}
+
+// createCompletedVisitForTenant inserts a completed visit with an explicit
+// created_at so retention-window tests can backdate it past the consent's
+// data_retention_days.
+func createCompletedVisitForTenant(t *testing.T, db *bun.DB, tenantID, studentID, activeGroupID int64, createdAt time.Time) {
+	t.Helper()
+	var visitID int64
+	err := db.NewRaw(`
+		INSERT INTO active.visits (student_id, active_group_id, entry_time, exit_time, created_at, updated_at, tenant_id)
+		VALUES (?, ?, ?, ?, ?, NOW(), ?)
+		RETURNING id
+	`, studentID, activeGroupID, createdAt, createdAt.Add(time.Hour), createdAt, tenantID).Scan(testpkg.TenantContext(tenantID), &visitID)
+	require.NoError(t, err)
+}
+
+// cleanupTenantPrivacyConsents removes consents for the given tenants —
+// CleanupTenantTestData does not cover users.privacy_consents, and the
+// student rows it deletes are FK targets of the consents.
+func cleanupTenantPrivacyConsents(t *testing.T, db *bun.DB, tenantIDs ...int64) {
+	t.Helper()
+	for _, tid := range tenantIDs {
+		_, _ = db.NewDelete().
+			Table("users.privacy_consents").
+			Where("tenant_id = ?", tid).
+			Exec(testpkg.TenantContext(tid))
+	}
+}
+
+func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := repositories.NewFactory(db).ActiveVisit
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	t.Cleanup(func() {
+		cleanupTenantPrivacyConsents(t, db, tenantID, otherTenantID)
+		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
+	})
+
+	ctx := testpkg.TenantContext(tenantID)
+
+	t.Run("returns nil when no visit is expired", func(t *testing.T) {
+		oldest, err := repo.OldestExpiredVisitDate(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, oldest)
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Oldest", "Expired", "4a")
+	activeGroup := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
+	createAcceptedConsentForTenant(t, db, tenantID, student.ID, "v1.0", 7)
+
+	oldestCreatedAt := time.Now().Add(-90 * 24 * time.Hour)
+	createCompletedVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, oldestCreatedAt)
+	createCompletedVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, time.Now().Add(-30*24*time.Hour))
+
+	// Another tenant holds an even older expired visit — must not leak in.
+	otherStudent := testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Foreign", "Expired", "4b")
+	otherGroup := testpkg.CreateTestActiveGroupForTenant(t, db, otherTenantID)
+	createAcceptedConsentForTenant(t, db, otherTenantID, otherStudent.ID, "v1.0", 7)
+	createCompletedVisitForTenant(t, db, otherTenantID, otherStudent.ID, otherGroup.ID, time.Now().Add(-365*24*time.Hour))
+
+	t.Run("returns the tenant's oldest expired visit", func(t *testing.T) {
+		oldest, err := repo.OldestExpiredVisitDate(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, oldest)
+		assert.WithinDuration(t, oldestCreatedAt, *oldest, time.Second)
+	})
+}
+
+func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := repositories.NewFactory(db).ActiveVisit
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	t.Cleanup(func() {
+		cleanupTenantPrivacyConsents(t, db, tenantID, otherTenantID)
+		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
+	})
+
+	ctx := testpkg.TenantContext(tenantID)
+
+	t.Run("empty map when no visit is expired", func(t *testing.T) {
+		counts, err := repo.ExpiredVisitMonthlyCounts(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, counts)
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Monthly", "Expired", "4c")
+	activeGroup := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
+	createAcceptedConsentForTenant(t, db, tenantID, student.ID, "v1.0", 7)
+
+	// Two visits share one month, the third lies in another (60 days apart
+	// can never fall into the same calendar month).
+	newer := time.Now().Add(-60 * 24 * time.Hour)
+	older := time.Now().Add(-120 * 24 * time.Hour)
+	createCompletedVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, newer)
+	createCompletedVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, newer)
+	createCompletedVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, older)
+
+	// Another tenant's expired visit must not be counted.
+	otherStudent := testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Foreign", "Monthly", "4d")
+	otherGroup := testpkg.CreateTestActiveGroupForTenant(t, db, otherTenantID)
+	createAcceptedConsentForTenant(t, db, otherTenantID, otherStudent.ID, "v1.0", 7)
+	createCompletedVisitForTenant(t, db, otherTenantID, otherStudent.ID, otherGroup.ID, newer)
+
+	t.Run("groups the tenant's expired visits by month", func(t *testing.T) {
+		counts, err := repo.ExpiredVisitMonthlyCounts(ctx)
+		require.NoError(t, err)
+		require.Len(t, counts, 2)
+
+		var total int64
+		for month, count := range counts {
+			assert.Regexp(t, `^\d{4}-\d{2}$`, month)
+			total += count
+		}
+		assert.EqualValues(t, 3, total)
+	})
+}

@@ -1189,3 +1189,62 @@ func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
 		assert.Nil(t, reloaded.EndDate)
 	})
 }
+
+// ============================================================================
+// FindStaleOpen Tests
+// ============================================================================
+
+// createSupervisorRowForTenant inserts a supervisor row with explicit start
+// and end dates under the supplied tenant.
+func createSupervisorRowForTenant(t *testing.T, db *bun.DB, tenantID, staffID, groupID int64, startDate time.Time, endDate *time.Time) int64 {
+	t.Helper()
+	var id int64
+	err := db.NewRaw(`
+		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, end_date, tenant_id)
+		VALUES (?, ?, 'supervisor', ?, ?, ?)
+		RETURNING id
+	`, staffID, groupID, startDate, endDate, tenantID).Scan(testpkg.TenantContext(tenantID), &id)
+	require.NoError(t, err)
+	return id
+}
+
+func TestGroupSupervisorRepository_FindStaleOpen(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := repositories.NewFactory(db).GroupSupervisor
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID) })
+
+	ctx := testpkg.TenantContext(tenantID)
+	today := timezone.TodayUTC()
+	yesterday := today.AddDate(0, 0, -1)
+
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Stale", "Finder")
+	// Second staff: the partial unique index allows only one open supervision
+	// per (tenant, staff, group, role).
+	todayStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Fresh", "Finder")
+	group := testpkg.CreateTestActiveGroupForTenant(t, db, tenantID)
+
+	staleID := createSupervisorRowForTenant(t, db, tenantID, staff.ID, group.ID, yesterday, nil)
+	// Started today — not stale.
+	createSupervisorRowForTenant(t, db, tenantID, todayStaff.ID, group.ID, today, nil)
+	// Already closed — not stale.
+	createSupervisorRowForTenant(t, db, tenantID, staff.ID, group.ID, yesterday, &yesterday)
+
+	// Another tenant's stale row must stay invisible.
+	otherStaff := testpkg.CreateTestStaffForTenant(t, db, otherTenantID, "Foreign", "Stale")
+	otherGroup := testpkg.CreateTestActiveGroupForTenant(t, db, otherTenantID)
+	createSupervisorRowForTenant(t, db, otherTenantID, otherStaff.ID, otherGroup.ID, yesterday, nil)
+
+	stale, err := repo.FindStaleOpen(ctx, today)
+	require.NoError(t, err)
+	require.Len(t, stale, 1)
+	assert.Equal(t, staleID, stale[0].ID)
+	assert.Equal(t, staff.ID, stale[0].StaffID)
+	assert.Nil(t, stale[0].EndDate)
+}
