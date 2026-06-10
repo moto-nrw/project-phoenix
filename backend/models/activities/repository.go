@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CategoryRepository defines operations for managing activity categories
@@ -93,6 +94,10 @@ type ScheduleRepository interface {
 // SupervisorPlannedRepository defines operations for managing activity supervisors
 type SupervisorPlannedRepository interface {
 	base.Repository[*SupervisorPlanned]
+
+	// ListPlannedSupervisionBlockers returns planned activity supervisions
+	// as caregiver-capability blocker rows.
+	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error)
 
 	// FindByStaffID finds all supervisions for a specific staff member
 	FindByStaffID(ctx context.Context, staffID int64) ([]*SupervisorPlanned, error)

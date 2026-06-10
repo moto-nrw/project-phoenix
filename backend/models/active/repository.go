@@ -5,11 +5,16 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // GroupRepository defines operations for managing active groups
 type GroupRepository interface {
 	base.Repository[*Group]
+
+	// CountWithOptions is the generic filtered count promoted from the
+	// embedded base repository.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
@@ -100,6 +105,10 @@ type VisitRepository interface {
 	// FindActiveByStudentID finds all active visits for a specific student
 	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
 
+	// GetCurrentRoomNamesForStudents returns the room name of each student's
+	// current open visit; students without one are absent from the map.
+	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
+
 	// FindByActiveGroupID finds all visits for a specific active group
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
 
@@ -175,6 +184,10 @@ type VisitRepository interface {
 // GroupSupervisorRepository defines operations for managing active group supervisors
 type GroupSupervisorRepository interface {
 	base.Repository[*GroupSupervisor]
+
+	// ListActiveSupervisionBlockers returns still-open supervisions as
+	// caregiver-capability blocker rows.
+	ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSupervision, error)
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
@@ -280,6 +293,12 @@ type WorkSessionRepository interface {
 
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
 }
 
 // StaffAbsenceRepository defines operations for managing staff absences
@@ -304,6 +323,12 @@ type StaffAbsenceRepository interface {
 
 	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
 	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the time-tracking retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *time.Time) (*time.Time, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff time.Time) (int64, error)
 }
 
 type StaffAbsenceAuditRepository interface {

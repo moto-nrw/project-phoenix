@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -74,6 +75,10 @@ type PersonRepository interface {
 
 	// FindWithAccount retrieves a person with their associated account
 	FindWithAccount(ctx context.Context, id int64) (*Person, error)
+
+	// AnonymizeAndSoftDelete overwrites the person's PII with placeholder
+	// values and stamps deleted_at (GDPR person deletion).
+	AnonymizeAndSoftDelete(ctx context.Context, personID int64) error
 }
 
 // StudentRepository defines operations for managing students
@@ -113,6 +118,11 @@ type StudentRepository interface {
 
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key and returns the number of rows affected.
+	UpdateColumns(ctx context.Context, student *Student, columns ...string) (int64, error)
 
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
@@ -221,6 +231,15 @@ type StaffRepository interface {
 type TeacherRepository interface {
 	// Create inserts a new teacher into the database
 	Create(ctx context.Context, teacher *Teacher) error
+
+	// ListActiveCaregivers returns every active caregiver for the tenant in
+	// context (teachers with an active account, tenant mapping, and system
+	// user/teacher role), ordered by name.
+	ListActiveCaregivers(ctx context.Context) ([]*ActiveCaregiver, error)
+
+	// FindActiveCaregiverByAccountID returns the active caregiver bound to
+	// the account, or nil when the account is not an active caregiver.
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*ActiveCaregiver, error)
 
 	// FindByID retrieves a teacher by their ID
 	FindByID(ctx context.Context, id interface{}) (*Teacher, error)
@@ -372,9 +391,22 @@ type PersonGuardianRepository interface {
 }
 
 // StudentGuardianRepository defines operations for managing student-guardian relationships
+// GuardianEmergencyContactRow is one (guardian, phone number) projection row
+// for the emergency contact list; the consumer aggregates rows per student.
+type GuardianEmergencyContactRow struct {
+	StudentID   int64          `bun:"student_id"`
+	FirstName   sql.NullString `bun:"first_name"`
+	LastName    sql.NullString `bun:"last_name"`
+	PhoneNumber sql.NullString `bun:"phone_number"`
+}
+
 type StudentGuardianRepository interface {
 	// Create inserts a new student-guardian relationship into the database
 	Create(ctx context.Context, relationship *StudentGuardian) error
+
+	// ListEmergencyContactRows returns guardian/phone rows for the given
+	// students, emergency contacts and primary entries first.
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]GuardianEmergencyContactRow, error)
 
 	// FindByID retrieves a relationship by its ID
 	FindByID(ctx context.Context, id interface{}) (*StudentGuardian, error)

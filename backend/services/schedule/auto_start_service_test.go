@@ -200,3 +200,29 @@ func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) 
 func (s *autoStartInstanceStarter) UpdatePlanned(context.Context, int64, UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+
+// Stubs for the issue #585 cleanup refactor interface additions — unused by
+// the auto-start tests.
+func (r *autoStartInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) OldestBefore(context.Context, string, *time.Time) (*time.Time, error) {
+	return nil, nil
+}
+
+func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, time.Time, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
+}
