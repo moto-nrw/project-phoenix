@@ -215,4 +215,23 @@ type InstanceStudentRepository interface {
 	// non-cancelled materialized timetable row on the given date. Used by
 	// student search's "kommt heute" heuristic as an additive planning signal.
 	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error)
+
+	// MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent'
+	// for students on still-active instances bridged to the given
+	// active.groups. Used by the scheduler's daily session-end bridge.
+	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error
+
+	// ListStudentInstanceRefsBefore returns (student_id, instance_id) pairs
+	// for attendance rows whose instance date is before the cutoff, ordered
+	// by student then instance. Custom projection (join on activity_instances)
+	// the generic filter shape cannot express; feeds the per-student audit
+	// rows of the timetable retention cleanup.
+	ListStudentInstanceRefsBefore(ctx context.Context, cutoff time.Time) ([]StudentInstanceRef, error)
+}
+
+// StudentInstanceRef is a minimal (student, instance) projection used by the
+// timetable retention cleanup's audit bookkeeping.
+type StudentInstanceRef struct {
+	StudentID  int64 `bun:"student_id"`
+	InstanceID int64 `bun:"instance_id"`
 }

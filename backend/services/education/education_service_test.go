@@ -30,7 +30,6 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
-		db,
 	)
 }
 

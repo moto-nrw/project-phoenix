@@ -506,3 +506,46 @@ func (r *StudentGuardianRepository) FindWithStudentAndPerson(ctx context.Context
 
 	return relationship, nil
 }
+
+// ListEmergencyContactRows returns one row per (guardian, phone number) for
+// the given students, ordered so that emergency contacts, primary guardians,
+// and primary/priority phone numbers come first. The caller aggregates the
+// rows into display strings. Custom method (backend-conventions Rule 2):
+// three-table join with NULLS LAST ordering for the emergency list.
+func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]users.GuardianEmergencyContactRow, error) {
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+
+	var rows []users.GuardianEmergencyContactRow
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students_guardians AS "student_guardian"`).
+		ColumnExpr(`"student_guardian".student_id`).
+		ColumnExpr(`"guardian".first_name`).
+		ColumnExpr(`"guardian".last_name`).
+		ColumnExpr(`"phone".phone_number`).
+		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
+		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
+		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
+		OrderExpr(`"student_guardian".is_emergency_contact DESC`).
+		OrderExpr(`"student_guardian".is_primary DESC`).
+		OrderExpr(`"student_guardian".emergency_priority ASC`).
+		OrderExpr(`"phone".is_primary DESC NULLS LAST`).
+		OrderExpr(`"phone".priority ASC NULLS LAST`).
+		OrderExpr(`"student_guardian".student_id ASC`).
+		OrderExpr(`"guardian".id ASC`)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+		query = query.Where(`"guardian".tenant_id = ?`, tenantID)
+		query = query.Where(`("phone".tenant_id = ? OR "phone".tenant_id IS NULL)`, tenantID)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list emergency contact rows",
+			Err: err,
+		}
+	}
+	return rows, nil
+}

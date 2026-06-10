@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
-	"github.com/uptrace/bun"
 )
 
 // SchulhofService provides operations for managing the Schulhof (schoolyard) area.
@@ -77,7 +76,6 @@ type schulhofService struct {
 	facilityService Service
 	activityService activities.ActivityService
 	activeService   activeSvc.Service
-	db              *bun.DB
 	logger          *slog.Logger
 }
 
@@ -94,14 +92,12 @@ func NewSchulhofService(
 	facilityService Service,
 	activityService activities.ActivityService,
 	activeService activeSvc.Service,
-	db *bun.DB,
 	logger *slog.Logger,
 ) SchulhofService {
 	return &schulhofService{
 		facilityService: facilityService,
 		activityService: activityService,
 		activeService:   activeService,
-		db:              db,
 		logger:          logger,
 	}
 }

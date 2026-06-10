@@ -25,7 +25,6 @@ func setupScheduleService(t *testing.T, db *bun.DB) scheduleSvc.Service {
 		repoFactory.Dateframe,
 		repoFactory.Timeframe,
 		repoFactory.RecurrenceRule,
-		db,
 	)
 }
 

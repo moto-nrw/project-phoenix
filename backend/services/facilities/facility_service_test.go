@@ -72,7 +72,6 @@ func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 	return facilitiesSvc.NewService(
 		repoFactory.Room,
 		repoFactory.ActiveGroup,
-		db,
 	)
 }
 
