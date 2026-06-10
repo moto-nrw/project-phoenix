@@ -51,6 +51,59 @@ func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
 	}
 }
 
+func withCleanupTenant(query *bun.DeleteQuery, tenantID int64) *bun.DeleteQuery {
+	if tenantID <= 0 {
+		return query
+	}
+	return query.Where("tenant_id = ?", tenantID)
+}
+
+func deleteStaffCaregiverBindings(
+	tb testing.TB,
+	db *bun.DB,
+	staffID int64,
+	teacherID int64,
+	tenantID int64,
+) {
+	tb.Helper()
+
+	if staffID <= 0 {
+		return
+	}
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("active.group_supervisors").
+		Where("staff_id = ?", staffID), tenantID),
+		"active.group_supervisors")
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("activities.supervisors").
+		Where("staff_id = ?", staffID), tenantID),
+		"activities.supervisors")
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("education.group_substitution").
+		Where("regular_staff_id = ? OR substitute_staff_id = ?", staffID, staffID), tenantID),
+		"education.group_substitution")
+
+	groupTeacherDelete := db.NewDelete().TableExpr("education.group_teacher")
+	if teacherID > 0 {
+		groupTeacherDelete = groupTeacherDelete.Where("teacher_id = ?", teacherID)
+	} else if tenantID > 0 {
+		groupTeacherDelete = groupTeacherDelete.Where(
+			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ? AND tenant_id = ?)",
+			staffID,
+			tenantID,
+		)
+	} else {
+		groupTeacherDelete = groupTeacherDelete.Where(
+			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ?)",
+			staffID,
+		)
+	}
+	cleanupDelete(tb, withCleanupTenant(groupTeacherDelete, tenantID), "education.group_teacher")
+}
+
 // Fixture helpers for hermetic testing. Each helper creates a real database record
 // with proper relationships and returns the created entity with its real ID.
 // Tests should call these to create test data, then defer cleanup.
@@ -384,19 +437,19 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
 
-		// Delete from education.group_substitution (depends on group and staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"education.group_substitution")
-
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("education.group_teacher").
 			Where("group_id = ? OR teacher_id = ?", id, id).
 			Where("tenant_id = ?", tenantID),
 			"education.group_teacher")
+
+		// Delete from education.group_substitution (depends on group and staff)
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("education.group_substitution").
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
+			"education.group_substitution")
 
 		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
@@ -430,6 +483,16 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("tenant_id = ?", tenantID),
 			"active.visits (cascade)")
 
+		// Delete from active.group_supervisors before active.groups or users.staff
+		// can cascade into it. Match only FK columns: matching the row's own
+		// PK against a generic entity ID can delete unrelated supervisor rows
+		// when auto-increment IDs collide across domains.
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("active.group_supervisors").
+			Where("staff_id = ? OR group_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"active.group_supervisors")
+
 		// Delete from active.groups by direct ID or by reference.
 		// room_id reference is required so facilities.rooms can be deleted
 		// without tripping fk_active_groups_room_tenant.
@@ -442,6 +505,14 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// ========================================
 		// Activities domain cleanup
 		// ========================================
+
+		// Delete from activities.supervisors before activities.groups or
+		// users.staff can cascade into it.
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("activities.supervisors").
+			Where("staff_id = ? OR group_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"activities.supervisors")
 
 		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
@@ -558,22 +629,6 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("id != ?", 1).
 			Where("tenant_id = ?", tenantID),
 			tableUsersPersons)
-
-		// ========================================
-		// Active domain cleanup (continued)
-		// ========================================
-
-		// Delete from active.group_supervisors. Match only the FK columns:
-		// matching the row's own PK against a generic entity ID deletes
-		// FOREIGN supervisor rows whenever another fixture's auto-increment
-		// ID collides numerically (the same cross-domain collision the auth
-		// NOTE below describes). Tests that own a supervisor row clean it
-		// via CleanupTableRecords("active.group_supervisors", id) instead.
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.group_supervisors").
-			Where("staff_id = ? OR group_id = ?", id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.group_supervisors")
 
 		// NOTE: Auth domain cleanup intentionally omitted here.
 		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
@@ -904,13 +959,16 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		// Use TableExpr and ColumnExpr to generate valid SQL
 		var staff struct {
 			PersonID int64 `bun:"person_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&staff).
 			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
+			ColumnExpr("person_id", "tenant_id").
 			Where(whereIDEquals, staffID).
 			Scan(ctx)
+
+		deleteStaffCaregiverBindings(tb, db, staffID, 0, staff.TenantID)
 
 		// Delete teacher if exists (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
@@ -951,23 +1009,25 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		// Get the teacher to find the staff ID
 		// Use TableExpr and ColumnExpr to generate valid SQL
 		var teacher struct {
-			StaffID int64 `bun:"staff_id"`
+			StaffID  int64 `bun:"staff_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&teacher).
 			TableExpr(tableUsersTeachers).
-			ColumnExpr("staff_id").
+			ColumnExpr("staff_id", "tenant_id").
 			Where(whereIDEquals, teacherID).
 			Scan(ctx)
 
 		// Get the staff to find the person ID and account ID
 		var staff struct {
 			PersonID int64 `bun:"person_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&staff).
 			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
+			ColumnExpr("person_id", "tenant_id").
 			Where(whereIDEquals, teacher.StaffID).
 			Scan(ctx)
 
@@ -981,6 +1041,12 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			ColumnExpr("account_id").
 			Where(whereIDEquals, staff.PersonID).
 			Scan(ctx)
+
+		tenantID := teacher.TenantID
+		if tenantID == 0 {
+			tenantID = staff.TenantID
+		}
+		deleteStaffCaregiverBindings(tb, db, teacher.StaffID, teacherID, tenantID)
 
 		// Delete teacher
 		cleanupDelete(tb, db.NewDelete().
