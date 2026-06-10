@@ -18,6 +18,13 @@ import {
   formatPickupDays,
   normalizePickupDays,
   type PickupDays,
+  DEPARTURE_WEEKDAYS,
+  type DepartureDays,
+  type DepartureMode,
+  departureModeFor,
+  departureDaysHaveAny,
+  formatDepartureDays,
+  normalizeDepartureDays,
 } from "~/lib/student-helpers";
 
 interface SelectOption {
@@ -678,6 +685,100 @@ export function PickupStatusSection({
           ? "An nicht ausgewählten Tagen geht das Kind alleine nach Hause."
           : "Ohne ausgewählten Tag geht das Kind an allen Tagen alleine nach Hause."}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Departure Section — unified per-weekday "how the child leaves" selector
+ * (#1610). Replaces the separate Buskind + Abholregelung sections with one
+ * mutually exclusive choice per day: geht alleine / fährt Bus / wird abgeholt.
+ * Produces a DepartureDays map; the backend derives bus_days / pickup_days.
+ */
+const DEPARTURE_OPTIONS: ReadonlyArray<{
+  value: DepartureMode;
+  short: string;
+}> = [
+  { value: "alone", short: "Alleine" },
+  { value: "bus", short: "Bus" },
+  { value: "pickup", short: "Abholung" },
+];
+
+// Active styling per mode, using MOTO brand hexes: pickup = brand green,
+// bus = brand blue, alone = neutral gray.
+const DEPARTURE_ACTIVE_CLASSES: Record<DepartureMode, string> = {
+  alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
+  bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
+  pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
+};
+
+export function DepartureSection({
+  days,
+  onChange,
+}: Readonly<{
+  days?: DepartureDays | null;
+  onChange: (value: DepartureDays) => void;
+}>) {
+  const normalized = normalizeDepartureDays(days);
+  const anySelected = departureDaysHaveAny(normalized);
+  return (
+    <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+      <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
+        <h3 className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+          <Bus
+            className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4"
+            style={{ color: GROUP_ROOM_SHADES.text }}
+          />
+          Geh- und Abholregelung
+        </h3>
+        {anySelected && (
+          <span className="hidden shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15] sm:inline">
+            {formatDepartureDays(normalized)}
+          </span>
+        )}
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        Pro Wochentag festlegen, wie das Kind nach Hause geht. Standard ist
+        „Geht alleine“.
+      </p>
+      <div className="space-y-2">
+        {DEPARTURE_WEEKDAYS.map((day) => {
+          const current = departureModeFor(normalized, day.key);
+          return (
+            <div key={day.key} className="flex items-center gap-2">
+              <span className="w-16 shrink-0 text-xs font-semibold text-gray-700 md:w-20">
+                {day.label}
+              </span>
+              <div className="grid flex-1 grid-cols-3 gap-1">
+                {DEPARTURE_OPTIONS.map((opt) => {
+                  const active = current === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={`${day.label}: ${opt.short}`}
+                      onClick={() => {
+                        const next = { ...normalized };
+                        if (opt.value === "alone") delete next[day.key];
+                        else next[day.key] = opt.value;
+                        onChange(next);
+                      }}
+                      className={`flex h-8 items-center justify-center rounded-lg border px-1 text-xs font-semibold transition-colors ${
+                        active
+                          ? DEPARTURE_ACTIVE_CLASSES[opt.value]
+                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {opt.short}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

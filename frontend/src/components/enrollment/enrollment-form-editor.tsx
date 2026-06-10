@@ -67,6 +67,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   phone_list: "Telefonliste",
   weekday_schedule: "Wochenzeiten",
   weekday_boolean: "Wochentage",
+  weekday_mode: "Geh- und Abholregelung",
   contact_list: "Kontaktliste",
 };
 
@@ -97,6 +98,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
   "phone_list",
   "weekday_schedule",
   "weekday_boolean",
+  "weekday_mode",
   "contact_list",
 ]);
 
@@ -106,10 +108,11 @@ const structuredFieldTypes = new Set<FormFieldType>([
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.health_info": "Gesundheitsinformationen beim Kind speichern",
   "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.departure": "Geh- und Abholregelung beim Kind speichern",
   "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
   "student.pickup_status": "Abholregelung beim Kind speichern",
-  "schedule.pickup": "Abholzeiten im Stundenplan speichern",
+  "schedule.pickup": "Gehzeiten im Stundenplan speichern",
   "schedule.arrival": "Ankunftszeiten im Stundenplan speichern",
   "student.contacts":
     "Weitere Kontakte, Abholberechtigte und Notfallkontakte speichern",
@@ -117,12 +120,18 @@ const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
 
 // Targets sorted alphabetically by label for the picker, keeps the
 // dropdown stable across renders even if the underlying map order
-// changes. student.bus is a legacy alias of student.bus_days (#1582) and is
-// excluded so new fields can only pick the canonical target.
+// changes. student.bus / student.bus_days / student.pickup_status are legacy
+// targets superseded by the unified student.departure (#1610); they are
+// excluded so new fields can only pick the canonical unified target.
+const LEGACY_PICKER_TARGETS = new Set<Exclude<FormFieldTarget, "">>([
+  "student.bus",
+  "student.bus_days",
+  "student.pickup_status",
+]);
 const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
   Object.keys(targetPickerLabels) as Array<Exclude<FormFieldTarget, "">>
 )
-  .filter((target) => target !== "student.bus")
+  .filter((target) => !LEGACY_PICKER_TARGETS.has(target))
   .sort((a, b) =>
     targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
   );
@@ -135,6 +144,8 @@ const targetSuggestionDescriptions: Record<
     "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.departure":
+    "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":
     "Für die Information, an welchen Wochentagen ein Kind mit dem Bus fährt.",
   "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",

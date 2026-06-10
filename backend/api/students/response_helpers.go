@@ -72,14 +72,14 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	response.BusDays = student.BusDays.Normalize()
-	// bus is a derived compatibility flag, true iff the child is a Buskind on at
-	// least one weekday. bus_days is the single source of truth (#1582).
+	// departure_days is the single source of truth (#1610); bus_days, pickup_days
+	// and the derived bus flag are emitted for clients not yet migrated.
+	departure := student.DepartureDays.Normalize()
+	response.DepartureDays = departure
+	response.BusDays = departure.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = student.PickupDays.Normalize()
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
-	}
+	response.PickupDays = departure.PickupDays()
+	response.PickupStatus = departure.LegacyPickupStatus()
 }
 
 // populateSensitiveStudentFields sets fields visible only to supervisors/admins
@@ -208,13 +208,13 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	response.BusDays = student.BusDays.Normalize()
-	// bus derived from bus_days (single source of truth, #1582).
+	// departure_days is the single source of truth (#1610); the rest are derived.
+	departure := student.DepartureDays.Normalize()
+	response.DepartureDays = departure
+	response.BusDays = departure.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = student.PickupDays.Normalize()
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
-	}
+	response.PickupDays = departure.PickupDays()
+	response.PickupStatus = departure.LegacyPickupStatus()
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student

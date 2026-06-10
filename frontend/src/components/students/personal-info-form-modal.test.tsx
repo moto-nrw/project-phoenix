@@ -320,7 +320,7 @@ describe("PersonalInfoFormModal", () => {
   });
 
   describe("Select inputs", () => {
-    it("displays the selected bus days as a per-day picker", () => {
+    it("shows bus days as 'Bus' in the unified departure picker (#1610)", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
@@ -333,16 +333,16 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      // Per-day weekday checkboxes (#1582), no Ja/Nein select.
+      // bus_days fold into "Bus" on Monday; Friday defaults to "Alleine".
       expect(
-        screen.getByLabelText<HTMLInputElement>("Montag Buskind").checked,
-      ).toBe(true);
+        screen.getByRole("button", { name: "Montag: Bus", pressed: true }),
+      ).toBeInTheDocument();
       expect(
-        screen.getByLabelText<HTMLInputElement>("Freitag Buskind").checked,
-      ).toBe(false);
+        screen.getByRole("button", { name: "Freitag: Alleine", pressed: true }),
+      ).toBeInTheDocument();
     });
 
-    it("displays the selected pickup weekdays", () => {
+    it("shows pickup days as 'Abholung' in the departure picker", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
@@ -356,14 +356,17 @@ describe("PersonalInfoFormModal", () => {
       );
 
       expect(
-        screen.getByRole("checkbox", { name: "Montag wird abgeholt" }),
-      ).toBeChecked();
+        screen.getByRole("button", { name: "Montag: Abholung", pressed: true }),
+      ).toBeInTheDocument();
       expect(
-        screen.getByRole("checkbox", { name: "Mittwoch wird abgeholt" }),
-      ).toBeChecked();
+        screen.getByRole("button", {
+          name: "Mittwoch: Abholung",
+          pressed: true,
+        }),
+      ).toBeInTheDocument();
     });
 
-    it("toggles a bus day and saves bus_days", async () => {
+    it("sets a bus day and saves the derived bus_days", async () => {
       mockOnSave.mockResolvedValue(undefined);
       render(
         <PersonalInfoFormModal
@@ -374,12 +377,13 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      fireEvent.click(screen.getByLabelText("Montag Buskind"));
+      fireEvent.click(screen.getByRole("button", { name: "Montag: Bus" }));
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
+            departure_days: { mon: "bus" },
             bus_days: { mon: true },
             buskind: true,
           }),

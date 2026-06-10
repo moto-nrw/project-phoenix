@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import type { BusDays, Student } from "~/lib/student-helpers";
+import type { Student } from "~/lib/student-helpers";
 
 const {
   handleStudentFormSubmitMock,
@@ -104,35 +104,23 @@ vi.mock("./student-form-fields", () => ({
       />
     </div>
   ),
-  BusStatusSection: ({
-    value,
+  DepartureSection: ({
     days,
     onChange,
   }: {
-    value?: boolean;
-    days?: BusDays | null;
-    onChange: (v: BusDays) => void;
+    days?: Record<string, string> | null;
+    onChange: (v: Record<string, string>) => void;
   }) => (
-    <button
-      type="button"
-      data-testid="bus-toggle"
-      onClick={() => onChange({ ...days, mon: !days?.mon })}
-    >
-      bus:{String(value)}
-    </button>
-  ),
-  PickupStatusSection: ({
-    value,
-    onChange,
-  }: {
-    value?: string;
-    onChange: (v: string) => void;
-  }) => (
-    <input
-      data-testid="pickup-status"
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <div data-testid="departure-section">
+      <span data-testid="departure-mon">{days?.mon ?? "alone"}</span>
+      <button
+        type="button"
+        data-testid="departure-set-mon-bus"
+        onClick={() => onChange({ ...days, mon: "bus" })}
+      >
+        set-mon-bus
+      </button>
+    </div>
   ),
   // EnrollmentConsentsSection: read-only consent display rendered
   // below the student form. The tests don't exercise it but the mock
@@ -430,7 +418,7 @@ describe("StudentStammdatenTab", () => {
     expect(input.value).toBe("Annabelle");
   });
 
-  it("toggles the bus value", () => {
+  it("updates the departure plan", () => {
     render(
       <StudentStammdatenTab
         student={makeStudent({ bus: false, bus_days: {} })}
@@ -439,10 +427,9 @@ describe("StudentStammdatenTab", () => {
       />,
     );
 
-    const btn = screen.getByTestId("bus-toggle");
-    expect(btn).toHaveTextContent("bus:false");
-    fireEvent.click(btn);
-    expect(btn).toHaveTextContent("bus:true");
+    expect(screen.getByTestId("departure-mon")).toHaveTextContent("alone");
+    fireEvent.click(screen.getByTestId("departure-set-mon-bus"));
+    expect(screen.getByTestId("departure-mon")).toHaveTextContent("bus");
   });
 
   it("clears field-level error when the field changes", () => {

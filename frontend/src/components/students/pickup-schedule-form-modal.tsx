@@ -88,7 +88,7 @@ export function PickupScheduleFormModal({
       setError(
         err instanceof Error
           ? err.message
-          : "Fehler beim Speichern des Abholplans",
+          : "Fehler beim Speichern des Gehplans",
       );
     } finally {
       setIsSubmitting(false);
@@ -121,7 +121,7 @@ export function PickupScheduleFormModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Wöchentlichen Abholplan bearbeiten"
+      title="Wöchentlichen Gehplan bearbeiten"
       footer={footer}
       size="md"
       mobilePosition="center"

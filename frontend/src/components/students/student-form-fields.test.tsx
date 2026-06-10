@@ -13,6 +13,7 @@ import {
   BusStatusSection,
   EnrollmentConsentsSection,
   PickupStatusSection,
+  DepartureSection,
 } from "./student-form-fields";
 import type { Student } from "@/lib/api";
 
@@ -258,6 +259,45 @@ describe("BusStatusSection", () => {
     fireEvent.click(checkbox);
 
     expect(onChange).toHaveBeenCalledWith({ mon: true });
+  });
+});
+
+describe("DepartureSection", () => {
+  it("marks the active mode per weekday", () => {
+    const onChange = vi.fn();
+    render(
+      <DepartureSection
+        days={{ mon: "bus", wed: "pickup" }}
+        onChange={onChange}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Montag: Bus", pressed: true }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Mittwoch: Abholung", pressed: true }),
+    ).toBeInTheDocument();
+    // An unset day defaults to "Alleine".
+    expect(
+      screen.getByRole("button", { name: "Dienstag: Alleine", pressed: true }),
+    ).toBeInTheDocument();
+  });
+
+  it("sets a weekday to bus", () => {
+    const onChange = vi.fn();
+    render(<DepartureSection days={{}} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Montag: Bus" }));
+    expect(onChange).toHaveBeenCalledWith({ mon: "bus" });
+  });
+
+  it("clears a weekday back to alone (removes the key)", () => {
+    const onChange = vi.fn();
+    render(<DepartureSection days={{ mon: "bus" }} onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Montag: Alleine" }));
+    expect(onChange).toHaveBeenCalledWith({});
   });
 });
 

@@ -44,13 +44,13 @@ func (s *RendererService) Render(doc Document, format Format, filenameBase strin
 func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	switch preset {
 	case PresetOGSCompact:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnPlannedPickup}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
 	case PresetDailyPlanning:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}
 	case PresetPickupList:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedPickup, ColumnDailyNotes}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetBlankChecklist:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}
 	default:
@@ -71,6 +71,7 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnWeeklyFriday:    {ID: ColumnWeeklyFriday, Label: "Freitag"},
 		ColumnPlannedArrival:  {ID: ColumnPlannedArrival, Label: "Geplante Ankunft"},
 		ColumnPlannedPickup:   {ID: ColumnPlannedPickup, Label: "Geplante Abholung"},
+		ColumnDeparture:       {ID: ColumnDeparture, Label: "Geh-/Abholweise"},
 		ColumnDailyNotes:      {ID: ColumnDailyNotes, Label: "Tageshinweise"},
 		ColumnCurrentLocation: {ID: ColumnCurrentLocation, Label: "Aktueller Aufenthaltsort"},
 		ColumnRoomName:        {ID: ColumnRoomName, Label: "Raum"},

@@ -161,7 +161,7 @@ describe("Parent portal components", () => {
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Krank melden").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abholzeit ändern").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Gehzeit ändern").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(mocks.setBreadcrumb).toHaveBeenCalledWith({
         pageTitle: "Lina Muster",

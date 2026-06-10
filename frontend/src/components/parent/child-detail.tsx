@@ -56,7 +56,7 @@ const CHILD_ACTIONS = [
     tone: "text-[#D6373E] bg-[#D6373E]/10",
   },
   {
-    label: "Abholzeit ändern",
+    label: "Gehzeit ändern",
     description: "Abholung mitteilen",
     icon: CalendarClock,
     tone: "text-[#5080D8] bg-[#5080D8]/10",

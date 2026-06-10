@@ -20,6 +20,7 @@ export type StudentExportColumn =
   | "weekly_friday"
   | "planned_arrival"
   | "planned_pickup"
+  | "departure"
   | "daily_notes"
   | "current_location";
 
@@ -108,6 +109,13 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
       "Geplante Abholung für den heutigen Tag, inklusive Tagesausnahmen.",
   },
   {
+    id: "departure",
+    label: "Geh-/Abholweise",
+    group: "base",
+    description:
+      "Wie das Kind je Wochentag nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
+  },
+  {
     id: "daily_notes",
     label: "Tageshinweise",
     group: "daily",
@@ -148,7 +156,14 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "ogs_compact",
     label: "OGS Kompaktliste",
     description: "Kompakte Übersicht der Betreuungstage und heutigen Abholung.",
-    columns: ["name", "school_class", "group", "care_days", "planned_pickup"],
+    columns: [
+      "name",
+      "school_class",
+      "group",
+      "care_days",
+      "departure",
+      "planned_pickup",
+    ],
   },
   {
     id: "daily_planning",
@@ -178,8 +193,15 @@ export const STUDENT_EXPORT_PRESETS: Array<{
   {
     id: "pickup_list",
     label: "Abholliste",
-    description: "Abholzeiten und Abholhinweise für den Tag.",
-    columns: ["name", "school_class", "group", "planned_pickup", "daily_notes"],
+    description: "Geh-/Abholweise, Gehzeiten und Hinweise für den Tag.",
+    columns: [
+      "name",
+      "school_class",
+      "group",
+      "departure",
+      "planned_pickup",
+      "daily_notes",
+    ],
   },
   {
     id: "blank_checklist",

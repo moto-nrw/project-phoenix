@@ -614,20 +614,44 @@ func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
 	return users.BusDaysFromLegacyFlag(row.BusPermission)
 }
 
+// departurePlanFromImportRow resolves the unified per-day departure plan from an
+// import row. The current per-day "Gehweise.Mo".."Gehweise.Fr" columns take
+// precedence; otherwise the legacy Bus(.Mo..Fr) and Abholstatus columns are
+// folded into the plan so old templates keep importing. departure_days is the
+// single source of truth (#1610).
+func departurePlanFromImportRow(row importModels.StudentImportRow) users.DepartureDays {
+	if row.DepartureDays != nil {
+		out := users.DepartureDays{}
+		for _, key := range users.PickupDayOrder {
+			switch row.DepartureDays[key] {
+			case string(users.DepartureBus):
+				out[key] = users.DepartureBus
+			case string(users.DeparturePickup):
+				out[key] = users.DeparturePickup
+			}
+		}
+		return out
+	}
+	bus := busDaysFromImportRow(row)
+	pickup := users.PickupDaysFromLegacyStatus(row.PickupStatus)
+	return users.DepartureDaysFromLegacy(bus, pickup)
+}
+
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
 	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
 	enrolledUntil := parseOptionalImportDate(row.EnrolledUntil)
 
 	student := &users.Student{
-		PersonID:                 personID,
-		SchoolClass:              strings.TrimSpace(row.SchoolClass),
-		GroupID:                  row.GroupID,
-		ExtraInfo:                stringPtr(row.ExtraInfo),
-		SupervisorNotes:          stringPtr(row.SupervisorNotes),
-		HealthInfo:               stringPtr(row.HealthInfo),
-		PickupStatus:             stringPtr(row.PickupStatus),
-		BusDays:                  busDaysFromImportRow(row),
+		PersonID:        personID,
+		SchoolClass:     strings.TrimSpace(row.SchoolClass),
+		GroupID:         row.GroupID,
+		ExtraInfo:       stringPtr(row.ExtraInfo),
+		SupervisorNotes: stringPtr(row.SupervisorNotes),
+		HealthInfo:      stringPtr(row.HealthInfo),
+		// DepartureDays is the unified source of truth; the repository derives
+		// bus_days, pickup_days and pickup_status from it on persist (#1610).
+		DepartureDays:            departurePlanFromImportRow(row),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),

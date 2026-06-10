@@ -296,11 +296,41 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
 			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
 			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
+			listexport.ColumnDeparture:       departureSummary(student.DepartureDays),
 			listexport.ColumnDailyNotes:      dailyNotes(student),
 			listexport.ColumnCurrentLocation: student.Location,
 		}})
 	}
 	return rows
+}
+
+// departureSummary renders the per-weekday departure plan for the export, e.g.
+// "Mo: Bus, Mi: Abholung". Alone/unset days are omitted; an all-alone plan
+// renders "Geht alleine" (#1610).
+func departureSummary(days users.DepartureDays) string {
+	modeLabels := map[users.DepartureMode]string{
+		users.DepartureBus:    "Bus",
+		users.DeparturePickup: "Abholung",
+	}
+	shortDay := map[string]string{
+		users.PickupDayMonday:    "Mo",
+		users.PickupDayTuesday:   "Di",
+		users.PickupDayWednesday: "Mi",
+		users.PickupDayThursday:  "Do",
+		users.PickupDayFriday:    "Fr",
+	}
+	parts := make([]string, 0, len(users.PickupDayOrder))
+	for _, day := range users.PickupDayOrder {
+		mode := days.ModeFor(day)
+		if mode == users.DepartureAlone {
+			continue
+		}
+		parts = append(parts, shortDay[day]+": "+modeLabels[mode])
+	}
+	if len(parts) == 0 {
+		return "Geht alleine"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func weeklyCell(plan weeklySchedule, weekday int) string {

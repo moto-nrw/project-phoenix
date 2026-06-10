@@ -1841,6 +1841,11 @@ function customValueMissing(
     const days = asWeekdayBooleanObject(value);
     return !Object.values(days).some(Boolean);
   }
+  if (field.type === "weekday_mode") {
+    // Like pickup, an all-alone (empty) plan is a valid answer; only a
+    // never-touched field counts as missing for a required Geh-/Abholregelung.
+    return value === undefined || value === null || typeof value !== "object";
+  }
   return typeof value !== "string" || value.trim() === "";
 }
 
@@ -1894,6 +1899,9 @@ function requiredMessageForField(
       return "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
     }
     return "Bitte mindestens einen Wochentag auswählen.";
+  }
+  if (field.type === "weekday_mode") {
+    return "Bitte die Geh- und Abholregelung bestätigen.";
   }
   if (field.type === "select") {
     return "Bitte eine Option auswählen.";
@@ -2026,6 +2034,16 @@ function CustomFieldInput({
   if (field.type === "weekday_boolean") {
     return (
       <WeekdayBooleanInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+      />
+    );
+  }
+  if (field.type === "weekday_mode") {
+    return (
+      <WeekdayModeInput
         field={field}
         value={value}
         onChange={onChange}
@@ -2232,6 +2250,29 @@ function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
   return out;
 }
 
+type DepartureModeValue = "alone" | "bus" | "pickup";
+
+function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, DepartureModeValue> = {};
+  for (const w of WEEKDAYS) {
+    const raw = (v as Record<string, unknown>)[w.key];
+    if (raw === "bus" || raw === "pickup" || raw === "alone") {
+      out[w.key] = raw;
+    }
+  }
+  return out;
+}
+
+const DEPARTURE_MODE_OPTIONS: ReadonlyArray<{
+  value: DepartureModeValue;
+  short: string;
+}> = [
+  { value: "alone", short: "Alleine" },
+  { value: "bus", short: "Bus" },
+  { value: "pickup", short: "Abholung" },
+];
+
 function WeekdayScheduleInput({
   field,
   value,
@@ -2322,6 +2363,77 @@ function WeekdayBooleanInput({
               />
               {w.label.slice(0, 2)}
             </label>
+          );
+        })}
+      </div>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+    </fieldset>
+  );
+}
+
+function WeekdayModeInput({
+  field,
+  value,
+  onChange,
+  error,
+}: CustomFieldInputProps) {
+  const modes = asWeekdayModeObject(value);
+  const modeFor = (key: string): DepartureModeValue => {
+    const m = modes[key];
+    return m === "bus" || m === "pickup" ? m : "alone";
+  };
+  return (
+    <fieldset
+      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
+      <p className="text-xs text-gray-500">
+        Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist
+        „Geht alleine“.
+      </p>
+      <div className="mt-2 space-y-2">
+        {WEEKDAYS.map((w) => {
+          const current = modeFor(w.key);
+          return (
+            <div key={w.key} className="flex items-center gap-2">
+              <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
+                {w.label}
+              </span>
+              <div className="grid flex-1 grid-cols-3 gap-1">
+                {DEPARTURE_MODE_OPTIONS.map((opt) => {
+                  const active = current === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        const next = { ...modes };
+                        if (opt.value === "alone") delete next[w.key];
+                        else next[w.key] = opt.value;
+                        onChange(next);
+                      }}
+                      className={`flex h-9 items-center justify-center rounded-md border px-1 text-xs font-medium transition-colors ${
+                        active
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {opt.short}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </div>

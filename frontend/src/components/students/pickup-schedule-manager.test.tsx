@@ -161,7 +161,7 @@ const mockPickupData: PickupData = {
   notes: [],
 };
 
-const COMPONENT_TITLE = "Abholplan & Notizen";
+const COMPONENT_TITLE = "Gehplan & Notizen";
 
 describe("PickupScheduleManager", () => {
   beforeEach(() => {
@@ -225,7 +225,7 @@ describe("PickupScheduleManager", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Fehler beim Laden des Abholplans"),
+          screen.getByText("Fehler beim Laden des Gehplans"),
         ).toBeInTheDocument();
       });
     });

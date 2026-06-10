@@ -47,6 +47,7 @@ const (
 	FormFieldPhoneList       FormFieldType = "phone_list"       // 0..N labelled phone numbers
 	FormFieldWeekdaySchedule FormFieldType = "weekday_schedule" // mon..fri → HH:MM, optional per day
 	FormFieldWeekdayBoolean  FormFieldType = "weekday_boolean"  // mon..fri → bool, optional per day
+	FormFieldWeekdayMode     FormFieldType = "weekday_mode"     // mon..fri → alone/bus/pickup, optional per day
 	FormFieldContactList     FormFieldType = "contact_list"     // 0..N people (name + phones + flags)
 )
 
@@ -62,6 +63,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldPhoneList:       true,
 	FormFieldWeekdaySchedule: true,
 	FormFieldWeekdayBoolean:  true,
+	FormFieldWeekdayMode:     true,
 	FormFieldContactList:     true,
 }
 
@@ -252,9 +254,16 @@ type ReservedTarget struct {
 const (
 	TargetStudentHealthInfo = "student.health_info"
 	TargetStudentExtraInfo  = "student.extra_info"
-	// TargetStudentBusDays is the canonical Buskind target. TargetStudentBus
+	// TargetStudentDeparture is the canonical unified target: per weekday, how
+	// the child leaves (alone/bus/pickup). It supersedes the separate Buskind
+	// (TargetStudentBusDays/TargetStudentBus) and Abholregelung
+	// (TargetStudentPickupStatus) targets, which are kept as legacy aliases so
+	// older saved schemas keep working; all of them dispatch onto
+	// student.departure_days, the single source of truth (#1610).
+	TargetStudentDeparture = "student.departure"
+	// TargetStudentBusDays is the legacy Buskind target. TargetStudentBus
 	// ("student.bus") is kept as a legacy alias so older saved schemas keep
-	// working; both dispatch onto student.bus_days (#1582).
+	// working; both dispatch onto student.departure_days as bus days.
 	TargetStudentBusDays      = "student.bus_days"
 	TargetStudentBus          = "student.bus"
 	TargetStudentPickupStatus = "student.pickup_status"
@@ -276,6 +285,7 @@ const (
 var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
+	TargetStudentDeparture:    {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
 	TargetStudentBusDays:      {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentPickupStatus: {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
@@ -421,7 +431,7 @@ func (f *FormField) validateQuestion() error {
 // renderer and decision service treat these specially.
 func isStructuredFieldType(t FormFieldType) bool {
 	switch t {
-	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldContactList:
+	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldContactList:
 		return true
 	default:
 		return false
@@ -472,6 +482,40 @@ type WeekdaySchedule map[string]string
 // WeekdayBoolean is the value of a FormFieldWeekdayBoolean field.
 // Keys are weekday names (mon/tue/wed/thu/fri); true means selected.
 type WeekdayBoolean map[string]bool
+
+// Weekday departure modes for a FormFieldWeekdayMode value. They mirror
+// users.DepartureMode without importing the users package, keeping the
+// enrollment model layer self-contained.
+const (
+	WeekdayModeAlone  = "alone"
+	WeekdayModeBus    = "bus"
+	WeekdayModePickup = "pickup"
+)
+
+// ValidWeekdayModes is the set of accepted WeekdayMode values.
+var ValidWeekdayModes = map[string]bool{
+	WeekdayModeAlone:  true,
+	WeekdayModeBus:    true,
+	WeekdayModePickup: true,
+}
+
+// WeekdayMode is the value of a FormFieldWeekdayMode field. Keys are weekday
+// names (mon/tue/wed/thu/fri); values are alone/bus/pickup. A missing day (or
+// "alone") means the child goes home alone that day.
+type WeekdayMode map[string]string
+
+// Validate checks every entry is a known weekday with a known mode.
+func (w WeekdayMode) Validate() error {
+	for day, mode := range w {
+		if !ValidWeekdays[day] {
+			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
+		}
+		if !ValidWeekdayModes[mode] {
+			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+		}
+	}
+	return nil
+}
 
 // ValidWeekdays mirrors the keys WeekdaySchedule accepts; aligns
 // with how schedule.student_pickup_schedules / arrival_schedules

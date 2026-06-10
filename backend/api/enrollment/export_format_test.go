@@ -135,6 +135,13 @@ func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
 	assert.Equal(t, "Mo, Fr", formatCustomValue(field, raw))
 }
 
+func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	raw := map[string]any{"mon": "bus", "wed": "pickup", "thu": "alone"}
+	// Week order, alone/unset days skipped.
+	assert.Equal(t, "Mo: fährt Bus, Mi: wird abgeholt", formatCustomValue(field, raw))
+}
+
 func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {
 	if got := formatPhoneList("0151"); got != "0151" {
 		t.Errorf("garbage = %q, want passthrough", got)

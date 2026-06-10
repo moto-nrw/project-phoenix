@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
-import { BusStatusSection, PickupStatusSection } from "./student-form-fields";
+import { DepartureSection } from "./student-form-fields";
 import {
   busDaysHaveAny,
-  normalizeBusDays,
-  normalizePickupDays,
   pickupDaysHaveAny,
+  normalizeDepartureDays,
+  departureToBusDays,
+  departureToPickupDays,
 } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -119,26 +120,19 @@ export function PersonalInfoFormModal({
           value={editedStudent.birthday}
           onChange={(value) => updateField("birthday", value)}
         />
-        <BusStatusSection
-          value={editedStudent.buskind}
-          days={editedStudent.bus_days}
+        <DepartureSection
+          days={editedStudent.departure_days}
           onChange={(value) => {
-            const normalized = normalizeBusDays(value);
+            const departure = normalizeDepartureDays(value);
+            const busDays = departureToBusDays(departure);
+            const pickupDays = departureToPickupDays(departure);
             setEditedStudent((prev) => ({
               ...prev,
-              bus_days: normalized,
-              buskind: busDaysHaveAny(normalized),
-            }));
-          }}
-        />
-        <PickupStatusSection
-          days={editedStudent.pickup_days}
-          onChange={(value) => {
-            const normalized = normalizePickupDays(value);
-            setEditedStudent((prev) => ({
-              ...prev,
-              pickup_days: normalized,
-              pickup_status: pickupDaysHaveAny(normalized)
+              departure_days: departure,
+              bus_days: busDays,
+              buskind: busDaysHaveAny(busDays),
+              pickup_days: pickupDays,
+              pickup_status: pickupDaysHaveAny(pickupDays)
                 ? "Wird abgeholt"
                 : "Geht alleine nach Hause",
             }));
@@ -227,7 +221,6 @@ function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
     </div>
   );
 }
-
 
 interface TextAreaInputProps {
   id: string;

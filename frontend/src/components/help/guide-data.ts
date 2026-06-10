@@ -295,20 +295,20 @@ export const setupChapters: readonly GuideChapter[] = [
       },
       {
         id: "betreuungszeiten-pflegen",
-        title: "Ankunfts- und Abholzeiten pflegen",
+        title: "Ankunfts- und Gehzeiten pflegen",
         summary:
-          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
+          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Gehzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Das Kind in der Liste auswählen.",
           "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
           "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
-          "Im Bereich `Abholplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Abholzeiten, Abholer sowie Hinweise eintragen.",
+          "Im Bereich `Gehplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Gehzeiten, Abholer sowie Hinweise eintragen.",
           "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",
           "Speichern.",
         ],
         screenshot:
-          "Betreuungszeiten mit Ankunftsplan, Abholplan und Tag bearbeiten.",
+          "Betreuungszeiten mit Ankunftsplan, Gehplan und Tag bearbeiten.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
     ],
@@ -638,8 +638,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
           tone: "orange",
         },
-        screenshot:
-          "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
+        screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
@@ -696,7 +695,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Buskind` und `Abholregelung` wählen Eltern die passenden Wochentage aus.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Geh- und Abholregelung` wählen Eltern pro Wochentag, ob das Kind alleine geht, mit dem Bus fährt oder abgeholt wird.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],
