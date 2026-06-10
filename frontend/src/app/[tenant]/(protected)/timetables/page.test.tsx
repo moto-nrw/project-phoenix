@@ -839,6 +839,28 @@ describe("TimetablesPage", () => {
 
     render(<TimetablesPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    expect(screen.getByTestId("timetable-toolbar-skeleton")).toBeVisible();
+    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
+    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+  });
+
+  it("shows a calendar-shaped skeleton while timetable data loads", () => {
+    mockUseSWRAuth.mockImplementation((key: string | null) => {
+      if (key === null) return {};
+      if (key === "database-calendar-periods-list") {
+        return { data: [period], isLoading: false };
+      }
+      if (key.startsWith("timetable-")) {
+        return { isLoading: true };
+      }
+      return {};
+    });
+
+    render(<TimetablesPage />);
+
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
+    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
   });
 });

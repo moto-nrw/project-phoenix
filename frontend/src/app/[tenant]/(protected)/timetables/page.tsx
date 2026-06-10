@@ -12,9 +12,9 @@ import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
+import { Skeleton } from "~/components/ui/skeleton";
 import { useToast } from "~/contexts/ToastContext";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { ConflictWarningsBanner } from "~/components/timetable/conflict-warnings-banner";
@@ -160,6 +160,208 @@ function schoolYearPeriodDefaults(anchor: Date): {
     startDate: `${startYear}-08-01`,
     endDate: `${endYear}-07-31`,
   };
+}
+
+function TimetableContentSkeleton({ view }: { view: TimetableView }) {
+  if (view === "series") {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Serien werden geladen"
+        data-testid="timetable-content-skeleton"
+        className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+      >
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="moto-content-surface rounded-2xl border p-4"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <Skeleton className="h-8 w-8 rounded-lg" />
+            </div>
+            <div className="mt-5 space-y-2">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-11/12 rounded-xl" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (view === "year") {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Jahresplan wird geladen"
+        data-testid="timetable-content-skeleton"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+      >
+        {Array.from({ length: 12 }, (_, month) => (
+          <section
+            key={month}
+            className="moto-content-surface overflow-hidden rounded-2xl border"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <Skeleton className="h-6 w-12 rounded-full" />
+            </div>
+            <div className="grid grid-cols-7 border-b border-gray-100 px-2 pt-2">
+              {Array.from({ length: 7 }, (_, day) => (
+                <Skeleton key={day} className="mx-auto mb-1 h-2 w-4" />
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1 p-2">
+              {Array.from({ length: 35 }, (_, day) => (
+                <Skeleton key={day} className="aspect-square min-h-8" />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+  if (view === "week") {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+        aria-label="Wochenplan wird geladen"
+        data-testid="timetable-content-skeleton"
+        className="moto-content-surface overflow-hidden rounded-2xl border"
+      >
+        <div className="hidden h-14 grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-white sm:grid">
+          <div aria-hidden />
+          {Array.from({ length: 7 }, (_, day) => (
+            <div
+              key={day}
+              className="flex items-center justify-center gap-2 border-l border-gray-200 px-2 py-2"
+            >
+              <Skeleton className="h-3 w-6" />
+              <Skeleton className="h-6 w-6 rounded-full" />
+            </div>
+          ))}
+        </div>
+        <div className="relative grid h-[560px] grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]">
+          <div className="space-y-16 border-r border-gray-200 bg-gray-50 px-2 py-4">
+            {Array.from({ length: 7 }, (_, hour) => (
+              <Skeleton key={hour} className="ml-auto h-2.5 w-8" />
+            ))}
+          </div>
+          {Array.from({ length: 7 }, (_, day) => (
+            <div
+              key={day}
+              className="relative hidden border-l border-gray-200 sm:block"
+            >
+              {Array.from({ length: 7 }, (_, line) => (
+                <div
+                  key={line}
+                  className="absolute right-0 left-0 border-t border-gray-100"
+                  style={{ top: `${(line + 1) * 70}px` }}
+                />
+              ))}
+            </div>
+          ))}
+          <div className="absolute top-20 left-[18%] hidden h-20 w-[18%] rounded-xl bg-gray-200/90 sm:block" />
+          <div className="absolute top-48 left-[42%] hidden h-24 w-[20%] rounded-xl bg-gray-200/90 sm:block" />
+          <div className="absolute top-32 left-[68%] hidden h-16 w-[17%] rounded-xl bg-gray-200/90 sm:block" />
+          <div className="absolute top-20 right-4 left-12 rounded-xl bg-gray-200/90 p-4 sm:hidden">
+            <Skeleton className="h-4 w-32 bg-gray-300" />
+            <Skeleton className="mt-3 h-3 w-20 bg-gray-300" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Monatsplan wird geladen"
+      data-testid="timetable-content-skeleton"
+      className="moto-content-surface overflow-hidden rounded-2xl border"
+    >
+      <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
+        {Array.from({ length: 7 }, (_, day) => (
+          <div key={day} className="px-3 py-3">
+            <Skeleton className="mx-auto h-2.5 w-8" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {Array.from({ length: 42 }, (_, day) => (
+          <div
+            key={day}
+            className="min-h-[112px] border-r border-b border-gray-100 bg-white p-2"
+          >
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <div className="mt-5 space-y-1.5">
+              {day % 3 === 0 && (
+                <Skeleton className="h-5 w-full rounded-full" />
+              )}
+              {day % 4 === 0 && (
+                <Skeleton className="h-5 w-10/12 rounded-full" />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimetableToolbarSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Betreuungsplan Werkzeugleiste wird geladen"
+      data-testid="timetable-toolbar-skeleton"
+      className="flex min-h-16 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
+    >
+      <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+        {Array.from({ length: 4 }, (_, item) => (
+          <Skeleton key={item} className="h-8 w-20 rounded-lg" />
+        ))}
+      </div>
+      <div className="hidden h-8 w-px bg-gray-200 md:block" />
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-8 w-8 rounded-lg" />
+        <Skeleton className="h-8 w-8 rounded-lg" />
+        <Skeleton className="h-5 w-28" />
+      </div>
+      <div className="ml-auto flex items-center gap-3">
+        <Skeleton className="h-9 w-48 rounded-lg" />
+        <Skeleton className="h-10 w-24 rounded-lg bg-gray-300" />
+      </div>
+    </div>
+  );
+}
+
+function TimetablePageSkeleton() {
+  return (
+    <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
+      <PageHeader title="Betreuungsplan" />
+      <TimetableToolbarSkeleton />
+      <TimetableContentSkeleton view="month" />
+    </div>
+  );
 }
 
 function TimetablesContent() {
@@ -1087,11 +1289,7 @@ function TimetablesContent() {
   ]);
 
   if (status === "loading") {
-    return (
-      <div className="p-6">
-        <Loading />
-      </div>
-    );
+    return <TimetablePageSkeleton />;
   }
 
   const isOnToday =
@@ -1166,9 +1364,7 @@ function TimetablesContent() {
 
       {view === "month" &&
         (isInstanceDataLoading ? (
-          <div className="moto-content-surface rounded-2xl border p-6">
-            <Loading />
-          </div>
+          <TimetableContentSkeleton view="month" />
         ) : (
           <MonthPlannerGrid
             days={monthDays}
@@ -1181,9 +1377,7 @@ function TimetablesContent() {
 
       {view === "year" &&
         (isInstanceDataLoading ? (
-          <div className="moto-content-surface rounded-2xl border p-6">
-            <Loading />
-          </div>
+          <TimetableContentSkeleton view="year" />
         ) : (
           <YearPlannerGrid
             months={yearMonths}
@@ -1197,9 +1391,7 @@ function TimetablesContent() {
       {view === "week" && (
         <>
           {isInstanceDataLoading ? (
-            <div className="moto-content-surface rounded-2xl border p-6">
-              <Loading />
-            </div>
+            <TimetableContentSkeleton view="week" />
           ) : (
             <WeeklyCalendarGrid
               weekDays={weekDays}
@@ -1256,7 +1448,7 @@ function TimetablesContent() {
       {view === "series" && (
         <>
           {templatesLoading ? (
-            <Loading />
+            <TimetableContentSkeleton view="series" />
           ) : (
             <TemplateList
               templates={templates}
@@ -1392,13 +1584,7 @@ function TimetablesContent() {
 
 export default function TimetablesPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="p-6">
-          <Loading />
-        </div>
-      }
-    >
+    <Suspense fallback={<TimetablePageSkeleton />}>
       <TimetablesContent />
     </Suspense>
   );
