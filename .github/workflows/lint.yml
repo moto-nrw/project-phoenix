@@ -130,7 +130,7 @@ jobs:
           DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
 
           # go-licenses check exits non-zero if disallowed licenses are found
-          go tool go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
+          go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal 2>&1 || {
             echo ""
             echo "❌ Disallowed licenses found in Go dependencies."
             echo "Source-available project cannot use restricted or reciprocal licenses."
@@ -242,4 +242,3 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
-
