@@ -63,6 +63,36 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
 }
 
+func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
+	openVisit := &activeModels.Visit{
+		Model:     base.Model{ID: 4714},
+		StudentID: 4711,
+		EntryTime: time.Now().Add(-1 * time.Hour),
+	}
+	endCalled := false
+
+	svc := &service{
+		settings: &stubSettingsResolver{
+			stringValues: map[string]string{"operations.presence_mode": "binary"},
+		},
+		visitRepo: &mockVisitRepository{
+			getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
+				return openVisit, nil
+			},
+			endVisitFunc: func(_ context.Context, id int64) error {
+				assert.Equal(t, openVisit.ID, id)
+				endCalled = true
+				return nil
+			},
+		},
+	}
+
+	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+
+	require.NoError(t, err)
+	assert.True(t, endCalled, "checkout stale-visit healing must bypass the binary-mode EndVisit no-op")
+}
+
 func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 	openVisit := &activeModels.Visit{
 		Model:     base.Model{ID: 4713},

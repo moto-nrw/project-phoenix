@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -71,6 +72,9 @@ func deriveAttendanceStatus(a *active.Attendance) string {
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActiveError{Op: "GetStudentAttendanceStatus", Err: ErrDatabaseOperation}
+		}
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
@@ -330,7 +334,11 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) e
 		}
 		return err
 	}
-	if err := s.EndVisit(ctx, visit.ID); err != nil && !errors.Is(err, ErrVisitAlreadyEnded) {
+	if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+		latest, findErr := s.visitRepo.FindByID(ctx, visit.ID)
+		if findErr == nil && latest != nil && latest.ExitTime != nil {
+			return nil
+		}
 		return err
 	}
 	return nil

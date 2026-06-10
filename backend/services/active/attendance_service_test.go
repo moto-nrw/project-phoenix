@@ -109,6 +109,21 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Empty(t, result.CheckedOutBy)
 }
 
+func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "AttendanceRead", "Failure", "2a")
+	require.NoError(t, db.Close())
+
+	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+}
+
 // TestGetStudentAttendanceStatus_CheckedIn tests the scenario where a student
 // has checked in today (active attendance record).
 func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
