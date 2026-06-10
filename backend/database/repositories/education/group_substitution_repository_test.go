@@ -138,9 +138,9 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 		now.AddDate(0, 0, 5), now.AddDate(0, 0, 10))
 	defer cleanupSubstitutionRecords(t, db, past.ID, activeSub.ID, futureRegular.ID, otherFuture.ID)
 
-	deleted, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, now)
+	affected, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, now)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), deleted)
+	assert.Equal(t, int64(2), affected)
 
 	remainingIDs := func() map[int64]bool {
 		subs, listErr := repo.FindByGroup(ctx, group.ID)

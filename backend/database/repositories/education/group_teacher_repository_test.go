@@ -110,9 +110,9 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 	defer cleanupTeacherChain(t, db, otherTeacher.ID)
 	defer cleanupGroupTeacherRecords(t, db, gtA.ID, gtB.ID, gtOther.ID)
 
-	deleted, err := repo.DeleteByTeacherID(ctx, teacher.ID)
+	affected, err := repo.DeleteByTeacherID(ctx, teacher.ID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), deleted)
+	assert.Equal(t, int64(2), affected)
 
 	remaining, err := repo.FindByTeacher(ctx, teacher.ID)
 	require.NoError(t, err)

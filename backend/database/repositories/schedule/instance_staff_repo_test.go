@@ -191,9 +191,9 @@ func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
 	futureRow := makeRow(futureInst.ID, staff.ID)
 	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
 
-	deleted, err := repo.DeleteFutureByStaffID(ctx, staff.ID, cutoff)
+	affected, err := repo.DeleteFutureByStaffID(ctx, staff.ID, cutoff)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), deleted)
+	assert.Equal(t, int64(1), affected)
 
 	remaining := func(instanceID int64) []int64 {
 		rows, findErr := repo.FindByInstanceID(ctx, instanceID)

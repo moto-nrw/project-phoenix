@@ -214,9 +214,9 @@ func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supB.ID)
 	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supOther.ID)
 
-	deleted, err := repo.DeleteByStaffID(ctx, staff.ID)
+	affected, err := repo.DeleteByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), deleted)
+	assert.Equal(t, int64(2), affected)
 
 	remaining, err := repo.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
