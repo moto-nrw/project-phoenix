@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -201,7 +200,7 @@ func TestMapParentSubmitError_UnknownError500(t *testing.T) {
 // --- toChildResponse -----------------------------------------------------
 
 func TestToChildResponse_StringifiesIDs(t *testing.T) {
-	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	now := timezone.NewDate(2026, 9, 1)
 	in := &parentModels.ChildSummary{
 		StudentID:    12345,
 		TenantID:     6789,

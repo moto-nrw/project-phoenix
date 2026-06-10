@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -58,7 +59,7 @@ func TestPersonRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create person with birthday", func(t *testing.T) {
-		birthday := time.Date(2010, 5, 15, 0, 0, 0, 0, time.UTC)
+		birthday := timezone.NewDate(2010, 5, 15)
 		person := &users.Person{
 			FirstName: "Birthday",
 			LastName:  "Test",
@@ -71,7 +72,7 @@ func TestPersonRepository_Create(t *testing.T) {
 
 		assert.NotZero(t, person.ID)
 		require.NotNil(t, person.Birthday)
-		assert.Equal(t, birthday.Year(), person.Birthday.Year())
+		assert.Equal(t, birthday.Year, person.Birthday.Year)
 	})
 
 	t.Run("create with nil person should fail", func(t *testing.T) {

@@ -15,16 +15,16 @@ import (
 // list. Mirrors models/parent.ChildSummary but stringifies int64 IDs
 // per the project's frontend convention (Rule 4 in CLAUDE.md).
 type ChildResponse struct {
-	StudentID     string     `json:"student_id"`
-	TenantID      string     `json:"tenant_id"`
-	FirstName     string     `json:"first_name"`
-	LastName      string     `json:"last_name"`
-	SchoolClass   string     `json:"school_class,omitempty"`
-	Status        string     `json:"status"`
-	EnrolledFrom  *time.Time `json:"enrolled_from,omitempty"`
-	EnrolledUntil *time.Time `json:"enrolled_until,omitempty"`
-	SchoolName    string     `json:"school_name"`
-	SchoolSlug    string     `json:"school_slug"`
+	StudentID     string         `json:"student_id"`
+	TenantID      string         `json:"tenant_id"`
+	FirstName     string         `json:"first_name"`
+	LastName      string         `json:"last_name"`
+	SchoolClass   string         `json:"school_class,omitempty"`
+	Status        string         `json:"status"`
+	EnrolledFrom  *timezone.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
+	SchoolName    string         `json:"school_name"`
+	SchoolSlug    string         `json:"school_slug"`
 }
 
 func toChildResponse(c *parentModels.ChildSummary) ChildResponse {

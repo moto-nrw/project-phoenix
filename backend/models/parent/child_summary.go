@@ -29,9 +29,9 @@ type ChildSummary struct {
 
 	// Lifecycle status as set by the activate-students scheduler:
 	// pending → active → inactive (or alumnus).
-	Status        string     `json:"status"`
-	EnrolledFrom  *time.Time `json:"enrolled_from,omitempty"`
-	EnrolledUntil *time.Time `json:"enrolled_until,omitempty"`
+	Status        string         `json:"status"`
+	EnrolledFrom  *timezone.Date `json:"enrolled_from,omitempty"`
+	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
 
 	// School context — repeated on every child of the same school so
 	// the frontend can render grouped cards without an extra fetch.

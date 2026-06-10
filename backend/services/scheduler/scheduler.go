@@ -2033,13 +2033,6 @@ func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
 	}
 }
 
-// civilDateUTC strips the time component to UTC midnight. Duplicates the
-// materialization service's civilDate helper but staying in the scheduler
-// package avoids a circular import.
-func civilDateUTC(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-}
-
 // combineDayAndTime returns "day at time-of-day", reading the wall-clock
 // hour/minute/second from `tod` (typically an ActivityInstance.StartTime
 // which lives as a bare TIME). Stays in the server's local zone so the

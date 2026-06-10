@@ -43,12 +43,7 @@ var legacyTimeTimeDateColumns = map[string]string{
 	"config.work_time_models.rotation_anchor_date": "pending migration in this PR",
 	"education.group_substitution.end_date":        "pending migration in this PR",
 	"education.group_substitution.start_date":      "pending migration in this PR",
-	"users.guests.end_date":                        "pending migration in this PR",
-	"users.guests.start_date":                      "pending migration in this PR",
-	"users.persons.birthday":                       "pending migration in this PR",
 	"users.staff.rotation_anchor_date":             "pending migration in this PR",
-	"users.students.enrolled_from":                 "pending migration in this PR",
-	"users.students.enrolled_until":                "pending migration in this PR",
 }
 
 // unmappedDateColumns classifies DATE columns that have no models/ struct

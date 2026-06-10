@@ -871,9 +871,8 @@ func (s *decisionService) applyApproval(
 	}
 
 	// 2. Person row for the child. DateOfBirth is required so a copy
-	// is fine. UTCMidnight is the interop bridge while users.persons.birthday
-	// is still *time.Time (migrates in the users-domain commit).
-	dob := child.DateOfBirth.UTCMidnight()
+	// is fine.
+	dob := child.DateOfBirth
 	person := &users.Person{
 		FirstName: child.FirstName,
 		LastName:  child.LastName,
@@ -900,10 +899,8 @@ func (s *decisionService) applyApproval(
 	// day) and is no longer read once a student is active; only
 	// enrolled_until drives later deactivation.
 	schoolClass := s.gradeToClass(child.TargetGradeLevel)
-	// UTCMidnight bridges until users.students.enrolled_from/_until migrate
-	// to timezone.Date in the users-domain commit.
-	enrolledFrom := phase.ServiceStartDate.UTCMidnight()
-	enrolledUntil := phase.ServiceEndDate.UTCMidnight()
+	enrolledFrom := phase.ServiceStartDate
+	enrolledUntil := phase.ServiceEndDate
 	guardianEmail := request.GuardianEmail
 	guardianPhone := request.GuardianPhone
 	activationPlan := s.approvalActivationPlan(ctx, phase)
@@ -1041,10 +1038,8 @@ func (s *decisionService) applyApprovalRollover(
 	// workflows are not interrupted. Inactive/pending children follow the
 	// approval-time activation plan.
 	existing.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
-	// UTCMidnight bridges until users.students.enrolled_from/_until migrate
-	// to timezone.Date in the users-domain commit.
-	enrolledFrom := phase.ServiceStartDate.UTCMidnight()
-	enrolledUntil := phase.ServiceEndDate.UTCMidnight()
+	enrolledFrom := phase.ServiceStartDate
+	enrolledUntil := phase.ServiceEndDate
 	existing.EnrolledFrom = &enrolledFrom
 	existing.EnrolledUntil = &enrolledUntil
 	if existing.Status != users.StudentStatusActive {

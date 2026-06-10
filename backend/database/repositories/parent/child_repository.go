@@ -8,11 +8,11 @@ package parent
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
@@ -50,16 +50,16 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 	}
 
 	type row struct {
-		StudentID     int64      `bun:"student_id"`
-		TenantID      int64      `bun:"tenant_id"`
-		FirstName     string     `bun:"first_name"`
-		LastName      string     `bun:"last_name"`
-		SchoolClass   string     `bun:"school_class"`
-		Status        string     `bun:"status"`
-		EnrolledFrom  *time.Time `bun:"enrolled_from"`
-		EnrolledUntil *time.Time `bun:"enrolled_until"`
-		SchoolName    string     `bun:"school_name"`
-		SchoolSlug    string     `bun:"school_slug"`
+		StudentID     int64          `bun:"student_id"`
+		TenantID      int64          `bun:"tenant_id"`
+		FirstName     string         `bun:"first_name"`
+		LastName      string         `bun:"last_name"`
+		SchoolClass   string         `bun:"school_class"`
+		Status        string         `bun:"status"`
+		EnrolledFrom  *timezone.Date `bun:"enrolled_from"`
+		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
+		SchoolName    string         `bun:"school_name"`
+		SchoolSlug    string         `bun:"school_slug"`
 	}
 
 	const query = `
@@ -134,16 +134,16 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	}
 
 	type row struct {
-		StudentID     int64      `bun:"student_id"`
-		TenantID      int64      `bun:"tenant_id"`
-		FirstName     string     `bun:"first_name"`
-		LastName      string     `bun:"last_name"`
-		SchoolClass   string     `bun:"school_class"`
-		Status        string     `bun:"status"`
-		EnrolledFrom  *time.Time `bun:"enrolled_from"`
-		EnrolledUntil *time.Time `bun:"enrolled_until"`
-		SchoolName    string     `bun:"school_name"`
-		SchoolSlug    string     `bun:"school_slug"`
+		StudentID     int64          `bun:"student_id"`
+		TenantID      int64          `bun:"tenant_id"`
+		FirstName     string         `bun:"first_name"`
+		LastName      string         `bun:"last_name"`
+		SchoolClass   string         `bun:"school_class"`
+		Status        string         `bun:"status"`
+		EnrolledFrom  *timezone.Date `bun:"enrolled_from"`
+		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
+		SchoolName    string         `bun:"school_name"`
+		SchoolSlug    string         `bun:"school_slug"`
 	}
 
 	const query = `

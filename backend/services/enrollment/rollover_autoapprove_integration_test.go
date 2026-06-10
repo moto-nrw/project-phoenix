@@ -130,14 +130,13 @@ func seedApprovedChildWithStudent(
 		FirstName: childFirst,
 		LastName:  childLast,
 	}
-	dob := time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC)
+	dob := timezone.NewDate(2018, 4, 15)
 	person.Birthday = &dob
 	person.SetTenantID(1)
 	require.NoError(t, env.repos.Person.Create(ctx, person))
 
-	// UTCMidnight bridges until users.students.enrolled_from/_until migrate.
-	startDate := env.sourcePhase.ServiceStartDate.UTCMidnight()
-	endDate := env.sourcePhase.ServiceEndDate.UTCMidnight()
+	startDate := env.sourcePhase.ServiceStartDate
+	endDate := env.sourcePhase.ServiceEndDate
 	guardianEmailCopy := guardianEmail
 	classFromGrade := classForGrade(grade)
 	student := &usersModels.Student{
@@ -252,10 +251,10 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
 		"grade was bumped 1 → 2; school_class must follow")
 	require.NotNil(t, refreshed.EnrolledFrom)
-	assert.Equal(t, result.Phase.ServiceStartDate.UTCMidnight(), *refreshed.EnrolledFrom,
+	assert.Equal(t, result.Phase.ServiceStartDate, *refreshed.EnrolledFrom,
 		"enrolled_from must follow the new phase's service window")
 	require.NotNil(t, refreshed.EnrolledUntil)
-	assert.Equal(t, result.Phase.ServiceEndDate.UTCMidnight(), *refreshed.EnrolledUntil)
+	assert.Equal(t, result.Phase.ServiceEndDate, *refreshed.EnrolledUntil)
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
 	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
