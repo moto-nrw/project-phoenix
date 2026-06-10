@@ -1,6 +1,7 @@
 // lib/substitution-helpers.ts
 // Type definitions and helper functions for substitutions
 
+import { toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SubstitutionHelpers" });
@@ -209,17 +210,14 @@ export function prepareSubstitutionForBackend(
   reason?: string,
   notes?: string,
 ): CreateSubstitutionRequest {
-  const startDateParts = startDate.toISOString().split("T");
-  const endDateParts = endDate.toISOString().split("T");
-
   return {
     group_id: Number.parseInt(groupId, 10),
     regular_staff_id: regularStaffId
       ? Number.parseInt(regularStaffId, 10)
       : undefined,
     substitute_staff_id: Number.parseInt(substituteStaffId, 10),
-    start_date: startDateParts[0] ?? "", // YYYY-MM-DD format
-    end_date: endDateParts[0] ?? "",
+    start_date: toISODate(startDate), // YYYY-MM-DD format
+    end_date: toISODate(endDate),
     reason,
     notes,
   };
@@ -227,8 +225,7 @@ export function prepareSubstitutionForBackend(
 
 // Helper functions
 export function formatDateForBackend(date: Date): string {
-  const dateString = date.toISOString().split("T");
-  return dateString[0] ?? ""; // YYYY-MM-DD format
+  return toISODate(date); // YYYY-MM-DD format
 }
 
 export function formatTeacherName(teacher: TeacherAvailability): string {

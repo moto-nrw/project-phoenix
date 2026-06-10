@@ -1,4 +1,5 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
+import { toISODate as formatDateISO } from "./date-helpers";
 import type { StudentStatusKind } from "./student-status-days-api";
 
 // Frontend Pickup Schedule Type
@@ -429,12 +430,7 @@ export function getCalendarWeek(date: Date): number {
 /**
  * Format date as ISO string (YYYY-MM-DD) for comparison with exceptions
  */
-export function formatDateISO(date: Date): string {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+export { formatDateISO };
 
 /**
  * Data for a single day in the week view

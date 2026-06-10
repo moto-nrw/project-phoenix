@@ -37,6 +37,7 @@ import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { useMinuteClock } from "~/lib/pickup-helpers";
+import { toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { fetchStudents } from "~/lib/student-api";
@@ -924,7 +925,7 @@ function MeinRaumPageContent() {
   const now = useMinuteClock();
 
   // Pickup times: fetch when student list or date changes
-  const todayKey = now.toISOString().slice(0, 10);
+  const todayKey = toISODate(now);
   const { data: pickupTimesData } = useSWRAuth<Map<string, BulkPickupTime>>(
     trackingStudentIds.length > 0 && currentRoomId
       ? `pickup-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
