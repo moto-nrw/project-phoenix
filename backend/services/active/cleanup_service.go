@@ -503,8 +503,8 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 		Errors:    make([]string, 0),
 	}
 
-	// Get today's date at midnight - Berlin date as UTC for database comparison
-	today := timezone.TodayUTC()
+	// Today as a Berlin calendar day; binds as a DATE literal.
+	today := timezone.TodayDate()
 
 	// Find all supervisor records from before today that don't have end_date
 	var staleRecords []struct {
@@ -582,8 +582,8 @@ func (s *cleanupService) PreviewSupervisorCleanup(ctx context.Context) (*Supervi
 		RecordsByDate: make(map[string]int),
 	}
 
-	// Get today's date at midnight - Berlin date as UTC for database comparison
-	today := timezone.TodayUTC()
+	// Today as a Berlin calendar day; binds as a DATE literal.
+	today := timezone.TodayDate()
 
 	// Find all stale supervisor records
 	var staleRecords []struct {
