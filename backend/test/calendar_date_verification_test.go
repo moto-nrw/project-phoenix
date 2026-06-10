@@ -33,18 +33,7 @@ import (
 // Go model field is still time.Time. NEVER add entries. Each migration
 // commit deletes the rows it converts; the stale-entry sub-test forces the
 // deletion. Seeded from the discovery scan when this test was introduced.
-var legacyTimeTimeDateColumns = map[string]string{
-	"activities.student_enrollments.valid_from":    "pending migration in this PR",
-	"activities.student_enrollments.valid_until":   "pending migration in this PR",
-	"activities.supervisors.valid_from":            "pending migration in this PR",
-	"activities.supervisors.valid_until":           "pending migration in this PR",
-	"config.staff_work_schedules.valid_from":       "pending migration in this PR",
-	"config.staff_work_schedules.valid_until":      "pending migration in this PR",
-	"config.work_time_models.rotation_anchor_date": "pending migration in this PR",
-	"education.group_substitution.end_date":        "pending migration in this PR",
-	"education.group_substitution.start_date":      "pending migration in this PR",
-	"users.staff.rotation_anchor_date":             "pending migration in this PR",
-}
+var legacyTimeTimeDateColumns = map[string]string{}
 
 // unmappedDateColumns classifies DATE columns that have no models/ struct
 // field (raw-SQL-only access or superseded tables). Every newly discovered

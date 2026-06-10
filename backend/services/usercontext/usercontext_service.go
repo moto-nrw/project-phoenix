@@ -318,7 +318,7 @@ func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int
 
 // addSubstitutionGroups adds groups where the staff is an active substitute
 func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
 	if err != nil {
@@ -358,7 +358,7 @@ func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[in
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
 	}
 
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
 	if err != nil {
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}

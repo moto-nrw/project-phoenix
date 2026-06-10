@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -41,7 +41,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	enrollment := &activities.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: groupID,
-		ValidFrom:       time.Now(),
+		ValidFrom:       timezone.TodayDate(),
 	}
 	enrollment.SetTenantID(tenant.FromContext(ctx))
 
@@ -145,7 +145,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 			enrollment := &activities.StudentEnrollment{
 				StudentID:       studentID,
 				ActivityGroupID: groupID,
-				ValidFrom:       time.Now(),
+				ValidFrom:       timezone.TodayDate(),
 			}
 			enrollment.SetTenantID(tenant.FromContext(ctx))
 
@@ -280,7 +280,7 @@ func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64
 }
 
 // GetEnrollmentsByDate gets all enrollments for a specific date
-func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*activities.StudentEnrollment, error) {
+func (s *Service) GetEnrollmentsByDate(ctx context.Context, date timezone.Date) ([]*activities.StudentEnrollment, error) {
 	// NOTE: This is a placeholder implementation
 	// The actual implementation would likely query enrollments with schedules active on the given date
 	// and possibly filter for attendance status
@@ -298,7 +298,7 @@ func (s *Service) GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*
 }
 
 // GetEnrollmentHistory gets a student's enrollment history within a date range
-func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error) {
+func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activities.StudentEnrollment, error) {
 	// NOTE: This is a placeholder implementation
 	// The actual implementation would query enrollments with schedules active in the given date range
 

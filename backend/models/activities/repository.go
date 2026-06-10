@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -124,7 +125,7 @@ type StudentEnrollmentRepository interface {
 	CountByGroupID(ctx context.Context, groupID int64) (int, error)
 
 	// FindByValidFromRange finds enrollments within a valid_from date range
-	FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*StudentEnrollment, error)
+	FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*StudentEnrollment, error)
 
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error

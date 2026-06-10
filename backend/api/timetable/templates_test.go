@@ -503,7 +503,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  created.TemplateID,
-		ValidFrom:        periodB.StartDate.UTCMidnight(),
+		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(1)
@@ -512,7 +512,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
 		ActivityGroupID: created.TemplateID,
-		ValidFrom:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
 	globalEnrollment.SetTenantID(1)
 	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, globalEnrollment))
@@ -520,7 +520,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          created.TemplateID,
-		ValidFrom:        periodB.StartDate.UTCMidnight(),
+		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(1)
@@ -529,7 +529,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
 		GroupID:   created.TemplateID,
-		ValidFrom: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
 	globalSupervisor.SetTenantID(1)
 	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, globalSupervisor))
@@ -626,7 +626,7 @@ func TestTemplatePeopleHelpersDeduplicateAndNoopWithoutTenant(t *testing.T) {
 	defer s.cleanupFn()
 
 	require.Equal(t, []int64{50, 60}, uniquePositiveIDs([]int64{50, 0, 60, 50, -1}))
-	validFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	validFrom := timezone.NewDate(2026, time.January, 1)
 	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil, validFrom))
 	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil, validFrom))
 }

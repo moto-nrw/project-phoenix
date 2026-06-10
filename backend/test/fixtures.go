@@ -1492,7 +1492,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *education.GroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

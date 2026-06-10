@@ -139,8 +139,8 @@ func TestListSubstitutions(t *testing.T) {
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
 		// Create a substitution for future dates (service validates no backdating)
-		tomorrow := timezone.Today().AddDate(0, 0, 1)
-		nextWeek := tomorrow.AddDate(0, 0, 7)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		nextWeek := tomorrow.AddDays(7)
 
 		sub := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
@@ -266,8 +266,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		tomorrow := timezone.Today().AddDate(0, 0, 1)
-		nextWeek := tomorrow.AddDate(0, 0, 7)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		nextWeek := tomorrow.AddDays(7)
 
 		sub := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
@@ -295,8 +295,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		yesterday := timezone.Today().AddDate(0, 0, -1)
-		today := timezone.Today()
+		yesterday := timezone.TodayDate().AddDays(-1)
+		today := timezone.TodayDate()
 
 		sub := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
@@ -324,8 +324,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		today := timezone.Today()
-		nextWeek := today.AddDate(0, 0, 7)
+		today := timezone.TodayDate()
+		nextWeek := today.AddDays(7)
 
 		sub := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
@@ -352,8 +352,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, substituteStaff.ID)
 
-		tomorrow := timezone.Today().AddDate(0, 0, 1)
-		nextWeek := tomorrow.AddDate(0, 0, 7)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		nextWeek := tomorrow.AddDays(7)
 
 		sub := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
@@ -393,8 +393,8 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		tomorrow := timezone.Today().AddDate(0, 0, 1)
-		nextWeek := tomorrow.AddDate(0, 0, 7)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		nextWeek := tomorrow.AddDays(7)
 
 		// Create initial substitution
 		sub := &educationModels.GroupSubstitution{
@@ -409,7 +409,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT: Update to extend end date
-		sub.EndDate = nextWeek.AddDate(0, 0, 7)
+		sub.EndDate = nextWeek.AddDays(7)
 		sub.Reason = "Extended leave"
 		err = service.UpdateSubstitution(ctx, sub)
 
@@ -431,8 +431,8 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		tomorrow := timezone.Today().AddDate(0, 0, 1)
-		nextWeek := tomorrow.AddDate(0, 0, 7)
+		tomorrow := timezone.TodayDate().AddDays(1)
+		nextWeek := tomorrow.AddDays(7)
 
 		// Create initial substitution
 		sub := &educationModels.GroupSubstitution{
@@ -447,7 +447,7 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT: Try to backdate
-		yesterday := timezone.Today().AddDate(0, 0, -1)
+		yesterday := timezone.TodayDate().AddDays(-1)
 		sub.StartDate = yesterday
 		err = service.UpdateSubstitution(ctx, sub)
 
@@ -465,8 +465,8 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db,
 			group.ID, regularStaff.ID, substituteStaff.ID)
 
-		today := timezone.Today()
-		nextWeek := today.AddDate(0, 0, 7)
+		today := timezone.TodayDate()
+		nextWeek := today.AddDays(7)
 
 		// Create initial substitution starting today
 		sub := &educationModels.GroupSubstitution{
@@ -994,12 +994,12 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "SubDelete", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
 			SubstituteStaffID: staff.ID,
 			StartDate:         today,
-			EndDate:           today.AddDate(0, 0, 7),
+			EndDate:           today.AddDays(7),
 		}
 		err := service.CreateSubstitution(ctx, substitution)
 		require.NoError(t, err)
@@ -1033,12 +1033,12 @@ func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "ActiveSub", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
 			SubstituteStaffID: staff.ID,
 			StartDate:         today,
-			EndDate:           today.AddDate(0, 0, 7),
+			EndDate:           today.AddDays(7),
 		}
 		err := service.CreateSubstitution(ctx, substitution)
 		require.NoError(t, err)
@@ -1066,12 +1066,12 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "StaffSub", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
 			SubstituteStaffID: staff.ID,
 			StartDate:         today,
-			EndDate:           today.AddDate(0, 0, 7),
+			EndDate:           today.AddDays(7),
 		}
 		err := service.CreateSubstitution(ctx, substitution)
 		require.NoError(t, err)
@@ -1092,13 +1092,13 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 		substituteStaff := testpkg.CreateTestStaff(t, db, "Substitute", "Staff2")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, regularStaff.ID, substituteStaff.ID)
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
 			RegularStaffID:    &regularStaff.ID,
 			SubstituteStaffID: substituteStaff.ID,
 			StartDate:         today,
-			EndDate:           today.AddDate(0, 0, 7),
+			EndDate:           today.AddDays(7),
 		}
 		err := service.CreateSubstitution(ctx, substitution)
 		require.NoError(t, err)
@@ -1133,10 +1133,10 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "ConflictCheck", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-		future := timezone.Today().AddDate(1, 0, 0)
+		future := timezone.TodayDate().AddDays(365)
 
 		// ACT
-		conflicts, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDate(0, 0, 7))
+		conflicts, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDays(7))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1145,10 +1145,10 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 
 	t.Run("returns error for non-existent staff", func(t *testing.T) {
 		// ARRANGE
-		future := timezone.Today().AddDate(1, 0, 0)
+		future := timezone.TodayDate().AddDays(365)
 
 		// ACT
-		_, err := service.CheckSubstitutionConflicts(ctx, 999999999, future, future.AddDate(0, 0, 7))
+		_, err := service.CheckSubstitutionConflicts(ctx, 999999999, future, future.AddDays(7))
 
 		// ASSERT
 		require.Error(t, err)
@@ -1159,10 +1159,10 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "InvalidRange", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
-		future := timezone.Today().AddDate(1, 0, 0)
+		future := timezone.TodayDate().AddDays(365)
 
 		// ACT - end date before start date
-		_, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDate(0, 0, -7))
+		_, err := service.CheckSubstitutionConflicts(ctx, staff.ID, future, future.AddDays(-7))
 
 		// ASSERT
 		require.Error(t, err)
@@ -1373,12 +1373,12 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "GetSub", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, db, group.ID, staff.ID)
 
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		substitution := &educationModels.GroupSubstitution{
 			GroupID:           group.ID,
 			SubstituteStaffID: staff.ID,
 			StartDate:         today,
-			EndDate:           today.AddDate(0, 0, 7),
+			EndDate:           today.AddDays(7),
 		}
 		err := service.CreateSubstitution(ctx, substitution)
 		require.NoError(t, err)

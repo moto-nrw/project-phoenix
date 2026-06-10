@@ -1155,10 +1155,8 @@ func (s *decisionService) materializeEnrollments(
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
 
-	// UTCMidnight bridges until activities.student_enrollments.valid_from/
-	// _until migrate to timezone.Date in the activities-domain commit.
-	validFrom := phase.ServiceStartDate.UTCMidnight()
-	validUntil := phase.ServiceEndDate.UTCMidnight()
+	validFrom := phase.ServiceStartDate
+	validUntil := phase.ServiceEndDate
 	type enrollmentDraft struct {
 		activityGroupID  int64
 		calendarPeriodID *int64

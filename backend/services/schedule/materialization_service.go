@@ -615,10 +615,10 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 	if e == nil {
 		return false
 	}
-	if !e.ValidFrom.IsZero() && timezone.DateFromTime(e.ValidFrom).After(date) {
+	if !e.ValidFrom.IsZero() && e.ValidFrom.After(date) {
 		return false
 	}
-	if e.ValidUntil != nil && !timezone.DateFromTime(*e.ValidUntil).After(date) {
+	if e.ValidUntil != nil && !e.ValidUntil.After(date) {
 		return false
 	}
 	if e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID {
@@ -641,10 +641,10 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 	if sp == nil {
 		return false
 	}
-	if !sp.ValidFrom.IsZero() && timezone.DateFromTime(sp.ValidFrom).After(date) {
+	if !sp.ValidFrom.IsZero() && sp.ValidFrom.After(date) {
 		return false
 	}
-	if sp.ValidUntil != nil && !timezone.DateFromTime(*sp.ValidUntil).After(date) {
+	if sp.ValidUntil != nil && !sp.ValidUntil.After(date) {
 		return false
 	}
 	if sp.CalendarPeriodID != nil && *sp.CalendarPeriodID != periodID {

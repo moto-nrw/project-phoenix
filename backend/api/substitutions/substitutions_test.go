@@ -18,6 +18,7 @@ import (
 
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -412,9 +413,9 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
 
 	// Update handler decodes directly into GroupSubstitution model
-	// which expects RFC3339 format for time.Time fields
-	startDate := time.Now().AddDate(0, 0, 1).Format(time.RFC3339)
-	endDate := time.Now().AddDate(0, 0, 7).Format(time.RFC3339)
+	// which expects "YYYY-MM-DD" format for timezone.Date fields
+	startDate := timezone.TodayDate().AddDays(1).String()
+	endDate := timezone.TodayDate().AddDays(7).String()
 
 	body := map[string]interface{}{
 		"group_id":            1,
@@ -440,9 +441,9 @@ func TestUpdateSubstitution_InvalidID(t *testing.T) {
 	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
 
 	// Update handler decodes directly into GroupSubstitution model
-	// which expects RFC3339 format for time.Time fields
-	startDate := time.Now().AddDate(0, 0, 1).Format(time.RFC3339)
-	endDate := time.Now().AddDate(0, 0, 7).Format(time.RFC3339)
+	// which expects "YYYY-MM-DD" format for timezone.Date fields
+	startDate := timezone.TodayDate().AddDays(1).String()
+	endDate := timezone.TodayDate().AddDays(7).String()
 
 	body := map[string]interface{}{
 		"group_id":            1,

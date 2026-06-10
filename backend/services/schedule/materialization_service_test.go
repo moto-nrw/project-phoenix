@@ -103,8 +103,8 @@ func TestResolveWindow(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIsEnrollmentValidOn(t *testing.T) {
-	d := func(y int, m time.Month, day int) time.Time {
-		return time.Date(y, m, day, 0, 0, 0, 0, time.UTC)
+	d := func(y int, m time.Month, day int) timezone.Date {
+		return timezone.NewDate(y, m, day)
 	}
 	p100 := int64(100)
 	p200 := int64(200)
@@ -236,8 +236,8 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIsSupervisorValidOn(t *testing.T) {
-	d := func(y int, m time.Month, day int) time.Time {
-		return time.Date(y, m, day, 0, 0, 0, 0, time.UTC)
+	d := func(y int, m time.Month, day int) timezone.Date {
+		return timezone.NewDate(y, m, day)
 	}
 	target := d(2026, time.April, 20)
 	targetDay := timezone.NewDate(2026, 4, 20)
@@ -862,7 +862,7 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 
 func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	date := timezone.NewDate(2026, 4, 20)
-	validFrom := date.UTCMidnight()
+	validFrom := date
 	periodID := int64(400)
 
 	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
@@ -913,7 +913,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
 		valid := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom, IsPrimary: true}
 		duplicate := &activities.SupervisorPlanned{StaffID: 701, ValidFrom: validFrom}
-		future := &activities.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDate(0, 0, 1)}
+		future := &activities.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDays(1)}
 		result := &MaterializationResult{}
 
 		err := svc.copySupervisors(context.Background(), 603, []*activities.SupervisorPlanned{valid, duplicate, future}, date, periodID, result)

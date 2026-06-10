@@ -4,23 +4,24 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
 func TestResolveWeekIndex(t *testing.T) {
 	t.Parallel()
 
-	monday := time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC) // Anchor week, A
+	monday := timezone.NewDate(2026, time.January, 5) // Anchor week, A
 	cases := []struct {
 		name     string
 		rotation int
-		date     time.Time
+		date     timezone.Date
 		want     int
 	}{
 		{
 			name:     "single-week rotation always returns 0",
 			rotation: 1,
-			date:     time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+			date:     timezone.NewDate(2026, time.June, 1),
 			want:     0,
 		},
 		{
@@ -32,31 +33,31 @@ func TestResolveWeekIndex(t *testing.T) {
 		{
 			name:     "next week wraps to 1 (B)",
 			rotation: 2,
-			date:     monday.AddDate(0, 0, 7),
+			date:     monday.AddDays(7),
 			want:     1,
 		},
 		{
 			name:     "two weeks ahead wraps back to 0 (A)",
 			rotation: 2,
-			date:     monday.AddDate(0, 0, 14),
+			date:     monday.AddDays(14),
 			want:     0,
 		},
 		{
 			name:     "negative delta wraps forward",
 			rotation: 2,
-			date:     monday.AddDate(0, 0, -7),
+			date:     monday.AddDays(-7),
 			want:     1,
 		},
 		{
 			name:     "three-week rotation cycles correctly",
 			rotation: 3,
-			date:     monday.AddDate(0, 0, 14),
+			date:     monday.AddDays(14),
 			want:     2,
 		},
 		{
 			name:     "rotation 0 treated as 1",
 			rotation: 0,
-			date:     monday.AddDate(0, 0, 21),
+			date:     monday.AddDays(21),
 			want:     0,
 		},
 	}
@@ -66,7 +67,7 @@ func TestResolveWeekIndex(t *testing.T) {
 			got := config.ResolveWeekIndex(tc.rotation, monday, tc.date)
 			if got != tc.want {
 				t.Fatalf("ResolveWeekIndex(rotation=%d, date=%s) = %d, want %d",
-					tc.rotation, tc.date.Format("2006-01-02"), got, tc.want)
+					tc.rotation, tc.date.String(), got, tc.want)
 			}
 		})
 	}
@@ -75,7 +76,7 @@ func TestResolveWeekIndex(t *testing.T) {
 func TestWorkTimeModelValidate(t *testing.T) {
 	t.Parallel()
 
-	anchor := time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)
+	anchor := timezone.NewDate(2026, time.January, 5)
 
 	t.Run("valid model passes", func(t *testing.T) {
 		m := &config.WorkTimeModel{
@@ -151,7 +152,7 @@ func TestWorkTimeModelEntryValidate(t *testing.T) {
 func TestStaffWorkScheduleValidate(t *testing.T) {
 	t.Parallel()
 
-	anchor := time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)
+	anchor := timezone.NewDate(2026, time.January, 5)
 
 	t.Run("week_index outside rotation rejected", func(t *testing.T) {
 		s := &config.StaffWorkSchedule{

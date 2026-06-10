@@ -3,7 +3,6 @@ package education
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -229,7 +228,7 @@ func deleteGroupTeacherRelations(ctx context.Context, service Service, groupID i
 
 // deleteGroupSubstitutions deletes all substitutions for a group
 func deleteGroupSubstitutions(ctx context.Context, service Service, groupID int64) error {
-	substitutions, err := service.GetActiveGroupSubstitutions(ctx, groupID, time.Now())
+	substitutions, err := service.GetActiveGroupSubstitutions(ctx, groupID, timezone.TodayDate())
 	if err != nil || len(substitutions) == 0 {
 		return nil
 	}
@@ -639,7 +638,7 @@ func (s *service) CreateSubstitution(ctx context.Context, substitution *educatio
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := timezone.Today()
+	today := timezone.TodayDate()
 	if substitution.StartDate.Before(today) {
 		return &EducationError{Op: "CreateSubstitution", Err: ErrSubstitutionBackdated}
 	}
@@ -684,7 +683,7 @@ func (s *service) UpdateSubstitution(ctx context.Context, substitution *educatio
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := timezone.Today()
+	today := timezone.TodayDate()
 	if substitution.StartDate.Before(today) {
 		return &EducationError{Op: "UpdateSubstitution", Err: ErrSubstitutionBackdated}
 	}
@@ -770,7 +769,7 @@ func (s *service) ListSubstitutions(ctx context.Context, options *base.QueryOpti
 }
 
 // GetActiveSubstitutions gets all active substitutions for a specific date
-func (s *service) GetActiveSubstitutions(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
+func (s *service) GetActiveSubstitutions(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	substitutions, err := s.substitutionRepo.FindActiveWithRelations(ctx, date)
 	if err != nil {
 		return nil, &EducationError{Op: "GetActiveSubstitutions", Err: err}
@@ -779,7 +778,7 @@ func (s *service) GetActiveSubstitutions(ctx context.Context, date time.Time) ([
 }
 
 // GetActiveGroupSubstitutions gets active substitutions for a specific group and date
-func (s *service) GetActiveGroupSubstitutions(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+func (s *service) GetActiveGroupSubstitutions(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	// Verify group exists
 	_, err := s.groupRepo.FindByID(ctx, groupID)
 	if err != nil {
@@ -818,7 +817,7 @@ func (s *service) GetStaffSubstitutions(ctx context.Context, staffID int64, asRe
 }
 
 // CheckSubstitutionConflicts checks for conflicting substitutions for a staff member
-func (s *service) CheckSubstitutionConflicts(ctx context.Context, staffID int64, startDate, endDate time.Time) ([]*education.GroupSubstitution, error) {
+func (s *service) CheckSubstitutionConflicts(ctx context.Context, staffID int64, startDate, endDate timezone.Date) ([]*education.GroupSubstitution, error) {
 	// Verify staff exists
 	_, err := s.staffRepo.FindByID(ctx, staffID)
 	if err != nil {

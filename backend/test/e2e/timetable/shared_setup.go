@@ -306,8 +306,8 @@ type templateSpec struct {
 	staffIDs   []int64
 	studentIDs []int64
 	periodID   *int64
-	validFrom  time.Time
-	validUntil *time.Time
+	validFrom  timezone.Date
+	validUntil *timezone.Date
 }
 
 // templateFixture is the full bundle of rows behind one activity template.
@@ -320,7 +320,7 @@ type templateFixture struct {
 	roomID       int64
 	staffIDs     []int64
 	studentIDs   []int64
-	validFromUTC time.Time
+	validFromUTC timezone.Date
 }
 
 // buildTemplate inserts a full template bundle so materialize() will pick it up.
@@ -372,7 +372,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 
 	validFrom := spec.validFrom
 	if validFrom.IsZero() {
-		validFrom = time.Now().AddDate(0, -1, 0)
+		validFrom = timezone.TodayDate().AddDays(-30)
 	}
 
 	var enrollmentIDs []int64

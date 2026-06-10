@@ -1027,8 +1027,8 @@ func buildSubstitutionInfoList(subs []*education.GroupSubstitution) []Substituti
 			ID:         sub.ID,
 			GroupID:    sub.GroupID,
 			IsTransfer: sub.Duration() == 1,
-			StartDate:  sub.StartDate.Format(common.DateFormatISO),
-			EndDate:    sub.EndDate.Format(common.DateFormatISO),
+			StartDate:  sub.StartDate.String(),
+			EndDate:    sub.EndDate.String(),
 		}
 		if sub.Group != nil {
 			info.GroupName = sub.Group.Name
@@ -1092,9 +1092,9 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	searchTerm := r.URL.Query().Get("search")
 	ctx := r.Context()
 
-	date := time.Now()
+	date := timezone.TodayDate()
 	if dateStr != "" {
-		if parsedDate, err := time.Parse(common.DateFormatISO, dateStr); err == nil {
+		if parsedDate, err := timezone.ParseDate(dateStr); err == nil {
 			date = parsedDate
 		}
 	}
@@ -1120,7 +1120,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 }
 
 // buildSubstitutionMap creates a map of staff IDs to their active substitutions
-func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) map[int64][]*education.GroupSubstitution {
+func (rs *Resource) buildSubstitutionMap(ctx context.Context, date timezone.Date) map[int64][]*education.GroupSubstitution {
 	result := make(map[int64][]*education.GroupSubstitution)
 	if rs.EducationService == nil {
 		return result
@@ -1706,10 +1706,10 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 				ID:                 model.ID,
 				Name:               model.Name,
 				RotationLength:     model.RotationLength,
-				RotationAnchorDate: model.RotationAnchorDate.Format("2006-01-02"),
+				RotationAnchorDate: model.RotationAnchorDate.String(),
 			},
 			RotationLength:     rotation,
-			RotationAnchorDate: anchor.Format("2006-01-02"),
+			RotationAnchorDate: anchor.String(),
 			Entries:            entries,
 			WeeklyTotals:       totals,
 		}, nil
@@ -1721,14 +1721,14 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 	}
 
 	entries, totals, rotation := scheduleRowsToResponseParts(rows)
-	var earliest *time.Time
+	var earliest *timezone.Date
 	for _, row := range rows {
 		if earliest == nil || row.ValidFrom.Before(*earliest) {
 			vf := row.ValidFrom
 			earliest = &vf
 		}
 	}
-	anchor := time.Time{}
+	anchor := timezone.Date{}
 	if staff.RotationAnchorDate != nil {
 		anchor = *staff.RotationAnchorDate
 	} else if earliest != nil {
@@ -1737,14 +1737,23 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 	resp := &ScheduleResponse{
 		Mode:               "custom",
 		RotationLength:     rotation,
-		RotationAnchorDate: anchor.Format("2006-01-02"),
+		RotationAnchorDate: anchorString(anchor),
 		Entries:            entries,
 		WeeklyTotals:       totals,
 	}
 	if earliest != nil {
-		resp.ValidFrom = earliest.Format("2006-01-02")
+		resp.ValidFrom = earliest.String()
 	}
 	return resp, nil
+}
+
+// anchorString renders a rotation anchor; the zero Date (no anchor and no
+// schedule rows, only possible with rotation_length 1) renders empty.
+func anchorString(anchor timezone.Date) string {
+	if anchor.IsZero() {
+		return ""
+	}
+	return anchor.String()
 }
 
 func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staff, modelID int64) error {
@@ -1776,9 +1785,9 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 		return scheduleValidationErrorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
 	}
 
-	anchor := time.Time{}
+	anchor := timezone.Date{}
 	if req.RotationAnchorDate != "" {
-		parsed, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+		parsed, err := timezone.ParseDate(req.RotationAnchorDate)
 		if err != nil {
 			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
 		}
@@ -1838,12 +1847,9 @@ func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*c
 	return entries, templateEntries, nil
 }
 
-func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor time.Time, entries []*config.WorkTimeModelEntry) error {
+func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor timezone.Date, entries []*config.WorkTimeModelEntry) error {
 	if anchor.IsZero() {
-		// Berlin calendar day at UTC midnight, matching how the DATE column
-		// binds; the old Truncate(24h) form took the UTC day, one behind
-		// Berlin between 00:00 and 02:00.
-		anchor = timezone.TodayUTC()
+		anchor = timezone.TodayDate()
 	}
 	model := &config.WorkTimeModel{
 		Name:               name,

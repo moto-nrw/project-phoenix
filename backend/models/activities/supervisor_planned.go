@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -12,12 +13,12 @@ import (
 type SupervisorPlanned struct {
 	base.Model `bun:"schema:activities,table:supervisors"`
 	base.TenantModel
-	StaffID          int64      `bun:"staff_id,notnull" json:"staff_id"`
-	GroupID          int64      `bun:"group_id,notnull" json:"group_id"`
-	IsPrimary        bool       `bun:"is_primary,notnull,default:false" json:"is_primary"`
-	ValidFrom        time.Time  `bun:"valid_from,notnull,default:current_date" json:"valid_from"`
-	ValidUntil       *time.Time `bun:"valid_until" json:"valid_until,omitempty"`
-	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	StaffID          int64          `bun:"staff_id,notnull" json:"staff_id"`
+	GroupID          int64          `bun:"group_id,notnull" json:"group_id"`
+	IsPrimary        bool           `bun:"is_primary,notnull,default:false" json:"is_primary"`
+	ValidFrom        timezone.Date  `bun:"valid_from,notnull,default:current_date" json:"valid_from"`
+	ValidUntil       *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
+	CalendarPeriodID *int64         `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`

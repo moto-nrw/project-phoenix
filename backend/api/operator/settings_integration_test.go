@@ -449,7 +449,7 @@ func presenceModeAttendanceCleanup(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
 	_, err := db.ExecContext(context.Background(),
 		`DELETE FROM active.attendance WHERE date = ? AND tenant_id = ?`,
-		timezone.TodayUTC(),
+		timezone.TodayDate(),
 		tenantID,
 	)
 	require.NoError(t, err)
@@ -493,7 +493,7 @@ func createPresenceModeAttendanceForTenant(
 		VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
 		tenantID,
 		studentID,
-		timezone.TodayUTC(),
+		timezone.TodayDate(),
 		checkInTime,
 		checkOutTime,
 		staffID,

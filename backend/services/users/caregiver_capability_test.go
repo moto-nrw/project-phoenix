@@ -9,6 +9,7 @@ import (
 
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -564,8 +565,8 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		group.ID,
 		nil,
 		teacher.Staff.ID,
-		time.Now().Add(-24*time.Hour),
-		time.Now().Add(24*time.Hour),
+		timezone.TodayDate().AddDays(-1),
+		timezone.TodayDate().AddDays(1),
 	)
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "education.group_substitution", substitution.ID)

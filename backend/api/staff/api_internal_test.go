@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -98,7 +99,7 @@ func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *tes
 }
 
 func TestBuildSubstitutionInfoList(t *testing.T) {
-	start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	start := timezone.NewDate(2026, time.April, 1)
 	substitutions := []*education.GroupSubstitution{
 		{
 			Model:     base.Model{ID: 11},
@@ -111,7 +112,7 @@ func TestBuildSubstitutionInfoList(t *testing.T) {
 			Model:     base.Model{ID: 12},
 			GroupID:   102,
 			StartDate: start,
-			EndDate:   start.Add(48 * time.Hour),
+			EndDate:   start.AddDays(2),
 		},
 	}
 

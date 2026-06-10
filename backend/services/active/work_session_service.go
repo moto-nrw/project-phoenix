@@ -1011,7 +1011,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 			continue
 		}
 		seen[key] = true
-		target, ok := s.weeklyTargetFromDateValidSchedule(ctx, staffID, staff, isoWeekStart(session.Date.UTCMidnight()))
+		target, ok := s.weeklyTargetFromDateValidSchedule(ctx, staffID, staff, isoWeekStart(session.Date))
 		if ok {
 			targetsByWeek[key] = target
 		}
@@ -1026,12 +1026,12 @@ func (s *workSessionService) weeklyTargetFromDateValidSchedule(
 	ctx context.Context,
 	staffID int64,
 	staff *userModels.Staff,
-	weekStart time.Time,
+	weekStart timezone.Date,
 ) (int, bool) {
 	total := 0
 	found := false
 	for offset := 0; offset < 7; offset++ {
-		date := weekStart.AddDate(0, 0, offset)
+		date := weekStart.AddDays(offset)
 		entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, date)
 		if err != nil || len(entries) == 0 {
 			continue
@@ -1049,7 +1049,7 @@ func (s *workSessionService) weeklyTargetFromDateValidSchedule(
 	return total, found
 }
 
-func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
 	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
 		return nil
 	}
@@ -1064,7 +1064,7 @@ func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor time.Time,
 	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
 }
 
-func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor time.Time, sessions []*SessionResponse) map[summaryWeekKey]int {
+func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
 	if len(targetsByRotationWeek) == 0 {
 		return nil
 	}
@@ -1075,7 +1075,7 @@ func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotatio
 		if _, ok := targetsByWeek[key]; ok {
 			continue
 		}
-		weekStart := isoWeekStart(session.Date.UTCMidnight())
+		weekStart := isoWeekStart(session.Date)
 		rotationWeek := configModels.ResolveWeekIndex(rotation, isoWeekStart(anchor), weekStart)
 		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
 			targetsByWeek[key] = target
@@ -1084,11 +1084,11 @@ func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotatio
 	return targetsByWeek
 }
 
-func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) time.Time {
+func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) timezone.Date {
 	if staff != nil && staff.RotationAnchorDate != nil {
 		return *staff.RotationAnchorDate
 	}
-	var earliest time.Time
+	var earliest timezone.Date
 	for _, e := range entries {
 		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
 			earliest = e.ValidFrom
@@ -1110,16 +1110,15 @@ func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
 	return rotation
 }
 
-func isoWeekStart(date time.Time) time.Time {
-	normalized := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	weekday := int(normalized.Weekday())
+func isoWeekStart(date timezone.Date) timezone.Date {
+	weekday := int(date.Weekday())
 	if weekday == 0 {
 		weekday = 7
 	}
-	return normalized.AddDate(0, 0, 1-weekday)
+	return date.AddDays(1 - weekday)
 }
 
-func isoDayIndex(date time.Time) int {
+func isoDayIndex(date timezone.Date) int {
 	weekday := int(date.Weekday())
 	if weekday == 0 {
 		return configModels.DaySunday

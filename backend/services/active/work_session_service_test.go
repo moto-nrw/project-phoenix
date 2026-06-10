@@ -122,7 +122,7 @@ func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id
 
 type wsMockStaffWorkScheduleRepository struct {
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
-	getByStaffIDAndDateFunc func(ctx context.Context, staffID int64, date time.Time) ([]*configModels.StaffWorkSchedule, error)
+	getByStaffIDAndDateFunc func(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error)
 	replaceScheduleFunc     func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule) error
 }
 
@@ -133,7 +133,7 @@ func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Cont
 	return nil, nil
 }
 
-func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date time.Time) ([]*configModels.StaffWorkSchedule, error) {
+func (m *wsMockStaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
 	if m.getByStaffIDAndDateFunc != nil {
 		return m.getByStaffIDAndDateFunc(ctx, staffID, date)
 	}
@@ -1281,8 +1281,8 @@ func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	checkOutWeekOne := mondayWeekOne.Add(30 * time.Hour)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
-			validFrom := time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC)
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+			validFrom := timezone.NewDate(2026, 6, 3)
 			return []*configModels.StaffWorkSchedule{
 				{
 					StaffID:        staffID,
@@ -1356,14 +1356,14 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 	newWeek := time.Date(2026, 6, 10, 8, 0, 0, 0, time.UTC)
 	checkOutOldWeek := oldWeek.Add(20 * time.Hour)
 	checkOutNewWeek := newWeek.Add(30 * time.Hour)
-	changeDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	changeDate := timezone.NewDate(2026, 6, 8)
 
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
 		getCurrentByStaffIDFunc: func(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
 			t.Fatal("history targets must use date-valid schedule rows")
 			return nil, nil
 		},
-		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, date time.Time) ([]*configModels.StaffWorkSchedule, error) {
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
 			if date.Before(changeDate) {
 				return []*configModels.StaffWorkSchedule{
 					{
@@ -1372,7 +1372,7 @@ func TestWSGetHistory_UsesDateValidCustomScheduleTargets(t *testing.T) {
 						RotationLength: 1,
 						DayOfWeek:      configModels.DayWednesday,
 						TargetMinutes:  20 * 60,
-						ValidFrom:      time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+						ValidFrom:      timezone.NewDate(2026, 1, 1),
 					},
 				}, nil
 			}
@@ -1435,7 +1435,7 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
 	modelID := int64(2300)
-	anchor := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	anchor := timezone.NewDate(2026, 6, 1)
 	weekZero := time.Date(2026, 6, 3, 8, 0, 0, 0, time.UTC)
 	weekOne := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 	checkOutWeekZero := weekZero.Add(25 * time.Hour)
@@ -1457,7 +1457,7 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 		},
 	}
 	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
-		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ time.Time) ([]*configModels.StaffWorkSchedule, error) {
+		getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
 			return []*configModels.StaffWorkSchedule{
 				{
 					WeekIndex:      0,

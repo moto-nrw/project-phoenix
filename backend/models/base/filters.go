@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -157,8 +158,10 @@ func (f *Filter) DateRange(field string, start, end time.Time) *Filter {
 	return f.GreaterThanOrEqual(field, start).LessThanOrEqual(field, end)
 }
 
-// DateBetween adds a date between filter for a date contained within a range
-func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filter {
+// DateBetween adds a date between filter for a calendar date contained within
+// a [startField, endField] range of DATE columns. timezone.Date binds as a
+// 'YYYY-MM-DD' literal, so no UTC shift can occur.
+func (f *Filter) DateBetween(startField, endField string, date timezone.Date) *Filter {
 	f.LessThanOrEqual(startField, date)
 	f.GreaterThanOrEqual(endField, date)
 	return f
