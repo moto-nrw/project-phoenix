@@ -229,3 +229,82 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 	assert.Equal(t, "Mila Schmidt", view.StudentName, "child name must be resolved via student→person")
 	assert.Equal(t, requester.Email, view.RequestedByEmail, "requester email must be resolved")
 }
+
+func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Reject", "Flow", "5e")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("rejected-guardian-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	// Parent-initiated, requires approval → creates a fresh orphan profile +
+	// a pending invitation, but no link.
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		FirstName:                  "Orphan",
+		LastName:                   "Guardian",
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+
+	require.NoError(t, env.service.RejectInvitation(ctx, *result.InvitationID, creatorID))
+
+	// No access granted: no link to the child.
+	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID))
+
+	// The profile created only to back this request (no account, no links) is
+	// cleaned up. Deleting it cascades to the invitation row (FK ON DELETE
+	// CASCADE), so the whole speculative record disappears on reject.
+	profile, _ := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	assert.Nil(t, profile, "orphan profile must be removed on reject")
+	inv, _ := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	assert.Nil(t, inv, "the rejected orphan invitation is cascade-deleted with its profile")
+}
+
+func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Approve", "Existing", "6f")
+	// A guardian who already has an account.
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "approve-existing")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Has", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+
+	// Parent-initiated, requires approval → pending, no link yet.
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
+	assert.Equal(t, profile.ID, result.GuardianProfileID)
+	assert.False(t, env.linkExists(t, student.ID, profile.ID), "no link before approval")
+
+	// Approve → links the child to the existing account, no token email needed.
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	assert.True(t, env.linkExists(t, student.ID, profile.ID), "approval must link the child")
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
+	assert.NotNil(t, inv.AcceptedAt, "existing-account approval closes the invitation")
+}
