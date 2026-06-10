@@ -159,6 +159,58 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
+func TestInstanceStaffRepository_DeleteFutureByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+
+	cutoff := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	pastInst, cleanupPast := createInstanceFixture(t, db, "offb-past", cutoff.AddDate(0, 0, -7))
+	defer cleanupPast()
+	sameDayInst, cleanupSameDay := createInstanceFixture(t, db, "offb-today", cutoff)
+	defer cleanupSameDay()
+	futureInst, cleanupFuture := createInstanceFixture(t, db, "offb-future", cutoff.AddDate(0, 0, 7))
+	defer cleanupFuture()
+
+	staff := testpkg.CreateTestStaff(t, db, "Olga", fmt.Sprintf("Offboard-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	otherStaff := testpkg.CreateTestStaff(t, db, "Omar", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, otherStaff.ID)
+
+	makeRow := func(instanceID, staffID int64) *scheduleModels.InstanceStaff {
+		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
+		return row
+	}
+	pastRow := makeRow(pastInst.ID, staff.ID)
+	sameDayRow := makeRow(sameDayInst.ID, staff.ID)
+	futureRow := makeRow(futureInst.ID, staff.ID)
+	otherFutureRow := makeRow(futureInst.ID, otherStaff.ID)
+
+	deleted, err := repo.DeleteFutureByStaffID(ctx, staff.ID, cutoff)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+
+	remaining := func(instanceID int64) []int64 {
+		rows, findErr := repo.FindByInstanceID(ctx, instanceID)
+		require.NoError(t, findErr)
+		ids := make([]int64, 0, len(rows))
+		for _, r := range rows {
+			ids = append(ids, r.ID)
+		}
+		return ids
+	}
+	assert.Contains(t, remaining(pastInst.ID), pastRow.ID, "past assignment must stay")
+	assert.Contains(t, remaining(sameDayInst.ID), sameDayRow.ID, "same-day assignment must stay")
+	futureIDs := remaining(futureInst.ID)
+	assert.NotContains(t, futureIDs, futureRow.ID, "future assignment must be deleted")
+	assert.Contains(t, futureIDs, otherFutureRow.ID, "other staff's assignment must stay")
+}
+
 func TestInstanceStaffRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -113,6 +113,10 @@ type SupervisorPlannedRepository interface {
 
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
+
+	// DeleteByStaffID removes all planned supervisions for a staff member
+	// (staff offboarding cleanup).
+	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments

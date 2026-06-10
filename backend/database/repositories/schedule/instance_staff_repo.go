@@ -153,6 +153,34 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 	return rows, nil
 }
 
+// DeleteFutureByStaffID removes the staff member's assignments on instances
+// dated strictly after the given date. Past and same-day assignments stay as
+// history. Used by staff offboarding, where the staff row is only soft-deleted
+// and the RESTRICT FK no longer applies.
+func (r *InstanceStaffRepository) DeleteFutureByStaffID(ctx context.Context, staffID int64, after time.Time) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.InstanceStaff)(nil)).
+		ModelTableExpr(modelTblInstanceStaff).
+		Where(`"instance_staff".staff_id = ?`, staffID).
+		Where(`"instance_staff".instance_id IN (
+			SELECT id FROM schedule.activity_instances WHERE date > ?
+		)`, after)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete future by staff id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // CountNonAbsentByInstanceIDs groups instance_staff by instance_id and returns
 // the count of rows with is_absent=false per instance. One query with GROUP BY.
 // Instances with zero non-absent rows do not appear in the returned map —

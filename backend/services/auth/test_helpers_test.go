@@ -1207,6 +1207,19 @@ func (r *stubAccountTenantRepository) EnsureActive(_ context.Context, accountTen
 	return nil
 }
 
+func (r *stubAccountTenantRepository) Deactivate(_ context.Context, accountID, tenantID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountID && mapping.TenantID == tenantID {
+			mapping.Status = authModel.AccountTenantStatusInactive
+			mapping.DeactivatedAt = &now
+		}
+	}
+	return nil
+}
+
 func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, accountID int64) ([]authModel.AccountTenant, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

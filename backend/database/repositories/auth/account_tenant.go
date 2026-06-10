@@ -73,6 +73,22 @@ func (r *AccountTenantRepository) EnsureActive(ctx context.Context, mapping *aut
 	return err
 }
 
+// Deactivate marks the mapping for the given account and tenant as inactive.
+// The row is kept (with deactivated_at) so EnsureActive can reactivate it on a
+// later re-invitation.
+func (r *AccountTenantRepository) Deactivate(ctx context.Context, accountID, tenantID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.AccountTenant)(nil)).
+		ModelTableExpr(accountTenantTable).
+		Set("status = ?", auth.AccountTenantStatusInactive).
+		Set("deactivated_at = NOW()").
+		Set("updated_at = NOW()").
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Exec(ctx)
+	return err
+}
+
 // FindActiveByAccountID returns all active tenant mappings for an account.
 func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
 	var items []auth.AccountTenant

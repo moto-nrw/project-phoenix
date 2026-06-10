@@ -167,6 +167,9 @@ func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids 
 func (r *autoStartStaffRepo) DeleteByInstanceID(context.Context, int64) error {
 	return nil
 }
+func (r *autoStartStaffRepo) DeleteFutureByStaffID(context.Context, int64, time.Time) (int64, error) {
+	return 0, nil
+}
 
 type autoStartInstanceStarter struct {
 	startedIDs        []int64

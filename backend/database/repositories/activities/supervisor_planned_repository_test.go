@@ -191,6 +191,42 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 	})
 }
 
+func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivitySupervisor
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Supervisor")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Supervisor")
+	groupA := testpkg.CreateTestActivityGroup(t, db, "DelByStaffA")
+	groupB := testpkg.CreateTestActivityGroup(t, db, "DelByStaffB")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, groupA.CategoryID, 0)
+	defer testpkg.CleanupActivityFixtures(t, db, 0, otherStaff.ID, 0, groupB.CategoryID, 0)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", groupA.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.groups", groupB.ID)
+
+	supA := createSupervisor(t, db, staff.ID, groupA.ID, true)
+	supB := createSupervisor(t, db, staff.ID, groupB.ID, false)
+	supOther := createSupervisor(t, db, otherStaff.ID, groupA.ID, false)
+	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supA.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supB.ID)
+	defer testpkg.CleanupTableRecords(t, db, "activities.supervisors", supOther.ID)
+
+	deleted, err := repo.DeleteByStaffID(ctx, staff.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deleted)
+
+	remaining, err := repo.FindByStaffID(ctx, staff.ID)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+
+	otherRemaining, err := repo.FindByStaffID(ctx, otherStaff.ID)
+	require.NoError(t, err)
+	assert.Len(t, otherRemaining, 1)
+}
+
 // ============================================================================
 // Query Tests
 // ============================================================================

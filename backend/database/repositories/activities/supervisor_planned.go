@@ -337,6 +337,30 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 	return nil
 }
 
+// DeleteByStaffID removes all planned supervisions for a staff member. Used by
+// staff offboarding, where the staff row is only soft-deleted and the old
+// ON DELETE CASCADE therefore no longer cleans up assignments.
+func (r *SupervisorPlannedRepository) DeleteByStaffID(ctx context.Context, staffID int64) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(tableExprSupervisorPlanned).
+		Where(`"supervisor_planned".staff_id = ?`, staffID)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete by staff id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
 	supervisors := make([]*activities.SupervisorPlanned, 0)
