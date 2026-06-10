@@ -44,7 +44,7 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *us
 		return nil
 	}
 
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	// Only the sick status carries a free-text reason; excused stays note-less.
 	if err := rs.persistSingleStatusHistory(ctx, student.ID, active.StudentStatusDaySick, wasSick, boolPtrValue(student.Sick), statusReportedAt(now, student.SickSince), today, now, sickNote); err != nil {
 		return err
@@ -55,7 +55,7 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *us
 	return nil
 }
 
-func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, wasActive, isActive bool, reportedAt, date, now time.Time, note *string) error {
+func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, wasActive, isActive bool, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
 	if isActive {
 		return rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
 			StudentID:  studentID,

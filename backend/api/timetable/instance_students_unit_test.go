@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -76,10 +77,10 @@ func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.Instanc
 func (f *fakeRepo) FindExpectedByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*schedule.InstanceStudent, error) {
+func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
-func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
+func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezone.Date) ([]int64, error) {
 	panic("unused")
 }
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
@@ -87,7 +88,7 @@ func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string) (int
 	panic("unused")
 }
 
-func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*schedule.ScheduledInstanceRow, error) {
+func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 
@@ -595,6 +596,6 @@ func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, 
 	panic("unused")
 }
 
-func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, time.Time) ([]schedule.StudentInstanceRef, error) {
+func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]schedule.StudentInstanceRef, error) {
 	panic("unused")
 }

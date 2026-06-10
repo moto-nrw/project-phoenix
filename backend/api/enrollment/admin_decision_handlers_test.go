@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -141,7 +142,7 @@ func makeChildSummary(id int64, firstName, lastName, status string) *enrollmentM
 		Model:          baseModel.Model{ID: id},
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:    timezone.NewDate(2018, 4, 15),
 		Status:         status,
 		ActivationMode: enrollmentModels.ChildActivationScheduled,
 	}

@@ -4,9 +4,9 @@ package users
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -110,12 +110,12 @@ func (r *GuestRepository) FindByExpertise(ctx context.Context, expertise string)
 // FindActive retrieves currently active guests
 func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error) {
 	var guests []*users.Guest
-	now := time.Now()
+	today := timezone.TodayDate()
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&guests).
 		ModelTableExpr(tableExprGuestsAsGuest).
-		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", now, now)
+		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", today, today)
 
 	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
 		query = query.Where(where, val)
@@ -134,7 +134,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 }
 
 // SetDateRange sets a guest's start and end dates
-func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate, endDate time.Time) error {
+func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate, endDate timezone.Date) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Guest)(nil)).
 		ModelTableExpr(tableExprGuestsAsGuest).
@@ -230,15 +230,15 @@ func applyGuestStringLikeFilter(filter *modelBase.Filter, column string, value i
 // applyActiveDateRangeFilter applies active date range filter using current time
 func applyActiveDateRangeFilter(filter *modelBase.Filter, value interface{}) {
 	if boolValue, ok := value.(bool); ok && boolValue {
-		now := time.Now()
-		filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, now)
-		filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, now)
+		today := timezone.TodayDate()
+		filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, today)
+		filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, today)
 	}
 }
 
 // applyCustomDateRangeFilter applies date range filter for a specific date
 func applyCustomDateRangeFilter(filter *modelBase.Filter, value interface{}) {
-	if dateValue, ok := value.(time.Time); ok {
+	if dateValue, ok := value.(timezone.Date); ok {
 		filter.Where("start_date IS NULL OR start_date <= ?", modelBase.OpEqual, dateValue)
 		filter.Where("end_date IS NULL OR end_date >= ?", modelBase.OpEqual, dateValue)
 	}

@@ -9,6 +9,7 @@ import {
   type RolloverMode,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RolloverForm" });
@@ -16,27 +17,26 @@ const logger = createLogger({ component: "RolloverForm" });
 // Pre-fill helper: the new phase defaults to one year after the
 // source phase's service window. Admin can override every field.
 function prefillFromSource(source: Phase): RolloverInput {
-  const start = new Date(source.service_start_date);
-  const end = new Date(source.service_end_date);
+  const start = parseISODate(source.service_start_date);
+  const end = parseISODate(source.service_end_date);
   const oneYear = (d: Date) => {
     const next = new Date(d);
-    next.setUTCFullYear(d.getUTCFullYear() + 1);
+    next.setFullYear(d.getFullYear() + 1);
     return next;
   };
-  const toDate = (d: Date) => d.toISOString().slice(0, 10);
 
   const nextStart = oneYear(start);
   const nextEnd = oneYear(end);
 
   // Deadline default: two weeks before the new service start.
   const deadline = new Date(nextStart);
-  deadline.setUTCDate(deadline.getUTCDate() - 14);
+  deadline.setDate(deadline.getDate() - 14);
 
   return {
     name: `${source.name} (Folgejahr)`,
     kind: source.kind,
-    service_start_date: toDate(nextStart),
-    service_end_date: toDate(nextEnd),
+    service_start_date: toISODate(nextStart),
+    service_end_date: toISODate(nextEnd),
     enrollment_open_at: null,
     enrollment_close_at: null,
     form_schema_id: source.form_schema_id ?? null,

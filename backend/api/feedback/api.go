@@ -14,17 +14,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-)
-
-// Constants for date formats (S1192 - avoid duplicate string literals)
-const (
-	dateFormatYMD = "2006-01-02"
 )
 
 // Resource defines the feedback API resource
@@ -121,7 +117,7 @@ func (req *FeedbackRequest) Bind(_ *http.Request) error {
 	}
 
 	// Validate date format
-	_, err := time.Parse(dateFormatYMD, req.Day)
+	_, err := timezone.ParseDate(req.Day)
 	if err != nil {
 		return errors.New("day must be in YYYY-MM-DD format")
 	}
@@ -184,7 +180,7 @@ func newFeedbackResponse(entry *feedback.Entry) FeedbackResponse {
 // requestToModel converts a request to a model
 func requestToModel(req *FeedbackRequest) (*feedback.Entry, error) {
 	// Parse day
-	day, err := time.Parse(dateFormatYMD, req.Day)
+	day, err := timezone.ParseDate(req.Day)
 	if err != nil {
 		return nil, errors.New("invalid day format, expected YYYY-MM-DD")
 	}
@@ -228,7 +224,7 @@ func (rs *Resource) listFeedback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if dateStr != "" {
-		date, err := time.Parse(dateFormatYMD, dateStr)
+		date, err := timezone.ParseDate(dateStr)
 		if err == nil {
 			filters["day"] = date
 		}
@@ -312,7 +308,7 @@ func (rs *Resource) getStudentFeedback(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) getDateFeedback(w http.ResponseWriter, r *http.Request) {
 	// Parse date from URL
 	dateStr := chi.URLParam(r, "date")
-	day, err := time.Parse(dateFormatYMD, dateStr)
+	day, err := timezone.ParseDate(dateStr)
 	if err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return
@@ -364,14 +360,14 @@ func (rs *Resource) getDateRangeFeedback(w http.ResponseWriter, r *http.Request)
 	studentIDStr := r.URL.Query().Get("student_id")
 
 	// Parse start date
-	startDate, err := time.Parse(dateFormatYMD, startDateStr)
+	startDate, err := timezone.ParseDate(startDateStr)
 	if err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start date format, expected YYYY-MM-DD")))
 		return
 	}
 
 	// Parse end date
-	endDate, err := time.Parse(dateFormatYMD, endDateStr)
+	endDate, err := timezone.ParseDate(endDateStr)
 	if err != nil {
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end date format, expected YYYY-MM-DD")))
 		return

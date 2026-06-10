@@ -10,6 +10,7 @@ import (
 
 	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -91,9 +92,9 @@ func (f *instFixture) cleanup(t *testing.T) {
 
 // newInstanceFixture inserts an ActivityInstance row and returns the ID. The
 // template-backed flag controls whether activity_group_id is set.
-func (f *instFixture) newInstance(t *testing.T, date time.Time, status string, roomID int64, templateID *int64) int64 {
+func (f *instFixture) newInstance(t *testing.T, date timezone.Date, status string, roomID int64, templateID *int64) int64 {
 	t.Helper()
-	title := fmt.Sprintf("Inst-%d-%s", date.Unix(), status)
+	title := fmt.Sprintf("Inst-%s-%s", date, status)
 	inst := &scheduleModels.ActivityInstance{
 		Date:            date,
 		Title:           title,
@@ -113,7 +114,7 @@ func (f *instFixture) newInstance(t *testing.T, date time.Time, status string, r
 }
 
 // newException inserts an ActivityException row for the given date.
-func (f *instFixture) newException(t *testing.T, activityGroupID int64, date time.Time, exceptionType string) int64 {
+func (f *instFixture) newException(t *testing.T, activityGroupID int64, date timezone.Date, exceptionType string) int64 {
 	t.Helper()
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activityGroupID,
@@ -198,8 +199,8 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400) // past 365d retention
-	recent := time.Now().UTC().AddDate(0, 0, -30)
+	old := timezone.TodayDate().AddDays(-400) // past 365d retention
+	recent := timezone.TodayDate().AddDays(-30)
 
 	// 3 instances: 2 old (should delete), 1 recent (should survive).
 	oldID1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
@@ -264,7 +265,7 @@ func TestCleanup_Idempotent_SecondRunDeletesZero(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	r1, err := svc.CleanupExpiredTimetableData(f.ctx)
@@ -281,7 +282,7 @@ func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	staff := testpkg.CreateTestStaffForTenant(t, f.db, f.tenantID, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
@@ -320,8 +321,8 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 		slog.Default(),
 	)
 
-	sixtyDaysOld := time.Now().UTC().AddDate(0, 0, -60)
-	tenDaysOld := time.Now().UTC().AddDate(0, 0, -10)
+	sixtyDaysOld := timezone.TodayDate().AddDays(-60)
+	tenDaysOld := timezone.TodayDate().AddDays(-10)
 
 	oldID := f.newInstance(t, sixtyDaysOld, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	freshID := f.newInstance(t, tenDaysOld, scheduleModels.InstanceStatusCompleted, roomID, nil)
@@ -339,7 +340,7 @@ func TestCleanup_AllStatuses_DeletesPlannedActiveCompletedCancelled(t *testing.T
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	for _, status := range []string{
 		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusActive,
@@ -362,7 +363,7 @@ func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing
 	f.categoryIDs = append(f.categoryIDs, cat.ID)
 	template := createTemplate(t, f, roomID, cat.ID)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, &template.ID)
 	f.newException(t, template.ID, old, scheduleModels.ActivityExceptionCancelled)
 
@@ -384,7 +385,7 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	inst1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	inst2 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
@@ -436,7 +437,7 @@ func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Sensitive", fmt.Sprintf("Note-%d", time.Now().UnixNano()), "3a")
@@ -471,7 +472,7 @@ func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
 	svc := newCleanupSvc(f.db)
 
 	// Tenant A has one old instance.
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	// Insert a row for a different tenant_id directly to bypass the
@@ -544,7 +545,7 @@ func (r *failingAuditRepo) CountByType(context.Context, string, time.Time) (int6
 func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 	f, roomID := setupFixture(t)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	instID := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 
 	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "AuditFail", fmt.Sprintf("Stud-%d", time.Now().UnixNano()), "3a")
@@ -585,7 +586,7 @@ func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
-	old := time.Now().UTC().AddDate(0, 0, -400)
+	old := timezone.TodayDate().AddDays(-400)
 	inst1 := f.newInstance(t, old, scheduleModels.InstanceStatusCompleted, roomID, nil)
 	inst2 := f.newInstance(t, old, scheduleModels.InstanceStatusCancelled, roomID, nil)
 

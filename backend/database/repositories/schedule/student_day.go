@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -29,32 +30,32 @@ type scheduledInstanceScan struct {
 	IsUpdatedAt   time.Time  `bun:"is_updated_at"`
 
 	// activity_instances columns
-	AiID              int64      `bun:"ai_id"`
-	AiTenantID        int64      `bun:"ai_tenant_id"`
-	AiDate            time.Time  `bun:"ai_date"`
-	AiActivityGroupID *int64     `bun:"ai_activity_group_id"`
-	AiCalendarPeriod  *int64     `bun:"ai_calendar_period_id"`
-	AiTitle           string     `bun:"ai_title"`
-	AiDescription     *string    `bun:"ai_description"`
-	AiStartTime       time.Time  `bun:"ai_start_time"`
-	AiEndTime         time.Time  `bun:"ai_end_time"`
-	AiRoomID          int64      `bun:"ai_room_id"`
-	AiStatus          string     `bun:"ai_status"`
-	AiActiveGroupID   *int64     `bun:"ai_active_group_id"`
-	AiIsSpontaneous   bool       `bun:"ai_is_spontaneous"`
-	AiNotes           *string    `bun:"ai_notes"`
-	AiCreatedBy       *int64     `bun:"ai_created_by"`
-	AiStartedBy       *int64     `bun:"ai_started_by"`
-	AiStartedAt       *time.Time `bun:"ai_started_at"`
-	AiCompletedAt     *time.Time `bun:"ai_completed_at"`
-	AiCreatedAt       time.Time  `bun:"ai_created_at"`
-	AiUpdatedAt       time.Time  `bun:"ai_updated_at"`
+	AiID              int64         `bun:"ai_id"`
+	AiTenantID        int64         `bun:"ai_tenant_id"`
+	AiDate            timezone.Date `bun:"ai_date"`
+	AiActivityGroupID *int64        `bun:"ai_activity_group_id"`
+	AiCalendarPeriod  *int64        `bun:"ai_calendar_period_id"`
+	AiTitle           string        `bun:"ai_title"`
+	AiDescription     *string       `bun:"ai_description"`
+	AiStartTime       time.Time     `bun:"ai_start_time"`
+	AiEndTime         time.Time     `bun:"ai_end_time"`
+	AiRoomID          int64         `bun:"ai_room_id"`
+	AiStatus          string        `bun:"ai_status"`
+	AiActiveGroupID   *int64        `bun:"ai_active_group_id"`
+	AiIsSpontaneous   bool          `bun:"ai_is_spontaneous"`
+	AiNotes           *string       `bun:"ai_notes"`
+	AiCreatedBy       *int64        `bun:"ai_created_by"`
+	AiStartedBy       *int64        `bun:"ai_started_by"`
+	AiStartedAt       *time.Time    `bun:"ai_started_at"`
+	AiCompletedAt     *time.Time    `bun:"ai_completed_at"`
+	AiCreatedAt       time.Time     `bun:"ai_created_at"`
+	AiUpdatedAt       time.Time     `bun:"ai_updated_at"`
 }
 
 // FindInstancesWithAttendanceByStudentAndDateRange implements
 // schedule.InstanceStudentRepository.
 func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateRange(
-	ctx context.Context, studentID int64, from, to time.Time,
+	ctx context.Context, studentID int64, from, to timezone.Date,
 ) ([]*schedule.ScheduledInstanceRow, error) {
 	var scans []scheduledInstanceScan
 
@@ -153,19 +154,18 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 	return out, nil
 }
 
-func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error) {
+func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error) {
 	if len(studentIDs) == 0 {
 		return []int64{}, nil
 	}
 
 	var ids []int64
-	dateOnly := dateParam(date)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`schedule.instance_students AS "instance_student"`).
 		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
 		ColumnExpr(`DISTINCT "instance_student".student_id`).
 		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"activity_instance".date = ?::date`, dateOnly).
+		Where(`"activity_instance".date = ?`, date).
 		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
 		OrderExpr(`"instance_student".student_id ASC`)
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -53,7 +54,7 @@ type locationMetrics struct {
 }
 
 // fetchDashboardBaseData retrieves all raw data needed for dashboard analytics
-func (s *service) fetchDashboardBaseData(ctx context.Context, today time.Time) (*dashboardBaseData, error) {
+func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Date) (*dashboardBaseData, error) {
 	data := &dashboardBaseData{
 		studentsWithActiveVisits: make(map[int64]bool),
 		studentsWithAttendance:   make(map[int64]bool),

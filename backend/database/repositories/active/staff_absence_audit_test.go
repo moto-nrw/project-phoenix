@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -19,7 +18,7 @@ func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
-	today := timezone.DateOfUTC(time.Now())
+	today := timezone.TodayDate()
 	absence := &active.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: active.AbsenceTypeVacation,

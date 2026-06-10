@@ -3,9 +3,9 @@ package schedule
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -129,7 +129,7 @@ func (r *InstanceStaffRepository) FindByInstanceID(ctx context.Context, instance
 
 // FindByStaffAndDate returns all staff assignments for a staff member across
 // all instances on the given date.
-func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date time.Time) ([]*schedule.InstanceStaff, error) {
+func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*schedule.InstanceStaff, error) {
 	var rows []*schedule.InstanceStaff
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -157,7 +157,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 // dated strictly after the given date. Past and same-day assignments stay as
 // history. Used by staff offboarding, where the staff row is only soft-deleted
 // and the RESTRICT FK no longer applies.
-func (r *InstanceStaffRepository) DeleteFutureByStaffID(ctx context.Context, staffID int64, after time.Time) (int64, error) {
+func (r *InstanceStaffRepository) DeleteFutureByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.InstanceStaff)(nil)).
 		ModelTableExpr(modelTblInstanceStaff).

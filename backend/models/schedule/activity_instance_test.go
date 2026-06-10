@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -11,7 +12,7 @@ import (
 
 func validActivityInstance() *ActivityInstance {
 	return &ActivityInstance{
-		Date:      time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
+		Date:      timezone.NewDate(2026, 9, 15),
 		Title:     "Lernzeit 3a",
 		StartTime: time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -57,7 +58,7 @@ func TestActivityInstance_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing date",
-			mutate:  func(i *ActivityInstance) { i.Date = time.Time{} },
+			mutate:  func(i *ActivityInstance) { i.Date = timezone.Date{} },
 			wantErr: "date is required",
 		},
 		{

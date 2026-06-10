@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
@@ -161,7 +162,7 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 
 // FindByStudentAndDateRange returns attendance rows for a student across all
 // instances whose date falls within the inclusive range.
-func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*schedule.InstanceStudent, error) {
+func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*schedule.InstanceStudent, error) {
 	var rows []*schedule.InstanceStudent
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
@@ -400,7 +401,7 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 // join on activity_instances for the date predicate is not expressible
 // through the generic filter shape. Feeds the per-student audit rows of the
 // timetable retention cleanup.
-func (r *InstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Context, cutoff time.Time) ([]schedule.StudentInstanceRef, error) {
+func (r *InstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Context, cutoff timezone.Date) ([]schedule.StudentInstanceRef, error) {
 	var rows []schedule.StudentInstanceRef
 
 	q := base.GetDB(ctx, r.db).NewSelect().

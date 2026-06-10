@@ -69,7 +69,7 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StaffID:   staffID,
 		GroupID:   groupID,
 		Role:      "Supervisor",
-		StartDate: startDate,
+		StartDate: timezone.DateFromTime(startDate),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
@@ -275,7 +275,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StaffID:   staffID,
 			GroupID:   groupID,
 			Role:      "supervisor",
-			StartDate: startDate,
+			StartDate: timezone.DateFromTime(startDate),
 		}
 		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
@@ -566,9 +566,9 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 
 // endAllCurrentSupervisors ends all current supervisors by setting end_date
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
-	now := time.Now()
+	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
-		supervisor.EndDate = &now
+		supervisor.EndDate = &today
 		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
 		}
@@ -614,7 +614,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.G
 	}
 
 	supervisor.EndDate = nil
-	supervisor.StartDate = now
+	supervisor.StartDate = timezone.DateFromTime(now)
 	return s.supervisorRepo.Update(ctx, supervisor)
 }
 
@@ -624,7 +624,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		StaffID:   supervisorID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.supervisorRepo.Create(ctx, supervisor)
@@ -1172,7 +1172,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
 	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
@@ -1185,10 +1185,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 
 	for _, record := range staleRecords {
 		// end_date is a DATE column, so set it to the start_date itself
-		endDate := time.Date(
-			record.StartDate.Year(), record.StartDate.Month(), record.StartDate.Day(),
-			0, 0, 0, 0, record.StartDate.Location(),
-		)
+		endDate := record.StartDate
 
 		record.EndDate = &endDate
 		record.UpdatedAt = time.Now()

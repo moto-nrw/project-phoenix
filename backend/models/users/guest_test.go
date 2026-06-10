@@ -4,8 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+func datePtr(d timezone.Date) *timezone.Date { return &d }
 
 func TestGuest_Validate(t *testing.T) {
 	tests := []struct {
@@ -29,8 +32,8 @@ func TestGuest_Validate(t *testing.T) {
 				ContactEmail:      "guest@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
-				StartDate:         base.TimePtr(time.Now()),
-				EndDate:           base.TimePtr(time.Now().Add(30 * 24 * time.Hour)),
+				StartDate:         datePtr(timezone.TodayDate()),
+				EndDate:           datePtr(timezone.TodayDate().AddDays(30)),
 			},
 			wantErr: false,
 		},
@@ -95,8 +98,8 @@ func TestGuest_Validate(t *testing.T) {
 			guest: &Guest{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
-				StartDate:         base.TimePtr(time.Now().Add(24 * time.Hour)),
-				EndDate:           base.TimePtr(time.Now()),
+				StartDate:         datePtr(timezone.TodayDate().AddDays(1)),
+				EndDate:           datePtr(timezone.TodayDate()),
 			},
 			wantErr: true,
 		},

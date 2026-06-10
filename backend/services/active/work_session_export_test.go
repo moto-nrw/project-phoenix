@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -47,14 +48,14 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffID := int64(100)
-	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2024, 1, 7, 23, 59, 59, 0, time.UTC)
+	from := timezone.NewDate(2024, 1, 1)
+	to := timezone.NewDate(2024, 1, 7)
 
-	date1 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	date1 := timezone.NewDate(2024, 1, 2)
 	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
 	checkOut := time.Date(2024, 1, 2, 16, 30, 0, 0, time.UTC)
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{
 				Model:        base.Model{ID: 1},
@@ -77,7 +78,7 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{}, nil
 	}
 
-	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
@@ -102,10 +103,10 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 	ctx := context.Background()
 	staffID := int64(100)
-	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2024, 1, 7, 23, 59, 59, 0, time.UTC)
+	from := timezone.NewDate(2024, 1, 1)
+	to := timezone.NewDate(2024, 1, 7)
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{}, nil
 	}
 
@@ -117,7 +118,7 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{}, nil
 	}
 
-	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
 	}
 
@@ -134,11 +135,11 @@ func TestWSExportSessions_XLSX_Success(t *testing.T) {
 func TestWSExportSessions_GetHistoryError(t *testing.T) {
 	svc, sessionRepo, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, errors.New("database error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, time.Now(), time.Now(), "csv")
+	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
 	assert.Nil(t, data)
 	assert.Empty(t, filename)
@@ -148,7 +149,7 @@ func TestWSExportSessions_GetHistoryError(t *testing.T) {
 func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, absenceRepo, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{}, nil
 	}
 
@@ -160,11 +161,11 @@ func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{}, nil
 	}
 
-	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.StaffAbsence, error) {
+	absenceRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, errors.New("absence repo error")
 	}
 
-	data, filename, err := svc.ExportSessions(context.Background(), 100, time.Now(), time.Now(), "csv")
+	data, filename, err := svc.ExportSessions(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate(), "csv")
 	require.Error(t, err)
 	assert.Nil(t, data)
 	assert.Empty(t, filename)
@@ -178,8 +179,8 @@ func TestWSExportSessions_GetAbsencesError(t *testing.T) {
 func TestWSBuildExportRows_SessionsOnly(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date1 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
-	date2 := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)
+	date1 := timezone.NewDate(2024, 1, 2)
+	date2 := timezone.NewDate(2024, 1, 3)
 	checkIn1 := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
 	checkOut1 := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
 	checkIn2 := time.Date(2024, 1, 3, 9, 0, 0, 0, time.UTC)
@@ -219,8 +220,8 @@ func TestWSBuildExportRows_SessionsOnly(t *testing.T) {
 func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	dateStart := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
-	dateEnd := time.Date(2024, 1, 4, 0, 0, 0, 0, time.UTC)
+	dateStart := timezone.NewDate(2024, 1, 2)
+	dateEnd := timezone.NewDate(2024, 1, 4)
 
 	absences := []*activeModels.StaffAbsence{
 		{
@@ -250,8 +251,8 @@ func TestWSBuildExportRows_AbsencesOnly(t *testing.T) {
 func TestWSBuildExportRows_Mixed(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date1 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
-	date2 := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)
+	date1 := timezone.NewDate(2024, 1, 2)
+	date2 := timezone.NewDate(2024, 1, 3)
 	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
 	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
 
@@ -292,8 +293,8 @@ func TestWSBuildExportRows_Mixed(t *testing.T) {
 func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date1 := time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC)
-	date2 := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	date1 := timezone.NewDate(2024, 1, 5)
+	date2 := timezone.NewDate(2024, 1, 2)
 	checkIn := time.Date(2024, 1, 5, 8, 0, 0, 0, time.UTC)
 
 	sessions := []*SessionResponse{
@@ -332,7 +333,7 @@ func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 func TestWSSessionToRow_Complete(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC) // Monday
+	date := timezone.NewDate(2024, 1, 15) // Monday
 	checkIn := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 	checkOut := time.Date(2024, 1, 15, 17, 15, 0, 0, time.UTC)
 
@@ -371,7 +372,7 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 	// when system events overlay the Quelle cell.
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 	sr := &SessionResponse{
@@ -397,7 +398,7 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 	sr := &SessionResponse{
@@ -419,7 +420,7 @@ func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 func TestWSSessionToRow_NoCheckOut(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 	sr := &SessionResponse{
@@ -442,7 +443,7 @@ func TestWSSessionToRow_NoCheckOut(t *testing.T) {
 func TestWSSessionToRow_HomeOffice(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 	sr := &SessionResponse{
@@ -469,7 +470,7 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 	// though Quelle is "Auto-Checkout".
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 	checkOut := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
 
@@ -497,7 +498,7 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	// see both the corrected-state signal AND what the staff actually did.
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 	sr := &SessionResponse{
@@ -534,7 +535,7 @@ func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+			date := timezone.NewDate(2024, 1, 15)
 			checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 
 			sr := &SessionResponse{
@@ -576,7 +577,7 @@ func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
 			sr := &SessionResponse{
 				WorkSession: &activeModels.WorkSession{
 					Model:       base.Model{ID: 1},
-					Date:        wd.date,
+					Date:        timezone.DateFromTime(wd.date),
 					CheckInTime: checkIn,
 					Status:      activeModels.WorkSessionStatusPresent,
 				},
@@ -637,7 +638,7 @@ func TestWSExportCSV_UTF8BOM(t *testing.T) {
 func TestWSExportCSV_SemicolonSeparator(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	rows := []exportRow{
 		{
 			Date: date,
@@ -675,7 +676,7 @@ func TestWSExportXLSX_ValidZipFormat(t *testing.T) {
 func TestWSExportXLSX_WithData(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
-	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
+	date := timezone.NewDate(2024, 1, 15)
 	rows := []exportRow{
 		{
 			Date: date,
@@ -706,7 +707,7 @@ func TestWSUpdateSession_StatusChange(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusPresent,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 		}, nil
 	}
@@ -751,7 +752,7 @@ func TestWSUpdateSession_StatusChangeRequiresNotes(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusPresent,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 		}, nil
 	}
@@ -803,7 +804,7 @@ func TestWSUpdateSession_NotesOnlyDoesNotRequireReason(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusHomeOffice,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 			Notes:       "old",
 		}, nil
@@ -834,7 +835,7 @@ func TestWSUpdateSession_NotesChange(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusPresent,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 			Notes:       "Old note",
 		}, nil
@@ -871,7 +872,7 @@ func TestWSUpdateSession_BreakMinutesWithoutIndividualBreaks(t *testing.T) {
 			StaffID:      staffID,
 			CheckInTime:  time.Now().Add(-8 * time.Hour),
 			Status:       activeModels.WorkSessionStatusPresent,
-			Date:         time.Now().Truncate(24 * time.Hour),
+			Date:         timezone.TodayDate(),
 			CreatedBy:    staffID,
 			BreakMinutes: 30,
 		}, nil
@@ -912,7 +913,7 @@ func TestWSUpdateSession_CheckOutTimeChange(t *testing.T) {
 			CheckInTime:  time.Now().Add(-8 * time.Hour),
 			CheckOutTime: &oldCheckOut,
 			Status:       activeModels.WorkSessionStatusPresent,
-			Date:         time.Now().Truncate(24 * time.Hour),
+			Date:         timezone.TodayDate(),
 			CreatedBy:    staffID,
 		}, nil
 	}
@@ -947,7 +948,7 @@ func TestWSUpdateSession_NoChanges(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusPresent,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 		}, nil
 	}
@@ -980,7 +981,7 @@ func TestWSUpdateSession_AuditRepoError(t *testing.T) {
 			StaffID:     staffID,
 			CheckInTime: time.Now().Add(-8 * time.Hour),
 			Status:      activeModels.WorkSessionStatusPresent,
-			Date:        time.Now().Truncate(24 * time.Hour),
+			Date:        timezone.TodayDate(),
 			CreatedBy:   staffID,
 			Notes:       "Old",
 		}, nil
@@ -1012,7 +1013,7 @@ func TestWSUpdateSession_AuditRepoError(t *testing.T) {
 func TestWSCleanupOpenSessions_RepoError(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return nil, errors.New("database error")
 	}
 
@@ -1024,9 +1025,9 @@ func TestWSCleanupOpenSessions_RepoError(t *testing.T) {
 
 func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
-	yesterday := time.Now().AddDate(0, 0, -1).Truncate(24 * time.Hour)
+	yesterday := timezone.TodayDate().AddDays(-1)
 
-	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{Model: base.Model{ID: 1}, Date: yesterday},
 		}, nil
@@ -1045,7 +1046,7 @@ func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
 func TestWSGetHistory_AuditCountError(t *testing.T) {
 	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{Model: base.Model{ID: 1}},
 		}, nil
@@ -1055,7 +1056,7 @@ func TestWSGetHistory_AuditCountError(t *testing.T) {
 		return nil, errors.New("audit count error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
+	responses, err := svc.GetHistory(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate())
 	require.Error(t, err)
 	assert.Nil(t, responses)
 	assert.Contains(t, err.Error(), "failed to get edit counts")
@@ -1064,7 +1065,7 @@ func TestWSGetHistory_AuditCountError(t *testing.T) {
 func TestWSGetHistory_BreaksError(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 
-	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ time.Time) ([]*activeModels.WorkSession, error) {
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{Model: base.Model{ID: 1}},
 		}, nil
@@ -1078,7 +1079,7 @@ func TestWSGetHistory_BreaksError(t *testing.T) {
 		return nil, errors.New("breaks error")
 	}
 
-	responses, err := svc.GetHistory(context.Background(), 100, time.Now(), time.Now())
+	responses, err := svc.GetHistory(context.Background(), 100, timezone.TodayDate(), timezone.TodayDate())
 	require.Error(t, err)
 	assert.Nil(t, responses)
 	assert.Contains(t, err.Error(), "failed to get breaks")
@@ -1338,7 +1339,7 @@ func TestWSEndBreak_FindByIDError(t *testing.T) {
 func TestWSCheckIn_CreateError(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ time.Time) (*activeModels.WorkSession, error) {
+	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 		return nil, sql.ErrNoRows
 	}
 

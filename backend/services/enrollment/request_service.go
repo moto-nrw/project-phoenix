@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -114,7 +115,7 @@ type SubmitRequest struct {
 type SubmitChild struct {
 	FirstName        string
 	LastName         string
-	DateOfBirth      time.Time
+	DateOfBirth      timezone.Date
 	TargetGradeLevel *int16
 	CustomData       map[string]any
 	OfferingIDs      []int64

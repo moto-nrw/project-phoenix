@@ -4,9 +4,9 @@ package education
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -112,7 +112,7 @@ func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context,
 // Past substitutions stay as history. Used by staff offboarding, where the
 // staff row is only soft-deleted and the old ON DELETE CASCADE therefore no
 // longer cleans up assignments.
-func (r *GroupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.Context, staffID int64, from time.Time) (int64, error) {
+func (r *GroupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*education.GroupSubstitution)(nil)).
 		ModelTableExpr(tableExprGroupSubstitutionAsGS).
@@ -135,7 +135,7 @@ func (r *GroupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.
 }
 
 // FindActive retrieves all active substitutions for a specific date
-func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
@@ -158,7 +158,7 @@ func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date time.
 }
 
 // FindActiveBySubstitute retrieves all active substitutions for a staff member and date
-func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
@@ -182,7 +182,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 }
 
 // FindActiveByGroup retrieves all active substitutions for a specific group and date
-func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
@@ -205,7 +205,7 @@ func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, gro
 }
 
 // FindOverlapping finds all substitutions that overlap with the given date range for a staff member
-func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate time.Time, endDate time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&substitutions).
@@ -287,16 +287,16 @@ func applySubstitutionFilter(filter *modelBase.Filter, field string, value inter
 	}
 }
 
-// applyActiveFilter applies active date filter using current time
+// applyActiveFilter applies active date filter using today's Berlin calendar day
 func applyActiveFilter(filter *modelBase.Filter, value interface{}) {
 	if boolValue, ok := value.(bool); ok && boolValue {
-		filter.DateBetween("start_date", "end_date", time.Now())
+		filter.DateBetween("start_date", "end_date", timezone.TodayDate())
 	}
 }
 
 // applyDateFilter applies date filter for a specific date
 func applyDateFilter(filter *modelBase.Filter, value interface{}) {
-	if dateValue, ok := value.(time.Time); ok {
+	if dateValue, ok := value.(timezone.Date); ok {
 		filter.DateBetween("start_date", "end_date", dateValue)
 	}
 }
@@ -600,7 +600,7 @@ func mapKeysToSlice(m map[int64]bool) []int64 {
 }
 
 // FindActiveWithRelations retrieves all active substitutions for a specific date with related data
-func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 	filter.DateBetween("start_date", "end_date", date)
@@ -610,7 +610,7 @@ func (r *GroupSubstitutionRepository) FindActiveWithRelations(ctx context.Contex
 }
 
 // FindActiveBySubstituteWithRelations retrieves active substitutions for a staff member and date with related data
-func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 	filter.Equal("substitute_staff_id", substituteStaffID)
@@ -621,7 +621,7 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstituteWithRelations(ctx co
 }
 
 // FindActiveByGroupWithRelations retrieves active substitutions for a specific group and date with related data
-func (r *GroupSubstitutionRepository) FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date time.Time) ([]*education.GroupSubstitution, error) {
+func (r *GroupSubstitutionRepository) FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	options := modelBase.NewQueryOptions()
 	filter := modelBase.NewFilter()
 	filter.Equal("group_id", groupID)

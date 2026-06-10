@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -26,17 +27,17 @@ const (
 // rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
 // week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
-	ID             int64      `bun:"id,pk,autoincrement" json:"id"`
-	TenantID       int64      `bun:"tenant_id,notnull" json:"tenant_id"`
-	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
-	WeekIndex      int        `bun:"week_index,notnull,default:0" json:"week_index"`
-	RotationLength int        `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
-	DayOfWeek      int        `bun:"day_of_week,notnull" json:"day_of_week"`
-	TargetMinutes  int        `bun:"target_minutes,notnull" json:"target_minutes"`
-	ValidFrom      time.Time  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil     *time.Time `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	CreatedAt      time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt      time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID             int64          `bun:"id,pk,autoincrement" json:"id"`
+	TenantID       int64          `bun:"tenant_id,notnull" json:"tenant_id"`
+	StaffID        int64          `bun:"staff_id,notnull" json:"staff_id"`
+	WeekIndex      int            `bun:"week_index,notnull,default:0" json:"week_index"`
+	RotationLength int            `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
+	DayOfWeek      int            `bun:"day_of_week,notnull" json:"day_of_week"`
+	TargetMinutes  int            `bun:"target_minutes,notnull" json:"target_minutes"`
+	ValidFrom      timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil     *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	CreatedAt      time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt      time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (s *StaffWorkSchedule) BeforeAppendModel(query any) error {
@@ -91,7 +92,7 @@ type StaffWorkScheduleRepository interface {
 	GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*StaffWorkSchedule, error)
 
 	// GetByStaffIDAndDate returns schedule entries valid for a specific date
-	GetByStaffIDAndDate(ctx context.Context, staffID int64, date time.Time) ([]*StaffWorkSchedule, error)
+	GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*StaffWorkSchedule, error)
 
 	// ReplaceSchedule atomically replaces all current schedule entries for a staff member
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error

@@ -112,65 +112,6 @@ func TestNow(t *testing.T) {
 	assert.Less(t, timeDiff.Abs(), time.Second, "Now() should return current time")
 }
 
-func TestDateOfUTC(t *testing.T) {
-	tests := []struct {
-		name      string
-		input     time.Time
-		wantYear  int
-		wantMonth time.Month
-		wantDay   int
-	}{
-		{
-			name:      "UTC time in the middle of the day",
-			input:     time.Date(2026, 1, 18, 12, 0, 0, 0, time.UTC),
-			wantYear:  2026,
-			wantMonth: time.January,
-			wantDay:   18,
-		},
-		{
-			name:      "UTC time that crosses day boundary in Berlin",
-			input:     time.Date(2026, 1, 17, 23, 30, 0, 0, time.UTC), // 23:30 UTC = 00:30 CET next day
-			wantYear:  2026,
-			wantMonth: time.January,
-			wantDay:   18, // Should be 18th (Berlin date, but UTC timezone)
-		},
-		{
-			name:      "Berlin time afternoon",
-			input:     time.Date(2026, 1, 18, 14, 30, 0, 0, Berlin),
-			wantYear:  2026,
-			wantMonth: time.January,
-			wantDay:   18,
-		},
-		{
-			name:      "Berlin time early morning",
-			input:     time.Date(2026, 1, 18, 1, 0, 0, 0, Berlin),
-			wantYear:  2026,
-			wantMonth: time.January,
-			wantDay:   18,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := DateOfUTC(tt.input)
-
-			// Check date components (Berlin date)
-			assert.Equal(t, tt.wantYear, result.Year())
-			assert.Equal(t, tt.wantMonth, result.Month())
-			assert.Equal(t, tt.wantDay, result.Day())
-
-			// Should be midnight
-			assert.Equal(t, 0, result.Hour())
-			assert.Equal(t, 0, result.Minute())
-			assert.Equal(t, 0, result.Second())
-			assert.Equal(t, 0, result.Nanosecond())
-
-			// Should be in UTC timezone (not Berlin!)
-			assert.Equal(t, time.UTC, result.Location())
-		})
-	}
-}
-
 func TestEndOfDay(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -277,24 +218,4 @@ func TestFormatBerlinClock(t *testing.T) {
 		require.NotNil(t, got)
 		assert.Equal(t, "04:03", *got)
 	})
-}
-
-func TestDateOfUTC_DifferentFromDateOf(t *testing.T) {
-	// Create a time that would have the same date in both UTC and Berlin
-	testTime := time.Date(2026, 1, 18, 12, 0, 0, 0, time.UTC)
-
-	dateOf := DateOf(testTime)
-	dateOfUTC := DateOfUTC(testTime)
-
-	// Both should have same year/month/day
-	assert.Equal(t, dateOf.Year(), dateOfUTC.Year())
-	assert.Equal(t, dateOf.Month(), dateOfUTC.Month())
-	assert.Equal(t, dateOf.Day(), dateOfUTC.Day())
-
-	// But different timezones
-	assert.Equal(t, Berlin, dateOf.Location())
-	assert.Equal(t, time.UTC, dateOfUTC.Location())
-
-	// They represent the same date but different instants in time
-	assert.NotEqual(t, dateOf.Unix(), dateOfUTC.Unix())
 }

@@ -10,6 +10,7 @@ import {
   fireEvent,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { todayISO } from "~/lib/date-helpers";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -2671,7 +2672,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     const pickupTimesArray = Array.from(pickupMap.entries()).map(
       ([studentId, pickup]) => ({
         student_id: parseInt(studentId, 10),
-        date: new Date().toISOString().split("T")[0],
+        date: todayISO(),
         weekday_name: "Mittwoch",
         pickup_time: pickup.pickupTime,
         is_exception: pickup.isException,
@@ -3039,7 +3040,7 @@ describe("OGSGroupPage rendered pickup urgency", () => {
     const pickupTimesArray = Array.from(pickupMap.entries()).map(
       ([studentId, pickup]) => ({
         student_id: parseInt(studentId, 10),
-        date: new Date().toISOString().split("T")[0],
+        date: todayISO(),
         weekday_name: "Mittwoch",
         pickup_time: pickup.pickupTime,
         is_exception: pickup.isException,

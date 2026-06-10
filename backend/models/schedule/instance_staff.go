@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -75,7 +76,7 @@ type InstanceStaffRepository interface {
 	// FindByStaffAndDate returns all staff assignments for the given staff
 	// member across all instances on a given date. Used by the one-click
 	// substitute flow (E6) and gap detection.
-	FindByStaffAndDate(ctx context.Context, staffID int64, date time.Time) ([]*InstanceStaff, error)
+	FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*InstanceStaff, error)
 
 	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
 	// instance_staff rows with is_absent=false. Single GROUP BY query; callers
@@ -91,5 +92,5 @@ type InstanceStaffRepository interface {
 	// DeleteFutureByStaffID removes the staff member's assignments on instances
 	// dated strictly after the given date (staff offboarding cleanup). Past and
 	// same-day assignments stay as history.
-	DeleteFutureByStaffID(ctx context.Context, staffID int64, after time.Time) (int64, error)
+	DeleteFutureByStaffID(ctx context.Context, staffID int64, after timezone.Date) (int64, error)
 }

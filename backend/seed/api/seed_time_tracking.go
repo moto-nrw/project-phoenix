@@ -65,7 +65,7 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xBEEF))
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate().UTCMidnight()
 	loc := timezone.Berlin
 
 	sessionCount := 0

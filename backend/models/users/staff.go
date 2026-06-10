@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -19,12 +20,12 @@ const (
 type Staff struct {
 	base.Model `bun:"schema:users,table:staff"`
 	base.TenantModel
-	PersonID           int64      `bun:"person_id,notnull" json:"person_id"`
-	StaffNotes         string     `bun:"staff_notes" json:"staff_notes,omitempty"`
-	EmploymentType     *string    `bun:"employment_type" json:"employment_type,omitempty"`
-	WorkTimeModelID    *int64     `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
-	RotationAnchorDate *time.Time `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
-	DeletedAt          *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
+	PersonID           int64          `bun:"person_id,notnull" json:"person_id"`
+	StaffNotes         string         `bun:"staff_notes" json:"staff_notes,omitempty"`
+	EmploymentType     *string        `bun:"employment_type" json:"employment_type,omitempty"`
+	WorkTimeModelID    *int64         `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
+	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
+	DeletedAt          *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`

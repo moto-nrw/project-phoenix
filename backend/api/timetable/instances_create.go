@@ -41,7 +41,7 @@ type createInstanceRequest struct {
 
 type parsedCreateInstanceRequest struct {
 	req       *createInstanceRequest
-	date      time.Time
+	date      timezone.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -144,7 +144,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
-		Date:             timezone.DateOfUTC(parsed.date),
+		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,
 		Title:            req.Title,

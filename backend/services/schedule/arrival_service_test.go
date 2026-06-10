@@ -325,7 +325,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			ExceptionDate: timezone.NewDate(2024, 3, 15),
 			Reason:        strPtr("Doctor appointment"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -340,7 +340,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		exceptionDate := time.Date(2024, 3, 20, 12, 0, 0, 0, timezone.Berlin)
+		exceptionDate := timezone.NewDate(2024, 3, 20)
 		exception1 := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
@@ -365,7 +365,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 	t.Run("fails validation for invalid exception", func(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     0,
-			ExceptionDate: time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			ExceptionDate: timezone.NewDate(2024, 3, 15),
 			Reason:        strPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -387,11 +387,11 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		baseDate := timezone.Today()
+		baseDate := timezone.TodayDate()
 		for i := -2; i <= 2; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDays(i),
 				Reason:        strPtr("Exception"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
@@ -417,12 +417,12 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		baseDate := timezone.Today()
+		baseDate := timezone.TodayDate()
 
 		for i := -5; i < 0; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDays(i),
 				Reason:        strPtr("Past"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
@@ -433,7 +433,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 		for i := 1; i <= 3; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDays(i),
 				Reason:        strPtr("Future"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
@@ -464,7 +464,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: timezone.NewDate(2024, 4, 1),
 			Reason:        strPtr("Original reason"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -497,7 +497,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
+			ExceptionDate: timezone.NewDate(2024, 5, 1),
 			Reason:        strPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -525,11 +525,11 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		baseDate := timezone.Today()
+		baseDate := timezone.TodayDate()
 		for i := 1; i <= 5; i++ {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
-				ExceptionDate: baseDate.AddDate(0, 0, i),
+				ExceptionDate: baseDate.AddDays(i),
 				Reason:        strPtr("Exception"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
@@ -564,7 +564,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			NoteDate:  timezone.NewDate(2024, 3, 15),
 			Content:   "Arrives by bus today",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -578,7 +578,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 	t.Run("fails validation for invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			NoteDate:  timezone.NewDate(2024, 3, 15),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -594,7 +594,7 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  time.Date(2024, 3, 15, 12, 0, 0, 0, timezone.Berlin),
+			NoteDate:  timezone.NewDate(2024, 3, 15),
 			Content:   "",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -619,7 +619,7 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  time.Date(2024, 3, 16, 12, 0, 0, 0, timezone.Berlin),
+			NoteDate:  timezone.NewDate(2024, 3, 16),
 			Content:   "Test note",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -646,11 +646,11 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		baseDate := timezone.Today()
+		baseDate := timezone.TodayDate()
 		for i := 0; i < 3; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  baseDate.AddDate(0, 0, i),
+				NoteDate:  baseDate.AddDays(i),
 				Content:   "Note content",
 				CreatedBy: createArrivalServiceTestStaffID(t, db),
 			}
@@ -683,7 +683,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		targetDate := time.Date(2024, 3, 20, 12, 0, 0, 0, timezone.Berlin)
+		targetDate := timezone.NewDate(2024, 3, 20)
 
 		// Create notes for target date
 		for i := 0; i < 2; i++ {
@@ -698,7 +698,7 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 		}
 
 		// Create note for different date
-		differentDate := targetDate.AddDate(0, 0, 1)
+		differentDate := targetDate.AddDays(1)
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
 			NoteDate:  differentDate,
@@ -728,7 +728,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
+			NoteDate:  timezone.NewDate(2024, 4, 1),
 			Content:   "Original content",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -750,7 +750,7 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 	t.Run("fails validation on invalid note", func(t *testing.T) {
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: 0, // Invalid
-			NoteDate:  time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC),
+			NoteDate:  timezone.NewDate(2024, 4, 1),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -774,7 +774,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC),
+			NoteDate:  timezone.NewDate(2024, 5, 1),
 			Content:   "Test",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -802,11 +802,11 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		baseDate := timezone.Today()
+		baseDate := timezone.TodayDate()
 		for i := 1; i <= 5; i++ {
 			note := &scheduleModels.StudentArrivalNote{
 				StudentID: student.ID,
-				NoteDate:  baseDate.AddDate(0, 0, i),
+				NoteDate:  baseDate.AddDays(i),
 				Content:   "Note",
 				CreatedBy: createArrivalServiceTestStaffID(t, db),
 			}
@@ -850,7 +850,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
-			ExceptionDate: timezone.Today().AddDate(0, 0, 5),
+			ExceptionDate: timezone.TodayDate().AddDays(5),
 			Reason:        strPtr("Future exception"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
@@ -859,7 +859,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
-			NoteDate:  timezone.Today(),
+			NoteDate:  timezone.TodayDate(),
 			Content:   "Test note",
 			CreatedBy: createArrivalServiceTestStaffID(t, db),
 		}
@@ -898,7 +898,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		require.NoError(t, err)
 
 		// January 8, 2024 is a Monday, noon UTC stays Monday in Berlin
-		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 8)
 
 		earlyTime := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
 		exception := &scheduleModels.StudentArrivalException{
@@ -934,7 +934,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		require.NoError(t, err)
 
 		// January 9, 2024 is a Tuesday, noon UTC stays Tuesday in Berlin
-		testDate := time.Date(2024, 1, 9, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 9)
 
 		result, err := service.GetEffectiveArrivalTimeForDate(ctx, student.ID, testDate)
 
@@ -950,7 +950,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 13, 2024 is a Saturday, noon UTC stays Saturday in Berlin
-		testDate := time.Date(2024, 1, 13, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 13)
 
 		result, err := service.GetEffectiveArrivalTimeForDate(ctx, student.ID, testDate)
 
@@ -963,7 +963,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 10, 2024 is a Wednesday
-		testDate := time.Date(2024, 1, 10, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 10)
 
 		result, err := service.GetEffectiveArrivalTimeForDate(ctx, student.ID, testDate)
 
@@ -988,7 +988,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		require.NoError(t, err)
 
 		// January 12, 2024 is a Friday
-		testDate := time.Date(2024, 1, 12, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 12)
 
 		result, err := service.GetEffectiveArrivalTimeForDate(ctx, student.ID, testDate)
 
@@ -1013,7 +1013,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		err := service.UpsertStudentArrivalSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 8)
 		updatedTime := time.Date(2024, 1, 1, 9, 30, 0, 0, time.UTC)
 		blankReason := "   "
 		exception := &scheduleModels.StudentArrivalException{
@@ -1038,7 +1038,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 14, 2024 is a Sunday
-		testDate := time.Date(2024, 1, 14, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 14)
 
 		result, err := service.GetEffectiveArrivalTimeForDate(ctx, student.ID, testDate)
 
@@ -1051,7 +1051,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 8, 2024 is a Monday
-		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 8)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:       student.ID,
@@ -1086,7 +1086,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 
 		// January 11, 2024 is a Thursday
-		testDate := time.Date(2024, 1, 11, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 11)
 
 		sched1 := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student1.ID,
@@ -1138,7 +1138,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 	})
 
 	t.Run("returns empty map for empty student IDs", func(t *testing.T) {
-		results, err := service.GetBulkEffectiveArrivalTimesForDate(ctx, []int64{}, time.Now())
+		results, err := service.GetBulkEffectiveArrivalTimesForDate(ctx, []int64{}, timezone.TodayDate())
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -1149,7 +1149,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 14, 2024 is a Sunday
-		testDate := time.Date(2024, 1, 14, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 14)
 
 		results, err := service.GetBulkEffectiveArrivalTimesForDate(ctx, []int64{student.ID}, testDate)
 
@@ -1163,7 +1163,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 8, 2024 is a Monday
-		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 8)
 
 		notes := "Walked to school by aunt"
 		sched := &scheduleModels.StudentArrivalSchedule{
@@ -1189,7 +1189,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		testDate := time.Date(2024, 1, 8, 12, 0, 0, 0, time.UTC)
+		testDate := timezone.NewDate(2024, 1, 8)
 
 		recurringNote := "Ring the side entrance bell"
 		sched := &scheduleModels.StudentArrivalSchedule{

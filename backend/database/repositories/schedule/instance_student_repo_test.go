@@ -8,6 +8,7 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +23,7 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "stu", time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "stu", timezone.NewDate(2026, 9, 19))
 	defer cleanupInst()
 
 	studentA := testpkg.CreateTestStudent(t, db, "Max", fmt.Sprintf("A-%d", time.Now().UnixNano()), "3a")
@@ -104,7 +105,7 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "stu-upd", time.Date(2026, 9, 20, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "stu-upd", timezone.NewDate(2026, 9, 20))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Ella", fmt.Sprintf("Upd-%d", time.Now().UnixNano()), "3a")
@@ -149,9 +150,9 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Range-%d", time.Now().UnixNano()), "3a")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	dayA := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
-	dayB := time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC)
-	dayOutside := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+	dayA := timezone.NewDate(2026, 10, 5)
+	dayB := timezone.NewDate(2026, 10, 6)
+	dayOutside := timezone.NewDate(2026, 11, 1)
 
 	instA, cleanA := createInstanceFixture(t, db, "range-A", dayA)
 	defer cleanA()
@@ -264,7 +265,7 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "stu-list", time.Date(2026, 10, 8, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "stu-list", timezone.NewDate(2026, 10, 8))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Peter", fmt.Sprintf("List-%d", time.Now().UnixNano()), "3a")
@@ -331,8 +332,8 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("FindByStudentAndDateRange wraps driver errors", func(t *testing.T) {
-		from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
-		to := time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC)
+		from := timezone.NewDate(2026, 10, 1)
+		to := timezone.NewDate(2026, 10, 31)
 		rows, err := repo.FindByStudentAndDateRange(cancelledCtx, int64(999999), from, to)
 		assert.Nil(t, rows)
 		require.Error(t, err)
@@ -366,7 +367,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "mirror", time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "mirror", timezone.NewDate(2026, 10, 10))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Lea", fmt.Sprintf("Mirror-%d", time.Now().UnixNano()), "3a")
@@ -450,7 +451,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "patch", time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "patch", timezone.NewDate(2026, 10, 11))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Nora", fmt.Sprintf("Patch-%d", time.Now().UnixNano()), "3a")
@@ -527,7 +528,7 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "stu-bulk", time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "stu-bulk", timezone.NewDate(2026, 11, 2))
 	defer cleanupInst()
 
 	suffix := fmt.Sprintf("Bulk-%d", time.Now().UnixNano())
@@ -622,7 +623,7 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "stu-del", time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "stu-del", timezone.NewDate(2026, 10, 7))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Ola", fmt.Sprintf("Del-%d", time.Now().UnixNano()), "3a")
@@ -654,9 +655,9 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 	ctx := testpkg.TenantContext(1)
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst1, cleanup1 := createInstanceFixture(t, db, "b13-a", time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC))
+	inst1, cleanup1 := createInstanceFixture(t, db, "b13-a", timezone.NewDate(2026, 9, 21))
 	defer cleanup1()
-	inst2, cleanup2 := createInstanceFixture(t, db, "b13-b", time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	inst2, cleanup2 := createInstanceFixture(t, db, "b13-b", timezone.NewDate(2026, 9, 22))
 	defer cleanup2()
 
 	unique := time.Now().UnixNano()
@@ -736,7 +737,7 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
 
-	inst, cleanupInst := createInstanceFixture(t, db, "b13-iso", time.Date(2026, 9, 23, 0, 0, 0, 0, time.UTC))
+	inst, cleanupInst := createInstanceFixture(t, db, "b13-iso", timezone.NewDate(2026, 9, 23))
 	defer cleanupInst()
 
 	student := testpkg.CreateTestStudent(t, db, "Iso", fmt.Sprintf("B13-iso-%d", time.Now().UnixNano()), "3a")

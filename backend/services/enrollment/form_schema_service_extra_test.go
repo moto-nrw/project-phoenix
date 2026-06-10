@@ -14,6 +14,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -176,8 +178,8 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	phase := &enrollmentModels.Phase{
 		Name:              phaseName,
 		Kind:              enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:  time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:    time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate:  timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:    timezone.NewDate(2027, 7, 31),
 		FormSchemaID:      &v1.ID,
 		IsActive:          true,
 		CareOverflowMode:  enrollmentModels.PhaseCareOverflowWaitlist,

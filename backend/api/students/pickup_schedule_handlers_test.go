@@ -70,7 +70,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		}()
 
 		// Insert a pickup exception directly into the database
-		exceptionDate := time.Date(2026, 2, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 2, 15) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		arztterminReason := "Arzttermin"
 		exception := &scheduleModel.StudentPickupException{
@@ -500,7 +500,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
 		// Create an exception to update
-		exceptionDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 4, 15) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
 		originalReason := "Original reason"
 		exception := &scheduleModel.StudentPickupException{
@@ -545,7 +545,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create exception for student2
-		exceptionDate := time.Date(2026, 5, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 5, 15) // Use noon to avoid day boundary issues
 		testReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
@@ -647,7 +647,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create exception to delete
-		exceptionDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 6, 15) // Use noon to avoid day boundary issues
 		deleteReason := "To be deleted"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student.ID,
@@ -678,7 +678,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create exception for student2
-		exceptionDate := time.Date(2026, 7, 15, 12, 0, 0, 0, timezone.Berlin) // Use noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 7, 15) // Use noon to avoid day boundary issues
 		deleteTestReason := "Test reason"
 		exception := &scheduleModel.StudentPickupException{
 			StudentID:     student2.ID, // Belongs to student2
@@ -922,7 +922,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		}()
 
 		// Insert exception for specific date
-		exceptionDate := time.Date(2026, 1, 26, 12, 0, 0, 0, timezone.Berlin) // Monday, noon to avoid day boundary issues
+		exceptionDate := timezone.NewDate(2026, 1, 26) // Monday, noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		earlyPickupReason := "Early pickup"
 		exception := &scheduleModel.StudentPickupException{
@@ -1088,7 +1088,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
 		// Create a note to update
-		noteDate := time.Date(2026, 4, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 4, 15)
 		originalContent := "Original content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student.ID,
@@ -1128,7 +1128,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create note for student2
-		noteDate := time.Date(2026, 5, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 5, 15)
 		testContent := "Test content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student2.ID, // Belongs to student2
@@ -1207,7 +1207,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create note to delete
-		noteDate := time.Date(2026, 6, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 6, 15)
 		deleteContent := "To be deleted"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student.ID,
@@ -1237,7 +1237,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create note for student2
-		noteDate := time.Date(2026, 7, 15, 12, 0, 0, 0, timezone.Berlin)
+		noteDate := timezone.NewDate(2026, 7, 15)
 		deleteTestContent := "Test content"
 		note := &scheduleModel.StudentPickupNote{
 			StudentID: student2.ID, // Belongs to student2

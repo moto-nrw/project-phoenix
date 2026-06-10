@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -48,12 +49,12 @@ const (
 type StudentStatusDay struct {
 	base.Model `bun:"schema:active,table:student_status_days"`
 	base.TenantModel
-	StudentID  int64      `bun:"student_id,notnull" json:"student_id"`
-	Date       time.Time  `bun:"date,notnull,type:date" json:"date"`
-	Status     string     `bun:"status,notnull" json:"status"`
-	ReportedAt time.Time  `bun:"reported_at,notnull" json:"reported_at"`
-	ClearedAt  *time.Time `bun:"cleared_at" json:"cleared_at,omitempty"`
-	Source     string     `bun:"source,notnull" json:"source"`
+	StudentID  int64         `bun:"student_id,notnull" json:"student_id"`
+	Date       timezone.Date `bun:"date,notnull,type:date" json:"date"`
+	Status     string        `bun:"status,notnull" json:"status"`
+	ReportedAt time.Time     `bun:"reported_at,notnull" json:"reported_at"`
+	ClearedAt  *time.Time    `bun:"cleared_at" json:"cleared_at,omitempty"`
+	Source     string        `bun:"source,notnull" json:"source"`
 	// Note carries an optional free-text reason supplied alongside the
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `bun:"note" json:"note,omitempty"`
@@ -83,16 +84,16 @@ type StudentStatusDayRepository interface {
 	// student_status_days for the date and clears the flag on
 	// users.students. Returns the number of students cleared. Column names
 	// must be trusted constants, never user input.
-	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date, reportedFallback time.Time, source string) (int64, error)
+	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date timezone.Date, reportedFallback time.Time, source string) (int64, error)
 	// CountActiveClassTripStudents counts distinct students with an
 	// uncleared class-trip entry for the date, excluding currently
 	// sick/excused students. Used by the dashboard analytics.
-	CountActiveClassTripStudents(ctx context.Context, date time.Time) (int, error)
-	MarkCleared(ctx context.Context, studentID int64, status string, date time.Time, clearedAt time.Time, source string) error
+	CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error)
+	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
 	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
-	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []time.Time, clearedAt time.Time, source string) error
+	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error
 	FindActiveByID(ctx context.Context, id int64) (*StudentStatusDay, error)
-	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*StudentStatusDay, error)
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*StudentStatusDay, error)
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*StudentStatusDay, error)
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
+	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 }

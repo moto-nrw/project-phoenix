@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -393,9 +394,9 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, educationGroup.ID, teacher.ID)
 
 	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
-	now := time.Now()
+	today := timezone.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, sc.db, educationGroup.ID, nil, staffID,
-		now.AddDate(0, 0, 1), now.AddDate(0, 0, 8))
+		today.AddDays(1), today.AddDays(8))
 
 	var personID int64
 	require.NoError(t, sc.db.NewSelect().

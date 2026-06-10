@@ -13,6 +13,7 @@ import {
   submitSickNote,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -21,24 +22,19 @@ const MAX_NOTE_LEN = 2000;
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
-function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, "0");
-  const d = `${now.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function enumerateDates(fromISO: string, toISO: string): string[] {
-  const from = new Date(`${fromISO}T00:00:00Z`);
-  const to = new Date(`${toISO}T00:00:00Z`);
+  if (!DATE_ONLY_RE.test(fromISO) || !DATE_ONLY_RE.test(toISO)) return [];
+  const from = parseISODate(fromISO);
+  const to = parseISODate(toISO);
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return [];
   if (to.getTime() < from.getTime()) return [];
   const out: string[] = [];
   const cursor = new Date(from);
   while (cursor.getTime() <= to.getTime() && out.length < MAX_SICK_DAYS) {
-    out.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    out.push(toISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
   }
   return out;
 }

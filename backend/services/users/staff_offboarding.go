@@ -169,7 +169,7 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 	}
 	counts["activity_supervisors"] = supervisions
 
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	substitutions, err := s.groupSubstitutionRepo.DeleteActiveOrFutureByStaffID(ctx, staffID, today)
 	if err != nil {
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}

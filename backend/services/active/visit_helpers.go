@@ -47,9 +47,7 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
-	// Use DateOfUTC: extract the Berlin calendar date but return as UTC midnight,
-	// so the value round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
-	visitDate := timezone.DateOfUTC(visit.EntryTime)
+	visitDate := timezone.DateFromTime(visit.EntryTime)
 	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
@@ -65,7 +63,7 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 }
 
 // createAttendanceRecord creates a new attendance record for first visit of the day
-func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate time.Time) error {
+func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
 	resolvedStaffID := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
 	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
 
@@ -233,7 +231,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 	if since != nil {
 		reportedAt = *since
 	}
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	if err := s.studentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
 		StudentID:  studentID,
 		Date:       today,
@@ -263,7 +261,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.DateFromTime(now)
 	rows, err := s.studentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
 		s.getLogger().Warn("failed to load planned student status days on check-in",

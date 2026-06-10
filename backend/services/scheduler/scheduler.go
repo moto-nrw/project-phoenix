@@ -122,7 +122,7 @@ type Scheduler struct {
 	studentStatusDayRepo activeModel.StudentStatusDayRepository
 	overdueBroadcaster   realtime.Broadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
-	overdueEmittedDay    time.Time
+	overdueEmittedDay    timezone.Date
 	overdueEmittedDayMu  sync.Mutex
 
 	// Student lifecycle (parent-enrollment PR 2). Wired via SetStudentLifecycleRepo.
@@ -1335,7 +1335,7 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 // Returns false if the scheduler is shutting down during the wait.
 func (s *Scheduler) waitUntilNextMinute() bool {
 	now := time.Now()
-	nextMinute := now.Truncate(time.Minute).Add(time.Minute)
+	nextMinute := now.Truncate(time.Minute).Add(time.Minute) //nolint:forbidigo // sub-day minute alignment, not calendar-date math
 	delay := time.Until(nextMinute)
 	select {
 	case <-time.After(delay):
@@ -1518,10 +1518,9 @@ func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn
 	if err != nil {
 		return 0, err
 	}
-
 	return s.studentStatusDayRepo.ArchiveAndClearStatusFlag(
 		ctx, flagColumn, sinceColumn, status,
-		timezone.TodayUTC(), time.Now(), activeModel.StudentStatusSourceEndOfDay,
+		timezone.TodayDate(), time.Now(), activeModel.StudentStatusSourceEndOfDay,
 	)
 }
 
@@ -1647,14 +1646,14 @@ func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
 		markRunToday(&s.lastMaterialization, tenantID)
 
 		weeksAhead := s.resolveIntSetting(tenantCtx, configModel.KeyTimetableMaterializationWeeksAhead, "", 1)
-		from, to := s.materializer.ResolveWindow(time.Now(), weeksAhead)
+		from, to := s.materializer.ResolveWindow(timezone.TodayDate(), weeksAhead)
 
 		s.getLogger().Info("running timetable materialization for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int("target_weekday", targetWeekday),
 			slog.Int("weeks_ahead", weeksAhead),
-			slog.String("from", from.Format("2006-01-02")),
-			slog.String("to", to.Format("2006-01-02")),
+			slog.String("from", from.String()),
+			slog.String("to", to.String()),
 		)
 
 		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
@@ -1913,7 +1912,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 		return
 	}
 
-	today := civilDateUTC(now)
+	today := timezone.DateFromTime(now)
 	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
 	if err != nil {
 		s.getLogger().Warn("overdue tick: load today's instances failed",
@@ -1947,7 +1946,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 // scoped topic to route through. Admin dashboard subscribers pick it up.
 func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst *scheduleModel.ActivityInstance) {
 	instanceIDStr := fmt.Sprintf("%d", inst.ID)
-	instanceDate := inst.Date.Format("2006-01-02")
+	instanceDate := inst.Date.String()
 	instanceStart := inst.StartTime.Format("15:04:05")
 	roomIDStr := fmt.Sprintf("%d", inst.RoomID)
 
@@ -1990,10 +1989,10 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 // over. Called at the top of every tick so a restart mid-day does not
 // miss the rollover.
 func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
-	today := civilDateUTC(now)
+	today := timezone.DateFromTime(now)
 	s.overdueEmittedDayMu.Lock()
 	defer s.overdueEmittedDayMu.Unlock()
-	if !s.overdueEmittedDay.Equal(today) {
+	if s.overdueEmittedDay != today {
 		s.overdueEmitted.Range(func(k, _ any) bool {
 			s.overdueEmitted.Delete(k)
 			return true
@@ -2002,20 +2001,12 @@ func (s *Scheduler) rotateOverdueCacheIfNewDay(now time.Time) {
 	}
 }
 
-// civilDateUTC strips the time component to UTC midnight. Duplicates the
-// materialization service's civilDate helper but staying in the scheduler
-// package avoids a circular import.
-func civilDateUTC(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-}
-
 // combineDayAndTime returns "day at time-of-day", reading the wall-clock
 // hour/minute/second from `tod` (typically an ActivityInstance.StartTime
 // which lives as a bare TIME). Stays in the server's local zone so the
 // comparison with time.Now() is apples-to-apples.
-func combineDayAndTime(day, tod time.Time) time.Time {
-	local := day.Local()
-	return time.Date(local.Year(), local.Month(), local.Day(),
+func combineDayAndTime(day timezone.Date, tod time.Time) time.Time {
+	return time.Date(day.Year, day.Month, day.Day,
 		tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
 }
 

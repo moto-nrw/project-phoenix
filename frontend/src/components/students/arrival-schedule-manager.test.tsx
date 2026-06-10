@@ -7,6 +7,7 @@ import {
   act,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { toISODate } from "~/lib/date-helpers";
 
 const {
   mockFetch,
@@ -270,7 +271,7 @@ describe("ArrivalScheduleManager", () => {
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(now.getDate() + mondayOffset);
-    const mondayIso = monday.toISOString().slice(0, 10);
+    const mondayIso = toISODate(monday);
 
     mockFetch.mockResolvedValue({
       schedules: [{ id: 1, weekday: 1, expected_arrival: "08:00" }],
@@ -299,7 +300,7 @@ describe("ArrivalScheduleManager", () => {
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(now);
     monday.setDate(now.getDate() + mondayOffset);
-    const mondayIso = monday.toISOString().slice(0, 10);
+    const mondayIso = toISODate(monday);
 
     mockFetch.mockResolvedValue({
       schedules: [{ id: 1, weekday: 1, expected_arrival: "08:00" }],

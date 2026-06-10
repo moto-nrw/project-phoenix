@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -116,7 +117,7 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
 
-	today := autoStartCivilDateUTC(now)
+	today := timezone.DateFromTime(now)
 	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
@@ -175,16 +176,11 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 	return result, nil
 }
 
-func autoStartCivilDateUTC(now time.Time) time.Time {
-	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-}
-
-func autoStartCombineDayAndTime(day, tod time.Time) time.Time {
-	localDay := day.Local()
+func autoStartCombineDayAndTime(day timezone.Date, tod time.Time) time.Time {
 	return time.Date(
-		localDay.Year(),
-		localDay.Month(),
-		localDay.Day(),
+		day.Year,
+		day.Month,
+		day.Day,
 		tod.Hour(),
 		tod.Minute(),
 		tod.Second(),

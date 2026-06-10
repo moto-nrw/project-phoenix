@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -533,7 +534,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 // =============================================================================
 
 func TestGetAllActiveSupervisions_Success(t *testing.T) {
-	now := time.Now()
+	now := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
 		{Model: base.Model{ID: 10}, StaffID: 100, GroupID: 200, StartDate: now},
 		{Model: base.Model{ID: 11}, StaffID: 101, GroupID: 201, StartDate: now},
@@ -584,8 +585,8 @@ func TestGetAllActiveSupervisions_DatabaseError(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_FiltersInactive(t *testing.T) {
-	past := time.Now().Add(-24 * time.Hour)
-	now := time.Now()
+	past := timezone.TodayDate().AddDays(-1)
+	now := timezone.TodayDate()
 
 	supervisors := []*active.GroupSupervisor{
 		// Active: no end date
@@ -631,7 +632,7 @@ func (m *mockVisitRepository) ExpiredVisitMonthlyCounts(context.Context) (map[st
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) FindStaleOpen(context.Context, time.Time) ([]*active.GroupSupervisor, error) {
+func (m *mockGroupSupervisorRepository) FindStaleOpen(context.Context, timezone.Date) ([]*active.GroupSupervisor, error) {
 	return nil, nil
 }
 

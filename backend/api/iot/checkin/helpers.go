@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -117,7 +118,7 @@ func (rs *Resource) isAfterCheckoutTimeGate(ctx context.Context, student *users.
 
 	if perStudentEnabled && rs.PickupScheduleService != nil {
 		now := timeNow()
-		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
 		if err == nil && effectivePickup != nil && effectivePickup.PickupTime != nil {
 			// Student has a pickup time — use it with the delta
 			delta := 15

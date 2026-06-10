@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -49,8 +50,8 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		ID:                        strconv.FormatInt(p.ID, 10),
 		Name:                      p.Name,
 		Kind:                      p.Kind,
-		ServiceStartDate:          p.ServiceStartDate.Format("2006-01-02"),
-		ServiceEndDate:            p.ServiceEndDate.Format("2006-01-02"),
+		ServiceStartDate:          p.ServiceStartDate.String(),
+		ServiceEndDate:            p.ServiceEndDate.String(),
 		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 		CareOverflowMode:          p.CareOverflowMode,
 		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
@@ -112,11 +113,11 @@ func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
 // failures bubble back as 400 from the handler — kept here so the
 // parsing logic is in one place.
 func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, error) {
-	startDate, err := time.Parse("2006-01-02", req.ServiceStartDate)
+	startDate, err := timezone.ParseDate(req.ServiceStartDate)
 	if err != nil {
 		return nil, errors.New("service_start_date must be YYYY-MM-DD")
 	}
-	endDate, err := time.Parse("2006-01-02", req.ServiceEndDate)
+	endDate, err := timezone.ParseDate(req.ServiceEndDate)
 	if err != nil {
 		return nil, errors.New("service_end_date must be YYYY-MM-DD")
 	}

@@ -2,8 +2,8 @@ package feedback
 
 import (
 	"context"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 )
 
@@ -18,13 +18,13 @@ type Service interface {
 
 	// Specialized query methods
 	GetEntriesByStudent(ctx context.Context, studentID int64) ([]*feedback.Entry, error)
-	GetEntriesByDay(ctx context.Context, day time.Time) ([]*feedback.Entry, error)
-	GetEntriesByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*feedback.Entry, error)
+	GetEntriesByDay(ctx context.Context, day timezone.Date) ([]*feedback.Entry, error)
+	GetEntriesByDateRange(ctx context.Context, startDate, endDate timezone.Date) ([]*feedback.Entry, error)
 	GetMensaFeedback(ctx context.Context, isMensaFeedback bool) ([]*feedback.Entry, error)
-	GetEntriesByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*feedback.Entry, error)
+	GetEntriesByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*feedback.Entry, error)
 
 	// Statistics and reporting
-	CountByDay(ctx context.Context, day time.Time) (int, error)
+	CountByDay(ctx context.Context, day timezone.Date) (int, error)
 	CountByStudent(ctx context.Context, studentID int64) (int, error)
 	CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error)
 

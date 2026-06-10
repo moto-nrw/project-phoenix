@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -49,7 +50,7 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 		{StudentID: 521, Status: scheduleModel.AttendanceStatusPresent},
 	}
 
-	result, err := deps.service.PlannedNow(context.Background(), 610, false, now, now, PlannedNowOptions{})
+	result, err := deps.service.PlannedNow(context.Background(), 610, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, instanceID, result[0].ID)
@@ -73,7 +74,7 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	}
 	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
 
-	result, err := deps.service.PlannedNow(context.Background(), 620, true, now, now, PlannedNowOptions{})
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 	require.NoError(t, err)
 	require.Len(t, result, 1)
@@ -91,7 +92,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		}
 		deps.staffRepo.byInstance[334] = []*scheduleModel.InstanceStaff{{StaffID: 224}}
 
-		result, err := deps.service.PlannedNow(context.Background(), 625, true, tomorrowStart, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 625, true, timezone.DateFromTime(tomorrowStart), now, PlannedNowOptions{})
 
 		require.NoError(t, err)
 		assert.Empty(t, result)
@@ -116,7 +117,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.personService.accountErr = usersSvc.ErrPersonNotFound
 
-		result, err := deps.service.PlannedNow(context.Background(), 621, false, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 621, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 		assert.Nil(t, result)
@@ -131,7 +132,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.staffRepo.byInstance[336] = []*scheduleModel.InstanceStaff{{StaffID: 226}}
 
-		result, err := deps.service.PlannedNow(context.Background(), 626, true, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 626, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.NoError(t, err)
 		require.Len(t, result, 1)
@@ -142,7 +143,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.personService.accountErr = errors.New("person lookup failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 627, true, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 627, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "person lookup failed")
 		assert.Nil(t, result)
@@ -153,7 +154,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		wireAssignedStaff(deps, 622, 431, 221, 331)
 		deps.instanceRepo.findByDateErr = errors.New("date query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 622, false, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 622, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "date query failed")
 		assert.Nil(t, result)
@@ -167,7 +168,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.staffRepo.err = errors.New("staff query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 623, false, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 623, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "staff query failed")
 		assert.Nil(t, result)
@@ -181,7 +182,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.studentRepo.err = errors.New("student query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 624, false, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 624, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "student query failed")
 		assert.Nil(t, result)
@@ -195,7 +196,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 		}
 		deps.rooms.err = errors.New("room query failed")
 
-		result, err := deps.service.PlannedNow(context.Background(), 629, false, now, now, PlannedNowOptions{})
+		result, err := deps.service.PlannedNow(context.Background(), 629, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
 
 		require.EqualError(t, err, "room query failed")
 		assert.Nil(t, result)
@@ -220,7 +221,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
 
-	result, err := deps.service.PlannedNow(context.Background(), 628, false, now, now, PlannedNowOptions{
+	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
 		HorizonMinutes: 120,
 		Limit:          1,
 		IncludeRoster:  true,
@@ -969,7 +970,7 @@ func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID,
 
 func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC),
+		Date:      timezone.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
@@ -1063,7 +1064,7 @@ func (r *fakeOpsInstanceRepo) FindByID(_ context.Context, id interface{}) (*sche
 	return r.byID[id.(int64)], nil
 }
 
-func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (r *fakeOpsInstanceRepo) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	if r.findByDateErr != nil {
 		return nil, r.findByDateErr
 	}
@@ -1213,7 +1214,7 @@ type fakeOpsArrivalService struct {
 	err       error
 }
 
-func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error) {
+func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

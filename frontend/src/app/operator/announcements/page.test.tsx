@@ -124,18 +124,21 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/date-picker", () => ({
-  DatePicker: ({ value, onChange }: any) => (
-    <input
-      data-testid="date-picker"
-      type="date"
-      value={value ? value.toISOString().split("T")[0] : ""}
-      onChange={(e) =>
-        onChange(e.target.value ? new Date(e.target.value) : null)
-      }
-    />
-  ),
-}));
+vi.mock("~/components/ui/date-picker", async () => {
+  const { toISODate } = await import("~/lib/date-helpers");
+  return {
+    DatePicker: ({ value, onChange }: any) => (
+      <input
+        data-testid="date-picker"
+        type="date"
+        value={value ? toISODate(value) : ""}
+        onChange={(e) =>
+          onChange(e.target.value ? new Date(e.target.value) : null)
+        }
+      />
+    ),
+  };
+});
 
 vi.mock("~/components/operator/announcement-views-accordion", () => ({
   AnnouncementViewsAccordion: () => <div data-testid="views-accordion" />,

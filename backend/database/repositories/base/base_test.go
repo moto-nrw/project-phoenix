@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -500,19 +501,19 @@ func TestRepository_OldestBefore(t *testing.T) {
 		oldest, err := repo.OldestBefore(ctx, "created_at", nil)
 		require.NoError(t, err)
 		require.NotNil(t, oldest)
-		assert.WithinDuration(t, older, *oldest, time.Second)
+		assert.Equal(t, timezone.DateFromTime(older), *oldest)
 	})
 
 	t.Run("cutoff between rows returns only the older one", func(t *testing.T) {
-		cutoff := time.Date(2020, 6, 1, 0, 0, 0, 0, time.UTC)
+		cutoff := timezone.NewDate(2020, 6, 1)
 		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
 		require.NoError(t, err)
 		require.NotNil(t, oldest)
-		assert.WithinDuration(t, older, *oldest, time.Second)
+		assert.Equal(t, timezone.DateFromTime(older), *oldest)
 	})
 
 	t.Run("cutoff before all rows returns nil", func(t *testing.T) {
-		cutoff := time.Date(2019, 1, 1, 0, 0, 0, 0, time.UTC)
+		cutoff := timezone.NewDate(2019, 1, 1)
 		oldest, err := repo.OldestBefore(ctx, "created_at", &cutoff)
 		require.NoError(t, err)
 		assert.Nil(t, oldest)
@@ -544,7 +545,7 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 	setSettingValueCreatedAt(t, db, kept.ID, newer)
 	setSettingValueCreatedAt(t, db, foreign.ID, older)
 
-	cutoff := time.Date(2020, 12, 31, 0, 0, 0, 0, time.UTC)
+	cutoff := timezone.NewDate(2020, 12, 31)
 	deleted, err := repo.DeleteOlderThan(ctx, "created_at", cutoff)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, deleted)

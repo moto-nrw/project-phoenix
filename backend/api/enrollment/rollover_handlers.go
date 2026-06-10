@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -284,15 +285,15 @@ func parseRolloverCreateRequest(sourceID int64, body *RolloverCreateRequest, adm
 // parseDateField accepts YYYY-MM-DD; parseDateTimeField accepts
 // RFC3339. Returned errors include the field name so the admin sees a
 // useful 400.
-func parseDateField(name, raw string) (time.Time, error) {
+func parseDateField(name, raw string) (timezone.Date, error) {
 	if raw == "" {
-		return time.Time{}, fmt.Errorf("%s is required", name)
+		return timezone.Date{}, fmt.Errorf("%s is required", name)
 	}
-	t, err := time.Parse("2006-01-02", raw)
+	d, err := timezone.ParseDate(raw)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%s must be YYYY-MM-DD: %w", name, err)
+		return timezone.Date{}, fmt.Errorf("%s must be YYYY-MM-DD: %w", name, err)
 	}
-	return t, nil
+	return d, nil
 }
 
 func parseDateTimeField(name, raw string) (time.Time, error) {

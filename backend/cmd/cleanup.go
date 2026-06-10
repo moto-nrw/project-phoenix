@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -524,8 +525,8 @@ func printAttendancePreviewHeader(preview *active.AttendanceCleanupPreview) {
 	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
 
 	if preview.OldestRecord != nil {
-		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
-		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+		daysAgo := preview.OldestRecord.DaysUntil(timezone.TodayDate())
+		fmt.Printf("Oldest record: %s (%d days ago)\n",
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
@@ -679,8 +680,8 @@ func printSupervisorPreviewHeader(preview *active.SupervisorCleanupPreview) {
 	fmt.Printf("Total stale records: %d\n", preview.TotalRecords)
 
 	if preview.OldestRecord != nil {
-		daysAgo := time.Since(*preview.OldestRecord).Hours() / 24
-		fmt.Printf("Oldest record: %s (%.0f days ago)\n",
+		daysAgo := preview.OldestRecord.DaysUntil(timezone.TodayDate())
+		fmt.Printf("Oldest record: %s (%d days ago)\n",
 			preview.OldestRecord.Format(dateFormat), daysAgo)
 	}
 
