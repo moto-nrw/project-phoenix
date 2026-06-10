@@ -28,6 +28,30 @@ func NewGroupTeacherRepository(db *bun.DB) education.GroupTeacherRepository {
 	}
 }
 
+// DeleteByTeacherID removes all group assignments for a teacher. Used by
+// staff offboarding, where the teacher row is only soft-deleted and the old
+// ON DELETE CASCADE therefore no longer cleans up assignments.
+func (r *GroupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherID int64) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*education.GroupTeacher)(nil)).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
+		Where(`"group_teacher".teacher_id = ?`, teacherID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete by teacher id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // FindByGroup retrieves all group-teacher relationships for a group
 func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64) ([]*education.GroupTeacher, error) {
 	var groupTeachers []*education.GroupTeacher

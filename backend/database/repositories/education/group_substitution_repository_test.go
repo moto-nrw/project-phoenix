@@ -107,6 +107,55 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 	})
 }
 
+func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupSubstitution
+	ctx := testpkg.TenantContext(1)
+
+	group := testpkg.CreateTestEducationGroup(t, db, "SubDelOffboard")
+	staff := testpkg.CreateTestStaff(t, db, "Offboarded", "Staff")
+	otherStaff := testpkg.CreateTestStaff(t, db, "Other", "Staff")
+
+	defer cleanupGroupRecords(t, db, group.ID)
+	defer cleanupStaffChain(t, db, staff.ID)
+	defer cleanupStaffChain(t, db, otherStaff.ID)
+
+	today := timezone.TodayDate()
+	// Past substitution (ended yesterday) — must stay as history.
+	past := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID,
+		today.AddDays(-10), today.AddDays(-1))
+	// Active substitution (running today) where staff is the substitute — must go.
+	activeSub := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, staff.ID,
+		today.AddDays(-2), today.AddDays(2))
+	// Future substitution where staff is the regular (being substituted) — must go.
+	futureRegular := testpkg.CreateTestGroupSubstitution(t, db, group.ID, &staff.ID, otherStaff.ID,
+		today.AddDays(5), today.AddDays(10))
+	// Future substitution of an unrelated staff member — must stay.
+	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
+		today.AddDays(5), today.AddDays(10))
+	defer cleanupSubstitutionRecords(t, db, past.ID, activeSub.ID, futureRegular.ID, otherFuture.ID)
+
+	affected, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, today)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), affected)
+
+	remainingIDs := func() map[int64]bool {
+		subs, listErr := repo.FindByGroup(ctx, group.ID)
+		require.NoError(t, listErr)
+		ids := make(map[int64]bool, len(subs))
+		for _, s := range subs {
+			ids[s.ID] = true
+		}
+		return ids
+	}()
+	assert.True(t, remainingIDs[past.ID], "past substitution must stay as history")
+	assert.False(t, remainingIDs[activeSub.ID], "active substitution must be deleted")
+	assert.False(t, remainingIDs[futureRegular.ID], "future substitution naming staff as regular must be deleted")
+	assert.True(t, remainingIDs[otherFuture.ID], "unrelated staff's substitution must stay")
+}
+
 func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -25,6 +25,7 @@ type Staff struct {
 	EmploymentType     *string        `bun:"employment_type" json:"employment_type,omitempty"`
 	WorkTimeModelID    *int64         `bun:"work_time_model_id" json:"work_time_model_id,omitempty"`
 	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
+	DeletedAt          *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`

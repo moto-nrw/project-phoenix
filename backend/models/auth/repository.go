@@ -163,6 +163,7 @@ type AccountPermissionRepository interface {
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
+	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
 }
 
@@ -353,6 +354,7 @@ type OrgAccountInfo struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
+	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)

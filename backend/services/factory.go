@@ -74,6 +74,7 @@ type Factory struct {
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
 	Users                    users.PersonService
+	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 users.GuardianService
 	GuardianProfileLoader    users.GuardianProfileLoader
@@ -228,17 +229,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:          repos.Person,
-		RFIDRepo:            repos.RFIDCard,
-		AccountRepo:         repos.Account,
-		PersonGuardianRepo:  repos.PersonGuardian,
-		StudentRepo:         repos.Student,
-		StaffRepo:           repos.Staff,
-		TeacherRepo:         repos.Teacher,
-		GroupSupervisorRepo: repos.GroupSupervisor,
-		DB:                  db,
-		SettingsService:     settingsService,
-		Logger:              logger.With("service", "users"),
+		PersonRepo:         repos.Person,
+		RFIDRepo:           repos.RFIDCard,
+		AccountRepo:        repos.Account,
+		PersonGuardianRepo: repos.PersonGuardian,
+		StudentRepo:        repos.Student,
+		StaffRepo:          repos.Staff,
+		TeacherRepo:        repos.Teacher,
+		DB:                 db,
+		SettingsService:    settingsService,
+		Logger:             logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -678,6 +678,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 	})
 
+	staffOffboardingService := users.NewStaffOffboardingService(users.StaffOffboardingServiceDependencies{
+		PersonRepo:             repos.Person,
+		StaffRepo:              repos.Staff,
+		TeacherRepo:            repos.Teacher,
+		GroupSupervisorRepo:    repos.GroupSupervisor,
+		GroupTeacherRepo:       repos.GroupTeacher,
+		GroupSubstitutionRepo:  repos.GroupSubstitution,
+		ActivitySupervisorRepo: repos.ActivitySupervisor,
+		InstanceStaffRepo:      repos.InstanceStaff,
+		StaffAbsenceRepo:       repos.StaffAbsence,
+		AccountTenantRepo:      repos.AccountTenant,
+		RoleRepo:               repos.Role,
+		AccountPermissionRepo:  repos.AccountPermission,
+		DataDeletionRepo:       repos.DataDeletion,
+		AuthService:            authService,
+		DB:                     db,
+		Logger:                 logger.With("service", "staff_offboarding"),
+	})
+
 	// Initialize authorization
 	authorizationService := authorize.NewAuthorizationService()
 
@@ -1020,6 +1039,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
 		Users:                    usersService,
+		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
 		GuardianProfileLoader:    guardianProfileLoader,

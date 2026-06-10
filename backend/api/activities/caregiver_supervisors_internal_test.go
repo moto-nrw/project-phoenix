@@ -52,7 +52,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
 	_, err := db.NewUpdate().
 		Model(activeTeacher).
-		ModelTableExpr(`users.teachers`).
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Set("specialization = ?", "Sport").
 		Where("id = ?", activeTeacher.ID).
 		Exec(context.Background())
@@ -61,7 +61,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
 	_, err = db.NewUpdate().
 		Model(legacyTeacher).
-		ModelTableExpr(`users.teachers`).
+		ModelTableExpr(`users.teachers AS "teacher"`).
 		Set("specialization = ?", "Sport").
 		Where("id = ?", legacyTeacher.ID).
 		Exec(context.Background())

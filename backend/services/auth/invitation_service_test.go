@@ -1342,7 +1342,7 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 			mutate: func(svc *invitationService, _ *authModel.InvitationToken) {
 				svc.accountTenantRepo = &failingAccountTenantRepository{
 					stubAccountTenantRepository: newStubAccountTenantRepository(),
-					createErr:                   errors.New("mapping failed"),
+					ensureActiveErr:             errors.New("mapping failed"),
 				}
 			},
 			wantErr: "mapping failed",
@@ -1469,15 +1469,15 @@ func (r *failingInvitationTokenRepository) MarkAsUsed(ctx context.Context, id in
 type failingAccountTenantRepository struct {
 	*stubAccountTenantRepository
 
-	createErr error
-	existsErr error
+	ensureActiveErr error
+	existsErr       error
 }
 
-func (r *failingAccountTenantRepository) Create(ctx context.Context, accountTenant *authModel.AccountTenant) error {
-	if r.createErr != nil {
-		return r.createErr
+func (r *failingAccountTenantRepository) EnsureActive(ctx context.Context, accountTenant *authModel.AccountTenant) error {
+	if r.ensureActiveErr != nil {
+		return r.ensureActiveErr
 	}
-	return r.stubAccountTenantRepository.Create(ctx, accountTenant)
+	return r.stubAccountTenantRepository.EnsureActive(ctx, accountTenant)
 }
 
 func (r *failingAccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {

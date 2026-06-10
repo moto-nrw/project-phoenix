@@ -107,6 +107,33 @@ func (r *GroupSubstitutionRepository) FindBySubstituteStaff(ctx context.Context,
 	return substitutions, nil
 }
 
+// DeleteActiveOrFutureByStaffID removes substitutions involving the staff
+// member (as regular or substitute) that have not ended before the given date.
+// Past substitutions stay as history. Used by staff offboarding, where the
+// staff row is only soft-deleted and the old ON DELETE CASCADE therefore no
+// longer cleans up assignments.
+func (r *GroupSubstitutionRepository) DeleteActiveOrFutureByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*education.GroupSubstitution)(nil)).
+		ModelTableExpr(tableExprGroupSubstitutionAsGS).
+		Where(`("group_substitution".regular_staff_id = ? OR "group_substitution".substitute_staff_id = ?)`, staffID, staffID).
+		Where(`"group_substitution".end_date >= ?`, from)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete active or future by staff id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // FindActive retrieves all active substitutions for a specific date
 func (r *GroupSubstitutionRepository) FindActive(ctx context.Context, date timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
@@ -478,11 +505,13 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 
 	staffIDSlice := mapKeysToSlice(staffIDs)
 
-	// Load staff records
+	// Load staff records. Include soft-deleted staff so historical
+	// substitutions keep resolving the staff member's name after offboarding.
 	var staffList []*users.Staff
 	staffQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&staffList).
 		ModelTableExpr(`users.staff AS "staff"`).
+		WhereAllWithDeleted().
 		Where(`"staff".id IN (?)`, bun.List(staffIDSlice))
 
 	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {

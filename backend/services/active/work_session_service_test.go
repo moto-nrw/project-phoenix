@@ -213,6 +213,8 @@ func (m *wsMockStaffRepository) ListAllWithPerson(ctx context.Context) ([]*userM
 	return nil, nil
 }
 
+func (m *wsMockStaffRepository) ClearWorkTimeModel(context.Context, int64) error { return nil }
+
 func (m *wsMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	return nil
 }
@@ -2019,6 +2021,10 @@ func (m *wsMockStaffAbsenceRepository) OldestBefore(context.Context, string, *ti
 }
 
 func (m *wsMockStaffAbsenceRepository) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffAbsenceRepository) DeleteNonHistoricalByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
 }
 
