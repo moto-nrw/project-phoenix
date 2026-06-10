@@ -118,7 +118,10 @@ type Service interface {
 	// CheckOutStudent applies "out" unconditionally via a state-checked
 	// UPDATE WHERE check_out_time IS NULL — closes the open row when one
 	// exists, returns idempotent success otherwise. Action is always
-	// "checked_out" on return.
+	// "checked_out" on return. Every checkout (this method and the toggle's
+	// "out" branch) also ends any open room visit in the same request
+	// transaction, so attendance "checked_out" never coexists with an open
+	// visit (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)

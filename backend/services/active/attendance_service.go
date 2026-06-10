@@ -168,7 +168,8 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 // never checked in, or another concurrent caller already closed it), returns
 // an idempotent successful result with Action="checked_out" and no
 // AttendanceID — the caller can re-fetch the latest status if they need
-// timestamps for display.
+// timestamps for display. Any open room visit is ended as part of the same
+// operation (issue #895) — callers don't need a separate EndVisit call.
 func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	// Auth path is shared with the toggle — pass deviceID=0 because the
 	// caller is web-side (no kiosk involved); IsIoTDeviceRequest is false
@@ -316,8 +317,30 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	}, nil
 }
 
+// endOpenVisitForStudent enforces the invariant "attendance checked_out =>
+// no open visit" (issue #895). Returns nil when no open visit exists or a
+// concurrent caller already ended it; every other failure propagates so the
+// surrounding request transaction rolls back instead of committing a
+// checked-out attendance row alongside an orphaned open visit.
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) error {
+	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil {
+		if errors.Is(err, ErrVisitNotFound) {
+			return nil
+		}
+		return err
+	}
+	if visit == nil {
+		return nil
+	}
+	if err := s.EndVisit(ctx, visit.ID); err != nil && !errors.Is(err, ErrVisitAlreadyEnded) {
+		return err
+	}
+	return nil
+}
+
 // performCheckOut closes the open attendance row for the student via a
-// state-checked UPDATE WHERE check_out_time IS NULL. Two key properties:
+// state-checked UPDATE WHERE check_out_time IS NULL. Three key properties:
 //
 //  1. Concurrency-safe: a second concurrent "out" call (or an "in" call that
 //     lost the race against another "out") simply finds no open row to
@@ -325,10 +348,17 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 //  2. Yard sub-state is cleared as part of the same UPDATE so detailed-mode
 //     callers don't observe an inconsistent (CheckOutTime set, YardSince
 //     still set) row even briefly.
+//  3. Any open room visit is ended in the same request transaction (issue
+//     #895) — including on the idempotent no-open-row path, so a checkout of
+//     any kind heals an orphaned visit left behind by older code.
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time) (*AttendanceResult, error) {
 	closed, err := s.attendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
+	}
+
+	if err := s.endOpenVisitForStudent(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
 	}
 
 	if closed == nil {
