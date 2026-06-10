@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -21,7 +22,7 @@ type stubAttendanceRepo struct {
 	err error
 }
 
-func (r stubAttendanceRepo) ListOpenStudentIDsForDate(_ context.Context, _ time.Time) ([]int64, error) {
+func (r stubAttendanceRepo) ListOpenStudentIDsForDate(_ context.Context, _ timezone.Date) ([]int64, error) {
 	return r.ids, r.err
 }
 

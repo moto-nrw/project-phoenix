@@ -30,8 +30,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 		attendanceRecords = make(map[int64]*active.Attendance)
 	}
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling
-	today := timezone.Today()
+	today := timezone.TodayDate()
 
 	for _, studentID := range studentIDs {
 		status := &AttendanceStatus{
@@ -72,11 +71,10 @@ func deriveAttendanceStatus(a *active.Attendance) string {
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
 	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
-		// Use timezone.Today() for consistent Europe/Berlin timezone handling
 		return &AttendanceStatus{
 			StudentID: studentID,
 			Status:    "not_checked_in",
-			Date:      timezone.Today(),
+			Date:      timezone.TodayDate(),
 		}, nil
 	}
 
@@ -139,9 +137,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := time.Now()
-	// Use TodayUTC() so the Berlin calendar date is stored as UTC midnight,
-	// which round-trips correctly through PostgreSQL DATE columns (PG session is UTC).
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
@@ -163,7 +159,7 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 		return nil, err
 	}
 	now := time.Now()
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
 }
 
@@ -275,7 +271,7 @@ func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staf
 // (student_id, date) WHERE check_out_time IS NULL (migration 1.15.42), so a
 // concurrent second "in" call is silently absorbed via ON CONFLICT and we
 // re-fetch the open row to return as the canonical result.
-func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now, today time.Time) (*AttendanceResult, error) {
+func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (*AttendanceResult, error) {
 	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	attendance := &active.Attendance{
 		StudentID:   studentID,

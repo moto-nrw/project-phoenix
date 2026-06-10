@@ -34,7 +34,6 @@ import (
 // commit deletes the rows it converts; the stale-entry sub-test forces the
 // deletion. Seeded from the discovery scan when this test was introduced.
 var legacyTimeTimeDateColumns = map[string]string{
-	"active.attendance.date":                             "pending migration in this PR",
 	"activities.student_enrollments.valid_from":          "pending migration in this PR",
 	"activities.student_enrollments.valid_until":         "pending migration in this PR",
 	"activities.supervisors.valid_from":                  "pending migration in this PR",

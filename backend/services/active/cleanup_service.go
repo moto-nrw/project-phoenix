@@ -369,15 +369,14 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 		Errors:    make([]string, 0),
 	}
 
-	// Get today's date at midnight - Berlin date as UTC for database comparison
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// Find all attendance records from before today that don't have check-out times
 	var staleRecords []struct {
-		ID          int64     `bun:"id"`
-		StudentID   int64     `bun:"student_id"`
-		Date        time.Time `bun:"date"`
-		CheckInTime time.Time `bun:"check_in_time"`
+		ID          int64         `bun:"id"`
+		StudentID   int64         `bun:"student_id"`
+		Date        timezone.Date `bun:"date"`
+		CheckInTime time.Time     `bun:"check_in_time"`
 	}
 
 	db := repoBase.GetDB(ctx, s.db)
@@ -402,16 +401,14 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 	// Track statistics
 	studentsAffected := make(map[int64]bool)
-	var oldestRecord *time.Time
+	var oldestRecord *timezone.Date
 
 	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
 		// Calculate appropriate check-out time:
 		// - Normally use 23:59:59 of the record's date
 		// - But if check_in_time is after that (data integrity issue), use check_in_time + 1 second
-		// record.Date is a DATE column — pgx returns it as UTC midnight regardless
-		// of what timezone was used when storing. Use Berlin explicitly.
-		endOfDay := timezone.EndOfDay(record.Date)
+		endOfDay := record.Date.EndOfDay()
 		checkOutTime := endOfDay
 		if record.CheckInTime.After(endOfDay) {
 			// check_in_time is after end of day - this is a data integrity issue
@@ -457,13 +454,12 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		RecordsByDate:  make(map[string]int),
 	}
 
-	// Get today's date at midnight - Berlin date as UTC for database comparison
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// Find all stale attendance records
 	var staleRecords []struct {
-		StudentID int64     `bun:"student_id"`
-		Date      time.Time `bun:"date"`
+		StudentID int64         `bun:"student_id"`
+		Date      timezone.Date `bun:"date"`
 	}
 
 	db := repoBase.GetDB(ctx, s.db)
@@ -487,7 +483,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		preview.StudentRecords[record.StudentID]++
 
 		// Track per-date counts
-		dateStr := record.Date.Format("2006-01-02")
+		dateStr := record.Date.String()
 		preview.RecordsByDate[dateStr]++
 
 		// Track oldest record

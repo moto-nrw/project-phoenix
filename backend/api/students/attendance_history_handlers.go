@@ -127,8 +127,11 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		clamped = true
 	}
 
-	// 5. Load attendance rows
-	attendanceRows, err := rs.AttendanceRepo.FindByStudentAndDateRange(ctx, student.ID, start, end)
+	// 5. Load attendance rows (DATE-keyed queries take the Berlin calendar
+	// days of the requested instant range)
+	startDay := timezone.DateFromTime(start)
+	endDay := timezone.DateFromTime(end)
+	attendanceRows, err := rs.AttendanceRepo.FindByStudentAndDateRange(ctx, student.ID, startDay, endDay)
 	if err != nil {
 		logger.Error("attendance history query failed",
 			slog.Int64("student_id", student.ID),
@@ -140,7 +143,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	statusRows := []*active.StudentStatusDay{}
 	if rs.StudentStatusDayRepo != nil {
-		statusRows, err = rs.StudentStatusDayRepo.FindByStudentAndDateRange(ctx, student.ID, timezone.DateFromTime(start), timezone.DateFromTime(end))
+		statusRows, err = rs.StudentStatusDayRepo.FindByStudentAndDateRange(ctx, student.ID, startDay, endDay)
 		if err != nil {
 			logger.Error("student status history query failed",
 				slog.Int64("student_id", student.ID),
@@ -261,7 +264,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 	dayMap := make(map[string]*attendanceHistoryDay, len(rows))
 
 	for _, row := range rows {
-		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
+		dateKey := row.Date.String()
 
 		existing, seen := dayMap[dateKey]
 		if !seen {

@@ -2279,7 +2279,7 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the WC reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "WCNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
+	today := timezone.TodayUTC() // UTC midnight of Berlin date — casts to the correct DATE in the UTC PG session
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
@@ -2340,7 +2340,7 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the Schulhof reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "SchulhofNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
+	today := timezone.TodayUTC() // UTC midnight of Berlin date — casts to the correct DATE in the UTC PG session
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)

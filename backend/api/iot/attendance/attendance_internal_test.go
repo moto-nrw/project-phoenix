@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
@@ -159,7 +160,7 @@ func TestAttendanceInfo_Fields(t *testing.T) {
 	later := now.Add(1 * time.Hour)
 	info := AttendanceInfo{
 		Status:       "checked_out",
-		Date:         now,
+		Date:         timezone.DateFromTime(now),
 		CheckInTime:  &now,
 		CheckOutTime: &later,
 		CheckedInBy:  "Staff A",

@@ -17,8 +17,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling
-	today := timezone.Today()
+	today := timezone.TodayDate()
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)
@@ -42,7 +41,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	excusedOpts := modelBase.NewQueryOptions()
 	excusedOpts.Filter.Equal("excused", true)
 	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
-		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, timezone.DateFromTime(today))
+		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, today)
 		if classTripErr == nil {
 			excusedCount += classTripCount
 		} else {

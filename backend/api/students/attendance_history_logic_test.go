@@ -69,7 +69,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	row := &active.Attendance{
 		TenantModel:  base.TenantModel{TenantID: 1},
 		StudentID:    10,
-		Date:         date,
+		Date:         timezone.DateFromTime(date),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
@@ -118,7 +118,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	row := &active.Attendance{
 		TenantModel:  base.TenantModel{TenantID: 1},
 		StudentID:    10,
-		Date:         roomCutoff,
+		Date:         timezone.DateFromTime(roomCutoff),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
@@ -156,7 +156,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	row := &active.Attendance{
 		TenantModel: base.TenantModel{TenantID: 1},
 		StudentID:   10,
-		Date:        today,
+		Date:        timezone.DateFromTime(today),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
@@ -189,8 +189,8 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 	roomCutoff := today.AddDate(0, 0, -6)
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: yesterday, CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(yesterday), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 	assert.Len(t, days, 2, "should return one day entry per unique date")
@@ -237,8 +237,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	afternoonOut := today.Add(16 * time.Hour)
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 
@@ -262,8 +262,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 	// Second session still open (no check-out).
 
 	rows := []*active.Attendance{
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: today, CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantModel: base.TenantModel{TenantID: 1}, StudentID: 10, Date: timezone.DateFromTime(today), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*active.Visit{}, roomCutoff, false)
 
@@ -282,7 +282,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	row := &active.Attendance{
 		TenantModel: base.TenantModel{TenantID: 1},
 		StudentID:   10,
-		Date:        oldDate,
+		Date:        timezone.DateFromTime(oldDate),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
