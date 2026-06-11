@@ -340,6 +340,10 @@ type mockAuthService struct {
 	registerFn func(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
 }
 
+func (m *mockAuthService) VerifyAccountTenantMembership(_ context.Context, _, _ int64) (bool, error) {
+	return true, nil
+}
+
 func (m *mockAuthService) WithTx(_ bun.Tx) interface{} { return m }
 func (m *mockAuthService) Login(context.Context, string, string) (string, string, error) {
 	return "", "", nil

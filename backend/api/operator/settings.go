@@ -14,9 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -107,7 +107,7 @@ type SettingsResource struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
-	schoolRepo platformModels.SchoolRepository
+	schoolService platformSvc.SchoolService
 	// onValueSet shares its signature with config.ValueSetCallback — see
 	// that type for the in-tx vs post-commit contract. Duplicated here
 	// (rather than imported) so api/operator stays free of api/config
@@ -122,12 +122,12 @@ type SettingsResource struct {
 // operator proxy can additionally bust the `tenant-${slug}` Next.js cache
 // for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 // Both are optional — nil disables the corresponding mechanism.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolRepo platformModels.SchoolRepository) *SettingsResource {
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolService platformSvc.SchoolService) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
 		broadcaster:     broadcaster,
-		schoolRepo:      schoolRepo,
+		schoolService:   schoolService,
 	}
 }
 
@@ -181,10 +181,10 @@ type schoolSettingMutationResponse struct {
 // is 5 min) whereas a 500 here would mislead the operator about whether the
 // setting actually persisted.
 func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int64) string {
-	if rs.schoolRepo == nil {
+	if rs.schoolService == nil {
 		return ""
 	}
-	school, err := rs.schoolRepo.FindByID(ctx, schoolID)
+	school, err := rs.schoolService.GetSchoolByID(ctx, schoolID)
 	if err != nil || school == nil {
 		slog.Warn("operator settings: school slug lookup failed",
 			slog.Int64("school_id", schoolID),

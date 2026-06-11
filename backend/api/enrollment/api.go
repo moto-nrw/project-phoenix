@@ -11,11 +11,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -30,8 +29,7 @@ type Resource struct {
 	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     usersService.GuardianProfileLoader
-	SchoolRepo                platformModels.SchoolRepository
-	PhaseRepo                 enrollmentModels.PhaseRepository
+	SchoolService             platformSvc.SchoolService
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
@@ -55,8 +53,7 @@ func NewResource(
 	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
-	schoolRepo platformModels.SchoolRepository,
-	phaseRepo enrollmentModels.PhaseRepository,
+	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
@@ -69,8 +66,7 @@ func NewResource(
 		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
-		SchoolRepo:                schoolRepo,
-		PhaseRepo:                 phaseRepo,
+		SchoolService:             schoolService,
 		db:                        db,
 	}
 }

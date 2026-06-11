@@ -29,6 +29,7 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -54,6 +55,7 @@ type ServiceDependencies struct {
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
+	SchoolService         platformSvc.SchoolService
 	SchoolRepo            platform.SchoolRepository
 	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
@@ -73,6 +75,7 @@ type Resource struct {
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
+	SchoolService         platformSvc.SchoolService
 	SchoolRepo            platform.SchoolRepository
 	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
@@ -93,6 +96,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		EducationService:      deps.EducationService,
 		FeedbackService:       deps.FeedbackService,
 		PickupScheduleService: deps.PickupScheduleService,
+		SchoolService:         deps.SchoolService,
 		SchoolRepo:            deps.SchoolRepo,
 		ActivityInstanceRepo:  deps.ActivityInstanceRepo,
 		InstanceStaffRepo:     deps.InstanceStaffRepo,
@@ -260,7 +264,7 @@ func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	school, err := rs.SchoolRepo.FindByID(r.Context(), deviceCtx.TenantID)
+	school, err := rs.SchoolService.GetSchoolByID(r.Context(), deviceCtx.TenantID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return

@@ -337,7 +337,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
@@ -375,6 +375,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
 		InstanceStudentRepo:    repoFactory.InstanceStudent,
 		SchoolRepo:             repoFactory.School,
+		SchoolService:          api.Services.Schools,
 		SettingsService:        api.Services.Settings,
 		AttendanceRepo:         repoFactory.Attendance,
 		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
@@ -404,8 +405,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentRollover,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
-		repoFactory.School,
-		repoFactory.Phase,
+		api.Services.Schools,
 		db,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
@@ -425,6 +425,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		FeedbackService:       api.Services.Feedback,
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolRepo:            repoFactory.School,
+		SchoolService:         api.Services.Schools,
 		ActivityInstanceRepo:  repoFactory.ActivityInstance,
 		InstanceStaffRepo:     repoFactory.InstanceStaff,
 		Broadcaster:           api.Services.RealtimeHub,
@@ -483,9 +484,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService:       api.Services.Announcement,
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
-		SchoolRepo:                 repoFactory.School,
+		SchoolService:              api.Services.Schools,
 		TenantMFAService:           api.Services.MFA,
-		AccountTenantRepository:    repoFactory.AccountTenant,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})
@@ -498,8 +498,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Parent,
 		api.Services.EnrollmentRequest,
 		api.Services.GuardianProfileLoader,
-		repoFactory.School,
-		repoFactory.AccountTenant,
+		api.Services.Schools,
 		db,
 	)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{

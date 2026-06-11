@@ -55,17 +55,11 @@ var (
 // R1 — repository-typed declarations in api/ (fields + params).
 // Seeded 2026-06-11 from the issue #584 audit; shrink-only.
 var apiRepoDeclAllowlist = map[string]int{
-	"api/auth/api.go":              2,
-	"api/enrollment/api.go":        4,
 	"api/groups/api.go":            4,
 	"api/guardians/api.go":         2,
 	"api/import/api.go":            3,
 	"api/iot/api.go":               6,
 	"api/iot/sessions/resource.go": 4,
-	"api/operator/api.go":          2,
-	"api/operator/provisioning.go": 1,
-	"api/operator/settings.go":     2,
-	"api/parent/api.go":            4,
 	"api/rooms/api.go":             1,
 	"api/students/api.go":          22,
 	"api/timetable/api.go":         40,

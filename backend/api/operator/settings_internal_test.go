@@ -20,7 +20,7 @@ func TestNewSettingsResource(t *testing.T) {
 	assert.Nil(t, res.settingsService)
 	assert.Nil(t, res.db)
 	assert.Nil(t, res.broadcaster)
-	assert.Nil(t, res.schoolRepo)
+	assert.Nil(t, res.schoolService)
 }
 
 func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {

@@ -123,7 +123,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		submitErr error
 	)
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, err := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if err != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}

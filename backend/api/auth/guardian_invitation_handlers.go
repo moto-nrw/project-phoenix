@@ -150,7 +150,7 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolRepo != nil && rs.db != nil {
+	if rs.SchoolService != nil && rs.db != nil {
 		if slug := rs.lookupTenantSlugForGuardianInvitation(r.Context(), token); slug != "" {
 			resp.TenantSlug = slug
 		}
@@ -173,7 +173,7 @@ func (rs *Resource) lookupTenantSlugForGuardianInvitation(ctx context.Context, t
 		if err != nil {
 			return err
 		}
-		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := rs.SchoolService.GetSchoolByID(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}

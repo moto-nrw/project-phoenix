@@ -305,7 +305,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
+	if rs.SchoolService == nil || rs.PhaseService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public endpoint not wired")))
 		return
 	}
@@ -326,7 +326,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		selectionMode = enrollmentModels.PhaseCareOfferingSelectionOptional
 	)
 	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, schoolErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
@@ -335,7 +335,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
-			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			phase, phaseErr := rs.PhaseService.GetByID(txCtx, phaseID)
 			if phaseErr != nil {
 				return errors.New("phase not found")
 			}
@@ -417,7 +417,7 @@ type PublicPhase struct {
 // tenant slug. No JWT — slug-gated. The parent landing page renders
 // these as cards / pickers; clicking one routes the parent to the form.
 func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
-	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
+	if rs.SchoolService == nil || rs.PhaseService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public phases endpoint not wired")))
 		return
 	}
@@ -430,7 +430,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 
 	var phases []*enrollmentModels.Phase
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, schoolErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
@@ -439,7 +439,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
-			list, listErr := rs.PhaseRepo.ListPublicOpen(txCtx, time.Now())
+			list, listErr := rs.PhaseService.ListPublicOpen(txCtx, time.Now())
 			phases = list
 			return listErr
 		})

@@ -32,7 +32,7 @@ type PublicLegalTextsResponse struct {
 // captcha-config endpoint. The texts are tenant-wide (not phase-
 // specific), so no phaseId param.
 func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.RequestService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("legal texts endpoint not wired")))
 		return
 	}
@@ -50,7 +50,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	// rather than let the form collect an incomplete legal state.
 	var legalErr error
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, schoolErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if schoolErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}

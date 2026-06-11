@@ -31,6 +31,7 @@ import (
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -61,6 +62,7 @@ type Resource struct {
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
+	SchoolService          platformSvc.SchoolService
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
 	StudentStatusDayRepo   active.StudentStatusDayRepository
@@ -92,6 +94,7 @@ type ResourceConfig struct {
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
 	SchoolRepo             platform.SchoolRepository
+	SchoolService          platformSvc.SchoolService
 	SettingsService        configService.SettingsService
 	AttendanceRepo         active.AttendanceRepository
 	StudentStatusDayRepo   active.StudentStatusDayRepository
@@ -128,6 +131,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		ArrivalScheduleRepo:    cfg.ArrivalScheduleRepo,
 		InstanceStudentRepo:    cfg.InstanceStudentRepo,
 		SchoolRepo:             cfg.SchoolRepo,
+		SchoolService:          cfg.SchoolService,
 		SettingsService:        cfg.SettingsService,
 		AttendanceRepo:         cfg.AttendanceRepo,
 		StudentStatusDayRepo:   cfg.StudentStatusDayRepo,

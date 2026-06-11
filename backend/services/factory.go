@@ -96,6 +96,7 @@ type Factory struct {
 	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
+	Schools              platform.SchoolService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 
@@ -1067,6 +1068,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
+		Schools:              platform.NewSchoolService(repos.School),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
 

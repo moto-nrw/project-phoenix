@@ -364,7 +364,7 @@ func collectResponseIDs(students []StudentResponse) []int64 {
 func (rs *Resource) exportSubtitle(r *http.Request, count int) string {
 	name := "Kindersuche"
 	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolRepo != nil {
-		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
 			name = school.Name
 		}
 	}

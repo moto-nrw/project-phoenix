@@ -88,9 +88,9 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve tenant display name for the invitation email.
-	if rs.SchoolRepo != nil {
+	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
-		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
 			invitationReq.SchoolName = school.Name
 		}
 	}
@@ -294,7 +294,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolRepo != nil && rs.db != nil {
+	if rs.SchoolService != nil && rs.db != nil {
 		if slug := rs.lookupTenantSlugForInvitation(r.Context(), token); slug != "" {
 			resp.TenantSlug = slug
 		}
@@ -317,7 +317,7 @@ func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token str
 		if err != nil {
 			return err
 		}
-		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := rs.SchoolService.GetSchoolByID(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}
