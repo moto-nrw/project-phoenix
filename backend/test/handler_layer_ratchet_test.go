@@ -1,0 +1,292 @@
+package test
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"testing"
+)
+
+// TestHandlerLayerRatchet enforces .claude/rules/backend-conventions.md
+// Rule 1: HTTP handlers in api/ MUST NOT access repositories — not as struct
+// fields, not via service `.XxxRepository()` getters, not by constructing
+// queries on a db handle, and not by importing database/repositories.
+// Issue #584 counted 71 violations in January 2026; by June the count had
+// grown past 200 because detection was docs-only. Like the service ratchet
+// above, this test makes every count shrink-only.
+//
+// Four patterns, each with its own per-file allowlist:
+//
+//	R1 — repository-typed declarations (struct fields, constructor params)
+//	     anywhere under api/.
+//	R2 — service repository-getter calls (`.XxxRepository()`) anywhere in the
+//	     backend except database/ and test/: the getters are scheduled for
+//	     deletion from the PersonService interface, so non-api consumers
+//	     (authorize policies, schedule services) are ratcheted too.
+//	R3 — query construction (`.NewSelect(` etc., `ExecContext` etc.) under api/.
+//	R4 — imports of database/repositories under api/ (api/base.go and
+//	     api/testutil/ are the sanctioned wiring/testing exceptions).
+//
+// Allowlist rules (identical to serviceQueryRatchetAllowlist):
+//
+//   - A file NOT in the allowlist must have ZERO hits.
+//   - A file may never exceed its allowed count.
+//   - When refactoring removes hits, the test fails until the entry is
+//     lowered/removed — the ratchet only turns one way. Never raise a number.
+var (
+	// R1: "name pkg.SomethingRepository" declaration pairs — struct fields and
+	// constructor params. Service-typed fields never match (their types end in
+	// "Service"); getter call sites never match (no name/type whitespace pair).
+	apiRepoDeclPattern = regexp.MustCompile(`(^|\(|,\s*)\s*[A-Za-z_]\w*\s+\*?\w+\.\w*Repository\b`)
+
+	// R2: repo-getter invocation on any value. The leading dot excludes the
+	// getter *definitions* (method declarations have no receiver dot on the
+	// same token).
+	repoGetterCallPattern = regexp.MustCompile(`\.\w*Repository\(\)`)
+
+	// R4: import of the repositories tree (prefix also catches /base).
+	repoImportPattern = regexp.MustCompile(`"github\.com/moto-nrw/project-phoenix/database/repositories`)
+)
+
+// R1 — repository-typed declarations in api/ (fields + params).
+// Seeded 2026-06-11 from the issue #584 audit; shrink-only.
+var apiRepoDeclAllowlist = map[string]int{
+	"api/auth/api.go":              2,
+	"api/enrollment/api.go":        4,
+	"api/groups/api.go":            5,
+	"api/guardians/api.go":         2,
+	"api/import/api.go":            3,
+	"api/iot/api.go":               6,
+	"api/iot/sessions/resource.go": 4,
+	"api/operator/api.go":          2,
+	"api/operator/provisioning.go": 1,
+	"api/operator/settings.go":     2,
+	"api/parent/api.go":            4,
+	"api/rooms/api.go":             1,
+	"api/staff/api.go":             10,
+	"api/students/api.go":          22,
+	"api/timetable/api.go":         40,
+	"api/work-time-models/api.go":  2,
+}
+
+// R2 — `.XxxRepository()` getter calls, backend-wide minus database/ + test/.
+// Target: empty — the three PersonService getters are scheduled for deletion.
+var repoGetterCallAllowlist = map[string]int{
+	"api/active/checkin.go":                             2,
+	"api/active/checkout_helpers.go":                    1,
+	"api/active/groups_handlers.go":                     1,
+	"api/active/unclaimed_handlers.go":                  1,
+	"api/activities/api.go":                             3,
+	"api/groups/api.go":                                 1,
+	"api/import/api.go":                                 1,
+	"api/iot/attendance/handlers.go":                    3,
+	"api/iot/checkin/workflow.go":                       3,
+	"api/iot/data/handlers.go":                          5,
+	"api/iot/feedback/handlers.go":                      1,
+	"api/iot/rfid/handlers.go":                          1,
+	"api/iot/sessions/helpers.go":                       1,
+	"api/sse/sse_helpers.go":                            1,
+	"api/staff/api.go":                                  2,
+	"api/students/pickup_schedule_handlers.go":          1,
+	"api/time-tracking/api.go":                          1,
+	"api/timetable/instances.go":                        1,
+	"auth/authorize/policies/student_visit.go":          4,
+	"services/schedule/timetable_operations_service.go": 1,
+}
+
+// R3 — query construction in api/.
+var apiQueryConstructionAllowlist = map[string]int{
+	"api/active/groups_handlers.go":            2,
+	"api/auth/guardian_invitation_handlers.go": 1,
+	"api/auth/invitation_handlers.go":          1,
+	"api/operator/settings.go":                 1,
+	"api/timetable/operations.go":              3, // pg_advisory_xact_lock ×3
+	"api/timetable/templates_list.go":          2,
+	"api/timetable/templates_people.go":        2,
+	"api/timetable/templates_update.go":        4,
+}
+
+// R4 — database/repositories imports in api/ (beyond base.go + testutil).
+var apiRepoImportAllowlist = map[string]int{
+	"api/timetable/templates_list.go":   1,
+	"api/timetable/templates_people.go": 1,
+	"api/timetable/templates_update.go": 1,
+}
+
+func TestHandlerLayerRatchet(t *testing.T) {
+	backendRoot, err := findBackendRoot()
+	if err != nil {
+		t.Skipf("Could not find backend root: %v", err)
+		return
+	}
+
+	checks := []struct {
+		name      string
+		scan      func(string) (map[string]int, error)
+		allowlist map[string]int
+		fix       string
+	}{
+		{
+			name:      "R1 repository-typed declarations in api/",
+			scan:      scanAPIRepoDecls,
+			allowlist: apiRepoDeclAllowlist,
+			fix:       "handlers depend on services, never on repositories (Rule 1) — add/extend a service method and drop the repo field/param",
+		},
+		{
+			name:      "R2 repository-getter calls",
+			scan:      scanRepoGetterCalls,
+			allowlist: repoGetterCallAllowlist,
+			fix:       "call a real service method instead of reaching through `.XxxRepository()` — the getters are being removed",
+		},
+		{
+			name:      "R3 query construction in api/",
+			scan:      scanAPIQueryConstruction,
+			allowlist: apiQueryConstructionAllowlist,
+			fix:       "queries belong in database/repositories, orchestration in services (Rules 1+11) — never on a db handle in a handler",
+		},
+		{
+			name:      "R4 database/repositories imports in api/",
+			scan:      scanAPIRepoImports,
+			allowlist: apiRepoImportAllowlist,
+			fix:       "only api/base.go (wiring) and api/testutil/ may import repositories",
+		},
+	}
+
+	var violations []string
+	for _, c := range checks {
+		counts, scanErr := c.scan(backendRoot)
+		if scanErr != nil {
+			t.Fatalf("ratchet scan %s failed: %v", c.name, scanErr)
+		}
+		violations = append(violations, ratchetViolations(c.name, counts, c.allowlist, c.fix)...)
+	}
+
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Errorf("Handler-layer ratchet check failed (%d issue(s)):\n\n%s",
+			len(violations), strings.Join(violations, "\n\n"))
+	}
+}
+
+func ratchetViolations(check string, counts, allowlist map[string]int, fix string) []string {
+	var violations []string
+	for file, got := range counts {
+		allowed, ok := allowlist[file]
+		switch {
+		case !ok:
+			violations = append(violations, fmt.Sprintf(
+				"[%s] %s: %d hit(s), but the file is not in the allowlist.\n  %s.", check, file, got, fix))
+		case got > allowed:
+			violations = append(violations, fmt.Sprintf(
+				"[%s] %s: %d hit(s), allowed %d.\n  %s. Never raise the allowlist.", check, file, got, allowed, fix))
+		case got < allowed:
+			violations = append(violations, fmt.Sprintf(
+				"[%s] %s: %d hit(s), allowlist says %d.\n  Nice — hits were removed. Ratchet down the allowlist entry so the improvement cannot regress.",
+				check, file, got, allowed))
+		}
+	}
+	for file, allowed := range allowlist {
+		if _, ok := counts[file]; !ok {
+			violations = append(violations, fmt.Sprintf(
+				"[%s] %s: allowlisted with %d hit(s) but has none (deleted or cleaned up?).\n  Remove the entry.", check, file, allowed))
+		}
+	}
+	return violations
+}
+
+func scanAPIRepoDecls(backendRoot string) (map[string]int, error) {
+	return scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
+		return len(apiRepoDeclPattern.FindAllString(line, -1))
+	})
+}
+
+func scanRepoGetterCalls(backendRoot string) (map[string]int, error) {
+	skipDirs := map[string]bool{"database": true, "test": true}
+	return scanTree(backendRoot, backendRoot, skipDirs, func(line string) int {
+		return len(repoGetterCallPattern.FindAllString(line, -1))
+	})
+}
+
+func scanAPIQueryConstruction(backendRoot string) (map[string]int, error) {
+	return scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
+		return len(queryBuilderPattern.FindAllString(line, -1)) +
+			len(driverExecPattern.FindAllString(line, -1))
+	})
+}
+
+func scanAPIRepoImports(backendRoot string) (map[string]int, error) {
+	counts, err := scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
+		return len(repoImportPattern.FindAllString(line, -1))
+	})
+	if err != nil {
+		return nil, err
+	}
+	delete(counts, "api/base.go")
+	for file := range counts {
+		if strings.HasPrefix(file, "api/testutil/") {
+			delete(counts, file)
+		}
+	}
+	return counts, nil
+}
+
+// scanTree counts pattern hits per non-test .go file under root, skipping the
+// named top-level directories (relative to backendRoot) and comment-only lines.
+func scanTree(backendRoot, root string, skipDirs map[string]bool, countLine func(string) int) (map[string]int, error) {
+	counts := make(map[string]int)
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, relErr := filepath.Rel(backendRoot, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+		if d.IsDir() {
+			if skipDirs[rel] || strings.HasPrefix(d.Name(), ".") && rel != "." {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		hits, scanErr := countFileHits(path, countLine)
+		if scanErr != nil {
+			return scanErr
+		}
+		if hits > 0 {
+			counts[rel] = hits
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+func countFileHits(path string, countLine func(string) int) (int, error) {
+	f, err := os.Open(path) // #nosec G304 -- test scans repo-local source files
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = f.Close() }()
+
+	hits := 0
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(strings.TrimSpace(line), "//") {
+			continue
+		}
+		hits += countLine(line)
+	}
+	return hits, scanner.Err()
+}
