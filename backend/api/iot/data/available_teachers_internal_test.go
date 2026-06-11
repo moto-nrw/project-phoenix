@@ -96,11 +96,6 @@ func (s personServiceWithTeacherRepo) GetFullProfile(context.Context, int64) (*u
 func (s personServiceWithTeacherRepo) FindByGuardianID(context.Context, int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (s personServiceWithTeacherRepo) StudentRepository() userModels.StudentRepository { return nil }
-func (s personServiceWithTeacherRepo) StaffRepository() userModels.StaffRepository     { return nil }
-func (s personServiceWithTeacherRepo) TeacherRepository() userModels.TeacherRepository {
-	return s.teacherRepo
-}
 func (s personServiceWithTeacherRepo) ListAvailableRFIDCards(context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }

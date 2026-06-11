@@ -479,19 +479,6 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	return persons, nil
 }
 
-// StudentRepository returns the student repository
-func (s *personService) StudentRepository() userModels.StudentRepository { return s.studentRepo }
-
-// StaffRepository returns the staff repository
-func (s *personService) StaffRepository() userModels.StaffRepository {
-	return s.staffRepo
-}
-
-// TeacherRepository returns the teacher repository
-func (s *personService) TeacherRepository() userModels.TeacherRepository {
-	return s.teacherRepo
-}
-
 // Entity lookups (issue #584). CONTRACT: repository results and errors are
 // returned VERBATIM — no wrapping, no sentinel mapping — because IoT device
 // flows branch on sql.ErrNoRows and PyrePortal substring-matches the rendered

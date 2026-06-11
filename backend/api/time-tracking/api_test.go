@@ -110,9 +110,6 @@ func (m *mockPersonService) GetFullProfile(_ context.Context, _ int64) (*userMod
 func (m *mockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (m *mockPersonService) StaffRepository() userModels.StaffRepository     { return m.staffRepo }
-func (m *mockPersonService) TeacherRepository() userModels.TeacherRepository { return nil }
-func (m *mockPersonService) StudentRepository() userModels.StudentRepository { return nil }
 func (m *mockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }

@@ -60,17 +60,8 @@ type PersonService interface {
 	// FindByGuardianID finds all persons with a guardian relationship to the specified account
 	FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error)
 
-	// StudentRepository returns the student repository
-	StudentRepository() userModels.StudentRepository
-
-	// StaffRepository returns the staff repository
-	StaffRepository() userModels.StaffRepository
-
-	// TeacherRepository returns the teacher repository
-	TeacherRepository() userModels.TeacherRepository
-
-	// Entity lookups (issue #584). These replace the repository getters above,
-	// which are scheduled for deletion. CONTRACT: each method returns the
+	// Entity lookups (issue #584). These replaced the now-deleted repository
+	// getters (StudentRepository/StaffRepository/TeacherRepository). CONTRACT: each method returns the
 	// repository result and error VERBATIM — no wrapping, no sentinel mapping —
 	// because callers (IoT device flows, PyrePortal contract) branch on
 	// sql.ErrNoRows and render err.Error() into response bodies. Introducing

@@ -33,10 +33,6 @@ type stubPersonService struct {
 	staffRepo userModels.StaffRepository
 }
 
-func (s *stubPersonService) StaffRepository() userModels.StaffRepository {
-	return s.staffRepo
-}
-
 func (s *stubPersonService) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
 	return s.staffRepo.FindWithPersonByIDs(ctx, ids)
 }

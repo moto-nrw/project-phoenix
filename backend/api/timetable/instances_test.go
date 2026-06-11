@@ -197,9 +197,6 @@ func (m *instMockPersonService) GetFullProfile(_ context.Context, _ int64) (*use
 func (m *instMockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (m *instMockPersonService) StaffRepository() userModels.StaffRepository     { return m.staffRepo }
-func (m *instMockPersonService) TeacherRepository() userModels.TeacherRepository { return nil }
-func (m *instMockPersonService) StudentRepository() userModels.StudentRepository { return nil }
 func (m *instMockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
@@ -736,7 +733,7 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: nil, // returns nil from StaffRepository()
+		staffRepo: nil, // GetStaffByPersonID resolves no staff
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
