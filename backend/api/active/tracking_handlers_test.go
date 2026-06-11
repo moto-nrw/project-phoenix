@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -86,6 +87,10 @@ type trackingMockActiveService struct {
 }
 
 // The only method used by the tracking handler:
+func (m *trackingMockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
+}
+
 func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 	if m.getTrackingIndicatorsFunc != nil {
 		return m.getTrackingIndicatorsFunc(ctx, studentIDs, labels)

@@ -299,6 +299,10 @@ type mockInvitationService struct {
 	req authSvc.InvitationRequest
 }
 
+func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
+	return ""
+}
+
 func (m *mockInvitationService) WithTx(tx bun.Tx) interface{} { return m }
 func (m *mockInvitationService) CreateInvitation(_ context.Context, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	m.req = req

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -83,6 +84,10 @@ type mockActiveSvcForSSE struct {
 	getAllFunc   func(ctx context.Context) ([]*activeModel.GroupSupervisor, error)
 	getStaffFunc func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	listFunc     func(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error)
+}
+
+func (m *mockActiveSvcForSSE) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
 }
 
 func (m *mockActiveSvcForSSE) GetAllActiveSupervisions(ctx context.Context) ([]*activeModel.GroupSupervisor, error) {

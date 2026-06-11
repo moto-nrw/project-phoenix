@@ -72,14 +72,11 @@ var repoGetterCallAllowlist = map[string]int{}
 
 // R3 — query construction in api/.
 var apiQueryConstructionAllowlist = map[string]int{
-	"api/active/groups_handlers.go":            2,
-	"api/auth/guardian_invitation_handlers.go": 1,
-	"api/auth/invitation_handlers.go":          1,
-	"api/operator/settings.go":                 1,
-	"api/timetable/operations.go":              3, // pg_advisory_xact_lock ×3
-	"api/timetable/templates_list.go":          2,
-	"api/timetable/templates_people.go":        2,
-	"api/timetable/templates_update.go":        4,
+	"api/active/groups_handlers.go":     2,
+	"api/timetable/operations.go":       3, // pg_advisory_xact_lock ×3
+	"api/timetable/templates_list.go":   2,
+	"api/timetable/templates_people.go": 2,
+	"api/timetable/templates_update.go": 4,
 }
 
 // R4 — database/repositories imports in api/ (beyond base.go + testutil).

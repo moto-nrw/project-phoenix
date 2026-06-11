@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -21,6 +22,10 @@ type stubActiveService struct {
 	findDeviceActiveGroupInRoomFn    func(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	countActiveVisitsByRoomIDFn      func(ctx context.Context, roomID int64) (int, error)
 	countActiveVisitsByActiveGroupFn func(ctx context.Context, activeGroupID int64) (int, error)
+}
+
+func (s *stubActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
 }
 
 func (s *stubActiveService) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {

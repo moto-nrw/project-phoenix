@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -49,6 +50,7 @@ type ResourceConfig struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService platformSvc.SchoolService
+	ActiveService activeSvc.Service
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
@@ -111,7 +113,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB

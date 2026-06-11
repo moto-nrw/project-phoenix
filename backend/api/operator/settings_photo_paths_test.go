@@ -54,7 +54,7 @@ func setupOperatorSettingsTestWithSchoolRepo(t *testing.T) *operatorSettingsTest
 
 	db, svc := testutil.SetupAPITest(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, platformSvc.NewSchoolService(schoolRepo))
+	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, platformSvc.NewSchoolService(schoolRepo), svc.Active)
 
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)

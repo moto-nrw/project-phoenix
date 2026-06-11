@@ -967,6 +967,10 @@ type mockActiveService struct {
 	cleanupAbandonedDuration time.Duration
 }
 
+func (m *mockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
+}
+
 func (m *mockActiveService) EndDailySessions(_ context.Context) (*activeService.DailySessionCleanupResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

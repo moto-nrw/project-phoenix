@@ -302,32 +302,11 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
 }
 
-// lookupTenantSlugForInvitation resolves the tenant slug from an invitation token.
-// Best-effort: returns "" on any error so the accept response still succeeds.
+// lookupTenantSlugForInvitation resolves the tenant slug from an invitation
+// token via the invitation service. Best-effort: returns "" on any error so
+// the accept response still succeeds.
 func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token string) string {
-	var slug string
-	_ = tenant.WithAdminTx(ctx, rs.db, func(txCtx context.Context, tx bun.Tx) error {
-		invitation := new(authModels.InvitationToken)
-		err := tx.NewSelect().
-			Model(invitation).
-			ModelTableExpr(`auth.invitation_tokens AS "invitation_token"`).
-			Column("tenant_id").
-			Where(`"invitation_token".token = ?`, token).
-			Scan(txCtx)
-		if err != nil {
-			return err
-		}
-		school, err := rs.SchoolService.GetSchoolByID(txCtx, invitation.TenantID)
-		if err != nil {
-			return err
-		}
-		if school == nil || school.IsDeleted() {
-			return nil
-		}
-		slug = school.Slug
-		return nil
-	})
-	return slug
+	return rs.InvitationService.GetTenantSlugForToken(ctx, token)
 }
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {

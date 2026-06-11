@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -83,6 +84,10 @@ func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string
 
 type stubActiveService struct {
 	listActiveGroupsFunc func(ctx context.Context, options *base.QueryOptions) ([]*activeModel.Group, error)
+}
+
+func (s *stubActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
 }
 
 func (s *stubActiveService) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*activeModel.Group, error) {

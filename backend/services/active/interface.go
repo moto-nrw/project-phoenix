@@ -103,6 +103,10 @@ type Service interface {
 
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
+	// HasOpenAttendanceOn reports whether any attendance row on the given
+	// calendar date is still open (issue #584 lookup; repository result
+	// returned verbatim). Used by the operator presence-mode switch guard.
+	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
 	GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*AttendanceStatus, error)
 	// ToggleStudentAttendance flips state based on the current row — used by
 	// the IoT kiosk where a single device serializes scans. NOT safe under

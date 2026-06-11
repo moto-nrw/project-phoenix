@@ -11,11 +11,10 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 func TestNewSettingsResource(t *testing.T) {
-	res := NewSettingsResource(nil, nil, nil, nil)
+	res := NewSettingsResource(nil, nil, nil, nil, nil)
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settingsService)
 	assert.Nil(t, res.db)
@@ -93,7 +92,7 @@ func TestRenderOperatorSettingsError_NonSettingsError(t *testing.T) {
 func TestEnforcePresenceModeSwitchGuard_IgnoresOtherKeys(t *testing.T) {
 	err := enforcePresenceModeSwitchGuard(
 		context.Background(),
-		bun.Tx{},
+		nil,
 		configModel.KeyCheckoutSchulhofEnabled,
 		false,
 	)
@@ -103,7 +102,7 @@ func TestEnforcePresenceModeSwitchGuard_IgnoresOtherKeys(t *testing.T) {
 func TestEnforcePresenceModeSwitchGuard_ForceBypass(t *testing.T) {
 	err := enforcePresenceModeSwitchGuard(
 		context.Background(),
-		bun.Tx{},
+		nil,
 		configModel.KeyPresenceMode,
 		true,
 	)
@@ -121,7 +120,7 @@ func TestErrPresenceModeSwitchBlocked_IsSentinel(t *testing.T) {
 func TestEnforcePresenceModeSwitchGuard_NonPresenceForceIsNoop(t *testing.T) {
 	err := enforcePresenceModeSwitchGuard(
 		context.Background(),
-		bun.Tx{},
+		nil,
 		configModel.KeyCheckoutSchulhofEnabled,
 		true,
 	)
