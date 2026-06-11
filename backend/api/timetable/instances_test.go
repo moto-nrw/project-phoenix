@@ -218,6 +218,54 @@ func (m *instMockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context
 func (m *instMockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
 	return nil, nil
 }
+func (m *instMockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if m.staffRepo == nil {
+		return nil, nil
+	}
+	return m.staffRepo.FindByPersonID(ctx, personID)
+}
+func (m *instMockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
+	return nil, nil
+}
 
 // -----------------------------------------------------------------------------
 // Router helpers — mirror setupMaterializeRouter, parameterised for each route.

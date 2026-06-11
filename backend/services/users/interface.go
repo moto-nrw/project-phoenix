@@ -69,6 +69,60 @@ type PersonService interface {
 	// TeacherRepository returns the teacher repository
 	TeacherRepository() userModels.TeacherRepository
 
+	// Entity lookups (issue #584). These replace the repository getters above,
+	// which are scheduled for deletion. CONTRACT: each method returns the
+	// repository result and error VERBATIM — no wrapping, no sentinel mapping —
+	// because callers (IoT device flows, PyrePortal contract) branch on
+	// sql.ErrNoRows and render err.Error() into response bodies. Introducing
+	// typed errors is follow-up work; see backend-conventions rule 8 deviation
+	// note in the #584 PR description.
+
+	// GetStaffByID retrieves a staff member by ID.
+	GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error)
+
+	// GetStaffByPersonID retrieves the staff record belonging to a person.
+	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+
+	// GetStaffWithPerson retrieves a staff member with person data preloaded.
+	GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error)
+
+	// GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
+
+	// ListStaffWithPerson retrieves all staff with person data preloaded.
+	ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+
+	// ListStaffByRoles retrieves staff holding any of the given roles, with
+	// person data, account ID, and email.
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
+
+	// GetTeacherByStaffID retrieves the teacher record for a staff member.
+	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+
+	// GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
+	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
+
+	// ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
+	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
+
+	// GetStudentByID retrieves a student by ID.
+	GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error)
+
+	// GetStudentByPersonID retrieves the student record belonging to a person.
+	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
+
+	// GetStudentsByIDs retrieves multiple students by ID.
+	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
+
+	// GetStudentsByGroupID retrieves the students of a group.
+	GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error)
+
+	// GetStudentsByGroupIDs retrieves the students of multiple groups.
+	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+
+	// CountStudentsByGroupIDs counts students per group in a single query.
+	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
 

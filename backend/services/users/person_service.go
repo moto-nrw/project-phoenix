@@ -491,6 +491,86 @@ func (s *personService) TeacherRepository() userModels.TeacherRepository {
 	return s.teacherRepo
 }
 
+// Entity lookups (issue #584). CONTRACT: repository results and errors are
+// returned VERBATIM — no wrapping, no sentinel mapping — because IoT device
+// flows branch on sql.ErrNoRows and PyrePortal substring-matches the rendered
+// error bodies. See the interface doc comment.
+
+// GetStaffByID retrieves a staff member by ID.
+func (s *personService) GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindByID(ctx, id)
+}
+
+// GetStaffByPersonID retrieves the staff record belonging to a person.
+func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindByPersonID(ctx, personID)
+}
+
+// GetStaffWithPerson retrieves a staff member with person data preloaded.
+func (s *personService) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindWithPerson(ctx, id)
+}
+
+// GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
+func (s *personService) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return s.staffRepo.FindWithPersonByIDs(ctx, ids)
+}
+
+// ListStaffWithPerson retrieves all staff with person data preloaded.
+func (s *personService) ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
+	return s.staffRepo.ListAllWithPerson(ctx)
+}
+
+// ListStaffByRoles retrieves staff holding any of the given roles.
+func (s *personService) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return s.staffRepo.ListStaffByRoles(ctx, roles)
+}
+
+// GetTeacherByStaffID retrieves the teacher record for a staff member.
+func (s *personService) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	return s.teacherRepo.FindByStaffID(ctx, staffID)
+}
+
+// GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
+func (s *personService) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+}
+
+// ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
+func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+}
+
+// GetStudentByID retrieves a student by ID.
+func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.studentRepo.FindByID(ctx, id)
+}
+
+// GetStudentByPersonID retrieves the student record belonging to a person.
+func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+	return s.studentRepo.FindByPersonID(ctx, personID)
+}
+
+// GetStudentsByIDs retrieves multiple students by ID.
+func (s *personService) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	return s.studentRepo.FindByIDs(ctx, ids)
+}
+
+// GetStudentsByGroupID retrieves the students of a group.
+func (s *personService) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+	return s.studentRepo.FindByGroupID(ctx, groupID)
+}
+
+// GetStudentsByGroupIDs retrieves the students of multiple groups.
+func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	return s.studentRepo.FindByGroupIDs(ctx, groupIDs)
+}
+
+// CountStudentsByGroupIDs counts students per group in a single query.
+func (s *personService) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	return s.studentRepo.CountByGroupIDs(ctx, groupIDs)
+}
+
 // ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 func (s *personService) ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error) {
 	// First, get all active RFID cards

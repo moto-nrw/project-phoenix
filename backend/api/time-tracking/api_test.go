@@ -130,6 +130,54 @@ func (m *mockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ 
 func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
 	return nil, nil
 }
+func (m *mockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if m.staffRepo == nil {
+		return nil, nil
+	}
+	return m.staffRepo.FindByPersonID(ctx, personID)
+}
+func (m *mockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
+	return nil, nil
+}
 
 // --- Mock WorkSessionService ---
 

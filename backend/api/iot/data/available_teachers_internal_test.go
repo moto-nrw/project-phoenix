@@ -119,6 +119,60 @@ func (s personServiceWithTeacherRepo) GetStudentsWithGroupsByTeacher(context.Con
 func (s personServiceWithTeacherRepo) GetAllStudentsWithGroups(context.Context) ([]usersSvc.StudentWithGroup, error) {
 	return nil, nil
 }
+func (s personServiceWithTeacherRepo) GetStaffByID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffByPersonID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffWithPerson(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) ListStaffWithPerson(context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindByStaffID(ctx, staffID)
+}
+func (s personServiceWithTeacherRepo) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+}
+func (s personServiceWithTeacherRepo) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+}
+func (s personServiceWithTeacherRepo) GetStudentByID(context.Context, int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentByPersonID(context.Context, int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByIDs(context.Context, []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByGroupID(context.Context, int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) CountStudentsByGroupIDs(context.Context, []int64) (map[int64]int, error) {
+	return nil, nil
+}
 
 func requestWithDeviceContext() *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/teachers", nil)
