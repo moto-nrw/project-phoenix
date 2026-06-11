@@ -1,22 +1,7 @@
 "use client";
 
 /**
- * TimetableAddMenu — the single "+ Neu" entry point in the timetable toolbar.
- *
- * Folds what used to be two separate toolbar buttons ("+ Termin" and the
- * "Angebote einplanen" PlanningMenu) into one compact menu so the toolbar fits
- * on a single row. The menu has two sections:
- *
- * - "Hinzufügen": create a single appointment (Einzeltermin) or a recurring
- *   series (Serie). Always available, in every view.
- * - "Woche planen" (week view + full period coverage only): the two
- *   materialize flows that previously lived in PlanningMenu —
- *     • "Lücken füllen" (additive: creates missing instances from series)
- *     • "Woche neu berechnen" (destructive: deletes not-yet-started series
- *       instances and re-creates them; gated behind a confirmation dialog).
- *
- * The destructive path keeps the explicit ConfirmationModal so it can never be
- * triggered by a single mis-click.
+ * TimetableAddMenu: the single "+ Neu" entry point in the timetable toolbar.
  */
 
 import { useRef, useState } from "react";
@@ -43,10 +28,6 @@ interface TimetableAddMenuProps {
   onAddInstance: () => void;
   /** Create a recurring series. */
   onAddSeries: () => void;
-  /**
-   * Week-planning actions. Only provided in week view with full period
-   * coverage; when omitted the "Woche planen" section is hidden.
-   */
   planning?: PlanningActions;
   disabled?: boolean;
 }
@@ -101,7 +82,7 @@ export function TimetableAddMenu({
           ) : (
             <Plus className="h-3.5 w-3.5" aria-hidden />
           )}
-          {materializing ? "Plane …" : replanning ? "Berechne …" : "Neu"}
+          {materializing ? "Plane ..." : replanning ? "Berechne ..." : "Neu"}
           <ChevronDown
             className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
             aria-hidden
@@ -115,7 +96,7 @@ export function TimetableAddMenu({
             className="absolute right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
           >
             <p className="px-3 pt-3 pb-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-              Hinzufügen
+              Termin anlegen
             </p>
 
             <button
@@ -132,10 +113,10 @@ export function TimetableAddMenu({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-gray-900">
-                  Einzeltermin
+                  Einmaliger Termin
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                  Einen einzelnen Termin anlegen.
+                  Findet nur an diesem Tag statt.
                 </p>
               </div>
             </button>
@@ -153,9 +134,12 @@ export function TimetableAddMenu({
                 <Repeat className="h-4 w-4 text-gray-700" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-gray-900">Serie</div>
+                <div className="text-sm font-semibold text-gray-900">
+                  Regelmäßiger Termin
+                </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                  Eine wiederkehrende Serie anlegen.
+                  Für Angebote, die jede Woche oder alle zwei Wochen
+                  stattfinden.
                 </p>
               </div>
             </button>
@@ -164,7 +148,7 @@ export function TimetableAddMenu({
               <>
                 <div className="my-1 h-px bg-gray-100" />
                 <p className="px-3 pt-2 pb-1 text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                  Woche planen
+                  Regeltermine übernehmen
                 </p>
 
                 <button
@@ -181,11 +165,11 @@ export function TimetableAddMenu({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-gray-900">
-                      Lücken füllen
+                      Fehlende Termine eintragen
                     </div>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                      Legt fehlende Termine aus den Serien an. Bestehende
-                      Termine werden nicht geändert.
+                      Trägt Regeltermine ein, die in dieser Woche noch fehlen.
+                      Bestehende Termine bleiben unverändert.
                     </p>
                   </div>
                 </button>
@@ -204,12 +188,12 @@ export function TimetableAddMenu({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-gray-900">
-                      Woche neu berechnen
+                      Regeltermine neu aufbauen
                     </div>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                      Löscht noch nicht gestartete Serientermine dieser Woche
-                      und erstellt sie neu aus den Serien. Laufende, abgesagte
-                      und manuell angelegte Termine bleiben erhalten.
+                      Nutze das nach Änderungen an Regelterminen. Noch nicht
+                      gestartete Regeltermine werden ersetzt. Laufende,
+                      abgesagte und einzelne Termine bleiben erhalten.
                     </p>
                   </div>
                 </button>
@@ -224,18 +208,19 @@ export function TimetableAddMenu({
           isOpen={showReplanDialog}
           onClose={() => setShowReplanDialog(false)}
           onConfirm={handleReplan}
-          title="Woche neu berechnen?"
-          confirmText={replanning ? "Berechne …" : "Neu berechnen"}
+          title="Regeltermine neu aufbauen?"
+          confirmText={replanning ? "Berechne ..." : "Neu aufbauen"}
           cancelText="Abbrechen"
           isConfirmLoading={replanning}
         >
           <p className="text-sm leading-relaxed text-gray-600">
-            Noch nicht gestartete Serientermine in{" "}
+            Noch nicht gestartete Regeltermine in{" "}
             <span className="font-semibold text-gray-900">
               {planning.weekLabel}
             </span>{" "}
-            werden gelöscht und anhand der aktuellen Serien neu erstellt.
-            Laufende, abgesagte und manuell angelegte Termine bleiben erhalten.
+            werden entfernt und anhand der aktuellen Regeltermine neu
+            eingetragen. Laufende, abgesagte und einzelne Termine bleiben
+            erhalten.
           </p>
         </ConfirmationModal>
       )}

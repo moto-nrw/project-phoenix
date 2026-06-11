@@ -314,7 +314,7 @@ export function InstanceDetailSlideOver({
                         : ""
                     }`}
               </Row>
-              <Row icon={<Users className="h-4 w-4" />} label="Schüler">
+              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
                 {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
                 eingetragen
                 {instance.presentStudentsCount > 0
@@ -341,7 +341,7 @@ export function InstanceDetailSlideOver({
                         `Personal #${item.staffId}`
                       }
                       meta={[
-                        item.isPrimary ? "Primär" : null,
+                        item.isPrimary ? "Zuständig" : null,
                         item.isAbsent ? "Abwesend" : null,
                         item.isSubstitute ? "Ersatz" : null,
                       ]}

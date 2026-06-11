@@ -146,7 +146,7 @@ export const groupsConfig = defineEntityConfig<Group>({
       },
       badges: [
         {
-          label: (group: Group) => `${group.student_count ?? 0} Schüler`,
+          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
           color: "bg-green-400/80",
           showWhen: () => true,
         },
@@ -191,7 +191,7 @@ export const groupsConfig = defineEntityConfig<Group>({
             },
           },
           {
-            label: "Anzahl Schüler",
+            label: "Anzahl Kinder",
             value: (group: Group) => group.student_count?.toString() ?? "0",
           },
           {
@@ -245,7 +245,7 @@ export const groupsConfig = defineEntityConfig<Group>({
         const parts = [];
         if (group.room_name) parts.push(`Raum: ${group.room_name}`);
         if (group.student_count !== undefined)
-          parts.push(`${group.student_count} Schüler`);
+          parts.push(`${group.student_count} Kinder`);
         return parts.join(" • ");
       },
       avatar: {
@@ -258,7 +258,7 @@ export const groupsConfig = defineEntityConfig<Group>({
           showWhen: (group: Group) => !!group.room_name,
         },
         {
-          label: (group: Group) => `${group.student_count ?? 0} Schüler`,
+          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
           color: "bg-green-100 text-green-700",
           showWhen: () => true,
         },

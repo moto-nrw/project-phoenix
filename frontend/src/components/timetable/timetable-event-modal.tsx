@@ -446,7 +446,7 @@ export function TimetableEventModal({
     }
     const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
     if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
-      setValidationError("Bitte eine Planungsperiode auswählen.");
+      setValidationError("Bitte einen Planungszeitraum auswählen.");
       return null;
     }
     if (form.weekdays.length === 0) {
@@ -526,7 +526,7 @@ export function TimetableEventModal({
           initialSeries.id,
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        toastSuccess("Serie gespeichert");
+        toastSuccess("Regeltermin gespeichert");
         onSaved({ kind: "series", seriesId: initialSeries.id });
         onClose();
         return;
@@ -558,8 +558,8 @@ export function TimetableEventModal({
         const count = created.instancesCreated ?? 0;
         toastSuccess(
           count > 0
-            ? `Serientermin angelegt - ${count} Termin${count === 1 ? "" : "e"} eingeplant`
-            : "Serientermin angelegt",
+            ? `Regeltermin angelegt: ${count} Termin${count === 1 ? "" : "e"} eingetragen`
+            : "Regeltermin angelegt",
         );
         onSaved({ kind: "series", seriesId: created.templateId });
       }
@@ -580,7 +580,7 @@ export function TimetableEventModal({
   };
 
   const title = isEditingSeries
-    ? "Serie bearbeiten"
+    ? "Regeltermin bearbeiten"
     : isEditingInstance
       ? "Termin bearbeiten"
       : isConverting
@@ -601,8 +601,8 @@ export function TimetableEventModal({
               <SlideOverTitle>{title}</SlideOverTitle>
               <SlideOverDescription>
                 {isSeriesFlow
-                  ? "Wiederkehrenden Termin mit Kindern und Personal planen."
-                  : "Einmaligen Termin im Betreuungsplan anlegen."}
+                  ? "Regelmäßigen Termin mit Kindern und Personal planen."
+                  : "Einmaligen Termin im Dienstplan anlegen."}
               </SlideOverDescription>
             </div>
             <SlideOverCloseButton />
@@ -838,7 +838,7 @@ export function TimetableEventModal({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {showPeriodField ? (
                     <Field
-                      label="Planungsperiode"
+                      label="Planungszeitraum"
                       htmlFor="event_period"
                       required
                     >
@@ -851,7 +851,7 @@ export function TimetableEventModal({
                         required
                         className={FORM_SELECT_CLASS}
                       >
-                        <option value="">Periode auswählen ...</option>
+                        <option value="">Zeitraum auswählen ...</option>
                         {calendarPeriods.map((period) => (
                           <option key={period.id} value={period.id}>
                             {period.name}
@@ -862,7 +862,7 @@ export function TimetableEventModal({
                   ) : (
                     <div className="flex flex-col justify-end gap-1">
                       <span className="text-xs font-semibold text-gray-700">
-                        Planungsperiode
+                        Planungszeitraum
                       </span>
                       <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
                         <span className="truncate">
@@ -870,7 +870,7 @@ export function TimetableEventModal({
                           <span className="font-semibold text-gray-800">
                             {calendarPeriods.find(
                               (p) => p.id === form.calendarPeriodId,
-                            )?.name ?? "der aktuellen Planungsperiode"}
+                            )?.name ?? "dem aktuellen Planungszeitraum"}
                           </span>
                         </span>
                       </div>
@@ -902,7 +902,7 @@ export function TimetableEventModal({
             />
 
             {isSeriesFlow && form.staffIds.length > 0 && (
-              <Field label="Hauptverantwortlich" htmlFor="event_primary_staff">
+              <Field label="Zuständige Person" htmlFor="event_primary_staff">
                 <select
                   id="event_primary_staff"
                   value={form.primaryStaffId}
@@ -939,7 +939,7 @@ export function TimetableEventModal({
               calendarPeriods.length === 0 &&
               renderModalErrorAlert({
                 message:
-                  "Für diese Woche gibt es keine aktive Planungsperiode. Lege zuerst eine Periode im Kopfbereich an.",
+                  "Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an.",
               })}
 
             {validationError &&

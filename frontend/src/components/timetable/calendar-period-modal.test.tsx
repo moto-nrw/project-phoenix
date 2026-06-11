@@ -79,18 +79,21 @@ describe("CalendarPeriodModal", () => {
     fireEvent.change(screen.getByLabelText("Enddatum*"), {
       target: { value: "2027-07-31" },
     });
-    fireEvent.change(screen.getByLabelText("Wochenzyklus (1 = jede Woche)"), {
-      target: { value: "2" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Rhythmus in Wochen (1 = jede Woche)"),
+      {
+        target: { value: "2" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bei mehrwöchigem Rhythmus ist ein Anker-Datum erforderlich.",
+      "Bei einem Rhythmus über mehrere Wochen ist ein Startdatum für den Rhythmus erforderlich.",
     );
 
-    fireEvent.change(screen.getByLabelText("Anker-Datum*"), {
+    fireEvent.change(screen.getByLabelText("Start für Rhythmus*"), {
       target: { value: "2026-08-03" },
     });
-    fireEvent.click(screen.getByLabelText(/Periode ist aktiv/));
+    fireEvent.click(screen.getByLabelText(/Zeitraum im Plan verwenden/));
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
     await waitFor(() =>
@@ -105,7 +108,7 @@ describe("CalendarPeriodModal", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Periode "Schuljahr 2026/2027" angelegt',
+      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).toHaveBeenCalledOnce();
@@ -125,7 +128,7 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Name*"), {
+    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
       target: { value: "Neues Schuljahr" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));

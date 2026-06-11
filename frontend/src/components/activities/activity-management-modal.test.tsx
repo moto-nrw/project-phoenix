@@ -34,7 +34,7 @@ describe("getDeleteErrorMessage", () => {
     const error = new Error("Cannot delete: students enrolled in activity");
     const result = getDeleteErrorMessage(error);
     expect(result).toBe(
-      "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.",
+      "Diese Aktivität kann nicht gelöscht werden, da noch Kinder eingeschrieben sind. Bitte entfernen Sie zuerst alle Kinder aus der Aktivität.",
     );
   });
 

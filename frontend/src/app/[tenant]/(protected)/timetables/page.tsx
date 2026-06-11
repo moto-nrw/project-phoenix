@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /timetables — admin weekly planner.
+ * /timetables: admin weekly planner.
  *
  * Planner surface for calendar periods, series, materialized instances,
  * one-off appointments, lifecycle actions, and plan-quality checks.
@@ -169,7 +169,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        aria-label="Serien werden geladen"
+        aria-label="Regeltermine werden geladen"
         data-testid="timetable-content-skeleton"
         className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
       >
@@ -234,6 +234,41 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
   }
 
   if (view === "week") {
+    const weekSkeletonEvents = [
+      [
+        { top: 300, height: 64, width: "92%" },
+        { top: 374, height: 58, width: "86%" },
+        { top: 456, height: 66, width: "74%" },
+      ],
+      [
+        { top: 300, height: 64, width: "90%" },
+        { top: 374, height: 58, width: "88%" },
+        { top: 448, height: 50, width: "44%" },
+        { top: 504, height: 54, width: "78%" },
+      ],
+      [
+        { top: 300, height: 64, width: "92%" },
+        { top: 448, height: 50, width: "46%" },
+        { top: 504, height: 54, width: "76%" },
+      ],
+      [
+        { top: 300, height: 64, width: "90%" },
+        { top: 374, height: 58, width: "88%" },
+        { top: 448, height: 50, width: "42%" },
+      ],
+      [
+        { top: 300, height: 64, width: "92%" },
+        { top: 374, height: 58, width: "86%" },
+        { top: 448, height: 50, width: "48%" },
+        { top: 504, height: 54, width: "80%" },
+      ],
+      [
+        { top: 318, height: 54, width: "72%" },
+        { top: 452, height: 54, width: "60%" },
+      ],
+      [{ top: 336, height: 50, width: "64%" }],
+    ];
+
     return (
       <div
         role="status"
@@ -264,7 +299,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
           {Array.from({ length: 7 }, (_, day) => (
             <div
               key={day}
-              className="relative hidden border-l border-gray-200 sm:block"
+              className={`relative overflow-hidden border-l border-gray-200 ${day === 0 ? "block" : "hidden sm:block"}`}
             >
               {Array.from({ length: 7 }, (_, line) => (
                 <div
@@ -273,15 +308,23 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
                   style={{ top: `${(line + 1) * 70}px` }}
                 />
               ))}
+              {(weekSkeletonEvents[day] ?? []).map((event, index) => (
+                <div
+                  key={`${day}-${index}`}
+                  className="absolute left-2 rounded-xl bg-gray-200/90 p-2 sm:left-2.5"
+                  style={{
+                    top: `${event.top}px`,
+                    height: `${event.height}px`,
+                    width: event.width,
+                    maxWidth: "calc(100% - 1rem)",
+                  }}
+                >
+                  <Skeleton className="h-3 w-4/5 bg-gray-300/80" />
+                  <Skeleton className="mt-2 h-2.5 w-1/2 bg-gray-300/80" />
+                </div>
+              ))}
             </div>
           ))}
-          <div className="absolute top-20 left-[18%] hidden h-20 w-[18%] rounded-xl bg-gray-200/90 sm:block" />
-          <div className="absolute top-48 left-[42%] hidden h-24 w-[20%] rounded-xl bg-gray-200/90 sm:block" />
-          <div className="absolute top-32 left-[68%] hidden h-16 w-[17%] rounded-xl bg-gray-200/90 sm:block" />
-          <div className="absolute top-20 right-4 left-12 rounded-xl bg-gray-200/90 p-4 sm:hidden">
-            <Skeleton className="h-4 w-32 bg-gray-300" />
-            <Skeleton className="mt-3 h-3 w-20 bg-gray-300" />
-          </div>
         </div>
       </div>
     );
@@ -331,7 +374,7 @@ function TimetableToolbarSkeleton() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Betreuungsplan Werkzeugleiste wird geladen"
+      aria-label="Dienstplan Werkzeugleiste wird geladen"
       data-testid="timetable-toolbar-skeleton"
       className="flex min-h-16 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
     >
@@ -357,7 +400,7 @@ function TimetableToolbarSkeleton() {
 function TimetablePageSkeleton() {
   return (
     <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
-      <PageHeader title="Betreuungsplan" />
+      <PageHeader title="Dienstplan" />
       <TimetableToolbarSkeleton />
       <TimetableContentSkeleton view="month" />
     </div>
@@ -414,7 +457,7 @@ function TimetablesContent() {
     null,
   );
   // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
-  // 60/90/120 px per hour). Local-only — not synced to URL because density
+  // 60/90/120 px per hour). Local-only, not synced to URL because density
   // is a cosmetic preference, and we never expose pixel values in the UI.
   const [density, setDensity] = useState<WeekDensity>("normal");
   const hourHeightPx = DENSITY_TO_HOUR_HEIGHT_PX[density];
@@ -595,6 +638,7 @@ function TimetablesContent() {
       if (view === "month") {
         updateUrlParams({
           month: monthParam(visibleDate),
+          period: period.id,
           instance: null,
           day: null,
         });
@@ -604,6 +648,7 @@ function TimetablesContent() {
       if (view === "year") {
         updateUrlParams({
           year: yearParam(visibleDate),
+          period: period.id,
           instance: null,
           day: null,
         });
@@ -613,6 +658,7 @@ function TimetablesContent() {
       const offset = weekOffsetForDate(visibleDateISO);
       updateUrlParams({
         week: offset === 0 ? null : String(offset),
+        period: period.id,
         day: visibleDateISO,
         instance: null,
       });
@@ -655,7 +701,7 @@ function TimetablesContent() {
     [updateUrlParams],
   );
 
-  // Week range. useMemo prevents re-derivation on every render — the SWR
+  // Week range. useMemo prevents re-derivation on every render, the SWR
   // key depends on these strings.
   const weekRange = useMemo(
     () =>
@@ -791,7 +837,7 @@ function TimetablesContent() {
   useEffect(() => {
     if (!errorMessage) return;
     logger.error("week_load_failed", { error: errorMessage });
-    toastError(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
+    toastError(`Dienstplan konnte nicht geladen werden: ${errorMessage}`);
   }, [errorMessage, toastError]);
 
   useEffect(() => {
@@ -801,7 +847,7 @@ function TimetablesContent() {
         ? periodsError.message
         : String(periodsError);
     logger.error("periods_load_failed", { error: message });
-    toastError(`Planungsperioden konnten nicht geladen werden: ${message}`);
+    toastError(`Planungszeiträume konnten nicht geladen werden: ${message}`);
   }, [periodsError, toastError]);
 
   useEffect(() => {
@@ -865,6 +911,22 @@ function TimetablesContent() {
     view === "series" && selectedPeriodId
       ? selectedPeriodId
       : (defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id);
+  const focusedPeriodID = useMemo(() => {
+    if (view === "series") return templatePeriodID ?? null;
+    if (
+      selectedPeriodId &&
+      assignedPeriods.some((period) => period.id === selectedPeriodId)
+    ) {
+      return selectedPeriodId;
+    }
+    return defaultTemplatePeriod?.id ?? assignedPeriods[0]?.id ?? null;
+  }, [
+    assignedPeriods,
+    defaultTemplatePeriod,
+    selectedPeriodId,
+    templatePeriodID,
+    view,
+  ]);
   const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
     status === "authenticated" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
@@ -903,7 +965,7 @@ function TimetablesContent() {
   const handleMaterialize = useCallback(async () => {
     if (!weekHasFullPeriodCoverage) {
       toastWarning(
-        "Lege zuerst eine aktive Planungsperiode für diese Woche an.",
+        "Lege zuerst einen aktiven Planungszeitraum für diese Woche an.",
       );
       openPeriodCreate();
       return;
@@ -912,16 +974,10 @@ function TimetablesContent() {
     try {
       const result = await timetableService.materialize(fromISO, toISO);
 
-      // The backend reports preconditions (no active calendar period, no
-      // templates) as typed warnings rather than HTTP errors so the run
-      // logs cleanly. Surface them as warnings so the admin sees the actual
-      // reason instead of a misleading "0 angelegt" success message.
       if (result.warnings.length > 0) {
         for (const w of result.warnings) {
           toastWarning(w.message);
         }
-        // For "no_active_period" specifically: open the period editor so
-        // the admin can fix the precondition without leaving the planner.
         if (result.warnings.some((w) => w.code === "no_active_period")) {
           openPeriodCreate();
         }
@@ -932,9 +988,9 @@ function TimetablesContent() {
       }
 
       toastSuccess(
-        `Woche geplant: ${result.instancesCreated} ${
+        `Fehlende Termine eingetragen: ${result.instancesCreated} ${
           result.instancesCreated === 1 ? "Termin" : "Termine"
-        } angelegt`,
+        } ergänzt`,
       );
       await tenantMutate(swrKey);
       await tenantMutate(gapsSWRKey);
@@ -967,7 +1023,7 @@ function TimetablesContent() {
           const res = await timetableService.start(selectedInstance.id);
           if (res.warnings.length > 0) {
             toastSuccess(
-              `Gestartet — ${res.warnings.length} Hinweis(e): ${res.warnings.map((w) => w.message).join(", ")}`,
+              `Gestartet: ${res.warnings.length} Hinweis(e): ${res.warnings.map((w) => w.message).join(", ")}`,
             );
           } else {
             toastSuccess("Aktivität gestartet");
@@ -1016,7 +1072,7 @@ function TimetablesContent() {
         }
       } else {
         toastSuccess(
-          `Woche neu berechnet: ${result.instancesCreated} Termine angelegt`,
+          `Regeltermine neu aufgebaut: ${result.instancesCreated} Termine eingetragen`,
         );
       }
       await tenantMutate(swrKey);
@@ -1169,7 +1225,7 @@ function TimetablesContent() {
     async (template: TimetableTemplate) => {
       // Resolve which calendar period the template's schedules belong to.
       // Falls back to the period currently in scope (defaultTemplatePeriod)
-      // — if none is active, ask the admin to create one before continuing.
+      // If none is active, ask the admin to create one before continuing.
       const scheduleWithPeriod = template.schedules.find(
         (s) => s.calendarPeriodId,
       );
@@ -1180,7 +1236,7 @@ function TimetablesContent() {
         : null;
       if (!period) {
         toastWarning(
-          "Keine aktive Planungsperiode - Serie kann nicht eingeplant werden.",
+          "Kein aktiver Planungszeitraum. Der Regeltermin kann nicht eingetragen werden.",
         );
         openPeriodCreate();
         return;
@@ -1200,7 +1256,7 @@ function TimetablesContent() {
           for (const warning of result.warnings) {
             warningsByCode.set(warning.code, warning);
           }
-          // A precondition like "no_active_period" applies to every chunk —
+          // A precondition like "no_active_period" applies to every chunk,
           // stop hammering the backend once we've seen one.
           if (result.warnings.some((w) => w.code === "no_active_period")) {
             break;
@@ -1232,7 +1288,7 @@ function TimetablesContent() {
         toastError(
           err instanceof Error
             ? err.message
-            : "Serie konnte nicht eingeplant werden",
+            : "Regeltermin konnte nicht eingetragen werden",
         );
       }
     },
@@ -1256,7 +1312,7 @@ function TimetablesContent() {
     setArchiveLoading(true);
     try {
       await timetableService.archiveTemplate(archivingTemplate.id);
-      toastSuccess(`Serie "${archivingTemplate.name}" archiviert`);
+      toastSuccess(`Regeltermin "${archivingTemplate.name}" archiviert`);
       setArchivingTemplate(null);
       if (templatePeriodID) {
         await tenantMutate(`timetable-templates-${templatePeriodID}`);
@@ -1268,7 +1324,7 @@ function TimetablesContent() {
       const message =
         err instanceof Error
           ? err.message
-          : "Serie konnte nicht archiviert werden";
+          : "Regeltermin konnte nicht archiviert werden";
       logger.error("template_archive_failed", {
         template_id: archivingTemplate.id,
         error: message,
@@ -1308,7 +1364,7 @@ function TimetablesContent() {
           the sidebar provides page context, matching every other page. The
           period switcher lives inside the toolbar (below) so it isn't a dead
           top row. */}
-      <PageHeader title="Betreuungsplan" />
+      <PageHeader title="Dienstplan" />
 
       <TimetableToolbar
         view={view}
@@ -1332,9 +1388,7 @@ function TimetablesContent() {
             periods={calendarPeriods}
             weekDays={periodContextDays}
             view={view}
-            selectedPeriodId={
-              view === "series" ? (templatePeriodID ?? null) : null
-            }
+            selectedPeriodId={focusedPeriodID}
             isLoading={periodsLoading}
             onCreate={openPeriodCreate}
             onEdit={openPeriodEdit}
@@ -1407,10 +1461,10 @@ function TimetablesContent() {
                   ? {
                       title: weekHasFullPeriodCoverage
                         ? "Diese Woche hat noch keine Termine"
-                        : "Diese Woche hat keine Planungsperiode",
+                        : "Diese Woche hat keinen Planungszeitraum",
                       description: weekHasFullPeriodCoverage
                         ? "Plane Angebote über die Toolbar oder lege einen einzelnen Termin an."
-                        : "Lege zuerst eine aktive Planungsperiode an.",
+                        : "Lege zuerst einen aktiven Planungszeitraum an.",
                     }
                   : undefined
               }
@@ -1482,7 +1536,7 @@ function TimetablesContent() {
         onRepeat={(instance) => {
           if (assignedPeriods.length === 0) {
             toastWarning(
-              "Lege zuerst eine Planungsperiode für diese Woche an.",
+              "Lege zuerst einen Planungszeitraum für diese Woche an.",
             );
             openPeriodCreate();
             return;
@@ -1559,13 +1613,13 @@ function TimetablesContent() {
           if (!archiveLoading) setArchivingTemplate(null);
         }}
         onConfirm={() => void handleArchiveTemplate()}
-        title="Serie archivieren?"
+        title="Regeltermin archivieren?"
         confirmText="Archivieren"
         cancelText="Abbrechen"
         isConfirmLoading={archiveLoading}
       >
         <p className="text-sm leading-relaxed text-gray-600">
-          Die Serie
+          Der Regeltermin
           {archivingTemplate ? (
             <>
               {" "}
@@ -1574,8 +1628,8 @@ function TimetablesContent() {
               </span>
             </>
           ) : null}{" "}
-          verschwindet aus der Serienliste. Bereits erzeugte konkrete Termine
-          bleiben im Betreuungsplan erhalten.
+          verschwindet aus der Liste. Bereits eingetragene Termine bleiben im
+          Dienstplan erhalten.
         </p>
       </ConfirmationModal>
     </div>

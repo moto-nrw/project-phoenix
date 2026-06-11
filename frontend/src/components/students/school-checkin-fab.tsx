@@ -49,7 +49,7 @@ export function SchoolCheckinFab({
 
   const label = isActive
     ? "An- und Abmelde-Modus beenden"
-    : "Schüler an- und abmelden";
+    : "Kinder an- und abmelden";
 
   const positionClasses =
     resolved === "floating"

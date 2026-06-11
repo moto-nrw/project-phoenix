@@ -223,7 +223,7 @@ export function SchulhofNotSupervisingView({
       <p className="text-sm text-gray-500">
         {supervisorCount > 0
           ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-          : "Übernimm die Aufsicht, um Schüler zu sehen."}
+          : "Übernimm die Aufsicht, um Kinder zu sehen."}
       </p>
       <button
         type="button"

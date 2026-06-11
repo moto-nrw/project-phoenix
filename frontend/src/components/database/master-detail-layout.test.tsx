@@ -306,11 +306,11 @@ describe("MasterDetailLayout", () => {
           detail={<div>Detail</div>}
           selectedId="1"
           onDeselect={vi.fn()}
-          mobileDrawerTitle="Schüler Details"
+          mobileDrawerTitle="Kinder Details"
         />,
       );
 
-      expect(screen.getByText("Schüler Details")).toBeInTheDocument();
+      expect(screen.getByText("Kinder Details")).toBeInTheDocument();
     });
   });
 });

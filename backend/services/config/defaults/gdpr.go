@@ -64,7 +64,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceLogEnabled,
 		Label:           "Anwesenheitsprotokoll aktivieren",
-		Description:     "Ermöglicht Mitarbeitenden den Zugriff auf das Anwesenheitsprotokoll und den Raumverlauf einzelner Schüler. Aus Datenschutzgründen standardmäßig deaktiviert.",
+		Description:     "Ermöglicht Mitarbeitenden den Zugriff auf das Anwesenheitsprotokoll und den Raumverlauf einzelner Kinder. Aus Datenschutzgründen standardmäßig deaktiviert.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -79,7 +79,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceVisibleDays,
 		Label:           "Sichtbarkeitsdauer Anwesenheit (Tage)",
-		Description:     "Maximaler Zeitraum, für den Anwesenheitsdaten (An- und Abmeldezeiten) eines Schülers angezeigt werden dürfen.",
+		Description:     "Maximaler Zeitraum, für den Anwesenheitsdaten (An- und Abmeldezeiten) eines Kindes angezeigt werden dürfen.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",
@@ -98,7 +98,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyRoomDetailVisibleDays,
 		Label:           "Sichtbarkeitsdauer Raumdetails (Tage)",
-		Description:     "Maximaler Zeitraum, für den zusätzlich zur Anwesenheit auch die besuchten Räume eines Schülers angezeigt werden dürfen. Sollte kleiner oder gleich der Sichtbarkeitsdauer Anwesenheit sein.",
+		Description:     "Maximaler Zeitraum, für den zusätzlich zur Anwesenheit auch die besuchten Räume eines Kindes angezeigt werden dürfen. Sollte kleiner oder gleich der Sichtbarkeitsdauer Anwesenheit sein.",
 		Type:            config.FieldNumber,
 		Default:         7,
 		ReadPermission:  "config:read",
@@ -117,7 +117,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyAttendanceLogScope,
 		Label:           "Zugriffsumfang",
-		Description:     "Legt fest, welche Mitarbeitenden das Anwesenheitsprotokoll eines Schülers einsehen dürfen.",
+		Description:     "Legt fest, welche Mitarbeitenden das Anwesenheitsprotokoll eines Kindes einsehen dürfen.",
 		Type:            config.FieldSelect,
 		Default:         config.AttendanceLogScopeGroupSupervisorsOnly,
 		ReadPermission:  "config:read",
@@ -127,7 +127,7 @@ func init() {
 		SortOrder:       13,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Schülers", Value: config.AttendanceLogScopeGroupSupervisorsOnly},
+				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.AttendanceLogScopeGroupSupervisorsOnly},
 				{Label: "Alle berechtigten Mitarbeitenden", Value: config.AttendanceLogScopeAllStaff},
 			},
 		},
@@ -176,12 +176,12 @@ func init() {
 		},
 	})
 
-	// --- Schülerdaten-Zugriff (who can read full student profile data) ---
+	// --- Kinderdaten-Zugriff (who can read full student profile data) ---
 
 	config.Register(config.Definition{
 		Key:             config.KeyStudentDataScope,
-		Label:           "Schülerdaten-Zugriff",
-		Description:     "Legt fest, welche Mitarbeitenden vollständige Schülerdaten (Profil, aktueller Aufenthaltsort, Besuchsinformationen, Datenschutzangaben und Abholpläne) einsehen dürfen. Schreiboperationen bleiben stets auf die Gruppenbetreuer des Schülers beschränkt.",
+		Label:           "Kinderdaten-Zugriff",
+		Description:     "Legt fest, welche Mitarbeitenden vollständige Kinderdaten (Profil, aktueller Aufenthaltsort, Besuchsinformationen, Datenschutzangaben und Abholpläne) einsehen dürfen. Schreiboperationen bleiben stets auf die Gruppenbetreuer des Kindes beschränkt.",
 		Type:            config.FieldSelect,
 		Default:         config.StudentDataScopeGroupSupervisorsOnly,
 		ReadPermission:  "config:read",
@@ -191,7 +191,7 @@ func init() {
 		SortOrder:       20,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Schülers", Value: config.StudentDataScopeGroupSupervisorsOnly},
+				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.StudentDataScopeGroupSupervisorsOnly},
 				{Label: "Alle berechtigten Mitarbeitenden", Value: config.StudentDataScopeAllStaff},
 			},
 		},

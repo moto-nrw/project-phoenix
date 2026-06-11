@@ -323,11 +323,11 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
-    fireEvent.change(screen.getByLabelText("Planungsperiode*"), {
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
       target: { value: "5" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
-    fireEvent.change(screen.getByLabelText("Hauptverantwortlich"), {
+    fireEvent.change(screen.getByLabelText("Zuständige Person"), {
       target: { value: "11" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -347,7 +347,7 @@ describe("TimetableEventModal", () => {
       ),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Serientermin angelegt - 2 Termine eingeplant",
+      "Regeltermin angelegt: 2 Termine eingetragen",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
@@ -358,7 +358,7 @@ describe("TimetableEventModal", () => {
       defaultDate: "2026-05-04",
     });
 
-    await screen.findByText("Serie bearbeiten");
+    await screen.findByText("Regeltermin bearbeiten");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(

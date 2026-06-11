@@ -26,8 +26,8 @@ describe("generateSlug", () => {
   });
 
   it("handles German umlauts", () => {
-    expect(generateSlug("Städtische Schülerbetreuung")).toBe(
-      "staedtische-schuelerbetreuung",
+    expect(generateSlug("Städtische Kinderbetreuung")).toBe(
+      "staedtische-kinderbetreuung",
     );
     expect(generateSlug("Große Öffnung")).toBe("grosse-oeffnung");
   });

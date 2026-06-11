@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CalendarPeriodModal — create or edit a Kalenderperiode (Schuljahr,
+ * CalendarPeriodModal creates or edits a planning window (Schuljahr,
  * Halbjahr, Ferien, Sonstiges). The same form drives both modes; pass an
  * `initial` to switch into edit mode.
  *
@@ -128,7 +128,7 @@ export function CalendarPeriodModal({
     }
     if (cycleLength > 1 && form.weekCycleAnchor === "") {
       setValidationError(
-        "Bei mehrwöchigem Rhythmus ist ein Anker-Datum erforderlich.",
+        "Bei einem Rhythmus über mehrere Wochen ist ein Startdatum für den Rhythmus erforderlich.",
       );
       return;
     }
@@ -153,8 +153,8 @@ export function CalendarPeriodModal({
 
       toastSuccess(
         isEdit
-          ? `Periode "${result.name}" aktualisiert`
-          : `Periode "${result.name}" angelegt`,
+          ? `Planungszeitraum "${result.name}" aktualisiert`
+          : `Planungszeitraum "${result.name}" angelegt`,
       );
       onSaved(result);
       onClose();
@@ -166,7 +166,7 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Periode konnte nicht gespeichert werden";
+          : "Planungszeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
@@ -183,7 +183,7 @@ export function CalendarPeriodModal({
     setDeleting(true);
     try {
       await calendarPeriodService.delete(initial.id);
-      toastSuccess(`Periode "${initial.name}" gelöscht`);
+      toastSuccess(`Planungszeitraum "${initial.name}" gelöscht`);
       onDeleted?.(initial);
       onClose();
     } catch (err) {
@@ -194,7 +194,7 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Periode konnte nicht gelöscht werden";
+          : "Planungszeitraum konnte nicht gelöscht werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
@@ -207,7 +207,9 @@ export function CalendarPeriodModal({
       isOpen={isOpen}
       onClose={onClose}
       size="md"
-      title={isEdit ? "Kalenderperiode bearbeiten" : "Kalenderperiode anlegen"}
+      title={
+        isEdit ? "Planungszeitraum bearbeiten" : "Planungszeitraum anlegen"
+      }
       footer={
         <div className="flex w-full items-center justify-between gap-2">
           <div>
@@ -226,8 +228,8 @@ export function CalendarPeriodModal({
                 </Button>
                 {deleteConfirm && !deleting && (
                   <p className="text-xs text-[#FF3130]">
-                    Löschen klappt nur, wenn diese Periode nicht mehr von Serien
-                    oder Terminen verwendet wird.
+                    Löschen klappt nur, wenn dieser Zeitraum nicht mehr von
+                    Regelterminen oder einzelnen Terminen verwendet wird.
                   </p>
                 )}
               </div>
@@ -273,7 +275,7 @@ export function CalendarPeriodModal({
         onSubmit={(e) => void handleSubmit(e)}
         className="flex flex-col gap-4"
       >
-        <Field label="Name" htmlFor="name" required>
+        <Field label="Bezeichnung" htmlFor="name" required>
           <Input
             id="name"
             value={form.name}
@@ -286,7 +288,7 @@ export function CalendarPeriodModal({
           />
         </Field>
 
-        <Field label="Typ" htmlFor="period_type" required>
+        <Field label="Art" htmlFor="period_type" required>
           <select
             id="period_type"
             value={form.periodType}
@@ -325,7 +327,10 @@ export function CalendarPeriodModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Wochenzyklus (1 = jede Woche)" htmlFor="cycle_length">
+          <Field
+            label="Rhythmus in Wochen (1 = jede Woche)"
+            htmlFor="cycle_length"
+          >
             <Input
               id="cycle_length"
               type="number"
@@ -337,7 +342,7 @@ export function CalendarPeriodModal({
             />
           </Field>
           <Field
-            label="Anker-Datum"
+            label="Start für Rhythmus"
             htmlFor="cycle_anchor"
             required={cycleLength > 1}
           >
@@ -361,9 +366,11 @@ export function CalendarPeriodModal({
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
           />
-          <span className="font-semibold text-gray-700">Periode ist aktiv</span>
+          <span className="font-semibold text-gray-700">
+            Zeitraum im Plan verwenden
+          </span>
           <span className="text-xs text-gray-500">
-            Nur aktive Perioden erzeugen Serientermine
+            Nur aktive Zeiträume legen Termine aus Regelterminen an
           </span>
         </label>
 

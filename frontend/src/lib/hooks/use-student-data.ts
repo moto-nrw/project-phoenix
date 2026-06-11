@@ -223,7 +223,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   }, [mutate]);
 
   // Convert SWR state to component state
-  const error = fetchError ? "Fehler beim Laden der Schülerdaten." : null;
+  const error = fetchError ? "Fehler beim Laden der Kinderdaten." : null;
 
   // Include session loading state to prevent transient error display.
   // When session is loading, SWR key is null, so isLoading is false even though

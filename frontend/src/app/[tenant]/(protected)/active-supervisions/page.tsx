@@ -1195,7 +1195,7 @@ function MeinRaumPageContent() {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError("Schüler konnte nicht zur Aktivität hinzugefügt werden.");
+        setError("Kind konnte nicht zur Aktivität hinzugefügt werden.");
       } finally {
         setIsAddingStudent(false);
       }
@@ -1505,7 +1505,7 @@ function MeinRaumPageContent() {
         >
           <div>
             <div className="font-medium text-gray-900">
-              {row.studentName || `Schüler ${row.studentId}`}
+              {row.studentName || `Kind ${row.studentId}`}
             </div>
             <div className="mt-1 text-sm text-gray-500">
               {rosterStudentMeta(row, isSpontaneousInstance)}
@@ -1662,7 +1662,7 @@ function MeinRaumPageContent() {
                 type="search"
                 value={addStudentSearch}
                 onChange={(event) => setAddStudentSearch(event.target.value)}
-                placeholder="Weiteren Schüler suchen..."
+                placeholder="Weiteres Kind suchen..."
                 className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
               />
               <button
@@ -1732,10 +1732,10 @@ function MeinRaumPageContent() {
             </svg>
             <div>
               <h3 className="text-sm font-medium text-gray-600">
-                Keine Schüler in diesem Raum
+                Keine Kinder in diesem Raum
               </h3>
               <p className="mt-1 text-xs text-gray-500">
-                Es wurden noch keine Schüler eingecheckt
+                Es wurden noch keine Kinder eingecheckt
               </p>
             </div>
           </div>
@@ -1942,7 +1942,7 @@ function MeinRaumPageContent() {
               count: isSchulhofActive
                 ? (schulhofStatus?.studentCount ?? 0)
                 : (currentRoom?.student_count ?? 0),
-              label: "Schüler",
+              label: "Kinder",
             }}
             tabs={
               // Show tabs (dropdown) when 2+ supervisions

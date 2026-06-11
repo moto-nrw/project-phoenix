@@ -133,7 +133,7 @@ export function StudentsMasterDetail({
     students,
     grouping,
     groupers,
-    "Schüler",
+    "Kinder",
     decorateGroup,
   );
 
@@ -207,7 +207,7 @@ export function StudentsMasterDetail({
       keyFor={keyForStudent}
       emptyState={
         <div className="text-center text-sm text-gray-500">
-          Keine Schüler gefunden.
+          Keine Kinder gefunden.
         </div>
       }
     />
@@ -257,8 +257,8 @@ export function StudentsMasterDetail({
     />
   ) : (
     <EmptyDetailState
-      title="Keinen Schüler ausgewählt"
-      description="Wähle links einen Schüler, um Stammdaten und Ankunftszeiten zu bearbeiten."
+      title="Kein Kind ausgewählt"
+      description="Wähle links ein Kind, um Stammdaten und Ankunftszeiten zu bearbeiten."
     />
   );
 
@@ -271,7 +271,7 @@ export function StudentsMasterDetail({
         onDeselect={() => onSelect(null)}
         unselectedBehavior="expand"
         mobileDrawerTitle={
-          selectedStudent ? formatStudentName(selectedStudent) : "Schüler"
+          selectedStudent ? formatStudentName(selectedStudent) : "Kinder"
         }
       />
       {bulkClass ? (

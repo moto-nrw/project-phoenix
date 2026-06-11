@@ -40,7 +40,7 @@ export function SchoolCheckinModeMobile({
         type="button"
         onClick={onToggle}
         aria-pressed={false}
-        aria-label="Schüler an- und abmelden"
+        aria-label="Kinder an- und abmelden"
         className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.99]"
         style={{
           backgroundColor: "#fff",
@@ -56,7 +56,7 @@ export function SchoolCheckinModeMobile({
         >
           <CheckSquare className="size-3.5" strokeWidth={2.5} aria-hidden />
         </span>
-        <span>Schüler an- &amp; abmelden</span>
+        <span>Kinder an- und abmelden</span>
       </button>
     );
   }
@@ -94,7 +94,7 @@ export function SchoolCheckinModeMobile({
           <span className="text-xs leading-tight opacity-90">
             <span className="tabular-nums">
               {successCount === 0
-                ? "Tippe auf einen Schüler"
+                ? "Tippe auf ein Kind"
                 : `${successCount} bearbeitet`}
             </span>
             {pendingCount > 0 ? (

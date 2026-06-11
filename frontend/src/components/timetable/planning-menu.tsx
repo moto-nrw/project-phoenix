@@ -3,16 +3,15 @@
 /**
  * PlanningMenu — single entry point for both planning actions in the
  * timetable. Replaces the standalone MaterializeButton and the inline
- * "Woche neu berechnen" trigger in PlanQualityPanel.
+ * "Regeltermine neu aufbauen" trigger in PlanQualityPanel.
  *
  * The two flows look almost identical to a new admin but have very
  * different consequences:
  *
- * - "Lücken füllen" (Materialize): additive. Creates missing instances
- *   from series, leaves anything that already exists alone.
- * - "Woche neu berechnen" (Replan): destructive. Deletes planned
- *   series instances in the window and re-creates them from the current
- *   series. Active/cancelled/manually-added survive.
+ * - "Fehlende Termine eintragen": additive. Creates missing instances
+ *   from templates, leaves anything that already exists alone.
+ * - "Regeltermine neu aufbauen": replaces planned template instances in
+ *   the window. Active, cancelled, and manually added appointments survive.
  *
  * Both options live behind one button so users see the choice up front
  * with descriptions, instead of accidentally picking the destructive
@@ -114,11 +113,11 @@ export function PlanningMenu({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-gray-900">
-                  Lücken füllen
+                  Fehlende Termine eintragen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                  Legt fehlende Termine aus den Serien an. Bestehende Termine
-                  werden nicht geändert.
+                  Trägt Regeltermine ein, die in dieser Woche noch fehlen.
+                  Bestehende Termine bleiben unverändert.
                 </p>
               </div>
             </button>
@@ -139,12 +138,12 @@ export function PlanningMenu({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold text-gray-900">
-                  Woche neu berechnen
+                  Regeltermine neu aufbauen
                 </div>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                  Löscht noch nicht gestartete Serientermine dieser Woche und
-                  erstellt sie neu aus den Serien. Laufende, abgesagte und
-                  manuell angelegte Termine bleiben erhalten.
+                  Nutze das nach Änderungen an Regelterminen. Noch nicht
+                  gestartete Regeltermine werden ersetzt. Laufende, abgesagte
+                  und einzelne Termine bleiben erhalten.
                 </p>
               </div>
             </button>
@@ -156,16 +155,16 @@ export function PlanningMenu({
         isOpen={showReplanDialog}
         onClose={() => setShowReplanDialog(false)}
         onConfirm={handleReplan}
-        title="Woche neu berechnen?"
-        confirmText={replanning ? "Berechne …" : "Neu berechnen"}
+        title="Regeltermine neu aufbauen?"
+        confirmText={replanning ? "Berechne ..." : "Neu aufbauen"}
         cancelText="Abbrechen"
         isConfirmLoading={replanning}
       >
         <p className="text-sm leading-relaxed text-gray-600">
-          Noch nicht gestartete Serientermine in{" "}
+          Noch nicht gestartete Regeltermine in{" "}
           <span className="font-semibold text-gray-900">{weekLabel}</span>{" "}
-          werden gelöscht und anhand der aktuellen Serien neu erstellt.
-          Laufende, abgesagte und manuell angelegte Termine bleiben erhalten.
+          werden entfernt und anhand der aktuellen Regeltermine neu eingetragen.
+          Laufende, abgesagte und einzelne Termine bleiben erhalten.
         </p>
       </ConfirmationModal>
     </>

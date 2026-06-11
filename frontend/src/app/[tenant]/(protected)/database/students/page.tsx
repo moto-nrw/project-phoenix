@@ -105,7 +105,7 @@ export default function StudentsPage() {
   });
 
   const errorMessage = studentsError
-    ? "Fehler beim Laden der Schüler. Bitte versuchen Sie es später erneut."
+    ? "Fehler beim Laden der Kinder. Bitte versuchen Sie es später erneut."
     : null;
 
   const { data: allGroups = [] } = useSWRAuth<
@@ -384,15 +384,15 @@ export default function StudentsPage() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Schüler" : ""}
+          title={isMobile ? "Kinder" : ""}
           badge={{
             count: filteredStudents.length,
-            label: "Schüler",
+            label: "Kinder",
           }}
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Schüler suchen...",
+            placeholder: "Kinder suchen...",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -418,8 +418,8 @@ export default function StudentsPage() {
                 </>
               ) : null}
               <DatabaseCreateAction
-                label="Schüler"
-                ariaLabel="Schüler erstellen"
+                label="Kinder"
+                ariaLabel="Kind erstellen"
                 onClick={() => setShowCreateModal(true)}
               />
             </div>
@@ -453,13 +453,13 @@ export default function StudentsPage() {
           icon={null}
           title={
             searchTerm || groupFilter !== "all"
-              ? "Keine Schüler gefunden"
-              : "Keine Schüler vorhanden"
+              ? "Keine Kinder gefunden"
+              : "Keine Kinder vorhanden"
           }
           description={
             searchTerm || groupFilter !== "all"
               ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Schüler erstellt."
+              : "Es wurden noch keine Kinder erstellt."
           }
         />
       ) : null}
@@ -476,13 +476,13 @@ export default function StudentsPage() {
           isOpen={showDeleteConfirmModal}
           onClose={handleDeleteCancel}
           onConfirm={() => confirmDelete(() => void handleDeleteStudent())}
-          title="Schüler löschen?"
+          title="Kind löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
           confirmButtonClass="bg-red-600 hover:bg-red-700"
         >
           <p className="text-sm text-gray-700">
-            Möchten Sie den Schüler{" "}
+            Möchten Sie das Kind{" "}
             <span className="font-medium">
               {selectedStudent.first_name} {selectedStudent.second_name}
             </span>{" "}

@@ -153,16 +153,18 @@ describe("small timetable components", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /lücken füllen/i }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /fehlende termine eintragen/i }),
+    );
     await waitFor(() => expect(onMaterialize).toHaveBeenCalledOnce());
 
     fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
     fireEvent.click(
-      screen.getByRole("menuitem", { name: /woche neu berechnen/i }),
+      screen.getByRole("menuitem", { name: /regeltermine neu aufbauen/i }),
     );
     expect(screen.getByRole("dialog")).toHaveTextContent("KW 19");
 
-    fireEvent.click(screen.getByRole("button", { name: "Neu berechnen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Neu aufbauen" }));
 
     await waitFor(() => expect(onReplan).toHaveBeenCalledOnce());
   });
@@ -182,7 +184,7 @@ describe("small timetable components", () => {
         onArchive={onArchive}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /serientermin/i }));
+    fireEvent.click(screen.getByRole("button", { name: /regeltermin/i }));
     expect(onCreate).toHaveBeenCalledOnce();
 
     rerender(
@@ -303,7 +305,7 @@ describe("small timetable components", () => {
       <TimetableToolbar
         view="series"
         onViewChange={vi.fn()}
-        rangeLabel="Serien"
+        rangeLabel="Regeltermine"
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onToday={vi.fn()}

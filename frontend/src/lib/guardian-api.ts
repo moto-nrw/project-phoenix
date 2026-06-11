@@ -76,7 +76,7 @@ export const errorTranslations: Record<string, string> = {
   "bereits vergeben":
     "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
   "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
-  "student not found": "Schüler/in nicht gefunden",
+  "student not found": "Kind nicht gefunden",
   "relationship already exists": "Diese Verknüpfung existiert bereits",
   "validation failed": "Validierung fehlgeschlagen",
   "invalid phone number format":

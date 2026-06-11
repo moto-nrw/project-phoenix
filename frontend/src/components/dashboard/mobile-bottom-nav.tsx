@@ -249,7 +249,7 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   {
     href: "/timetables",
-    label: "Betreuungsplan",
+    label: "Dienstplan",
     iconKey: "calendar",
     requiresAdmin: true,
   },
@@ -324,14 +324,6 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "bell",
     alwaysShow: true,
     hideForAdmin: true,
-    comingSoon: true,
-  },
-  // Coming soon features - admin only
-  {
-    href: "#",
-    label: "Dienstpläne",
-    iconKey: "calendar",
-    requiresAdmin: true,
     comingSoon: true,
   },
   {

@@ -175,7 +175,7 @@ func DetectStartConflicts(
 				warnings = append(warnings, InstanceConflictWarning{
 					Kind:        ConflictKindStudent,
 					ResourceID:  sid,
-					Message:     fmt.Sprintf("Schüler hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
+					Message:     fmt.Sprintf("Kind hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
 					CanOverride: true,
 				})
 			}

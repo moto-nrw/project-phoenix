@@ -262,7 +262,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Vorlage herunterladen` und die Pflichtfelder vollständig ausfüllen.",
           "Datei hochladen und die `Datenvorschau` Zeile für Zeile prüfen.",
           "Fehler in der Datei beheben und erneut hochladen.",
-          "Erst wenn die Vorschau stimmt, auf `Schüler importieren` klicken.",
+          "Erst wenn die Vorschau stimmt, auf `Kinder importieren` klicken.",
           "Eine Stichprobe in der `Kindersuche` prüfen.",
         ],
         callout: {
@@ -271,7 +271,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderimport mit Vorlage herunterladen, Datenvorschau und Schüler importieren.",
+          "Kinderimport mit Vorlage herunterladen, Datenvorschau und Kinder importieren.",
         image: "/help/screens/kinder-importieren.webp",
       },
       {
@@ -287,7 +287,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Optional im Abschnitt `Betreuungszeiten` auf `Wochenplan hinzufügen` klicken und die regelmäßigen `Ankunft`- und `Abholung`-Zeiten je Wochentag eintragen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
           "Auf `Erstellen` klicken. Erziehungsberechtigte und Betreuungszeiten werden zusammen mit dem Kind gespeichert.",
-          "Das Kind anschließend in der `Kindersuche` prüfen; weitere Angaben ergänzen Sie jederzeit auf der Schülerdetailseite.",
+          "Das Kind anschließend in der `Kindersuche` prüfen; weitere Angaben ergänzen Sie jederzeit auf der Kinddetailseite.",
         ],
         screenshot:
           "Kinderformular mit Stammdaten sowie den Abschnitten Erziehungsberechtigte und Betreuungszeiten.",
@@ -297,7 +297,7 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "betreuungszeiten-pflegen",
         title: "Ankunfts- und Abholzeiten pflegen",
         summary:
-          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
+          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Kinddetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Das Kind in der Liste auswählen.",
@@ -430,7 +430,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
-          "Ungeplantes Kind über `Weiteren Schüler suchen...` hinzufügen.",
+          "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
         ],
         screenshot:

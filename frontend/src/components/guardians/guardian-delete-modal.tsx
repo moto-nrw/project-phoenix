@@ -46,7 +46,7 @@ export function GuardianDeleteModal({
           </h3>
           <p className="text-sm text-gray-700">
             Möchten Sie <strong>{guardianName}</strong> wirklich von diesem
-            Schüler entfernen?
+            Kinder entfernen?
           </p>
           <p className="text-sm font-medium text-red-600">
             Diese Aktion kann nicht rückgängig gemacht werden.

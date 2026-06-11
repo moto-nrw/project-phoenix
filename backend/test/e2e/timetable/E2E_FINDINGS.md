@@ -100,7 +100,7 @@ Alle Flows produzieren im Teardown `cleanup users.teachers: bun: Model(nil inter
 - Schema-Invarianten (FKs, CHECKs) — durch B5-Tests abgedeckt.
 - Auth-Edge-Cases (abgelaufener JWT, fehlende Permissions) — Infra.
 - Retrospektive Materialisierung — out of scope §9.
-- Performance-Skalierung (z.B. 100 Templates × 1000 Schueler) — Benchmark-Territorium, nicht E2E.
+- Performance-Skalierung (z.B. 100 Templates × 1000 Kinder) — Benchmark-Territorium, nicht E2E.
 
 ## Empfehlungen
 

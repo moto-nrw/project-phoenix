@@ -101,7 +101,7 @@ describe("groupsConfig", () => {
     const countBadge = badges[0];
     expect(countBadge).toBeDefined();
     expect((countBadge!.label as (entity: Group) => string)(mockGroup)).toBe(
-      "15 Schüler",
+      "15 Kinder",
     );
   });
 

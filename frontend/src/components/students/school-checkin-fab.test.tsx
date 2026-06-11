@@ -54,7 +54,7 @@ describe("SchoolCheckinFab", () => {
       );
 
       expect(
-        screen.getByRole("button", { name: /Schüler an- und abmelden/i }),
+        screen.getByRole("button", { name: /Kinder an- und abmelden/i }),
       ).toBeInTheDocument();
       expect(screen.getByText("An- & Abmelden")).toBeInTheDocument();
     });

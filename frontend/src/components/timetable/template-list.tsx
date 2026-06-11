@@ -29,11 +29,11 @@ export function TemplateList({
         </div>
         <div className="flex flex-col gap-1">
           <h3 className="text-base font-semibold text-gray-900">
-            Keine Serien für diese Periode
+            Keine Regeltermine in diesem Zeitraum
           </h3>
           <p className="max-w-sm text-sm text-gray-500">
-            Serien sind wiederkehrende Termine, die automatisch im Kalender
-            erscheinen.
+            Regeltermine sind wiederkehrende Termine, zum Beispiel Mensa jeden
+            Montag oder Lernzeit alle zwei Wochen.
           </p>
         </div>
         <Button
@@ -44,7 +44,7 @@ export function TemplateList({
           className="mt-2 gap-2"
         >
           <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
-          Serientermin anlegen
+          Regeltermin anlegen
         </Button>
       </div>
     );

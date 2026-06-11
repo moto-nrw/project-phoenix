@@ -72,7 +72,7 @@ const VIEW_TABS: Array<{ id: TimetableView; label: string }> = [
   { id: "week", label: "Woche" },
   { id: "month", label: "Monat" },
   { id: "year", label: "Jahr" },
-  { id: "series", label: "Serien" },
+  { id: "series", label: "Regeltermine" },
 ];
 
 export function TimetableToolbar({

@@ -66,9 +66,7 @@ describe("translateApiError", () => {
   });
 
   it("translates 'student not found' to German", () => {
-    expect(translateApiError("student not found")).toBe(
-      "Schüler/in nicht gefunden",
-    );
+    expect(translateApiError("student not found")).toBe("Kind nicht gefunden");
   });
 
   it("translates 'relationship already exists' to German", () => {

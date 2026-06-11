@@ -103,7 +103,7 @@ export function StudentEditModal({
   if (!student) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Schüler bearbeiten">
+    <Modal isOpen={isOpen} onClose={onClose} title="Kind bearbeiten">
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-4">
@@ -162,7 +162,7 @@ export function StudentEditModal({
                 <p className="mb-3 text-xs text-gray-600">
                   Umfangreiche Verwaltung von Erziehungsberechtigten (inkl.
                   Kontaktdaten, Adressen, Abholberechtigungen und
-                  Notfallkontakte) ist auf der Schülerdetailseite verfügbar.
+                  Notfallkontakte) ist auf der Kinddetailseite verfügbar.
                 </p>
                 <a
                   href={`/students/${student.id}`}
@@ -170,7 +170,7 @@ export function StudentEditModal({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 rounded-lg bg-purple-100 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-200"
                 >
-                  Zur Schülerdetailseite
+                  Zur Kinddetailseite
                   <svg
                     className="h-3 w-3"
                     fill="none"

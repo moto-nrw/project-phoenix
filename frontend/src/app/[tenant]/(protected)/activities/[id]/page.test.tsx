@@ -178,7 +178,7 @@ describe("ActivityDetailPage", () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Teilnehmende Schüler")).toBeInTheDocument();
+      expect(screen.getByText("Teilnehmende Kinder")).toBeInTheDocument();
       expect(screen.getByText("Peter Müller")).toBeInTheDocument();
       expect(screen.getByText("Lisa Schmidt")).toBeInTheDocument();
       expect(screen.getByText("Klasse 3a")).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe("ActivityDetailPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Keine Schüler eingeschrieben"),
+        screen.getByText("Keine Kinder eingeschrieben"),
       ).toBeInTheDocument();
     });
   });
@@ -323,10 +323,10 @@ describe("ActivityDetailPage", () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Schüler hinzufügen")).toBeInTheDocument();
+      expect(screen.getByText("Kind hinzufügen")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("Schüler hinzufügen"));
+    fireEvent.click(screen.getByText("Kind hinzufügen"));
     expect(mockPush).toHaveBeenCalledWith(
       "/test-tenant/database/activities/1/add-students",
     );
@@ -359,7 +359,7 @@ describe("ActivityDetailPage", () => {
       expect(activityNames.length).toBeGreaterThan(0);
       // But with no students
       expect(
-        screen.getByText("Keine Schüler eingeschrieben"),
+        screen.getByText("Keine Kinder eingeschrieben"),
       ).toBeInTheDocument();
     });
 

@@ -979,7 +979,7 @@ function OGSGroupPageContent() {
         const aHome = isHomeLocation(a.current_location);
         const bHome = isHomeLocation(b.current_location);
 
-        // Angekommene Schüler (nicht zu Hause) immer unten
+        // Angekommene Kinder (nicht zu Hause) immer unten
         if (!aHome && bHome) return 1;
         if (aHome && !bHome) return -1;
 
@@ -1282,10 +1282,10 @@ function OGSGroupPageContent() {
             </svg>
             <div className="space-y-1">
               <h3 className="text-lg font-medium text-gray-900">
-                Keine Schüler in {currentGroup?.name ?? "dieser Gruppe"}
+                Keine Kinder in {currentGroup?.name ?? "dieser Gruppe"}
               </h3>
               <p className="text-sm text-gray-500">
-                Es wurden noch keine Schüler zu dieser OGS-Gruppe hinzugefügt.
+                Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt.
               </p>
               {allGroups.length > 1 && (
                 <p className="mt-1 text-sm text-gray-500">

@@ -669,7 +669,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
 		if common.IsConstraintViolation(err) {
-			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft"))
+			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kinder verknüpft"))
 			return
 		}
 		// Check for "not found" errors and return 404

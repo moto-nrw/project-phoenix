@@ -334,7 +334,7 @@ export function StudentCreateModal({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Neuer Schüler">
+      <Modal isOpen={isOpen} onClose={onClose} title="Neues Kind">
         <form
           ref={formRef}
           onSubmit={handleSubmit}

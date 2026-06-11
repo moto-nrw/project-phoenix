@@ -141,7 +141,7 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 // CountCreatedStudentsByPhaseID returns the number of distinct students
 // that were created from the phase's enrollment requests (children with
 // a non-null created_student_id). Powers the phase-delete confirmation
-// modal ("Z bereits angelegte Schüler bleiben erhalten"). Those students
+// modal ("Z bereits angelegte Kinder bleiben erhalten"). Those students
 // survive the phase delete — created_student_id is ON DELETE SET NULL.
 // Tenant-scoped via RLS on both tables.
 func (r *RequestChildRepository) CountCreatedStudentsByPhaseID(ctx context.Context, phaseID int64) (int, error) {

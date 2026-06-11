@@ -687,9 +687,7 @@ describe("TimetablesPage", () => {
   it("renders month view by default and opens create/edit period flows", async () => {
     render(<TimetablesPage />);
 
-    expect(
-      screen.getByRole("heading", { name: "Betreuungsplan" }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Dienstplan" })).toBeVisible();
     expect(screen.getByText(/month:/)).toBeInTheDocument();
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
 
@@ -726,7 +724,7 @@ describe("TimetablesPage", () => {
     fireEvent.click(screen.getByText("materialize"));
     await waitFor(() => expect(mockMaterialize).toHaveBeenCalled());
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Woche geplant: 2 Termine angelegt",
+      "Fehlende Termine eingetragen: 2 Termine ergänzt",
     );
 
     fireEvent.click(screen.getByText("replan"));
@@ -785,18 +783,20 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("archive-template"));
     expect(
-      screen.getByRole("dialog", { name: "Serie archivieren?" }),
-    ).toHaveTextContent("Serie „Yoga“");
+      screen.getByRole("dialog", { name: "Regeltermin archivieren?" }),
+    ).toHaveTextContent("Regeltermin „Yoga“");
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(mockArchiveTemplate).not.toHaveBeenCalled();
     expect(
-      screen.queryByRole("dialog", { name: "Serie archivieren?" }),
+      screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
     await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledWith("7"));
-    expect(mockToastSuccess).toHaveBeenCalledWith('Serie "Yoga" archiviert');
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Regeltermin "Yoga" archiviert',
+    );
     expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
 
     fireEvent.click(screen.getByText("month-view"));
@@ -830,7 +830,7 @@ describe("TimetablesPage", () => {
       expect(mockToastError).toHaveBeenCalledWith("Archivierung kaputt"),
     );
     expect(
-      screen.getByRole("dialog", { name: "Serie archivieren?" }),
+      screen.getByRole("dialog", { name: "Regeltermin archivieren?" }),
     ).toBeInTheDocument();
   });
 

@@ -84,7 +84,7 @@ interface UseSchoolCheckinModeResult {
 }
 
 /**
- * Manages the page-level "Schüler An- & Abmelden" toggle plus the
+ * Manages the page-level "Kinder an- und abmelden" toggle plus the
  * per-student API call fan-out. Keeps StudentCard dumb: the page holds
  * isActive and the pendingIds set, the card just renders what it's told.
  *

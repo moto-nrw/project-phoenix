@@ -186,7 +186,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		// INFO: Group empty - student will be created without group
 		errors = append(errors, importModels.ValidationError{
 			Field:    "group",
-			Message:  "Keine Gruppe zugewiesen. Der Schüler wird ohne Gruppe erstellt.",
+			Message:  "Keine Gruppe zugewiesen. Das Kind wird ohne Gruppe erstellt.",
 			Code:     "group_empty",
 			Severity: importModels.ErrorSeverityInfo, // Non-blocking
 		})
@@ -519,7 +519,7 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 	}
 
 	// Multiple matches - ambiguous
-	return nil, fmt.Errorf("mehrere Schüler gefunden mit Name '%s %s' in Klasse '%s'",
+	return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' in Klasse '%s'",
 		row.FirstName, row.LastName, row.SchoolClass)
 }
 
