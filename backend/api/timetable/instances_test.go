@@ -55,6 +55,10 @@ type mockInstanceService struct {
 	lastUpdate    *scheduleSvc.UpdateInstanceInput
 }
 
+func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
+	return nil, nil
+}
+
 func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
 	m.lastStartID = id
 	m.lastStartedBy = startedBy

@@ -57,7 +57,7 @@ var (
 var apiRepoDeclAllowlist = map[string]int{
 	"api/iot/api.go":               6,
 	"api/iot/sessions/resource.go": 4,
-	"api/students/api.go":          22,
+	"api/students/api.go":          2, // SchoolRepo ×2 (field + config) — device-authenticator middleware wiring only
 	"api/timetable/api.go":         40,
 }
 

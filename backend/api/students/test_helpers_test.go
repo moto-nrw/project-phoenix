@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
@@ -72,27 +75,24 @@ func setupTestContext(t *testing.T) *testContext {
 	})
 
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:          svc.Users,
-		GuardianService:        svc.Guardian,
-		StudentRepo:            repoFactory.Student,
-		EducationService:       svc.Education,
-		UserContextService:     svc.UserContext,
-		ActiveService:          svc.Active,
-		IoTService:             svc.IoT,
-		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
-		PickupScheduleService:  svc.PickupSchedule,
-		ArrivalScheduleService: svc.ArrivalSchedule,
-		InstanceStudentRepo:    repoFactory.InstanceStudent,
-		SchoolRepo:             repoFactory.School,
-		SettingsService:        svc.Settings,
-		AttendanceRepo:         repoFactory.Attendance,
-		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
-		VisitRepo:              repoFactory.ActiveVisit,
-		DataAccessLogRepo:      repoFactory.DataAccessLog,
-		Broadcaster:            broadcaster,
-		StudentPhotos:          studentPhotos,
-		Logger:                 slog.Default(),
-		DB:                     db,
+		PersonService:           svc.Users,
+		GuardianService:         svc.Guardian,
+		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
+		EducationService:        svc.Education,
+		UserContextService:      svc.UserContext,
+		ActiveService:           svc.Active,
+		IoTService:              svc.IoT,
+		PickupScheduleService:   svc.PickupSchedule,
+		ArrivalScheduleService:  svc.ArrivalSchedule,
+		SchoolRepo:              repoFactory.School,
+		SettingsService:         svc.Settings,
+		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog),
+		InstanceService:         svc.Instance,
+		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
+		Broadcaster:             broadcaster,
+		StudentPhotos:           studentPhotos,
+		Logger:                  slog.Default(),
+		DB:                      db,
 	})
 
 	t.Cleanup(func() {

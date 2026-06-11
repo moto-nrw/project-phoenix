@@ -37,7 +37,7 @@ func statusReportedAt(now time.Time, existing *time.Time) time.Time {
 }
 
 func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *users.Student, wasSick, wasExcused bool, now time.Time, sickNote *string) error {
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		return nil
 	}
 	if student == nil {
@@ -57,7 +57,7 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *us
 
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, wasActive, isActive bool, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
 	if isActive {
-		return rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
+		return rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
 			Status:     status,
@@ -67,7 +67,7 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 		})
 	}
 	if wasActive {
-		if err := rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
+		if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 			StudentID:  studentID,
 			Date:       date,
 			Status:     status,
@@ -76,7 +76,7 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 		}); err != nil {
 			return err
 		}
-		return rs.StudentStatusDayRepo.MarkCleared(ctx, studentID, status, date, now, active.StudentStatusSourceManual)
+		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, active.StudentStatusSourceManual)
 	}
 	return nil
 }

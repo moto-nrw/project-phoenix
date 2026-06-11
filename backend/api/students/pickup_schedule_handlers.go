@@ -840,7 +840,7 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 	}
 
 	// Get all students in these groups
-	students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), groupIDs)
+	students, err := rs.PersonService.GetStudentsByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		return nil, err
 	}

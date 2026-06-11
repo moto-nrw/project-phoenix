@@ -98,6 +98,9 @@ type Factory struct {
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
 	WorkTimeModels       config.WorkTimeModelService
+	Students             users.StudentService
+	StudentStatusDays    active.StudentStatusDayService
+	StudentHistory       active.StudentHistoryService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 
@@ -1073,6 +1076,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
+		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
 
