@@ -51,20 +51,20 @@ func pdfPages(doc Document, cols []Column, widths []float64, pageWidth, pageHeig
 	page, y := newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
 	currentGroup := ""
 	for _, row := range doc.Rows {
+		lines := pdfRowLines(row, cols, widths)
+		rowHeight := pdfRowHeight(lines)
 		// A non-empty GroupTitle that differs from the running section opens a
 		// new section heading above the next row (flat lists never set it).
 		if row.GroupTitle != "" && row.GroupTitle != currentGroup {
 			currentGroup = row.GroupTitle
-			if y-groupTitleHeight < margin+12 {
+			if y-groupTitleSpacing-groupTitleHeight-rowHeight < margin+12 {
 				pages = append(pages, page.String())
 				page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
 			}
-			y -= 6
+			y -= groupTitleSpacing
 			writePDFText(page, margin, y-9, 9, currentGroup)
 			y -= groupTitleHeight
 		}
-		lines := pdfRowLines(row, cols, widths)
-		rowHeight := pdfRowHeight(lines)
 		if y-rowHeight < margin+12 {
 			pages = append(pages, page.String())
 			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
@@ -76,7 +76,10 @@ func pdfPages(doc Document, cols []Column, widths []float64, pageWidth, pageHeig
 	return pages
 }
 
-const groupTitleHeight = 16.0
+const (
+	groupTitleSpacing = 6.0
+	groupTitleHeight  = 16.0
+)
 
 func newPDFPage(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64) (*strings.Builder, float64) {
 	b := &strings.Builder{}

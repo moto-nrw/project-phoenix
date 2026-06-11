@@ -98,6 +98,31 @@ func TestRenderPDFWrapsWithoutTruncatingCellText(t *testing.T) {
 	}
 }
 
+func TestPDFPagesKeepGroupHeadingWithFirstRow(t *testing.T) {
+	cols := ResolveColumns([]ColumnID{ColumnName}, PresetOGSWeekly)
+	widths := pdfColumnWidths(cols, 180)
+	doc := Document{
+		Title:       "Grouped List",
+		GeneratedAt: time.Date(2026, time.May, 27, 14, 30, 0, 0, time.UTC),
+		Columns:     cols,
+		Rows: []Row{
+			{Values: map[ColumnID]string{ColumnName: "Filler Row"}},
+			{GroupTitle: "Group A", Values: map[ColumnID]string{ColumnName: "First Child"}},
+		},
+	}
+
+	pages := pdfPages(doc, cols, widths, 200, 130, 10)
+	if len(pages) != 2 {
+		t.Fatalf("pages len = %d, want 2", len(pages))
+	}
+	if strings.Contains(pages[0], "(Group A)") {
+		t.Fatal("group heading was orphaned on the previous PDF page")
+	}
+	if !strings.Contains(pages[1], "(Group A)") || !strings.Contains(pages[1], "(First Child)") {
+		t.Fatalf("second page must contain group heading and first row, got %q", pages[1])
+	}
+}
+
 func TestRenderDOCXWritesWordDocument(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatDOCX, "liste")
 	if err != nil {
