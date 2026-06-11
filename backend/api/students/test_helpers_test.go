@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -77,7 +76,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
-		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
+		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,

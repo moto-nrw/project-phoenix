@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
@@ -178,7 +177,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 		},
 	}
 	resource := &Resource{
-		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repo),
+		StudentStatusDayService: activeService.NewStudentStatusDayService(repo),
 		Logger:                  slog.Default(),
 	}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
@@ -442,7 +441,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	baseResource := newStatusDayTestResource(db)
 
 	t.Run("get maps repository error to internal server error", func(t *testing.T) {
-		baseResource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{findRangeErr: errors.New("find failed")})
+		baseResource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{findRangeErr: errors.New("find failed")})
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
 		rr := executeStatusDayHandler(statusDayTestRouter(baseResource), req, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusInternalServerError, rr.Code)
@@ -450,7 +449,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("create maps clear error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{clearForDatesErr: errors.New("clear failed")})
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{clearForDatesErr: errors.New("clear failed")})
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
@@ -461,7 +460,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("create maps upsert error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{upsertErr: errors.New("upsert failed")})
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{upsertErr: errors.New("upsert failed")})
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDayExcused,
 			"dates":  []string{"2026-05-25"},
@@ -472,7 +471,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("create maps response fetch error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{findRangeErr: errors.New("fetch failed")})
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{findRangeErr: errors.New("fetch failed")})
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": active.StudentStatusDaySick,
 			"dates":  []string{"2026-05-25"},
@@ -483,12 +482,12 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("delete maps missing or foreign status day to not found", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{findByIDErr: sql.ErrNoRows})
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{findByIDErr: sql.ErrNoRows})
 		missingReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
 		missingRR := executeStatusDayHandler(statusDayTestRouter(resource), missingReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, missingRR.Code)
 
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{findByIDRow: &active.StudentStatusDay{StudentID: 99}})
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{findByIDRow: &active.StudentStatusDay{StudentID: 99}})
 		foreignReq := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
 		foreignRR := executeStatusDayHandler(statusDayTestRouter(resource), foreignReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, foreignRR.Code)
@@ -496,7 +495,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 
 	t.Run("delete maps clear error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
-		resource.StudentStatusDayService = activeSvc.NewStudentStatusDayService(&fakeStatusDayRepo{
+		resource.StudentStatusDayService = activeService.NewStudentStatusDayService(&fakeStatusDayRepo{
 			findByIDRow:  &active.StudentStatusDay{Model: modelBase.Model{ID: 42}, StudentID: student.ID, Date: timezone.TodayDate(), Status: active.StudentStatusDaySick},
 			clearByIDErr: errors.New("clear failed"),
 		})
@@ -511,7 +510,7 @@ func newStatusDayTestResource(db *bun.DB) *Resource {
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: repoFactory.Student}),
 		StudentService:          usersSvc.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
-		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
+		StudentStatusDayService: activeService.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})

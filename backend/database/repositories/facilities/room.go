@@ -430,7 +430,7 @@ func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) ([]*facilit
 	err := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.In(ids)).
+		Where(`"room".id IN (?)`, bun.List(ids)).
 		Scan(ctx)
 	if err != nil {
 		return nil, err
