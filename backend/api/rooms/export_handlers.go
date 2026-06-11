@@ -109,7 +109,7 @@ func (rs *Resource) ensureRoomExportDependencies() error {
 	if rs.EducationService == nil {
 		return errors.New("education service is not configured")
 	}
-	if rs.StudentRepo == nil {
+	if rs.PersonService == nil {
 		return errors.New("student repository is not configured")
 	}
 	if rs.ListExportService == nil {
@@ -202,7 +202,7 @@ func (rs *Resource) loadRoomSnapshotStudents(r *http.Request, studentIDs []int64
 		return result, nil
 	}
 
-	students, err := rs.StudentRepo.FindByIDs(r.Context(), studentIDs)
+	students, err := rs.PersonService.GetStudentsByIDs(r.Context(), studentIDs)
 	if err != nil {
 		return nil, err
 	}

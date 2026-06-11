@@ -3,8 +3,11 @@ package importpkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 )
 
@@ -28,6 +31,7 @@ func ImporterIDFromContext(ctx context.Context) int64 {
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
 	batchSize int
+	auditRepo audit.DataImportRepository
 }
 
 // NewImportService creates a new import service
@@ -36,6 +40,58 @@ func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService
 		config:    config,
 		batchSize: 100, // Default batch size
 	}
+}
+
+// SetAuditRepository wires the GDPR import-audit repository (issue #584:
+// audit writes moved out of api/import). Optional; RecordAudit no-ops when
+// unset.
+func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
+	s.auditRepo = repo
+}
+
+// RecordAudit asynchronously writes a GDPR audit record for an import
+// operation (moved verbatim from api/import). entityType identifies the
+// imported entity (e.g. "student", "staff"). The write runs detached on
+// context.Background() with panic recovery, exactly as before.
+func (s *ImportService[T]) RecordAudit(entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
+	if s.auditRepo == nil {
+		return
+	}
+	auditRepo := s.auditRepo
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in import audit logging: %v", r)
+				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
+		auditCtx := context.Background()
+		auditRecord := &audit.DataImport{
+			EntityType:   entityType,
+			Filename:     filename,
+			TotalRows:    result.TotalRows,
+			CreatedCount: result.CreatedCount,
+			UpdatedCount: result.UpdatedCount,
+			SkippedCount: 0, // Not tracked separately
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			DryRun:       dryRun,
+			ImportedBy:   userID,
+			StartedAt:    result.StartedAt,
+			CompletedAt:  &result.CompletedAt,
+			Metadata:     audit.JSONBMap{},
+		}
+		auditRecord.SetTenantID(tenantID)
+		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
+			if dryRun {
+				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
+			} else {
+				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
+			}
+		}
+	}()
 }
 
 // Import executes the import operation

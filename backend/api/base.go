@@ -352,7 +352,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Rooms.ActiveService = api.Services.Active
 	api.Rooms.PersonService = api.Services.Users
 	api.Rooms.EducationService = api.Services.Education
-	api.Rooms.StudentRepo = repoFactory.Student
 	api.Rooms.ListExportService = api.Services.ListExport
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
@@ -388,12 +387,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, repoFactory.DataImport, api.Services.Users, db)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
-	api.WorkTimeModels = worktimemodelsAPI.NewResource(repoFactory.WorkTimeModel, db, logger.With("handler", "work-time-models"))
+	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,

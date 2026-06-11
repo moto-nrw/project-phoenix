@@ -97,6 +97,7 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
+	WorkTimeModels       config.WorkTimeModelService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 
@@ -766,6 +767,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig)
+	studentImportService.SetAuditRepository(repos.DataImport)
 
 	// Staff import bulk-creates invitations (reuses the invitation service);
 	// Person/Account/Staff/Teacher are created when each invitee accepts.
@@ -779,6 +781,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
+	staffImportService.SetAuditRepository(repos.DataImport)
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -1069,6 +1072,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
+		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
 
