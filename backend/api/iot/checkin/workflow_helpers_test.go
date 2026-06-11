@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,6 +24,14 @@ type stubActiveService struct {
 	findDeviceActiveGroupInRoomFn    func(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	countActiveVisitsByRoomIDFn      func(ctx context.Context, roomID int64) (int, error)
 	countActiveVisitsByActiveGroupFn func(ctx context.Context, activeGroupID int64) (int, error)
+}
+
+func (s *stubActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+
+func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+	return nil, nil
 }
 
 func (s *stubActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {

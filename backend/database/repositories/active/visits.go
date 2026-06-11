@@ -1007,3 +1007,37 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 	}
 	return locations, nil
 }
+
+// FindActiveWithStudentDisplayByGroup returns the open visits of an active
+// group joined with student display data, newest entry first (issue #584:
+// moved verbatim out of api/active).
+func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error) {
+	var results []*active.VisitWithStudentDisplay
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("s.group_id").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		ColumnExpr("s.sick").
+		ColumnExpr("s.sick_since").
+		ColumnExpr("s.excused").
+		ColumnExpr("s.excused_since").
+		ColumnExpr("s.photo_path").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", activeGroupID).
+		Where("v.exit_time IS NULL").
+		OrderExpr("v.entry_time DESC").
+		Scan(ctx, &results)
+	return results, err
+}

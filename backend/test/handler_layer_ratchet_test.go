@@ -67,7 +67,6 @@ var repoGetterCallAllowlist = map[string]int{}
 
 // R3 — query construction in api/.
 var apiQueryConstructionAllowlist = map[string]int{
-	"api/active/groups_handlers.go":     2,
 	"api/timetable/operations.go":       3, // pg_advisory_xact_lock ×3
 	"api/timetable/templates_list.go":   2,
 	"api/timetable/templates_people.go": 2,

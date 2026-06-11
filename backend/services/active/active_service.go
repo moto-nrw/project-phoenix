@@ -1241,3 +1241,14 @@ type visitSSEData struct {
 func (s *service) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
 	return s.attendanceRepo.HasOpenAttendanceOn(ctx, date)
 }
+
+// GetRoomsByIDs retrieves rooms by ID.
+func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error) {
+	return s.roomRepo.FindByIDs(ctx, ids)
+}
+
+// GetActiveGroupVisitsWithDisplay returns the open visits of an active group
+// joined with student display data.
+func (s *service) GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error) {
+	return s.visitRepo.FindActiveWithStudentDisplayByGroup(ctx, activeGroupID)
+}

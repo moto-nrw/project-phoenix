@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
 // Service defines operations for managing active groups and visits
@@ -103,6 +104,13 @@ type Service interface {
 
 	// Attendance tracking operations
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
+	// GetRoomsByIDs retrieves rooms by ID (issue #584 lookup; repository
+	// result returned verbatim).
+	GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error)
+	// GetActiveGroupVisitsWithDisplay returns the open visits of an active
+	// group joined with student display data (issue #584 lookup; repository
+	// result returned verbatim).
+	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error)
 	// HasOpenAttendanceOn reports whether any attendance row on the given
 	// calendar date is still open (issue #584 lookup; repository result
 	// returned verbatim). Used by the operator presence-mode switch guard.

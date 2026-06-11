@@ -406,6 +406,10 @@ type mockRoomRepo struct {
 	err   error
 }
 
+func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return nil, nil
+}
+
 func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { return nil }
 func (m *mockRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilities.Room, error) {
 	return nil, nil

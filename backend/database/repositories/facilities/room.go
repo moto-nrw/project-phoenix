@@ -420,3 +420,20 @@ func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBa
 	}
 	return results, nil
 }
+
+// FindByIDs retrieves rooms by their IDs.
+func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) ([]*facilities.Room, error) {
+	rooms := make([]*facilities.Room, 0, len(ids))
+	if len(ids) == 0 {
+		return rooms, nil
+	}
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rooms).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".id IN (?)`, bun.In(ids)).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return rooms, nil
+}

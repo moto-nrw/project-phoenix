@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -84,6 +86,14 @@ func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string
 
 type stubActiveService struct {
 	listActiveGroupsFunc func(ctx context.Context, options *base.QueryOptions) ([]*activeModel.Group, error)
+}
+
+func (s *stubActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+
+func (s *stubActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+	return nil, nil
 }
 
 func (s *stubActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {

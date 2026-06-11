@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/uptrace/bun"
 )
 
 // ===== Active Group Handlers =====
@@ -83,13 +82,7 @@ func (rs *Resource) loadRoomsMap(r *http.Request, groups []*active.Group) map[in
 	roomMap := make(map[int64]*facilities.Room)
 
 	if len(roomIDs) > 0 {
-		var rooms []*facilities.Room
-		db := rs.getDB(r.Context())
-		err := db.NewSelect().
-			Model(&rooms).
-			ModelTableExpr(`facilities.rooms AS "room"`).
-			Where(`"room".id IN (?)`, bun.List(roomIDs)).
-			Scan(r.Context())
+		rooms, err := rs.ActiveService.GetRoomsByIDs(r.Context(), roomIDs)
 		if err == nil {
 			for _, room := range rooms {
 				roomMap[room.ID] = room
@@ -351,59 +344,21 @@ func (rs *Resource) isAdminWithSupervisionOverview(r *http.Request) bool {
 	return enabled
 }
 
-// visitWithStudent is a helper struct for the JOIN query
-type visitWithStudent struct {
-	VisitID       int64      `bun:"visit_id"`
-	StudentID     int64      `bun:"student_id"`
-	ActiveGroupID int64      `bun:"active_group_id"`
-	EntryTime     time.Time  `bun:"entry_time"`
-	ExitTime      *time.Time `bun:"exit_time"`
-	FirstName     string     `bun:"first_name"`
-	LastName      string     `bun:"last_name"`
-	SchoolClass   string     `bun:"school_class"`
-	GroupID       *int64     `bun:"group_id"` // student's education group_id (nullable)
-	OGSGroupName  string     `bun:"ogs_group_name"`
-	Sick          *bool      `bun:"sick"`
-	SickSince     *time.Time `bun:"sick_since"`
-	Excused       *bool      `bun:"excused"`
-	ExcusedSince  *time.Time `bun:"excused_since"`
-	PhotoPath     *string    `bun:"photo_path"`
-	CreatedAt     time.Time  `bun:"created_at"`
-	UpdatedAt     time.Time  `bun:"updated_at"`
-}
+// visitWithStudent aliases the repository read model (issue #584: the JOIN
+// query moved into VisitRepository.FindActiveWithStudentDisplayByGroup).
+type visitWithStudent = active.VisitWithStudentDisplay
 
 // fetchVisitsWithDisplayData fetches visits with student display data
 func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID int64) ([]visitWithStudent, error) {
-	var results []visitWithStudent
-	db := rs.getDB(r.Context())
-	err := db.NewSelect().
-		ColumnExpr("v.id AS visit_id").
-		ColumnExpr("v.student_id").
-		ColumnExpr("v.active_group_id").
-		ColumnExpr("v.entry_time").
-		ColumnExpr("v.exit_time").
-		ColumnExpr("v.created_at").
-		ColumnExpr("v.updated_at").
-		ColumnExpr("p.first_name").
-		ColumnExpr("p.last_name").
-		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
-		ColumnExpr("s.group_id").
-		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
-		ColumnExpr("s.sick").
-		ColumnExpr("s.sick_since").
-		ColumnExpr("s.excused").
-		ColumnExpr("s.excused_since").
-		ColumnExpr("s.photo_path").
-		TableExpr("active.visits AS v").
-		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
-		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
-		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
-		Where("v.active_group_id = ?", activeGroupID).
-		Where("v.exit_time IS NULL").
-		OrderExpr("v.entry_time DESC").
-		Scan(r.Context(), &results)
-
-	return results, err
+	rows, err := rs.ActiveService.GetActiveGroupVisitsWithDisplay(r.Context(), activeGroupID)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]visitWithStudent, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, *row)
+	}
+	return results, nil
 }
 
 func collectVisitStudentIDs(results []visitWithStudent) []int64 {

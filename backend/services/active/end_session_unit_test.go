@@ -200,6 +200,10 @@ func (m *mockVisitRepository) FindByTimeRange(ctx context.Context, start, end ti
 	return nil, nil
 }
 
+func (m *mockVisitRepository) FindActiveWithStudentDisplayByGroup(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+	return nil, nil
+}
+
 func (m *mockVisitRepository) FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*active.Visit, error) {
 	return nil, nil
 }

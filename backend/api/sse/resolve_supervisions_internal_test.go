@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -84,6 +86,14 @@ type mockActiveSvcForSSE struct {
 	getAllFunc   func(ctx context.Context) ([]*activeModel.GroupSupervisor, error)
 	getStaffFunc func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	listFunc     func(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error)
+}
+
+func (m *mockActiveSvcForSSE) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilityModels.Room, error) {
+	return nil, nil
+}
+
+func (m *mockActiveSvcForSSE) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*activeModel.VisitWithStudentDisplay, error) {
+	return nil, nil
 }
 
 func (m *mockActiveSvcForSSE) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
