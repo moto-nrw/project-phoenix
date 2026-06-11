@@ -89,6 +89,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/care-offerings/public/{tenantSlug}/{phaseId}", rs.listPublicCareOfferings)
 	r.Get("/schema/public/{tenantSlug}/{phaseId}", rs.listPublicActiveSchema)
 	r.Get("/captcha-config/{tenantSlug}", rs.publicCaptchaConfig)
+	r.Get("/legal/{tenantSlug}/{phaseId}", rs.publicLegalTexts)
 	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)

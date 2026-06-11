@@ -35,6 +35,8 @@ type mockFormSchemaService struct {
 	createCreatedBy  int64
 	createCore       enrollmentModels.CoreRequirements
 	createCoreSet    bool
+	createLegal      []enrollmentModels.FormLegalBlock
+	createLegalSet   bool
 	createResult     *enrollmentModels.FormSchema
 	createErr        error
 	updateID         int64
@@ -42,6 +44,8 @@ type mockFormSchemaService struct {
 	updateUpdatedBy  int64
 	updateCore       enrollmentModels.CoreRequirements
 	updateCoreSet    bool
+	updateLegal      []enrollmentModels.FormLegalBlock
+	updateLegalSet   bool
 	updateResult     *enrollmentModels.FormSchema
 	updateErr        error
 	deleteID         int64
@@ -75,6 +79,16 @@ func (m *mockFormSchemaService) CreateSchema(_ context.Context, name string, fie
 	}
 	return m.createResult, m.createErr
 }
+func (m *mockFormSchemaService) CreateSchemaWithLegal(_ context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+	m.createName = name
+	m.createFields = fields
+	m.createCreatedBy = createdBy
+	m.createCore = coreRequirements
+	m.createCoreSet = true
+	m.createLegal = legalBlocks
+	m.createLegalSet = true
+	return m.createResult, m.createErr
+}
 func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	m.updateID = id
 	m.updateFields = fields
@@ -82,6 +96,20 @@ func (m *mockFormSchemaService) UpdateSchema(_ context.Context, id int64, fields
 	if len(coreRequirements) > 0 {
 		m.updateCore = coreRequirements[0]
 		m.updateCoreSet = true
+	}
+	return m.updateResult, m.updateErr
+}
+func (m *mockFormSchemaService) UpdateSchemaWithLegal(_ context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+	m.updateID = id
+	m.updateFields = fields
+	m.updateUpdatedBy = updatedBy
+	if coreRequirements != nil {
+		m.updateCore = *coreRequirements
+		m.updateCoreSet = true
+	}
+	if legalBlocks != nil {
+		m.updateLegal = *legalBlocks
+		m.updateLegalSet = true
 	}
 	return m.updateResult, m.updateErr
 }
@@ -287,6 +315,36 @@ func TestPublishSchemaHandler_WithNameCallsCreateSchema(t *testing.T) {
 	assert.Len(t, mock.createFields, 1)
 }
 
+func TestPublishSchemaHandler_WithLegalBlocksCallsCreateSchemaWithLegal(t *testing.T) {
+	mock := &mockFormSchemaService{createResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
+		map[string]any{
+			"name": "Klassenanmeldung",
+			"fields": []map[string]any{
+				{"key": "allergies", "label": "Allergien", "type": "text", "sort_order": 0},
+			},
+			"legal_blocks": []map[string]any{
+				{
+					"key":        "custom_pool",
+					"kind":       "consent",
+					"title":      "Schwimmbad",
+					"label":      "Mein Kind darf teilnehmen.",
+					"text":       "Details",
+					"required":   true,
+					"enabled":    true,
+					"sort_order": 10,
+					"source":     "custom",
+				},
+			},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.True(t, mock.createLegalSet)
+	require.Len(t, mock.createLegal, 1)
+	assert.Equal(t, "custom_pool", mock.createLegal[0].Key)
+	assert.True(t, mock.createLegal[0].Required)
+}
+
 func TestPublishSchemaHandler_NoNameUsesStandardformularFallback(t *testing.T) {
 	// Without a name in the body, the handler's legacy path looks for
 	// the active schema; ErrNoActiveSchema → falls through to creating
@@ -385,6 +443,32 @@ func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
 	require.True(t, mock.updateCoreSet,
 		"present core_requirements, even when sparse, must be forwarded so admins can change the matrix")
 	assert.True(t, mock.updateCore.Required(enrollmentModels.CoreRequirementGuardianPhone))
+}
+
+func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {
+	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+			"legal_blocks": []map[string]any{
+				{
+					"key":        "custom_pool",
+					"kind":       "consent",
+					"title":      "Schwimmbad",
+					"label":      "Mein Kind darf teilnehmen.",
+					"text":       "Details",
+					"required":   false,
+					"enabled":    true,
+					"sort_order": 10,
+					"source":     "custom",
+				},
+			},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, mock.updateLegalSet)
+	require.Len(t, mock.updateLegal, 1)
+	assert.Equal(t, "custom_pool", mock.updateLegal[0].Key)
 }
 
 func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {

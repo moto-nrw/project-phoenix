@@ -308,6 +308,7 @@ describe("EnrollmentForm", () => {
       "test-tenant",
       "5",
     );
+    expect(mockFetchPublicLegalTexts).toHaveBeenCalledWith("test-tenant", "5");
     expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
     expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
     expect(screen.getByText("Allergien")).toBeInTheDocument();
@@ -439,6 +440,50 @@ describe("EnrollmentForm", () => {
       SubmitEnrollmentPayload,
     ];
     expect(payload.consent_flags).toEqual({});
+  });
+
+  it("requires and submits custom template consent blocks", async () => {
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(
+      legalTexts([
+        {
+          key: "custom_pool",
+          kind: "consent",
+          title: "Schwimmbad",
+          label: "Mein Kind darf am Schwimmbad-Ausflug teilnehmen.",
+          text: "Schwimmbad Details",
+          required: true,
+          source: "custom",
+        },
+      ]),
+    );
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await screen.findByText("Bitte diese erforderliche Bestätigung auswählen.");
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByText("Mein Kind darf am Schwimmbad-Ausflug teilnehmen."),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags).toEqual({ custom_pool: true });
   });
 
   it("submits guardian, child, custom field, offering, and consent payloads", async () => {

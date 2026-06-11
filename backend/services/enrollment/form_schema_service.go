@@ -58,6 +58,7 @@ type FormSchemaService interface {
 	// must use UpdateSchema to add another version to an existing
 	// schema instead.
 	CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
+	CreateSchemaWithLegal(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error)
 
 	// UpdateSchema publishes a new version of an existing schema,
 	// looked up by id. The new row inherits the source row's name,
@@ -66,6 +67,7 @@ type FormSchemaService interface {
 	// to the new row, while previously-submitted requests keep their
 	// schema reference intact.
 	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
+	UpdateSchemaWithLegal(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error)
 
 	// DeleteSchema removes every version of the logical schema selected
 	// by id. It refuses deletion when any version is used by a phase or
@@ -136,7 +138,7 @@ func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentMode
 const defaultSchemaName = "Standardformular"
 
 func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
-	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy, firstCoreRequirements(coreRequirements))
+	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy, firstCoreRequirements(coreRequirements), nil)
 }
 
 func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
@@ -153,7 +155,21 @@ func (s *formSchemaService) CreateSchema(ctx context.Context, name string, field
 	if existing > 1 {
 		return nil, fmt.Errorf("schema with name %q already exists; use UpdateSchema to add a new version", name)
 	}
-	return s.createOrVersion(ctx, name, fields, createdBy, firstCoreRequirements(coreRequirements))
+	return s.createOrVersion(ctx, name, fields, createdBy, firstCoreRequirements(coreRequirements), nil)
+}
+
+func (s *formSchemaService) CreateSchemaWithLegal(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+	if name == "" {
+		return nil, fmt.Errorf("schema name is required")
+	}
+	existing, err := s.repo.NextVersionForName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("check existing name: %w", err)
+	}
+	if existing > 1 {
+		return nil, fmt.Errorf("schema with name %q already exists; use UpdateSchema to add a new version", name)
+	}
+	return s.createOrVersion(ctx, name, fields, createdBy, coreRequirements, legalBlocks)
 }
 
 func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
@@ -168,7 +184,26 @@ func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields [
 	if len(coreRequirements) > 0 {
 		nextCoreRequirements = firstCoreRequirements(coreRequirements)
 	}
-	return s.createOrVersion(ctx, source.Name, fields, updatedBy, nextCoreRequirements)
+	return s.createOrVersion(ctx, source.Name, fields, updatedBy, nextCoreRequirements, source.LegalBlocks)
+}
+
+func (s *formSchemaService) UpdateSchemaWithLegal(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
+	if id <= 0 {
+		return nil, fmt.Errorf("schema id must be positive")
+	}
+	source, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("load source schema: %w", err)
+	}
+	nextCoreRequirements := source.CoreRequirements
+	if coreRequirements != nil {
+		nextCoreRequirements = *coreRequirements
+	}
+	nextLegalBlocks := source.LegalBlocks
+	if legalBlocks != nil {
+		nextLegalBlocks = *legalBlocks
+	}
+	return s.createOrVersion(ctx, source.Name, fields, updatedBy, nextCoreRequirements, nextLegalBlocks)
 }
 
 func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
@@ -228,7 +263,7 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 // name and insert a new active row. Sibling rows with the same name
 // stay in place for historical submissions, but phases using any prior
 // sibling version are advanced to the newly published row.
-func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
+func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements enrollmentModels.CoreRequirements, legalBlocks []enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
 	if createdBy <= 0 {
 		return nil, fmt.Errorf("createdBy is required")
 	}
@@ -237,7 +272,7 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 	}
 
 	// Validate fields up front so we don't write a half-correct row.
-	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields, CoreRequirements: coreRequirements}
+	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields, CoreRequirements: coreRequirements, LegalBlocks: legalBlocks}
 	if err := tmp.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid schema: %w", err)
 	}
@@ -252,6 +287,7 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		Version:          nextVersion,
 		Fields:           fields,
 		CoreRequirements: tmp.CoreRequirements,
+		LegalBlocks:      tmp.LegalBlocks,
 		IsActive:         true,
 		CreatedBy:        createdBy,
 	}

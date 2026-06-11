@@ -179,6 +179,11 @@ type RequestService interface {
 	// than fall back to an incomplete legal state, because these texts sit
 	// behind legally relevant blocks.
 	LegalTexts(ctx context.Context) (LegalTexts, error)
+
+	// LegalTextsForPhase returns the legal block contract for the selected
+	// phase. When the phase's template carries legal_blocks those blocks
+	// win; otherwise it falls back to the tenant-wide legal settings.
+	LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -198,12 +203,14 @@ type LegalTexts struct {
 // form. Required checkbox blocks must be accepted; notice blocks only display
 // information.
 type LegalBlock struct {
-	Key      string `json:"key"`
-	Kind     string `json:"kind"`
-	Title    string `json:"title"`
-	Label    string `json:"label"`
-	Text     string `json:"text"`
-	Required bool   `json:"required"`
+	Key       string `json:"key"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Label     string `json:"label"`
+	Text      string `json:"text"`
+	Required  bool   `json:"required"`
+	SortOrder int    `json:"sort_order,omitempty"`
+	Source    string `json:"source,omitempty"`
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -309,10 +316,6 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.enforceRateLimit(ctx, req); err != nil {
 		return nil, err
 	}
-	if err := s.validateSubmission(ctx, req); err != nil {
-		return nil, err
-	}
-
 	phase, err := s.loadPhaseForSubmission(ctx, req.PhaseID)
 	if err != nil {
 		return nil, err
@@ -372,6 +375,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
+	}
+	if err := s.validateSubmission(ctx, req, schema); err != nil {
+		return nil, err
 	}
 
 	// Single required-field gate: enforces required core + custom fields
@@ -539,7 +545,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	}, nil
 }
 
-func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest) error {
+func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, schema *enrollmentModels.FormSchema) error {
 	if !s.isEnrollmentEnabled(ctx) {
 		return ErrEnrollmentDisabled
 	}
@@ -575,7 +581,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	requiredConsents, err := s.resolveRequiredConsents(ctx)
+	requiredConsents, err := s.resolveRequiredConsents(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("resolve required consents: %w", err)
 	}
@@ -1090,46 +1096,94 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	return texts, nil
 }
 
+func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
+	texts, err := s.LegalTexts(ctx)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	schema, err := s.resolveSubmissionSchema(ctx, phase)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	if schema == nil || len(schema.LegalBlocks) == 0 {
+		return texts, nil
+	}
+	texts.Blocks = buildTemplateLegalBlocks(schema.LegalBlocks)
+	return texts, nil
+}
+
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	blocks := make([]LegalBlock, 0, 4)
 	if texts.TermsEnabled && texts.AGB != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyAGB,
-			Kind:     "terms",
-			Title:    "AGB / Teilnahmebedingungen",
-			Label:    "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-			Text:     texts.AGB,
-			Required: true,
+			Key:       enrollmentModels.ConsentKeyAGB,
+			Kind:      "terms",
+			Title:     "AGB / Teilnahmebedingungen",
+			Label:     "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+			Text:      texts.AGB,
+			Required:  true,
+			SortOrder: 10,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
 	if texts.DSGVO != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyDataProcessing,
-			Kind:     "privacy_notice",
-			Title:    "Datenschutzinformation",
-			Label:    "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
-			Text:     texts.DSGVO,
-			Required: true,
+			Key:       enrollmentModels.ConsentKeyDataProcessing,
+			Kind:      "privacy_notice",
+			Title:     "Datenschutzinformation",
+			Label:     "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
+			Text:      texts.DSGVO,
+			Required:  true,
+			SortOrder: 20,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
 	if texts.Photo != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyPhoto,
-			Kind:     "consent",
-			Title:    "Fotoeinwilligung",
-			Label:    "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
-			Text:     texts.Photo,
-			Required: false,
+			Key:       enrollmentModels.ConsentKeyPhoto,
+			Kind:      "consent",
+			Title:     "Fotoeinwilligung",
+			Label:     "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
+			Text:      texts.Photo,
+			Required:  false,
+			SortOrder: 30,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
 	if texts.EmailContact != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyEmailContact,
-			Kind:     "notice",
-			Title:    "E-Mail-Kontakt",
-			Label:    "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
-			Text:     texts.EmailContact,
-			Required: false,
+			Key:       enrollmentModels.ConsentKeyEmailContact,
+			Kind:      "notice",
+			Title:     "E-Mail-Kontakt",
+			Label:     "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
+			Text:      texts.EmailContact,
+			Required:  false,
+			SortOrder: 40,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
+		})
+	}
+	return blocks
+}
+
+func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []LegalBlock {
+	blocks := make([]LegalBlock, 0, len(configured))
+	for _, block := range configured {
+		if !block.Enabled {
+			continue
+		}
+		blocks = append(blocks, LegalBlock{
+			Key:       block.Key,
+			Kind:      block.Kind,
+			Title:     block.Title,
+			Label:     block.Label,
+			Text:      block.Text,
+			Required:  block.Required,
+			SortOrder: block.SortOrder,
+			Source:    block.Source,
 		})
 	}
 	return blocks
@@ -1160,13 +1214,19 @@ func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
 // resolveRequiredConsents returns the visible legal blocks the parent must
 // accept for this tenant. It uses the same derived block list as the public
 // endpoint so a hidden/empty block never blocks submit server-side.
-func (s *requestService) resolveRequiredConsents(ctx context.Context) ([]string, error) {
-	texts, err := s.LegalTexts(ctx)
-	if err != nil {
-		return nil, err
+func (s *requestService) resolveRequiredConsents(ctx context.Context, schema *enrollmentModels.FormSchema) ([]string, error) {
+	var blocks []LegalBlock
+	if schema != nil && len(schema.LegalBlocks) > 0 {
+		blocks = buildTemplateLegalBlocks(schema.LegalBlocks)
+	} else {
+		texts, err := s.LegalTexts(ctx)
+		if err != nil {
+			return nil, err
+		}
+		blocks = texts.Blocks
 	}
-	required := make([]string, 0, len(texts.Blocks))
-	for _, block := range texts.Blocks {
+	required := make([]string, 0, len(blocks))
+	for _, block := range blocks {
 		if block.Required {
 			required = append(required, block.Key)
 		}

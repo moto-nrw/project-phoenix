@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
@@ -29,8 +30,9 @@ type PublicLegalTextsResponse struct {
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
 // the parent form. Slug-gated, no JWT — same access shape as the
-// captcha-config endpoint. The texts are tenant-wide (not phase-
-// specific), so no phaseId param.
+// captcha-config endpoint. When phaseId is present, template-owned
+// legal_blocks on that phase's selected form schema override the tenant
+// standard blocks.
 func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil || rs.SchoolRepo == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("legal texts endpoint not wired")))
@@ -41,6 +43,15 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	if slug == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
+	}
+	var phaseID int64
+	if phaseParam := chi.URLParam(r, "phaseId"); phaseParam != "" {
+		parsed, err := strconv.ParseInt(phaseParam, 10, 64)
+		if err != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+			return
+		}
+		phaseID = parsed
 	}
 
 	out := PublicLegalTextsResponse{}
@@ -56,7 +67,15 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 		}
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			texts, err := rs.RequestService.LegalTexts(txCtx)
+			var (
+				texts enrollmentService.LegalTexts
+				err   error
+			)
+			if phaseID > 0 {
+				texts, err = rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
+			} else {
+				texts, err = rs.RequestService.LegalTexts(txCtx)
+			}
 			if err != nil {
 				legalErr = err
 				return err

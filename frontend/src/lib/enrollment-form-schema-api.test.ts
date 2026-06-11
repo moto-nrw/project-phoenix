@@ -7,6 +7,7 @@ import {
   listSchemas,
   fetchSchemaById,
   fetchPublicActiveSchema,
+  fetchPublicLegalTexts,
   createSchema,
   updateSchema,
   deleteSchema,
@@ -262,6 +263,34 @@ describe("fetchPublicActiveSchema", () => {
   });
 });
 
+// --- fetchPublicLegalTexts -------------------------------------------
+
+describe("fetchPublicLegalTexts", () => {
+  it("URL-encodes tenant slug and phase id when provided", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: { blocks: [] } });
+    });
+
+    await fetchPublicLegalTexts("test tenant", "phase/5");
+
+    expect(seenURL).toBe("/api/enrollment/legal/test%20tenant/phase%2F5");
+  });
+
+  it("keeps the tenant-only fallback URL when no phase id is provided", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: { blocks: [] } });
+    });
+
+    await fetchPublicLegalTexts("demo");
+
+    expect(seenURL).toBe("/api/enrollment/legal/demo");
+  });
+});
+
 // --- createSchema ----------------------------------------------------
 
 describe("createSchema", () => {
@@ -280,6 +309,37 @@ describe("createSchema", () => {
     expect(out.id).toBe("1234");
     expect(seenBody).toContain(`"name":"X"`);
     expect(seenBody).toContain(`"fields":[`);
+  });
+
+  it("POSTs template legal blocks when provided", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        {
+          data: mkSchema("1234", "X", 1, "2026-04-01T12:00:00Z"),
+        },
+        { status: 201 },
+      );
+    });
+
+    await createSchema("X", [], {}, [
+      {
+        key: "custom_pool",
+        kind: "consent",
+        title: "Schwimmbad",
+        label: "Mein Kind darf teilnehmen.",
+        text: "Details",
+        required: true,
+        enabled: true,
+        sort_order: 10,
+        source: "custom",
+      },
+    ]);
+
+    expect(seenBody).toContain(`"legal_blocks":[`);
+    expect(seenBody).toContain(`"key":"custom_pool"`);
+    expect(seenBody).toContain(`"required":true`);
   });
 
   it("throws with the backend error message on non-OK", async () => {
@@ -312,6 +372,37 @@ describe("updateSchema", () => {
     await updateSchema("1234", [blankField(0)]);
     expect(seenBody).toContain(`"fields":[`);
     expect(seenBody).not.toContain(`"name"`); // name comes from server-side source row
+  });
+
+  it("PUTs template legal blocks when provided", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        {
+          data: mkSchema("1234", "X", 2, "2026-04-01T12:00:00Z"),
+        },
+        { status: 201 },
+      );
+    });
+
+    await updateSchema("1234", [], {}, [
+      {
+        key: "custom_pool",
+        kind: "consent",
+        title: "Schwimmbad",
+        label: "Mein Kind darf teilnehmen.",
+        text: "Details",
+        required: false,
+        enabled: true,
+        sort_order: 10,
+        source: "custom",
+      },
+    ]);
+
+    expect(seenBody).toContain(`"legal_blocks":[`);
+    expect(seenBody).toContain(`"key":"custom_pool"`);
+    expect(seenBody).not.toContain(`"name"`);
   });
 
   it("URL-encodes the id", async () => {

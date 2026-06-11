@@ -564,6 +564,95 @@ func (c *ContactEntry) Validate() error {
 	return nil
 }
 
+const (
+	LegalBlockKindTerms         = "terms"
+	LegalBlockKindPrivacyNotice = "privacy_notice"
+	LegalBlockKindNotice        = "notice"
+	LegalBlockKindConsent       = "consent"
+
+	LegalBlockSourceStandard = "standard"
+	LegalBlockSourceCustom   = "custom"
+)
+
+var validLegalBlockKinds = map[string]bool{
+	LegalBlockKindTerms:         true,
+	LegalBlockKindPrivacyNotice: true,
+	LegalBlockKindNotice:        true,
+	LegalBlockKindConsent:       true,
+}
+
+var standardLegalBlockKeys = map[string]bool{
+	ConsentKeyAGB:            true,
+	ConsentKeyDataProcessing: true,
+	ConsentKeyEmailContact:   true,
+	ConsentKeyPhoto:          true,
+}
+
+// FormLegalBlock is one consent/legal row owned by a form template.
+// Standard blocks originate from tenant settings and may be overridden or
+// disabled on the template. Custom blocks are stored only on the template.
+type FormLegalBlock struct {
+	Key       string `json:"key"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Label     string `json:"label"`
+	Text      string `json:"text"`
+	Required  bool   `json:"required"`
+	Enabled   bool   `json:"enabled"`
+	SortOrder int    `json:"sort_order"`
+	Source    string `json:"source,omitempty"`
+}
+
+func (b *FormLegalBlock) Validate() error {
+	b.Key = strings.TrimSpace(b.Key)
+	b.Kind = strings.TrimSpace(b.Kind)
+	b.Title = strings.TrimSpace(b.Title)
+	b.Label = strings.TrimSpace(b.Label)
+	b.Text = strings.TrimSpace(b.Text)
+	b.Source = strings.TrimSpace(b.Source)
+
+	if b.Key == "" {
+		return errors.New("legal block key is required")
+	}
+	if len(b.Key) > formFieldKeyMaxLength {
+		return errors.New("legal block key must be at most 64 characters")
+	}
+	for _, r := range b.Key {
+		if !keyAllowedRunes(r) {
+			return fmt.Errorf("legal block key %q must be lowercase letters, digits, or underscores", b.Key)
+		}
+	}
+	if b.Source == "" {
+		if standardLegalBlockKeys[b.Key] {
+			b.Source = LegalBlockSourceStandard
+		} else {
+			b.Source = LegalBlockSourceCustom
+		}
+	}
+	if b.Source != LegalBlockSourceStandard && b.Source != LegalBlockSourceCustom {
+		return fmt.Errorf("legal block source %q must be standard or custom", b.Source)
+	}
+	if b.Source == LegalBlockSourceStandard && !standardLegalBlockKeys[b.Key] {
+		return fmt.Errorf("standard legal block key %q is not recognized", b.Key)
+	}
+	if b.Source == LegalBlockSourceCustom && standardLegalBlockKeys[b.Key] {
+		return fmt.Errorf("custom legal block key %q is reserved for a standard block", b.Key)
+	}
+	if !validLegalBlockKinds[b.Kind] {
+		return fmt.Errorf("legal block %q has unknown kind %q", b.Key, b.Kind)
+	}
+	if b.Enabled && b.Label == "" {
+		return fmt.Errorf("enabled legal block %q requires a label", b.Key)
+	}
+	if b.Enabled && b.Title == "" {
+		return fmt.Errorf("enabled legal block %q requires a title", b.Key)
+	}
+	if b.Kind == LegalBlockKindNotice && b.Required {
+		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
+	}
+	return nil
+}
+
 // FormSchema is a row in enrollment.form_schemas. Each save creates a new
 // version; submissions pin to a specific schema_id so editing the active
 // schema doesn't break already-submitted requests. Name groups versions
@@ -576,6 +665,7 @@ type FormSchema struct {
 	Version          int              `bun:"version,notnull" json:"version"`
 	Fields           []FormField      `bun:"fields,type:jsonb,notnull,default:'[]'" json:"fields"`
 	CoreRequirements CoreRequirements `bun:"core_requirements,type:jsonb,notnull,default:'{}'" json:"core_requirements"`
+	LegalBlocks      []FormLegalBlock `bun:"legal_blocks,type:jsonb,notnull,default:'[]'" json:"legal_blocks"`
 	IsActive         bool             `bun:"is_active,notnull,default:false" json:"is_active"`
 	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
 }
@@ -601,6 +691,16 @@ func (s *FormSchema) Validate() error {
 	}
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
+	}
+	legalByKey := make(map[string]bool, len(s.LegalBlocks))
+	for i := range s.LegalBlocks {
+		if err := s.LegalBlocks[i].Validate(); err != nil {
+			return fmt.Errorf("legal block %d: %w", i, err)
+		}
+		if legalByKey[s.LegalBlocks[i].Key] {
+			return fmt.Errorf("duplicate legal block key %q", s.LegalBlocks[i].Key)
+		}
+		legalByKey[s.LegalBlocks[i].Key] = true
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
 	for i := range s.Fields {

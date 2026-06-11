@@ -171,6 +171,22 @@ export type CoreRequirementKey = "guardian_phone";
 
 export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
 
+export type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
+
+export type LegalBlockSource = "standard" | "custom";
+
+export interface FormLegalBlock {
+  key: string;
+  kind: LegalBlockKind;
+  title: string;
+  label: string;
+  text: string;
+  required: boolean;
+  enabled: boolean;
+  sort_order: number;
+  source?: LegalBlockSource;
+}
+
 export interface FormSchema {
   id: string;
   name: string;
@@ -178,6 +194,7 @@ export interface FormSchema {
   is_active: boolean;
   fields: FormField[];
   core_requirements?: CoreRequirements;
+  legal_blocks?: FormLegalBlock[];
   created_by: string;
   created_at: string;
 }
@@ -273,6 +290,7 @@ export interface PublicFormSchema {
   version: number;
   fields: FormField[];
   core_requirements?: CoreRequirements;
+  legal_blocks?: FormLegalBlock[];
 }
 
 /**
@@ -304,12 +322,14 @@ export async function fetchPublicCaptchaConfig(
 }
 
 export interface PublicLegalBlock {
-  key: "agb" | "data_processing" | "email_contact" | "photo";
-  kind: "terms" | "privacy_notice" | "notice" | "consent";
+  key: string;
+  kind: LegalBlockKind;
   title: string;
   label: string;
   text: string;
   required: boolean;
+  sort_order?: number;
+  source?: LegalBlockSource;
 }
 
 /**
@@ -338,11 +358,14 @@ export interface PublicLegalTexts {
  */
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
+  phaseId?: string,
 ): Promise<PublicLegalTexts> {
-  const response = await fetch(
-    `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`,
-    { cache: "no-store" },
-  );
+  const path = phaseId
+    ? `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(
+        phaseId,
+      )}`
+    : `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
+  const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) {
     logger.error("public_legal_texts_failed", {
       status: response.status,
@@ -387,11 +410,21 @@ export async function createSchema(
   name: string,
   fields: FormField[],
   coreRequirements: CoreRequirements = {},
+  legalBlocks?: FormLegalBlock[],
 ): Promise<FormSchema> {
+  const body =
+    legalBlocks === undefined
+      ? { name, fields, core_requirements: coreRequirements }
+      : {
+          name,
+          fields,
+          core_requirements: coreRequirements,
+          legal_blocks: legalBlocks,
+        };
   const response = await fetch(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, fields, core_requirements: coreRequirements }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const payload = (await response
@@ -419,11 +452,15 @@ export async function updateSchema(
   id: string,
   fields: FormField[],
   coreRequirements?: CoreRequirements,
+  legalBlocks?: FormLegalBlock[],
 ): Promise<FormSchema> {
-  const body =
-    coreRequirements === undefined
-      ? { fields }
-      : { fields, core_requirements: coreRequirements };
+  const body: {
+    fields: FormField[];
+    core_requirements?: CoreRequirements;
+    legal_blocks?: FormLegalBlock[];
+  } = { fields };
+  if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
+  if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

@@ -166,11 +166,9 @@ export function EnrollmentForm({
   const [guardianLastName, setGuardianLastName] = useState("");
   const [guardianEmail, setGuardianEmail] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
-  // Consent states are only used when the tenant's legal block resolver
-  // returns the matching visible block.
-  const [agbConsent, setAgbConsent] = useState(false);
-  const [dataConsent, setDataConsent] = useState(false);
-  const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
+  const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
+    {},
+  );
   const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
@@ -223,13 +221,15 @@ export function EnrollmentForm({
           skipCaptcha
             ? Promise.resolve(null)
             : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
-          // Legal texts are tenant-wide (no phase param). NOT best-
+          // Legal texts are phase/template-aware. NOT best-
           // effort: a real load failure rejects the whole load so the
           // form shows an error instead of collecting legally relevant
           // consent without the configured documents. Unconfigured
           // texts return empty strings (no rejection) and just drop the
           // link.
-          fetchPublicLegalTexts(tenantSlug),
+          phaseID
+            ? fetchPublicLegalTexts(tenantSlug, phaseID)
+            : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -398,14 +398,6 @@ export function EnrollmentForm({
     (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
   );
   const legalBlocks = legalTexts?.blocks ?? [];
-  const agbBlock = legalBlocks.find((block) => block.key === "agb");
-  const dataProcessingBlock = legalBlocks.find(
-    (block) => block.key === "data_processing",
-  );
-  const emailContactBlock = legalBlocks.find(
-    (block) => block.key === "email_contact",
-  );
-  const photoBlock = legalBlocks.find((block) => block.key === "photo");
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
@@ -508,13 +500,11 @@ export function EnrollmentForm({
     // Required legal blocks are collected into the same pass so a missing
     // confirmation is marked together with other missing fields. The backend
     // derives the same required keys from the public legal block contract.
-    if (agbBlock?.required && !agbConsent) {
-      newFieldErrors.consent_agb =
-        "Bitte den AGB / Teilnahmebedingungen zustimmen.";
-    }
-    if (dataProcessingBlock?.required && !dataConsent) {
-      newFieldErrors.consent_data_processing =
-        "Bitte die Kenntnisnahme der Datenschutzinformation bestätigen.";
+    for (const block of legalBlocks) {
+      if (block.required && !legalConsents[block.key]) {
+        newFieldErrors[`consent_${block.key}`] =
+          "Bitte diese erforderliche Bestätigung auswählen.";
+      }
     }
     // Offering validation runs in the SAME pass as the field checks above
     // so a missing care-offering day and a missing core field (e.g. phone)
@@ -679,17 +669,9 @@ export function EnrollmentForm({
     setSubmitting(true);
     try {
       const consentFlags: Record<string, unknown> = {};
-      if (agbBlock) {
-        consentFlags.agb = agbConsent;
-      }
-      if (dataProcessingBlock) {
-        consentFlags.data_processing = dataConsent;
-      }
-      if (emailContactBlock) {
-        consentFlags.email_contact = true;
-      }
-      if (photoBlock) {
-        consentFlags.photo = photoConsent === true;
+      for (const block of legalBlocks) {
+        consentFlags[block.key] =
+          block.kind === "notice" ? true : legalConsents[block.key] === true;
       }
 
       const payload: SubmitEnrollmentPayload = {
@@ -1147,46 +1129,35 @@ export function EnrollmentForm({
             title="Zustimmungen & Hinweise"
             description="Bitte lesen Sie die folgenden Punkte sorgfältig. Erforderliche Bestätigungen müssen aktiv ausgewählt werden."
           />
-          {agbBlock && (
-            <Consent
-              name="consent_agb"
-              label={agbBlock.label}
-              checked={agbConsent}
-              onChange={setAgbConsent}
-              required={agbBlock.required}
-              error={fieldErrors.consent_agb}
-              legalText={agbBlock.text}
-              onViewLegal={() => setOpenLegalDoc(agbBlock)}
-            />
-          )}
-          {dataProcessingBlock && (
-            <Consent
-              name="consent_data_processing"
-              label={dataProcessingBlock.label}
-              checked={dataConsent}
-              onChange={setDataConsent}
-              required={dataProcessingBlock.required}
-              error={fieldErrors.consent_data_processing}
-              legalText={dataProcessingBlock.text}
-              onViewLegal={() => setOpenLegalDoc(dataProcessingBlock)}
-            />
-          )}
-          {photoBlock && (
-            <Consent
-              name="consent_photo"
-              label={photoBlock.label}
-              checked={photoConsent === true}
-              onChange={(checked) => setPhotoConsent(checked)}
-              required={photoBlock.required}
-              legalText={photoBlock.text}
-              onViewLegal={() => setOpenLegalDoc(photoBlock)}
-            />
-          )}
-          {emailContactBlock && (
-            <EmailContactNotice
-              block={emailContactBlock}
-              onViewLegal={() => setOpenLegalDoc(emailContactBlock)}
-            />
+          {legalBlocks.map((block) =>
+            block.kind === "notice" ? (
+              <EmailContactNotice
+                key={block.key}
+                block={block}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+              />
+            ) : (
+              <Consent
+                key={block.key}
+                name={`consent_${block.key}`}
+                label={block.label}
+                checked={legalConsents[block.key] === true}
+                onChange={(checked) =>
+                  setLegalConsents((prev) => ({
+                    ...prev,
+                    [block.key]: checked,
+                  }))
+                }
+                required={block.required}
+                error={fieldErrors[`consent_${block.key}`]}
+                legalText={block.text}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+              />
+            ),
           )}
         </section>
       )}
