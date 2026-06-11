@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import {
   Check,
   Clock3,
@@ -19,7 +20,13 @@ import { Loading } from "~/components/ui/loading";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import type { FilterConfig } from "~/components/ui/page-header";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  formatDate,
+  parseISODate,
+  toISODate,
+  todayISO,
+} from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -55,8 +62,8 @@ const SELECTION_OPTIONS: SelectionOption[] = [
   {
     id: "slots",
     target: "slots",
-    label: "Stundenplan-Slots",
-    description: "Einen oder mehrere Slots wählen",
+    label: "Freie Angebotsauswahl",
+    description: "Angebote des Tages auswählen",
     icon: Rows3,
   },
   {
@@ -78,6 +85,61 @@ const SELECTION_OPTIONS: SelectionOption[] = [
 ];
 
 const SOURCES: SlotListSource[] = ["planned", "actual", "reconciliation"];
+const CANCELLED_SLOT_STATUS = "cancelled";
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const SOURCE_TO_URL: Record<SlotListSource, string> = {
+  planned: "plan",
+  actual: "ist",
+  reconciliation: "abgleich",
+};
+
+const URL_TO_SOURCE: Record<string, SlotListSource> = {
+  plan: "planned",
+  ist: "actual",
+  abgleich: "reconciliation",
+};
+
+const GROUP_BY_TO_URL: Record<Exclude<SlotListGroupBy, "">, string> = {
+  slot: "angebot",
+  room: "raum",
+  class: "klasse",
+  pickup_time: "abholzeit",
+};
+
+const URL_TO_GROUP_BY: Record<string, SlotListGroupBy> = {
+  angebot: "slot",
+  raum: "room",
+  klasse: "class",
+  abholzeit: "pickup_time",
+};
+
+const SELECTION_TO_URL: Record<SelectionOption["id"], string> = {
+  slots: "angebote",
+  short_day: "ganztag-1430",
+  long_day: "ganztag-1600",
+};
+
+const URL_TO_SELECTION: Record<string, SelectionOption["id"]> = {
+  angebote: "slots",
+  "ganztag-1430": "short_day",
+  "ganztag-1600": "long_day",
+};
+
+interface QueryParamsLike {
+  get(name: string): string | null;
+}
+
+interface InitialListState {
+  target: SlotListTarget;
+  pickupCohort: SlotListPickupCohort;
+  source: SlotListSource;
+  groupBy: SlotListGroupBy;
+  dateISO: string;
+  selectedSlotIds: number[] | null;
+  selectedGroupIds: number[] | null;
+  selectedClasses: string[] | null;
+}
 
 function statusColor(row: SlotListRow): string {
   if (row.unplanned) return LOCATION_COLORS.SCHOOLYARD;
@@ -164,20 +226,124 @@ function nextSelection<T>(values: T[], total: number): T[] | null {
   return values.length === 0 || values.length === total ? null : values;
 }
 
+function parseNumberList(
+  value: string | null,
+  emptyToken: string | null = null,
+): number[] | null {
+  if (!value) return null;
+  if (emptyToken && value === emptyToken) return [];
+  const numbers = value
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+  return numbers.length > 0 ? numbers : null;
+}
+
+function parseStringList(value: string | null): string[] | null {
+  if (!value) return null;
+  const values = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return values.length > 0 ? values : null;
+}
+
+function defaultSelectionOption(): SelectionOption {
+  const option = SELECTION_OPTIONS[0];
+  if (!option) {
+    throw new Error("Tageslisten-Auswahl ist nicht konfiguriert.");
+  }
+  return option;
+}
+
+function parseInitialListState(
+  searchParams: QueryParamsLike,
+): InitialListState {
+  const selectionId =
+    URL_TO_SELECTION[searchParams.get("quelle") ?? ""] ?? "slots";
+  const option =
+    SELECTION_OPTIONS.find((item) => item.id === selectionId) ??
+    defaultSelectionOption();
+  const target = option.target;
+  const pickupCohort = option.pickupCohort ?? "short_day";
+  const source = URL_TO_SOURCE[searchParams.get("basis") ?? ""] ?? "planned";
+  const rawGroupBy =
+    URL_TO_GROUP_BY[searchParams.get("gruppieren") ?? ""] ?? "";
+
+  const rawDate = searchParams.get("datum");
+  const dateISO =
+    rawDate && ISO_DATE_PATTERN.test(rawDate) ? rawDate : todayISO();
+
+  return {
+    target,
+    pickupCohort,
+    source,
+    groupBy: groupByOptionsFor(target).includes(rawGroupBy) ? rawGroupBy : "",
+    dateISO,
+    selectedSlotIds: parseNumberList(searchParams.get("angebote"), "keine"),
+    selectedGroupIds: parseNumberList(searchParams.get("gruppen")),
+    selectedClasses: parseStringList(searchParams.get("klassen")),
+  };
+}
+
+function serializeListState(state: InitialListState): string {
+  const params = new URLSearchParams();
+  params.set("datum", state.dateISO);
+
+  const selectionId = state.target === "slots" ? "slots" : state.pickupCohort;
+  params.set("quelle", SELECTION_TO_URL[selectionId]);
+  params.set("basis", SOURCE_TO_URL[state.source]);
+
+  if (state.groupBy) {
+    params.set("gruppieren", GROUP_BY_TO_URL[state.groupBy]);
+  }
+  if (state.target === "slots" && state.selectedSlotIds !== null) {
+    params.set(
+      "angebote",
+      state.selectedSlotIds.length === 0
+        ? "keine"
+        : state.selectedSlotIds.join(","),
+    );
+  }
+  if (state.selectedGroupIds !== null) {
+    params.set("gruppen", state.selectedGroupIds.join(","));
+  }
+  if (state.selectedClasses !== null) {
+    params.set("klassen", state.selectedClasses.join(","));
+  }
+
+  return params.toString();
+}
+
+function offerCountLabel(count: number): string {
+  return `${count} Angebot${count === 1 ? "" : "e"}`;
+}
+
 export default function SlotListsPage() {
   const { status: authStatus } = useSession({ required: true });
-  const [target, setTarget] = useState<SlotListTarget>("slots");
-  const [pickupCohort, setPickupCohort] =
-    useState<SlotListPickupCohort>("short_day");
-  const [source, setSource] = useState<SlotListSource>("planned");
-  const [groupBy, setGroupBy] = useState<SlotListGroupBy>("");
-  const [dateISO, setDateISO] = useState<string>(todayISO());
-  // null = no restriction on that dimension; otherwise an explicit subset.
-  const [selectedSlotIds, setSelectedSlotIds] = useState<number[] | null>(null);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<number[] | null>(
-    null,
+  const searchParams = useSearchParams();
+  const router = useTenantRouter();
+  const initialState = useMemo(
+    () => parseInitialListState(searchParams),
+    [searchParams],
   );
-  const [selectedClasses, setSelectedClasses] = useState<string[] | null>(null);
+  const [target, setTarget] = useState<SlotListTarget>(initialState.target);
+  const [pickupCohort, setPickupCohort] = useState<SlotListPickupCohort>(
+    initialState.pickupCohort,
+  );
+  const [source, setSource] = useState<SlotListSource>(initialState.source);
+  const [groupBy, setGroupBy] = useState<SlotListGroupBy>(initialState.groupBy);
+  const [dateISO, setDateISO] = useState<string>(initialState.dateISO);
+  // null = no restriction on that dimension; otherwise an explicit subset.
+  const [selectedSlotIds, setSelectedSlotIds] = useState<number[] | null>(
+    initialState.selectedSlotIds,
+  );
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[] | null>(
+    initialState.selectedGroupIds,
+  );
+  const [selectedClasses, setSelectedClasses] = useState<string[] | null>(
+    initialState.selectedClasses,
+  );
   const [listOptions, setListOptions] = useState<SlotListOptionsResult | null>(
     null,
   );
@@ -214,6 +380,45 @@ export default function SlotListsPage() {
       selectedClasses,
     ],
   );
+  const replaceListUrl = useCallback(
+    (next: Partial<InitialListState>) => {
+      const query = serializeListState({
+        target,
+        pickupCohort,
+        source,
+        groupBy,
+        dateISO,
+        selectedSlotIds,
+        selectedGroupIds,
+        selectedClasses,
+        ...next,
+      });
+      router.replace(`/lists?${query}`);
+    },
+    [
+      target,
+      pickupCohort,
+      source,
+      groupBy,
+      dateISO,
+      selectedSlotIds,
+      selectedGroupIds,
+      selectedClasses,
+      router,
+    ],
+  );
+
+  useEffect(() => {
+    const next = parseInitialListState(searchParams);
+    setTarget(next.target);
+    setPickupCohort(next.pickupCohort);
+    setSource(next.source);
+    setGroupBy(next.groupBy);
+    setDateISO(next.dateISO);
+    setSelectedSlotIds(next.selectedSlotIds);
+    setSelectedGroupIds(next.selectedGroupIds);
+    setSelectedClasses(next.selectedClasses);
+  }, [searchParams]);
 
   const pickupOptionByCohort = useMemo(() => {
     const map = new Map<
@@ -231,9 +436,17 @@ export default function SlotListsPage() {
     () => optionSlots ?? resultSlots ?? [],
     [optionSlots, resultSlots],
   );
+  const selectableSlotIds = useMemo(
+    () =>
+      slotOptions
+        .filter((slot) => slot.status !== CANCELLED_SLOT_STATUS)
+        .map((slot) => slot.instance_id),
+    [slotOptions],
+  );
+  const cancelledSlotCount = slotOptions.length - selectableSlotIds.length;
   const selectedSlotIdsForUI = useMemo(
-    () => selectedSlotIds ?? slotOptions.map((slot) => slot.instance_id),
-    [selectedSlotIds, slotOptions],
+    () => selectedSlotIds ?? selectableSlotIds,
+    [selectedSlotIds, selectableSlotIds],
   );
   const selectedSlotIdSet = useMemo(
     () => new Set(selectedSlotIdsForUI),
@@ -241,10 +454,12 @@ export default function SlotListsPage() {
   );
   const slotSummary =
     slotOptions.length === 0
-      ? "Keine Slots geplant"
-      : selectedSlotIds === null
-        ? "Alle Slots ausgewählt"
-        : `${selectedSlotIds.length} von ${slotOptions.length} ausgewählt`;
+      ? "Keine Angebote geplant"
+      : selectableSlotIds.length === 0
+        ? "Keine aktiven Angebote auswählbar"
+        : selectedSlotIds === null
+          ? "Alle aktiven Angebote ausgewählt"
+          : `${selectedSlotIds.length} von ${selectableSlotIds.length} ausgewählt`;
 
   // A new list type or date means a different cohort → drop all filters.
   const resetFilters = useCallback(() => {
@@ -255,32 +470,51 @@ export default function SlotListsPage() {
   const pickSelection = useCallback(
     (option: SelectionOption) => {
       setTarget(option.target);
+      const nextPickupCohort = option.pickupCohort ?? pickupCohort;
       if (option.pickupCohort) setPickupCohort(option.pickupCohort);
       // slot/room/pickup_time groupings are target-specific, so a switch can
       // invalidate the current choice — reset to a flat list.
       setGroupBy("");
       resetFilters();
+      replaceListUrl({
+        target: option.target,
+        pickupCohort: nextPickupCohort,
+        groupBy: "",
+        selectedSlotIds: null,
+        selectedGroupIds: null,
+        selectedClasses: null,
+      });
     },
-    [resetFilters],
+    [pickupCohort, replaceListUrl, resetFilters],
   );
   const pickDate = useCallback(
     (date: Date | null) => {
       if (!date) return;
-      setDateISO(toISODate(date));
+      const nextDate = toISODate(date);
+      setDateISO(nextDate);
       resetFilters();
+      replaceListUrl({
+        dateISO: nextDate,
+        selectedSlotIds: null,
+        selectedGroupIds: null,
+        selectedClasses: null,
+      });
     },
-    [resetFilters],
+    [replaceListUrl, resetFilters],
   );
   const toggleSlot = useCallback(
     (slotId: number) => {
-      const allSlotIds = slotOptions.map((slot) => slot.instance_id);
-      const current = selectedSlotIds ?? allSlotIds;
+      if (!selectableSlotIds.includes(slotId)) return;
+      const current = selectedSlotIds ?? selectableSlotIds;
       const next = current.includes(slotId)
         ? current.filter((id) => id !== slotId)
         : [...current, slotId];
-      setSelectedSlotIds(next.length === allSlotIds.length ? null : next);
+      const nextSelection =
+        next.length === selectableSlotIds.length ? null : next;
+      setSelectedSlotIds(nextSelection);
+      replaceListUrl({ selectedSlotIds: nextSelection });
     },
-    [selectedSlotIds, slotOptions],
+    [replaceListUrl, selectedSlotIds, selectableSlotIds],
   );
 
   useEffect(() => {
@@ -359,7 +593,11 @@ export default function SlotListsPage() {
         label: "Gruppieren",
         type: "dropdown",
         value: groupBy,
-        onChange: (v) => setGroupBy(v as SlotListGroupBy),
+        onChange: (v) => {
+          const nextGroupBy = v as SlotListGroupBy;
+          setGroupBy(nextGroupBy);
+          replaceListUrl({ groupBy: nextGroupBy });
+        },
         options: groupByOptionsFor(target).map((option) => ({
           value: option,
           label:
@@ -381,10 +619,14 @@ export default function SlotListsPage() {
         type: "dropdown",
         multiSelect: true,
         value: active,
-        onChange: (v) =>
-          setSelectedGroupIds(
-            nextSelection((v as string[]).map(Number), groupIds.length),
-          ),
+        onChange: (v) => {
+          const nextGroupIds = nextSelection(
+            (v as string[]).map(Number),
+            groupIds.length,
+          );
+          setSelectedGroupIds(nextGroupIds);
+          replaceListUrl({ selectedGroupIds: nextGroupIds });
+        },
         options: result.groups.map((g) => ({
           value: String(g.id),
           label: g.name,
@@ -400,16 +642,27 @@ export default function SlotListsPage() {
         type: "dropdown",
         multiSelect: true,
         value: active,
-        onChange: (v) =>
-          setSelectedClasses(
-            nextSelection(v as string[], result.classes.length),
-          ),
+        onChange: (v) => {
+          const nextClasses = nextSelection(
+            v as string[],
+            result.classes.length,
+          );
+          setSelectedClasses(nextClasses);
+          replaceListUrl({ selectedClasses: nextClasses });
+        },
         options: result.classes.map((c) => ({ value: c, label: c })),
       });
     }
 
     return configs;
-  }, [result, groupBy, target, selectedGroupIds, selectedClasses]);
+  }, [
+    result,
+    groupBy,
+    target,
+    selectedGroupIds,
+    selectedClasses,
+    replaceListUrl,
+  ]);
 
   // Group the preview rows by their backend-assigned section heading. Rows
   // arrive pre-sorted by group, so Map insertion order keeps sections intact.
@@ -459,7 +712,7 @@ export default function SlotListsPage() {
     } else {
       cols.push({
         key: "slot",
-        header: "Slot",
+        header: "Angebot",
         render: (r) => r.slot,
         sortValue: (r) => r.slot,
       });
@@ -487,6 +740,19 @@ export default function SlotListsPage() {
     (isPickupBased ? pickupOptionByCohort.get(pickupCohort)?.label : null) ??
     selectedOption?.label ??
     "";
+  const includedMeta = result
+    ? result.target === "pickup_cohort"
+      ? result.list_label
+      : selectedSlotIds === null
+        ? offerCountLabel(selectableSlotIds.length)
+        : offerCountLabel(selectedSlotIds.length)
+    : "";
+  const sourceMeta = result
+    ? `${SLOT_LIST_SOURCE_LABELS[result.source]} – ${result.provenance}`
+    : "";
+  const groupByMeta = groupBy
+    ? SLOT_LIST_GROUP_BY_LABELS[groupBy]
+    : "Nicht gruppiert";
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
@@ -495,10 +761,10 @@ export default function SlotListsPage() {
           Listen &amp; Exporte
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl">
-          Listen aus Betreuungsslots
+          Tageslisten
         </h1>
         <p className="mt-2 max-w-3xl text-base leading-7 text-gray-600">
-          Plan-, dokumentierte Anwesenheits- und Abgleichslisten prüfen, dann
+          Plan, Anwesenheit und Abgleich für Angebote und Ganztag prüfen, dann
           drucken oder exportieren. Die Notfallliste bleibt davon unberührt.
         </p>
       </header>
@@ -531,16 +797,18 @@ export default function SlotListsPage() {
             const detail =
               option.target === "slots"
                 ? isOptionsLoading
-                  ? "Prüfe Datum..."
+                  ? "Prüfe Datum…"
                   : slotCount > 0
-                    ? `${slotCount} Slot${slotCount === 1 ? "" : "s"} geplant`
-                    : "Keine Slots geplant"
+                    ? cancelledSlotCount > 0
+                      ? `${selectableSlotIds.length} aktiv, ${cancelledSlotCount} abgesagt`
+                      : `${slotCount} Angebot${slotCount === 1 ? "" : "e"} geplant`
+                    : "Keine Angebote geplant"
                 : availability
                   ? availability.row_count > 0
                     ? `${availability.row_count} Kinder mit passender Abholzeit`
                     : "Keine Kinder mit passender Abholzeit"
                   : isOptionsLoading
-                    ? "Prüfe Datum..."
+                    ? "Prüfe Datum…"
                     : option.description;
             return (
               <button
@@ -584,14 +852,17 @@ export default function SlotListsPage() {
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="mb-2 grid min-h-7 grid-cols-[auto_1fr_auto] items-center gap-2">
               <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Slots
+                Enthaltene Angebote
               </span>
               <span className="min-w-0 truncate text-xs text-gray-500">
                 {slotSummary}
               </span>
               <button
                 type="button"
-                onClick={() => setSelectedSlotIds(null)}
+                onClick={() => {
+                  setSelectedSlotIds(null);
+                  replaceListUrl({ selectedSlotIds: null });
+                }}
                 tabIndex={selectedSlotIds === null ? -1 : 0}
                 aria-hidden={selectedSlotIds === null}
                 className={`rounded-md px-2 py-1 text-xs font-medium text-[#315C9B] transition-colors hover:bg-[#5080D8]/8 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
@@ -606,20 +877,25 @@ export default function SlotListsPage() {
             {slotOptions.length > 0 ? (
               <div className="grid max-h-[11.5rem] grid-cols-3 gap-2 overflow-y-auto pr-1">
                 {slotOptions.map((slot) => {
-                  const selected = selectedSlotIdSet.has(slot.instance_id);
+                  const cancelled = slot.status === CANCELLED_SLOT_STATUS;
+                  const selected =
+                    !cancelled && selectedSlotIdSet.has(slot.instance_id);
                   return (
                     <label
                       key={slot.instance_id}
                       title={`${slot.time_range} ${slot.title}`}
-                      className={`flex h-14 min-w-0 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:border-gray-400 ${
-                        selected
-                          ? "border-gray-300 bg-gray-50"
-                          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+                      className={`flex h-14 min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors focus-within:border-gray-400 ${
+                        cancelled
+                          ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400"
+                          : selected
+                            ? "cursor-pointer border-gray-300 bg-gray-50 text-gray-700"
+                            : "cursor-pointer border-gray-100 bg-white text-gray-700 hover:border-gray-200 hover:bg-gray-50"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={selected}
+                        disabled={cancelled}
                         onChange={() => toggleSlot(slot.instance_id)}
                         className="sr-only"
                       />
@@ -639,8 +915,9 @@ export default function SlotListsPage() {
                       </span>
                       <span className="min-w-0 flex-1 leading-snug">
                         <span className="block truncate">{slot.title}</span>
-                        <span className="block text-xs font-normal text-gray-500 tabular-nums">
+                        <span className="block truncate text-xs font-normal text-gray-500 tabular-nums">
                           {slot.time_range}
+                          {cancelled ? " · Abgesagt" : ""}
                         </span>
                       </span>
                     </label>
@@ -649,9 +926,15 @@ export default function SlotListsPage() {
               </div>
             ) : (
               <p className="text-sm text-gray-500">
-                Für dieses Datum sind keine Stundenplan-Slots geplant.
+                Für dieses Datum sind keine Angebote geplant.
               </p>
             )}
+            {cancelledSlotCount > 0 ? (
+              <p className="mt-2 text-xs leading-5 text-gray-500">
+                Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten
+                aufgenommen.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -672,7 +955,11 @@ export default function SlotListsPage() {
             </span>
             <Tabs
               value={source}
-              onValueChange={(v) => setSource(v as SlotListSource)}
+              onValueChange={(v) => {
+                const nextSource = v as SlotListSource;
+                setSource(nextSource);
+                replaceListUrl({ source: nextSource });
+              }}
             >
               <TabsList variant="default">
                 {SOURCES.map((s) => (
@@ -728,13 +1015,13 @@ export default function SlotListsPage() {
               variant="primary"
               size="sm"
               isLoading={isExporting}
-              loadingText="Erstelle PDF..."
+              loadingText="Erstelle PDF…"
               disabled={isLoading || !result}
               onClick={() => void handleExport("pdf", "print")}
               className="gap-2"
             >
               <Printer className="h-4 w-4" aria-hidden />
-              PDF drucken
+              Drucken
             </Button>
             <Button
               type="button"
@@ -760,6 +1047,33 @@ export default function SlotListsPage() {
             </Button>
           </div>
         </div>
+
+        {result ? (
+          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600">
+            <div className="flex gap-1.5">
+              <dt className="font-medium text-gray-500">Datum:</dt>
+              <dd className="font-medium text-gray-900">
+                {formatDate(result.date)}
+              </dd>
+            </div>
+            <div className="flex min-w-0 gap-1.5">
+              <dt className="shrink-0 font-medium text-gray-500">
+                Datenbasis:
+              </dt>
+              <dd className="min-w-0 truncate font-medium text-gray-900">
+                {sourceMeta}
+              </dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt className="font-medium text-gray-500">Enthalten:</dt>
+              <dd className="font-medium text-gray-900">{includedMeta}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt className="font-medium text-gray-500">Gruppiert nach:</dt>
+              <dd className="font-medium text-gray-900">{groupByMeta}</dd>
+            </div>
+          </dl>
+        ) : null}
 
         {/* Standard filters that narrow the list (offering / group / class) */}
         {filterConfigs.length > 0 ? (
@@ -797,7 +1111,7 @@ export default function SlotListsPage() {
                 <div className="py-8 text-center text-gray-500">
                   {isPickupBased
                     ? "Keine Kinder mit passender Abholzeit an diesem Tag."
-                    : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben einen oder mehrere Slots.`}
+                    : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben ein oder mehrere Angebote.`}
                 </div>
               }
             />

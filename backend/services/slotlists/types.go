@@ -43,7 +43,7 @@ func (t Target) PickupBased() bool {
 func (t Target) Label() string {
 	switch t {
 	case TargetSlots:
-		return "Stundenplan-Slots"
+		return "Freie Angebotsauswahl"
 	case TargetPickupCohort:
 		return "Ganztag"
 	default:

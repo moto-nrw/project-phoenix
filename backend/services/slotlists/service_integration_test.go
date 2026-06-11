@@ -11,6 +11,7 @@ package slotlists_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -47,7 +48,19 @@ func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (stri
 	return s[key], nil
 }
 
+type failingSlotListSettings struct{}
+
+func (failingSlotListSettings) ResolveString(context.Context, string) (string, error) {
+	return "", errors.New("settings unavailable")
+}
+
 func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotlists.Service {
+	return newTestServiceWithSettingsReader(db, settings)
+}
+
+func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
+	ResolveString(context.Context, string) (string, error)
+}) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
@@ -405,6 +418,22 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 	assert.Nil(t, rowByStudent(longCohort.Rows, tooLate.ID), "17:00 is beyond the configured long-day cutoff")
 }
 
+func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	svc := newTestServiceWithSettingsReader(db, failingSlotListSettings{})
+
+	_, err := svc.BuildList(testpkg.TenantContext(1), slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortShortDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolve short-day pickup cutoff")
+}
+
 // TestBuildList_GroupByClass verifies grouping stamps a section heading on
 // every row and rejects a grouping that doesn't fit the target.
 func TestBuildList_GroupByClass(t *testing.T) {
@@ -606,5 +635,5 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "application/pdf", file.ContentType)
 	assert.NotEmpty(t, file.Data)
-	assert.Contains(t, file.Filename, "liste-slots-reconciliation")
+	assert.Contains(t, file.Filename, "tagesliste-abgleich-freie-angebotsauswahl")
 }

@@ -126,21 +126,36 @@ type pickupBucketConfig struct {
 	LongCutoff  string
 }
 
-func (s *service) pickupBuckets(ctx context.Context) pickupBucketConfig {
+func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error) {
 	cfg := pickupBucketConfig{ShortCutoff: defaultShortDayCutoff, LongCutoff: defaultLongDayCutoff}
 	if s.settings == nil {
-		return cfg
+		return cfg, nil
 	}
-	if short, err := s.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff); err == nil && validHHMM(short) {
+	short, err := s.settings.ResolveString(ctx, configModel.KeySlotListShortDayCutoff)
+	if err != nil {
+		return cfg, fmt.Errorf("resolve short-day pickup cutoff: %w", err)
+	}
+	if short != "" && !validHHMM(short) {
+		return cfg, fmt.Errorf("invalid short-day pickup cutoff %q", short)
+	}
+	if short != "" {
 		cfg.ShortCutoff = short
 	}
-	if long, err := s.settings.ResolveString(ctx, configModel.KeySlotListLongDayCutoff); err == nil && validHHMM(long) {
+
+	long, err := s.settings.ResolveString(ctx, configModel.KeySlotListLongDayCutoff)
+	if err != nil {
+		return cfg, fmt.Errorf("resolve long-day pickup cutoff: %w", err)
+	}
+	if long != "" && !validHHMM(long) {
+		return cfg, fmt.Errorf("invalid long-day pickup cutoff %q", long)
+	}
+	if long != "" {
 		cfg.LongCutoff = long
 	}
 	if cfg.LongCutoff <= cfg.ShortCutoff {
-		cfg.LongCutoff = cfg.ShortCutoff
+		return cfg, fmt.Errorf("long-day pickup cutoff %s must be after short-day pickup cutoff %s", cfg.LongCutoff, cfg.ShortCutoff)
 	}
-	return cfg
+	return cfg, nil
 }
 
 func validHHMM(value string) bool {
@@ -148,36 +163,39 @@ func validHHMM(value string) bool {
 	return err == nil
 }
 
-func (s *service) listLabel(ctx context.Context, params Params) string {
+func (s *service) listLabel(ctx context.Context, params Params) (string, error) {
 	if params.Target == TargetSlots {
 		if len(params.InstanceIDs) == 1 {
-			return "Ausgewählter Stundenplan-Slot"
+			return "Ausgewähltes Angebot", nil
 		}
-		return "Stundenplan-Slots"
+		return "Freie Angebotsauswahl", nil
 	}
-	cfg := s.pickupBuckets(ctx)
+	cfg, err := s.pickupBuckets(ctx)
+	if err != nil {
+		return "", err
+	}
 	switch params.PickupCohort {
 	case PickupCohortShortDay:
-		return "Ganztag bis " + cfg.ShortCutoff
+		return "Ganztag bis " + cfg.ShortCutoff, nil
 	case PickupCohortLongDay:
-		return "Ganztag bis " + cfg.LongCutoff
+		return "Ganztag bis " + cfg.LongCutoff, nil
 	default:
-		return params.Target.Label()
+		return params.Target.Label(), nil
 	}
 }
 
-func (s *service) provenance(ctx context.Context, params Params) string {
-	plan := "Plan aus ausgewählten Stundenplan-Slots"
+func (s *service) provenance(params Params, listLabel string) string {
+	plan := "Geplante Kinder laut Tagesplanung"
 	if params.Target == TargetPickupCohort {
-		plan = "Plan aus effektiven Abholzeiten (" + s.listLabel(ctx, params) + ")"
+		plan = "Geplante Kinder laut Tagesplanung und Abholzeiten (" + listLabel + ")"
 	}
 	switch params.Source {
 	case SourcePlanned:
 		return plan
 	case SourceActual:
-		return "Ist aus dokumentierter Anwesenheit am Datum"
+		return "Dokumentierte Anwesenheit am Datum"
 	case SourceReconciliation:
-		return plan + ", Ist aus dokumentierter Anwesenheit am Datum"
+		return plan + " mit dokumentierter Anwesenheit abgeglichen"
 	default:
 		return ""
 	}
@@ -203,20 +221,24 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
 	}
 
+	listLabel, err := s.listLabel(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
 	result := &Result{
 		Date:         params.Date.String(),
 		Target:       params.Target,
 		PickupCohort: params.PickupCohort,
-		ListLabel:    s.listLabel(ctx, params),
+		ListLabel:    listLabel,
 		Source:       params.Source,
 		GroupBy:      params.GroupBy,
-		Provenance:   s.provenance(ctx, params),
+		Provenance:   s.provenance(params, listLabel),
 		Slots:        []Slot{},
 		Rows:         []Row{},
 	}
 
 	var entries []mergedEntry
-	var err error
 	if params.Target == TargetPickupCohort {
 		entries, err = s.collectPickupEntries(ctx, params, result)
 	} else {
@@ -520,7 +542,10 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // (weekly schedule + exceptions) and presence from attendance records on the
 // selected date. Closed attendance rows still count for historical lists.
 func (s *service) collectPickupEntries(ctx context.Context, params Params, result *Result) ([]mergedEntry, error) {
-	buckets := s.pickupBuckets(ctx)
+	buckets, err := s.pickupBuckets(ctx)
+	if err != nil {
+		return nil, err
+	}
 	students, err := s.studentRepo.List(ctx, map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -547,7 +572,7 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, resul
 		presentSet[row.StudentID] = struct{}{}
 	}
 
-	slotLabel := s.listLabel(ctx, params)
+	slotLabel := result.ListLabel
 	entries := []mergedEntry{}
 	cohort := map[int64]struct{}{}
 	for _, student := range students {
@@ -766,7 +791,7 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 		{ID: listexport.ColumnName, Label: "Name"},
 		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
 		{ID: listexport.ColumnGroup, Label: "Gruppe"},
-		{ID: listexport.ColumnSlot, Label: "Slot / Angebot"},
+		{ID: listexport.ColumnSlot, Label: "Angebot / Zeitraum"},
 	}
 	if pickupBased {
 		columns = append(columns, listexport.Column{ID: listexport.ColumnPlannedPickup, Label: "Geplante Abholung"})
@@ -789,7 +814,7 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 	}
 
 	doc := listexport.Document{
-		Title:       fmt.Sprintf("%s – %s", result.ListLabel, params.Source.Label()),
+		Title:       documentTitle(result),
 		Subtitle:    subtitle(result),
 		GeneratedAt: time.Now(),
 		Filters:     exportFilters(params, result),
@@ -798,24 +823,40 @@ func (s *service) RenderList(ctx context.Context, params Params, format listexpo
 		Footer:      confidentialityNote,
 	}
 
-	targetPart := string(params.Target)
-	if params.Target == TargetPickupCohort {
-		targetPart = string(params.PickupCohort)
-	}
-	filename := fmt.Sprintf("liste-%s-%s-%s", targetPart, params.Source, params.Date.String())
+	filename := exportFilename(params, result)
 	return s.listExport.Render(doc, format, filename)
+}
+
+func documentTitle(result *Result) string {
+	return fmt.Sprintf("Tagesliste %s – %s", result.Source.Label(), result.ListLabel)
+}
+
+func exportFilename(params Params, result *Result) string {
+	return fmt.Sprintf("Tagesliste %s %s %s", params.Source.Label(), result.ListLabel, params.Date.String())
 }
 
 // exportFilters builds the header lines stamped on the printed export.
 func exportFilters(params Params, result *Result) []string {
 	filters := []string{
 		"Datum: " + params.Date.Format("02.01.2006"),
-		"Datenbasis: " + result.Provenance,
+		"Datenbasis: " + params.Source.Label() + " – " + result.Provenance,
+		"Enthalten: " + includedSummary(params, result),
 	}
 	if params.GroupBy != GroupByNone {
 		filters = append(filters, "Gruppiert nach: "+params.GroupBy.Label())
 	}
 	return filters
+}
+
+func includedSummary(params Params, result *Result) string {
+	if params.Target == TargetPickupCohort {
+		return result.ListLabel
+	}
+	count := selectableSlotCount(result.Slots)
+	if params.InstanceIDsSet {
+		count = len(params.InstanceIDs)
+	}
+	return fmt.Sprintf("%d %s", count, plural(count, "Angebot", "Angebote"))
 }
 
 func subtitle(result *Result) string {
@@ -834,4 +875,21 @@ func subtitle(result *Result) string {
 			result.Counters.Unplanned,
 		)
 	}
+}
+
+func selectableSlotCount(slots []Slot) int {
+	count := 0
+	for _, slot := range slots {
+		if slot.Status != string(scheduleModel.InstanceStatusCancelled) {
+			count++
+		}
+	}
+	return count
+}
+
+func plural(count int, singular string, pluralValue string) string {
+	if count == 1 {
+		return singular
+	}
+	return pluralValue
 }

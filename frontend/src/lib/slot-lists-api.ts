@@ -17,7 +17,7 @@ export interface SlotListRequest {
   target: SlotListTarget;
   pickup_cohort?: SlotListPickupCohort;
   source: SlotListSource;
-  /** Selected timetable slots. Omit/empty = all slots of the date. */
+  /** Selected timetable slots. Omit = all selectable slots; [] = none selected. */
   instance_ids?: number[];
   /** Optional education-group filter. Omit/empty = all groups. */
   group_ids?: number[];
@@ -172,12 +172,30 @@ export async function exportSlotList(
   const link = document.createElement("a");
   link.href = url;
   link.download =
-    filenameFromDisposition(response) ??
-    `liste-${request.pickup_cohort ?? request.target}-${request.date}.${format}`;
+    filenameFromDisposition(response) ?? fallbackFilename(request, format);
   document.body.append(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function fallbackFilename(
+  request: SlotListRequest,
+  format: SlotListFormat,
+): string {
+  const source =
+    request.source === "planned"
+      ? "plan"
+      : request.source === "actual"
+        ? "ist"
+        : "abgleich";
+  const target =
+    request.target === "pickup_cohort"
+      ? request.pickup_cohort === "long_day"
+        ? "ganztag-1600"
+        : "ganztag-1430"
+      : "angebote";
+  return `tagesliste-${source}-${target}-${request.date}.${format}`;
 }
 
 function openForPrint(url: string) {

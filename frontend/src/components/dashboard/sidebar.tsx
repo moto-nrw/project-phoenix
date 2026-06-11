@@ -102,8 +102,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/lists",
-    label: "Listen",
-    icon: navigationIcons.listExport,
+    label: "Tageslisten",
+    icon: navigationIcons.dailyLists,
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
