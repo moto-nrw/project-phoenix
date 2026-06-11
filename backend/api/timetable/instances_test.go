@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -48,8 +49,8 @@ type mockInstanceService struct {
 	updateErr     error
 	lastStartID   int64
 	lastStartedBy int64
-	lastFrom      time.Time
-	lastTo        time.Time
+	lastFrom      timezone.Date
+	lastTo        timezone.Date
 	lastCreate    *scheduleSvc.CreateInstanceInput
 	lastUpdate    *scheduleSvc.UpdateInstanceInput
 }
@@ -81,7 +82,7 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to time.Time) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	if m.replanErr != nil {
@@ -135,6 +136,7 @@ func (m *instMockStaffRepo) ListAllWithPerson(_ context.Context) ([]*userModels.
 	return nil, nil
 }
 func (m *instMockStaffRepo) UpdateNotes(_ context.Context, _ int64, _ string) error { return nil }
+func (m *instMockStaffRepo) ClearWorkTimeModel(_ context.Context, _ int64) error    { return nil }
 func (m *instMockStaffRepo) FindWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
 	return nil, nil
 }
@@ -839,8 +841,8 @@ func TestReplanWeek_NilService(t *testing.T) {
 func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 5,
 			Materialization: &scheduleSvc.MaterializationResult{
 				InstancesCreated:          8,
@@ -872,8 +874,8 @@ func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 func TestReplanWeek_ValidBody(t *testing.T) {
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 2,
 			Materialization:  &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 		},
@@ -897,8 +899,8 @@ func TestReplanWeek_NilMaterialization(t *testing.T) {
 	// counts — defensive branch in the handler.
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 1,
 			Materialization:  nil,
 		},

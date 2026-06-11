@@ -500,11 +500,16 @@ func (r *stubPasswordResetTokenRepository) FindByID(_ context.Context, id interf
 	switch v := id.(type) {
 	case int64:
 		if token, ok := r.byID[v]; ok {
-			return token, nil
+			// Copy, like a real repository returns a fresh row: tests poll
+			// the result while the async delivery goroutine mutates the
+			// stored token under r.mu.
+			cp := *token
+			return &cp, nil
 		}
 	case int:
 		if token, ok := r.byID[int64(v)]; ok {
-			return token, nil
+			cp := *token
+			return &cp, nil
 		}
 	}
 	return nil, sql.ErrNoRows
@@ -517,7 +522,8 @@ func (r *stubPasswordResetTokenRepository) FindValidByToken(_ context.Context, t
 	if !ok || item.Used || time.Now().After(item.Expiry) {
 		return nil, sql.ErrNoRows
 	}
-	return item, nil
+	cp := *item
+	return &cp, nil
 }
 
 func (r *stubPasswordResetTokenRepository) MarkAsUsed(_ context.Context, id int64) error {
@@ -612,7 +618,12 @@ func (r *stubInvitationTokenRepository) FindByID(_ context.Context, id interface
 	defer r.mu.Unlock()
 	if v, ok := id.(int64); ok {
 		if token, exists := r.tokens[v]; exists {
-			return token, nil
+			// Return a copy, like a real repository returns a fresh row.
+			// Tests poll the returned token while the service's async
+			// delivery goroutine mutates the stored one under r.mu;
+			// handing out the live pointer is a data race.
+			cp := *token
+			return &cp, nil
 		}
 	}
 	return nil, sql.ErrNoRows
@@ -622,7 +633,8 @@ func (r *stubInvitationTokenRepository) FindByToken(_ context.Context, value str
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if token, ok := r.byToken[value]; ok {
-		return token, nil
+		cp := *token
+		return &cp, nil
 	}
 	return nil, sql.ErrNoRows
 }
@@ -637,7 +649,8 @@ func (r *stubInvitationTokenRepository) FindValidByToken(_ context.Context, valu
 	if token.IsUsed() || token.ExpiresAt.Before(now) {
 		return nil, sql.ErrNoRows
 	}
-	return token, nil
+	cp := *token
+	return &cp, nil
 }
 
 func (r *stubInvitationTokenRepository) FindByEmail(_ context.Context, email string) ([]*authModel.InvitationToken, error) {
@@ -647,7 +660,8 @@ func (r *stubInvitationTokenRepository) FindByEmail(_ context.Context, email str
 	var result []*authModel.InvitationToken
 	for _, token := range r.tokens {
 		if strings.ToLower(token.Email) == email {
-			result = append(result, token)
+			cp := *token
+			result = append(result, &cp)
 		}
 	}
 	return result, nil
@@ -719,7 +733,8 @@ func (r *stubInvitationTokenRepository) List(_ context.Context, filters map[stri
 			}
 		}
 		if include {
-			result = append(result, token)
+			cp := *token
+			result = append(result, &cp)
 		}
 	}
 	return result, nil
@@ -1192,6 +1207,19 @@ func (r *stubAccountTenantRepository) EnsureActive(_ context.Context, accountTen
 	return nil
 }
 
+func (r *stubAccountTenantRepository) Deactivate(_ context.Context, accountID, tenantID int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for _, mapping := range r.mappings {
+		if mapping.AccountID == accountID && mapping.TenantID == tenantID {
+			mapping.Status = authModel.AccountTenantStatusInactive
+			mapping.DeactivatedAt = &now
+		}
+	}
+	return nil
+}
+
 func (r *stubAccountTenantRepository) FindActiveByAccountID(_ context.Context, accountID int64) ([]authModel.AccountTenant, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1296,6 +1324,10 @@ func (r *stubStaffRepository) List(context.Context, map[string]interface{}) ([]*
 
 func (r *stubStaffRepository) UpdateNotes(context.Context, int64, string) error {
 	panic("UpdateNotes not implemented")
+}
+
+func (r *stubStaffRepository) ClearWorkTimeModel(context.Context, int64) error {
+	panic("ClearWorkTimeModel not implemented")
 }
 
 func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel.Staff, error) {
@@ -1476,4 +1508,25 @@ func (r *stubSchoolRepository) CountNonDeletedByOrganizationID(context.Context, 
 // helper to build default email used in tests.
 func newDefaultFromEmail() email.Email {
 	return email.NewEmail("moto", "no-reply@moto.example")
+}
+
+// Stubs for the issue #585 refactor interface additions — unused by auth tests.
+func (r *stubAccountRepository) AnonymizeForDeletion(context.Context, int64, string) error {
+	return nil
+}
+
+func (r *stubPersonRepository) AnonymizeAndSoftDelete(context.Context, int64) error {
+	return nil
+}
+
+func (noopAccountRepository) AnonymizeForDeletion(context.Context, int64, string) error {
+	return nil
+}
+
+func (r *stubTeacherRepository) ListActiveCaregivers(context.Context) ([]*userModel.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+func (r *stubTeacherRepository) FindActiveCaregiverByAccountID(context.Context, int64) (*userModel.ActiveCaregiver, error) {
+	return nil, nil
 }

@@ -59,7 +59,6 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 	facilityService := facilitiesSvc.NewService(
 		repoFactory.Room,
 		repoFactory.ActiveGroup,
-		db,
 	)
 
 	activityService, err := activitiesSvc.NewService(
@@ -69,7 +68,7 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		repoFactory.ActivitySupervisor,
 		repoFactory.StudentEnrollment,
 		repoFactory.ActiveGroup,
-		db,
+		repoFactory.Staff,
 	)
 	require.NoError(t, err)
 
@@ -82,7 +81,6 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
-		db,
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
@@ -122,7 +120,6 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 		facilityService,
 		activityService,
 		activeService,
-		db,
 		slog.Default(),
 	)
 }
@@ -272,7 +269,7 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 
 	// Add supervisor
 	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 	// ACT
 	status, err := service.GetSchulhofStatus(ctx, staff.ID)
@@ -327,7 +324,7 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 	// Add two supervisors
 	supervisor1 := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
 	supervisor2 := testpkg.CreateTestGroupSupervisor(t, db, staff2.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, supervisor1.ID, supervisor2.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID, supervisor2.ID)
 
 	// ACT - Check status for staff1
 	status, err := service.GetSchulhofStatus(ctx, staff1.ID)
@@ -447,7 +444,7 @@ func TestSchulhofService_ToggleSupervision_StartSuccess(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
@@ -492,7 +489,7 @@ func TestSchulhofService_ToggleSupervision_StopSuccess(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].ID, groups[0].CategoryID)
@@ -635,7 +632,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_Creates(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)
@@ -673,7 +670,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_ReturnsExisting(t *testing.T) {
 	filter.Equal("name", constants.SchulhofActivityName)
 	options.Filter = filter
 	repoFactory := repositories.NewFactory(db)
-	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, db)
+	activityService, _ := activitiesSvc.NewService(repoFactory.ActivityCategory, repoFactory.ActivityGroup, repoFactory.ActivitySchedule, repoFactory.ActivitySupervisor, repoFactory.StudentEnrollment, repoFactory.ActiveGroup, repoFactory.Staff)
 	groups, _ := activityService.ListGroups(ctx, options)
 	if len(groups) > 0 {
 		testpkg.CleanupActivityFixtures(t, db, groups[0].CategoryID)
@@ -726,7 +723,6 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 		repoFactory.Teacher,
 		repoFactory.Staff,
 		repoFactory.Student,
-		db,
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
@@ -812,11 +808,11 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 
 	// Add active supervisor
 	supervisor1 := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, supervisor1.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor1.ID)
 
 	// Add supervisor with end_date (should be excluded)
 	supervisor2 := testpkg.CreateTestGroupSupervisor(t, db, staff2.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, supervisor2.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor2.ID)
 
 	// Set end_date on supervisor2 to mark it as ended
 	endTime := time.Now()
@@ -915,7 +911,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 	repoFactory := repositories.NewFactory(db)
 	educationService := educationSvc.NewService(
 		repoFactory.Group, repoFactory.GroupTeacher, repoFactory.GroupSubstitution,
-		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, repoFactory.Student, db,
+		repoFactory.Room, repoFactory.Teacher, repoFactory.Staff, repoFactory.Student,
 	)
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,
@@ -996,7 +992,7 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 
 	// Add staff1 as supervisor
 	supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff1.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, supervisor.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
 
 	// ACT — Check status for staff2 (not the supervisor)
 	status, err := service.GetSchulhofStatus(ctx, staff2.ID)

@@ -90,8 +90,8 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	entry := &feedback.Entry{
 		StudentID:       req.StudentID,
 		Value:           req.Value,
-		Day:             timezone.DateOf(now), // Date only (Berlin timezone)
-		Time:            now,                  // Full timestamp
+		Day:             timezone.DateFromTime(now), // Calendar day (Berlin)
+		Time:            now,                        // Full timestamp
 		IsMensaFeedback: false,
 	}
 

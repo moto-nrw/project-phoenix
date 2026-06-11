@@ -419,7 +419,7 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 		return
 	}
 
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
 		return
@@ -448,7 +448,7 @@ func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []Stud
 		return
 	}
 
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, now)
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
 		return

@@ -26,6 +26,7 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -67,7 +68,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	// Create the instance and manually bridge to the active.group (simulating
 	// the post-Start state — we don't exercise the lifecycle service here).
 	instance := &scheduleModels.ActivityInstance{
-		Date:            time.Date(2026, 4, 21, 0, 0, 0, 0, time.UTC),
+		Date:            timezone.NewDate(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("AS-Instance-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),

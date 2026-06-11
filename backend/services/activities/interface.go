@@ -2,8 +2,8 @@ package activities
 
 import (
 	"context"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -65,8 +65,8 @@ type ActivityService interface {
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error)
 	UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error
 	CanStudentJoinGroup(group *activities.Group, currentEnrollmentCount int) bool
-	GetEnrollmentsByDate(ctx context.Context, date time.Time) ([]*activities.StudentEnrollment, error)
-	GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*activities.StudentEnrollment, error)
+	GetEnrollmentsByDate(ctx context.Context, date timezone.Date) ([]*activities.StudentEnrollment, error)
+	GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activities.StudentEnrollment, error)
 
 	// Public operations
 	GetPublicGroups(ctx context.Context, categoryID *int64) ([]*activities.Group, map[int64]int, error)

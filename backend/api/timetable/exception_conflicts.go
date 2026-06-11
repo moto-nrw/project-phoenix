@@ -83,10 +83,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	fromUTC := timezone.DateOfUTC(from)
-	toUTC := timezone.DateOfUTC(to)
-
-	exceptions, err := rs.activityExceptionRepo.FindByDateRange(ctx, fromUTC, toUTC)
+	exceptions, err := rs.activityExceptionRepo.FindByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity exceptions failed", err))
 		return
@@ -96,7 +93,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, fromUTC, toUTC)
+	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity instances failed", err))
 		return
@@ -189,33 +186,33 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 	})
 
 	rs.getLogger().Info("exception conflicts",
-		slog.String("from", from.Format(dateLayout)),
-		slog.String("to", to.Format(dateLayout)),
+		slog.String("from", from.String()),
+		slog.String("to", to.String()),
 		slog.Int("exception_count", len(exceptions)),
 		slog.Int("conflict_count", len(conflicts)),
 	)
 
 	common.Respond(w, r, http.StatusOK, ConflictsResponse{
-		From:      from.Format(dateLayout),
-		To:        to.Format(dateLayout),
+		From:      from.String(),
+		To:        to.String(),
 		Conflicts: conflicts,
 	}, "Exception conflicts retrieved")
 }
 
 // parseConflictRange mirrors /gaps: date required, date_to optional (defaults
 // to date), range <= 14 days, date >= today in Berlin-local.
-func parseConflictRange(w http.ResponseWriter, r *http.Request) (from, to time.Time, ok bool) {
+func parseConflictRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
 	q := r.URL.Query()
 
 	dateStr := q.Get("date")
 	if dateStr == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date is required")))
-		return time.Time{}, time.Time{}, false
+		return timezone.Date{}, timezone.Date{}, false
 	}
 	parsedFrom, err := berlinDate(dateStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
-		return time.Time{}, time.Time{}, false
+		return timezone.Date{}, timezone.Date{}, false
 	}
 
 	parsedTo := parsedFrom
@@ -223,37 +220,34 @@ func parseConflictRange(w http.ResponseWriter, r *http.Request) (from, to time.T
 		parsedTo, err = berlinDate(toStr)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_to format, expected YYYY-MM-DD")))
-			return time.Time{}, time.Time{}, false
+			return timezone.Date{}, timezone.Date{}, false
 		}
 	}
 
 	if parsedFrom.After(parsedTo) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be before or equal to 'date_to'")))
-		return time.Time{}, time.Time{}, false
+		return timezone.Date{}, timezone.Date{}, false
 	}
 	if inclusiveDayCount(parsedFrom, parsedTo) > maxExceptionConflictRangeDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			fmt.Errorf("date range exceeds maximum of %d days", maxExceptionConflictRangeDays)))
-		return time.Time{}, time.Time{}, false
+		return timezone.Date{}, timezone.Date{}, false
 	}
 
-	// "today or future" comparison in Berlin-local anchors to the same
-	// midnight the /gaps endpoint uses, so a 23:00 UTC request still
-	// considers the local-Berlin date correctly.
-	todayBerlin := timezone.DateOfUTC(time.Now())
-	fromBerlin := timezone.DateOfUTC(parsedFrom)
-	if fromBerlin.Before(todayBerlin) {
+	// "today or future" comparison on Berlin calendar days, matching the
+	// /gaps endpoint's rule.
+	if parsedFrom.Before(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
-		return time.Time{}, time.Time{}, false
+		return timezone.Date{}, timezone.Date{}, false
 	}
 
 	return parsedFrom, parsedTo, true
 }
 
-func respondEmptyConflicts(w http.ResponseWriter, r *http.Request, from, to time.Time) {
+func respondEmptyConflicts(w http.ResponseWriter, r *http.Request, from, to timezone.Date) {
 	common.Respond(w, r, http.StatusOK, ConflictsResponse{
-		From:      from.Format(dateLayout),
-		To:        to.Format(dateLayout),
+		From:      from.String(),
+		To:        to.String(),
 		Conflicts: []ConflictEntry{},
 	}, "Exception conflicts retrieved")
 }
@@ -322,7 +316,7 @@ func (rs *Resource) loadArrivalPreload(
 
 	// Arrival exceptions: one query per unique date. Range is capped at 14
 	// by parseConflictRange so this is bounded and predictable.
-	dateObjByKey := make(map[string]time.Time)
+	dateObjByKey := make(map[string]timezone.Date)
 	for _, a := range affected {
 		dateObjByKey[dateKey(a.exception.ExceptionDate)] = a.exception.ExceptionDate
 	}
@@ -331,7 +325,7 @@ func (rs *Resource) loadArrivalPreload(
 		for id := range stuMap {
 			ids = append(ids, id)
 		}
-		excs, err := rs.arrivalExceptionRepo.FindByStudentIDsAndDate(ctx, ids, timezone.DateOfUTC(dateObjByKey[dk]))
+		excs, err := rs.arrivalExceptionRepo.FindByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
 		if err != nil {
 			return nil, fmt.Errorf("load arrival exceptions for %s: %w", dk, err)
 		}
@@ -386,7 +380,7 @@ func (rs *Resource) loadArrivalPreload(
 // arrivalTime is time.Time{} (IsZero) when the arrival is unknown — source
 // distinguishes "none" (no rule at all) from "exception without expected_arrival"
 // (explicit absence).
-func (pre *arrivalPreload) resolveArrival(studentID int64, date time.Time) (time.Time, string) {
+func (pre *arrivalPreload) resolveArrival(studentID int64, date timezone.Date) (time.Time, string) {
 	dk := dateKey(date)
 	if byStu, ok := pre.byException[dk]; ok {
 		if exc, has := byStu[studentID]; has && exc != nil {
@@ -467,7 +461,7 @@ func (rs *Resource) loadTemplatePreload(
 // that weekday (e.g. morning + afternoon slots), we cannot tell which one
 // was modified — we emit the warning anyway but surface original_start_time
 // as empty.
-func (pre *templatePreload) resolveOriginalStart(groupID int64, weekday int, logger *slog.Logger, excDate time.Time) (string, bool) {
+func (pre *templatePreload) resolveOriginalStart(groupID int64, weekday int, logger *slog.Logger, excDate timezone.Date) (string, bool) {
 	starts, ok := pre.byKey[groupWeekdayKey{GroupID: groupID, Weekday: weekday}]
 	if !ok || len(starts) == 0 {
 		logger.Warn("modified exception but no template schedule for weekday",

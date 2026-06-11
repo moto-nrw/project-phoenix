@@ -434,7 +434,10 @@ export default function TeachersPage() {
             <span className="font-medium">
               {selectedTeacher.first_name} {selectedTeacher.last_name}
             </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+            wirklich löschen? Der Zugang wird deaktiviert und die Person aus
+            allen Listen entfernt. Vorhandene Einträge wie Anwesenheiten und
+            Zeiterfassung bleiben für die Historie erhalten. Die Person kann
+            jederzeit erneut eingeladen werden.
           </p>
         </ConfirmationModal>
       )}

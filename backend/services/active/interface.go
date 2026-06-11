@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -117,7 +118,10 @@ type Service interface {
 	// CheckOutStudent applies "out" unconditionally via a state-checked
 	// UPDATE WHERE check_out_time IS NULL — closes the open row when one
 	// exists, returns idempotent success otherwise. Action is always
-	// "checked_out" on return.
+	// "checked_out" on return. Every checkout (this method and the toggle's
+	// "out" branch) also ends any open room visit in the same request
+	// transaction, so attendance "checked_out" never coexists with an open
+	// visit (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
@@ -323,10 +327,10 @@ type AttendanceStatus struct {
 	//   "checked_in"     — row exists, CheckOutTime nil, YardSince nil (in the building)
 	//   "on_yard"        — row exists, CheckOutTime nil, YardSince non-nil (on premises, outside the building)
 	//   "checked_out"    — CheckOutTime non-nil (formally left school)
-	Status       string     `json:"status"`
-	Date         time.Time  `json:"date"`
-	CheckInTime  *time.Time `json:"check_in_time"`
-	CheckOutTime *time.Time `json:"check_out_time"`
+	Status       string        `json:"status"`
+	Date         timezone.Date `json:"date"`
+	CheckInTime  *time.Time    `json:"check_in_time"`
+	CheckOutTime *time.Time    `json:"check_out_time"`
 	// YardSince, when non-nil, marks the moment the student moved to the
 	// schoolyard without checking out. Only meaningful while Status == "on_yard".
 	YardSince    *time.Time `json:"yard_since,omitempty"`
@@ -355,38 +359,38 @@ type DailySessionCleanupResult struct {
 
 // AttendanceCleanupResult represents the result of cleaning stale attendance records
 type AttendanceCleanupResult struct {
-	StartedAt        time.Time  `json:"started_at"`
-	CompletedAt      time.Time  `json:"completed_at"`
-	RecordsClosed    int        `json:"records_closed"`
-	StudentsAffected int        `json:"students_affected"`
-	OldestRecordDate *time.Time `json:"oldest_record_date,omitempty"`
-	Success          bool       `json:"success"`
-	Errors           []string   `json:"errors,omitempty"`
+	StartedAt        time.Time      `json:"started_at"`
+	CompletedAt      time.Time      `json:"completed_at"`
+	RecordsClosed    int            `json:"records_closed"`
+	StudentsAffected int            `json:"students_affected"`
+	OldestRecordDate *timezone.Date `json:"oldest_record_date,omitempty"`
+	Success          bool           `json:"success"`
+	Errors           []string       `json:"errors,omitempty"`
 }
 
 // AttendanceCleanupPreview shows what attendance records would be cleaned
 type AttendanceCleanupPreview struct {
 	TotalRecords   int            `json:"total_records"`
 	StudentRecords map[int64]int  `json:"student_records"` // studentID -> count
-	OldestRecord   *time.Time     `json:"oldest_record,omitempty"`
+	OldestRecord   *timezone.Date `json:"oldest_record,omitempty"`
 	RecordsByDate  map[string]int `json:"records_by_date"` // date -> count
 }
 
 // SupervisorCleanupResult represents the result of cleaning stale supervisor records
 type SupervisorCleanupResult struct {
-	StartedAt        time.Time  `json:"started_at"`
-	CompletedAt      time.Time  `json:"completed_at"`
-	RecordsClosed    int        `json:"records_closed"`
-	StaffAffected    int        `json:"staff_affected"`
-	OldestRecordDate *time.Time `json:"oldest_record_date,omitempty"`
-	Success          bool       `json:"success"`
-	Errors           []string   `json:"errors,omitempty"`
+	StartedAt        time.Time      `json:"started_at"`
+	CompletedAt      time.Time      `json:"completed_at"`
+	RecordsClosed    int            `json:"records_closed"`
+	StaffAffected    int            `json:"staff_affected"`
+	OldestRecordDate *timezone.Date `json:"oldest_record_date,omitempty"`
+	Success          bool           `json:"success"`
+	Errors           []string       `json:"errors,omitempty"`
 }
 
 // SupervisorCleanupPreview shows what supervisor records would be cleaned
 type SupervisorCleanupPreview struct {
 	TotalRecords  int            `json:"total_records"`
 	StaffRecords  map[int64]int  `json:"staff_records"` // staffID -> count
-	OldestRecord  *time.Time     `json:"oldest_record,omitempty"`
+	OldestRecord  *timezone.Date `json:"oldest_record,omitempty"`
 	RecordsByDate map[string]int `json:"records_by_date"` // date -> count
 }

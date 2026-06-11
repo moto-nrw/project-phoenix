@@ -15,6 +15,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
@@ -258,7 +259,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 			ExceptionsDeleted: 2,
 			StudentsAffected:  3,
 			RetentionDays:     365,
-			CutoffDate:        time.Now(),
+			CutoffDate:        timezone.TodayDate(),
 			DurationMS:        42,
 		},
 	}

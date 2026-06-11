@@ -315,7 +315,9 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     expect(
-      await screen.findByText("Bitte korrigiere die rot markierten Felder."),
+      await screen.findByText(
+        "Bitte korrigieren Sie die rot markierten Felder.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Bitte Vornamen angeben.")).toHaveLength(2);
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
@@ -554,7 +556,7 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
       await screen.findByText(
-        "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+        "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot aus.",
       ),
     ).toBeInTheDocument();
 
@@ -716,11 +718,11 @@ describe("EnrollmentForm", () => {
     // The pickup field gets the pickup copy, not the bus copy — guards the
     // regression where the shared weekday_boolean input hardcoded bus text.
     expect(
-      screen.getByText(/an denen das Kind abgeholt wird/),
+      screen.getByText(/an denen Ihr Kind abgeholt wird/),
     ).toBeInTheDocument();
     // The Buskind field still shows its own bus copy.
     expect(
-      screen.getByText(/an denen das Kind mit dem Bus fährt/),
+      screen.getByText(/an denen Ihr Kind mit dem Bus fährt/),
     ).toBeInTheDocument();
   });
 
@@ -898,7 +900,7 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
       await screen.findByText(
-        "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
+        "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot aus.",
       ),
     ).toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();

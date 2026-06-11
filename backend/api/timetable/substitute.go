@@ -112,8 +112,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// rewrite history. Matches the /gaps policy. Post-hoc correction (if ever
 	// required) belongs behind a distinct endpoint or an explicit flag, not
 	// this fast-path.
-	todayBerlin := timezone.DateOfUTC(time.Now())
-	if timezone.DateOfUTC(date).Before(todayBerlin) {
+	if date.Before(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
 		return
 	}
@@ -153,8 +152,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Load absent staff's same-day assignments -------------------------
-	dateUTC := timezone.DateOfUTC(date)
-	origRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, req.AbsentStaffID, dateUTC)
+	origRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, req.AbsentStaffID, date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
 		return
@@ -289,7 +287,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 					StaffID:   req.SubstituteStaffID,
 					GroupID:   *op.instance.ActiveGroupID,
 					Role:      "supervisor",
-					StartDate: now,
+					StartDate: timezone.DateFromTime(now),
 				}
 				newSup.SetTenantID(tenant.FromContext(ctx))
 				if err := rs.supervisorRepo.Create(ctx, newSup); err != nil {
@@ -313,7 +311,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// target. Only relevant for instances actually substituted or co-cover.
 	// Dry-run: no DB writes, just a second Find + comparison.
 	// ======================================================================
-	warnings, err := rs.buildSubstituteTimeConflicts(ctx, plan, req.SubstituteStaffID, dateUTC)
+	warnings, err := rs.buildSubstituteTimeConflicts(ctx, plan, req.SubstituteStaffID, date)
 	if err != nil {
 		// A warning lookup failure is not a showstopper. Log and continue
 		// with an empty warning list — the mutations above are correct
@@ -401,12 +399,12 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	ctx context.Context,
 	plan []plannedOp,
 	subID int64,
-	dateUTC time.Time,
+	date timezone.Date,
 ) ([]scheduleSvc.SubstituteTimeConflict, error) {
 	if len(plan) == 0 {
 		return nil, nil
 	}
-	subRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, subID, dateUTC)
+	subRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, subID, date)
 	if err != nil {
 		return nil, err
 	}

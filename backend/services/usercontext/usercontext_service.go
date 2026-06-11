@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -60,7 +58,6 @@ type userContextService struct {
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
-	db                 *bun.DB
 	logger             *slog.Logger
 }
 
@@ -73,7 +70,7 @@ func (s *userContextService) getLogger() *slog.Logger {
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, logger *slog.Logger) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.Logger) UserContextService {
 	return &userContextService{
 		accountRepo:        repos.AccountRepo,
 		personRepo:         repos.PersonRepo,
@@ -87,7 +84,6 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, l
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
-		db:                 db,
 		logger:             logger,
 	}
 }
@@ -318,7 +314,7 @@ func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int
 
 // addSubstitutionGroups adds groups where the staff is an active substitute
 func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
 	if err != nil {
@@ -358,7 +354,7 @@ func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[in
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
 	}
 
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
 	if err != nil {
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}

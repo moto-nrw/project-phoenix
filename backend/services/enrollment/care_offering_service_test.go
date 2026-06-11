@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -38,8 +38,8 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	phase := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -63,7 +63,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	return db, svc, phase, cleanup
 }
 
-func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, end time.Time) *scheduleModels.CalendarPeriod {
+func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, end timezone.Date) *scheduleModels.CalendarPeriod {
 	t.Helper()
 	period := &scheduleModels.CalendarPeriod{
 		Name:            uniqueSchemaName(name + "-" + t.Name()),
@@ -233,8 +233,8 @@ func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
 	defer cleanup()
 
 	period := createCareOfferingTestPeriod(t, db, "care-valid-period",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-valid-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
@@ -274,11 +274,11 @@ func TestCareOfferingService_Create_RejectsTemplateWithoutUniquePeriod(t *testin
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	periodA := createCareOfferingTestPeriod(t, db, "care-period-a",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	periodB := createCareOfferingTestPeriod(t, db, "care-period-b",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-mixed-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &periodA.ID)
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayTuesday, &periodB.ID)
@@ -305,8 +305,8 @@ func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "care-short-period",
-		time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 9, 1),
+		timezone.NewDate(2026, 12, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-short-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
@@ -339,8 +339,8 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	target := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-clone-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -373,8 +373,8 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	ctx := testpkg.TenantContext(1)
 
 	period := createCareOfferingTestPeriod(t, db, "care-clone-source-period",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-clone-source-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
@@ -386,8 +386,8 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	target := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-clone-linked-target-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2027, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2028, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}

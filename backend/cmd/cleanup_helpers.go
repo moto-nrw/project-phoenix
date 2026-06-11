@@ -95,6 +95,8 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 	consentService := users.NewPrivacyConsentService(nil, slog.Default())
 	ctx.CleanupService = active.NewCleanupService(
 		ctx.RepoFactory.ActiveVisit,
+		ctx.RepoFactory.Attendance,
+		ctx.RepoFactory.GroupSupervisor,
 		ctx.RepoFactory.PrivacyConsent,
 		ctx.RepoFactory.DataDeletion,
 		consentService,
@@ -114,7 +116,9 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 		return nil, err
 	}
 	ctx.TimetableCleanupService = schedule.NewTimetableCleanupService(
-		ctx.DB,
+		ctx.RepoFactory.ActivityInstance,
+		ctx.RepoFactory.ActivityException,
+		ctx.RepoFactory.InstanceStudent,
 		auditRepo.NewDataDeletionRepository(ctx.DB),
 		ctx.ServiceFactory.Settings,
 		slog.Default().With("service", "timetable-cleanup-cli"),
@@ -132,7 +136,8 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 		return nil, err
 	}
 	ctx.TimeTrackingCleanupService = active.NewTimeTrackingCleanupService(
-		ctx.DB,
+		ctx.RepoFactory.WorkSession,
+		ctx.RepoFactory.StaffAbsence,
 		auditRepo.NewDataDeletionRepository(ctx.DB),
 		ctx.ServiceFactory.Settings,
 		slog.Default().With("service", "time-tracking-cleanup-cli"),

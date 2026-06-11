@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestActivationSummary(t *testing.T) {
 	if got := activationSummary(immediate); got != "Sofort" {
 		t.Errorf("immediate = %q, want Sofort", got)
 	}
-	on := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	on := timezone.NewDate(2026, 8, 1)
 	dated := &enrollmentModels.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled, ActivateOn: &on}
 	if got := activationSummary(dated); got != "Geplant (01.08.2026)" {
 		t.Errorf("dated = %q, want 'Geplant (01.08.2026)'", got)

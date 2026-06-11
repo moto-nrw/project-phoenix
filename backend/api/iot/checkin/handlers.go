@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -180,7 +181,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rs.PickupScheduleService != nil {
-		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
 		if err != nil {
 			rs.getLogger().ErrorContext(ctx, "failed to get pickup info during pickup query",
 				slog.Int64("student_id", student.ID),
@@ -364,7 +365,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// Runs inside the existing tenant tx for RLS visibility. A read-only SELECT on the
 	// schedule tables won't abort the tx unless the DB itself is down.
 	if rs.PickupScheduleService != nil {
-		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, now)
+		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
 		if err != nil {
 			rs.getLogger().WarnContext(ctx, "failed to get pickup time",
 				slog.Int64("student_id", student.ID),

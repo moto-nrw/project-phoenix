@@ -24,23 +24,23 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	date := timezone.DateOfUTC(time.Now().AddDate(0, 0, 3))
+	date := timezone.TodayDate().AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
 	entry := &active.StudentStatusDay{
 		StudentID:  student.ID,
-		Date:       date.Add(8 * time.Hour),
+		Date:       date,
 		Status:     active.StudentStatusDaySick,
 		ReportedAt: reportedAt,
 		Source:     active.StudentStatusSourcePlanned,
 	}
 	require.NoError(t, repo.UpsertReported(ctx, entry))
 
-	rows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date.AddDate(0, 0, -1), date.AddDate(0, 0, 1))
+	rows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, date.AddDays(-1), date.AddDays(1))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, student.ID, rows[0].StudentID)
 	assert.Equal(t, active.StudentStatusDaySick, rows[0].Status)
-	assert.True(t, timezone.DateOfUTC(rows[0].Date).Equal(date))
+	assert.True(t, rows[0].Date == date)
 	assert.Equal(t, active.StudentStatusSourcePlanned, rows[0].Source)
 
 	entry.ReportedAt = reportedAt.Add(time.Hour)
@@ -89,9 +89,9 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	now := time.Now()
-	firstDate := timezone.DateOfUTC(now.AddDate(0, 0, 4))
-	secondDate := timezone.DateOfUTC(now.AddDate(0, 0, 5))
-	for _, date := range []time.Time{firstDate, secondDate} {
+	firstDate := timezone.DateFromTime(now).AddDays(4)
+	secondDate := timezone.DateFromTime(now).AddDays(5)
+	for _, date := range []timezone.Date{firstDate, secondDate} {
 		require.NoError(t, repo.UpsertReported(ctx, &active.StudentStatusDay{
 			StudentID:  student.ID,
 			Date:       date,
@@ -107,13 +107,13 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 
 	var firstRowID int64
 	for _, row := range rows {
-		if timezone.DateOfUTC(row.Date).Equal(firstDate) {
+		if row.Date == firstDate {
 			firstRowID = row.ID
 		}
 	}
 	require.NotZero(t, firstRowID)
 	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, active.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, active.StudentStatusDayExcused, []time.Time{secondDate, secondDate.Add(2 * time.Hour)}, now, active.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, active.StudentStatusDayExcused, []timezone.Date{secondDate, secondDate}, now, active.StudentStatusSourceManual))
 	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, active.StudentStatusDayExcused, nil, now, active.StudentStatusSourceManual))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, firstDate, secondDate)
@@ -137,7 +137,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	date := timezone.DateOfUTC(time.Now().AddDate(0, 0, 6))
+	date := timezone.TodayDate().AddDays(6)
 	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
 		TenantModel: modelBase.TenantModel{TenantID: 1},
 		StudentID:   student.ID,
@@ -180,7 +180,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	date := timezone.DateOfUTC(time.Now().AddDate(0, 0, 5))
+	date := timezone.TodayDate().AddDays(5)
 	reason := "Fieber"
 
 	// 1. Report sick with a reason.
@@ -221,4 +221,80 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Nil(t, rows[0].Note, "reactivating a cleared row without a reason must not resurrect the old note")
+}
+
+// TestStudentStatusDayRepository_DateBoundaryRoundtrip proves the
+// timezone.Date storage contract end to end at a simulated midnight-window
+// instant: the stored DATE equals the Berlin calendar day regardless of the
+// Go process timezone (CI runs UTC) and the DB session timezone (CI container
+// runs Europe/Berlin), the Scanner roundtrips it, WHERE equality matches, and
+// a re-upsert hits the conflict path instead of duplicating the row — the
+// exact failure mode of the historical bug class.
+func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentStatusDay
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// 23:30 UTC on the eve of the 2026 spring DST transition is 00:30 CEST
+	// on March 29 in Berlin — inside the historical failure window.
+	boundaryInstant := time.Date(2026, 3, 28, 23, 30, 0, 0, time.UTC)
+	d := timezone.DateFromTime(boundaryInstant)
+	require.Equal(t, timezone.NewDate(2026, 3, 29), d)
+
+	entry := &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       d,
+		Status:     active.StudentStatusDayClassTrip,
+		ReportedAt: boundaryInstant,
+		Source:     active.StudentStatusSourcePlanned,
+	}
+	require.NoError(t, repo.UpsertReported(ctx, entry))
+
+	// Raw readback: the stored DATE must be the Berlin calendar day,
+	// independent of any driver or session timezone conversion.
+	var stored string
+	require.NoError(t, db.NewRaw(
+		"SELECT to_char(date, 'YYYY-MM-DD') FROM active.student_status_days WHERE student_id = ? AND status = ?",
+		student.ID, active.StudentStatusDayClassTrip,
+	).Scan(ctx, &stored))
+	assert.Equal(t, "2026-03-29", stored)
+
+	// Scanner roundtrip + WHERE equality at the boundary date.
+	rows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, d, d)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, d, rows[0].Date)
+
+	byIDs, err := repo.FindActiveByStudentIDsAndDate(ctx, []int64{student.ID}, d)
+	require.NoError(t, err)
+	require.Len(t, byIDs, 1)
+
+	// Re-upsert at the same date must hit the conflict path, not insert a
+	// second row for a shifted day.
+	entry2 := &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Date:       d,
+		Status:     active.StudentStatusDayClassTrip,
+		ReportedAt: boundaryInstant.Add(time.Hour),
+		Source:     active.StudentStatusSourceManual,
+	}
+	require.NoError(t, repo.UpsertReported(ctx, entry2))
+	rows, err = repo.FindActiveByStudentAndDateRange(ctx, student.ID, d, d)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "second upsert must update, not duplicate")
+	assert.Equal(t, active.StudentStatusSourceManual, rows[0].Source)
+
+	// The zero Date is rejected loudly instead of silently storing a
+	// sentinel day.
+	zeroEntry := &active.StudentStatusDay{
+		StudentID:  student.ID,
+		Status:     active.StudentStatusDaySick,
+		ReportedAt: boundaryInstant,
+		Source:     active.StudentStatusSourcePlanned,
+	}
+	require.Error(t, repo.UpsertReported(ctx, zeroEntry))
 }

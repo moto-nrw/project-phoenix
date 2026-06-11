@@ -2,9 +2,9 @@ package users_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +17,7 @@ import (
 // FindActive* expect. CreateTestStudent does not currently expose status /
 // enrolled_from / enrolled_until knobs, so we patch via a direct UPDATE
 // scoped to the test row's ID.
-func setLifecycle(t *testing.T, db *bun.DB, studentID int64, status users.StudentStatus, enrolledFrom, enrolledUntil *time.Time) {
+func setLifecycle(t *testing.T, db *bun.DB, studentID int64, status users.StudentStatus, enrolledFrom, enrolledUntil *timezone.Date) {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
 	q := db.NewUpdate().
@@ -45,9 +45,9 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
 
-	yesterday := time.Now().AddDate(0, 0, -1)
-	tomorrow := time.Now().AddDate(0, 0, 1)
-	asOf := time.Now()
+	yesterday := timezone.TodayDate().AddDays(-1)
+	tomorrow := timezone.TodayDate().AddDays(1)
+	asOf := timezone.TodayDate()
 
 	t.Run("returns pending students with enrolled_from <= asOf", func(t *testing.T) {
 		dueStudent := testpkg.CreateTestStudent(t, db, "PendingDue", "Lifecycle", "1a")
@@ -93,9 +93,9 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 	repo := repositories.NewFactory(db).Student
 	ctx := testpkg.TenantContext(1)
 
-	yesterday := time.Now().AddDate(0, 0, -1)
-	tomorrow := time.Now().AddDate(0, 0, 1)
-	asOf := time.Now()
+	yesterday := timezone.TodayDate().AddDays(-1)
+	tomorrow := timezone.TodayDate().AddDays(1)
+	asOf := timezone.TodayDate()
 
 	t.Run("returns active students with enrolled_until <= asOf", func(t *testing.T) {
 		dueStudent := testpkg.CreateTestStudent(t, db, "ActiveDue", "Lifecycle", "1a")

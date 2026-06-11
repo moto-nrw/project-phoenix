@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -446,40 +446,6 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 	}
 
 	return students, nil
-}
-
-// CountWithOptions counts students matching the query options
-func (r *StudentRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Column("student.id")
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options with table alias
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("student")
-			query = options.Filter.ApplyToQuery(query)
-		}
-		// Apply sorting if needed (but not pagination for counting)
-		if options.Sorting != nil {
-			query = options.Sorting.ApplyToQuery(query)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count with options",
-			Err: err,
-		}
-	}
-
-	return count, nil
 }
 
 // CountByGroupIDs counts students per group for multiple groups in a single query
@@ -1073,7 +1039,7 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 // FindPendingDueForActivation returns students whose status='pending' and
 // enrolled_from <= asOf within the current tenant context. Drives the
 // pending→active half of the activate-students scheduler tick.
-func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
@@ -1099,7 +1065,7 @@ func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asO
 // FindActiveDueForDeactivation returns students whose status='active' and
 // enrolled_until <= asOf within the current tenant context. Drives the
 // active→inactive half of the activate-students scheduler tick.
-func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*users.Student, error) {
+func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
 	var students []*users.Student
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).

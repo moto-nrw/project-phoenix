@@ -164,7 +164,7 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 func TestAttendance_Fields(t *testing.T) {
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		attendance := &activeModels.Attendance{
 			StudentID:   123,
 			Date:        today,
@@ -189,7 +189,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 		attendance := &activeModels.Attendance{
 			StudentID:    123,
-			Date:         timezone.Today(),
+			Date:         timezone.TodayDate(),
 			CheckInTime:  now,
 			CheckedInBy:  456,
 			DeviceID:     111,

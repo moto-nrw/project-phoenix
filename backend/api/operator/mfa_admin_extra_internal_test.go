@@ -51,6 +51,9 @@ func (s *stubAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.O
 func (s *stubAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
 	return nil
 }
+func (s *stubAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
+	return nil
+}
 
 // stubTenantMFAService satisfies authSvc.MFAService minimally for the
 // operator admin endpoints (HasEnrollment, GetTenantMFAOverride,

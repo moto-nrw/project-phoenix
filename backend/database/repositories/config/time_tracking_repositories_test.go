@@ -8,6 +8,7 @@ import (
 	"time"
 
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +43,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 		},
 	}))
 
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayDate()
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
@@ -98,15 +98,15 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 	defer cleanupStaffWorkSchedules(t, db, ownStaff.ID)
 	defer cleanupStaffWorkSchedules(t, db, otherStaff.ID)
 
-	queryDate := time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC)
+	queryDate := timezone.NewDate(2026, time.June, 8)
 	otherRow := &configModel.StaffWorkSchedule{
 		StaffID:        otherStaff.ID,
 		WeekIndex:      0,
 		RotationLength: 1,
 		DayOfWeek:      configModel.DayMonday,
 		TargetMinutes:  480,
-		ValidFrom:      queryDate.AddDate(0, 0, 10),
-		ValidUntil:     ptrTime(queryDate.AddDate(0, 0, 20)),
+		ValidFrom:      queryDate.AddDays(10),
+		ValidUntil:     ptrDate(queryDate.AddDays(20)),
 	}
 	otherRow.SetTenantID(1)
 	_, err := db.NewInsert().
@@ -134,7 +134,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 	model := &configModel.WorkTimeModel{
 		Name:               "Refresh assigned schedule",
 		RotationLength:     1,
-		RotationAnchorDate: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
 	}
 	require.NoError(t, repo.Create(ctx, model, []*configModel.WorkTimeModelEntry{
 		{
@@ -173,7 +173,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 		ID:                 model.ID,
 		Name:               model.Name,
 		RotationLength:     1,
-		RotationAnchorDate: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		RotationAnchorDate: timezone.NewDate(2026, time.June, 1),
 	}
 	require.NoError(t, repo.Update(ctx, updated, []*configModel.WorkTimeModelEntry{
 		{
@@ -210,7 +210,7 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	model := &configModel.WorkTimeModel{
 		Name:               "Update safety test",
 		RotationLength:     1,
-		RotationAnchorDate: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
 	}
 	entries := []*configModel.WorkTimeModelEntry{
 		{
@@ -248,7 +248,7 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 	model := &configModel.WorkTimeModel{
 		Name:               "Assigned delete safety",
 		RotationLength:     1,
-		RotationAnchorDate: time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC),
+		RotationAnchorDate: timezone.NewDate(2026, time.January, 5),
 	}
 	entries := []*configModel.WorkTimeModelEntry{
 		{
@@ -292,6 +292,6 @@ func cleanupStaffWorkSchedules(t *testing.T, db *bun.DB, staffID int64) {
 	require.NoError(t, err)
 }
 
-func ptrTime(t time.Time) *time.Time {
-	return &t
+func ptrDate(d timezone.Date) *timezone.Date {
+	return &d
 }

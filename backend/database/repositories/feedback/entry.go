@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -96,7 +96,7 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 }
 
 // FindByDay retrieves feedback entries for a specific day
-func (r *EntryRepository) FindByDay(ctx context.Context, day time.Time) ([]*feedback.Entry, error) {
+func (r *EntryRepository) FindByDay(ctx context.Context, day timezone.Date) ([]*feedback.Entry, error) {
 	var entries []*feedback.Entry
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
@@ -120,7 +120,7 @@ func (r *EntryRepository) FindByDay(ctx context.Context, day time.Time) ([]*feed
 }
 
 // FindByDateRange retrieves feedback entries within a date range
-func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*feedback.Entry, error) {
+func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDate timezone.Date) ([]*feedback.Entry, error) {
 	var entries []*feedback.Entry
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
@@ -174,7 +174,7 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 }
 
 // FindByStudentAndDateRange retrieves feedback entries for a student within a date range
-func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*feedback.Entry, error) {
+func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*feedback.Entry, error) {
 	var entries []*feedback.Entry
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
@@ -201,7 +201,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 }
 
 // CountByDay counts feedback entries for a specific day
-func (r *EntryRepository) CountByDay(ctx context.Context, day time.Time) (int, error) {
+func (r *EntryRepository) CountByDay(ctx context.Context, day timezone.Date) (int, error) {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model((*feedback.Entry)(nil)).
 		ModelTableExpr(tableFeedbackEntriesAlias).
@@ -321,10 +321,10 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 // DeleteOlderThan deletes feedback entries older than the specified number of days.
 // Uses tenant scoping for GDPR-compliant per-tenant cleanup.
 func (r *EntryRepository) DeleteOlderThan(ctx context.Context, days int) (int, error) {
-	cutoff := time.Now().AddDate(0, 0, -days)
+	cutoff := timezone.TodayDate().AddDays(-days)
 	query := base.GetDB(ctx, r.db).NewDelete().
 		TableExpr(tableFeedbackEntries).
-		Where("day < ?", cutoff.Format("2006-01-02"))
+		Where("day < ?", cutoff)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
@@ -356,15 +356,12 @@ func applyFeedbackFilter(query *bun.SelectQuery, field string, value interface{}
 	case "is_mensa_feedback":
 		return query.Where("is_mensa_feedback = ?", value)
 	case "day_from":
-		if dateValue, ok := value.(time.Time); ok {
-			// Format as date string to avoid timezone conversion issues
-			// PostgreSQL DATE comparisons need plain date strings, not timestamps
-			return query.Where("day >= ?", dateValue.Format("2006-01-02"))
+		if dateValue, ok := value.(timezone.Date); ok {
+			return query.Where("day >= ?", dateValue)
 		}
 	case "day_to":
-		if dateValue, ok := value.(time.Time); ok {
-			// Format as date string to avoid timezone conversion issues
-			return query.Where("day <= ?", dateValue.Format("2006-01-02"))
+		if dateValue, ok := value.(timezone.Date); ok {
+			return query.Where("day <= ?", dateValue)
 		}
 	case "value_like":
 		if strValue, ok := value.(string); ok {

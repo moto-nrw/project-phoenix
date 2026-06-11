@@ -134,6 +134,9 @@ func (r stubStaffAccountTenantRepo) Create(context.Context, *authModels.AccountT
 func (r stubStaffAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
 	panic("not implemented")
 }
+func (r stubStaffAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
+	panic("not implemented")
+}
 func (r stubStaffAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
 	panic("not implemented")
 }
@@ -482,4 +485,9 @@ func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
 	var _ authModels.AccountRepository = stubStaffAccountRepo{}
 	var _ authModels.AccountTenantRepository = stubStaffAccountTenantRepo{}
 	var _ platformModels.SchoolRepository = stubStaffSchoolRepo{}
+}
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (r stubStaffAccountRepo) AnonymizeForDeletion(context.Context, int64, string) error {
+	return nil
 }

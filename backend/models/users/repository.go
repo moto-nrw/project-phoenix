@@ -2,8 +2,10 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -74,6 +76,10 @@ type PersonRepository interface {
 
 	// FindWithAccount retrieves a person with their associated account
 	FindWithAccount(ctx context.Context, id int64) (*Person, error)
+
+	// AnonymizeAndSoftDelete overwrites the person's PII with placeholder
+	// values and stamps deleted_at (GDPR person deletion).
+	AnonymizeAndSoftDelete(ctx context.Context, personID int64) error
 }
 
 // StudentRepository defines operations for managing students
@@ -114,6 +120,11 @@ type StudentRepository interface {
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key and returns the number of rows affected.
+	UpdateColumns(ctx context.Context, student *Student, columns ...string) (int64, error)
+
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
@@ -141,12 +152,12 @@ type StudentRepository interface {
 	// FindPendingDueForActivation returns students whose status='pending' AND
 	// enrolled_from <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick.
-	FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
 	// FindActiveDueForDeactivation returns students whose status='active' AND
 	// enrolled_until <= asOf within the current tenant context. Used by the
 	// activate-students scheduler tick to flip rows to 'inactive'.
-	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*Student, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
 	// PurgeAllPhotos clears photo_path on every student row visible in the
 	// current tenant context (RLS scopes it) and returns the list of stored
@@ -203,6 +214,12 @@ type StaffRepository interface {
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
 
+	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
+	// offboarding: soft-deleted staff must not keep the reference, or the
+	// RESTRICT FK blocks work-time-model deletion while the live-staff
+	// pre-check reports zero assignments.
+	ClearWorkTimeModel(ctx context.Context, id int64) error
+
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*Staff, error)
 
@@ -221,6 +238,15 @@ type StaffRepository interface {
 type TeacherRepository interface {
 	// Create inserts a new teacher into the database
 	Create(ctx context.Context, teacher *Teacher) error
+
+	// ListActiveCaregivers returns every active caregiver for the tenant in
+	// context (teachers with an active account, tenant mapping, and system
+	// user/teacher role), ordered by name.
+	ListActiveCaregivers(ctx context.Context) ([]*ActiveCaregiver, error)
+
+	// FindActiveCaregiverByAccountID returns the active caregiver bound to
+	// the account, or nil when the account is not an active caregiver.
+	FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*ActiveCaregiver, error)
 
 	// FindByID retrieves a teacher by their ID
 	FindByID(ctx context.Context, id interface{}) (*Teacher, error)
@@ -293,7 +319,7 @@ type GuestRepository interface {
 	FindActive(ctx context.Context) ([]*Guest, error)
 
 	// SetDateRange sets a guest's start and end dates
-	SetDateRange(ctx context.Context, id int64, startDate, endDate time.Time) error
+	SetDateRange(ctx context.Context, id int64, startDate, endDate timezone.Date) error
 }
 
 // ProfileRepository defines operations for managing profiles
@@ -372,9 +398,22 @@ type PersonGuardianRepository interface {
 }
 
 // StudentGuardianRepository defines operations for managing student-guardian relationships
+// GuardianEmergencyContactRow is one (guardian, phone number) projection row
+// for the emergency contact list; the consumer aggregates rows per student.
+type GuardianEmergencyContactRow struct {
+	StudentID   int64          `bun:"student_id"`
+	FirstName   sql.NullString `bun:"first_name"`
+	LastName    sql.NullString `bun:"last_name"`
+	PhoneNumber sql.NullString `bun:"phone_number"`
+}
+
 type StudentGuardianRepository interface {
 	// Create inserts a new student-guardian relationship into the database
 	Create(ctx context.Context, relationship *StudentGuardian) error
+
+	// ListEmergencyContactRows returns guardian/phone rows for the given
+	// students, emergency contacts and primary entries first.
+	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]GuardianEmergencyContactRow, error)
 
 	// FindByID retrieves a relationship by its ID
 	FindByID(ctx context.Context, id interface{}) (*StudentGuardian, error)
@@ -434,6 +473,14 @@ type StudentGuardianRepository interface {
 	UpdatePermissions(ctx context.Context, id int64, permissions string) error
 }
 
+// StudentRetentionSetting is the projection used by the GDPR visit-cleanup
+// worklist: one row per distinct (student, retention-days) pair with an
+// accepted privacy consent.
+type StudentRetentionSetting struct {
+	StudentID         int64 `bun:"student_id"`
+	DataRetentionDays int   `bun:"data_retention_days"`
+}
+
 // PrivacyConsentRepository defines operations for managing privacy consents
 type PrivacyConsentRepository interface {
 	// Create inserts a new privacy consent into the database
@@ -480,6 +527,11 @@ type PrivacyConsentRepository interface {
 
 	// UpdateDetails updates the details for a privacy consent
 	UpdateDetails(ctx context.Context, id int64, details string) error
+
+	// ListAcceptedRetentionSettings returns the distinct (student_id,
+	// data_retention_days) pairs of accepted privacy consents, ordered by
+	// student_id. Feeds the GDPR visit-cleanup worklist.
+	ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)
 }
 
 // GuardianProfileRepository defines operations for managing guardian profiles

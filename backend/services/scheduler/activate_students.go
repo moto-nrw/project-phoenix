@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -16,8 +17,8 @@ import (
 // import the full users repository package, matching the opt-in shape used by
 // instanceRepo (overdue tick) and timetableCleanup (GDPR cleanup).
 type StudentLifecycleRepository interface {
-	FindPendingDueForActivation(ctx context.Context, asOf time.Time) ([]*userModels.Student, error)
-	FindActiveDueForDeactivation(ctx context.Context, asOf time.Time) ([]*userModels.Student, error)
+	FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
+	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*userModels.Student, error)
 	UpdateStatus(ctx context.Context, studentID int64, newStatus userModels.StudentStatus) error
 }
 
@@ -135,7 +136,7 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 // same day is a no-op after the first pass. Per-row failures are logged and
 // skipped so a single bad row doesn't stall the batch.
 func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID int64, now time.Time) {
-	asOf := civilDateUTC(now)
+	asOf := timezone.DateFromTime(now)
 
 	pending, err := s.studentLifecycleRepo.FindPendingDueForActivation(ctx, asOf)
 	if err != nil {

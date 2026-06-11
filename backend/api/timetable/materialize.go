@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -82,8 +83,8 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 
 	rs.getLogger().Info("manual materialization requested",
 		slog.Int64("tenant_id", tenant.FromContext(r.Context())),
-		slog.String("from", from.Format(dateLayout)),
-		slog.String("to", to.Format(dateLayout)),
+		slog.String("from", from.String()),
+		slog.String("to", to.String()),
 	)
 
 	result, err := rs.materializationService.MaterializeForTenant(
@@ -100,8 +101,8 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := materializeResponse{
-		From:                        result.From.Format(dateLayout),
-		To:                          result.To.Format(dateLayout),
+		From:                        result.From.String(),
+		To:                          result.To.String(),
 		InstancesCreated:            result.InstancesCreated,
 		CandidatesSkippedExisting:   result.CandidatesSkippedExisting,
 		CandidatesSkippedException:  result.CandidatesSkippedException,
@@ -125,7 +126,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 //   - Both present → parse as YYYY-MM-DD civil dates; reject if from > to
 //     or the span exceeds 56 days (8 weeks).
 //   - Only one present → 400 (ambiguous, don't guess).
-func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from, to time.Time, err error) {
+func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from, to timezone.Date, err error) {
 	bothNil := req.FromDate == nil && req.ToDate == nil
 	bothSet := req.FromDate != nil && req.ToDate != nil
 
@@ -134,7 +135,7 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 		// ResolveWindow is wired via the scheduleSvc package to keep the rule in
 		// one place, but at the HTTP layer we don't want to instantiate a service
 		// just to compute it; re-derive it inline with the same formula.
-		d := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		d := timezone.DateFromTime(now)
 		var delta int
 		switch d.Weekday() {
 		case time.Sunday:
@@ -144,30 +145,29 @@ func resolveMaterializationWindow(req *materializeRequest, now time.Time) (from,
 		default:
 			delta = int(time.Saturday-d.Weekday()) + 2
 		}
-		from = d.AddDate(0, 0, delta)
-		to = from.AddDate(0, 0, 6)
+		from = d.AddDays(delta)
+		to = from.AddDays(6)
 		return from, to, nil
 	}
 
 	if !bothSet {
-		return time.Time{}, time.Time{}, errors.New("from_date and to_date must both be present or both omitted")
+		return timezone.Date{}, timezone.Date{}, errors.New("from_date and to_date must both be present or both omitted")
 	}
 
-	from, err = time.Parse(dateLayout, *req.FromDate)
+	from, err = timezone.ParseDate(*req.FromDate)
 	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid from_date: expected YYYY-MM-DD")
+		return timezone.Date{}, timezone.Date{}, errors.New("invalid from_date: expected YYYY-MM-DD")
 	}
-	to, err = time.Parse(dateLayout, *req.ToDate)
+	to, err = timezone.ParseDate(*req.ToDate)
 	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid to_date: expected YYYY-MM-DD")
+		return timezone.Date{}, timezone.Date{}, errors.New("invalid to_date: expected YYYY-MM-DD")
 	}
 
 	if to.Before(from) {
-		return time.Time{}, time.Time{}, errors.New("to_date must not be before from_date")
+		return timezone.Date{}, timezone.Date{}, errors.New("to_date must not be before from_date")
 	}
-	days := int(to.Sub(from)/(24*time.Hour)) + 1
-	if days > scheduleSvc.MaxMaterializationWindowDays {
-		return time.Time{}, time.Time{}, errors.New("window exceeds 56 days (8 weeks)")
+	if from.DaysUntil(to)+1 > scheduleSvc.MaxMaterializationWindowDays {
+		return timezone.Date{}, timezone.Date{}, errors.New("window exceeds 56 days (8 weeks)")
 	}
 	return from, to, nil
 }

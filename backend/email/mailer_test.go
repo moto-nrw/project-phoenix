@@ -128,7 +128,7 @@ func TestMockMailer_NewMockMailer(t *testing.T) {
 
 	assert.NotNil(t, mailer)
 	assert.NotNil(t, mailer.SendFn)
-	assert.False(t, mailer.SendInvoked)
+	assert.False(t, mailer.SendInvoked.Load())
 }
 
 func TestMockMailer_Send(t *testing.T) {
@@ -143,7 +143,7 @@ func TestMockMailer_Send(t *testing.T) {
 	err := mailer.Send(msg)
 
 	assert.NoError(t, err)
-	assert.True(t, mailer.SendInvoked)
+	assert.True(t, mailer.SendInvoked.Load())
 }
 
 func TestMockMailer_CustomSendFn(t *testing.T) {
@@ -177,7 +177,7 @@ func TestMockMailer_SendFnReturnsError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
-	assert.True(t, mailer.SendInvoked)
+	assert.True(t, mailer.SendInvoked.Load())
 }
 
 // =============================================================================

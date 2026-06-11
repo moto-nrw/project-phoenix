@@ -455,8 +455,8 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 			ID:                        strconv.FormatInt(p.ID, 10),
 			Name:                      p.Name,
 			Kind:                      p.Kind,
-			ServiceStartDate:          p.ServiceStartDate.Format("2006-01-02"),
-			ServiceEndDate:            p.ServiceEndDate.Format("2006-01-02"),
+			ServiceStartDate:          p.ServiceStartDate.String(),
+			ServiceEndDate:            p.ServiceEndDate.String(),
 			ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
 			CareOfferingSelectionMode: p.CareOfferingSelectionMode,
 		}

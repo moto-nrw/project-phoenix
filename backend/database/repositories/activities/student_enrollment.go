@@ -4,9 +4,9 @@ package activities
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -165,7 +165,7 @@ func (r *StudentEnrollmentRepository) CountByGroupID(ctx context.Context, groupI
 }
 
 // FindByValidFromRange finds enrollments within a valid_from date range
-func (r *StudentEnrollmentRepository) FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*activities.StudentEnrollment, error) {
+func (r *StudentEnrollmentRepository) FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&enrollments).

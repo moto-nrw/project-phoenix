@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ======== Supervisor Methods ========
@@ -98,20 +97,11 @@ func (s *Service) unsetPrimarySupervisorsInTx(ctx context.Context, txService Act
 
 // validateStaffExists checks if a staff member exists before creating supervisor
 func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error {
-	queryDB := bun.IDB(s.db)
-	if tx, ok := base.TxFromContext(ctx); ok && tx != nil {
-		queryDB = *tx
-	}
-
-	exists, err := queryDB.NewSelect().
-		TableExpr("users.staff").
-		Where("id = ?", staffID).
-		Exists(ctx)
-	if err != nil {
+	if _, err := s.staffRepo.FindByID(ctx, staffID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrStaffNotFound
+		}
 		return &ActivityError{Op: "validate staff", Err: err}
-	}
-	if !exists {
-		return ErrStaffNotFound
 	}
 	return nil
 }

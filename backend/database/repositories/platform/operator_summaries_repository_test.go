@@ -331,6 +331,36 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 		assert.NotNil(t, rows, "must return [] not nil so JSON encodes as array")
 		assert.Empty(t, rows, "soft-deleted school must not surface its persons")
 	})
+
+	t.Run("is_staff ignores soft-deleted staff rows", func(t *testing.T) {
+		bg := context.Background()
+		var staffID int64
+		err := db.QueryRowContext(bg,
+			`INSERT INTO users.staff (person_id, tenant_id, created_at, updated_at)
+			 VALUES (?, ?, NOW(), NOW()) RETURNING id`,
+			fix.PersonA1.ID, fix.SchoolA1.ID).Scan(&staffID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(bg, `DELETE FROM users.staff WHERE id = ?`, staffID)
+		})
+
+		isStaff := func() bool {
+			rows, listErr := repo.PersonsBySchool(ctx, fix.SchoolA1.ID)
+			require.NoError(t, listErr)
+			for _, p := range rows {
+				if p.ID == fix.PersonA1.ID {
+					return p.IsStaff
+				}
+			}
+			require.FailNow(t, "person not found in school person list")
+			return false
+		}
+		assert.True(t, isStaff(), "live staff row must mark the person as staff")
+
+		_, err = db.ExecContext(bg, `UPDATE users.staff SET deleted_at = NOW() WHERE id = ?`, staffID)
+		require.NoError(t, err)
+		assert.False(t, isStaff(), "soft-deleted (offboarded) staff row must not mark the person as staff")
+	})
 }
 
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {

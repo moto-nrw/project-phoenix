@@ -6,7 +6,53 @@ import {
   calculateDuration,
   formatDuration,
   getStartDateForTimeRange,
+  toISODate,
+  parseISODate,
+  todayISO,
 } from "./date-helpers";
+
+describe("toISODate", () => {
+  it("serializes a Date using LOCAL calendar fields", () => {
+    const d = new Date(2026, 5, 10); // June 10, 2026 local midnight
+    expect(toISODate(d)).toBe("2026-06-10");
+  });
+
+  it("keeps the local calendar date at 23:30 local time", () => {
+    // 23:30 local — toISOString() would already be on the next UTC day
+    // east of UTC (Berlin), but the LOCAL calendar date must not change.
+    const d = new Date(2026, 0, 15, 23, 30);
+    expect(toISODate(d)).toBe("2026-01-15");
+  });
+
+  it("pads single-digit month and day", () => {
+    const d = new Date(2026, 2, 5);
+    expect(toISODate(d)).toBe("2026-03-05");
+  });
+});
+
+describe("parseISODate", () => {
+  it("parses to LOCAL midnight", () => {
+    const d = parseISODate("2026-06-10");
+    expect(d.getFullYear()).toBe(2026);
+    expect(d.getMonth()).toBe(5);
+    expect(d.getDate()).toBe(10);
+    expect(d.getHours()).toBe(0);
+    expect(d.getMinutes()).toBe(0);
+  });
+
+  it("roundtrips toISODate(parseISODate(s)) === s", () => {
+    for (const s of ["2026-01-01", "2026-06-10", "2025-12-31", "2024-02-29"]) {
+      expect(toISODate(parseISODate(s))).toBe(s);
+    }
+  });
+});
+
+describe("todayISO", () => {
+  it("returns today's local calendar date as YYYY-MM-DD", () => {
+    expect(todayISO()).toBe(toISODate(new Date()));
+    expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
 
 describe("groupByDate", () => {
   it("groups items by date in descending order (newest first)", () => {
@@ -101,6 +147,19 @@ describe("formatDate", () => {
     const result = formatDate("2023-12-25T00:00:00Z");
 
     expect(result).toMatch(/\d{1,2}\.\d{1,2}\.\d{4}/);
+  });
+
+  it("renders a date-only string ('YYYY-MM-DD') as the same German calendar date", () => {
+    // Date-only input must route through parseISODate (local midnight),
+    // never through new Date("YYYY-MM-DD") (UTC midnight).
+    expect(formatDate("2026-06-10")).toBe("10.06.2026");
+  });
+
+  it("renders a date-only string with weekday without day shift", () => {
+    const result = formatDate("2026-06-10", true);
+
+    expect(result).toContain("Mittwoch");
+    expect(result).toContain("10. Juni 2026");
   });
 });
 

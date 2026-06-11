@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -85,7 +86,7 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 
 func autoStartInstance(id int64, status string, startHour, startMinute, endHour, endMinute int) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC),
+		Date:      timezone.NewDate(2026, 4, 20),
 		Title:     "Auto-start test",
 		StartTime: time.Date(1, 1, 1, startHour, startMinute, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, endHour, endMinute, 0, 0, time.UTC),
@@ -118,13 +119,13 @@ func (r *autoStartInstanceRepo) Delete(context.Context, any) error {
 func (r *autoStartInstanceRepo) List(context.Context, *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
 }
-func (r *autoStartInstanceRepo) FindByTenantAndDateRange(context.Context, time.Time, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (r *autoStartInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (r *autoStartInstanceRepo) FindByActiveGroupID(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
@@ -157,7 +158,7 @@ func (r *autoStartStaffRepo) List(context.Context, *base.QueryOptions) ([]*sched
 func (r *autoStartStaffRepo) FindByInstanceID(context.Context, int64) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
-func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, time.Time) ([]*scheduleModel.InstanceStaff, error) {
+func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
 func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids []int64) (map[int64]int, error) {
@@ -166,6 +167,9 @@ func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids 
 }
 func (r *autoStartStaffRepo) DeleteByInstanceID(context.Context, int64) error {
 	return nil
+}
+func (r *autoStartStaffRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
 }
 
 type autoStartInstanceStarter struct {
@@ -191,7 +195,7 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64) (*scheduleMode
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) ReplanWeek(context.Context, time.Time, time.Time) (*ReplanWeekResult, error) {
+func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date) (*ReplanWeekResult, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
@@ -199,4 +203,30 @@ func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) 
 }
 func (s *autoStartInstanceStarter) UpdatePlanned(context.Context, int64, UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
+}
+
+// Stubs for the issue #585 cleanup refactor interface additions — unused by
+// the auto-start tests.
+func (r *autoStartInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) CountWithOptions(context.Context, *base.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (r *autoStartInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -328,7 +329,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 		enrollment1 := &activities.StudentEnrollment{
 			StudentID:       student1.ID,
 			ActivityGroupID: group.ID,
-			ValidFrom:       time.Now(),
+			ValidFrom:       timezone.TodayDate(),
 		}
 		enrollment1.SetTenantID(1)
 		_, _ = db.NewInsert().
@@ -339,7 +340,7 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 		enrollment2 := &activities.StudentEnrollment{
 			StudentID:       student2.ID,
 			ActivityGroupID: group.ID,
-			ValidFrom:       time.Now(),
+			ValidFrom:       timezone.TodayDate(),
 		}
 		enrollment2.SetTenantID(1)
 		_, _ = db.NewInsert().

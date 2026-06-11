@@ -301,33 +301,3 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 
 	return groups, nil
 }
-
-// CountWithOptions counts groups matching the query options (without pagination)
-func (r *GroupRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*education.Group)(nil)).
-		ModelTableExpr(`education.groups AS "group"`).
-		Column("group.id")
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply only filters (not pagination) for counting
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("group")
-			query = options.Filter.ApplyToQuery(query)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count with options",
-			Err: err,
-		}
-	}
-
-	return count, nil
-}

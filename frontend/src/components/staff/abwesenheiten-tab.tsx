@@ -7,6 +7,7 @@ import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { todayISO } from "~/lib/date-helpers";
 import {
   staffAbsenceService,
   type StaffAbsenceRow,
@@ -186,7 +187,7 @@ export function AbwesenheitenTab({
     [absences],
   );
   const upcoming = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     return absences.filter(
       (a) =>
         (a.status === "approved" || a.status === "reported") &&
@@ -201,7 +202,7 @@ export function AbwesenheitenTab({
             a.status === "declined" ||
             a.status === "canceled" ||
             ((a.status === "approved" || a.status === "reported") &&
-              a.date_end < new Date().toISOString().slice(0, 10)),
+              a.date_end < todayISO()),
         )
         .sort((a, b) => (a.date_start < b.date_start ? 1 : -1)),
     [absences],

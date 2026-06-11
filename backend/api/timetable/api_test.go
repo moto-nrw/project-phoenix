@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func (m *mockCalendarPeriodService) DeletePeriod(_ context.Context, id int64) er
 	return m.err
 }
 
-func (m *mockCalendarPeriodService) ShouldMaterialize(_ int, _ time.Time, _ *schedule.CalendarPeriod) bool {
+func (m *mockCalendarPeriodService) ShouldMaterialize(_ int, _ timezone.Date, _ *schedule.CalendarPeriod) bool {
 	return m.shouldMaterialize
 }
 
@@ -133,8 +134,8 @@ func newTestPeriod() *schedule.CalendarPeriod {
 	p := &schedule.CalendarPeriod{
 		Name:            "Test Period",
 		PeriodType:      schedule.PeriodTypeSchoolYear,
-		StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2025, 8, 1),
+		EndDate:         timezone.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -271,8 +272,8 @@ func TestMapPeriodToResponse(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "School Year 2025/2026",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -295,12 +296,12 @@ func TestMapPeriodToResponse(t *testing.T) {
 	})
 
 	t.Run("maps period with anchor", func(t *testing.T) {
-		anchor := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
+		anchor := timezone.NewDate(2025, 9, 1)
 		p := &schedule.CalendarPeriod{
 			Name:            "AB Week Period",
 			PeriodType:      schedule.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 2,
 			WeekCycleAnchor: &anchor,
 			IsActive:        false,
@@ -329,8 +330,8 @@ func TestListPeriods(t *testing.T) {
 		p1 := &schedule.CalendarPeriod{
 			Name:            "Period A",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -378,8 +379,8 @@ func TestGetPeriod(t *testing.T) {
 		p := &schedule.CalendarPeriod{
 			Name:            "Found Period",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -736,15 +737,15 @@ func TestUpdatePeriod(t *testing.T) {
 		anchoredPeriod := &schedule.CalendarPeriod{
 			Name:            "Anchored",
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
 		anchoredPeriod.ID = int64(42)
 		anchoredPeriod.CreatedAt = time.Now()
 		anchoredPeriod.UpdatedAt = time.Now()
-		anchorTime := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
+		anchorTime := timezone.NewDate(2025, 9, 1)
 		anchoredPeriod.WeekCycleAnchor = &anchorTime
 
 		mock := &mockCalendarPeriodService{period: anchoredPeriod}

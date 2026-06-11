@@ -2,6 +2,39 @@
  * Date and time utility functions for formatting and grouping
  */
 
+/** Matches a date-only string ("YYYY-MM-DD") as emitted for DATE columns. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
+ * NEVER derive it from toISOString() via split("T")[0] / slice(0, 10) —
+ * toISOString() returns the UTC date, one day behind Berlin between 00:00 and 02:00
+ * (enforced by oxlint rule date-safety/no-utc-date-extraction).
+ */
+export function toISODate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Parse "YYYY-MM-DD" to a Date at LOCAL midnight.
+ * `new Date("YYYY-MM-DD")` is UTC midnight (previous local day west of
+ * UTC); the numeric constructor is local and DST-safe.
+ */
+export function parseISODate(s: string): Date {
+  const y = Number(s.slice(0, 4));
+  const m = Number(s.slice(5, 7));
+  const d = Number(s.slice(8, 10));
+  return new Date(y, m - 1, d);
+}
+
+/** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
+export function todayISO(): string {
+  return toISODate(new Date());
+}
+
 /**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
@@ -49,7 +82,9 @@ export function groupByDate<T extends Record<string, unknown>>(
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
 export function formatDate(dateString: string, includeWeekday = false): string {
-  const date = new Date(dateString);
+  const date = ISO_DATE_RE.test(dateString)
+    ? parseISODate(dateString)
+    : new Date(dateString);
   if (includeWeekday) {
     return date.toLocaleDateString("de-DE", {
       weekday: "long",

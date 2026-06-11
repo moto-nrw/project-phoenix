@@ -8,6 +8,7 @@ import (
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -199,7 +200,8 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id`).
-		Where(`"staff".work_time_model_id = ?`, modelID)
+		Where(`"staff".work_time_model_id = ?`, modelID).
+		Where(`"staff".deleted_at IS NULL`)
 	if tenantID > 0 {
 		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
 	}
@@ -211,7 +213,7 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	}
 
 	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := timezone.TodayDate()
 	closeQuery := db.NewUpdate().
 		TableExpr(tableStaffWorkSchedules).
 		Set("valid_until = ?", today).
@@ -271,7 +273,8 @@ func (r *WorkTimeModelRepository) Delete(ctx context.Context, id int64) error {
 	db := repoBase.GetDB(ctx, r.db)
 	assignedQuery := db.NewSelect().
 		TableExpr(`users.staff AS "staff"`).
-		Where(`"staff".work_time_model_id = ?`, id)
+		Where(`"staff".work_time_model_id = ?`, id).
+		Where(`"staff".deleted_at IS NULL`)
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		assignedQuery = assignedQuery.Where(`"staff".tenant_id = ?`, tenantID)
 	}

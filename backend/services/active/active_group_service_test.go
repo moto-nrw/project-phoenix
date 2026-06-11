@@ -648,8 +648,8 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Supervisors Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Super", "Visor")
-		supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID, supervisor.ID)
+		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// ACT
 		result, err := service.GetActiveGroupWithSupervisors(ctx, activeGroup.ID)

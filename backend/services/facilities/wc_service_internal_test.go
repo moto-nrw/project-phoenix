@@ -24,7 +24,6 @@ func setupWCServiceInternal(t *testing.T, db *bun.DB) *wcService {
 	facilityService := NewService(
 		repoFactory.Room,
 		repoFactory.ActiveGroup,
-		db,
 	)
 
 	activityService, err := activitiesSvc.NewService(
@@ -34,7 +33,7 @@ func setupWCServiceInternal(t *testing.T, db *bun.DB) *wcService {
 		repoFactory.ActivitySupervisor,
 		repoFactory.StudentEnrollment,
 		repoFactory.ActiveGroup,
-		db,
+		repoFactory.Staff,
 	)
 	require.NoError(t, err)
 
@@ -155,7 +154,7 @@ func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 		repositories.NewFactory(db).ActivitySupervisor,
 		repositories.NewFactory(db).StudentEnrollment,
 		repositories.NewFactory(db).ActiveGroup,
-		db,
+		repositories.NewFactory(db).Staff,
 	)
 	require.NoError(t, err)
 

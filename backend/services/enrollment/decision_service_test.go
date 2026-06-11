@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -120,7 +119,7 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 			{
 				FirstName:        childFirst,
 				LastName:         childLast,
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
 			},
 		},
@@ -130,12 +129,12 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 	return res.Request.ID, res.Children[0].ID
 }
 
-func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate time.Time) {
+func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate timezone.Date) {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
 	env.sourcePhase.ServiceStartDate = serviceStartDate
 	if !env.sourcePhase.ServiceEndDate.After(serviceStartDate) {
-		env.sourcePhase.ServiceEndDate = serviceStartDate.AddDate(0, 10, 0)
+		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year, serviceStartDate.Month+10, serviceStartDate.Day)
 	}
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
@@ -492,7 +491,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 	ctx := testpkg.TenantContext(1)
 
 	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
-	startDate := timezone.TodayUTC().AddDate(0, 0, -1)
+	startDate := timezone.TodayDate().AddDays(-1)
 	setSourcePhaseServiceStartDate(t, env, startDate)
 
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
@@ -617,8 +616,8 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
 	defer func() {
@@ -657,7 +656,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 			{
 				FirstName:        "Fina",
 				LastName:         "Fixed",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},
@@ -739,7 +738,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 			{
 				FirstName:        "Lina",
 				LastName:         "Legacy",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},
@@ -787,8 +786,8 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().
@@ -826,7 +825,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 			{
 				FirstName:        "Emil",
 				LastName:         "EmptyDays",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},

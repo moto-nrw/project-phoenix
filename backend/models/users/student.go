@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -44,14 +45,14 @@ type Student struct {
 	// weekdays on which the child rides the bus. The legacy boolean bus column
 	// was dropped in migration 1.15.119; the API derives a compatibility bus
 	// flag from BusDays.HasAny() at the response boundary.
-	BusDays       BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`
-	Sick          *bool         `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
-	SickSince     *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
-	Excused       *bool         `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
-	ExcusedSince  *time.Time    `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
-	Status        StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
-	EnrolledFrom  *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
-	EnrolledUntil *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
+	BusDays       BusDays        `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`
+	Sick          *bool          `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
+	SickSince     *time.Time     `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
+	Excused       *bool          `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
+	ExcusedSince  *time.Time     `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	Status        StudentStatus  `bun:"status,notnull,default:'active'" json:"status"`
+	EnrolledFrom  *timezone.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil *timezone.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).

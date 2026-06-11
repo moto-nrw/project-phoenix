@@ -6,6 +6,7 @@ import (
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -23,8 +24,8 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2025, 8, 1),
+		EndDate:         timezone.NewDate(2026, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -48,8 +49,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -65,12 +66,12 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 
 	t.Run("creates period with week cycle anchor", func(t *testing.T) {
 		name := fmt.Sprintf("Test-Anchor-%d", time.Now().UnixNano())
-		anchor := time.Date(2025, 9, 1, 0, 0, 0, 0, time.UTC)
+		anchor := timezone.NewDate(2025, 9, 1)
 		period := &scheduleModels.CalendarPeriod{
 			Name:            name,
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 			WeekCycleAnchor: &anchor,
 			IsActive:        true,
@@ -94,8 +95,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 	t.Run("fails validation on missing name", func(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
 		period.SetTenantID(1)
@@ -110,8 +111,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Test-InvalidType-%d", time.Now().UnixNano()),
 			PeriodType:      "invalid_type",
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 1,
 		}
 		period.SetTenantID(1)
@@ -126,8 +127,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Test-BadDates-%d", time.Now().UnixNano()),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2025, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2026, 8, 1),
+			EndDate:         timezone.NewDate(2025, 7, 31),
 			WeekCycleLength: 1,
 		}
 		period.SetTenantID(1)
@@ -142,8 +143,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 		period := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Test-NoAnchor-%d", time.Now().UnixNano()),
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 7, 31),
 			WeekCycleLength: 2,
 		}
 		period.SetTenantID(1)
@@ -245,8 +246,8 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 		p2 := &scheduleModels.CalendarPeriod{
 			Name:            p2Name,
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}
@@ -290,8 +291,8 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 		inactivePeriod := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Test-Inactive-%d", suffix),
 			PeriodType:      scheduleModels.PeriodTypeSemester,
-			StartDate:       time.Date(2025, 8, 1, 0, 0, 0, 0, time.UTC),
-			EndDate:         time.Date(2026, 1, 31, 0, 0, 0, 0, time.UTC),
+			StartDate:       timezone.NewDate(2025, 8, 1),
+			EndDate:         timezone.NewDate(2026, 1, 31),
 			WeekCycleLength: 1,
 			IsActive:        false,
 		}

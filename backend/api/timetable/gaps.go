@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -82,11 +81,10 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Past dates are rejected. The gap view is a planning tool — closed days
-	// are historical record, not a gap to fill. Comparison uses Berlin-local
-	// "today" so a 23:00 UTC request still considers the local date correctly.
-	todayBerlin := timezone.DateOfUTC(time.Now())
-	fromBerlin := timezone.DateOfUTC(from)
-	if fromBerlin.Before(todayBerlin) {
+	// are historical record, not a gap to fill. Comparison uses the Berlin
+	// calendar "today" so a 23:00 UTC request still considers the local date
+	// correctly.
+	if from.Before(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
 		return
 	}
@@ -96,11 +94,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Range query is UTC-midnight aligned via DateOfUTC so the DB DATE columns
-	// match without timezone drift.
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(
-		ctx, timezone.DateOfUTC(from), timezone.DateOfUTC(to),
-	)
+	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instances failed", err))
 		return
@@ -155,7 +149,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		}
 		gaps = append(gaps, GapInstance{
 			InstanceID: inst.ID,
-			Date:       inst.Date.Format(dateLayout),
+			Date:       inst.Date.String(),
 			Title:      inst.Title,
 			StartTime:  inst.StartTime.Format("15:04"),
 			EndTime:    inst.EndTime.Format("15:04"),
@@ -178,8 +172,8 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	})
 
 	resp := GapsResponse{
-		From: from.Format(dateLayout),
-		To:   to.Format(dateLayout),
+		From: from.String(),
+		To:   to.String(),
 		Gaps: gaps,
 	}
 

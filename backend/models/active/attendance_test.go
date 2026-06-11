@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 func TestAttendance_GetID(t *testing.T) {
 	attendance := &Attendance{
 		StudentID:   1,
-		Date:        time.Now(),
+		Date:        timezone.TodayDate(),
 		CheckInTime: time.Now(),
 	}
 	attendance.ID = 123
@@ -22,7 +24,7 @@ func TestAttendance_GetCreatedAt(t *testing.T) {
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:   1,
-		Date:        now,
+		Date:        timezone.DateFromTime(now),
 		CheckInTime: now,
 	}
 	attendance.CreatedAt = now
@@ -34,7 +36,7 @@ func TestAttendance_GetUpdatedAt(t *testing.T) {
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:   1,
-		Date:        now,
+		Date:        timezone.DateFromTime(now),
 		CheckInTime: now,
 	}
 	attendance.UpdatedAt = now
@@ -51,7 +53,7 @@ func TestAttendance_IsCheckedIn_WhenCheckedIn(t *testing.T) {
 	now := time.Now()
 	attendance := &Attendance{
 		StudentID:    1,
-		Date:         now,
+		Date:         timezone.DateFromTime(now),
 		CheckInTime:  now,
 		CheckOutTime: nil, // Not checked out
 	}
@@ -65,7 +67,7 @@ func TestAttendance_IsCheckedIn_WhenCheckedOut(t *testing.T) {
 
 	attendance := &Attendance{
 		StudentID:    1,
-		Date:         now,
+		Date:         timezone.DateFromTime(now),
 		CheckInTime:  now,
 		CheckOutTime: &checkoutTime, // Checked out
 	}
@@ -77,7 +79,7 @@ func TestAttendance_IsCheckedIn_ZeroValue(t *testing.T) {
 	// Test with zero-initialized struct
 	attendance := &Attendance{
 		StudentID:    1,
-		Date:         time.Now(),
+		Date:         timezone.TodayDate(),
 		CheckInTime:  time.Now(),
 		CheckOutTime: nil,
 	}
@@ -91,7 +93,7 @@ func TestAttendance_CompleteLifecycle(t *testing.T) {
 	// Create attendance record (check-in)
 	attendance := &Attendance{
 		StudentID:    42,
-		Date:         now,
+		Date:         timezone.DateFromTime(now),
 		CheckInTime:  now,
 		CheckedInBy:  1,
 		DeviceID:     100,
@@ -156,7 +158,7 @@ func TestAttendance_MultipleRecords(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			attendance := &Attendance{
 				StudentID:    1,
-				Date:         now,
+				Date:         timezone.DateFromTime(now),
 				CheckInTime:  now,
 				CheckOutTime: tt.checkOutTime,
 			}
@@ -173,7 +175,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 	attendance := &Attendance{
 		StudentID:    42,
-		Date:         now,
+		Date:         timezone.DateFromTime(now),
 		CheckInTime:  now,
 		CheckOutTime: &checkoutTime,
 		CheckedInBy:  10,
@@ -187,7 +189,7 @@ func TestAttendance_Fields(t *testing.T) {
 	// Verify all fields
 	assert.Equal(t, int64(1), attendance.ID)
 	assert.Equal(t, int64(42), attendance.StudentID)
-	assert.Equal(t, now, attendance.Date)
+	assert.Equal(t, timezone.DateFromTime(now), attendance.Date)
 	assert.Equal(t, now, attendance.CheckInTime)
 	assert.NotNil(t, attendance.CheckOutTime)
 	assert.Equal(t, checkoutTime, *attendance.CheckOutTime)

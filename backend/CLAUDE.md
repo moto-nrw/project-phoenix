@@ -191,6 +191,17 @@ options.Filter = filter
 options.WithPagination(1, 50)
 ```
 
+## Calendar Dates: timezone.Date (MANDATORY)
+
+**Every model field mapped to a PostgreSQL `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time`.** bun converts every `time.Time` parameter to UTC before binding, so Berlin-midnight values land one day behind between 00:00 and 02:00 Berlin time — the bug class behind ~20 production fixes in H1 2026.
+
+- Today as a calendar day → `timezone.TodayDate()`; instant → calendar day → `timezone.DateFromTime(t)`; parse → `timezone.ParseDate("2026-06-10")`; serialize → `d.String()`
+- Comparisons: `==`, `Before`, `After`; arithmetic: `AddDays`, `DaysUntil` (DST-exact); TIMESTAMPTZ day bounds: `d.BerlinMidnight()` / `d.EndOfDay()`
+- Optional dates are `*timezone.Date` (NULL), never zero-Date sentinels — the zero Date binds NULL
+- `timezone.Today()`/`DateOf()` return instants for TIMESTAMPTZ boundary math only; the old `DateOfUTC`/`TodayUTC` compensation helpers are deleted
+- Enforcement: `TestDateColumnTypes` (`backend/test/calendar_date_verification_test.go`) scans migrations + models and fails CI for any `time.Time` DATE field; `forbidigo` bans `time.Time.Truncate`
+- Full guide: `.claude/rules/calendar-dates.md`
+
 ## Database Schema Organization
 
 PostgreSQL schemas separate domain concerns:

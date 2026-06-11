@@ -203,14 +203,3 @@ func TestHandleAuthorizationError_OtherError(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
-
-// =============================================================================
-// endActiveVisit Tests
-// =============================================================================
-
-func TestEndActiveVisit_NilVisit(_ *testing.T) {
-	rs := &Resource{}
-
-	// Should not panic when visit is nil
-	rs.endActiveVisit(context.Background(), nil)
-}

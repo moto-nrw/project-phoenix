@@ -330,3 +330,93 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 
 	return rooms, nil
 }
+
+// occupancyColumns adds the shared occupancy projection used by
+// FindWithOccupancy and ListWithOccupancy. Aggregates across ALL active
+// groups in the room (not a single arbitrary one) so the list and detail
+// surfaces stay consistent for multi-group rooms (#1374).
+func occupancyColumns(q *bun.SelectQuery) *bun.SelectQuery {
+	return q.
+		ColumnExpr("r.id, r.name, r.building, r.floor, r.capacity, r.category, r.color, r.created_at, r.updated_at").
+		ColumnExpr(`EXISTS (
+			SELECT 1 FROM active.groups ag
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS is_occupied`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT act_group.name, ', ' ORDER BY act_group.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS group_name`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT cat.name, ', ' ORDER BY cat.name)
+			FROM active.groups ag
+			INNER JOIN activities.groups act_group ON act_group.id = ag.group_id
+			INNER JOIN activities.categories cat ON cat.id = act_group.category_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL
+		) AS category_name`).
+		ColumnExpr(`COALESCE((
+			SELECT COUNT(DISTINCT v.student_id)
+			FROM active.visits v
+			INNER JOIN active.groups ag ON ag.id = v.active_group_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND v.exit_time IS NULL
+		), 0)::int AS student_count`).
+		ColumnExpr(`(
+			SELECT string_agg(DISTINCT CONCAT(p.first_name, ' ', p.last_name), ', ')
+			FROM active.group_supervisors gs
+			INNER JOIN active.groups ag ON ag.id = gs.group_id
+			INNER JOIN users.staff st ON st.id = gs.staff_id
+			INNER JOIN users.persons p ON p.id = st.person_id
+			WHERE ag.room_id = r.id AND ag.end_time IS NULL AND gs.end_date IS NULL
+		) AS supervisor_names`)
+}
+
+// FindWithOccupancy returns the room row plus its live occupancy aggregate.
+// Custom method (backend-conventions Rule 2): correlated subqueries over
+// active.groups / visits / supervisors that the generic shape cannot
+// express. The not-found case surfaces as a wrapped sql.ErrNoRows.
+func (r *RoomRepository) FindWithOccupancy(ctx context.Context, id int64) (*facilities.RoomOccupancyRow, error) {
+	var result facilities.RoomOccupancyRow
+	query := occupancyColumns(base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("facilities.rooms AS r")).
+		Where("r.id = ?", id)
+
+	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &result); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find room with occupancy",
+			Err: err,
+		}
+	}
+	return &result, nil
+}
+
+// ListWithOccupancy returns every room (optionally filtered) plus its live
+// occupancy aggregate, ordered by name. Same projection as
+// FindWithOccupancy so the list and detail surfaces cannot drift.
+func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBase.QueryOptions) ([]facilities.RoomOccupancyRow, error) {
+	query := occupancyColumns(base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("facilities.rooms AS r")).
+		OrderExpr("r.name ASC")
+
+	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
+		query = query.Where(where, val)
+	}
+
+	if options != nil && options.Filter != nil {
+		options.Filter.WithTableAlias("r")
+		query = options.Filter.ApplyToQuery(query)
+	}
+
+	var results []facilities.RoomOccupancyRow
+	if err := query.Scan(ctx, &results); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list rooms with occupancy",
+			Err: err,
+		}
+	}
+	return results, nil
+}
