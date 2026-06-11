@@ -447,6 +447,121 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestRequestService_Submit_DSGVODisabledDropsRequiredConsent proves that
+// switching the Datenschutz block off fully removes it: even with a
+// configured text, the required data_processing consent is no longer
+// enforced, so a submission with no consent flags succeeds.
+func TestRequestService_Submit_DSGVODisabledDropsRequiredConsent(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
+	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = false
+
+	req := validSubmission(env.phaseID)
+	req.ConsentFlags = map[string]any{}
+	_, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+}
+
+// TestRequestService_LegalTexts_DisabledBlocksAreNotRendered checks the
+// public-form view: a disabled block (here Foto) is absent from Blocks even
+// though its text is set, so the kiosk/web form renders no checkbox for it.
+func TestRequestService_LegalTexts_DisabledBlocksAreNotRendered(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
+	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = false
+	// A sibling block left on (default) confirms only the disabled one drops.
+	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
+
+	texts, err := env.svc.LegalTexts(ctx)
+	require.NoError(t, err)
+
+	keys := make([]string, 0, len(texts.Blocks))
+	for _, b := range texts.Blocks {
+		keys = append(keys, b.Key)
+	}
+	assert.NotContains(t, keys, enrollmentModels.ConsentKeyPhoto, "disabled photo block must not be rendered")
+	assert.Contains(t, keys, enrollmentModels.ConsentKeyDataProcessing, "enabled DSGVO block should still render")
+}
+
+// TestRequestService_LegalTexts_EmailContactDisabledHidesNotice covers the
+// e-mail-contact toggle: with text configured but the block switched off, the
+// notice is absent from Blocks (no checkbox / no notice rendered).
+func TestRequestService_LegalTexts_EmailContactDisabledHidesNotice(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalEmailContactText] = "E-Mail-Hinweis"
+	env.settings.boolValues[configModel.KeyEnrollmentLegalEmailContactEnabled] = false
+
+	texts, err := env.svc.LegalTexts(ctx)
+	require.NoError(t, err)
+
+	keys := make([]string, 0, len(texts.Blocks))
+	for _, b := range texts.Blocks {
+		keys = append(keys, b.Key)
+	}
+	assert.NotContains(t, keys, enrollmentModels.ConsentKeyEmailContact, "disabled e-mail-contact notice must not be rendered")
+}
+
+// TestRequestService_LegalTexts_DefaultOnRendersWithoutOverride proves the
+// default-on contract for the new toggles: with only the text configured and
+// no toggle override, the block still renders (existing tenants unaffected).
+func TestRequestService_LegalTexts_DefaultOnRendersWithoutOverride(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentLegalEmailContactText] = "E-Mail-Hinweis"
+
+	texts, err := env.svc.LegalTexts(ctx)
+	require.NoError(t, err)
+
+	keys := make([]string, 0, len(texts.Blocks))
+	for _, b := range texts.Blocks {
+		keys = append(keys, b.Key)
+	}
+	assert.Contains(t, keys, enrollmentModels.ConsentKeyEmailContact, "default-on block should render when text is set and no override exists")
+}
+
+// TestRequestService_LegalTexts_BlockToggleResolveFailureFailsClosed proves
+// the per-block toggle helper fails closed: a ResolveBool error surfaces as a
+// server error, not a silently-rendered block.
+func TestRequestService_LegalTexts_BlockToggleResolveFailureFailsClosed(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Override present (so HasTenantOverride is true), but resolving it errors.
+	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
+	env.settings.boolErrors[configModel.KeyEnrollmentLegalDSGVOEnabled] = errors.New("bad bool setting")
+
+	_, err := env.svc.LegalTexts(ctx)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "resolve legal block toggle")
+}
+
+// TestRequestService_LegalTexts_BlockToggleOverrideCheckFailureFailsClosed
+// proves the helper fails closed when the override existence check itself
+// errors (settings DB unavailable).
+func TestRequestService_LegalTexts_BlockToggleOverrideCheckFailureFailsClosed(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.hasErrors[configModel.KeyEnrollmentLegalPhotoEnabled] = errors.New("settings db unavailable")
+
+	_, err := env.svc.LegalTexts(ctx)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "check legal block toggle")
+}
+
 // Regression for issue #1465: a guardian phone that fails the canonical
 // student phone format (e.g. "12345") must be rejected at submit with
 // ErrInvalidGuardianPhone, instead of being stored and later blocking

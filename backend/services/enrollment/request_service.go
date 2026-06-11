@@ -190,8 +190,14 @@ type LegalTexts struct {
 	DSGVO        string
 	EmailContact string
 	Photo        string
-	TermsEnabled bool
-	Blocks       []LegalBlock
+	// TermsEnabled mirrors enrollment.legal_terms_enabled (AGB, opt-in,
+	// default off). The remaining three flags mirror their per-block toggles
+	// (default on); when false the block is neither rendered nor required.
+	TermsEnabled        bool
+	DSGVOEnabled        bool
+	EmailContactEnabled bool
+	PhotoEnabled        bool
+	Blocks              []LegalBlock
 }
 
 // LegalBlock is one configured legal row shown on the public enrollment
@@ -1079,12 +1085,27 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, err
 	}
+	dsgvoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalDSGVOEnabled)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	emailContactEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalEmailContactEnabled)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	photoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalPhotoEnabled)
+	if err != nil {
+		return LegalTexts{}, err
+	}
 	texts := LegalTexts{
-		AGB:          strings.TrimSpace(agb),
-		DSGVO:        strings.TrimSpace(dsgvo),
-		EmailContact: strings.TrimSpace(emailContact),
-		Photo:        strings.TrimSpace(photo),
-		TermsEnabled: termsEnabled,
+		AGB:                 strings.TrimSpace(agb),
+		DSGVO:               strings.TrimSpace(dsgvo),
+		EmailContact:        strings.TrimSpace(emailContact),
+		Photo:               strings.TrimSpace(photo),
+		TermsEnabled:        termsEnabled,
+		DSGVOEnabled:        dsgvoEnabled,
+		EmailContactEnabled: emailContactEnabled,
+		PhotoEnabled:        photoEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
 	return texts, nil
@@ -1102,7 +1123,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Required: true,
 		})
 	}
-	if texts.DSGVO != "" {
+	if texts.DSGVOEnabled && texts.DSGVO != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:      enrollmentModels.ConsentKeyDataProcessing,
 			Kind:     "privacy_notice",
@@ -1112,7 +1133,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Required: true,
 		})
 	}
-	if texts.Photo != "" {
+	if texts.PhotoEnabled && texts.Photo != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:      enrollmentModels.ConsentKeyPhoto,
 			Kind:     "consent",
@@ -1122,7 +1143,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Required: false,
 		})
 	}
-	if texts.EmailContact != "" {
+	if texts.EmailContactEnabled && texts.EmailContact != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:      enrollmentModels.ConsentKeyEmailContact,
 			Kind:     "notice",
@@ -1153,6 +1174,30 @@ func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
 	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
 	if err != nil {
 		return false, fmt.Errorf("resolve AGB terms setting: %w", err)
+	}
+	return v, nil
+}
+
+// legalBlockEnabled reports whether one of the default-on legal blocks
+// (Datenschutz, E-Mail-Hinweis, Foto) is switched on for the tenant. These
+// default ON: a missing override means enabled, so existing tenants keep
+// seeing a block whenever its text is configured. Settings errors fail closed
+// because this decides whether a (potentially required) legal block is
+// rendered and enforced.
+func (s *requestService) legalBlockEnabled(ctx context.Context, key string) (bool, error) {
+	if s.settings == nil {
+		return true, nil
+	}
+	has, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		return false, fmt.Errorf("check legal block toggle %q override: %w", key, err)
+	}
+	if !has {
+		return true, nil
+	}
+	v, err := s.settings.ResolveBool(ctx, key)
+	if err != nil {
+		return false, fmt.Errorf("resolve legal block toggle %q: %w", key, err)
 	}
 	return v, nil
 }

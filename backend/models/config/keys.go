@@ -200,6 +200,14 @@ const (
 	// mandatory "AGB akzeptieren" checkbox. Schools that incorporate terms
 	// switch this on and fill in enrollment.legal_agb_text.
 	KeyEnrollmentLegalTermsEnabled = "enrollment.legal_terms_enabled"
+	// Per-block visibility toggles for the remaining three legal blocks.
+	// Default ON: a block is shown (and, for required blocks, enforced)
+	// whenever its text is configured, unless an admin explicitly switches
+	// it off — then it is neither rendered nor required on the public form.
+	// AGB is the exception above (opt-in, default off).
+	KeyEnrollmentLegalDSGVOEnabled        = "enrollment.legal_dsgvo_enabled"
+	KeyEnrollmentLegalEmailContactEnabled = "enrollment.legal_email_contact_enabled"
+	KeyEnrollmentLegalPhotoEnabled        = "enrollment.legal_photo_enabled"
 )
 
 // Enrollment select-option values.

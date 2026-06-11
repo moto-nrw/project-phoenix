@@ -460,17 +460,16 @@ func registerEnrollmentLegalTexts() {
 		},
 	})
 
+	// Datenschutz block: a master toggle (default ON) plus its text. Unlike
+	// AGB, this block is shown by default so existing tenants that filled in
+	// a Datenschutz text keep seeing it. Switching the toggle off removes the
+	// block entirely — it is neither rendered nor required on the public form.
 	config.Register(config.Definition{
-		Key:   config.KeyEnrollmentLegalDSGVOText,
-		Label: "Datenschutzinformation (Anmeldeformular)",
-		// Wording note: enrollment data is processed on a contractual /
-		// legal-obligation basis, NOT on consent. The form therefore asks
-		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
-		// not collect a DSGVO "Einwilligung". Keep this description aligned
-		// with the acknowledgement label rendered on the public form.
-		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Leer lassen, wenn kein separater Datenschutz-Block im Formular angezeigt werden soll.",
-		Type:            config.FieldTextarea,
-		Default:         "",
+		Key:             config.KeyEnrollmentLegalDSGVOEnabled,
+		Label:           "Datenschutzinformation abfragen",
+		Description:     "Blendet im Anmeldeformular einen verpflichtenden Datenschutz-Block ein, den Eltern zur Kenntnis nehmen. Standardmäßig aktiv. Deaktivieren, um den Block vollständig auszublenden — dann muss er nicht angeklickt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "enrollment",
@@ -480,9 +479,14 @@ func registerEnrollmentLegalTexts() {
 	})
 
 	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentLegalEmailContactText,
-		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
-		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt (Rückfragen, Status-Benachrichtigungen). Markdown wird unterstützt. Wird im Formular als Hinweis angezeigt — keine separate Zustimmung, da der E-Mail-Kontakt zur Durchführung der Anmeldung erforderlich ist. Leer lassen, um den Hinweis auszublenden.",
+		Key:   config.KeyEnrollmentLegalDSGVOText,
+		Label: "Datenschutzinformation (Anmeldeformular)",
+		// Wording note: enrollment data is processed on a contractual /
+		// legal-obligation basis, NOT on consent. The form therefore asks
+		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
+		// not collect a DSGVO "Einwilligung". Keep this description aligned
+		// with the acknowledgement label rendered on the public form.
+		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Nur sichtbar, wenn „Datenschutzinformation abfragen“ aktiviert ist.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -490,20 +494,76 @@ func registerEnrollmentLegalTexts() {
 		Tab:             "enrollment",
 		Category:        "rechtstexte",
 		SortOrder:       82,
-		DependsOn:       dependsOnEnabled,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentLegalDSGVOEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
+	// E-Mail-Kontakt notice: master toggle (default ON) plus its text.
 	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentLegalPhotoText,
-		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
-		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
-		Type:            config.FieldTextarea,
-		Default:         "",
+		Key:             config.KeyEnrollmentLegalEmailContactEnabled,
+		Label:           "Hinweis zum E-Mail-Kontakt anzeigen",
+		Description:     "Blendet im Anmeldeformular einen Hinweis ein, wozu die Schule die E-Mail-Adresse nutzt. Standardmäßig aktiv. Deaktivieren, um den Hinweis vollständig auszublenden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "enrollment",
 		Category:        "rechtstexte",
 		SortOrder:       83,
 		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalEmailContactText,
+		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
+		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt (Rückfragen, Status-Benachrichtigungen). Markdown wird unterstützt. Wird im Formular als Hinweis angezeigt — keine separate Zustimmung, da der E-Mail-Kontakt zur Durchführung der Anmeldung erforderlich ist. Nur sichtbar, wenn „Hinweis zum E-Mail-Kontakt anzeigen“ aktiviert ist.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       84,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentLegalEmailContactEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
+	// Fotoeinwilligung block: master toggle (default ON) plus its text.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalPhotoEnabled,
+		Label:           "Fotoeinwilligung abfragen",
+		Description:     "Blendet im Anmeldeformular eine (freiwillige, jederzeit widerrufbare) Fotoeinwilligung ein. Standardmäßig aktiv. Deaktivieren, um den Block vollständig auszublenden — dann muss er nicht angeklickt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       85,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalPhotoText,
+		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
+		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Nur sichtbar, wenn „Fotoeinwilligung abfragen“ aktiviert ist.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       86,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentLegalPhotoEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 }

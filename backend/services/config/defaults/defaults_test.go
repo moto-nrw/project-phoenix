@@ -457,17 +457,19 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 // multi-line editor for a full legal page), default to empty (so the
 // public form falls back to a plain consent label until an admin fills
 // them in), and use the stricter config:manage write permission
-// (legal/GDPR documents). The DSGVO, E-Mail and Foto texts hide behind
-// the enrollment.enabled master toggle; the AGB text instead hides
-// behind enrollment.legal_terms_enabled, since AGB is opt-in per Träger.
+// (legal/GDPR documents). Each text hides behind its own per-block toggle:
+// AGB behind enrollment.legal_terms_enabled, Datenschutz/E-Mail/Foto behind
+// their respective *_enabled toggles, so switching a block off also hides
+// its editor.
 func TestEnrollmentLegalTexts(t *testing.T) {
-	keys := []string{
-		config.KeyEnrollmentLegalAGBText,
-		config.KeyEnrollmentLegalDSGVOText,
-		config.KeyEnrollmentLegalEmailContactText,
-		config.KeyEnrollmentLegalPhotoText,
+	// Each legal text is gated by its own per-block toggle.
+	textToggleParent := map[string]string{
+		config.KeyEnrollmentLegalAGBText:          config.KeyEnrollmentLegalTermsEnabled,
+		config.KeyEnrollmentLegalDSGVOText:        config.KeyEnrollmentLegalDSGVOEnabled,
+		config.KeyEnrollmentLegalEmailContactText: config.KeyEnrollmentLegalEmailContactEnabled,
+		config.KeyEnrollmentLegalPhotoText:        config.KeyEnrollmentLegalPhotoEnabled,
 	}
-	for _, key := range keys {
+	for key, wantParent := range textToggleParent {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should be registered", key)
 		assert.Equalf(t, config.FieldTextarea, def.Type, "setting %q should be textarea", key)
@@ -478,13 +480,36 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
 		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
 		require.NotNilf(t, def.DependsOn, "setting %q must declare a DependsOn parent", key)
-		// AGB is opt-in: its text is only shown once a Träger turns on the
-		// terms toggle. The remaining legal texts gate on the master flag.
-		wantParent := config.KeyEnrollmentEnabled
-		if key == config.KeyEnrollmentLegalAGBText {
-			wantParent = config.KeyEnrollmentLegalTermsEnabled
-		}
 		assert.Equalf(t, wantParent, def.DependsOn.Key, "setting %q has unexpected DependsOn parent", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+}
+
+// TestEnrollmentLegalBlockToggles guards the three default-ON per-block
+// visibility toggles (Datenschutz, E-Mail-Hinweis, Foto). They are boolean,
+// default true (so existing tenants keep showing a block whenever its text is
+// configured), use config:manage, and themselves hide behind the
+// enrollment.enabled master flag. AGB has its own opt-in toggle
+// (TestEnrollmentLegalTermsEnabled) and is intentionally not in this set.
+func TestEnrollmentLegalBlockToggles(t *testing.T) {
+	keys := []string{
+		config.KeyEnrollmentLegalDSGVOEnabled,
+		config.KeyEnrollmentLegalEmailContactEnabled,
+		config.KeyEnrollmentLegalPhotoEnabled,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should be registered", key)
+		assert.Equalf(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equalf(t, true, def.Default, "setting %q should default to true (shown unless turned off)", key)
+		assert.Equalf(t, "enrollment", def.Tab, "setting %q should be in enrollment tab", key)
+		assert.Equalf(t, "rechtstexte", def.Category, "setting %q should be in rechtstexte category", key)
+		assert.Equalf(t, "config:manage", def.WritePermission, "setting %q should use config:manage (legal/GDPR)", key)
+		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
+		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
+		require.NotNilf(t, def.DependsOn, "setting %q must hide behind enrollment.enabled", key)
+		assert.Equalf(t, config.KeyEnrollmentEnabled, def.DependsOn.Key, "setting %q should depend on enrollment.enabled", key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
