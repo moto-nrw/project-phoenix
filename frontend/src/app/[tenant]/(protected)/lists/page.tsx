@@ -1016,7 +1016,7 @@ export default function SlotListsPage() {
               size="sm"
               isLoading={isExporting}
               loadingText="Erstelle PDF…"
-              disabled={isLoading || !result}
+              disabled={isExporting || isLoading || !result}
               onClick={() => void handleExport("pdf", "print")}
               className="gap-2"
             >

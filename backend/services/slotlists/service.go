@@ -2,6 +2,8 @@ package slotlists
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -423,7 +425,10 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 	entries := []mergedEntry{}
 	for _, inst := range instances {
 		slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
-		roomName := s.lookupRoomName(ctx, inst.RoomID, roomCache)
+		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
+		if err != nil {
+			return nil, err
+		}
 		result.Slots = append(result.Slots, Slot{
 			InstanceID: inst.ID,
 			Title:      inst.Title,
@@ -452,7 +457,7 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 				SlotLabel:     slotLabel,
 				RoomName:      roomName,
 				Planned:       true,
-				Present:       presentSet[row.StudentID],
+				Present:       presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent,
 				PlannedStatus: row.Status,
 			})
 		}
@@ -477,20 +482,27 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 
 // lookupRoomName resolves a room's display name, cached per build. A missing
 // room is non-fatal (room grouping just shows the "Ohne Raum" bucket).
-func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[int64]string) string {
+func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[int64]string) (string, error) {
 	if roomID == 0 {
-		return ""
+		return "", nil
 	}
 	if name, ok := cache[roomID]; ok {
-		return name
+		return name, nil
 	}
 	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil || room == nil {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			cache[roomID] = ""
+			return "", nil
+		}
+		return "", fmt.Errorf("lookup room %d: %w", roomID, err)
+	}
+	if room == nil {
 		cache[roomID] = ""
-		return ""
+		return "", nil
 	}
 	cache[roomID] = room.Name
-	return room.Name
+	return room.Name, nil
 }
 
 // loadPresentStudents returns the set of students with a visit that overlaps

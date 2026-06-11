@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -54,11 +55,27 @@ func (failingSlotListSettings) ResolveString(context.Context, string) (string, e
 	return "", errors.New("settings unavailable")
 }
 
+type failingRoomRepo struct {
+	err error
+}
+
+func (r failingRoomRepo) FindByID(context.Context, any) (*facilitiesModels.Room, error) {
+	return nil, r.err
+}
+
 func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotlists.Service {
 	return newTestServiceWithSettingsReader(db, settings)
 }
 
 func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
+	ResolveString(context.Context, string) (string, error)
+}) slotlists.Service {
+	return newTestServiceWithCustomRoomRepo(db, facilitiesRepo.NewRoomRepository(db), settings)
+}
+
+func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
+	FindByID(context.Context, any) (*facilitiesModels.Room, error)
+}, settings interface {
 	ResolveString(context.Context, string) (string, error)
 }) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
@@ -69,7 +86,7 @@ func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
 		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
-		RoomRepo:            facilitiesRepo.NewRoomRepository(db),
+		RoomRepo:            roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -301,6 +318,73 @@ func TestBuildList_MensaPlannedAndActualModes(t *testing.T) {
 	assert.Equal(t, 2, actual.Counters.Present)
 	require.Len(t, actual.Rows, 2)
 	assert.Nil(t, rowByStudent(actual.Rows, f.missingID), "absent child must not appear in actual mode")
+}
+
+func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
+	f := buildMensaFixture(t)
+	ctx := testpkg.TenantContext(1)
+
+	planned, err := f.svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	require.Len(t, planned.Slots, 1)
+
+	isRepo := scheduleRepo.NewInstanceStudentRepository(f.db)
+	rows, err := isRepo.FindByInstanceID(ctx, planned.Slots[0].InstanceID)
+	require.NoError(t, err)
+	patchedRow := false
+	for _, row := range rows {
+		if row.StudentID == f.missingID {
+			row.Status = scheduleModels.AttendanceStatusPresent
+			require.NoError(t, isRepo.Update(ctx, row))
+			patchedRow = true
+		}
+	}
+	require.True(t, patchedRow, "fixture must contain the planned row that will be manually marked present")
+
+	actual, err := f.svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceActual,
+	})
+	require.NoError(t, err)
+	markedPresent := rowByStudent(actual.Rows, f.missingID)
+	require.NotNil(t, markedPresent, "timetable PATCH present status must appear in Ist without requiring an active visit")
+	assert.True(t, markedPresent.Present)
+	assert.Equal(t, "Anwesend", markedPresent.StatusLabel)
+	assert.Equal(t, 3, actual.Counters.Present)
+
+	recon, err := f.svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+	markedPresent = rowByStudent(recon.Rows, f.missingID)
+	require.NotNil(t, markedPresent)
+	assert.True(t, markedPresent.Present)
+	assert.Equal(t, "Anwesend", markedPresent.StatusLabel)
+	assert.Equal(t, 0, recon.Counters.Missing)
+	assert.Equal(t, 3, recon.Counters.Present)
+}
+
+func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
+	f := buildMensaFixture(t)
+	ctx := testpkg.TenantContext(1)
+	roomErr := errors.New("room repository unavailable")
+	svc := newTestServiceWithCustomRoomRepo(f.db, failingRoomRepo{err: roomErr}, nil)
+
+	_, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, roomErr)
 }
 
 func TestBuildList_FullDayPickupCohorts(t *testing.T) {
