@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -850,4 +851,114 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	}
 
 	return results, nil
+}
+
+// ---------------------------------------------------------------------------
+// Staff write operations (issue #584: moved verbatim out of api/staff)
+// ---------------------------------------------------------------------------
+
+// CreateStaffWithTeacher creates a staff record and, when requested, a teacher
+// record in one tenant transaction. A failed teacher creation is deliberately
+// non-fatal: the staff row still persists (historical api/staff behaviour).
+func (s *personService) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	staff := &userModels.Staff{
+		PersonID:   input.PersonID,
+		StaffNotes: input.StaffNotes,
+	}
+
+	var teacher *userModels.Teacher
+	teacherCreationFailed := false
+
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.staffRepo.Create(ctx, staff); err != nil {
+			return err
+		}
+
+		if input.IsTeacher {
+			teacher = &userModels.Teacher{
+				StaffID:        staff.ID,
+				Specialization: strings.TrimSpace(input.Specialization),
+				Role:           input.Role,
+				Qualifications: input.Qualifications,
+			}
+			if s.teacherRepo.Create(ctx, teacher) != nil {
+				// Still return the staff member even if teacher creation fails
+				teacher = nil
+				teacherCreationFailed = true
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return nil, nil, false, err
+	}
+
+	return staff, teacher, teacherCreationFailed, nil
+}
+
+// UpdateStaffWithTeacher persists the (already mutated) staff row, reloads it
+// with person data, and applies the requested teacher-record change.
+// Teacher-record failures are non-fatal; the staff update always persists.
+func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error) {
+	var teacher *userModels.Teacher
+	action := TeacherActionNone
+
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.staffRepo.Update(ctx, staff); err != nil {
+			return err
+		}
+
+		// Reload staff with person data; fall back to loading the person alone.
+		if reloaded, err := s.staffRepo.FindWithPerson(ctx, staff.ID); err == nil {
+			*staff = *reloaded
+		} else if staff.Person == nil && staff.PersonID > 0 {
+			if person, err := s.personRepo.FindByID(ctx, staff.PersonID); err == nil {
+				staff.Person = person
+			}
+		}
+
+		// Existing teacher record, if any (lookup errors intentionally ignored).
+		existingTeacher, _ := s.teacherRepo.FindByStaffID(ctx, staff.ID)
+
+		if !isTeacher {
+			if existingTeacher != nil {
+				teacher = existingTeacher
+				action = TeacherActionExisting
+			}
+			return nil
+		}
+
+		if existingTeacher != nil {
+			existingTeacher.Specialization = specialization
+			existingTeacher.Role = role
+			existingTeacher.Qualifications = qualifications
+			if s.teacherRepo.Update(ctx, existingTeacher) != nil {
+				action = TeacherActionUpdateFailed
+				return nil
+			}
+			teacher = existingTeacher
+			action = TeacherActionUpdated
+			return nil
+		}
+
+		newTeacher := &userModels.Teacher{
+			StaffID:        staff.ID,
+			Specialization: specialization,
+			Role:           role,
+			Qualifications: qualifications,
+		}
+		if s.teacherRepo.Create(ctx, newTeacher) != nil {
+			action = TeacherActionCreateFailed
+			return nil
+		}
+		teacher = newTeacher
+		action = TeacherActionCreated
+		return nil
+	}); err != nil {
+		return nil, TeacherActionNone, err
+	}
+
+	return teacher, action, nil
 }

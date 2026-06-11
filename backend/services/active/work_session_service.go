@@ -179,6 +179,21 @@ type WorkSessionService interface {
 	EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) ([]byte, string, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
+
+	// Staff work-schedule operations (issue #584: moved out of api/staff).
+	// The three Get* lookups return repository results verbatim.
+	GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error)
+	GetWorkTimeModelByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
+	GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error)
+	// AssignScheduleTemplate snapshots the template's entries as the staff
+	// member's schedule and binds the template (model id + rotation anchor).
+	AssignScheduleTemplate(ctx context.Context, staff *userModels.Staff, modelID int64) error
+	// ApplyCustomScheduleRows replaces the schedule with custom rows and
+	// unbinds any assigned template.
+	ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
+	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
+	// time model and binds it to the staff member.
+	SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
 }
 
 // workSessionService implements WorkSessionService
@@ -1566,4 +1581,108 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	}
 
 	return count, nil
+}
+
+// ---------------------------------------------------------------------------
+// Staff work-schedule operations (issue #584: moved verbatim out of api/staff)
+// ---------------------------------------------------------------------------
+
+// GetStaffIDsWithSupervisionToday returns staff IDs with supervision activity today.
+func (s *workSessionService) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {
+	return s.supervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
+}
+
+// GetWorkTimeModelByID retrieves a work time model with its entries.
+func (s *workSessionService) GetWorkTimeModelByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error) {
+	return s.workModelRepo.FindByID(ctx, id)
+}
+
+// GetCurrentScheduleRows retrieves the staff member's current schedule snapshot.
+func (s *workSessionService) GetCurrentScheduleRows(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error) {
+	return s.scheduleRepo.GetCurrentByStaffID(ctx, staffID)
+}
+
+// AssignScheduleTemplate snapshots the template's entries as the staff
+// member's schedule and binds the template to the staff row.
+func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *userModels.Staff, modelID int64) error {
+	model, err := s.workModelRepo.FindByID(ctx, modelID)
+	if err != nil {
+		return fmt.Errorf("template not found: %w", err)
+	}
+
+	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write assigned schedule snapshot: %w", err)
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	anchor := model.RotationAnchorDate
+	staff.RotationAnchorDate = &anchor
+	if err := s.staffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("bind template to staff: %w", err)
+	}
+	return nil
+}
+
+// ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
+// any assigned template.
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+		return fmt.Errorf("write custom schedule: %w", err)
+	}
+
+	staff.WorkTimeModelID = nil
+	if !anchor.IsZero() {
+		staff.RotationAnchorDate = &anchor
+	}
+	if err := s.staffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("unbind template: %w", err)
+	}
+
+	return nil
+}
+
+// SaveCustomScheduleAsTemplate persists the rows as a new reusable work time
+// model and binds it to the staff member.
+func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error {
+	if anchor.IsZero() {
+		anchor = timezone.TodayDate()
+	}
+	model := &configModels.WorkTimeModel{
+		Name:               name,
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor,
+	}
+	if err := s.workModelRepo.Create(ctx, model, entries); err != nil {
+		return err
+	}
+	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+		return fmt.Errorf("write saved template schedule snapshot: %w", err)
+	}
+
+	staff.WorkTimeModelID = &model.ID
+	staff.RotationAnchorDate = &anchor
+	if err := s.staffRepo.Update(ctx, staff); err != nil {
+		return fmt.Errorf("bind freshly created template: %w", err)
+	}
+	return nil
+}
+
+// modelEntriesToScheduleRows converts work-time-model entries into schedule
+// snapshot rows, dropping non-positive target minutes.
+func modelEntriesToScheduleRows(modelEntries []*configModels.WorkTimeModelEntry, rotation int) []*configModels.StaffWorkSchedule {
+	rows := make([]*configModels.StaffWorkSchedule, 0, len(modelEntries))
+	for _, e := range modelEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		rows = append(rows, &configModels.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+		})
+	}
+	return rows
 }

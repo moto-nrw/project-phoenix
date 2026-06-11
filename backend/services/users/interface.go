@@ -129,6 +129,18 @@ type PersonService interface {
 	// CountStudentsByGroupIDs counts students per group in a single query.
 	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
+	// CreateStaffWithTeacher creates a staff record and, when requested, a
+	// teacher record in one tenant transaction. A failed teacher creation is
+	// deliberately non-fatal (teacherCreationFailed=true, teacher=nil): the
+	// staff row still persists, mirroring the historical api/staff behaviour.
+	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
+
+	// UpdateStaffWithTeacher persists the (already mutated) staff row,
+	// reloads it with person data, and applies the requested teacher-record
+	// change. Teacher-record failures are non-fatal and reported through the
+	// returned TeacherAction; the staff update always persists.
+	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
+
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
 
@@ -145,6 +157,34 @@ type PersonService interface {
 	// GetAllStudentsWithGroups retrieves all students with their group info
 	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
 }
+
+// CreateStaffInput carries the payload for CreateStaffWithTeacher.
+type CreateStaffInput struct {
+	PersonID       int64
+	StaffNotes     string
+	IsTeacher      bool
+	Specialization string
+	Role           string
+	Qualifications string
+}
+
+// TeacherAction describes the teacher-record outcome of UpdateStaffWithTeacher.
+type TeacherAction int
+
+const (
+	// TeacherActionNone — not a teacher request and no existing teacher record.
+	TeacherActionNone TeacherAction = iota
+	// TeacherActionExisting — not a teacher request, existing record untouched.
+	TeacherActionExisting
+	// TeacherActionUpdated — existing teacher record updated.
+	TeacherActionUpdated
+	// TeacherActionUpdateFailed — teacher update failed; staff update persisted.
+	TeacherActionUpdateFailed
+	// TeacherActionCreated — new teacher record created.
+	TeacherActionCreated
+	// TeacherActionCreateFailed — teacher creation failed; staff update persisted.
+	TeacherActionCreateFailed
+)
 
 // StaffOffboardingService fully offboards a staff member within a tenant:
 // soft-deletes the staff/teacher rows, cleans up planned assignments, and
