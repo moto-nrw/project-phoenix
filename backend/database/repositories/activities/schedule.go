@@ -272,3 +272,15 @@ func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryO
 
 	return schedules, nil
 }
+
+// DeleteByGroupID removes all schedules of an activity group (issue #584:
+// moved verbatim from api/timetable's template update).
+func (r *ScheduleRepository) DeleteByGroupID(ctx context.Context, groupID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	_, err := base.GetDB(ctx, r.db).NewDelete().
+		Table("activities.schedules").
+		Where("tenant_id = ?", tenantID).
+		Where("activity_group_id = ?", groupID).
+		Exec(ctx)
+	return err
+}

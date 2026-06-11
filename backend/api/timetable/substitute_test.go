@@ -18,11 +18,13 @@ import (
 	"testing"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -56,11 +58,9 @@ func buildSubSetup(t *testing.T) *subSetup {
 	substitu := testpkg.CreateTestStaff(t, db, "Sub", fmt.Sprintf("%d", suffix+1))
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		StaffRepo:            usersRepo.NewStaffRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		DB:            db,
 		// Broadcaster intentionally nil: tests do not exercise SSE.
 	})
 

@@ -101,6 +101,7 @@ type Factory struct {
 	Students             users.StudentService
 	StudentStatusDays    active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
+	TimetableData        schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 
@@ -1079,8 +1080,30 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
-		OperatorSuggestions:  operatorSuggestionsService,
-		OperatorMFA:          operatorMFAService,
+		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+			InstanceStudentRepo:    repos.InstanceStudent,
+			ActivityInstanceRepo:   repos.ActivityInstance,
+			ActivityExceptionRepo:  repos.ActivityException,
+			ActivityScheduleRepo:   repos.ActivitySchedule,
+			InstanceStaffRepo:      repos.InstanceStaff,
+			ActiveGroupRepo:        repos.ActiveGroup,
+			SupervisorRepo:         repos.GroupSupervisor,
+			ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
+			ArrivalExceptionRepo:   repos.StudentArrivalException,
+			PickupScheduleRepo:     repos.StudentPickupSchedule,
+			PickupExceptionRepo:    repos.StudentPickupException,
+			VisitRepo:              repos.ActiveVisit,
+			RoomRepo:               repos.Room,
+			ActivityCategoryRepo:   repos.ActivityCategory,
+			ActivityGroupRepo:      repos.ActivityGroup,
+			ActivitySupervisorRepo: repos.ActivitySupervisor,
+			StudentEnrollmentRepo:  repos.StudentEnrollment,
+			TimeframeRepo:          repos.Timeframe,
+			EducationGroupRepo:     repos.Group,
+			DB:                     db,
+		}),
+		OperatorSuggestions: operatorSuggestionsService,
+		OperatorMFA:         operatorMFAService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

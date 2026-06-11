@@ -4,6 +4,7 @@ package activities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -482,4 +483,201 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 	}
 
 	return groups, nil
+}
+
+// templateListSelect is the shared SELECT head of the template list read
+// model (issue #584: moved verbatim from api/timetable/templates_list.go).
+const templateListSelect = `
+		SELECT
+			g.id AS template_id,
+			g.name,
+			g.type,
+			g.category_id,
+			COALESCE(c.name, '') AS category_name,
+				g.planned_room_id AS room_id,
+				COALESCE(r.name, '') AS room_name,
+				g.education_group_id,
+				COALESCE(eg.name, '') AS education_group_name,
+				g.is_open,
+			g.max_participants,
+			COALESCE(enrollments.count, 0) AS enrollment_count,
+			COALESCE(supervisors.count, 0) AS supervisor_count,
+			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
+			COALESCE(supervisors.staff_ids, ARRAY[]::BIGINT[]) AS staff_ids,
+			supervisors.primary_staff_id,
+			s.id AS schedule_id,
+			s.weekday,
+			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
+			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
+			s.week_pattern,
+			s.calendar_period_id
+		FROM activities.groups AS g
+		INNER JOIN activities.schedules AS s
+			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id
+		LEFT JOIN schedule.timeframes AS tf
+			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
+		LEFT JOIN activities.categories AS c
+			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
+			LEFT JOIN facilities.rooms AS r
+				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
+			LEFT JOIN education.groups AS eg
+				ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id`
+
+// ListTemplateRows returns the template list read model, optionally filtered
+// to one template (issue #584: moved verbatim from api/timetable).
+func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int64) ([]activities.TemplateListRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateListRow, 0)
+	query := templateListSelect + `
+			LEFT JOIN (
+				SELECT
+					activity_group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+				FROM (
+					SELECT DISTINCT activity_group_id, student_id
+					FROM activities.student_enrollments
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+				) AS active_enrollments
+				GROUP BY activity_group_id
+			) AS enrollments ON enrollments.activity_group_id = g.id
+			LEFT JOIN (
+			SELECT
+				group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
+					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
+				FROM (
+					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
+					FROM activities.supervisors
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					GROUP BY group_id, staff_id
+				) AS active_supervisors
+				GROUP BY group_id
+			) AS supervisors ON supervisors.group_id = g.id
+		WHERE g.tenant_id = ?
+		  AND g.is_template = true
+		  AND g.archived_at IS NULL`
+	args := []any{tenantID, tenantID, tenantID}
+	if templateID != nil {
+		query += ` AND g.id = ?`
+		args = append(args, *templateID)
+	}
+	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ListTemplateRowsForPeriod is the calendar-period-filtered template list
+// (issue #584: moved verbatim from api/timetable).
+func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activities.TemplateListRow, error) {
+	tenantID := tenant.FromContext(ctx)
+	rows := make([]activities.TemplateListRow, 0)
+	peoplePeriodFilter := ""
+	if periodID != nil {
+		peoplePeriodFilter = "AND (calendar_period_id = ? OR calendar_period_id IS NULL)"
+	}
+	query := templateListSelect + `
+			LEFT JOIN (
+				SELECT
+					activity_group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
+				FROM (
+					SELECT DISTINCT activity_group_id, student_id
+					FROM activities.student_enrollments
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					  ` + peoplePeriodFilter + `
+				) AS active_enrollments
+				GROUP BY activity_group_id
+			) AS enrollments ON enrollments.activity_group_id = g.id
+		LEFT JOIN (
+			SELECT
+				group_id,
+					COUNT(*) AS count,
+					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
+					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
+				FROM (
+					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
+					FROM activities.supervisors
+					WHERE tenant_id = ?
+					  AND valid_until IS NULL
+					  ` + peoplePeriodFilter + `
+					GROUP BY group_id, staff_id
+				) AS active_supervisors
+				GROUP BY group_id
+			) AS supervisors ON supervisors.group_id = g.id
+		WHERE g.tenant_id = ?
+		  AND g.is_template = true
+		  AND g.archived_at IS NULL`
+
+	args := []any{tenantID}
+	if periodID != nil {
+		args = append(args, *periodID)
+	}
+	args = append(args, tenantID)
+	if periodID != nil {
+		args = append(args, *periodID)
+	}
+	args = append(args, tenantID)
+	if periodID != nil {
+		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
+		args = append(args, *periodID)
+	}
+	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
+
+	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// UpdateTemplateFields patches the editable fields of a non-archived template
+// (issue #584: moved verbatim from api/timetable).
+func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {
+	tenantID := tenant.FromContext(ctx)
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.groups").
+		Set("name = ?", name).
+		Set("type = ?", groupType).
+		Set("category_id = ?", categoryID).
+		Set("planned_room_id = ?", roomID).
+		Set("education_group_id = ?", educationGroupID).
+		Set("max_participants = ?", maxParticipants).
+		Set("updated_at = ?", time.Now()).
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", id).
+		Where("is_template = true").
+		Where("archived_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// ArchiveTemplate soft-deletes a non-archived template (issue #584: moved
+// verbatim from api/timetable).
+func (r *GroupRepository) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
+	tenantID := tenant.FromContext(ctx)
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.groups").
+		Set("archived_at = ?", time.Now()).
+		Set("updated_at = ?", time.Now()).
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", id).
+		Where("is_template = true").
+		Where("archived_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }

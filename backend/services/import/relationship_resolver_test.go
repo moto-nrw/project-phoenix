@@ -327,6 +327,10 @@ type mockGroupRepo struct {
 	err    error
 }
 
+func (m *mockGroupRepo) Exists(_ context.Context, _ int64) (bool, error) {
+	return false, nil
+}
+
 func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { return nil }
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil

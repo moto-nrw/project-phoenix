@@ -10,6 +10,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -300,4 +301,15 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 	}
 
 	return groups, nil
+}
+
+// Exists reports whether a group with the given ID exists in the current
+// tenant (issue #584: moved verbatim from api/timetable template validation).
+func (r *GroupRepository) Exists(ctx context.Context, id int64) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	return base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`education.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".id = ?`, id).
+		Exists(ctx)
 }

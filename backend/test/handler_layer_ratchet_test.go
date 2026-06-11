@@ -55,30 +55,20 @@ var (
 // R1 — repository-typed declarations in api/ (fields + params).
 // Seeded 2026-06-11 from the issue #584 audit; shrink-only.
 var apiRepoDeclAllowlist = map[string]int{
-	"api/iot/api.go":               6,
-	"api/iot/sessions/resource.go": 4,
-	"api/students/api.go":          2, // SchoolRepo ×2 (field + config) — device-authenticator middleware wiring only
-	"api/timetable/api.go":         40,
+	"api/iot/api.go":      2, // SchoolRepo ×2 (deps + resource) — device-authenticator middleware wiring only
+	"api/students/api.go": 2, // SchoolRepo ×2 (field + config) — device-authenticator middleware wiring only
 }
 
 // R2 — `.XxxRepository()` getter calls, backend-wide minus database/ + test/.
 // Target: empty — the three PersonService getters are scheduled for deletion.
 var repoGetterCallAllowlist = map[string]int{}
 
-// R3 — query construction in api/.
-var apiQueryConstructionAllowlist = map[string]int{
-	"api/timetable/operations.go":       3, // pg_advisory_xact_lock ×3
-	"api/timetable/templates_list.go":   2,
-	"api/timetable/templates_people.go": 2,
-	"api/timetable/templates_update.go": 4,
-}
+// R3 — query construction in api/. Empty: handlers construct no queries.
+var apiQueryConstructionAllowlist = map[string]int{}
 
 // R4 — database/repositories imports in api/ (beyond base.go + testutil).
-var apiRepoImportAllowlist = map[string]int{
-	"api/timetable/templates_list.go":   1,
-	"api/timetable/templates_people.go": 1,
-	"api/timetable/templates_update.go": 1,
-}
+// Empty: only the sanctioned wiring exceptions import repositories.
+var apiRepoImportAllowlist = map[string]int{}
 
 func TestHandlerLayerRatchet(t *testing.T) {
 	backendRoot, err := findBackendRoot()

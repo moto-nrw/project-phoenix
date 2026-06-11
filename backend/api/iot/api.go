@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -57,8 +56,7 @@ type ServiceDependencies struct {
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	SchoolRepo            platform.SchoolRepository
-	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	TimetableDataService  scheduleSvc.TimetableDataService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
 	DB                    *bun.DB
@@ -77,8 +75,7 @@ type Resource struct {
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	SchoolRepo            platform.SchoolRepository
-	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	TimetableDataService  scheduleSvc.TimetableDataService
 	Broadcaster           realtime.Broadcaster
 	logger                *slog.Logger
 	db                    *bun.DB
@@ -98,8 +95,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		PickupScheduleService: deps.PickupScheduleService,
 		SchoolService:         deps.SchoolService,
 		SchoolRepo:            deps.SchoolRepo,
-		ActivityInstanceRepo:  deps.ActivityInstanceRepo,
-		InstanceStaffRepo:     deps.InstanceStaffRepo,
+		TimetableDataService:  deps.TimetableDataService,
 		Broadcaster:           deps.Broadcaster,
 		logger:                deps.Logger,
 		db:                    deps.DB,
@@ -234,8 +230,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.EducationService,
 		)
 		sessionsResource.ConfigureTimetableMirror(
-			rs.ActivityInstanceRepo,
-			rs.InstanceStaffRepo,
+			rs.TimetableDataService,
 			rs.Broadcaster,
 		)
 		r.Mount("/session", sessionsResource.Router())
