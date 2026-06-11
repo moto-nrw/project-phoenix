@@ -76,9 +76,7 @@ var apiRepoDeclAllowlist = map[string]int{
 // R2 — `.XxxRepository()` getter calls, backend-wide minus database/ + test/.
 // Target: empty — the three PersonService getters are scheduled for deletion.
 var repoGetterCallAllowlist = map[string]int{
-	"api/staff/api.go":                                  2,
-	"auth/authorize/policies/student_visit.go":          4,
-	"services/schedule/timetable_operations_service.go": 1,
+	"api/staff/api.go": 2,
 }
 
 // R3 — query construction in api/.
