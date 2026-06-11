@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,8 +30,8 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	defer s.teardown()
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------
-	target := nextWeekday(time.Now().UTC(), 1, 7) // Mon, >=7 days out
-	fromS := target.Format("2006-01-02")
+	target := nextWeekday(timezone.TodayDate(), 1, 7) // Mon, >=7 days out
+	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-B-%d", time.Now().UnixNano()), target)
 
@@ -90,7 +91,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// --- Step 2: insert cancelled exception --------------------------------
 	cancelledExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target.UTC().Truncate(24 * time.Hour),
+		ExceptionDate:   target,
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          strPtr("Heizung kaputt"),
 	}
@@ -181,7 +182,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	modifiedStart := parseHHMM(t, "12:30")
 	modifiedExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target.UTC().Truncate(24 * time.Hour),
+		ExceptionDate:   target,
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &modifiedStart,
 		Reason:          strPtr("Fruehschluss"),

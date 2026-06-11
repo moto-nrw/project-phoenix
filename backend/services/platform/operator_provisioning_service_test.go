@@ -447,6 +447,9 @@ func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModel
 func (m *mockAuthService) ActivateAccount(context.Context, int) error               { return nil }
 func (m *mockAuthService) DeactivateAccount(context.Context, int) error             { return nil }
 func (m *mockAuthService) UpdateAccount(context.Context, *authModels.Account) error { return nil }
+func (m *mockAuthService) IsPINLocked(*authModels.Account, time.Time) bool          { return false }
+func (m *mockAuthService) RecordFailedPINAttempt(context.Context, int64) error      { return nil }
+func (m *mockAuthService) ResetPINLockout(context.Context, int64) error             { return nil }
 func (m *mockAuthService) ListAccounts(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
 	return nil, nil
 }
@@ -573,6 +576,7 @@ func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff,
 	return nil, nil
 }
 func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
+func (m *mockStaffRepo) ClearWorkTimeModel(context.Context, int64) error  { return nil }
 func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
 	return nil, nil
 }
@@ -3793,4 +3797,20 @@ func TestOperatorProvisioningService_LoadActiveSchool_RejectsDeletedSchool(t *te
 	require.Error(t, err)
 	var deletedErr *platformSvc.SchoolAlreadyDeletedError
 	require.ErrorAs(t, err, &deletedErr)
+}
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (m *mockPersonRepo) AnonymizeAndSoftDelete(context.Context, int64) error { return nil }
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (m *mockSummariesRepo) ListDeviceRows(context.Context, platformModels.OperatorDeviceFilter) ([]platformModels.OperatorDeviceRow, error) {
+	return nil, nil
+}
+
+func (m *mockTeacherRepo) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+func (m *mockTeacherRepo) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
+	return nil, nil
 }

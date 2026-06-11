@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -113,8 +114,8 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 		},
 		Name:                      "Schuljahr 2026/27",
 		Kind:                      enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:          time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:            time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate:          timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:            timezone.NewDate(2027, 7, 31),
 		EnrollmentOpenAt:          &openAt,
 		EnrollmentCloseAt:         &closeAt,
 		FormSchemaID:              &schemaID,
@@ -163,8 +164,8 @@ func TestToPhaseResponse_NilOptionalPointersStayNil(t *testing.T) {
 		Model:            baseModel.Model{ID: 1234},
 		Name:             "Fresh Phase",
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	out := toPhaseResponse(p)

@@ -21,9 +21,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Constants for date formats and error messages (S1192 - avoid duplicate string literals)
+// Constants for error messages (S1192 - avoid duplicate string literals)
 const (
-	dateFormatYMD           = "2006-01-02"
 	errSubstitutionNotFound = "substitution not found"
 	errContainsNotFound     = "not found" // Used for error message checks
 )
@@ -79,11 +78,11 @@ func newSubstitutionResponse(sub *modelEducation.GroupSubstitution) Substitution
 		GroupID:           sub.GroupID,
 		RegularStaffID:    sub.RegularStaffID,
 		SubstituteStaffID: sub.SubstituteStaffID,
-		StartDate:         sub.StartDate.Format(dateFormatYMD),
-		EndDate:           sub.EndDate.Format(dateFormatYMD),
+		StartDate:         sub.StartDate.String(),
+		EndDate:           sub.EndDate.String(),
 		Reason:            sub.Reason,
 		Duration:          sub.Duration(),
-		IsActive:          sub.IsCurrentlyActive(),
+		IsActive:          education.SubstitutionIsActiveNow(sub, time.Now()),
 		CreatedAt:         sub.CreatedAt,
 		UpdatedAt:         sub.UpdatedAt,
 	}
@@ -188,16 +187,16 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) listActive(w http.ResponseWriter, r *http.Request) {
 	// Get date parameter (defaults to today)
 	dateStr := r.URL.Query().Get("date")
-	var date time.Time
+	var date timezone.Date
 	if dateStr != "" {
-		parsedDate, err := time.Parse(dateFormatYMD, dateStr)
+		parsedDate, err := timezone.ParseDate(dateStr)
 		if err != nil {
 			common.RespondWithError(w, r, http.StatusBadRequest, ErrInvalidSubstitutionData.Error())
 			return
 		}
 		date = parsedDate
 	} else {
-		date = time.Now()
+		date = timezone.TodayDate()
 	}
 
 	substitutions, err := rs.Service.GetActiveSubstitutions(r.Context(), date)
@@ -231,13 +230,13 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse dates
-	startDate, err := time.Parse(dateFormatYMD, req.StartDate)
+	startDate, err := timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid start date format. Expected YYYY-MM-DD")
 		return
 	}
 
-	endDate, err := time.Parse(dateFormatYMD, req.EndDate)
+	endDate, err := timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RespondWithError(w, r, http.StatusBadRequest, "Invalid end date format. Expected YYYY-MM-DD")
 		return
@@ -250,7 +249,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate no backdating - start date must be today or in the future
-	today := timezone.Today()
+	today := timezone.TodayDate()
 	if startDate.Before(today) {
 		common.RespondWithError(w, r, http.StatusBadRequest, ErrSubstitutionBackdated.Error())
 		return
@@ -364,7 +363,7 @@ func validateSubstitutionDates(sub *modelEducation.GroupSubstitution) error {
 		return ErrSubstitutionDateRange
 	}
 
-	today := timezone.Today()
+	today := timezone.TodayDate()
 	if sub.StartDate.Before(today) {
 		return ErrSubstitutionBackdated
 	}

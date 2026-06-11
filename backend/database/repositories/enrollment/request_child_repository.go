@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -130,6 +131,28 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to link created student: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
+// UpdateActivationPlan records the approval-time lifecycle decision on
+// the child row. Submission rows start with the schema default; approval is
+// the first point where the tenant setting and phase dates are authoritative.
+func (r *RequestChildRepository) UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Set("activation_mode = ?", mode).
+		Set("activate_on = ?", activateOn).
+		Set("updated_at = ?", time.Now()).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update request child activation plan: %w", err)
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {

@@ -163,7 +163,7 @@ describe("EnrollmentStatusView", () => {
 
     await waitFor(() => {
       expect(window.confirm).toHaveBeenCalledWith(
-        "Möchtest du diese Anmeldung wirklich zurückziehen?",
+        "Möchten Sie diese Anmeldung wirklich zurückziehen?",
       );
       expect(mockWithdrawStatus).toHaveBeenCalledWith("tok", "7");
     });

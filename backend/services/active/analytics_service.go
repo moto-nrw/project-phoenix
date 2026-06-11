@@ -15,8 +15,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		LastUpdated: time.Now(),
 	}
 
-	// Use timezone.Today() for consistent Europe/Berlin timezone handling
-	today := timezone.Today()
+	today := timezone.TodayDate()
 
 	// Phase 1: Fetch all base data
 	baseData, err := s.fetchDashboardBaseData(ctx, today)
@@ -40,6 +39,14 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	excusedOpts := modelBase.NewQueryOptions()
 	excusedOpts.Filter.Equal("excused", true)
 	if excusedCount, err := s.studentRepo.CountWithOptions(ctx, excusedOpts); err == nil {
+		classTripCount, classTripErr := s.countClassTripStudentsForDate(ctx, today)
+		if classTripErr == nil {
+			excusedCount += classTripCount
+		} else {
+			s.getLogger().Warn("failed to count class trip students for dashboard",
+				"error", classTripErr.Error(),
+			)
+		}
 		analytics.StudentsExcused = excusedCount
 	}
 
@@ -82,4 +89,11 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 	analytics.ActiveGroupsSummary = buildActiveGroupsSummary(baseData.activeGroups, baseData.activityGroupsByID, baseData.educationGroupsByID, roomData)
 
 	return analytics, nil
+}
+
+func (s *service) countClassTripStudentsForDate(ctx context.Context, date timezone.Date) (int, error) {
+	if s.studentStatusRepo == nil {
+		return 0, nil
+	}
+	return s.studentStatusRepo.CountActiveClassTripStudents(ctx, date)
 }

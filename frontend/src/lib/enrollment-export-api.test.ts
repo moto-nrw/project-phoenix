@@ -97,6 +97,19 @@ describe("exportPhaseRegistrations", () => {
     expect(anchor.download).toBe("anmeldungen.xlsx");
   });
 
+  it("posts docx exports and uses a docx fallback filename", async () => {
+    const fetchFn = mockFetchOk(null, "DOCXBYTES");
+
+    await exportPhaseRegistrations("9", "docx");
+
+    expect(
+      JSON.parse((fetchFn.mock.calls[0]![1] as RequestInit).body as string),
+    ).toEqual({
+      format: "docx",
+    });
+    expect(anchor.download).toBe("anmeldungen.docx");
+  });
+
   it("throws the backend error text on a non-ok response", async () => {
     global.fetch = vi.fn(
       async () =>

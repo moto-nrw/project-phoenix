@@ -7,11 +7,26 @@ linters:
   default: standard
   enable:
     - sloglint
+    - forbidigo
   settings:
     sloglint:
       no-mixed-args: true
       key-naming-case: snake
       args-on-sep-lines: true
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^time\.Time\.Truncate$'
+          msg: "Truncate on an instant yields UTC-aligned days, not Berlin calendar days. Use timezone.Date / timezone.TodayDate() (see .claude/rules/calendar-dates.md). For sub-day alignment, nolint with a justification."
+        - pattern: 'time\.Now\(\)\.UTC\(\)\.Truncate'
+          msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use timezone.TodayDate()."
+  exclusions:
+    rules:
+      # Test-file Truncate sites are enforced by TestDateColumnTypes'
+      # no_truncate_24h_date_math sub-test (shrinking allowlist) instead.
+      - path: '_test\.go$'
+        linters:
+          - forbidigo
 
 issues:
   max-issues-per-linter: 50

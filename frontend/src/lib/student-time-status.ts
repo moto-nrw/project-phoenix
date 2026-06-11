@@ -33,17 +33,20 @@ interface StudentTimeStatusInput {
   sick?: boolean;
   /** Student is excused today (not attending) — suppresses overdue urgency. */
   excused?: boolean;
+  /** Student is on a class trip today — suppresses overdue urgency. */
+  classTrip?: boolean;
 }
 
 /** Why a student is not expected today. Drives the neutral "absent" rendering. */
 export interface StudentAbsence {
-  reason: "sick" | "excused";
+  reason: "sick" | "class_trip" | "excused";
   /** German UI label, e.g. "krank gemeldet" or "entschuldigt". */
   label: string;
 }
 
 interface StudentAbsenceInput {
   sick?: boolean;
+  classTrip?: boolean;
   excused?: boolean;
 }
 
@@ -63,10 +66,15 @@ interface StudentAbsenceInput {
  */
 export function getStudentAbsence({
   sick,
+  classTrip,
   excused,
 }: StudentAbsenceInput): StudentAbsence | null {
   if (sick) {
     return { reason: "sick", label: "krank gemeldet" };
+  }
+
+  if (classTrip) {
+    return { reason: "class_trip", label: "Klassenfahrt" };
   }
 
   if (excused) {
@@ -137,6 +145,7 @@ export function getStudentTimeStatus({
   actualTime,
   now,
   sick,
+  classTrip,
   excused,
 }: StudentTimeStatusInput): StudentTimeStatus {
   const displayActualTime = formatTimeDisplay(actualTime);
@@ -170,7 +179,7 @@ export function getStudentTimeStatus({
   // Absence wins over the temporal (overdue) path but never over a recorded
   // actual time above — a sick/excused child is not "overdue", they are simply
   // not expected today. Neutral coloring, sorted out of the urgency band.
-  const absence = getStudentAbsence({ sick, excused });
+  const absence = getStudentAbsence({ sick, classTrip, excused });
   if (absence) {
     return {
       state: "absent-excused",

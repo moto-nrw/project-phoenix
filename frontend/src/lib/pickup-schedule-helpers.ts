@@ -1,4 +1,5 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
+import { toISODate as formatDateISO } from "./date-helpers";
 import type { StudentStatusKind } from "./student-status-days-api";
 
 // Frontend Pickup Schedule Type
@@ -429,12 +430,7 @@ export function getCalendarWeek(date: Date): number {
 /**
  * Format date as ISO string (YYYY-MM-DD) for comparison with exceptions
  */
-export function formatDateISO(date: Date): string {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+export { formatDateISO };
 
 /**
  * Data for a single day in the week view
@@ -444,6 +440,7 @@ export interface DayData {
   weekday: number; // 1-5 (Mon-Fri)
   isToday: boolean;
   showSick: boolean;
+  showClassTrip: boolean;
   showExcused: boolean;
   exception: PickupException | undefined;
   baseSchedule: PickupSchedule | undefined;
@@ -476,6 +473,7 @@ export function getDayData(
       weekday: 0, // Weekend indicator
       isToday: isSameDay(date, today),
       showSick: false,
+      showClassTrip: false,
       showExcused: false,
       exception: undefined,
       baseSchedule: undefined,
@@ -496,19 +494,20 @@ export function getDayData(
   const showSick = statusForDate
     ? statusForDate === "sick"
     : isToday && isSickToday;
+  const showClassTrip = statusForDate === "class_trip";
   const showExcused = statusForDate
     ? statusForDate === "excused"
-    : isToday && !showSick && isExcusedToday;
+    : isToday && !showSick && !showClassTrip && isExcusedToday;
 
   // Get base schedule for this weekday
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
 
   // Determine effective pickup time:
-  // - If sick or excused today: no pickup time (child is not being picked up)
+  // - If sick, class trip, or excused today: no pickup time (child is not being picked up)
   // - If exception exists: use exception's pickup time (even if null = absent)
   // - Otherwise: use base schedule's pickup time
   let effectiveTime: string | undefined;
-  if (showSick || showExcused) {
+  if (showSick || showClassTrip || showExcused) {
     effectiveTime = undefined;
   } else if (exception) {
     effectiveTime = exception.pickupTime; // null means absent, don't fall back
@@ -524,11 +523,14 @@ export function getDayData(
     weekday,
     isToday,
     showSick,
+    showClassTrip,
     showExcused,
     exception,
     baseSchedule,
     effectiveTime,
-    effectiveNotes: exception?.reason ?? baseSchedule?.notes,
+    effectiveNotes: showClassTrip
+      ? "Klassenfahrt"
+      : (exception?.reason ?? baseSchedule?.notes),
     isException: !!exception,
     notes: dayNotes,
   };

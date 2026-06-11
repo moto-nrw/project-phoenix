@@ -16,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -182,7 +183,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		CustomData:        wireReq.CustomData,
 	}
 	for i, c := range wireReq.Children {
-		dob, err := time.Parse("2006-01-02", c.DateOfBirth)
+		dob, err := timezone.ParseDate(c.DateOfBirth)
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}

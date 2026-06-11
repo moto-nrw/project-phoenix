@@ -8,8 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/uptrace/bun"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -18,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -58,7 +58,6 @@ type userContextService struct {
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
-	db                 *bun.DB
 	logger             *slog.Logger
 }
 
@@ -71,7 +70,7 @@ func (s *userContextService) getLogger() *slog.Logger {
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
-func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, logger *slog.Logger) UserContextService {
+func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.Logger) UserContextService {
 	return &userContextService{
 		accountRepo:        repos.AccountRepo,
 		personRepo:         repos.PersonRepo,
@@ -85,7 +84,6 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, db *bun.DB, l
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
-		db:                 db,
 		logger:             logger,
 	}
 }
@@ -316,7 +314,7 @@ func (s *userContextService) addTeacherGroups(ctx context.Context, teacherID int
 
 // addSubstitutionGroups adds groups where the staff is an active substitute
 func (s *userContextService) addSubstitutionGroups(ctx context.Context, staffID int64, groupMap map[int64]*education.Group) *PartialError {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	substitutions, err := s.substitutionRepo.FindActiveBySubstituteWithRelations(ctx, staffID, today)
 	if err != nil {
@@ -356,7 +354,7 @@ func (s *userContextService) GetSubstitutedGroupIDs(ctx context.Context) (map[in
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
 	}
 
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	activeSubs, err := s.substitutionRepo.FindActiveBySubstitute(ctx, staff.ID, today)
 	if err != nil {
 		return nil, &UserContextError{Op: "get substituted group IDs", Err: err}
@@ -537,10 +535,11 @@ func (s *userContextService) GetMySupervisedGroups(ctx context.Context) ([]*acti
 	}
 
 	// Collect group IDs for batch loading (more efficient than individual FindByID calls)
+	now := time.Now()
 	groupIDs := make([]int64, 0, len(supervisions))
 	for _, supervision := range supervisions {
 		// Check if supervision itself is still active (not ended)
-		if !supervision.IsActive() {
+		if !activeService.IsSupervisorActive(supervision, now) {
 			// Log for observability; helps diagnose silent filters of ended supervisions
 			s.getLogger().DebugContext(ctx, "skipping ended supervision",
 				slog.Int64("supervision_id", supervision.ID),

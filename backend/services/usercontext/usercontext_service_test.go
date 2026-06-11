@@ -38,7 +38,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
 	}
 
-	return usercontextSvc.NewUserContextServiceWithRepos(repos, db, slog.Default())
+	return usercontextSvc.NewUserContextServiceWithRepos(repos, slog.Default())
 }
 
 // contextWithClaims creates a context with JWT claims
@@ -836,8 +836,8 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, staff.ID)
 
 		// Create a substitution for today
-		today := timezone.DateOfUTC(time.Now())
-		tomorrow := today.AddDate(0, 0, 1)
+		today := timezone.TodayDate()
+		tomorrow := today.AddDays(1)
 		testpkg.CreateTestGroupSubstitution(t, db, educationGroup.ID, nil, staff.ID, today, tomorrow)
 
 		ctx := contextWithClaims(int(account.ID))

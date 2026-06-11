@@ -617,6 +617,9 @@ func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, t
 
 // createAccountTenant maps an account to a tenant so the user can log into this school.
 // Must be called within a RunInTx block (tx stored in context for base.GetDB).
+// EnsureActive (not Create) so accepting a re-invitation after staff
+// offboarding reactivates the deactivated mapping, matching the guardian
+// invitation flow.
 func (s *invitationService) createAccountTenant(ctx context.Context, accountID, tenantID int64) error {
 	now := time.Now()
 	mapping := &authModels.AccountTenant{
@@ -625,7 +628,7 @@ func (s *invitationService) createAccountTenant(ctx context.Context, accountID, 
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
 		return &AuthError{Op: "create account-tenant mapping", Err: err}
 	}
 	return nil
@@ -732,7 +735,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 	if invitation.IsUsed() {
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationUsed}
 	}
-	if invitation.IsExpired() {
+	if InvitationTokenExpired(invitation, time.Now()) {
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationExpired}
 	}
 
@@ -837,7 +840,7 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationUsed}
 	}
 
-	if invitation.IsExpired() {
+	if InvitationTokenExpired(invitation, time.Now()) {
 		return nil, &AuthError{Op: opFetchInvitation, Err: ErrInvitationExpired}
 	}
 

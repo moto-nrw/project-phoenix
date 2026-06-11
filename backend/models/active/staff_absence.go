@@ -5,12 +5,19 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
 const tableActiveStaffAbsences = "active.staff_absences"
+
+// Absence duration constants.
+const (
+	// minAbsenceDays is the floor: an absence always spans at least one day.
+	minAbsenceDays = 1
+)
 
 // AbsenceType constants
 const (
@@ -52,22 +59,22 @@ var ValidAbsenceStatuses = []string{
 type StaffAbsence struct {
 	base.Model `bun:"schema:active,table:staff_absences"`
 	base.TenantModel
-	StaffID           int64      `bun:"staff_id,notnull" json:"staff_id"`
-	AbsenceType       string     `bun:"absence_type,notnull" json:"absence_type"`
-	DateStart         time.Time  `bun:"date_start,notnull,type:date" json:"date_start"`
-	DateEnd           time.Time  `bun:"date_end,notnull,type:date" json:"date_end"`
-	HalfDay           bool       `bun:"half_day,notnull,default:false" json:"half_day"`
-	StartHalfDay      bool       `bun:"start_half_day,notnull,default:false" json:"start_half_day"`
-	EndHalfDay        bool       `bun:"end_half_day,notnull,default:false" json:"end_half_day"`
-	Note              string     `bun:"note" json:"note,omitempty"`
-	Status            string     `bun:"status,notnull,default:'reported'" json:"status"`
-	ApprovedBy        *int64     `bun:"approved_by" json:"approved_by,omitempty"`
-	ApprovedAt        *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
-	CreatedBy         int64      `bun:"created_by,notnull" json:"created_by"`
-	WorkingDays       *float64   `bun:"working_days" json:"working_days,omitempty"`
-	DecisionNote      string     `bun:"decision_note" json:"decision_note,omitempty"`
-	RequestedAt       time.Time  `bun:"requested_at,notnull,default:current_timestamp" json:"requested_at"`
-	SubstituteStaffID *int64     `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
+	StaffID           int64         `bun:"staff_id,notnull" json:"staff_id"`
+	AbsenceType       string        `bun:"absence_type,notnull" json:"absence_type"`
+	DateStart         timezone.Date `bun:"date_start,notnull,type:date" json:"date_start"`
+	DateEnd           timezone.Date `bun:"date_end,notnull,type:date" json:"date_end"`
+	HalfDay           bool          `bun:"half_day,notnull,default:false" json:"half_day"`
+	StartHalfDay      bool          `bun:"start_half_day,notnull,default:false" json:"start_half_day"`
+	EndHalfDay        bool          `bun:"end_half_day,notnull,default:false" json:"end_half_day"`
+	Note              string        `bun:"note" json:"note,omitempty"`
+	Status            string        `bun:"status,notnull,default:'reported'" json:"status"`
+	ApprovedBy        *int64        `bun:"approved_by" json:"approved_by,omitempty"`
+	ApprovedAt        *time.Time    `bun:"approved_at" json:"approved_at,omitempty"`
+	CreatedBy         int64         `bun:"created_by,notnull" json:"created_by"`
+	WorkingDays       *float64      `bun:"working_days" json:"working_days,omitempty"`
+	DecisionNote      string        `bun:"decision_note" json:"decision_note,omitempty"`
+	RequestedAt       time.Time     `bun:"requested_at,notnull,default:current_timestamp" json:"requested_at"`
+	SubstituteStaffID *int64        `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
@@ -119,9 +126,9 @@ func (sa *StaffAbsence) Validate() error {
 
 // DurationDays returns the number of days this absence spans
 func (sa *StaffAbsence) DurationDays() int {
-	days := int(sa.DateEnd.Sub(sa.DateStart).Hours()/24) + 1
-	if days < 1 {
-		return 1
+	days := sa.DateStart.DaysUntil(sa.DateEnd) + minAbsenceDays
+	if days < minAbsenceDays {
+		return minAbsenceDays
 	}
 	return days
 }

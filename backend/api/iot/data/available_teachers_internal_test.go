@@ -72,7 +72,6 @@ func (s personServiceWithTeacherRepo) GetByIDs(context.Context, []int64) (map[in
 func (s personServiceWithTeacherRepo) Create(context.Context, *userModels.Person) error { return nil }
 func (s personServiceWithTeacherRepo) Update(context.Context, *userModels.Person) error { return nil }
 func (s personServiceWithTeacherRepo) Delete(context.Context, interface{}) error        { return nil }
-func (s personServiceWithTeacherRepo) DeleteStaff(context.Context, int64) error         { return nil }
 func (s personServiceWithTeacherRepo) List(context.Context, *modelBase.QueryOptions) ([]*userModels.Person, error) {
 	return nil, nil
 }
@@ -184,3 +183,12 @@ func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 
 var _ userModels.TeacherRepository = teacherRepositoryStub{}
 var _ usersSvc.PersonService = personServiceWithTeacherRepo{}
+
+// Stubs for the issue #585 refactor interface additions — unused here.
+func (s teacherRepositoryStub) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+func (s teacherRepositoryStub) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}

@@ -94,7 +94,7 @@ func (r *failingStaffRepository) FindByPersonID(context.Context, int64) (*userMo
 }
 
 func (s *failingPickupScheduleService) GetEffectivePickupTimeForDate(
-	context.Context, int64, time.Time,
+	context.Context, int64, timezone.Date,
 ) (*scheduleSvc.EffectivePickupTime, error) {
 	return nil, s.err
 }
@@ -587,7 +587,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 
 		// Pre-assign staff as supervisor BEFORE scanning
 		sup := testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, ctx.db, sup.ID)
+		defer testpkg.CleanupTableRecords(t, ctx.db, "active.group_supervisors", sup.ID)
 
 		router := testutil.NewTenantRouter(ctx.db)
 		router.Post("/checkin/checkin", ctx.resource.DeviceCheckinHandler())
@@ -2279,12 +2279,12 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the WC reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "WCNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
+	today := timezone.TodayDate() // binds as a calendar-day literal in DATE position
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
 		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
-		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
+		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
 	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
@@ -2340,12 +2340,12 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	// student reaches the Schulhof reader.
 	setupStaff := testpkg.CreateTestStaff(t, ctx.db, "SetupStaff", "SchulhofNoStaff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, setupStaff.ID)
-	today := timezone.TodayUTC() // UTC midnight of Berlin date — matches FindByStudentAndDate's DateOfUTC()
+	today := timezone.TodayDate() // binds as a calendar-day literal in DATE position
 	var attendanceID int64
 	err := ctx.db.NewRaw(
 		`INSERT INTO active.attendance (student_id, date, check_in_time, checked_in_by, device_id, tenant_id)
 		 VALUES (?, ?, ?, ?, ?, 1) RETURNING id`,
-		student.ID, today, today.Add(8*time.Hour), setupStaff.ID, device.ID,
+		student.ID, today, today.UTCMidnight().Add(8*time.Hour), setupStaff.ID, device.ID,
 	).Scan(context.Background(), &attendanceID)
 	require.NoError(t, err, "test setup: failed to insert attendance record")
 	defer func() { testpkg.CleanupTableRecords(t, ctx.db, "active.attendance", attendanceID) }()
@@ -2757,7 +2757,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 	// timezone (UTC). DateOf returns midnight Berlin which can shift to the previous day
 	// in UTC (e.g. 2026-04-01 00:00+02 → 2026-03-31 22:00 UTC → DATE 2026-03-31).
 	// DateOfUTC avoids this by encoding the Berlin calendar date as midnight UTC.
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 
 	tenantCtx := testpkg.TenantContext(1)
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -3012,7 +3012,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 		t.Skip("Skipping pickup query note precedence test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 	tenantCtx := testpkg.TenantContext(1)
 	recurringNote := "Papa holt normalerweise ab"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -3087,7 +3087,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 		t.Skip("Skipping pickup query exception fallback test on weekend — no pickup schedule applies")
 	}
 
-	todayUTC := timezone.DateOfUTC(time.Now())
+	todayUTC := timezone.TodayDate()
 	tenantCtx := testpkg.TenantContext(1)
 	recurringNote := "Bitte am Seiteneingang klingeln"
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)

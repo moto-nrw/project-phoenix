@@ -6,10 +6,25 @@ import (
 	"log/slog"
 	"net"
 	"slices"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
 )
+
+// IsAnnouncementPublished reports whether the announcement is live (visible to
+// users) at the given instant: it has a PublishedAt timestamp in the past.
+// The clock is injected via `now` so the visibility decision stays testable.
+func IsAnnouncementPublished(a *platform.Announcement, now time.Time) bool {
+	return a.PublishedAt != nil && a.PublishedAt.Before(now)
+}
+
+// IsAnnouncementExpired reports whether the announcement has expired at the
+// given instant: it has an ExpiresAt timestamp in the past. The clock is
+// injected via `now` so the expiry decision stays testable.
+func IsAnnouncementExpired(a *platform.Announcement, now time.Time) bool {
+	return a.ExpiresAt != nil && a.ExpiresAt.Before(now)
+}
 
 // AnnouncementService handles platform announcements
 type AnnouncementService interface {

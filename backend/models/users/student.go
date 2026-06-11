@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -28,26 +29,30 @@ const (
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
-	PersonID        int64         `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string        `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string       `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string       `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string       `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string       `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64        `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string       `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string       `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string       `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string       `bun:"pickup_status" json:"pickup_status,omitempty"`
-	Bus             *bool         `bun:"bus" json:"bus,omitempty"`                               // Administrative permission flag (Buskind)
-	BusDays         BusDays       `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"` // Weekdays on which the child is a Buskind
-	Sick            *bool         `bun:"sick" json:"sick,omitempty"`                             // true = currently sick
-	SickSince       *time.Time    `bun:"sick_since" json:"sick_since,omitempty"`                 // When sickness was reported
-	Excused         *bool         `bun:"excused" json:"excused,omitempty"`                       // true = currently excused (not attending today)
-	ExcusedSince    *time.Time    `bun:"excused_since" json:"excused_since,omitempty"`           // When excused status was reported
-	Status          StudentStatus `bun:"status,notnull,default:'active'" json:"status"`
-	EnrolledFrom    *time.Time    `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
-	EnrolledUntil   *time.Time    `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
+	PersonID        int64      `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass     string     `bun:"school_class,notnull" json:"school_class"`
+	GuardianName    *string    `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact *string    `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail   *string    `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone   *string    `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID         *int64     `bun:"group_id" json:"group_id,omitempty"`
+	ExtraInfo       *string    `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes *string    `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo      *string    `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus    *string    `bun:"pickup_status" json:"pickup_status,omitempty"`
+	PickupDays      PickupDays `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
+	// BusDays is the single source of truth for the Buskind flag (#1582): the
+	// weekdays on which the child rides the bus. The legacy boolean bus column
+	// was dropped in migration 1.15.119; the API derives a compatibility bus
+	// flag from BusDays.HasAny() at the response boundary.
+	BusDays       BusDays        `bun:"bus_days,type:jsonb,scanonly" json:"bus_days,omitempty"`
+	Sick          *bool          `bun:"sick" json:"sick,omitempty"`                   // true = currently sick
+	SickSince     *time.Time     `bun:"sick_since" json:"sick_since,omitempty"`       // When sickness was reported
+	Excused       *bool          `bun:"excused" json:"excused,omitempty"`             // true = currently excused (not attending today)
+	ExcusedSince  *time.Time     `bun:"excused_since" json:"excused_since,omitempty"` // When excused status was reported
+	Status        StudentStatus  `bun:"status,notnull,default:'active'" json:"status"`
+	EnrolledFrom  *timezone.Date `bun:"enrolled_from,type:date" json:"enrolled_from,omitempty"`
+	EnrolledUntil *timezone.Date `bun:"enrolled_until,type:date" json:"enrolled_until,omitempty"`
 
 	// Photo (optional, gated by operations.student_photos_enabled setting +
 	// per-student parental consent recorded in photo_consent_given_at).
@@ -116,6 +121,10 @@ func (s *Student) Validate() error {
 	}
 
 	if err := s.BusDays.Validate(); err != nil {
+		return err
+	}
+
+	if err := s.PickupDays.Validate(); err != nil {
 		return err
 	}
 

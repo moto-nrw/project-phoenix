@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -125,7 +126,7 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 	start := s.now.Add(-time.Duration(minutesAgo) * time.Minute)
 
 	ai := &scheduleModels.ActivityInstance{
-		Date:          time.Date(s.now.Year(), s.now.Month(), s.now.Day(), 0, 0, 0, 0, time.UTC),
+		Date:          timezone.DateFromTime(s.now),
 		Title:         fmt.Sprintf("OVR-%d", time.Now().UnixNano()),
 		StartTime:     time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),
 		EndTime:       time.Date(1, 1, 1, 23, 59, 0, 0, time.UTC),
@@ -248,10 +249,10 @@ func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 	}
 
 	// Seed: mark "yesterday" as the cache day, store one emitted key.
-	yesterday := time.Date(2026, 4, 19, 0, 0, 0, 0, time.UTC)
+	yesterday := timezone.NewDate(2026, 4, 19)
 	sched.overdueEmittedDay = yesterday
 	key := overdueKey{tenantID: 1, instanceID: 42}
-	sched.overdueEmitted.Store(key, yesterday.Add(14*time.Hour))
+	sched.overdueEmitted.Store(key, yesterday.UTCMidnight().Add(14*time.Hour))
 
 	// Rotate using "today" → cache must clear and the day must advance.
 	today := time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)
@@ -259,5 +260,5 @@ func TestRotateOverdueCacheIfNewDay(t *testing.T) {
 
 	_, present := sched.overdueEmitted.Load(key)
 	assert.False(t, present, "entry from yesterday must be evicted on day rollover")
-	assert.Equal(t, time.Date(2026, 4, 20, 0, 0, 0, 0, time.UTC), sched.overdueEmittedDay)
+	assert.Equal(t, timezone.NewDate(2026, 4, 20), sched.overdueEmittedDay)
 }

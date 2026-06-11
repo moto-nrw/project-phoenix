@@ -46,11 +46,10 @@ Copy `.env.example` to `.env.local` and configure:
 # NextAuth
 NEXTAUTH_URL=http://localhost:3000          # Frontend URL for auth
 NEXTAUTH_SECRET=your_secret_here            # Generate with: openssl rand -base64 32
-AUTH_SECRET=your_auth_secret_key            # Legacy - use NEXTAUTH_SECRET
 
 # API Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8080   # Client-side (browser) API URL
-API_URL=                                    # Server-side API URL (optional, see below)
+API_URL=http://localhost:8080               # Server-side API URL
 
 # Docker
 SKIP_ENV_VALIDATION=true                    # Set for Docker builds
@@ -245,11 +244,11 @@ export function mapResourceResponse(data: BackendResource): Resource {
 // src/env.js
 export const env = createEnv({
   server: {
-    NEXTAUTH_SECRET: z.string().optional(),
+    NEXTAUTH_SECRET: z.string().min(1),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   },
   client: {
-    NEXT_PUBLIC_API_URL: z.string().url().optional().default("http://localhost:8080"),
+    NEXT_PUBLIC_API_URL: z.string().url(),
   },
   runtimeEnv: {
     // Map actual env vars
@@ -628,6 +627,18 @@ The frontend proxies all API calls through Next.js route handlers to the Go back
 7. Handle errors gracefully with user feedback
 
 ---
+
+## Date & Time Handling (MANDATORY)
+
+**Calendar dates and timestamps are different types.** Backend DATE columns travel as `"YYYY-MM-DD"` strings (the backend uses a dedicated `timezone.Date` type); timestamps travel as RFC3339. A JS `Date`'s UTC fields disagree with the Berlin calendar day between 00:00 and 02:00, so **never derive a calendar date via `.toISOString()`** — the oxlint rule `date-safety/no-utc-date-extraction` (custom plugin in `scripts/oxlint-plugin-date-safety.mjs`) rejects it. Use the canonical helpers in `~/lib/date-helpers` (`toISODate` is re-exported by `timetable-helpers`, and as `formatDateISO` by `arrival-schedule-helpers`/`pickup-schedule-helpers` — same function).
+
+| Need | Use | Never |
+|---|---|---|
+| `Date` → `"YYYY-MM-DD"` | `toISODate(d)` | `d.toISOString().split("T")[0]` / `.slice(0, 10)` |
+| Today as `"YYYY-MM-DD"` | `todayISO()` | `new Date().toISOString()...` |
+| `"YYYY-MM-DD"` → `Date` (local midnight) | `parseISODate(s)` | `new Date("YYYY-MM-DD")` (UTC midnight) |
+| Render date string in German | `formatDate(s)` from `~/lib/date-helpers` (handles both date-only and timestamps) | new file-local `formatDate` duplicates |
+| Timestamps (`created_at`, …) | keep ISO string; `new Date(ts)` is fine | extracting a calendar day from them via `toISOString()` |
 
 ## Frontend Logging: Use Structured Logger Only (MANDATORY)
 

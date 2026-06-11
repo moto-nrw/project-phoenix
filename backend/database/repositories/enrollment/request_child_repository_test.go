@@ -3,13 +3,13 @@ package enrollment_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -56,7 +56,7 @@ func makeChild(requestID int64, firstName, lastName string) *enrollmentModels.Re
 		RequestID:      requestID,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:    timezone.NewDate(2018, 4, 15),
 		Status:         enrollmentModels.ChildStatusSubmitted,
 		ActivationMode: enrollmentModels.ChildActivationScheduled,
 		CustomData:     map[string]any{},
@@ -301,6 +301,61 @@ func TestRequestChildRepository_LinkCreatedStudent_MissingChildErrors(t *testing
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.LinkCreatedStudent(ctx, 9_999_999, 12345)
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRequestChildRepository_UpdateActivationPlan_StampsImmediate(t *testing.T) {
+	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
+
+	child := makeChild(requestID, "Immo", "Diate")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, child)
+	}))
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActivationPlan(ctx, child.ID, enrollmentModels.ChildActivationImmediate, nil)
+	}))
+
+	var got *enrollmentModels.RequestChild
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var findErr error
+		got, findErr = repo.FindByID(ctx, child.ID)
+		return findErr
+	}))
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, got.ActivationMode)
+	assert.Nil(t, got.ActivateOn)
+}
+
+func TestRequestChildRepository_UpdateActivationPlan_StampsScheduledDate(t *testing.T) {
+	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
+
+	child := makeChild(requestID, "Sched", "Uled")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, child)
+	}))
+
+	activateOn := timezone.NewDate(2027, 9, 1)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActivationPlan(ctx, child.ID, enrollmentModels.ChildActivationScheduled, &activateOn)
+	}))
+
+	var got *enrollmentModels.RequestChild
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var findErr error
+		got, findErr = repo.FindByID(ctx, child.ID)
+		return findErr
+	}))
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, got.ActivationMode)
+	require.NotNil(t, got.ActivateOn)
+	assert.Equal(t, activateOn.Format("2006-01-02"), got.ActivateOn.Format("2006-01-02"))
+}
+
+func TestRequestChildRepository_UpdateActivationPlan_MissingChildErrors(t *testing.T) {
+	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.UpdateActivationPlan(ctx, 9_999_999, enrollmentModels.ChildActivationImmediate, nil)
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")

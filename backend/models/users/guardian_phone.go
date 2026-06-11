@@ -31,6 +31,14 @@ var ValidPhoneTypes = map[PhoneType]bool{
 // tableGuardianPhoneNumbers is the schema-qualified table name
 const tableGuardianPhoneNumbers = "users.guardian_phone_numbers"
 
+// Validation bounds for guardian phone numbers.
+const (
+	// minPhoneDigits is the minimum count of digits a phone number must contain.
+	minPhoneDigits = 3
+	// minPhonePriority is the lowest allowed (and default) phone priority.
+	minPhonePriority = 1
+)
+
 // GuardianPhoneNumber represents a phone number associated with a guardian
 type GuardianPhoneNumber struct {
 	base.Model `bun:"schema:users,table:guardian_phone_numbers"`
@@ -85,7 +93,7 @@ func (g *GuardianPhoneNumber) Validate() error {
 
 	// Minimum length check (at least 3 digits after removing formatting)
 	digitsOnly := regexp.MustCompile(`\d`).FindAllString(g.PhoneNumber, -1)
-	if len(digitsOnly) < 3 {
+	if len(digitsOnly) < minPhoneDigits {
 		return errors.New("phone number must contain at least 3 digits")
 	}
 
@@ -105,8 +113,8 @@ func (g *GuardianPhoneNumber) Validate() error {
 	}
 
 	// Validate priority (positive integers)
-	if g.Priority < 1 {
-		g.Priority = 1
+	if g.Priority < minPhonePriority {
+		g.Priority = minPhonePriority
 	}
 
 	return nil

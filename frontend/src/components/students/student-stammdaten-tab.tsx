@@ -23,6 +23,9 @@ import {
   busDaysHaveAny,
   normalizeBusDays,
   type BusDays,
+  pickupDaysHaveAny,
+  normalizePickupDays,
+  type PickupDays,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
@@ -63,6 +66,21 @@ function busDaysEqual(a?: BusDays | null, b?: BusDays | null): boolean {
   );
 }
 
+function pickupDaysEqual(
+  a?: PickupDays | null,
+  b?: PickupDays | null,
+): boolean {
+  const left = normalizePickupDays(a);
+  const right = normalizePickupDays(b);
+  return (
+    Boolean(left.mon) === Boolean(right.mon) &&
+    Boolean(left.tue) === Boolean(right.tue) &&
+    Boolean(left.wed) === Boolean(right.wed) &&
+    Boolean(left.thu) === Boolean(right.thu) &&
+    Boolean(left.fri) === Boolean(right.fri)
+  );
+}
+
 function buildDraft(
   student: Student,
   photosEnabled: boolean,
@@ -83,6 +101,7 @@ function buildDraft(
       consent?.dataRetentionDays ?? student.data_retention_days ?? 30,
     bus: student.bus ?? false,
     bus_days: normalizeBusDays(student.bus_days),
+    pickup_days: normalizePickupDays(student.pickup_days),
     pickup_status: student.pickup_status ?? "",
   };
   // Only mirror consent state into the form when the photo feature is
@@ -263,6 +282,12 @@ export function StudentStammdatenTab({
     return keys.some((key) => {
       if (key === "bus_days") {
         return !busDaysEqual(originalDraft.bus_days, formData.bus_days);
+      }
+      if (key === "pickup_days") {
+        return !pickupDaysEqual(
+          originalDraft.pickup_days,
+          formData.pickup_days,
+        );
       }
       return originalDraft[key] !== formData[key];
     });
@@ -477,8 +502,17 @@ export function StudentStammdatenTab({
       />
 
       <PickupStatusSection
-        value={formData.pickup_status}
-        onChange={(value) => handleChange("pickup_status", value)}
+        days={formData.pickup_days}
+        onChange={(value) => {
+          const normalized = normalizePickupDays(value);
+          setFormData((prev) => ({
+            ...prev,
+            pickup_days: normalized,
+            pickup_status: pickupDaysHaveAny(normalized)
+              ? "Wird abgeholt"
+              : "Geht alleine nach Hause",
+          }));
+        }}
       />
 
       <BusStatusSection

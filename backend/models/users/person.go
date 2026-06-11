@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -14,12 +15,12 @@ import (
 type Person struct {
 	base.Model `bun:"schema:users,table:persons"`
 	base.TenantModel
-	FirstName string     `bun:"first_name,notnull" json:"first_name"`
-	LastName  string     `bun:"last_name,notnull" json:"last_name"`
-	Birthday  *time.Time `bun:"birthday,type:date" json:"birthday,omitempty"`
-	TagID     *string    `bun:"tag_id" json:"tag_id,omitempty"`
-	AccountID *int64     `bun:"account_id" json:"account_id,omitempty"`
-	DeletedAt *time.Time `bun:"deleted_at,soft_delete,nullzero" json:"-"`
+	FirstName string         `bun:"first_name,notnull" json:"first_name"`
+	LastName  string         `bun:"last_name,notnull" json:"last_name"`
+	Birthday  *timezone.Date `bun:"birthday,type:date" json:"birthday,omitempty"`
+	TagID     *string        `bun:"tag_id" json:"tag_id,omitempty"`
+	AccountID *int64         `bun:"account_id" json:"account_id,omitempty"`
+	DeletedAt *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`

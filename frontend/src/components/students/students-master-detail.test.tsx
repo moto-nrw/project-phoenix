@@ -484,7 +484,7 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Aktionen für Klasse 3a")).toBeInTheDocument();
+    expect(screen.getByLabelText("Aktionen für 3a")).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Aktionen für Klasse Ohne Klasse"),
     ).not.toBeInTheDocument();
@@ -501,9 +501,7 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    expect(
-      screen.queryByLabelText("Aktionen für Klasse 3a"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Aktionen für 3a")).not.toBeInTheDocument();
   });
 
   it("opens bulk arrival modal from class actions menu", () => {
@@ -517,7 +515,7 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Aktionen für Klasse 3a"));
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
     );
@@ -539,7 +537,7 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Aktionen für Klasse 3a"));
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
     );
@@ -561,7 +559,7 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("Aktionen für Klasse 3a"));
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
     fireEvent.click(
       screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
     );
@@ -584,7 +582,7 @@ describe("StudentsMasterDetail", () => {
       </div>,
     );
 
-    fireEvent.click(screen.getByLabelText("Aktionen für Klasse 3a"));
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
     fireEvent.mouseDown(screen.getByTestId("outside"));

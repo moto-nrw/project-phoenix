@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -336,7 +336,7 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		RemoteIP:          remoteIP,
 	}
 	for i, c := range wireReq.Children {
-		dob, err := time.Parse("2006-01-02", c.DateOfBirth)
+		dob, err := timezone.ParseDate(c.DateOfBirth)
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}

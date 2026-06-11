@@ -8,6 +8,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
@@ -35,17 +36,17 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	}
 
 	type row struct {
-		SchoolID          int64      `bun:"school_id"`
-		SchoolName        string     `bun:"school_name"`
-		SchoolSlug        string     `bun:"school_slug"`
-		PhaseID           int64      `bun:"phase_id"`
-		PhaseName         string     `bun:"phase_name"`
-		PhaseKind         string     `bun:"phase_kind"`
-		ServiceStartDate  time.Time  `bun:"service_start_date"`
-		ServiceEndDate    time.Time  `bun:"service_end_date"`
-		EnrollmentOpenAt  *time.Time `bun:"enrollment_open_at"`
-		EnrollmentCloseAt *time.Time `bun:"enrollment_close_at"`
-		AlreadyLinked     bool       `bun:"already_linked"`
+		SchoolID          int64         `bun:"school_id"`
+		SchoolName        string        `bun:"school_name"`
+		SchoolSlug        string        `bun:"school_slug"`
+		PhaseID           int64         `bun:"phase_id"`
+		PhaseName         string        `bun:"phase_name"`
+		PhaseKind         string        `bun:"phase_kind"`
+		ServiceStartDate  timezone.Date `bun:"service_start_date"`
+		ServiceEndDate    timezone.Date `bun:"service_end_date"`
+		EnrollmentOpenAt  *time.Time    `bun:"enrollment_open_at"`
+		EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at"`
+		AlreadyLinked     bool          `bun:"already_linked"`
 	}
 
 	// We INNER JOIN config.setting_values on enrollment.enabled=true so a

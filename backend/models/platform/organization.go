@@ -13,6 +13,18 @@ import (
 // slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
 var slugRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// Field-length bounds shared by platform tenant entities (organizations + schools).
+const (
+	// maxNameLen caps the display name of an organization or school.
+	maxNameLen = 200
+	// maxSlugLen caps the URL slug.
+	maxSlugLen = 100
+	// maxDNSLabelLen caps a subdomain to the DNS label limit (RFC 1035).
+	maxDNSLabelLen = 63
+	// maxEmailLen caps a contact email address.
+	maxEmailLen = 255
+)
+
 // reservedSlugs are infrastructure subdomains that must never be used as tenant slugs or subdomains.
 // Frontend equivalent: frontend/src/lib/reserved-slugs.ts — both lists MUST stay in sync.
 var reservedSlugs = map[string]bool{
@@ -74,13 +86,13 @@ func (o *Organization) Validate() error {
 	if o.Name == "" {
 		return errors.New("name is required")
 	}
-	if len(o.Name) > 200 {
+	if len(o.Name) > maxNameLen {
 		return errors.New("name must not exceed 200 characters")
 	}
 	if o.Slug == "" {
 		return errors.New("slug is required")
 	}
-	if len(o.Slug) > 100 {
+	if len(o.Slug) > maxSlugLen {
 		return errors.New("slug must not exceed 100 characters")
 	}
 	if !slugRegex.MatchString(o.Slug) {

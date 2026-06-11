@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,8 +36,8 @@ func TestInvalidEntryDataError_Unwrap(t *testing.T) {
 }
 
 func TestInvalidDateRangeError_Error(t *testing.T) {
-	startDate := time.Date(2026, 1, 20, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(2026, 1, 18, 0, 0, 0, 0, time.UTC)
+	startDate := timezone.NewDate(2026, 1, 20)
+	endDate := timezone.NewDate(2026, 1, 18)
 
 	err := &InvalidDateRangeError{
 		StartDate: startDate,
@@ -50,8 +50,8 @@ func TestInvalidDateRangeError_Error(t *testing.T) {
 
 func TestInvalidDateRangeError_Unwrap(t *testing.T) {
 	err := &InvalidDateRangeError{
-		StartDate: time.Now(),
-		EndDate:   time.Now(),
+		StartDate: timezone.TodayDate(),
+		EndDate:   timezone.TodayDate(),
 	}
 
 	assert.Equal(t, ErrInvalidDateRange, err.Unwrap())

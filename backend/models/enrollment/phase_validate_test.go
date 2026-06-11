@@ -4,11 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// Pure tests for Phase.Validate + IsEnrollmentWindowOpen. The whole
+// Pure tests for Phase.Validate. The whole
 // admin-create-phase flow runs through Validate before the DB write,
 // so each branch is worth covering — broken validation here means
 // either a bad row lands in the DB (CHECK constraints are a backstop,
@@ -19,8 +21,8 @@ func validPhase() *Phase {
 	return &Phase{
 		Name:             "Schuljahr 2026/27",
 		Kind:             PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		CareOverflowMode: PhaseCareOverflowWaitlist,
 	}
 }
@@ -69,7 +71,7 @@ func TestPhase_Validate_AcceptsAllKnownKinds(t *testing.T) {
 
 func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 	p := validPhase()
-	p.ServiceStartDate = time.Time{}
+	p.ServiceStartDate = timezone.Date{}
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_start_date")
@@ -77,7 +79,7 @@ func TestPhase_Validate_RequiresServiceStart(t *testing.T) {
 
 func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 	p := validPhase()
-	p.ServiceEndDate = time.Time{}
+	p.ServiceEndDate = timezone.Date{}
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")
@@ -85,8 +87,8 @@ func TestPhase_Validate_RequiresServiceEnd(t *testing.T) {
 
 func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
 	p := validPhase()
-	p.ServiceStartDate = time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
-	p.ServiceEndDate = time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+	p.ServiceStartDate = timezone.NewDate(2027, 1, 1)
+	p.ServiceEndDate = timezone.NewDate(2026, 12, 31)
 	err := p.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "service_end_date")
@@ -95,7 +97,7 @@ func TestPhase_Validate_RejectsEndBeforeStart(t *testing.T) {
 func TestPhase_Validate_AcceptsEqualStartAndEnd(t *testing.T) {
 	// One-day phase (e.g. an info day) is legal — `Before` is strict.
 	p := validPhase()
-	same := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	same := timezone.NewDate(2026, 9, 1)
 	p.ServiceStartDate = same
 	p.ServiceEndDate = same
 	assert.NoError(t, p.Validate())
@@ -196,42 +198,4 @@ func TestPhase_IsRollover(t *testing.T) {
 
 	p2 := validPhase()
 	assert.False(t, p2.IsRollover(), "fresh phase is not a rollover")
-}
-
-// ---- IsEnrollmentWindowOpen --------------------------------------------
-
-func TestIsEnrollmentWindowOpen_NoBoundsAlwaysOpen(t *testing.T) {
-	p := validPhase()
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Now()))
-}
-
-func TestIsEnrollmentWindowOpen_BeforeOpenIsClosed(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	assert.False(t, p.IsEnrollmentWindowOpen(time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC)))
-}
-
-func TestIsEnrollmentWindowOpen_AfterOpenIsOpen(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)))
-}
-
-func TestIsEnrollmentWindowOpen_AtCloseIsClosed(t *testing.T) {
-	// Half-open semantics — close moment is excluded from the window.
-	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentCloseAt = &closed
-	assert.False(t, p.IsEnrollmentWindowOpen(closed))
-}
-
-func TestIsEnrollmentWindowOpen_BetweenBoundsIsOpen(t *testing.T) {
-	open := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
-	closed := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
-	p := validPhase()
-	p.EnrollmentOpenAt = &open
-	p.EnrollmentCloseAt = &closed
-	assert.True(t, p.IsEnrollmentWindowOpen(time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)))
 }

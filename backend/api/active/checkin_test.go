@@ -164,7 +164,7 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 func TestAttendance_Fields(t *testing.T) {
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.Today()
+		today := timezone.TodayDate()
 		attendance := &activeModels.Attendance{
 			StudentID:   123,
 			Date:        today,
@@ -189,7 +189,7 @@ func TestAttendance_Fields(t *testing.T) {
 
 		attendance := &activeModels.Attendance{
 			StudentID:    123,
-			Date:         timezone.Today(),
+			Date:         timezone.TodayDate(),
 			CheckInTime:  now,
 			CheckedInBy:  456,
 			DeviceID:     111,
@@ -201,68 +201,6 @@ func TestAttendance_Fields(t *testing.T) {
 		require.NotNil(t, attendance.CheckedOutBy)
 		assert.True(t, attendance.CheckOutTime.After(attendance.CheckInTime))
 		assert.Equal(t, int64(789), *attendance.CheckedOutBy)
-	})
-}
-
-// =============================================================================
-// Group Supervisor Model Tests
-// =============================================================================
-
-func TestGroupSupervisor_IsActive(t *testing.T) {
-	t.Run("supervisor with no end date is active", func(t *testing.T) {
-		supervisor := &activeModels.GroupSupervisor{
-			StaffID:   1,
-			GroupID:   2,
-			Role:      "supervisor",
-			StartDate: time.Now(),
-		}
-		assert.True(t, supervisor.IsActive())
-	})
-
-	t.Run("supervisor with future end date is active", func(t *testing.T) {
-		futureDate := time.Now().Add(30 * 24 * time.Hour)
-		supervisor := &activeModels.GroupSupervisor{
-			StaffID:   1,
-			GroupID:   2,
-			Role:      "supervisor",
-			StartDate: time.Now(),
-			EndDate:   &futureDate,
-		}
-		assert.True(t, supervisor.IsActive())
-	})
-
-	t.Run("supervisor with past end date is not active", func(t *testing.T) {
-		pastDate := time.Now().Add(-30 * 24 * time.Hour)
-		supervisor := &activeModels.GroupSupervisor{
-			StaffID:   1,
-			GroupID:   2,
-			Role:      "supervisor",
-			StartDate: time.Now().Add(-60 * 24 * time.Hour),
-			EndDate:   &pastDate,
-		}
-		assert.False(t, supervisor.IsActive())
-	})
-}
-
-// =============================================================================
-// Combined Group Model Tests
-// =============================================================================
-
-func TestCombinedGroup_IsActive(t *testing.T) {
-	t.Run("combined group with no end time is active", func(t *testing.T) {
-		combined := &activeModels.CombinedGroup{
-			StartTime: time.Now(),
-		}
-		assert.True(t, combined.IsActive())
-	})
-
-	t.Run("combined group with end time is not active", func(t *testing.T) {
-		endTime := time.Now()
-		combined := &activeModels.CombinedGroup{
-			StartTime: time.Now().Add(-1 * time.Hour),
-			EndTime:   &endTime,
-		}
-		assert.False(t, combined.IsActive())
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -174,6 +175,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:update permission
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStudent)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
 
@@ -689,7 +691,7 @@ func createPersonFromStudentRequest(req *StudentRequest) (*users.Person, error) 
 
 	// Set optional Birthday if provided
 	if req.Birthday != "" {
-		parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, req.Birthday)
+		parsedBirthday, err := timezone.ParseDate(req.Birthday)
 		if err != nil {
 			return nil, fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 		}
@@ -736,24 +738,61 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	if req.PickupStatus != nil {
-		student.PickupStatus = req.PickupStatus
-	}
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
+	applyBusDays(req.Bus, req.BusDays, student)
 
 	return student
+}
+
+// applyBusDays sets the student's bus_days from a create/update request.
+// bus_days is the single source of truth (#1582); the legacy bus boolean is
+// accepted only as an alias (true => Mon–Fri, false => no days) and is ignored
+// when bus_days is also supplied. The derived bus flag is no longer stored.
+func applyBusDays(legacyBus *bool, days *users.BusDays, student *users.Student) {
+	if days != nil {
+		student.BusDays = *days
+		return
+	}
+	if legacyBus == nil {
+		return
+	}
+	switch {
+	case !*legacyBus:
+		// Explicitly off: clear all bus days.
+		student.BusDays = users.BusDays{}
+	case !student.BusDays.HasAny():
+		// On with no existing per-day selection: default to all weekdays.
+		student.BusDays = users.BusDaysFromLegacyFlag(true)
+		// On with an existing per-day selection: preserve it (a legacy bus=true
+		// must not flatten Mo/Fr into all weekdays).
+	}
+}
+
+// reconcilePickupFields keeps student.PickupDays (the authoritative per-weekday
+// map) and the legacy student.PickupStatus string in sync from a request that
+// may carry either, both, or neither. When both are present the weekday map
+// wins, since it is the granular source of truth.
+//
+// Contract for legacy (status-only) callers: pickup_status is treated as
+// authoritative. A non-"Wird abgeholt" status therefore CLEARS any existing
+// weekday map — a partial update that sends pickup_status without pickup_days
+// will wipe previously stored pickup days. This is intentional (the legacy
+// string has no per-day information to preserve), but it means new clients must
+// always send pickup_days, never pickup_status alone, to mutate the map.
+func reconcilePickupFields(student *users.Student, status *string, days *users.PickupDays) {
+	if status != nil {
+		student.PickupStatus = status
+		if *status != users.PickupStatusPickedUp {
+			student.PickupDays = users.PickupDays{}
+		} else if !student.PickupDays.HasAny() {
+			student.PickupDays = users.PickupDaysFromLegacyStatus(*status)
+		}
+	}
+	if days != nil {
+		student.PickupDays = *days
+		s := student.PickupDays.LegacyPickupStatus()
+		student.PickupStatus = &s
+	}
 }
 
 // optionalString returns a pointer to the trimmed string, or nil when empty,
@@ -991,7 +1030,7 @@ func applyPersonUpdates(req *UpdateStudentRequest, person *users.Person) personU
 	}
 	if req.Birthday != nil {
 		if *req.Birthday != "" {
-			parsedBirthday, err := time.Parse(dateFormatYYYYMMDD, *req.Birthday)
+			parsedBirthday, err := timezone.ParseDate(*req.Birthday)
 			if err != nil {
 				result.err = fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 				return result
@@ -1090,22 +1129,8 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	if req.PickupStatus != nil {
-		student.PickupStatus = req.PickupStatus
-	}
-	if req.Bus != nil {
-		student.Bus = req.Bus
-		if !*req.Bus {
-			student.BusDays = users.BusDays{}
-		} else if !student.BusDays.HasAny() {
-			student.BusDays = users.BusDaysFromLegacyFlag(true)
-		}
-	}
-	if req.BusDays != nil {
-		student.BusDays = *req.BusDays
-		b := student.BusDays.HasAny()
-		student.Bus = &b
-	}
+	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
+	applyBusDays(req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

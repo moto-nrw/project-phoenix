@@ -5,12 +5,12 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -119,7 +119,7 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 			{
 				FirstName:        childFirst,
 				LastName:         childLast,
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
 			},
 		},
@@ -127,6 +127,16 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 	require.NoError(t, err)
 	require.Len(t, res.Children, 1)
 	return res.Request.ID, res.Children[0].ID
+}
+
+func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate timezone.Date) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	env.sourcePhase.ServiceStartDate = serviceStartDate
+	if !env.sourcePhase.ServiceEndDate.After(serviceStartDate) {
+		env.sourcePhase.ServiceEndDate = timezone.NewDate(serviceStartDate.Year, serviceStartDate.Month+10, serviceStartDate.Day)
+	}
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
 
 // ---- Get ----------------------------------------------------------------
@@ -425,6 +435,15 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must be pinned to the phase service-start date")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+	assert.Equal(t,
+		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
+		child.ActivateOn.Format("2006-01-02"),
+		"scheduled approval must stamp the planned activation date")
 }
 
 // "immediate": an approved child becomes an ACTIVE student right away so
@@ -457,6 +476,69 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 		env.sourcePhase.ServiceStartDate.Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must stay the phase service-start date even in immediate mode")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, child.ActivationMode)
+	assert.Nil(t, child.ActivateOn)
+}
+
+func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		mode: configModel.EnrollmentActivationModeScheduled,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
+	startDate := timezone.TodayDate().AddDays(-1)
+	setSourcePhaseServiceStartDate(t, env, startDate)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusActive, student.Status,
+		"scheduled mode must activate immediately when service_start_date is today or already past")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+	assert.Equal(t, startDate.Format("2006-01-02"), child.ActivateOn.Format("2006-01-02"))
+}
+
+func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToScheduled(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{mode: "bogus"})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "activation-unknown@example.com", "Safe", "Default")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.StudentStatusPending, student.Status,
+		"unknown setting values must not activate students")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
 }
 
 func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
@@ -534,8 +616,8 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayThursday, &period.ID)
 	defer func() {
@@ -574,7 +656,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 			{
 				FirstName:        "Fina",
 				LastName:         "Fixed",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},
@@ -656,7 +738,7 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 			{
 				FirstName:        "Lina",
 				LastName:         "Legacy",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},
@@ -704,8 +786,8 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
 	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
-		time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
-		time.Date(2027, 8, 31, 0, 0, 0, 0, time.UTC))
+		timezone.NewDate(2026, 8, 1),
+		timezone.NewDate(2027, 8, 31))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 	defer func() {
 		_, _ = env.db.NewDelete().
@@ -743,7 +825,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 			{
 				FirstName:        "Emil",
 				LastName:         "EmptyDays",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{offering.ID},
 			},

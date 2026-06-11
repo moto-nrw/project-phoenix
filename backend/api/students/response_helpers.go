@@ -72,10 +72,11 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
 	response.BusDays = student.BusDays.Normalize()
+	// bus is a derived compatibility flag, true iff the child is a Buskind on at
+	// least one weekday. bus_days is the single source of truth (#1582).
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
@@ -207,10 +208,10 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
 	response.BusDays = student.BusDays.Normalize()
+	// bus derived from bus_days (single source of truth, #1582).
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = student.PickupDays.Normalize()
 	if student.PickupStatus != nil {
 		response.PickupStatus = *student.PickupStatus
 	}
@@ -418,7 +419,7 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 		return
 	}
 
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
 		return
@@ -447,7 +448,7 @@ func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []Stud
 		return
 	}
 
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, now)
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
 		return

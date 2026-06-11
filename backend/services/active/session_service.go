@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -68,7 +69,7 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StaffID:   staffID,
 		GroupID:   groupID,
 		Role:      "Supervisor",
-		StartDate: startDate,
+		StartDate: timezone.DateFromTime(startDate),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
@@ -274,7 +275,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StaffID:   staffID,
 			GroupID:   groupID,
 			Role:      "supervisor",
-			StartDate: startDate,
+			StartDate: timezone.DateFromTime(startDate),
 		}
 		supervisor.SetTenantID(tenant.FromContext(ctx))
 		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
@@ -565,9 +566,9 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 
 // endAllCurrentSupervisors ends all current supervisors by setting end_date
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
-	now := time.Now()
+	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
-		supervisor.EndDate = &now
+		supervisor.EndDate = &today
 		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
 		}
@@ -613,7 +614,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.G
 	}
 
 	supervisor.EndDate = nil
-	supervisor.StartDate = now
+	supervisor.StartDate = timezone.DateFromTime(now)
 	return s.supervisorRepo.Update(ctx, supervisor)
 }
 
@@ -623,7 +624,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		StaffID:   supervisorID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.supervisorRepo.Create(ctx, supervisor)
@@ -997,15 +998,16 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 		}
 	}
 
+	now := time.Now()
 	info := &SessionTimeoutInfo{
 		SessionID:          session.ID,
 		ActivityID:         session.GroupID,
 		StartTime:          session.StartTime,
 		LastActivity:       session.LastActivity,
 		TimeoutMinutes:     session.TimeoutMinutes,
-		InactivityDuration: session.GetInactivityDuration(),
-		TimeUntilTimeout:   session.GetTimeUntilTimeout(),
-		IsTimedOut:         session.IsTimedOut(),
+		InactivityDuration: SessionInactivityDuration(session, now),
+		TimeUntilTimeout:   s.SessionTimeUntilTimeout(ctx, session, now),
+		IsTimedOut:         s.IsSessionTimedOut(ctx, session, now),
 		ActiveStudentCount: activeStudentCount,
 	}
 
@@ -1030,7 +1032,7 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		// Session is abandoned only if BOTH conditions are true:
 		// 1. No recent activity (already filtered by query)
 		// 2. Device is offline (not pinging)
-		deviceOnline := session.Device != nil && session.Device.IsOnline()
+		deviceOnline := s.isDeviceOnline(ctx, session.Device, time.Now())
 		if deviceOnline {
 			// Device is still pinging - session stays alive
 			continue
@@ -1051,6 +1053,46 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	}
 
 	return cleanedCount, nil
+}
+
+// isDeviceOnline reports whether the device was online at the supplied
+// observation time. A device is online when its last_seen timestamp is within
+// the resolved online window of now. The window comes from the per-tenant
+// setting iot.device_online_window_minutes, falling back to
+// defaultDeviceOnlineWindow when the resolver is nil, no override exists, or
+// the lookup fails. Moved off the iot.Device model per issue #586 (Rule 12).
+func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, now time.Time) bool {
+	if device == nil || device.LastSeen == nil {
+		return false
+	}
+	return now.Sub(*device.LastSeen) <= s.deviceOnlineWindow(ctx)
+}
+
+// deviceOnlineWindow resolves the per-tenant device-online window, falling back
+// to defaultDeviceOnlineWindow. The key string is inlined (rather than
+// imported from models/config) to avoid a dependency cycle through the factory,
+// matching the GetPresenceMode convention in this package.
+func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
+	const keyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
+	if s.settings == nil {
+		return defaultDeviceOnlineWindow
+	}
+	has, err := s.settings.HasTenantOverride(ctx, keyDeviceOnlineWindowMinutes)
+	if err != nil {
+		s.getLogger().WarnContext(ctx, "device online window override check failed, using default",
+			slog.String("key", keyDeviceOnlineWindowMinutes),
+			slog.String("error", err.Error()),
+		)
+		return defaultDeviceOnlineWindow
+	}
+	if !has {
+		return defaultDeviceOnlineWindow
+	}
+	minutes, err := s.settings.ResolveInt(ctx, keyDeviceOnlineWindowMinutes)
+	if err != nil || minutes <= 0 {
+		return defaultDeviceOnlineWindow
+	}
+	return time.Duration(minutes) * time.Minute
 }
 
 // EndDailySessions ends all active sessions at the end of the day using bulk UPDATEs
@@ -1130,21 +1172,10 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
-	var staleRecords []struct {
-		ID        int64     `bun:"id"`
-		StartDate time.Time `bun:"start_date"`
-	}
-
-	err := s.db.NewSelect().
-		Table("active.group_supervisors").
-		Column("id", "start_date").
-		Where("start_date < ?", today).
-		Where("end_date IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to find orphaned supervisors: %v", err)
 		result.Errors = append(result.Errors, errMsg)
@@ -1154,19 +1185,11 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 
 	for _, record := range staleRecords {
 		// end_date is a DATE column, so set it to the start_date itself
-		endDate := time.Date(
-			record.StartDate.Year(), record.StartDate.Month(), record.StartDate.Day(),
-			0, 0, 0, 0, record.StartDate.Location(),
-		)
+		endDate := record.StartDate
 
-		_, err := s.db.NewUpdate().
-			Table("active.group_supervisors").
-			Set("end_date = ?", endDate).
-			Set("updated_at = ?", time.Now()).
-			Where("id = ?", record.ID).
-			Exec(ctx)
-
-		if err != nil {
+		record.EndDate = &endDate
+		record.UpdatedAt = time.Now()
+		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false

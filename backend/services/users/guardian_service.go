@@ -254,8 +254,9 @@ func (s *guardianService) SendInvitation(ctx context.Context, req GuardianInvita
 	}
 
 	// Check if there's a valid pending invitation
+	now := time.Now()
 	for _, inv := range existingInvitations {
-		if inv.IsValid() {
+		if authService.GuardianInvitationValid(inv, now) {
 			return nil, fmt.Errorf("guardian already has a pending invitation")
 		}
 	}
@@ -483,11 +484,12 @@ func (s *guardianService) validateInvitationAndProfile(ctx context.Context, toke
 
 // validateInvitationStatus checks if invitation is valid and returns appropriate error
 func (s *guardianService) validateInvitationStatus(invitation *authModels.GuardianInvitation) error {
-	if invitation.IsValid() {
+	now := time.Now()
+	if authService.GuardianInvitationValid(invitation, now) {
 		return nil
 	}
 
-	if invitation.IsExpired() {
+	if authService.GuardianInvitationExpired(invitation, now) {
 		return fmt.Errorf("invitation has expired")
 	}
 

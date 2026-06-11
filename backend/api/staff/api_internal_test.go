@@ -8,9 +8,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +22,6 @@ import (
 type pinAccountStub struct {
 	hasPIN    bool
 	verifyPIN func(string) bool
-	locked    bool
 }
 
 func (a pinAccountStub) HasPIN() bool {
@@ -31,10 +33,6 @@ func (a pinAccountStub) VerifyPIN(pin string) bool {
 		return a.verifyPIN(pin)
 	}
 	return false
-}
-
-func (a pinAccountStub) IsPINLocked() bool {
-	return a.locked
 }
 
 func TestResource_GetLogger(t *testing.T) {
@@ -101,7 +99,7 @@ func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *tes
 }
 
 func TestBuildSubstitutionInfoList(t *testing.T) {
-	start := time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)
+	start := timezone.NewDate(2026, time.April, 1)
 	substitutions := []*education.GroupSubstitution{
 		{
 			Model:     base.Model{ID: 11},
@@ -114,7 +112,7 @@ func TestBuildSubstitutionInfoList(t *testing.T) {
 			Model:     base.Model{ID: 12},
 			GroupID:   102,
 			StartDate: start,
-			EndDate:   start.Add(48 * time.Hour),
+			EndDate:   start.AddDays(2),
 		},
 	}
 
@@ -131,10 +129,20 @@ func TestBuildSubstitutionInfoList(t *testing.T) {
 }
 
 func TestResource_CheckAccountLocked(t *testing.T) {
-	resource := &Resource{}
+	// The lockout decision moved off the model into AuthService.IsPINLocked
+	// (issue #586). IsPINLocked is a pure read of account.PINLockedUntil, so a
+	// zero-value Service suffices here.
+	resource := &Resource{AuthService: &authSvc.Service{}}
 
-	assert.Nil(t, resource.checkAccountLocked(pinAccountStub{locked: false}))
-	assert.NotNil(t, resource.checkAccountLocked(pinAccountStub{locked: true}))
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+
+	assert.Nil(t, resource.checkAccountLocked(context.Background(),
+		&authmodel.Account{PINLockedUntil: &past}))
+	assert.Nil(t, resource.checkAccountLocked(context.Background(),
+		&authmodel.Account{PINLockedUntil: nil}))
+	assert.NotNil(t, resource.checkAccountLocked(context.Background(),
+		&authmodel.Account{PINLockedUntil: &future}))
 }
 
 func TestVerifyCurrentPIN(t *testing.T) {

@@ -82,6 +82,9 @@ func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.Acco
 func (s stubAuthLoginAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
 	panic("unexpected EnsureActive")
 }
+func (s stubAuthLoginAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
+	panic("unexpected Deactivate")
+}
 func (s stubAuthLoginAccountTenantRepo) FindActiveByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenant, error) {
 	return s.findActiveFn(ctx, accountID)
 }

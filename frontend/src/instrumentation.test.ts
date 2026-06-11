@@ -13,7 +13,7 @@ describe("instrumentation", () => {
 
   it("imports sentry.server.config when NEXT_RUNTIME is nodejs", async () => {
     vi.stubEnv("NEXT_RUNTIME", "nodejs");
-    vi.stubEnv("METRICS_BEARER_TOKEN", "test-token-with-enough-length");
+    stubValidRuntimeEnv();
 
     const serverMod = vi.fn().mockResolvedValue({});
     vi.doMock("./sentry.server.config", serverMod);
@@ -64,3 +64,19 @@ describe("instrumentation", () => {
     expect(onRequestError).toBe(mockCaptureRequestError);
   });
 });
+
+function stubValidRuntimeEnv() {
+  vi.stubEnv("API_URL", "http://server:8080");
+  vi.stubEnv("AUTH_JWT_EXPIRY", "15m");
+  vi.stubEnv("AUTH_JWT_REFRESH_EXPIRY", "168h");
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("NEXTAUTH_URL", "https://moto-app.de");
+  vi.stubEnv("NEXTAUTH_SECRET", "test-nextauth-secret");
+  vi.stubEnv("TENANT_DOMAIN", "moto-app.de");
+  vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.moto-app.de");
+  vi.stubEnv("NEXT_PUBLIC_LOG_LEVEL", "info");
+  vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
+  vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
+  vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "parents.moto-app.de");
+  vi.stubEnv("METRICS_BEARER_TOKEN", "test-token-with-enough-length");
+}

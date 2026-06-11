@@ -645,7 +645,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 		Model(&records).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, student.ID).
-		Where(`"attendance".date = ?`, timezone.TodayUTC()).
+		Where(`"attendance".date = ?`, timezone.TodayDate()).
 		Scan(context.Background())
 	require.NoError(t, err)
 	require.Len(t, records, 1, "daily checkout must close the existing row instead of inserting a new one")
@@ -879,3 +879,141 @@ func TestToggleAttendance_PersonNotStudent(t *testing.T) {
 // NOTE: Full success paths for toggleAttendance and confirm_daily_checkout require
 // complex staff context setup and active visits/groups. The tests above cover
 // these scenarios with real database fixtures.
+
+// =============================================================================
+// CHECKOUT ENDS OPEN VISIT TESTS (issue #895)
+// =============================================================================
+
+// TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit verifies that the
+// daily checkout ("zuhause") not only closes the attendance row but also ends
+// a still-open room visit in the same request. Before issue #895 was fixed,
+// the visit stayed open and deadlocked the student (checkin 409 / checkout 404).
+func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: checked-in student with RFID and a still-open room visit
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-visit-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Zuhause", "OpenVisit", "5f")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Zuhause", "Staff3")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_ZUHAUSE_VISIT01")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "daily-zuhause-visit-activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Daily Zuhause Visit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, checkInTime, nil)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "zuhause"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	// ACT
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: success, attendance closed AND visit ended
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	var records []*activeModel.Attendance
+	err := ctx.db.NewSelect().
+		Model(&records).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".student_id = ?`, student.ID).
+		Where(`"attendance".date = ?`, timezone.TodayDate()).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.NotNil(t, records[0].CheckOutTime, "daily checkout must close the attendance row")
+
+	endedVisit := new(activeModel.Visit)
+	err = ctx.db.NewSelect().
+		Model(endedVisit).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".id = ?`, visit.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endedVisit.ExitTime, "daily checkout must end the open room visit (issue #895)")
+}
+
+// TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit verifies that the
+// normal kiosk toggle's checkout branch also ends a still-open room visit.
+func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	// ARRANGE: full toggle setup (device-linked session + supervisor) with a
+	// checked-in student who still has an open visit in the session's room.
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "normal-toggle-visit-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "NormalToggle", "OpenVisit", "5g")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "NormalToggle", "Staff2")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_NORMALTOGGLE02")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "normal-toggle-visit-activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Normal Toggle Visit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+
+	_, err := ctx.db.NewUpdate().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Set("device_id = ?", testDevice.ID).
+		Where("id = ?", activeGroup.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, checkInTime, nil)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	body := map[string]interface{}{
+		"rfid":   rfidCard.ID,
+		"action": "confirm",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+		testutil.WithStaffContext(staff),
+		func(r *http.Request) {
+			reqCtx := context.WithValue(r.Context(), device.CtxIsIoTDevice, true)
+			*r = *r.WithContext(reqCtx)
+		},
+	)
+
+	// ACT: student is checked_in, so the toggle performs a checkout
+	rr := testutil.ExecuteRequest(router, req)
+
+	// ASSERT: success with checked_out action AND the visit is ended
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	if data, ok := response["data"].(map[string]interface{}); ok {
+		assert.Equal(t, "checked_out", data["action"])
+	}
+
+	endedVisit := new(activeModel.Visit)
+	err = ctx.db.NewSelect().
+		Model(endedVisit).
+		ModelTableExpr(`active.visits AS "visit"`).
+		Where(`"visit".id = ?`, visit.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open room visit (issue #895)")
+}

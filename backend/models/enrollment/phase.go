@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -92,13 +93,13 @@ var validPhaseRolloverModes = map[string]bool{
 type Phase struct {
 	base.Model `bun:"schema:enrollment,table:phases"`
 	base.TenantModel
-	Name              string     `bun:"name,notnull" json:"name"`
-	Kind              string     `bun:"kind,notnull,default:'school_year'" json:"kind"`
-	ServiceStartDate  time.Time  `bun:"service_start_date,notnull,type:date" json:"service_start_date"`
-	ServiceEndDate    time.Time  `bun:"service_end_date,notnull,type:date" json:"service_end_date"`
-	EnrollmentOpenAt  *time.Time `bun:"enrollment_open_at" json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt *time.Time `bun:"enrollment_close_at" json:"enrollment_close_at,omitempty"`
-	FormSchemaID      *int64     `bun:"form_schema_id" json:"form_schema_id,omitempty"`
+	Name              string        `bun:"name,notnull" json:"name"`
+	Kind              string        `bun:"kind,notnull,default:'school_year'" json:"kind"`
+	ServiceStartDate  timezone.Date `bun:"service_start_date,notnull,type:date" json:"service_start_date"`
+	ServiceEndDate    timezone.Date `bun:"service_end_date,notnull,type:date" json:"service_end_date"`
+	EnrollmentOpenAt  *time.Time    `bun:"enrollment_open_at" json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at" json:"enrollment_close_at,omitempty"`
+	FormSchemaID      *int64        `bun:"form_schema_id" json:"form_schema_id,omitempty"`
 	// Note: bool fields below intentionally omit the bun `default:`
 	// directive. With `default:`, bun skips zero values on INSERT,
 	// which means setting IsActive=false in Go would silently roundtrip
@@ -193,22 +194,6 @@ func (p *Phase) Validate() error {
 		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
 	}
 	return nil
-}
-
-// IsEnrollmentWindowOpen returns true when the configured window
-// includes `now`. NULL bounds mean "unbounded on that side". The
-// public-form gate uses this; the private admin pages don't, since
-// admins can preview/edit closed phases.
-func (p *Phase) IsEnrollmentWindowOpen(now time.Time) bool {
-	if p.EnrollmentOpenAt != nil && now.Before(*p.EnrollmentOpenAt) {
-		return false
-	}
-	if p.EnrollmentCloseAt != nil && !now.Before(*p.EnrollmentCloseAt) {
-		// Half-open semantics: the moment close arrives, the window is
-		// closed. Mirrors care_offering.IsApplicationWindowOpen.
-		return false
-	}
-	return true
 }
 
 // PhaseRepository is the DB contract the phase service consumes. PR A

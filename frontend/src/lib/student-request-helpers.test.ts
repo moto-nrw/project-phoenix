@@ -395,7 +395,7 @@ describe("buildBackendStudentRequest", () => {
       first_name: "Max",
       second_name: "Mustermann",
       school_class: "1a",
-      bus: true,
+      bus_days: { mon: true, fri: true },
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",
@@ -413,7 +413,9 @@ describe("buildBackendStudentRequest", () => {
       first_name: "Max",
       last_name: "Mustermann",
       school_class: "1a",
-      bus: true,
+      // bus_days is the single source of truth (#1582); the legacy bus boolean
+      // is no longer sent.
+      bus_days: { mon: true, fri: true },
       extra_info: "Special needs",
       birthday: "2015-06-15",
       health_info: "Allergies",

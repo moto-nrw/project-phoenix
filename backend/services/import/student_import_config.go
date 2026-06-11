@@ -597,10 +597,27 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 	return person, nil
 }
 
+// busDaysFromImportRow resolves the student's bus_days from an import row.
+// Per-day "Bus.Mo".."Bus.Fr" columns take precedence; otherwise the legacy
+// single "Bus" column maps to all weekdays (Mo–Fr) when true, no days when
+// false. bus_days is the single source of truth (#1582).
+func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
+	if row.BusDays != nil {
+		days := users.BusDays{}
+		for _, key := range users.BusDayOrder {
+			if row.BusDays[key] {
+				days[key] = true
+			}
+		}
+		return days
+	}
+	return users.BusDaysFromLegacyFlag(row.BusPermission)
+}
+
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
-	enrolledFrom := parseOptionalImportDate(row.EnrolledFrom)
-	enrolledUntil := parseOptionalImportDate(row.EnrolledUntil)
+	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
+	enrolledUntil := parseOptionalImportCalendarDate(row.EnrolledUntil)
 
 	student := &users.Student{
 		PersonID:                 personID,
@@ -610,7 +627,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		SupervisorNotes:          stringPtr(row.SupervisorNotes),
 		HealthInfo:               stringPtr(row.HealthInfo),
 		PickupStatus:             stringPtr(row.PickupStatus),
-		Bus:                      &row.BusPermission,
+		BusDays:                  busDaysFromImportRow(row),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
@@ -637,8 +654,8 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	return student, nil
 }
 
-func enrollmentStartsInFuture(enrolledFrom *time.Time) bool {
-	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayUTC())
+func enrollmentStartsInFuture(enrolledFrom *timezone.Date) bool {
+	return enrolledFrom != nil && enrolledFrom.After(timezone.TodayDate())
 }
 
 // createGuardianRelationships creates all guardian relationships
@@ -964,8 +981,19 @@ func parseOptionalImportDate(dateStr string) *time.Time {
 	return &parsed
 }
 
+// parseOptionalImportCalendarDate is the calendar-date sibling of
+// parseOptionalImportDate for DATE-typed columns (enrollment window).
+func parseOptionalImportCalendarDate(dateStr string) *timezone.Date {
+	parsed := parseOptionalImportDate(dateStr)
+	if parsed == nil {
+		return nil
+	}
+	d := timezone.DateFromTime(*parsed)
+	return &d
+}
+
 // parseOptionalDate parses a date string or returns nil
-func parseOptionalDate(dateStr string) (*time.Time, error) {
+func parseOptionalDate(dateStr string) (*timezone.Date, error) {
 	trimmed := strings.TrimSpace(dateStr)
 	if trimmed == "" {
 		return nil, nil
@@ -976,7 +1004,8 @@ func parseOptionalDate(dateStr string) (*time.Time, error) {
 		return nil, err
 	}
 
-	return &t, nil
+	d := timezone.DateFromTime(t)
+	return &d, nil
 }
 
 // stringPtr returns a pointer to a string, or nil if empty

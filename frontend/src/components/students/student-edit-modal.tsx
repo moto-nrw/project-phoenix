@@ -17,6 +17,8 @@ import {
   busDaysHaveAny,
   normalizeBusDays,
   type BusDays,
+  pickupDaysHaveAny,
+  normalizePickupDays,
 } from "~/lib/student-helpers";
 
 interface StudentEditModalProps {
@@ -58,6 +60,7 @@ export function StudentEditModal({
         data_retention_days: student.data_retention_days ?? 30,
         bus: student.bus ?? false,
         bus_days: normalizeBusDays(student.bus_days),
+        pickup_days: normalizePickupDays(student.pickup_days),
         pickup_status: student.pickup_status ?? "",
       });
       setErrors({});
@@ -198,8 +201,17 @@ export function StudentEditModal({
 
           {/* Pickup Status */}
           <PickupStatusSection
-            value={formData.pickup_status}
-            onChange={(v) => handleChange("pickup_status", v)}
+            days={formData.pickup_days}
+            onChange={(value) => {
+              const normalized = normalizePickupDays(value);
+              setFormData((prev) => ({
+                ...prev,
+                pickup_days: normalized,
+                pickup_status: pickupDaysHaveAny(normalized)
+                  ? "Wird abgeholt"
+                  : "Geht alleine nach Hause",
+              }));
+            }}
           />
 
           {/* Bus Status */}

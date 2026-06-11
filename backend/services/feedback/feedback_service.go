@@ -2,24 +2,21 @@ package feedback
 
 import (
 	"context"
-	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // feedbackService implements the Service interface
 type feedbackService struct {
-	db        *bun.DB
 	entryRepo feedback.EntryRepository
 }
 
 // NewService creates a new feedback service
-func NewService(entryRepo feedback.EntryRepository, db *bun.DB) Service {
+func NewService(entryRepo feedback.EntryRepository) Service {
 	return &feedbackService{
 		entryRepo: entryRepo,
-		db:        db,
 	}
 }
 
@@ -133,7 +130,7 @@ func (s *feedbackService) GetEntriesByStudent(ctx context.Context, studentID int
 }
 
 // GetEntriesByDay retrieves all feedback entries for a specific day
-func (s *feedbackService) GetEntriesByDay(ctx context.Context, day time.Time) ([]*feedback.Entry, error) {
+func (s *feedbackService) GetEntriesByDay(ctx context.Context, day timezone.Date) ([]*feedback.Entry, error) {
 	if day.IsZero() {
 		return nil, &InvalidEntryDataError{Err: ErrInvalidParameters}
 	}
@@ -142,7 +139,7 @@ func (s *feedbackService) GetEntriesByDay(ctx context.Context, day time.Time) ([
 }
 
 // GetEntriesByDateRange retrieves all feedback entries within a date range
-func (s *feedbackService) GetEntriesByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*feedback.Entry, error) {
+func (s *feedbackService) GetEntriesByDateRange(ctx context.Context, startDate, endDate timezone.Date) ([]*feedback.Entry, error) {
 	if startDate.IsZero() || endDate.IsZero() {
 		return nil, &InvalidEntryDataError{Err: ErrInvalidParameters}
 	}
@@ -163,7 +160,7 @@ func (s *feedbackService) GetMensaFeedback(ctx context.Context, isMensaFeedback 
 }
 
 // GetEntriesByStudentAndDateRange retrieves all feedback entries for a student within a date range
-func (s *feedbackService) GetEntriesByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*feedback.Entry, error) {
+func (s *feedbackService) GetEntriesByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*feedback.Entry, error) {
 	if studentID <= 0 {
 		return nil, &InvalidEntryDataError{Err: ErrInvalidParameters}
 	}
@@ -183,7 +180,7 @@ func (s *feedbackService) GetEntriesByStudentAndDateRange(ctx context.Context, s
 }
 
 // CountByDay counts feedback entries for a specific day
-func (s *feedbackService) CountByDay(ctx context.Context, day time.Time) (int, error) {
+func (s *feedbackService) CountByDay(ctx context.Context, day timezone.Date) (int, error) {
 	if day.IsZero() {
 		return 0, &InvalidEntryDataError{Err: ErrInvalidParameters}
 	}

@@ -55,11 +55,11 @@ type OperationActiveService interface {
 }
 
 type OperationArrivalService interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date time.Time) (map[int64]*EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 }
 
 type TimetableOperationsService interface {
-	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
+	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*OperationRoster, error)
@@ -174,7 +174,7 @@ func NewTimetableOperationsService(deps TimetableOperationsDependencies) Timetab
 	return &timetableOperationsService{deps: deps}
 }
 
-func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date time.Time, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error) {
+func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error) {
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -370,7 +370,7 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	if row == nil {
 		return nil, ErrTimetableOperationNotFound
 	}
-	if verrs := scheduleModel.ValidateAttendancePatch(patch, row); len(verrs) > 0 {
+	if verrs := ValidateAttendancePatch(patch, row); len(verrs) > 0 {
 		return nil, &TimetableAttendanceValidationError{Fields: verrs}
 	}
 	if err := s.deps.InstanceStudents.UpdateAttendanceFields(ctx, row.ID, patch); err != nil {
@@ -836,7 +836,7 @@ func (s *timetableOperationsService) roomNameMap(ctx context.Context) (map[int64
 }
 
 func instanceStartAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
-	return time.Date(inst.Date.Year(), inst.Date.Month(), inst.Date.Day(), inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
+	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), 0, loc)
 }
 
 func staffAssigned(rows []*scheduleModel.InstanceStaff, staffID int64) bool {

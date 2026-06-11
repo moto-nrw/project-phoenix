@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -258,18 +257,10 @@ func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *sc
 	if phase == nil || period == nil {
 		return nil
 	}
-	phaseStart := civilEnrollmentDate(phase.ServiceStartDate)
-	phaseEnd := civilEnrollmentDate(phase.ServiceEndDate)
-	periodStart := civilEnrollmentDate(period.StartDate)
-	periodEnd := civilEnrollmentDate(period.EndDate)
-	if phaseStart.Before(periodStart) || phaseEnd.After(periodEnd) {
+	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
 		return fmt.Errorf("care offering phase must be within the linked timetable template period")
 	}
 	return nil
-}
-
-func civilEnrollmentDate(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offering *enrollmentModels.CareOffering) error {

@@ -129,17 +129,6 @@ func (d *Device) GetLastSeenDuration() *time.Duration {
 	return &duration
 }
 
-// IsOnline checks if the device is considered online based on last seen time
-// A device is considered online if it was seen in the last 5 minutes
-func (d *Device) IsOnline() bool {
-	if d.LastSeen == nil {
-		return false
-	}
-
-	// Device is considered online if seen in the last 5 minutes
-	return time.Since(*d.LastSeen) <= 5*time.Minute
-}
-
 // GetID returns the entity's ID
 func (m *Device) GetID() interface{} {
 	return m.ID

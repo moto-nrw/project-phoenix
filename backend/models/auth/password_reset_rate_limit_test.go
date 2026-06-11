@@ -65,54 +65,6 @@ func TestPasswordResetRateLimit_Validate(t *testing.T) {
 	}
 }
 
-func TestPasswordResetRateLimit_IsExpired(t *testing.T) {
-	tests := []struct {
-		name        string
-		windowStart time.Time
-		checkTime   time.Time
-		expected    bool
-	}{
-		{
-			name:        "not expired - within hour",
-			windowStart: time.Now(),
-			checkTime:   time.Now().Add(30 * time.Minute),
-			expected:    false,
-		},
-		{
-			name:        "not expired - exactly at boundary",
-			windowStart: time.Now(),
-			checkTime:   time.Now().Add(59 * time.Minute),
-			expected:    false,
-		},
-		{
-			name:        "expired - over an hour",
-			windowStart: time.Now().Add(-2 * time.Hour),
-			checkTime:   time.Now(),
-			expected:    true,
-		},
-		{
-			name:        "expired - exactly past hour",
-			windowStart: time.Now().Add(-61 * time.Minute),
-			checkTime:   time.Now(),
-			expected:    true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			limit := &PasswordResetRateLimit{
-				Email:       "test@example.com",
-				Attempts:    1,
-				WindowStart: tt.windowStart,
-			}
-
-			if got := limit.IsExpired(tt.checkTime); got != tt.expected {
-				t.Errorf("PasswordResetRateLimit.IsExpired() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestPasswordResetRateLimit_IncrementAttempts(t *testing.T) {
 	limit := &PasswordResetRateLimit{
 		Email:       "test@example.com",
@@ -133,27 +85,6 @@ func TestPasswordResetRateLimit_IncrementAttempts(t *testing.T) {
 	limit.IncrementAttempts()
 	if limit.Attempts != 3 {
 		t.Errorf("Attempts = %d, want 3", limit.Attempts)
-	}
-}
-
-func TestPasswordResetRateLimit_Reset(t *testing.T) {
-	oldTime := time.Now().Add(-2 * time.Hour)
-	limit := &PasswordResetRateLimit{
-		Email:       "test@example.com",
-		Attempts:    5,
-		WindowStart: oldTime,
-	}
-
-	before := time.Now().UTC()
-	limit.Reset()
-	after := time.Now().UTC()
-
-	if limit.Attempts != 1 {
-		t.Errorf("Attempts = %d, want 1 after reset", limit.Attempts)
-	}
-
-	if limit.WindowStart.Before(before) || limit.WindowStart.After(after) {
-		t.Errorf("WindowStart = %v, expected between %v and %v", limit.WindowStart, before, after)
 	}
 }
 

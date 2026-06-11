@@ -604,19 +604,20 @@ export function EnrollmentForm({
         !hasOfferingIssue &&
         fieldErrorKeys.length > 0 &&
         fieldErrorKeys.every((key) => key.startsWith("consent_"));
-      let banner = "Bitte korrigiere die rot markierten Felder.";
+      let banner = "Bitte korrigieren Sie die rot markierten Felder.";
       if (fieldErrorKeys.length === 1 && !hasOfferingIssue) {
         banner = Object.values(newFieldErrors)[0] ?? banner;
       } else if (onlyConsents) {
-        banner = "Bitte bestätige alle erforderlichen Zustimmungen.";
+        banner = "Bitte bestätigen Sie alle erforderlichen Zustimmungen.";
       } else if (fieldErrorKeys.length === 0 && missingCareIndexes.length > 0) {
         banner =
-          "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.";
+          "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot aus.";
       } else if (
         fieldErrorKeys.length === 0 &&
         exactOneCareIndexes.length > 0
       ) {
-        banner = "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.";
+        banner =
+          "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot aus.";
       } else if (
         fieldErrorKeys.length === 0 &&
         dayErrorCount > 0 &&
@@ -1231,7 +1232,7 @@ export function EnrollmentForm({
           className="rounded-md border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]"
         >
           Die Anmeldung ist derzeit nicht möglich: Die Bot-Schutz-Konfiguration
-          ist unvollständig. Bitte wende dich an die OGS-Leitung.
+          ist unvollständig. Bitte wenden Sie sich an die OGS-Leitung.
         </div>
       )}
 
@@ -1829,6 +1830,14 @@ function customValueMissing(
     return !Object.values(schedule).some((time) => time.trim() !== "");
   }
   if (field.type === "weekday_boolean") {
+    // Pickup: an explicit (touched) selection — even an empty one — is the
+    // valid "Geht alleine nach Hause" answer. Only a never-touched field
+    // (no value object was ever produced) counts as missing, so a required
+    // Abholregelung forces the parent to engage with it once. Other
+    // weekday_boolean fields (e.g. Buskind) still need at least one day.
+    if (field.target === "student.pickup_status") {
+      return value === undefined || value === null || typeof value !== "object";
+    }
     const days = asWeekdayBooleanObject(value);
     return !Object.values(days).some(Boolean);
   }
@@ -1878,6 +1887,12 @@ function requiredMessageForField(
     return "Bitte mindestens eine Uhrzeit angeben.";
   }
   if (field.type === "weekday_boolean") {
+    // Pickup accepts an empty selection ("geht alleine nach Hause"), so the
+    // required check only asks the parent to confirm the field — not to pick a
+    // day. Every other weekday_boolean (Buskind) genuinely needs a day.
+    if (field.target === "student.pickup_status") {
+      return "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
+    }
     return "Bitte mindestens einen Wochentag auswählen.";
   }
   if (field.type === "select") {
@@ -2281,7 +2296,9 @@ function WeekdayBooleanInput({
         </p>
       )}
       <p className="text-xs text-gray-500">
-        Wähle die Tage aus, an denen das Kind mit dem Bus fährt.
+        {field.target === "student.pickup_status"
+          ? "Wählen Sie die Tage aus, an denen Ihr Kind abgeholt wird. An nicht gewählten Tagen geht es alleine nach Hause."
+          : "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt."}
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-5">
         {WEEKDAYS.map((w) => {
@@ -2553,9 +2570,9 @@ function ExistingChildrenPanel({
     <div className="rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/5 p-4">
       <h3 className="text-sm font-semibold text-gray-900">Bestehende Kinder</h3>
       <p className="mt-1 text-xs text-gray-600">
-        Diese Kinder sind schon bei der Schule erfasst. Klicke auf „Übernehmen"
-        um sie schnell in die Anmeldung einzutragen. Geburtsdatum musst du noch
-        eintragen.
+        Diese Kinder sind schon bei der Schule erfasst. Klicken Sie auf
+        „Übernehmen" um sie schnell in die Anmeldung einzutragen. Das
+        Geburtsdatum müssen Sie noch eintragen.
       </p>
       <ul className="mt-3 space-y-2">
         {existing.map((c) => {

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
+import { busDaysHaveAny } from "~/lib/student-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import { createLogger } from "~/lib/logger";
 
@@ -27,6 +28,8 @@ export interface ExtendedStudent extends Student {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  class_trip?: boolean;
+  class_trip_since?: string;
 }
 
 interface StudentDataState {
@@ -76,8 +79,9 @@ function mapStudentResponse(
     second_name: mappedStudent.second_name ?? "",
     group_id: mappedStudent.group_id ?? "",
     group_name: mappedStudent.group_name ?? "",
-    bus: mappedStudent.bus ?? false,
-    buskind: mappedStudent.bus ?? false,
+    // bus / buskind are derived from bus_days, the single source of truth (#1582).
+    bus: busDaysHaveAny(mappedStudent.bus_days),
+    buskind: busDaysHaveAny(mappedStudent.bus_days),
     current_room: undefined,
     location_since: hasAccess
       ? (mappedStudent.location_since ?? undefined)
@@ -91,6 +95,10 @@ function mapStudentResponse(
     excused: hasAccess ? (mappedStudent.excused ?? false) : false,
     excused_since: hasAccess
       ? (mappedStudent.excused_since ?? undefined)
+      : undefined,
+    class_trip: hasAccess ? (mappedStudent.class_trip ?? false) : false,
+    class_trip_since: hasAccess
+      ? (mappedStudent.class_trip_since ?? undefined)
       : undefined,
     actual_arrival_time: hasAccess
       ? (mappedStudent.actual_arrival_time ?? undefined)

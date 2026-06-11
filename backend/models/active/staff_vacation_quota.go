@@ -10,6 +10,16 @@ import (
 
 const tableStaffVacationQuota = "active.staff_vacation_quota"
 
+// Validation bounds for a staff vacation quota.
+const (
+	// minQuotaYear / maxQuotaYear bound the calendar year a quota may target.
+	minQuotaYear = 2000
+	maxQuotaYear = 2100
+	// minQuotaDays / maxQuotaDays bound entitled and carryover day counts.
+	minQuotaDays = 0
+	maxQuotaDays = 366
+)
+
 type StaffVacationQuota struct {
 	base.Model `bun:"schema:active,table:staff_vacation_quota"`
 	base.TenantModel
@@ -41,13 +51,13 @@ func (q *StaffVacationQuota) Validate() error {
 	if q.StaffID <= 0 {
 		return errors.New("staff_id is required")
 	}
-	if q.Year < 2000 || q.Year > 2100 {
+	if q.Year < minQuotaYear || q.Year > maxQuotaYear {
 		return errors.New("year out of range")
 	}
-	if q.EntitledDays < 0 || q.EntitledDays > 366 {
+	if q.EntitledDays < minQuotaDays || q.EntitledDays > maxQuotaDays {
 		return errors.New("entitled_days out of range")
 	}
-	if q.CarryoverDays < 0 || q.CarryoverDays > 366 {
+	if q.CarryoverDays < minQuotaDays || q.CarryoverDays > maxQuotaDays {
 		return errors.New("carryover_days out of range")
 	}
 	return nil

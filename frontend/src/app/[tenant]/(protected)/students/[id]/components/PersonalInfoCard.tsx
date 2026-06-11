@@ -2,6 +2,8 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
+import type { BusDays } from "~/lib/student-helpers";
+import { formatBusDays } from "~/lib/student-helpers";
 
 interface ExtendedStudent {
   name: string;
@@ -9,6 +11,7 @@ interface ExtendedStudent {
   group_name?: string;
   birthday?: string;
   buskind?: boolean;
+  bus_days?: BusDays;
   pickup_status?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -89,7 +92,7 @@ function PersonalInfoDisplay({
             : "Nicht angegeben"
         }
       />
-      <InfoItem label="Buskind" value={student.buskind ? "Ja" : "Nein"} />
+      <InfoItem label="Buskind" value={formatBusDays(student.bus_days)} />
       <InfoItem
         label="Abholstatus"
         value={student.pickup_status ?? "Nicht gesetzt"}

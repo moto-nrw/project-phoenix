@@ -63,7 +63,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("create valid attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -87,7 +87,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("create with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
 
@@ -120,7 +120,7 @@ func TestAttendanceRepository_Create(t *testing.T) {
 
 	t.Run("verify IsCheckedIn helper method", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Use a fresh student so the partial unique index on
 		// (student_id, date) WHERE check_out_time IS NULL doesn't fight us:
@@ -179,7 +179,7 @@ func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 	closedAttendance := testpkg.CreateTestAttendance(t, db, data.Student2.ID, data.Staff1.ID, data.Device1.ID, now.Add(-30*time.Minute), &checkOutTime)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", openAttendance.ID, closedAttendance.ID)
 
-	ids, err := repo.ListOpenStudentIDsForDate(ctx, now)
+	ids, err := repo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 
 	require.NoError(t, err)
 	assert.Contains(t, ids, data.Student1.ID)
@@ -205,7 +205,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("single record for student on date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -238,7 +238,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("multiple records for student on same date ordered by check-in time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Use a fresh student so we control the row count exactly. The
 		// partial unique index allows many rows per (student_id, date) as
@@ -304,7 +304,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("no records for student on date", func(t *testing.T) {
 		// Use a date with no records
-		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, timezone.Berlin)
+		emptyDate := timezone.NewDate(2023, 1, 1)
 
 		records, err := repo.FindByStudentAndDate(ctx, data.Student1.ID, emptyDate)
 		require.NoError(t, err)
@@ -314,7 +314,7 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("date filtering ignores time component", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Isolate from prior sub-tests' open rows — partial unique index
 		// only allows one open attendance per (student_id, date).
@@ -333,10 +333,9 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 		require.NoError(t, err)
 		createdIDs = append(createdIDs, attendance.ID)
 
-		// Query with different time component but same date
-		queryDate := timezone.TodayUTC().Add(14*time.Hour + 30*time.Minute + 45*time.Second)
-
-		records, err := repo.FindByStudentAndDate(ctx, dateFilterStudent.ID, queryDate)
+		// timezone.Date carries no time component — querying the same
+		// calendar date must find the record regardless of check-in time.
+		records, err := repo.FindByStudentAndDate(ctx, dateFilterStudent.ID, date)
 		require.NoError(t, err)
 
 		var found bool
@@ -346,12 +345,12 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 				break
 			}
 		}
-		assert.True(t, found, "Should find record regardless of time component in query date")
+		assert.True(t, found, "Should find record for the same calendar date")
 	})
 
 	t.Run("different students on same date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Fresh students — Student1/Student2 from the shared fixture may
 		// already have open rows from earlier sub-tests, which would clash
@@ -400,8 +399,8 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 	t.Run("different dates for same student", func(t *testing.T) {
 		now := time.Now()
-		date1 := timezone.TodayUTC()
-		date2 := date1.AddDate(0, 0, 1) // Next day
+		date1 := timezone.TodayDate()
+		date2 := date1.AddDays(1) // Next day
 
 		// Fresh student — Student1 already has open rows on `today` from
 		// earlier sub-tests; the partial unique index would block the
@@ -478,9 +477,9 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record across multiple dates", func(t *testing.T) {
 		now := time.Now()
-		date1 := timezone.TodayUTC().AddDate(0, 0, -2) // 2 days ago
-		date2 := timezone.TodayUTC().AddDate(0, 0, -1) // Yesterday
-		date3 := timezone.TodayUTC()                   // Today
+		date1 := timezone.TodayDate().AddDays(-2) // 2 days ago
+		date2 := timezone.TodayDate().AddDays(-1) // Yesterday
+		date3 := timezone.TodayDate()             // Today
 
 		// Different dates each, so the partial unique index isn't relevant
 		// here — but use an isolated student for clean assertions.
@@ -531,7 +530,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("latest record same day with multiple check-ins", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Fresh student so we own the row count. Earlier row is closed
 		// (realistic check-in/out cycle), the later row stays open — only
@@ -594,7 +593,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, singleStudent.ID)
 
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   singleStudent.ID,
@@ -623,8 +622,8 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, complexStudent.ID)
 
 		now := time.Now()
-		today := timezone.TodayUTC()
-		yesterday := today.AddDate(0, 0, -1)
+		today := timezone.TodayDate()
+		yesterday := today.AddDays(-1)
 
 		// Yesterday: multiple records — earlier is closed, later stays open
 		// to respect the partial unique index on
@@ -676,7 +675,7 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 	t.Run("different students do not interfere", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Fresh students — Student1/Student2 from the shared fixture may
 		// already have open rows from earlier sub-tests, which would clash
@@ -758,7 +757,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedInStudent.ID)
 
 		now := time.Now()
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   checkedInStudent.ID,
@@ -790,7 +789,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, checkedOutStudent.ID)
 
 		now := time.Now()
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 		checkOutTime := now.Add(2 * time.Hour)
 		checkedOutBy := data.Staff2.ID
 
@@ -825,7 +824,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, multiRecordStudent.ID)
 
 		now := time.Now()
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 
 		// First check-in (earlier) — closed so it doesn't conflict with the
 		// later open row under the partial unique index on
@@ -886,7 +885,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, historicalStudent.ID)
 
 		now := time.Now()
-		yesterday := timezone.TodayUTC().AddDate(0, 0, -1)
+		yesterday := timezone.TodayDate().AddDays(-1)
 
 		// Create attendance for yesterday
 		attendance := &active.Attendance{
@@ -915,7 +914,7 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, diffStudent1.ID, diffStudent2.ID)
 
 		now := time.Now()
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 
 		// Create attendance for student1
 		attendance1 := &active.Attendance{
@@ -967,13 +966,13 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 		tzStudent := testpkg.CreateTestStudent(t, db, "Timezone", "StatusTest", "2h")
 		defer testpkg.CleanupActivityFixtures(t, db, tzStudent.ID)
 
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 
 		// Create attendance record for today but late in the day
 		attendance := &active.Attendance{
 			StudentID:   tzStudent.ID,
 			Date:        today,
-			CheckInTime: today.Add(23 * time.Hour), // Late in the day
+			CheckInTime: today.BerlinMidnight().Add(23 * time.Hour), // Late in the day
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,
 		}
@@ -1010,7 +1009,7 @@ func TestAttendanceRepository_Update(t *testing.T) {
 
 	t.Run("updates attendance with check-out time", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1067,7 +1066,7 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 
 	t.Run("finds existing attendance by ID", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1105,7 +1104,7 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 
 	t.Run("deletes existing attendance record", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1145,7 +1144,7 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 	t.Run("gets today's attendance for student", func(t *testing.T) {
 		now := time.Now()
-		today := timezone.TodayUTC()
+		today := timezone.TodayDate()
 
 		attendance := &active.Attendance{
 			StudentID:   data.Student1.ID,
@@ -1193,7 +1192,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 
 	t.Run("finds all attendance for specific date", func(t *testing.T) {
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 
 		// Create multiple attendance records for same date
 		attendance1 := &active.Attendance{
@@ -1240,7 +1239,7 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 	})
 
 	t.Run("returns empty for date with no attendance", func(t *testing.T) {
-		emptyDate := time.Date(2023, 1, 1, 0, 0, 0, 0, timezone.Berlin)
+		emptyDate := timezone.NewDate(2023, 1, 1)
 
 		records, err := repo.FindForDate(ctx, emptyDate)
 		require.NoError(t, err)
@@ -1287,7 +1286,7 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 		now := time.Now()
 		att := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayUTC(),
+			Date:        timezone.TodayDate(),
 			CheckInTime: now,
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,
@@ -1305,7 +1304,7 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 		first := &active.Attendance{
 			StudentID:   student.ID,
 			Date:        date,
@@ -1335,7 +1334,7 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		now := time.Now()
-		date := timezone.TodayUTC()
+		date := timezone.TodayDate()
 		closedBy := data.Staff1.ID
 		closeTime := now.Add(30 * time.Minute)
 
@@ -1403,7 +1402,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		yard := now.Add(-15 * time.Minute)
 		open := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayUTC(),
+			Date:        timezone.TodayDate(),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,
@@ -1441,7 +1440,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		now := time.Now()
 		open := &active.Attendance{
 			StudentID:   student.ID,
-			Date:        timezone.TodayUTC(),
+			Date:        timezone.TodayDate(),
 			CheckInTime: now.Add(-1 * time.Hour),
 			CheckedInBy: data.Staff1.ID,
 			DeviceID:    data.Device1.ID,

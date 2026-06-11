@@ -22,6 +22,9 @@ type AccountRepository interface {
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	// AnonymizeForDeletion overwrites the email with an anonymized
+	// placeholder and clears the username (GDPR person deletion).
+	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
 	// mfa_locked_until = now() + lockoutDuration when the post-increment
 	// value reaches threshold. The CAS-style UPDATE means N concurrent
@@ -34,12 +37,33 @@ type AccountRepository interface {
 	// after a successful verify so a single Account.Update can't
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
+	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
+	// pin_locked_until = now() + lockoutDuration when the post-increment
+	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
+	// UPDATE means N concurrent failed PIN entries count as N, not 1,
+	// closing the read-modify-write lockout-bypass race that the previous
+	// model-level Account.IncrementPINAttempts() suffered (issue #586).
+	IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (PINAttemptResult, error)
+	// ResetPINAttempts atomically clears pin_attempts + pin_locked_until
+	// after a successful PIN verify.
+	ResetPINAttempts(ctx context.Context, id int64) error
+	// ClearPIN atomically removes the PIN credential and resets the PIN
+	// lockout counter in a single UPDATE.
+	ClearPIN(ctx context.Context, id int64) error
 }
 
 // MFAAttemptResult is the post-update snapshot returned by
 // AccountRepository.IncrementMFAAttempts. Used by callers to decide
 // whether the increment triggered the lockout transition.
 type MFAAttemptResult struct {
+	Attempts    int
+	LockedUntil *time.Time
+}
+
+// PINAttemptResult is the post-update snapshot returned by
+// AccountRepository.IncrementPINAttempts. Mirrors MFAAttemptResult so the
+// caller can tell whether this attempt crossed the lockout threshold.
+type PINAttemptResult struct {
 	Attempts    int
 	LockedUntil *time.Time
 }
@@ -139,6 +163,7 @@ type AccountPermissionRepository interface {
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
+	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
 }
 
@@ -329,6 +354,7 @@ type OrgAccountInfo struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
+	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -555,6 +556,13 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 		enrolled, err := service.GetEnrolledStudents(ctx, group.ID)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(enrolled), 1)
+
+		// The model no longer defaults ValidFrom (#586); the service must set it.
+		repoFactory := repositories.NewFactory(db)
+		enrollments, err := repoFactory.StudentEnrollment.FindByGroupID(ctx, group.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, enrollments)
+		assert.False(t, enrollments[0].ValidFrom.IsZero(), "EnrollStudent must set ValidFrom now that the model no longer defaults it")
 	})
 
 	t.Run("returns error for nonexistent group", func(t *testing.T) {
@@ -1382,7 +1390,7 @@ func TestActivityService_GetEnrollmentsByDate(t *testing.T) {
 
 	t.Run("returns enrollments for date", func(t *testing.T) {
 		// ACT - query today
-		result, err := service.GetEnrollmentsByDate(ctx, time.Now())
+		result, err := service.GetEnrollmentsByDate(ctx, timezone.TodayDate())
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1404,8 +1412,8 @@ func TestActivityService_GetEnrollmentHistory(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// ACT
-		startDate := time.Now().AddDate(0, -1, 0) // 1 month ago
-		endDate := time.Now()
+		startDate := timezone.TodayDate().AddDays(-30) // 1 month ago
+		endDate := timezone.TodayDate()
 		result, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
 
 		// ASSERT
@@ -1642,7 +1650,7 @@ func TestActivityService_UpdateAttendanceStatus(t *testing.T) {
 
 		// Get the enrollment to get its ID using GetEnrollmentsByDate
 		// (GetEnrolledStudents returns *users.Student, not enrollments)
-		today := time.Now()
+		today := timezone.TodayDate()
 		enrollments, err := service.GetEnrollmentsByDate(ctx, today)
 		require.NoError(t, err)
 
@@ -2001,8 +2009,8 @@ func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "No", "History", "1a")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		startDate := time.Now().AddDate(0, -1, 0)
-		endDate := time.Now()
+		startDate := timezone.TodayDate().AddDays(-30)
+		endDate := timezone.TodayDate()
 
 		// ACT
 		history, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
@@ -2023,8 +2031,8 @@ func TestActivityService_GetEnrollmentHistory_NoData(t *testing.T) {
 		err := service.EnrollStudent(ctx, group.ID, student.ID)
 		require.NoError(t, err)
 
-		startDate := time.Now().AddDate(0, 0, -1)
-		endDate := time.Now().AddDate(0, 0, 1)
+		startDate := timezone.TodayDate().AddDays(-1)
+		endDate := timezone.TodayDate().AddDays(1)
 
 		// ACT
 		history, err := service.GetEnrollmentHistory(ctx, student.ID, startDate, endDate)
@@ -2773,7 +2781,7 @@ func TestActivityService_GetEnrollmentsByDate_DatabaseError(t *testing.T) {
 	cancel()
 
 	// ACT
-	_, err := service.GetEnrollmentsByDate(canceledCtx, time.Now())
+	_, err := service.GetEnrollmentsByDate(canceledCtx, timezone.TodayDate())
 
 	// ASSERT
 	require.Error(t, err)
@@ -2791,7 +2799,7 @@ func TestActivityService_GetEnrollmentHistory_DatabaseError(t *testing.T) {
 	cancel()
 
 	// ACT
-	_, err := service.GetEnrollmentHistory(canceledCtx, 1, time.Now(), time.Now())
+	_, err := service.GetEnrollmentHistory(canceledCtx, 1, timezone.TodayDate(), timezone.TodayDate())
 
 	// ASSERT
 	require.Error(t, err)

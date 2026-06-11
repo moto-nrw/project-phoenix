@@ -2,9 +2,9 @@ package users_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -65,8 +65,8 @@ func TestGuestRepository_Create(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Guest", "Dates")
 		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
 
-		startDate := time.Now()
-		endDate := startDate.AddDate(0, 3, 0)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(90)
 
 		guest := &users.Guest{
 			StaffID:           staff.ID,
@@ -345,8 +345,8 @@ func TestGuestRepository_FindActive(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
-		startDate := time.Now().AddDate(0, -1, 0)
-		endDate := time.Now().AddDate(0, 1, 0)
+		startDate := timezone.TodayDate().AddDays(-30)
+		endDate := timezone.TodayDate().AddDays(30)
 		err := repo.SetDateRange(ctx, guest.ID, startDate, endDate)
 		require.NoError(t, err)
 
@@ -375,8 +375,8 @@ func TestGuestRepository_SetDateRange(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "users.guests", guest.ID)
 		defer testpkg.CleanupActivityFixtures(t, db, guest.Staff.ID, guest.Staff.PersonID)
 
-		startDate := time.Now().Truncate(time.Second)
-		endDate := startDate.AddDate(0, 3, 0)
+		startDate := timezone.TodayDate()
+		endDate := startDate.AddDays(90)
 
 		err := repo.SetDateRange(ctx, guest.ID, startDate, endDate)
 		require.NoError(t, err)

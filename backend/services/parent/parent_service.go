@@ -11,10 +11,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -53,14 +53,14 @@ type Service interface {
 	// opposing "excused" days, upserts a sick status-day per date with
 	// source=parent, and flips the live sick flag when today is included.
 	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []time.Time, reason string) ([]*activeModels.StudentStatusDay, error)
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error)
 
 	// ListSickDays returns the child's currently-active sick days in the
 	// given date range (excused days are filtered out — parents only
 	// manage sick notes). Authorization only; not gated by the setting so
 	// previously-reported days stay visible if a school later disables the
 	// feature.
-	ListSickDays(ctx context.Context, accountID, studentID int64, from, to time.Time) ([]*activeModels.StudentStatusDay, error)
+	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
 
 	// AddParentNote appends a free-text note the parent left for the
 	// team and returns the newest ParentNoteDisplayLimit notes. Gated by

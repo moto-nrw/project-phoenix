@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -55,7 +56,7 @@ func TestFilterActiveSupervisors_AllActive(t *testing.T) {
 
 func TestFilterActiveSupervisors_SomeEnded(t *testing.T) {
 	rs := &Resource{}
-	endDate := time.Now()
+	endDate := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
 		{StaffID: 1, EndDate: nil},
 		{StaffID: 2, EndDate: &endDate}, // Ended
@@ -71,7 +72,7 @@ func TestFilterActiveSupervisors_SomeEnded(t *testing.T) {
 
 func TestFilterActiveSupervisors_AllEnded(t *testing.T) {
 	rs := &Resource{}
-	endDate := time.Now()
+	endDate := timezone.TodayDate()
 	supervisors := []*active.GroupSupervisor{
 		{StaffID: 1, EndDate: &endDate},
 		{StaffID: 2, EndDate: &endDate},

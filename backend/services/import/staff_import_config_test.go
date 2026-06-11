@@ -113,6 +113,15 @@ func (r stubStaffAccountRepo) IncrementMFAAttempts(context.Context, int64, int, 
 func (r stubStaffAccountRepo) ResetMFAAttempts(context.Context, int64) error {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) IncrementPINAttempts(context.Context, int64, int, time.Duration) (authModels.PINAttemptResult, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ResetPINAttempts(context.Context, int64) error {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ClearPIN(context.Context, int64) error {
+	panic("not implemented")
+}
 
 type stubStaffAccountTenantRepo struct {
 	exists bool
@@ -123,6 +132,9 @@ func (r stubStaffAccountTenantRepo) Create(context.Context, *authModels.AccountT
 	panic("not implemented")
 }
 func (r stubStaffAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
+	panic("not implemented")
+}
+func (r stubStaffAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
 	panic("not implemented")
 }
 func (r stubStaffAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
@@ -473,4 +485,9 @@ func TestStaffImportConfig_InvitationServiceCompileGuard(t *testing.T) {
 	var _ authModels.AccountRepository = stubStaffAccountRepo{}
 	var _ authModels.AccountTenantRepository = stubStaffAccountTenantRepo{}
 	var _ platformModels.SchoolRepository = stubStaffSchoolRepo{}
+}
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (r stubStaffAccountRepo) AnonymizeForDeletion(context.Context, int64, string) error {
+	return nil
 }

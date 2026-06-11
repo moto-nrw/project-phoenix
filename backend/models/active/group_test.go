@@ -208,22 +208,6 @@ func TestGroupIsActive(t *testing.T) {
 	}
 }
 
-func TestGroupEndSession(t *testing.T) {
-	nowTime := time.Now()
-
-	group := &Group{
-		StartTime: nowTime,
-		EndTime:   nil,
-	}
-
-	// Test that EndSession sets the end time
-	group.EndSession()
-
-	if group.EndTime == nil {
-		t.Errorf("Group.EndSession() did not set the end time")
-	}
-}
-
 func TestGroupSetEndTime(t *testing.T) {
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)

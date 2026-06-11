@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -429,7 +430,7 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
 	exception := &schedule.StudentArrivalException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -477,7 +478,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
 	exception := &schedule.StudentArrivalException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -556,7 +557,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentArrivalNote{
 		StudentID: student.ID,
 		NoteDate:  noteDate,
@@ -599,7 +600,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentArrivalNote{
 		StudentID: student.ID,
 		NoteDate:  noteDate,
@@ -734,9 +735,9 @@ func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	date := time.Now()
+	date := timezone.TodayDate()
 	if req.Date != nil && *req.Date != "" {
-		parsedDate, _ := time.Parse(dateFormatISO, *req.Date)
+		parsedDate, _ := timezone.ParseDate(*req.Date)
 		date = parsedDate
 	}
 

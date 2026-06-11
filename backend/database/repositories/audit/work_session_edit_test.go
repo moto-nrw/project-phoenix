@@ -30,7 +30,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	t.Run("creates multiple edit records", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -75,7 +75,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 	})
 
 	t.Run("validates field names", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -146,7 +146,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 	})
 
 	t.Run("creates batch with multiple fields", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -211,7 +211,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	t.Run("returns edit records for session", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -254,7 +254,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 	})
 
 	t.Run("returns empty for session with no edits", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -272,7 +272,7 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 	})
 
 	t.Run("orders edits by creation time descending", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -348,7 +348,7 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 	t.Run("returns count of edits for session", func(t *testing.T) {
 		// Create a work session
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -383,7 +383,7 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 	})
 
 	t.Run("returns zero for session with no edits", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -418,7 +418,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 	t.Run("returns counts for multiple sessions", func(t *testing.T) {
 		// Create two work sessions
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session1 := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
@@ -428,7 +428,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 		}
 		session2 := &active.WorkSession{
 			StaffID:     staff.ID,
-			Date:        today.AddDate(0, 0, 1),
+			Date:        today.AddDays(1),
 			Status:      active.WorkSessionStatusPresent,
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
@@ -486,7 +486,7 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 	})
 
 	t.Run("returns zero counts for sessions with no edits", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		session := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,

@@ -55,11 +55,15 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-vi.mock("~/lib/date-helpers", () => ({
-  getStartDateForTimeRange: vi.fn((_timeRange: string, _now: Date) => {
-    return new Date("2020-01-01");
-  }),
-}));
+vi.mock("~/lib/date-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/date-helpers")>();
+  return {
+    ...actual,
+    getStartDateForTimeRange: vi.fn((_timeRange: string, _now: Date) => {
+      return new Date("2020-01-01");
+    }),
+  };
+});
 
 vi.mock("~/lib/student-api", () => ({
   fetchStudent: vi.fn().mockResolvedValue({

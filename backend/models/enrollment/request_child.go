@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -56,13 +57,13 @@ type RequestChild struct {
 	RequestID        int64          `bun:"request_id,notnull" json:"request_id"`
 	FirstName        string         `bun:"first_name,notnull" json:"first_name"`
 	LastName         string         `bun:"last_name,notnull" json:"last_name"`
-	DateOfBirth      time.Time      `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
+	DateOfBirth      timezone.Date  `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
 	TargetGradeLevel *int16         `bun:"target_grade_level" json:"target_grade_level,omitempty"`
 	CustomData       map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
 	Status           string         `bun:"status,notnull,default:'submitted'" json:"status"`
 	StatusReason     *string        `bun:"status_reason" json:"status_reason,omitempty"`
 	ActivationMode   string         `bun:"activation_mode,notnull,default:'scheduled'" json:"activation_mode"`
-	ActivateOn       *time.Time     `bun:"activate_on,type:date" json:"activate_on,omitempty"`
+	ActivateOn       *timezone.Date `bun:"activate_on,type:date" json:"activate_on,omitempty"`
 	ReviewedAt       *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	ReviewedBy       *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	CreatedStudentID *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
@@ -129,6 +130,7 @@ type RequestChildRepository interface {
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
+	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
 
 	// ListByPhaseAndStatuses returns every child row in the given
 	// phase whose status is in the provided set, sorted by request

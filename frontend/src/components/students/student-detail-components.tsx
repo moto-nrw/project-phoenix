@@ -14,6 +14,11 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import {
+  formatBusDays,
+  formatPickupDays,
+  pickupDaysHaveAny,
+} from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -379,6 +384,7 @@ export function StudentDetailHeader({
               // recorded, the actual resolved times can render normally.
               const absence = getStudentAbsence({
                 sick: student.sick,
+                classTrip: student.class_trip,
                 excused: student.excused,
               });
               const dayPlanningNotComingLabel =
@@ -692,10 +698,14 @@ export function PersonalInfoReadOnly({
           value={student.group_name ?? "Nicht zugewiesen"}
         />
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
-        <InfoItem label="Buskind" value={student.buskind ? "Ja" : "Nein"} />
+        <InfoItem label="Buskind" value={formatBusDays(student.bus_days)} />
         <InfoItem
-          label="Abholstatus"
-          value={student.pickup_status ?? "Nicht gesetzt"}
+          label="Abholregelung"
+          value={
+            pickupDaysHaveAny(student.pickup_days)
+              ? `Wird abgeholt: ${formatPickupDays(student.pickup_days)}`
+              : "Geht alleine nach Hause"
+          }
         />
         {student.health_info && (
           <InfoItem

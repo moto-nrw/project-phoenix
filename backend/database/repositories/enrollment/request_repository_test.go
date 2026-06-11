@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -223,8 +224,8 @@ func TestRequestRepository_ListAdmin_PhaseFilter(t *testing.T) {
 	// A second phase so we can verify the filter actually narrows.
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
 	otherPhase := makeValidPhase(uniquePhaseName("other"))
-	otherPhase.ServiceStartDate = time.Date(2027, 9, 1, 0, 0, 0, 0, time.UTC)
-	otherPhase.ServiceEndDate = time.Date(2028, 7, 31, 0, 0, 0, 0, time.UTC)
+	otherPhase.ServiceStartDate = timezone.NewDate(2027, 9, 1)
+	otherPhase.ServiceEndDate = timezone.NewDate(2028, 7, 31)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return phaseRepo.Create(ctx, otherPhase)
 	}))

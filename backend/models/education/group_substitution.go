@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -12,12 +13,12 @@ import (
 type GroupSubstitution struct {
 	base.Model `bun:"schema:education,table:group_substitution"`
 	base.TenantModel
-	GroupID           int64     `bun:"group_id,notnull" json:"group_id"`
-	RegularStaffID    *int64    `bun:"regular_staff_id" json:"regular_staff_id,omitempty"`
-	SubstituteStaffID int64     `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`
-	StartDate         time.Time `bun:"start_date,notnull" json:"start_date"`
-	EndDate           time.Time `bun:"end_date,notnull" json:"end_date"`
-	Reason            string    `bun:"reason" json:"reason,omitempty"`
+	GroupID           int64         `bun:"group_id,notnull" json:"group_id"`
+	RegularStaffID    *int64        `bun:"regular_staff_id" json:"regular_staff_id,omitempty"`
+	SubstituteStaffID int64         `bun:"substitute_staff_id,notnull" json:"substitute_staff_id"`
+	StartDate         timezone.Date `bun:"start_date,notnull" json:"start_date"`
+	EndDate           timezone.Date `bun:"end_date,notnull" json:"end_date"`
+	Reason            string        `bun:"reason" json:"reason,omitempty"`
 
 	// Relations not stored in the database
 	Group           *Group       `bun:"-" json:"group,omitempty"`
@@ -67,17 +68,7 @@ func (gs *GroupSubstitution) Validate() error {
 
 // Duration returns the duration of the substitution in days
 func (gs *GroupSubstitution) Duration() int {
-	return int(gs.EndDate.Sub(gs.StartDate).Hours()/24) + 1
-}
-
-// IsActive checks if the substitution is currently active
-func (gs *GroupSubstitution) IsActive(checkDate time.Time) bool {
-	return !checkDate.Before(gs.StartDate) && !checkDate.After(gs.EndDate)
-}
-
-// IsCurrentlyActive checks if the substitution is active at the current time
-func (gs *GroupSubstitution) IsCurrentlyActive() bool {
-	return gs.IsActive(time.Now())
+	return gs.StartDate.DaysUntil(gs.EndDate) + 1
 }
 
 // SetGroup links this substitution to a group

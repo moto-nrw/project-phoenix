@@ -18,6 +18,7 @@ import { Loading } from "~/components/ui/loading";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
+import { todayISO } from "~/lib/date-helpers";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -133,7 +134,7 @@ function TodayTick({
 // ─── Charts ─────────────────────────────────────────────────────────────────
 
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = todayISO();
 
   const chartData = useMemo(() => {
     return days
@@ -439,7 +440,7 @@ function HistoryTable({
   readonly caps: { attendanceDays: number; roomDetailDays: number };
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = todayISO();
 
   return (
     <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">

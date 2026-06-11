@@ -49,14 +49,6 @@ func TestOperatorEmailChangeToken_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "new email is required")
 	})
 
-	t.Run("ExpiredToken", func(t *testing.T) {
-		token := validToken()
-		token.Expiry = time.Now().Add(-10 * time.Minute)
-		err := token.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expired")
-	})
-
 	t.Run("UsedToken", func(t *testing.T) {
 		token := validToken()
 		token.Used = true

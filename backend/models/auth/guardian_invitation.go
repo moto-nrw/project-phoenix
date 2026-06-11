@@ -61,31 +61,15 @@ func (i *GuardianInvitation) Validate() error {
 	if i.ExpiresAt.IsZero() {
 		return errors.New("expires_at is required")
 	}
-	if time.Now().After(i.ExpiresAt) {
-		return errors.New("invitation expiry must be in the future")
-	}
 	return nil
 }
 
-// IsExpired returns true if the invitation has passed its expiry
-func (i *GuardianInvitation) IsExpired() bool {
-	return time.Now().After(i.ExpiresAt)
-}
-
-// IsAccepted returns true if the invitation was already accepted
+// IsAccepted returns true if the invitation was already accepted. This is a
+// pure field accessor (AcceptedAt != nil); the wall-clock expiry/validity
+// decision lives in the auth service (services/auth.GuardianInvitationExpired /
+// GuardianInvitationValid), per issue #586 (Rule 12).
 func (i *GuardianInvitation) IsAccepted() bool {
 	return i.AcceptedAt != nil
-}
-
-// IsValid checks whether the invitation can still be consumed
-func (i *GuardianInvitation) IsValid() bool {
-	return !i.IsExpired() && !i.IsAccepted()
-}
-
-// MarkAsAccepted sets the AcceptedAt timestamp to now
-func (i *GuardianInvitation) MarkAsAccepted() {
-	now := time.Now()
-	i.AcceptedAt = &now
 }
 
 // SetExpiry assigns a duration from now as the expiry

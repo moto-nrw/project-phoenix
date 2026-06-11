@@ -203,7 +203,7 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     onSubmit,
   }: {
     isOpen: boolean;
-    status: "sick" | "excused";
+    status: "sick" | "excused" | "class_trip";
     onClose: () => void;
     onSubmit: (dates: string[]) => Promise<void>;
   }) =>
@@ -246,6 +246,20 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     <div data-testid="checkin-section">
       <button data-testid="checkin-button" onClick={onCheckinClick}>
         Kind anmelden
+      </button>
+    </div>
+  ),
+  StudentStatusActionsMenu: ({
+    onPlanClassTrip,
+  }: {
+    isClassTrip: boolean;
+    classTripSince?: string;
+    onPlanClassTrip: () => void;
+    isLoading: boolean;
+  }) => (
+    <div data-testid="status-actions-menu">
+      <button data-testid="class-trip-action" onClick={onPlanClassTrip}>
+        Klassenfahrt planen
       </button>
     </div>
   ),
@@ -426,7 +440,7 @@ const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
   createStudentStatusDays: (
     studentId: string,
-    status: "sick" | "excused",
+    status: "sick" | "excused" | "class_trip",
     dates: string[],
   ) => mockCreateStudentStatusDays(studentId, status, dates),
   fetchStudentStatusDays: (studentId: string, from: string, to: string) =>
@@ -1285,6 +1299,37 @@ describe("StudentDetailPage", () => {
           screen.getByTestId("modal-entschuldigung-aufheben"),
         ).toBeInTheDocument();
       });
+    });
+
+    it("keeps class-trip students in the planned excused flow", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: { ...mockStudent, excused: true, class_trip: true },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      const btn = screen.getByTestId("excused-toggle-button");
+      expect(btn).toHaveTextContent("Entschuldigen");
+      fireEvent.click(btn);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("planned-status-modal-excused"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByTestId("modal-entschuldigung-aufheben"),
+      ).not.toBeInTheDocument();
+      expect(mockUpdateStudent).not.toHaveBeenCalled();
     });
   });
 

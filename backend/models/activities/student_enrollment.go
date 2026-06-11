@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -26,13 +27,13 @@ const (
 type StudentEnrollment struct {
 	base.Model `bun:"schema:activities,table:student_enrollments"`
 	base.TenantModel
-	StudentID        int64      `bun:"student_id,notnull" json:"student_id"`
-	ActivityGroupID  int64      `bun:"activity_group_id,notnull" json:"activity_group_id"`
-	ValidFrom        time.Time  `bun:"valid_from,notnull" json:"valid_from"`
-	ValidUntil       *time.Time `bun:"valid_until" json:"valid_until,omitempty"`
-	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	SelectedWeekdays []int      `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
-	AttendanceStatus *string    `bun:"attendance_status" json:"attendance_status,omitempty"`
+	StudentID        int64          `bun:"student_id,notnull" json:"student_id"`
+	ActivityGroupID  int64          `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	ValidFrom        timezone.Date  `bun:"valid_from,notnull" json:"valid_from"`
+	ValidUntil       *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
+	CalendarPeriodID *int64         `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	SelectedWeekdays []int          `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
+	AttendanceStatus *string        `bun:"attendance_status" json:"attendance_status,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
@@ -93,17 +94,13 @@ func (se *StudentEnrollment) Validate() error {
 		return errors.New("activity group ID is required")
 	}
 
-	if se.ValidFrom.IsZero() {
-		se.ValidFrom = time.Now()
-	}
-
 	if se.AttendanceStatus != nil && !IsValidAttendanceStatus(*se.AttendanceStatus) {
 		return errors.New("invalid attendance status")
 	}
 
 	seenWeekdays := make(map[int]bool, len(se.SelectedWeekdays))
 	for _, weekday := range se.SelectedWeekdays {
-		if weekday < 1 || weekday > 7 {
+		if !IsValidWeekday(weekday) {
 			return errors.New("selected weekdays must be between 1 and 7")
 		}
 		if seenWeekdays[weekday] {
@@ -113,24 +110,6 @@ func (se *StudentEnrollment) Validate() error {
 	}
 
 	return nil
-}
-
-// MarkPresent marks the student as present
-func (se *StudentEnrollment) MarkPresent() {
-	status := AttendancePresent
-	se.AttendanceStatus = &status
-}
-
-// MarkAbsent marks the student as absent
-func (se *StudentEnrollment) MarkAbsent() {
-	status := AttendanceAbsent
-	se.AttendanceStatus = &status
-}
-
-// MarkExcused marks the student as excused
-func (se *StudentEnrollment) MarkExcused() {
-	status := AttendanceExcused
-	se.AttendanceStatus = &status
 }
 
 // ClearAttendance clears the attendance status

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,7 +27,7 @@ func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enroll
 	enrollment := &activities.StudentEnrollment{
 		StudentID:        studentID,
 		ActivityGroupID:  groupID,
-		ValidFrom:        enrollmentDate,
+		ValidFrom:        timezone.DateFromTime(enrollmentDate),
 		AttendanceStatus: status,
 	}
 	enrollment.SetTenantID(1)
@@ -60,7 +61,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       student.ID,
 			ActivityGroupID: group.ID,
-			ValidFrom:       time.Now(),
+			ValidFrom:       timezone.TodayDate(),
 		}
 
 		err := repo.Create(ctx, enrollment)
@@ -80,7 +81,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        student.ID,
 			ActivityGroupID:  group.ID,
-			ValidFrom:        time.Now(),
+			ValidFrom:        timezone.TodayDate(),
 			AttendanceStatus: &status,
 		}
 
@@ -100,7 +101,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        student.ID,
 			ActivityGroupID:  group.ID,
-			ValidFrom:        time.Now(),
+			ValidFrom:        timezone.TodayDate(),
 			SelectedWeekdays: []int{1, 3, 5},
 		}
 
@@ -125,7 +126,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       student.ID,
 			ActivityGroupID: group.ID,
-			ValidFrom:       time.Now(),
+			ValidFrom:       timezone.TodayDate(),
 		}
 		enrollment.SetTenantID(1)
 
@@ -140,7 +141,7 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        106,
 			ActivityGroupID:  206,
-			ValidFrom:        time.Now(),
+			ValidFrom:        timezone.TodayDate(),
 			SelectedWeekdays: []int{9},
 		}
 		enrollment.SetTenantID(1)
@@ -225,7 +226,7 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:        101,
 			ActivityGroupID:  201,
-			ValidFrom:        time.Now(),
+			ValidFrom:        timezone.TodayDate(),
 			SelectedWeekdays: []int{1, 1},
 		}
 		enrollment.ID = 301
@@ -259,7 +260,7 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 		enrollment := &activities.StudentEnrollment{
 			StudentID:       105,
 			ActivityGroupID: 205,
-			ValidFrom:       time.Now(),
+			ValidFrom:       timezone.TodayDate(),
 		}
 		enrollment.ID = 305
 		enrollment.SetTenantID(1)
@@ -516,7 +517,7 @@ func TestStudentEnrollmentRepository_FindByValidFromRange(t *testing.T) {
 		start := now.Add(-60 * time.Hour)
 		end := now
 
-		enrollments, err := repo.FindByValidFromRange(ctx, start, end)
+		enrollments, err := repo.FindByValidFromRange(ctx, timezone.DateFromTime(start), timezone.DateFromTime(end))
 		require.NoError(t, err)
 		assert.NotEmpty(t, enrollments)
 
@@ -534,8 +535,8 @@ func TestStudentEnrollmentRepository_FindByValidFromRange(t *testing.T) {
 	})
 
 	t.Run("returns empty for range with no enrollments", func(t *testing.T) {
-		futureStart := time.Now().Add(365 * 24 * time.Hour)
-		futureEnd := futureStart.Add(24 * time.Hour)
+		futureStart := timezone.TodayDate().AddDays(365)
+		futureEnd := futureStart.AddDays(1)
 
 		enrollments, err := repo.FindByValidFromRange(ctx, futureStart, futureEnd)
 		require.NoError(t, err)
@@ -668,8 +669,8 @@ func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "count by group ID")
 
-	from := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
-	to := from.AddDate(0, 0, 1)
+	from := timezone.NewDate(2026, time.June, 1)
+	to := from.AddDays(1)
 	_, err = repo.FindByValidFromRange(ctx, from, to)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find by valid_from date range")

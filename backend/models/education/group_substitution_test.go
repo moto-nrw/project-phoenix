@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -14,8 +15,8 @@ func ptr(i int64) *int64 {
 }
 
 func TestGroupSubstitution_Validate(t *testing.T) {
-	currentTime := time.Now()
-	tomorrow := currentTime.AddDate(0, 0, 1)
+	currentTime := timezone.TodayDate()
+	tomorrow := currentTime.AddDays(1)
 
 	tests := []struct {
 		name         string
@@ -88,7 +89,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				GroupID:           1,
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
-				StartDate:         time.Time{}, // Zero time
+				StartDate:         timezone.Date{}, // Zero date
 				EndDate:           tomorrow,
 			},
 			wantErr:      true,
@@ -101,7 +102,7 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 				RegularStaffID:    ptr(1),
 				SubstituteStaffID: 2,
 				StartDate:         currentTime,
-				EndDate:           time.Time{}, // Zero time
+				EndDate:           timezone.Date{}, // Zero date
 			},
 			wantErr:      true,
 			errorMessage: "end date is required",
@@ -151,8 +152,8 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 }
 
 func TestGroupSubstitution_Duration(t *testing.T) {
-	// Use a fixed date in UTC to avoid DST edge cases
-	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	// Use a fixed date to avoid DST edge cases
+	now := timezone.NewDate(2026, time.June, 15)
 
 	tests := []struct {
 		name         string
@@ -171,7 +172,7 @@ func TestGroupSubstitution_Duration(t *testing.T) {
 			name: "Two day substitution",
 			substitution: GroupSubstitution{
 				StartDate: now,
-				EndDate:   now.AddDate(0, 0, 1),
+				EndDate:   now.AddDays(1),
 			},
 			want: 2,
 		},
@@ -179,7 +180,7 @@ func TestGroupSubstitution_Duration(t *testing.T) {
 			name: "Week-long substitution",
 			substitution: GroupSubstitution{
 				StartDate: now,
-				EndDate:   now.AddDate(0, 0, 6),
+				EndDate:   now.AddDays(6),
 			},
 			want: 7,
 		},
@@ -189,85 +190,6 @@ func TestGroupSubstitution_Duration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.substitution.Duration(); got != tt.want {
 				t.Errorf("GroupSubstitution.Duration() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGroupSubstitution_IsActive(t *testing.T) {
-	now := time.Now()
-	yesterday := now.AddDate(0, 0, -1)
-	tomorrow := now.AddDate(0, 0, 1)
-	dayAfterTomorrow := now.AddDate(0, 0, 2)
-	lastWeek := now.AddDate(0, 0, -7)
-	nextWeek := now.AddDate(0, 0, 7)
-
-	tests := []struct {
-		name         string
-		substitution GroupSubstitution
-		checkDate    time.Time
-		want         bool
-	}{
-		{
-			name: "Active on start date",
-			substitution: GroupSubstitution{
-				StartDate: now,
-				EndDate:   tomorrow,
-			},
-			checkDate: now,
-			want:      true,
-		},
-		{
-			name: "Active on end date",
-			substitution: GroupSubstitution{
-				StartDate: yesterday,
-				EndDate:   now,
-			},
-			checkDate: now,
-			want:      true,
-		},
-		{
-			name: "Active between start and end",
-			substitution: GroupSubstitution{
-				StartDate: yesterday,
-				EndDate:   tomorrow,
-			},
-			checkDate: now,
-			want:      true,
-		},
-		{
-			name: "Not active before start date",
-			substitution: GroupSubstitution{
-				StartDate: tomorrow,
-				EndDate:   dayAfterTomorrow,
-			},
-			checkDate: now,
-			want:      false,
-		},
-		{
-			name: "Not active after end date",
-			substitution: GroupSubstitution{
-				StartDate: lastWeek,
-				EndDate:   yesterday,
-			},
-			checkDate: now,
-			want:      false,
-		},
-		{
-			name: "Not active for future date",
-			substitution: GroupSubstitution{
-				StartDate: yesterday,
-				EndDate:   tomorrow,
-			},
-			checkDate: nextWeek,
-			want:      false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.substitution.IsActive(tt.checkDate); got != tt.want {
-				t.Errorf("GroupSubstitution.IsActive() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -420,51 +342,5 @@ func TestGroupSubstitution_GetUpdatedAt(t *testing.T) {
 
 	if got := gs.GetUpdatedAt(); !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
-	}
-}
-
-func TestGroupSubstitution_IsCurrentlyActive(t *testing.T) {
-	now := time.Now()
-	yesterday := now.AddDate(0, 0, -1)
-	tomorrow := now.AddDate(0, 0, 1)
-	lastWeek := now.AddDate(0, 0, -7)
-
-	tests := []struct {
-		name string
-		gs   *GroupSubstitution
-		want bool
-	}{
-		{
-			name: "currently active",
-			gs: &GroupSubstitution{
-				StartDate: yesterday,
-				EndDate:   tomorrow,
-			},
-			want: true,
-		},
-		{
-			name: "already ended",
-			gs: &GroupSubstitution{
-				StartDate: lastWeek,
-				EndDate:   yesterday,
-			},
-			want: false,
-		},
-		{
-			name: "not yet started",
-			gs: &GroupSubstitution{
-				StartDate: tomorrow,
-				EndDate:   tomorrow.AddDate(0, 0, 1),
-			},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.gs.IsCurrentlyActive(); got != tt.want {
-				t.Errorf("IsCurrentlyActive() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }

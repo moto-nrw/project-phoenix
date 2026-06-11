@@ -45,20 +45,9 @@ func (m *PasswordResetRateLimit) Validate() error {
 	return nil
 }
 
-// IsExpired reports whether the rate limit window has elapsed for the default one-hour window.
-func (m *PasswordResetRateLimit) IsExpired(now time.Time) bool {
-	return m.WindowStart.Add(time.Hour).Before(now)
-}
-
 // IncrementAttempts increments the attempts counter in memory.
 func (m *PasswordResetRateLimit) IncrementAttempts() {
 	m.Attempts++
-}
-
-// Reset clears the attempts counter and starts a new window.
-func (m *PasswordResetRateLimit) Reset() {
-	m.Attempts = 1
-	m.WindowStart = time.Now().UTC()
 }
 
 // RateLimitState represents the rate limit metadata returned to services.

@@ -42,6 +42,12 @@ func applySupervisorColumnMapping(q *bun.SelectQuery) *bun.SelectQuery {
 		ColumnExpr(`"supervisor".staff_id AS "supervisor__staff_id"`).
 		ColumnExpr(`"supervisor".group_id AS "supervisor__group_id"`).
 		ColumnExpr(`"supervisor".is_primary AS "supervisor__is_primary"`).
+		// Validity window + period scope: callers feed these rows back into
+		// full-row Update (e.g. SetPrimarySupervisor), so omitting them here
+		// would NULL valid_from on write (zero timezone.Date binds as NULL).
+		ColumnExpr(`"supervisor".valid_from AS "supervisor__valid_from"`).
+		ColumnExpr(`"supervisor".valid_until AS "supervisor__valid_until"`).
+		ColumnExpr(`"supervisor".calendar_period_id AS "supervisor__calendar_period_id"`).
 		// Staff columns
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
@@ -337,6 +343,30 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 	return nil
 }
 
+// DeleteByStaffID removes all planned supervisions for a staff member. Used by
+// staff offboarding, where the staff row is only soft-deleted and the old
+// ON DELETE CASCADE therefore no longer cleans up assignments.
+func (r *SupervisorPlannedRepository) DeleteByStaffID(ctx context.Context, staffID int64) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(tableExprSupervisorPlanned).
+		Where(`"supervisor_planned".staff_id = ?`, staffID)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete by staff id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
 	supervisors := make([]*activities.SupervisorPlanned, 0)
@@ -360,4 +390,28 @@ func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBa
 	}
 
 	return supervisors, nil
+}
+
+// ListPlannedSupervisionBlockers returns the staff member's planned activity
+// supervisions as caregiver-capability blocker rows. Custom raw-SQL method
+// (backend-conventions Rule 2): join into the users blocker read model.
+func (r *SupervisorPlannedRepository) ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error) {
+	var results []users.BlockerActivity
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT s.id, s.group_id AS activity_id,
+		       COALESCE(ag.name, 'Unbekannte Aktivität') AS activity_name,
+		       COALESCE(s.is_primary, false) AS is_primary
+		FROM activities.supervisors AS s
+		LEFT JOIN activities.groups AS ag ON ag.id = s.group_id AND ag.tenant_id = s.tenant_id
+		WHERE s.tenant_id = ?
+		  AND s.staff_id = ?
+		ORDER BY ag.name ASC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list planned supervision blockers",
+			Err: err,
+		}
+	}
+	return results, nil
 }

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -78,6 +79,12 @@ type AuthService interface {
 	ActivateAccount(ctx context.Context, accountID int) error
 	DeactivateAccount(ctx context.Context, accountID int) error
 	UpdateAccount(ctx context.Context, account *auth.Account) error
+
+	// PIN lockout (issue #586): the brute-force lockout decision and the
+	// atomic counter mutations live in the service, not on the model.
+	IsPINLocked(account *auth.Account, now time.Time) bool
+	RecordFailedPINAttempt(ctx context.Context, accountID int64) error
+	ResetPINLockout(ctx context.Context, accountID int64) error
 	ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
 	GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error)
 	GetAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)

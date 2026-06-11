@@ -34,10 +34,10 @@ func (c *OperatorMFAEmailChallenge) TableName() string {
 	return "platform.operator_mfa_email_challenges"
 }
 
-// IsExpired returns true once the TTL has passed.
-func (c *OperatorMFAEmailChallenge) IsExpired() bool { return time.Now().After(c.ExpiresAt) }
-
-// IsConsumed returns true once the code has been redeemed.
+// IsConsumed returns true once the code has been redeemed. This is a pure field
+// accessor (ConsumedAt != nil); the wall-clock TTL/expiry decision lives in the
+// service layer (services/platform.OperatorMFAEmailChallengeExpired) and the
+// repository's active-challenge finder, per issue #586 (Rule 12).
 func (c *OperatorMFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }
 
 // GetID, GetCreatedAt, GetUpdatedAt — base.Entity contract.

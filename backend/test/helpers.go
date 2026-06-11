@@ -108,6 +108,8 @@ To run integration tests:
 For CI, set TEST_DB_DSN as an environment variable.`)
 	}
 
+	dsn = packageIsolatedTestDSN(t, dsn)
+
 	viper.Set("db_dsn", dsn)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
 	// Cap per-test pool size. Each call to SetupTestDB opens a fresh
@@ -127,6 +129,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// which fails when the target schema isn't in search_path.
 	_, _ = db.ExecContext(context.Background(),
 		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
+
+	// Spread PK sequences into disjoint per-table ranges so fixture IDs from
+	// different tables never collide numerically (see sequence_offsets.go).
+	applySequenceOffsets(t, db)
 
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// All fixtures use tenant_id=1, which requires a FK target row.
@@ -290,6 +296,27 @@ func CleanupRateLimitsByEmail(tb testing.TB, db *bun.DB, emails ...string) {
 // FK constraints on tenant-scoped tables.
 func TenantContext(tenantID int64) context.Context {
 	return tenant.WithTenantID(context.Background(), tenantID)
+}
+
+// TenantScope owns a unique tenant for a test and provides the matching context.
+type TenantScope struct {
+	TenantID int64
+}
+
+// NewTenantScope creates a unique tenant and returns a scope for tests that
+// assert counts or shared-table state and therefore must not use tenant_id=1.
+func NewTenantScope(tb testing.TB, db *bun.DB) TenantScope {
+	tb.Helper()
+
+	tenantID := UniqueTestTenantID(tb)
+	EnsureTestTenant(tb, db, tenantID)
+
+	return TenantScope{TenantID: tenantID}
+}
+
+// Context returns a background context scoped to the test tenant.
+func (s TenantScope) Context() context.Context {
+	return TenantContext(s.TenantID)
 }
 
 var uniqueTestTenantCounter int64

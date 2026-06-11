@@ -9,7 +9,6 @@ import (
 
 func TestToken_Validate(t *testing.T) {
 	futureTime := time.Now().Add(time.Hour)
-	pastTime := time.Now().Add(-time.Hour)
 
 	tests := []struct {
 		name    string
@@ -65,15 +64,6 @@ func TestToken_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "expired token",
-			token: &Token{
-				AccountID: 1,
-				Token:     "expired-token",
-				Expiry:    pastTime,
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -81,51 +71,6 @@ func TestToken_Validate(t *testing.T) {
 			err := tt.token.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Token.Validate() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestToken_IsExpired(t *testing.T) {
-	tests := []struct {
-		name     string
-		token    *Token
-		expected bool
-	}{
-		{
-			name: "not expired - future expiry",
-			token: &Token{
-				AccountID: 1,
-				Token:     "token",
-				Expiry:    time.Now().Add(time.Hour),
-			},
-			expected: false,
-		},
-		{
-			name: "expired - past expiry",
-			token: &Token{
-				AccountID: 1,
-				Token:     "token",
-				Expiry:    time.Now().Add(-time.Hour),
-			},
-			expected: true,
-		},
-		{
-			name: "expired - zero time",
-			token: &Token{
-				AccountID: 1,
-				Token:     "token",
-				Expiry:    time.Time{},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.token.IsExpired()
-			if got != tt.expected {
-				t.Errorf("Token.IsExpired() = %v, want %v", got, tt.expected)
 			}
 		})
 	}

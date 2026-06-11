@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -13,6 +14,9 @@ const (
 	tableWorkTimeModelEntries  = "config.work_time_model_entries"
 	WorkTimeModelMaxRotation   = 4
 	WorkTimeModelDefaultRotate = 1
+	// WorkTimeModelMaxDailyMinutes caps a single day's target working time at
+	// 12 hours (720 minutes). Shared with StaffWorkSchedule validation.
+	WorkTimeModelMaxDailyMinutes = 720
 )
 
 // WorkTimeModel is a tenant-scoped, named template that captures a working-time
@@ -21,13 +25,13 @@ const (
 type WorkTimeModel struct {
 	bun.BaseModel `bun:"schema:config,table:work_time_models"`
 
-	ID                 int64     `bun:"id,pk,autoincrement" json:"id"`
-	TenantID           int64     `bun:"tenant_id,notnull" json:"tenant_id"`
-	Name               string    `bun:"name,notnull" json:"name"`
-	RotationLength     int       `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
-	RotationAnchorDate time.Time `bun:"rotation_anchor_date,notnull,type:date" json:"rotation_anchor_date"`
-	CreatedAt          time.Time `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt          time.Time `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID                 int64         `bun:"id,pk,autoincrement" json:"id"`
+	TenantID           int64         `bun:"tenant_id,notnull" json:"tenant_id"`
+	Name               string        `bun:"name,notnull" json:"name"`
+	RotationLength     int           `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
+	RotationAnchorDate timezone.Date `bun:"rotation_anchor_date,notnull,type:date" json:"rotation_anchor_date"`
+	CreatedAt          time.Time     `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt          time.Time     `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 
 	Entries []*WorkTimeModelEntry `bun:"rel:has-many,join:id=model_id" json:"entries,omitempty"`
 }
@@ -102,7 +106,7 @@ func (e *WorkTimeModelEntry) Validate() error {
 	if e.DayOfWeek < 0 || e.DayOfWeek > 6 {
 		return errors.New("day_of_week must be between 0 (Monday) and 6 (Sunday)")
 	}
-	if e.TargetMinutes < 0 || e.TargetMinutes > 720 {
+	if e.TargetMinutes < 0 || e.TargetMinutes > WorkTimeModelMaxDailyMinutes {
 		return errors.New("target_minutes must be between 0 and 720 (12h)")
 	}
 	return nil
@@ -110,13 +114,14 @@ func (e *WorkTimeModelEntry) Validate() error {
 
 // ResolveWeekIndex returns the rotation week index for a given date relative to
 // the model's anchor. Negative deltas (date before anchor) wrap forwards so the
-// result is always in [0, rotation_length).
-func ResolveWeekIndex(rotationLength int, anchor, date time.Time) int {
+// result is always in [0, rotation_length). Callers pass week-start dates, so
+// the day difference is an exact multiple of 7 and DaysUntil/7 reproduces the
+// old truncating division exactly (DST-proof by Date's UTC anchoring).
+func ResolveWeekIndex(rotationLength int, anchor, date timezone.Date) int {
 	if rotationLength <= 1 {
 		return 0
 	}
-	const day = 24 * time.Hour
-	delta := int(date.Sub(anchor) / (7 * day))
+	delta := anchor.DaysUntil(date) / 7
 	mod := delta % rotationLength
 	if mod < 0 {
 		mod += rotationLength

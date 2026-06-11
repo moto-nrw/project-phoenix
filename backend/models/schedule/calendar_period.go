@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -28,18 +29,21 @@ var (
 // tableCalendarPeriods is the schema-qualified table name.
 const tableCalendarPeriods = "schedule.calendar_periods"
 
+// CalendarPeriodNameMaxLength is the maximum length of the name field.
+const CalendarPeriodNameMaxLength = 255
+
 // CalendarPeriod represents a time period in the school calendar (e.g. school year, semester, holiday).
 type CalendarPeriod struct {
 	base.Model `bun:"schema:schedule,table:calendar_periods"`
 	base.TenantModel
 
-	Name            string     `bun:"name,notnull" json:"name"`
-	PeriodType      string     `bun:"period_type,notnull" json:"period_type"`
-	StartDate       time.Time  `bun:"start_date,notnull" json:"start_date"`
-	EndDate         time.Time  `bun:"end_date,notnull" json:"end_date"`
-	WeekCycleLength int        `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
-	WeekCycleAnchor *time.Time `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
-	IsActive        bool       `bun:"is_active,notnull,default:false" json:"is_active"`
+	Name            string         `bun:"name,notnull" json:"name"`
+	PeriodType      string         `bun:"period_type,notnull" json:"period_type"`
+	StartDate       timezone.Date  `bun:"start_date,notnull" json:"start_date"`
+	EndDate         timezone.Date  `bun:"end_date,notnull" json:"end_date"`
+	WeekCycleLength int            `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
+	WeekCycleAnchor *timezone.Date `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
+	IsActive        bool           `bun:"is_active,notnull,default:false" json:"is_active"`
 }
 
 func (p *CalendarPeriod) BeforeAppendModel(query any) error {
@@ -77,7 +81,7 @@ func (p *CalendarPeriod) Validate() error {
 	if p.Name == "" {
 		return errors.New("name is required")
 	}
-	if len(p.Name) > 255 {
+	if len(p.Name) > CalendarPeriodNameMaxLength {
 		return errors.New("name cannot exceed 255 characters")
 	}
 	if !IsValidPeriodType(p.PeriodType) {
@@ -115,12 +119,17 @@ func (p *CalendarPeriod) HasWeekCycle() bool {
 	return p.WeekCycleLength > 1
 }
 
-// ContainsDate returns true if the given date falls within this period
+// ContainsDay returns true if the given calendar day falls within this
+// period (inclusive on both ends).
+func (p *CalendarPeriod) ContainsDay(d timezone.Date) bool {
+	return !d.Before(p.StartDate) && !d.After(p.EndDate)
+}
+
+// ContainsDate returns true if the Berlin calendar day of the given instant
+// falls within this period. Callers that already hold a timezone.Date should
+// use ContainsDay directly.
 func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
-	d := date.Truncate(24 * time.Hour)
-	start := p.StartDate.Truncate(24 * time.Hour)
-	end := p.EndDate.Truncate(24 * time.Hour)
-	return !d.Before(start) && !d.After(end)
+	return p.ContainsDay(timezone.DateFromTime(date))
 }
 
 // CalendarPeriodRepository defines operations for managing calendar periods

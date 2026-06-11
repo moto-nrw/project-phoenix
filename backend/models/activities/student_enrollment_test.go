@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 )
@@ -61,7 +62,7 @@ func TestIsValidAttendanceStatus(t *testing.T) {
 }
 
 func TestStudentEnrollmentValidate(t *testing.T) {
-	now := time.Now()
+	now := timezone.TodayDate()
 	present := AttendancePresent
 	absent := AttendanceAbsent
 	invalid := "INVALID"
@@ -135,7 +136,7 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Missing valid_from will be set automatically",
+			name: "Missing valid_from is allowed (not auto-populated)",
 			studentEnrollment: &StudentEnrollment{
 				StudentID:       1,
 				ActivityGroupID: 1,
@@ -201,56 +202,11 @@ func TestStudentEnrollmentValidate(t *testing.T) {
 				t.Errorf("StudentEnrollment.Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			// Verify enrollment date is set when missing
-			if tt.name == "Missing valid_from will be set automatically" && tt.studentEnrollment.ValidFrom.IsZero() {
-				t.Errorf("StudentEnrollment.Validate() did not set enrollment date")
+			// Validate() must NOT populate ValidFrom; the service owns that default.
+			if tt.name == "Missing valid_from is allowed (not auto-populated)" && !tt.studentEnrollment.ValidFrom.IsZero() {
+				t.Errorf("StudentEnrollment.Validate() must not set ValidFrom; the service owns that default")
 			}
 		})
-	}
-}
-
-func TestStudentEnrollmentMarkPresent(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkPresent()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkPresent() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendancePresent {
-		t.Errorf("StudentEnrollment.MarkPresent() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendancePresent)
-	}
-}
-
-func TestStudentEnrollmentMarkAbsent(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkAbsent()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkAbsent() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendanceAbsent {
-		t.Errorf("StudentEnrollment.MarkAbsent() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendanceAbsent)
-	}
-}
-
-func TestStudentEnrollmentMarkExcused(t *testing.T) {
-	studentEnrollment := &StudentEnrollment{
-		StudentID:       1,
-		ActivityGroupID: 1,
-	}
-
-	studentEnrollment.MarkExcused()
-
-	if studentEnrollment.AttendanceStatus == nil {
-		t.Errorf("StudentEnrollment.MarkExcused() failed to set attendance status")
-	} else if *studentEnrollment.AttendanceStatus != AttendanceExcused {
-		t.Errorf("StudentEnrollment.MarkExcused() = %v, want %v", *studentEnrollment.AttendanceStatus, AttendanceExcused)
 	}
 }
 

@@ -93,12 +93,6 @@ func (v *Visit) IsActive() bool {
 	return v.ExitTime == nil
 }
 
-// EndVisit sets the exit time to the current time
-func (v *Visit) EndVisit() {
-	now := time.Now()
-	v.ExitTime = &now
-}
-
 // SetExitTime explicitly sets the exit time
 func (v *Visit) SetExitTime(exitTime time.Time) error {
 	if v.EntryTime.After(exitTime) {

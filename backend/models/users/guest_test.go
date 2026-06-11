@@ -4,8 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
+
+func datePtr(d timezone.Date) *timezone.Date { return &d }
 
 func TestGuest_Validate(t *testing.T) {
 	tests := []struct {
@@ -29,8 +32,8 @@ func TestGuest_Validate(t *testing.T) {
 				ContactEmail:      "guest@example.com",
 				ContactPhone:      "+49 123 456789",
 				ActivityExpertise: "Basketball",
-				StartDate:         base.TimePtr(time.Now()),
-				EndDate:           base.TimePtr(time.Now().Add(30 * 24 * time.Hour)),
+				StartDate:         datePtr(timezone.TodayDate()),
+				EndDate:           datePtr(timezone.TodayDate().AddDays(30)),
 			},
 			wantErr: false,
 		},
@@ -95,8 +98,8 @@ func TestGuest_Validate(t *testing.T) {
 			guest: &Guest{
 				StaffID:           1,
 				ActivityExpertise: "Soccer",
-				StartDate:         base.TimePtr(time.Now().Add(24 * time.Hour)),
-				EndDate:           base.TimePtr(time.Now()),
+				StartDate:         datePtr(timezone.TodayDate().AddDays(1)),
+				EndDate:           datePtr(timezone.TodayDate()),
 			},
 			wantErr: true,
 		},
@@ -197,69 +200,6 @@ func TestGuest_GetFullName(t *testing.T) {
 			t.Errorf("Guest.GetFullName() = %q, want empty string", got)
 		}
 	})
-}
-
-func TestGuest_IsActive(t *testing.T) {
-	now := time.Now()
-	pastDate := now.Add(-30 * 24 * time.Hour)
-	futureDate := now.Add(30 * 24 * time.Hour)
-
-	tests := []struct {
-		name      string
-		startDate *time.Time
-		endDate   *time.Time
-		expected  bool
-	}{
-		{
-			name:      "no dates - always active",
-			startDate: nil,
-			endDate:   nil,
-			expected:  true,
-		},
-		{
-			name:      "only start date in past - active",
-			startDate: &pastDate,
-			endDate:   nil,
-			expected:  true,
-		},
-		{
-			name:      "only start date in future - inactive",
-			startDate: &futureDate,
-			endDate:   nil,
-			expected:  false,
-		},
-		{
-			name:      "only end date in future - active",
-			startDate: nil,
-			endDate:   &futureDate,
-			expected:  true,
-		},
-		{
-			name:      "only end date in past - inactive",
-			startDate: nil,
-			endDate:   &pastDate,
-			expected:  false,
-		},
-		{
-			name:      "both dates - currently within range",
-			startDate: &pastDate,
-			endDate:   &futureDate,
-			expected:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			guest := &Guest{
-				StartDate: tt.startDate,
-				EndDate:   tt.endDate,
-			}
-
-			if got := guest.IsActive(); got != tt.expected {
-				t.Errorf("Guest.IsActive() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
 }
 
 func TestGuest_AddNotes(t *testing.T) {

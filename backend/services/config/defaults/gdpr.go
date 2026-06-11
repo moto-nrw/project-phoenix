@@ -176,6 +176,29 @@ func init() {
 		},
 	})
 
+	// --- Datenschutz-Einwilligung: Aufbewahrung der Besuchsdaten ---
+	//
+	// Standard-Aufbewahrungsfenster (Tage) für Besuchsdaten, wenn die
+	// Einwilligung eines Kindes keinen eigenen Wert hinterlegt hat.
+	// Issue #586 (Rule 12): Der frühere fest verdrahtete 30-Tage-Standard
+	// samt 1..31-Grenzen wurde aus dem PrivacyConsent-Modell in diese
+	// per-Schule konfigurierbare Einstellung verschoben.
+	minRetentionDays := float64(1)
+	maxRetentionDays := float64(31)
+	config.Register(config.Definition{
+		Key:             config.KeyPrivacyConsentRetentionDays,
+		Label:           "Standard-Aufbewahrungsdauer Besuchsdaten (Tage)",
+		Description:     "Wie lange Besuchsdaten eines Kindes aufbewahrt werden, wenn dessen Datenschutz-Einwilligung keinen eigenen Wert festlegt. Wird beim automatischen Löschen abgelaufener Besuchsdaten angewendet.",
+		Type:            config.FieldNumber,
+		Default:         30,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       14,
+		Validation:      &config.ValidationRules{Min: &minRetentionDays, Max: &maxRetentionDays},
+	})
+
 	// --- Kinderdaten-Zugriff (who can read full student profile data) ---
 
 	config.Register(config.Definition{

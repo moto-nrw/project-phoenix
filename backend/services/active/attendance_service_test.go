@@ -100,13 +100,28 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
-	// Service uses timezone.Today() for consistent Europe/Berlin timezone handling
-	expectedDate := timezone.Today()
+	// Service uses timezone.TodayDate() — today's Berlin calendar day
+	expectedDate := timezone.TodayDate()
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)
 	assert.Empty(t, result.CheckedInBy)
 	assert.Empty(t, result.CheckedOutBy)
+}
+
+func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "AttendanceRead", "Failure", "2a")
+	require.NoError(t, db.Close())
+
+	result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
 
 // TestGetStudentAttendanceStatus_CheckedIn tests the scenario where a student
@@ -988,4 +1003,122 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
+}
+
+// =============================================================================
+// Checkout ends open visits — invariant tests (issue #895)
+// =============================================================================
+//
+// Every attendance checkout (CheckOutStudent and the toggle's "out" branch)
+// must also end any open room visit in the same operation, so attendance
+// "checked_out" never coexists with an open visit (the orphaned-visit
+// deadlock from issue #895).
+
+func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Invariant", "CheckOut", "6a")
+	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff1")
+	device := testpkg.CreateTestDevice(t, db, "invariant-device-001")
+	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-checkout")
+	room := testpkg.CreateTestRoom(t, db, "Invariant Room 1")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
+
+	// Open attendance + open visit (student is in a room).
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+
+	// Attendance is closed AND the visit is ended in the same operation.
+	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out", status.Status)
+
+	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, endedVisit.ExitTime, "open visit must be ended by attendance checkout")
+}
+
+// TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit covers the
+// self-healing property: even when no open attendance row exists (the
+// idempotent checkout path), an orphaned open visit left behind by pre-fix
+// code is closed.
+func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Invariant", "Orphan", "6b")
+	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff2")
+	device := testpkg.CreateTestDevice(t, db, "invariant-device-002")
+	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-orphan")
+	room := testpkg.CreateTestRoom(t, db, "Invariant Room 2")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
+
+	// The orphan state from issue #895: attendance already closed, visit open.
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	checkOutTime := time.Now().Add(-30 * time.Minute)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, &checkOutTime)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	result, err := service.CheckOutStudent(ctx, student.ID, staff.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+	assert.Zero(t, result.AttendanceID, "no open attendance row → idempotent close")
+
+	healedVisit, err := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, healedVisit.ExitTime, "orphaned visit must be healed even on the idempotent path")
+}
+
+// TestToggleStudentAttendance_CheckOut_EndsOpenVisit covers the IoT toggle's
+// "out" branch at service level: the kiosk toggle goes through the same
+// performCheckOut and must end the open visit too.
+func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Invariant", "Toggle", "6c")
+	staff := testpkg.CreateTestStaff(t, db, "Invariant", "Staff3")
+	device := testpkg.CreateTestDevice(t, db, "invariant-device-003")
+	activity := testpkg.CreateTestActivityGroup(t, db, "invariant-toggle")
+	room := testpkg.CreateTestRoom(t, db, "Invariant Room 3")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
+	defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+
+	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open visit")
 }

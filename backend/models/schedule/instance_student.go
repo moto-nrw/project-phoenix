@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -92,7 +93,7 @@ func (s *InstanceStudent) Validate() error {
 		return errors.New("invalid attendance substatus")
 	}
 	if s.Note != nil && len(*s.Note) > InstanceStudentNoteMaxLength {
-		return errors.New("note cannot exceed 500 characters")
+		return fmt.Errorf("note cannot exceed %d characters", InstanceStudentNoteMaxLength)
 	}
 	if s.RoomID != nil && *s.RoomID <= 0 {
 		return errors.New("room_id must be positive when set")
@@ -151,49 +152,6 @@ func (p AttendanceFieldPatch) HasChanges() bool {
 		p.Note != nil || p.NoteClear
 }
 
-// ValidateAttendancePatch enforces attendance patch business rules against the
-// current row so cross-field rules can be evaluated against the final state.
-func ValidateAttendancePatch(patch AttendanceFieldPatch, current *InstanceStudent) []AttendancePatchFieldError {
-	var errs []AttendancePatchFieldError
-
-	if patch.Status != nil && !IsValidAttendanceStatus(*patch.Status) {
-		errs = append(errs, AttendancePatchFieldError{Field: "status", Reason: "must be one of: expected, present, absent"})
-	}
-	if patch.Substatus != nil && !IsValidAttendanceSubstatus(*patch.Substatus) {
-		errs = append(errs, AttendancePatchFieldError{Field: "substatus", Reason: "must be one of: late, excused, sick, field_trip, other"})
-	}
-	if patch.Note != nil && len(*patch.Note) > InstanceStudentNoteMaxLength {
-		errs = append(errs, AttendancePatchFieldError{
-			Field:  "note",
-			Reason: fmt.Sprintf("must be at most %d characters", InstanceStudentNoteMaxLength),
-		})
-	}
-	if len(errs) > 0 {
-		return errs
-	}
-
-	finalStatus := current.Status
-	if patch.Status != nil {
-		finalStatus = *patch.Status
-	}
-
-	finalSubstatusNonNull := current.Substatus != nil
-	if patch.SubstatusClear {
-		finalSubstatusNonNull = false
-	} else if patch.Substatus != nil {
-		finalSubstatusNonNull = true
-	}
-
-	if finalSubstatusNonNull && finalStatus == AttendanceStatusExpected {
-		errs = append(errs, AttendancePatchFieldError{
-			Field:  "substatus",
-			Reason: "cannot be set when status is expected",
-		})
-	}
-
-	return errs
-}
-
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
@@ -213,7 +171,7 @@ type InstanceStudentRepository interface {
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*InstanceStudent, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*InstanceStudent, error)
 
 	// FindByInstanceAndStudent returns a single attendance row, or nil if the
 	// student is not expected at the instance.
@@ -252,10 +210,29 @@ type InstanceStudentRepository interface {
 	// Instances the student has no attendance row for (e.g. a spontaneous
 	// instance they dropped into without being enrolled) are NOT included;
 	// the handler layer enriches those via the visits-side lookup.
-	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to time.Time) ([]*ScheduledInstanceRow, error)
+	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
 
 	// FindPlannedStudentIDsByDate returns unique student IDs that have a
 	// non-cancelled materialized timetable row on the given date. Used by
 	// student search's "kommt heute" heuristic as an additive planning signal.
-	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date time.Time) ([]int64, error)
+	FindPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
+
+	// MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent'
+	// for students on still-active instances bridged to the given
+	// active.groups. Used by the scheduler's daily session-end bridge.
+	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error
+
+	// ListStudentInstanceRefsBefore returns (student_id, instance_id) pairs
+	// for attendance rows whose instance date is before the cutoff, ordered
+	// by student then instance. Custom projection (join on activity_instances)
+	// the generic filter shape cannot express; feeds the per-student audit
+	// rows of the timetable retention cleanup.
+	ListStudentInstanceRefsBefore(ctx context.Context, cutoff timezone.Date) ([]StudentInstanceRef, error)
+}
+
+// StudentInstanceRef is a minimal (student, instance) projection used by the
+// timetable retention cleanup's audit bookkeeping.
+type StudentInstanceRef struct {
+	StudentID  int64 `bun:"student_id"`
+	InstanceID int64 `bun:"instance_id"`
 }

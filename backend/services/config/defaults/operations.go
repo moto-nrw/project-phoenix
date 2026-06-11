@@ -181,6 +181,23 @@ func init() {
 		AccessPolicy: config.AccessOperatorOnly,
 	})
 
+	minInactivityTimeout := float64(1)
+	maxInactivityTimeout := float64(480)
+	config.Register(config.Definition{
+		Key:             config.KeySessionInactivityTimeoutMin,
+		Label:           "Standard-Sitzungstimeout (Minuten)",
+		Description:     "Standardzeit ohne Aktivität, nach der eine Sitzung automatisch beendet wird, sofern für die Sitzung kein eigenes Timeout gesetzt ist",
+		Type:            config.FieldNumber,
+		Default:         30,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "system",
+		Category:        "sitzungsbereinigung",
+		SortOrder:       13,
+		Validation:      &config.ValidationRules{Min: &minInactivityTimeout, Max: &maxInactivityTimeout},
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
 	// --- Admin Supervision Overview ---
 
 	config.Register(config.Definition{

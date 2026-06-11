@@ -453,6 +453,73 @@ func (r *VisitRepository) CountExpiredVisits(ctx context.Context) (int64, error)
 	return int64(count), nil
 }
 
+// OldestExpiredVisitDate returns the created_at of the oldest visit past its
+// per-student retention window (same predicate as CountExpiredVisits), or nil
+// when no visit is expired. Custom method: the privacy-consent join is not
+// expressible via the generic helpers. Feeds the GDPR retention statistics
+// and cleanup preview.
+func (r *VisitRepository) OldestExpiredVisitDate(ctx context.Context) (*time.Time, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("active.visits AS v").
+		ColumnExpr("MIN(v.created_at)").
+		Join("INNER JOIN users.privacy_consents AS pc ON pc.student_id = v.student_id").
+		Where("v.exit_time IS NOT NULL").
+		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)")
+
+	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
+		query = query.Where(where, val)
+	}
+
+	var oldest *time.Time
+	if err := query.Scan(ctx, &oldest); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "oldest expired visit date",
+			Err: err,
+		}
+	}
+
+	return oldest, nil
+}
+
+// ExpiredVisitMonthlyCounts groups expired visits (same predicate as
+// CountExpiredVisits) by calendar month of created_at, keyed YYYY-MM.
+// Custom method: the privacy-consent join is not expressible via the
+// generic helpers. Feeds the GDPR retention statistics.
+func (r *VisitRepository) ExpiredVisitMonthlyCounts(ctx context.Context) (map[string]int64, error) {
+	type monthlyCount struct {
+		Month string `bun:"month"`
+		Count int64  `bun:"count"`
+	}
+
+	var results []monthlyCount
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("active.visits AS v").
+		ColumnExpr("TO_CHAR(v.created_at, 'YYYY-MM') AS month").
+		ColumnExpr("COUNT(*) AS count").
+		Join("INNER JOIN users.privacy_consents AS pc ON pc.student_id = v.student_id").
+		Where("v.exit_time IS NOT NULL").
+		Where("v.created_at < NOW() - make_interval(days => pc.data_retention_days)").
+		GroupExpr("TO_CHAR(v.created_at, 'YYYY-MM')")
+
+	if where, val, ok := base.TenantWhere(ctx, "v"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &results); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "expired visit monthly counts",
+			Err: err,
+		}
+	}
+
+	counts := make(map[string]int64, len(results))
+	for _, row := range results {
+		counts[row.Month] = row.Count
+	}
+
+	return counts, nil
+}
+
 // GetCurrentByStudentID finds the current active visit for a student
 func (r *VisitRepository) GetCurrentByStudentID(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit := new(active.Visit)
@@ -890,4 +957,53 @@ func (r *VisitRepository) FindActiveVisits(ctx context.Context) ([]*active.Visit
 	}
 
 	return visits, nil
+}
+
+// GetCurrentRoomNamesForStudents returns the room name of each student's
+// current open visit (visit without exit_time in a still-running active
+// group), newest visit first per student. Students without an open visit are
+// absent from the map. Custom method (backend-conventions Rule 2):
+// DISTINCT ON projection joining active.groups and facilities.rooms for the
+// emergency list. Tenant scoping via defense-in-depth predicate on top of
+// the caller's RLS transaction.
+func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+
+	type currentLocationRow struct {
+		StudentID int64          `bun:"student_id"`
+		RoomName  sql.NullString `bun:"room_name"`
+	}
+
+	var rows []currentLocationRow
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		ColumnExpr(`DISTINCT ON ("visit".student_id) "visit".student_id`).
+		ColumnExpr(`"room".name AS "room_name"`).
+		Join(`JOIN active.groups AS "group" ON "group".id = "visit".active_group_id AND "group".end_time IS NULL`).
+		Join(`JOIN facilities.rooms AS "room" ON "room".id = "group".room_id`).
+		Where(`"visit".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"visit".exit_time IS NULL`).
+		OrderExpr(`"visit".student_id ASC`).
+		OrderExpr(`"visit".entry_time DESC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get current room names for students",
+			Err: err,
+		}
+	}
+
+	locations := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		if row.RoomName.Valid {
+			locations[row.StudentID] = row.RoomName.String
+		}
+	}
+	return locations, nil
 }

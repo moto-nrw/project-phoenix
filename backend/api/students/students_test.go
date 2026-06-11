@@ -282,7 +282,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, planned.ID, notPlanned.ID, walkIn.ID, sick.ID, exceptionAbsent.ID, staff.ID, device.ID)
 
-	today := timezone.DateOfUTC(fixedNow)
+	today := timezone.DateFromTime(fixedNow)
 	pickupSchedule := testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
 	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 
@@ -1107,7 +1107,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.students AS "student"`).
-			Set(`bus = ?`, true).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
 			Exec(testpkg.TenantContext(1))
@@ -1151,8 +1150,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code)
 		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
-		require.NotNil(t, fresh.Bus)
-		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayThursday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayMonday])
@@ -1169,7 +1167,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.students AS "student"`).
-			Set(`bus = ?`, true).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
 			Exec(testpkg.TenantContext(1))
@@ -1190,8 +1187,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 
 		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
-		require.NotNil(t, fresh.Bus)
-		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayTuesday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayWednesday])

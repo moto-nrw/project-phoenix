@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -24,11 +25,11 @@ const tableFeedbackEntries = "feedback.entries"
 type Entry struct {
 	base.Model `bun:"schema:feedback,table:entries"`
 	base.TenantModel
-	Value           string    `bun:"value,notnull" json:"value"`
-	Day             time.Time `bun:"day,notnull" json:"day"`
-	Time            time.Time `bun:"time,notnull" json:"time"`
-	StudentID       int64     `bun:"student_id,notnull" json:"student_id"`
-	IsMensaFeedback bool      `bun:"is_mensa_feedback,notnull,default:false" json:"is_mensa_feedback"`
+	Value           string        `bun:"value,notnull" json:"value"`
+	Day             timezone.Date `bun:"day,notnull,type:date" json:"day"`
+	Time            time.Time     `bun:"time,notnull" json:"time"`
+	StudentID       int64         `bun:"student_id,notnull" json:"student_id"`
+	IsMensaFeedback bool          `bun:"is_mensa_feedback,notnull,default:false" json:"is_mensa_feedback"`
 
 	// Relations not stored in the database
 	Student *users.Student `bun:"-" json:"student,omitempty"`
@@ -100,19 +101,16 @@ func (e *Entry) SetMensaFeedback(isMensa bool) {
 
 // GetTimestamp returns a full timestamp combining the day and time fields
 func (e *Entry) GetTimestamp() time.Time {
-	// Extract date components from the Day field
-	year, month, day := e.Day.Date()
-
 	// Extract time components from the Time field
 	hour, min, sec := e.Time.Clock()
 
 	// Combine into a single timestamp
-	return time.Date(year, month, day, hour, min, sec, 0, time.UTC)
+	return time.Date(e.Day.Year, e.Day.Month, e.Day.Day, hour, min, sec, 0, time.UTC)
 }
 
 // GetFormattedDate returns the day in a formatted string
 func (e *Entry) GetFormattedDate() string {
-	return e.Day.Format("2006-01-02")
+	return e.Day.String()
 }
 
 // GetFormattedTime returns the time in a formatted string

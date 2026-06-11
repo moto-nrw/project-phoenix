@@ -89,6 +89,7 @@ type StatusFilter =
   | "unterwegs"
   | "schulhof"
   | "krank"
+  | "klassenfahrt"
   | "entschuldigt";
 type BooleanFilter = "all" | "yes" | "no";
 type PickupStatusKind = "self" | "pickedUp" | "other" | "none" | "redacted";
@@ -108,6 +109,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "anwesend", label: "Anwesend" },
   { value: "abwesend", label: "Abwesend" },
   { value: "krank", label: "Krank" },
+  { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
@@ -218,6 +220,7 @@ const STATUS_FILTER_LABELS: Record<
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
   krank: "Krank",
+  klassenfahrt: "Klassenfahrt",
   entschuldigt: "Entschuldigt",
 };
 
@@ -423,6 +426,7 @@ function compareByName(a: Student, b: Student) {
 
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
+  if (student.class_trip) return "Klassenfahrt";
   if (student.excused) return "Entschuldigt";
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
@@ -569,6 +573,7 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     actualTime: a.actual_pickup_time,
     now,
     sick: a.sick,
+    classTrip: a.class_trip,
     excused: a.excused,
   });
   const statusB = getStudentTimeStatus({
@@ -576,6 +581,7 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     actualTime: b.actual_pickup_time,
     now,
     sick: b.sick,
+    classTrip: b.class_trip,
     excused: b.excused,
   });
   const rankA = getTimeStatusSortRank(statusA);
@@ -1366,6 +1372,7 @@ function SearchPageContent() {
           { value: "anwesend", label: "Anwesend" },
           { value: "abwesend", label: "Abwesend" },
           { value: "krank", label: "Krank" },
+          { value: "klassenfahrt", label: "Klassenfahrt" },
           { value: "entschuldigt", label: "Entschuldigt" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
@@ -1526,6 +1533,7 @@ function SearchPageContent() {
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
+        klassenfahrt: "Klassenfahrt",
         entschuldigt: "Entschuldigt",
       };
       filters.push({
@@ -1782,6 +1790,7 @@ function SearchPageContent() {
         actualTime: a.actual_arrival_time,
         now,
         sick: a.sick,
+        classTrip: a.class_trip,
         excused: a.excused,
       });
       const statusB = getStudentTimeStatus({
@@ -1789,6 +1798,7 @@ function SearchPageContent() {
         actualTime: b.actual_arrival_time,
         now,
         sick: b.sick,
+        classTrip: b.class_trip,
         excused: b.excused,
       });
       const rankA = getTimeStatusSortRank(statusA);
@@ -2049,6 +2059,7 @@ function SearchPageContent() {
                       (() => {
                         const absence = getStudentAbsence({
                           sick: student.sick,
+                          classTrip: student.class_trip,
                           excused: student.excused,
                         });
                         if (absence && !student.actual_pickup_time) {

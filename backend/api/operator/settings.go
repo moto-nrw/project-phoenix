@@ -58,14 +58,14 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, 
 	if force {
 		return nil
 	}
-	// Bind the Berlin calendar date as UTC midnight (matches how
+	// Bind the Berlin calendar date as a DATE literal (matches how
 	// performCheckIn writes active.attendance.date). Using CURRENT_DATE on
 	// the postgres side would be wrong: the PG session is UTC, so between
 	// 22:00–24:00 UTC (i.e. ~00:00–02:00 Berlin) CURRENT_DATE returns
 	// "yesterday" while open rows for the new Berlin day already exist
 	// under "today" — and the guard would silently let the switch through
 	// in exactly the window it's supposed to block.
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	var exists bool
 	err := tx.NewRaw(`
 		SELECT EXISTS(

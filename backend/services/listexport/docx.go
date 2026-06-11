@@ -3,16 +3,25 @@ package listexport
 import (
 	"archive/zip"
 	"bytes"
+	"strconv"
 	"strings"
 )
 
 func renderDOCX(doc Document) ([]byte, error) {
+	return writeDOCXArchive(documentXML(doc))
+}
+
+func renderRecordsDOCX(doc RecordDocument) ([]byte, error) {
+	return writeDOCXArchive(recordDocumentXML(doc))
+}
+
+func writeDOCXArchive(document string) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	files := map[string]string{
 		"[Content_Types].xml": contentTypesXML(),
 		"_rels/.rels":         relsXML(),
-		"word/document.xml":   documentXML(doc),
+		"word/document.xml":   document,
 	}
 	for name, content := range files {
 		w, err := zw.Create(name)
@@ -62,6 +71,107 @@ func documentXML(doc Document) string {
 	b.WriteString(`<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="450" w:footer="450" w:gutter="0"/></w:sectPr>`)
 	b.WriteString(`</w:body></w:document>`)
 	return b.String()
+}
+
+func recordDocumentXML(doc RecordDocument) string {
+	var b bytes.Buffer
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
+	b.WriteString(`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>`)
+	writeParagraph(&b, doc.Title, true)
+	if doc.Subtitle != "" {
+		writeParagraph(&b, doc.Subtitle, false)
+	}
+	writeParagraph(&b, "Erstellt: "+GeneratedAtLabel(doc.GeneratedAt), false)
+	for _, filter := range doc.Filters {
+		writeParagraph(&b, filter, false)
+	}
+	writeBlankParagraph(&b)
+	groups := recordDocumentGroups(doc)
+	if recordGroupCount(groups) == 0 {
+		writeParagraph(&b, "Keine Anmeldungen vorhanden.", false)
+	}
+	for groupIdx, group := range groups {
+		if len(group.Records) == 0 {
+			continue
+		}
+		if groupIdx > 0 {
+			writeBlankParagraph(&b)
+		}
+		writeGroupHeading(&b, group.Title)
+		for i, record := range group.Records {
+			writeRecordBlock(&b, record)
+			if i < len(group.Records)-1 {
+				writeBlankParagraph(&b)
+			}
+		}
+	}
+	if doc.Footer != "" {
+		writeBlankParagraph(&b)
+		writeParagraph(&b, doc.Footer, false)
+	}
+	writeParagraph(&b, "moto", false)
+	b.WriteString(`<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="450" w:footer="450" w:gutter="0"/></w:sectPr>`)
+	b.WriteString(`</w:body></w:document>`)
+	return b.String()
+}
+
+func writeRecordBlock(b *bytes.Buffer, record Record) {
+	writeBlockTitle(b, record.Title, 0)
+	for _, field := range record.Fields {
+		writeFieldParagraph(b, field, 180)
+	}
+	for _, sub := range record.Subs {
+		writeBlockTitle(b, sub.Title, 360)
+		for _, field := range sub.Fields {
+			writeFieldParagraph(b, field, 540)
+		}
+	}
+}
+
+func writeBlockTitle(b *bytes.Buffer, title string, indent int) {
+	b.WriteString(`<w:p><w:pPr>`)
+	if indent > 0 {
+		b.WriteString(`<w:ind w:left="`)
+		b.WriteString(strconv.Itoa(indent))
+		b.WriteString(`"/>`)
+	}
+	b.WriteString(`<w:spacing w:before="180" w:after="80"/>`)
+	b.WriteString(`</w:pPr><w:r><w:rPr><w:b/><w:sz w:val="24"/></w:rPr><w:t>`)
+	b.WriteString(xmlText(title))
+	b.WriteString(`</w:t></w:r></w:p>`)
+}
+
+func writeGroupHeading(b *bytes.Buffer, title string) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return
+	}
+	b.WriteString(`<w:p><w:pPr><w:spacing w:before="240" w:after="120"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>`)
+	b.WriteString(xmlText(title))
+	b.WriteString(`</w:t></w:r></w:p>`)
+}
+
+func writeFieldParagraph(b *bytes.Buffer, field Field, indent int) {
+	value := strings.TrimSpace(field.Value)
+	if value == "" {
+		return
+	}
+	label := strings.TrimSpace(field.Label)
+	b.WriteString(`<w:p><w:pPr><w:ind w:left="`)
+	b.WriteString(strconv.Itoa(indent))
+	b.WriteString(`"/><w:spacing w:after="40"/></w:pPr>`)
+	if label != "" {
+		b.WriteString(`<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">`)
+		b.WriteString(xmlText(label + ": "))
+		b.WriteString(`</w:t></w:r>`)
+	}
+	b.WriteString(`<w:r><w:t>`)
+	b.WriteString(xmlText(value))
+	b.WriteString(`</w:t></w:r></w:p>`)
+}
+
+func writeBlankParagraph(b *bytes.Buffer) {
+	b.WriteString(`<w:p><w:r><w:t xml:space="preserve"> </w:t></w:r></w:p>`)
 }
 
 func writeParagraph(b *bytes.Buffer, text string, bold bool) {

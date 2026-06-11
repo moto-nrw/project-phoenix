@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -30,6 +31,9 @@ var (
 // tableActivityInstances is the schema-qualified table name.
 const tableActivityInstances = "schedule.activity_instances"
 
+// ActivityInstanceTitleMaxLength is the maximum length of the title field.
+const ActivityInstanceTitleMaxLength = 255
+
 // ActivityInstance is the concrete materialized occurrence of a template on a
 // given date (or a spontaneous instance created without a template). It lives
 // in the "instance layer" between the template layer (activities.*) and the
@@ -38,22 +42,22 @@ type ActivityInstance struct {
 	base.Model `bun:"schema:schedule,table:activity_instances"`
 	base.TenantModel
 
-	Date             time.Time  `bun:"date,notnull" json:"date"`
-	ActivityGroupID  *int64     `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	CalendarPeriodID *int64     `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	Title            string     `bun:"title,notnull" json:"title"`
-	Description      *string    `bun:"description" json:"description,omitempty"`
-	StartTime        time.Time  `bun:"start_time,notnull" json:"start_time"`
-	EndTime          time.Time  `bun:"end_time,notnull" json:"end_time"`
-	RoomID           int64      `bun:"room_id,notnull" json:"room_id"`
-	Status           string     `bun:"status,notnull,default:'planned'" json:"status"`
-	ActiveGroupID    *int64     `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous    bool       `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
-	Notes            *string    `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64     `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64     `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
+	Date             timezone.Date `bun:"date,notnull" json:"date"`
+	ActivityGroupID  *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
+	CalendarPeriodID *int64        `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	Title            string        `bun:"title,notnull" json:"title"`
+	Description      *string       `bun:"description" json:"description,omitempty"`
+	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
+	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
+	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
+	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
+	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
+	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	Notes            *string       `bun:"notes" json:"notes,omitempty"`
+	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
 }
 
 func (i *ActivityInstance) BeforeAppendModel(query any) error {
@@ -85,7 +89,7 @@ func (i *ActivityInstance) Validate() error {
 	if i.Title == "" {
 		return errors.New("title is required")
 	}
-	if len(i.Title) > 255 {
+	if len(i.Title) > ActivityInstanceTitleMaxLength {
 		return errors.New("title cannot exceed 255 characters")
 	}
 	if i.Date.IsZero() {
@@ -139,15 +143,15 @@ type ActivityInstanceRepository interface {
 	CreateTemplateBackedIfAbsent(ctx context.Context, instance *ActivityInstance) (inserted bool, err error)
 
 	// FindByTenantAndDate returns all instances for the current tenant on the given date.
-	FindByTenantAndDate(ctx context.Context, date time.Time) ([]*ActivityInstance, error)
+	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByTenantAndDateRange returns all instances within an inclusive date range.
-	FindByTenantAndDateRange(ctx context.Context, from, to time.Time) ([]*ActivityInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByActivityGroupAndDate returns instances for a specific template on a date.
 	// There can be multiple rows when a template schedule defines several start
 	// times on the same weekday.
-	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date time.Time) ([]*ActivityInstance, error)
+	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*ActivityInstance, error)
 
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.
@@ -157,4 +161,26 @@ type ActivityInstanceRepository interface {
 	// Update for DB-loaded instances because SQL TIME columns do not round-trip
 	// safely through Bun.
 	MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error
+
+	// CompleteActiveByActiveGroupIDs marks every still-active instance bridged
+	// to one of the given active.groups as completed and returns the number of
+	// rows changed. Used by the scheduler's daily session-end bridge.
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+
+	// DeletePlannedNonSpontaneousInWindow removes still-planned,
+	// template-backed instances in the inclusive [from, to] window and
+	// returns the number of rows deleted. Used by ReplanWeek.
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to timezone.Date) (int64, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key. Lifecycle transitions use it because SQL TIME columns do not
+	// round-trip safely through a full-row Update.
+	UpdateColumns(ctx context.Context, instance *ActivityInstance, columns ...string) (int64, error)
+
+	// Generic query helpers promoted from the embedded base repository.
+	// Used by the timetable retention cleanup.
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
 }

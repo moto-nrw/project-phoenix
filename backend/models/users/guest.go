@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -16,14 +17,14 @@ const guestTableName = "users.guests"
 type Guest struct {
 	base.Model `bun:"schema:users,table:guests"`
 	base.TenantModel
-	StaffID           int64      `bun:"staff_id,notnull" json:"staff_id"`
-	Organization      string     `bun:"organization" json:"organization,omitempty"`
-	ContactEmail      string     `bun:"contact_email" json:"contact_email,omitempty"`
-	ContactPhone      string     `bun:"contact_phone" json:"contact_phone,omitempty"`
-	ActivityExpertise string     `bun:"activity_expertise,notnull" json:"activity_expertise"`
-	StartDate         *time.Time `bun:"start_date" json:"start_date,omitempty"`
-	EndDate           *time.Time `bun:"end_date" json:"end_date,omitempty"`
-	Notes             string     `bun:"notes" json:"notes,omitempty"`
+	StaffID           int64          `bun:"staff_id,notnull" json:"staff_id"`
+	Organization      string         `bun:"organization" json:"organization,omitempty"`
+	ContactEmail      string         `bun:"contact_email" json:"contact_email,omitempty"`
+	ContactPhone      string         `bun:"contact_phone" json:"contact_phone,omitempty"`
+	ActivityExpertise string         `bun:"activity_expertise,notnull" json:"activity_expertise"`
+	StartDate         *timezone.Date `bun:"start_date" json:"start_date,omitempty"`
+	EndDate           *timezone.Date `bun:"end_date" json:"end_date,omitempty"`
+	Notes             string         `bun:"notes" json:"notes,omitempty"`
 
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
@@ -103,29 +104,6 @@ func (g *Guest) GetFullName() string {
 		return g.Staff.Person.GetFullName()
 	}
 	return ""
-}
-
-// IsActive checks if the guest is currently active based on start/end dates
-func (g *Guest) IsActive() bool {
-	now := time.Now()
-
-	// If no dates are set, consider active
-	if g.StartDate == nil && g.EndDate == nil {
-		return true
-	}
-
-	// If only start date is set, check if it's before now
-	if g.StartDate != nil && g.EndDate == nil {
-		return !now.Before(*g.StartDate)
-	}
-
-	// If only end date is set, check if it's after now
-	if g.StartDate == nil && g.EndDate != nil {
-		return !now.After(*g.EndDate)
-	}
-
-	// Both dates are set, check if now is between them
-	return !now.Before(*g.StartDate) && !now.After(*g.EndDate)
 }
 
 // AddNotes adds notes about this guest

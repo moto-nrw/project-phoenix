@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -157,8 +158,10 @@ func (f *Filter) DateRange(field string, start, end time.Time) *Filter {
 	return f.GreaterThanOrEqual(field, start).LessThanOrEqual(field, end)
 }
 
-// DateBetween adds a date between filter for a date contained within a range
-func (f *Filter) DateBetween(startField, endField string, date time.Time) *Filter {
+// DateBetween adds a date between filter for a calendar date contained within
+// a [startField, endField] range of DATE columns. timezone.Date binds as a
+// 'YYYY-MM-DD' literal, so no UTC shift can occur.
+func (f *Filter) DateBetween(startField, endField string, date timezone.Date) *Filter {
 	f.LessThanOrEqual(startField, date)
 	f.GreaterThanOrEqual(endField, date)
 	return f
@@ -325,6 +328,16 @@ func applyLogicalConditions(query *bun.SelectQuery, filters []Filter, operator s
 	return query
 }
 
+// Pagination defaults applied when a caller omits valid values.
+const (
+	// minPage is the lowest valid (and fallback) page number.
+	minPage = 1
+	// minPageSize is the lowest valid page size; below it the default applies.
+	minPageSize = 1
+	// defaultPageSize is the fallback result-page size.
+	defaultPageSize = 20
+)
+
 // Pagination defines a structure for pagination parameters
 type Pagination struct {
 	Page     int
@@ -333,11 +346,11 @@ type Pagination struct {
 
 // NewPagination creates a new pagination with default values
 func NewPagination(page, pageSize int) Pagination {
-	if page < 1 {
-		page = 1
+	if page < minPage {
+		page = minPage
 	}
-	if pageSize < 1 {
-		pageSize = 20
+	if pageSize < minPageSize {
+		pageSize = defaultPageSize
 	}
 	return Pagination{
 		Page:     page,
