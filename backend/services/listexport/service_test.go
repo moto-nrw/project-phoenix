@@ -198,6 +198,41 @@ func TestRenderXLSXWritesGroupHeadingRows(t *testing.T) {
 	}
 }
 
+func TestRenderXLSXWritesValuesForGroupedRows(t *testing.T) {
+	doc := sampleDocument()
+	doc.Rows = []Row{
+		{GroupTitle: "Klasse: 1a", Values: map[ColumnID]string{ColumnName: "Mila Muster", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:00 bis 15:00"}},
+		{GroupTitle: "Klasse: 1a", Values: map[ColumnID]string{ColumnName: "Tom Test", ColumnSchoolClass: "1a", ColumnWeeklyMonday: "08:00 bis 16:00"}},
+		{GroupTitle: "Klasse: 2b", Values: map[ColumnID]string{ColumnName: "Nora Beispiel", ColumnSchoolClass: "2b", ColumnWeeklyMonday: "08:00 bis 15:00"}},
+	}
+	file, err := NewService().Render(doc, FormatXLSX, "liste")
+	if err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+
+	workbook, err := excelize.OpenReader(bytes.NewReader(file.Data))
+	if err != nil {
+		t.Fatalf("open xlsx error = %v", err)
+	}
+	defer func() { _ = workbook.Close() }()
+
+	assertCell := func(cell, want string) {
+		t.Helper()
+		got, err := workbook.GetCellValue("Export", cell)
+		if err != nil {
+			t.Fatalf("read %s error = %v", cell, err)
+		}
+		if got != want {
+			t.Fatalf("%s = %q, want %q", cell, got, want)
+		}
+	}
+	assertCell("A7", "Klasse: 1a")
+	assertCell("A8", "Mila Muster")
+	assertCell("A9", "Tom Test")
+	assertCell("A10", "Klasse: 2b")
+	assertCell("A11", "Nora Beispiel")
+}
+
 func TestRenderXLSXAppliesPrintSetup(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatXLSX, "liste")
 	if err != nil {

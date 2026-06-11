@@ -38,6 +38,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -83,6 +84,7 @@ type Factory struct {
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               listexport.Service
 	Emergency                emergency.Service
+	SlotLists                slotlists.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -991,6 +993,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveService:       activeService,
 		ListExport:          listExportService,
 	})
+	slotListsService := slotlists.NewService(slotlists.Dependencies{
+		InstanceRepo:        repos.ActivityInstance,
+		InstanceStudentRepo: repos.InstanceStudent,
+		VisitRepo:           repos.ActiveVisit,
+		AttendanceRepo:      repos.Attendance,
+		StudentRepo:         repos.Student,
+		PersonRepo:          repos.Person,
+		EducationGroupRepo:  repos.Group,
+		RoomRepo:            repos.Room,
+		PickupService:       pickupScheduleService,
+		ListExport:          listExportService,
+		Settings:            settingsService,
+	})
 
 	factory := &Factory{
 		Auth:                     authService,
@@ -1029,6 +1044,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
+		SlotLists:                slotListsService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,

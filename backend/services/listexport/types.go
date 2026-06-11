@@ -39,6 +39,8 @@ const (
 	ColumnStudentGroup    ColumnID = "student_group"
 	ColumnContactName     ColumnID = "contact_name"
 	ColumnContactPhone    ColumnID = "contact_phone"
+	ColumnSlot            ColumnID = "slot"
+	ColumnPresenceStatus  ColumnID = "presence_status"
 )
 
 type Preset string

@@ -63,6 +63,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Display range for the admin weekly calendar (Apple-style grid).
 		"timetable.day_start_time",
 		"timetable.day_end_time",
+		// Pickup buckets for timetable-derived lists.
+		"timetable.slot_list_short_day_cutoff",
+		"timetable.slot_list_long_day_cutoff",
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_enabled",
@@ -388,6 +391,8 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
+		{"timetable.slot_list_short_day_cutoff", config.FieldTime},
+		{"timetable.slot_list_long_day_cutoff", config.FieldTime},
 	}
 
 	for _, tc := range tests {

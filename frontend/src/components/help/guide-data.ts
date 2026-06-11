@@ -545,6 +545,30 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/stundenplan.webp",
       },
       {
+        id: "listen-aus-betreuungsslots",
+        title: "Listen aus Betreuungsslots",
+        icon: ClipboardList,
+        summary:
+          "Erzeugt druckbare Listen aus konkreten Stundenplan-Slots oder Ganztag nach euren Abholzeit-Grenzen.",
+        steps: [
+          "`Listen` in der Seitenleiste öffnen.",
+          "Als Quelle `Stundenplan-Slots` wählen oder eine Ganztags-Kohorte wie `Ganztag bis 14:30`.",
+          "Datum prüfen (vorausgewählt ist heute).",
+          "Bei `Stundenplan-Slots` einen oder mehrere Slots des Tages auswählen. Ohne Einschränkung nutzt Phoenix alle Slots des gewählten Datums.",
+          "Datenbasis wählen: `Plan` (laut Stundenplan), `Ist` (dokumentierte Anwesenheit am Datum) oder `Abgleich` (geplant, anwesend, fehlend, abgemeldet und ungeplant in einer Liste). `Abgemeldet` ist ein berechtigtes Fehlen und wird vom unklaren `Fehlt` getrennt gezählt.",
+          "Bei Bedarf über die Filter weiter eingrenzen: `Gruppe` oder `Klasse`.",
+          "Optional über `Gruppieren` die Liste in Abschnitte unterteilen, z. B. nach `Klasse`, `Angebot`, `Raum` oder `Abholzeit`. Die Abschnitte erscheinen auch im PDF und XLSX.",
+          "Vorschau und Zähler prüfen, dann `PDF drucken`, `PDF herunterladen` oder `XLSX` wählen.",
+        ],
+        callout: {
+          title: "Woher kommen die Daten?",
+          body: "Slotlisten entstehen aus den konkret ausgewählten Stundenplan-Terminen des Datums. Ganztagslisten entstehen aus den hinterlegten Abholzeiten und den unter Einstellungen -> Betrieb -> Stundenplan gepflegten Grenzen. Die Seite zeigt die Datenherkunft jeweils an. Die Notfallliste bleibt davon unabhängig.",
+          tone: "blue",
+        },
+        screenshot:
+          "Listen-Seite mit Quellen-Auswahl, Datum, Datenbasis Plan/Ist/Abgleich, Gruppieren-Auswahl, Slot-/Gruppen-/Klassen-Filter und Vorschau-Tabelle.",
+      },
+      {
         id: "zeiterfassung",
         title: "Zeiterfassung",
         icon: Clock3,
@@ -638,8 +662,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
           tone: "orange",
         },
-        screenshot:
-          "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
+        screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {

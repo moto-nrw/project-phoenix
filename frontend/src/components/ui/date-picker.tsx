@@ -15,6 +15,8 @@ type DatePickerProps =
       readonly className?: string;
       readonly dropdownPlacement?: "up" | "down";
       readonly calendarLayout?: "overlay" | "inline";
+      /** Hide the inline clear ("X") control. Use when the value is required. */
+      readonly hideClearButton?: boolean;
     }
   | {
       readonly mode: "multiple";
@@ -25,6 +27,7 @@ type DatePickerProps =
       readonly dropdownPlacement?: "up" | "down";
       readonly calendarLayout?: "overlay" | "inline";
       readonly disabledDates?: Date[];
+      readonly hideClearButton?: boolean;
     };
 
 interface MultipleDatePickerCalendarProps {
@@ -42,6 +45,7 @@ export function DatePicker({
   className = "",
   dropdownPlacement = "up",
   calendarLayout = "overlay",
+  hideClearButton = false,
   ...props
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -79,7 +83,7 @@ export function DatePicker({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
+        className={`flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
           isOpen ? "border-gray-300 bg-gray-50" : "hover:bg-gray-50"
         }`}
       >
@@ -87,7 +91,7 @@ export function DatePicker({
           {displayValue ?? placeholder}
         </span>
         <div className="flex items-center gap-1">
-          {displayValue && (
+          {displayValue && !hideClearButton && (
             <span
               role="button"
               tabIndex={0}

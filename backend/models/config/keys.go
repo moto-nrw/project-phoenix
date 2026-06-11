@@ -232,4 +232,9 @@ const (
 	// and scrolls if events fall outside.
 	KeyTimetableDayStartTime = "timetable.day_start_time"
 	KeyTimetableDayEndTime   = "timetable.day_end_time"
+
+	// Pickup buckets for timetable-derived slot lists. Schools use different
+	// checkout cutoffs, so list labels and cohort membership are tenant config.
+	KeySlotListShortDayCutoff = "timetable.slot_list_short_day_cutoff"
+	KeySlotListLongDayCutoff  = "timetable.slot_list_long_day_cutoff"
 )

@@ -100,6 +100,13 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-sky-500",
     alwaysShow: true,
   },
+  {
+    href: "/lists",
+    label: "Listen",
+    icon: navigationIcons.listExport,
+    activeColor: "text-[#5080D8]",
+    alwaysShow: true,
+  },
   // Coming soon features - shown to all users
   {
     href: "#",
