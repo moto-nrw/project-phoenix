@@ -295,7 +295,7 @@ func (rs *Resource) extractStaffFromRequest(w http.ResponseWriter, r *http.Reque
 		return nil, errors.New("account not found")
 	}
 
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
 		common.RenderError(w, r, ErrorForbidden(errors.New("user is not a staff member")))
 		return nil, errors.New("user is not a staff member")

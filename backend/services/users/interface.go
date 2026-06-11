@@ -102,6 +102,12 @@ type PersonService interface {
 	// GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
 	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
 
+	// GetTeachersBySpecialization retrieves teachers by specialization.
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
+
+	// GetTeacherWithStaffAndPerson retrieves a teacher with staff and person preloaded.
+	GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error)
+
 	// ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
 	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
 

@@ -170,6 +170,18 @@ func (s personServiceWithTeacherRepo) GetStudentsByGroupID(context.Context, int6
 func (s personServiceWithTeacherRepo) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
 	return nil, nil
 }
+func (s personServiceWithTeacherRepo) GetTeachersBySpecialization(ctx context.Context, spec string) ([]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindBySpecialization(ctx, spec)
+}
+func (s personServiceWithTeacherRepo) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
+}
 func (s personServiceWithTeacherRepo) CountStudentsByGroupIDs(context.Context, []int64) (map[int64]int, error) {
 	return nil, nil
 }

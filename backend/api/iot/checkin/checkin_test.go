@@ -75,6 +75,20 @@ func (s *failingPersonService) StaffRepository() userModels.StaffRepository {
 	return s.PersonService.StaffRepository()
 }
 
+func (s *failingPersonService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+	if s.studentRepo != nil {
+		return s.studentRepo.FindByPersonID(ctx, personID)
+	}
+	return s.PersonService.GetStudentByPersonID(ctx, personID)
+}
+
+func (s *failingPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if s.staffRepo != nil {
+		return s.staffRepo.FindByPersonID(ctx, personID)
+	}
+	return s.PersonService.GetStaffByPersonID(ctx, personID)
+}
+
 type failingStudentRepository struct {
 	userModels.StudentRepository
 	err error

@@ -192,11 +192,7 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 		)
 		return 0
 	}
-	staffRepo := rs.personService.StaffRepository()
-	if staffRepo == nil {
-		return 0
-	}
-	staff, err := staffRepo.FindByPersonID(ctx, person.ID)
+	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		rs.getLogger().Debug("started_by lookup: staff not found",
 			slog.Int64("person_id", person.ID),

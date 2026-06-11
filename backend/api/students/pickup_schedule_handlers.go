@@ -296,7 +296,7 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	}
 
 	// Get staff from person ID
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
 		return 0, errors.New("user is not a staff member")
 	}

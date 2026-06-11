@@ -536,6 +536,16 @@ func (s *personService) GetTeachersByStaffIDs(ctx context.Context, staffIDs []in
 	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
 }
 
+// GetTeachersBySpecialization retrieves teachers by specialization.
+func (s *personService) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
+	return s.teacherRepo.FindBySpecialization(ctx, specialization)
+}
+
+// GetTeacherWithStaffAndPerson retrieves a teacher with staff and person preloaded.
+func (s *personService) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
+}
+
 // ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
 func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
 	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)

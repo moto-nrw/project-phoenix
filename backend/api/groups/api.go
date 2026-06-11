@@ -52,7 +52,6 @@ type Resource struct {
 	UserService        userService.PersonService
 	UserContextService userContextService.UserContextService
 	StudentRepo        users.StudentRepository
-	StaffRepo          users.StaffRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
 }
@@ -65,7 +64,6 @@ func NewResource(educationService educationSvc.Service, activeService activeServ
 		UserService:        userService,
 		UserContextService: userContextService,
 		StudentRepo:        studentRepo,
-		StaffRepo:          userService.StaffRepository(),
 		SubstitutionRepo:   substitutionRepo,
 		db:                 db,
 	}
@@ -975,7 +973,7 @@ func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, t
 		return nil, nil, false
 	}
 
-	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
+	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))

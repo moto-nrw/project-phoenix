@@ -125,7 +125,7 @@ func (rs *Resource) getStaffIDFromClaims(ctx context.Context, claims jwt.AppClai
 		return 0, errors.New("person not found for account")
 	}
 
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, errors.New("staff record not found")
 	}

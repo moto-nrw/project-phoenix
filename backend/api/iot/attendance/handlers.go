@@ -129,7 +129,7 @@ func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, no
 		return nil, nil, false
 	}
 
-	student, err := rs.UsersService.StudentRepository().FindByPersonID(r.Context(), person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return nil, nil, false
@@ -179,8 +179,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Get student from person
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return
@@ -321,8 +320,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 
 // lookupStudent gets student from person ID with error handling
 func (rs *Resource) lookupStudent(w http.ResponseWriter, r *http.Request, personID int64) *users.Student {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), personID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), personID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return nil

@@ -121,8 +121,7 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 	}
 
 	// Batch fetch all staff with person data in a single query
-	staffRepo := rs.UsersService.StaffRepository()
-	staffMap, err := staffRepo.FindWithPersonByIDs(ctx, staffIDs)
+	staffMap, err := rs.UsersService.GetStaffWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
 		slog.Default().WarnContext(ctx, "batch staff lookup failed, falling back to empty list",
 			slog.String("error", err.Error()),

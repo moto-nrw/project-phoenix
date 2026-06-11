@@ -547,7 +547,7 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("person not found for account %d", accountID)
 	}
 
-	staff, err := rs.personService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("find staff for person %d: %w", person.ID, err)
 	}

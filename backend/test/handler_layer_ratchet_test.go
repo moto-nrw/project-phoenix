@@ -57,7 +57,7 @@ var (
 var apiRepoDeclAllowlist = map[string]int{
 	"api/auth/api.go":              2,
 	"api/enrollment/api.go":        4,
-	"api/groups/api.go":            5,
+	"api/groups/api.go":            4,
 	"api/guardians/api.go":         2,
 	"api/import/api.go":            3,
 	"api/iot/api.go":               6,
@@ -76,24 +76,7 @@ var apiRepoDeclAllowlist = map[string]int{
 // R2 — `.XxxRepository()` getter calls, backend-wide minus database/ + test/.
 // Target: empty — the three PersonService getters are scheduled for deletion.
 var repoGetterCallAllowlist = map[string]int{
-	"api/active/checkin.go":                             2,
-	"api/active/checkout_helpers.go":                    1,
-	"api/active/groups_handlers.go":                     1,
-	"api/active/unclaimed_handlers.go":                  1,
-	"api/activities/api.go":                             3,
-	"api/groups/api.go":                                 1,
-	"api/import/api.go":                                 1,
-	"api/iot/attendance/handlers.go":                    3,
-	"api/iot/checkin/workflow.go":                       3,
-	"api/iot/data/handlers.go":                          5,
-	"api/iot/feedback/handlers.go":                      1,
-	"api/iot/rfid/handlers.go":                          1,
-	"api/iot/sessions/helpers.go":                       1,
-	"api/sse/sse_helpers.go":                            1,
 	"api/staff/api.go":                                  2,
-	"api/students/pickup_schedule_handlers.go":          1,
-	"api/time-tracking/api.go":                          1,
-	"api/timetable/instances.go":                        1,
 	"auth/authorize/policies/student_visit.go":          4,
 	"services/schedule/timetable_operations_service.go": 1,
 }

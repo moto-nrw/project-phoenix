@@ -175,6 +175,12 @@ func (m *mockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]
 func (m *mockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
 	return nil, nil
 }
+func (m *mockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
 func (m *mockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
 	return nil, nil
 }

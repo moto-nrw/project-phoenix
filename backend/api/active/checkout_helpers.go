@@ -75,7 +75,7 @@ func (rs *Resource) authorizeStudentCheckout(
 	}
 
 	// Get staff record - any staff member can checkout any student
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return nil, ErrStaffNotFound
 	}
