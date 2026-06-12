@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -55,6 +56,7 @@ type ServiceDependencies struct {
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	TimetableDataService  scheduleSvc.TimetableDataService
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
 	DB                    *bun.DB
@@ -73,6 +75,7 @@ type Resource struct {
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	TimetableDataService  scheduleSvc.TimetableDataService
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	logger                *slog.Logger
 	db                    *bun.DB
@@ -92,6 +95,7 @@ func NewResource(deps ServiceDependencies) *Resource {
 		PickupScheduleService: deps.PickupScheduleService,
 		SchoolService:         deps.SchoolService,
 		TimetableDataService:  deps.TimetableDataService,
+		UnregisteredTagScans:  deps.UnregisteredTagScans,
 		Broadcaster:           deps.Broadcaster,
 		logger:                deps.Logger,
 		db:                    deps.DB,
@@ -162,7 +166,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
-		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
+		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
 		r.Mount("/teachers", dataResource.TeachersRouter())
 
 		// School name endpoint (device API key → school name)
@@ -192,6 +196,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.PickupScheduleService,
 			rs.SettingsService,
 			rs.getLogger().With(slog.String("sub", "checkin")),
+			rs.UnregisteredTagScans,
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
 		checkinHandler := delegateHandler(checkinResource.Router())
@@ -205,7 +210,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
-		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
+		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
 		dataHandler := delegateHandler(dataResourceAuth.Router())
 		r.Get("/students", dataHandler)
 		r.Get("/activities", dataHandler)
@@ -213,7 +218,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService)
+		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)

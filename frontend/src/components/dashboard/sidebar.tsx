@@ -229,6 +229,13 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
+      {
+        href: "/operator/unregistered-tags",
+        label: "Unbekannte RFID",
+        icon: navigationIcons.security,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
     ],
   },
   {

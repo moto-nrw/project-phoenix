@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -26,6 +27,7 @@ type Resource struct {
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
 	invitationsResource     *InvitationsResource
+	unregisteredTagScans    auditSvc.UnregisteredTagScanService
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
@@ -41,6 +43,7 @@ type ResourceConfig struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
+	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits
 	// a tenant_settings_changed SSE event after every successful Set/Reset so
@@ -110,6 +113,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
+		unregisteredTagScans:  cfg.UnregisteredTagScanService,
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
@@ -254,6 +258,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/persons", func(r chi.Router) {
 			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
 		})
+
+		if rs.unregisteredTagScans != nil {
+			r.Route("/unregistered-tag-scans", func(r chi.Router) {
+				r.Get("/", rs.ListUnregisteredTagScans)
+				r.Post("/{id}/resolve", rs.ResolveUnregisteredTagScan)
+			})
+		}
 
 		// Account-wide MFA override surface ("mailbox lockout emergency
 		// switch"). Deliberately decoupled from /schools/{id}/accounts/{}

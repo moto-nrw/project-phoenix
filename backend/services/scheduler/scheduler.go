@@ -66,6 +66,10 @@ type FeedbackCleaner interface {
 	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
 }
 
+type UnregisteredTagScanCleaner interface {
+	DeleteOlderThan(ctx context.Context, days int) (int, error)
+}
+
 // SettingsResolver resolves setting values per tenant. Implemented by config.SettingsService.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -76,24 +80,25 @@ type SettingsResolver interface {
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService       active.Service
-	cleanupService      active.CleanupService
-	authCleanup         AuthCleanup
-	invitationCleanup   InvitationCleaner
-	workSessionCleanup  WorkSessionCleaner
-	breakAutoEnder      BreakAutoEnder
-	feedbackCleaner     FeedbackCleaner
-	materializer        scheduleSvc.MaterializationService
-	timetableCleanup    scheduleSvc.TimetableCleanupService
-	timeTrackingCleanup active.TimeTrackingCleanupService
-	autoStart           scheduleSvc.AutoStartService
-	settings            SettingsResolver
-	db                  *bun.DB
-	schoolRepo          platform.SchoolRepository
-	cleanupJobs         []CleanupJob
-	tasks               map[string]*ScheduledTask
-	mu                  sync.RWMutex
-	logger              *slog.Logger
+	activeService              active.Service
+	cleanupService             active.CleanupService
+	authCleanup                AuthCleanup
+	invitationCleanup          InvitationCleaner
+	workSessionCleanup         WorkSessionCleaner
+	breakAutoEnder             BreakAutoEnder
+	feedbackCleaner            FeedbackCleaner
+	unregisteredTagScanCleaner UnregisteredTagScanCleaner
+	materializer               scheduleSvc.MaterializationService
+	timetableCleanup           scheduleSvc.TimetableCleanupService
+	timeTrackingCleanup        active.TimeTrackingCleanupService
+	autoStart                  scheduleSvc.AutoStartService
+	settings                   SettingsResolver
+	db                         *bun.DB
+	schoolRepo                 platform.SchoolRepository
+	cleanupJobs                []CleanupJob
+	tasks                      map[string]*ScheduledTask
+	mu                         sync.RWMutex
+	logger                     *slog.Logger
 	// done signals goroutines to stop when closed (replaces stored context)
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -204,6 +209,10 @@ func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 // SetFeedbackCleaner sets the feedback cleanup service (optional).
 func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
 	s.feedbackCleaner = fc
+}
+
+func (s *Scheduler) SetUnregisteredTagScanCleaner(cleaner UnregisteredTagScanCleaner) {
+	s.unregisteredTagScanCleaner = cleaner
 }
 
 // SetMaterializer wires the timetable materialization service. When set, the
@@ -570,6 +579,21 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 				slog.Int64("tenant_id", tenantID),
 				slog.Int("records_deleted", deleted),
 				slog.Int("retention_days", retentionDays),
+			)
+		}
+	}
+
+	if s.unregisteredTagScanCleaner != nil {
+		if deleted, err := s.unregisteredTagScanCleaner.DeleteOlderThan(ctx, 90); err != nil {
+			s.getLogger().Error("unregistered RFID scan cleanup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		} else if deleted > 0 {
+			s.getLogger().Info("unregistered RFID scan cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("records_deleted", deleted),
+				slog.Int("retention_days", 90),
 			)
 		}
 	}
