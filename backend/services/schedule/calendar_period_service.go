@@ -2,7 +2,9 @@ package schedule
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -18,6 +20,17 @@ type CalendarPeriodService interface {
 	CreatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error
 	UpdatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error
 	DeletePeriod(ctx context.Context, id int64) error
+
+	// EnsureDefaultSchoolYear guarantees the tenant has at least one calendar
+	// period. If none exists, it creates the current German school year
+	// (Aug 1 – Jul 31) as an active period. Idempotent and race-safe;
+	// created reports whether this call inserted the default period.
+	EnsureDefaultSchoolYear(ctx context.Context) (periods []*schedule.CalendarPeriod, created bool, err error)
+
+	// FindActiveOverlaps returns the active periods whose date range overlaps
+	// the given period (excluding the period itself). Returns nil when the
+	// period is inactive — only active/active collisions are advisory-worthy.
+	FindActiveOverlaps(ctx context.Context, period *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error)
 
 	// A/B week resolution — weekPattern: 0=every, 1=week A, 2=week B
 	ShouldMaterialize(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool
@@ -131,6 +144,85 @@ func (s *calendarPeriodService) DeletePeriod(ctx context.Context, id int64) erro
 		return &ScheduleError{Op: "delete calendar period", Err: err}
 	}
 	return nil
+}
+
+// defaultSchoolYearBounds computes the German school year containing the
+// given calendar day: it starts on August 1st of the current year when the
+// day is in August or later, otherwise on August 1st of the previous year,
+// and always ends on July 31st of the following year.
+//
+// MUST stay in sync with the frontend helper schoolYearPeriodDefaults in
+// frontend/src/app/[tenant]/(protected)/timetables/page.tsx — both sides
+// derive the same name ("Schuljahr YYYY/YYYY+1") and the same date bounds
+// so the bootstrap endpoint and the client-side prefill never diverge.
+//
+// Extracted as a pure function so the year-boundary logic is testable
+// without injecting a clock.
+func defaultSchoolYearBounds(today timezone.Date) (name string, start, end timezone.Date) {
+	startYear := today.Year
+	if today.Month < time.August {
+		startYear--
+	}
+	name = fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1)
+	return name, timezone.NewDate(startYear, time.August, 1), timezone.NewDate(startYear+1, time.July, 31)
+}
+
+// EnsureDefaultSchoolYear guarantees the tenant has at least one calendar
+// period (WP-B1). When periods already exist, it returns them unchanged with
+// created=false. Otherwise it inserts the current school year via the
+// race-safe CreateIfAbsent upsert, re-lists, and returns the fresh state.
+// Two concurrent calls therefore yield exactly one row and zero errors.
+func (s *calendarPeriodService) EnsureDefaultSchoolYear(ctx context.Context) ([]*schedule.CalendarPeriod, bool, error) {
+	periods, err := s.repo.FindByTenantID(ctx)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
+	}
+	if len(periods) > 0 {
+		return periods, false, nil
+	}
+
+	name, start, end := defaultSchoolYearBounds(timezone.TodayDate())
+	period := &schedule.CalendarPeriod{
+		Name:            name,
+		PeriodType:      schedule.PeriodTypeSchoolYear,
+		StartDate:       start,
+		EndDate:         end,
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(tenant.FromContext(ctx))
+
+	created, err := s.repo.CreateIfAbsent(ctx, period)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
+	}
+	if created {
+		s.getLogger().Info("default school year period created",
+			slog.Int64("period_id", period.ID),
+			slog.String("name", period.Name),
+		)
+	}
+
+	periods, err = s.repo.FindByTenantID(ctx)
+	if err != nil {
+		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
+	}
+	return periods, created, nil
+}
+
+// FindActiveOverlaps returns the active periods overlapping the given period
+// (WP-B2, QA #1577 H3). The check is advisory only — callers attach the
+// result as a warning, never as a save blocker. Inactive periods cannot
+// collide with anything, so the repo round-trip is skipped for them.
+func (s *calendarPeriodService) FindActiveOverlaps(ctx context.Context, period *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error) {
+	if period == nil || !period.IsActive {
+		return nil, nil
+	}
+	overlaps, err := s.repo.FindActiveOverlapping(ctx, period.StartDate, period.EndDate, period.ID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "find active overlapping periods", Err: err}
+	}
+	return overlaps, nil
 }
 
 // ShouldMaterialize determines whether a schedule with the given weekPattern should

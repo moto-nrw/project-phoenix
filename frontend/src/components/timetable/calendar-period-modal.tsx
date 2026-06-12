@@ -147,16 +147,18 @@ export function CalendarPeriodModal({
           : {}),
       };
 
-      const result = isEdit
+      // Soft warnings (e.g. overlapping active periods) are intentionally
+      // ignored here for now — the warning UI lands in a follow-up.
+      const { period } = isEdit
         ? await calendarPeriodService.update(initial!.id, body)
         : await calendarPeriodService.create(body);
 
       toastSuccess(
         isEdit
-          ? `Planungszeitraum "${result.name}" aktualisiert`
-          : `Planungszeitraum "${result.name}" angelegt`,
+          ? `Planungszeitraum "${period.name}" aktualisiert`
+          : `Planungszeitraum "${period.name}" angelegt`,
       );
-      onSaved(result);
+      onSaved(period);
       onClose();
     } catch (err) {
       logger.error("period_save_failed", {

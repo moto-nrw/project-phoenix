@@ -1,8 +1,10 @@
 package timetable
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -159,6 +161,9 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/periods", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPeriods)
 			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/", rs.createPeriod)
+			// WP-B1: idempotent school-year bootstrap. Same permission and tx
+			// middleware as POST /periods — it is just a specialized create.
+			r.With(authorize.RequiresPermission(permissions.SchedulesCreate), withTx).Post("/bootstrap", rs.bootstrapPeriods)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/{id}", rs.getPeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesUpdate), withTx).Put("/{id}", rs.updatePeriod)
 			r.With(authorize.RequiresPermission(permissions.SchedulesDelete), withTx).Delete("/{id}", rs.deletePeriod)
@@ -313,18 +318,36 @@ func (req *CalendarPeriodRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// PeriodWarning is an advisory, never-blocking notice attached to a calendar
+// period response (WP-B2, QA #1577 H3). One entry is emitted per overlapping
+// active period.
+type PeriodWarning struct {
+	Code                   string   `json:"code"`
+	Message                string   `json:"message"`
+	OverlappingPeriodIDs   []int64  `json:"overlapping_period_ids"`
+	OverlappingPeriodNames []string `json:"overlapping_period_names"`
+}
+
+// warningCodeOverlappingActivePeriods is the machine-readable code the
+// frontend matches on; the German message is display-only.
+const warningCodeOverlappingActivePeriods = "overlapping_active_periods"
+
+// germanDateLayout renders calendar dates as dd.mm.yyyy for user-facing text.
+const germanDateLayout = "02.01.2006"
+
 // CalendarPeriodResponse represents a calendar period in API responses
 type CalendarPeriodResponse struct {
-	ID              int64   `json:"id"`
-	Name            string  `json:"name"`
-	PeriodType      string  `json:"period_type"`
-	StartDate       string  `json:"start_date"`
-	EndDate         string  `json:"end_date"`
-	WeekCycleLength int     `json:"week_cycle_length"`
-	WeekCycleAnchor *string `json:"week_cycle_anchor,omitempty"`
-	IsActive        bool    `json:"is_active"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ID              int64           `json:"id"`
+	Name            string          `json:"name"`
+	PeriodType      string          `json:"period_type"`
+	StartDate       string          `json:"start_date"`
+	EndDate         string          `json:"end_date"`
+	WeekCycleLength int             `json:"week_cycle_length"`
+	WeekCycleAnchor *string         `json:"week_cycle_anchor,omitempty"`
+	IsActive        bool            `json:"is_active"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
+	Warnings        []PeriodWarning `json:"warnings,omitempty"`
 }
 
 func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
@@ -386,6 +409,35 @@ func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPe
 		return false
 	}
 	return true
+}
+
+// attachOverlapWarnings decorates resp with one advisory warning per active
+// period overlapping the just-saved period (WP-B2, QA #1577 H3). The check
+// runs after a successful save and must never turn the 2xx into an error:
+// lookup failures are logged at Warn and the response simply ships without
+// warnings.
+func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.CalendarPeriod, resp *CalendarPeriodResponse) {
+	overlaps, err := rs.calendarPeriodService.FindActiveOverlaps(ctx, period)
+	if err != nil {
+		rs.getLogger().Warn("calendar period overlap check failed, omitting warnings",
+			slog.Int64("period_id", period.ID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	for _, o := range overlaps {
+		resp.Warnings = append(resp.Warnings, PeriodWarning{
+			Code: warningCodeOverlappingActivePeriods,
+			Message: fmt.Sprintf(
+				"Überschneidet sich mit aktivem Zeitraum „%s“ (%s – %s). Termine werden im Zweifel dem älteren Zeitraum zugeordnet.",
+				o.Name,
+				o.StartDate.Format(germanDateLayout),
+				o.EndDate.Format(germanDateLayout),
+			),
+			OverlappingPeriodIDs:   []int64{o.ID},
+			OverlappingPeriodNames: []string{o.Name},
+		})
+	}
 }
 
 // Handlers
@@ -460,7 +512,38 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusCreated, mapPeriodToResponse(period), "Calendar period created successfully")
+	resp := mapPeriodToResponse(period)
+	rs.attachOverlapWarnings(r.Context(), period, &resp)
+	common.Respond(w, r, http.StatusCreated, resp, "Calendar period created successfully")
+}
+
+// bootstrapPeriodsResponse is the wire shape of POST /periods/bootstrap.
+type bootstrapPeriodsResponse struct {
+	Periods []CalendarPeriodResponse `json:"periods"`
+	Created bool                     `json:"created"`
+}
+
+// bootstrapPeriods handles POST /api/timetable/periods/bootstrap (WP-B1).
+// It ensures the tenant has at least one calendar period, creating the
+// current school year when none exists. Idempotent by design: the response
+// is always 200 with the tenant's periods plus a created flag — repeated
+// calls and concurrent calls never yield a 409.
+func (rs *Resource) bootstrapPeriods(w http.ResponseWriter, r *http.Request) {
+	periods, created, err := rs.calendarPeriodService.EnsureDefaultSchoolYear(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	responses := make([]CalendarPeriodResponse, len(periods))
+	for i, p := range periods {
+		responses[i] = mapPeriodToResponse(p)
+	}
+
+	common.Respond(w, r, http.StatusOK, bootstrapPeriodsResponse{
+		Periods: responses,
+		Created: created,
+	}, "Calendar periods bootstrapped successfully")
 }
 
 func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
@@ -512,7 +595,9 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapPeriodToResponse(existing), "Calendar period updated successfully")
+	resp := mapPeriodToResponse(existing)
+	rs.attachOverlapWarnings(r.Context(), existing, &resp)
+	common.Respond(w, r, http.StatusOK, resp, "Calendar period updated successfully")
 }
 
 func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {

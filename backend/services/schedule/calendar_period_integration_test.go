@@ -1,8 +1,10 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -376,6 +378,215 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "name is required")
+	})
+}
+
+// =============================================================================
+// EnsureDefaultSchoolYear Tests (WP-B1)
+// =============================================================================
+
+// newBootstrapTenant provisions a fresh, unique tenant so the bootstrap tests
+// never race with other tests (or parallel packages) that create calendar
+// periods in the shared tenant 1. Calendar periods of the tenant are removed
+// on cleanup; the school/org rows are idempotent fixtures and stay.
+func newBootstrapTenant(t *testing.T, db *bun.DB, base int64) (int64, context.Context) {
+	t.Helper()
+	tenantID := base + time.Now().UnixNano()%50000
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Table("schedule.calendar_periods").
+			Where("tenant_id = ?", tenantID).
+			Exec(context.Background())
+	})
+	return tenantID, testpkg.TenantContext(tenantID)
+}
+
+func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc := setupCalendarPeriodService(t, db)
+
+	t.Run("creates default school year when tenant has none", func(t *testing.T) {
+		_, ctx := newBootstrapTenant(t, db, 710000)
+
+		periods, created, err := svc.EnsureDefaultSchoolYear(ctx)
+
+		require.NoError(t, err)
+		assert.True(t, created)
+		require.Len(t, periods, 1)
+		p := periods[0]
+		// Independent re-derivation of the expected school year — keeps the
+		// test honest against the production helper.
+		today := timezone.TodayDate()
+		startYear := today.Year
+		if today.Month < time.August {
+			startYear--
+		}
+		assert.Equal(t, fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1), p.Name)
+		assert.Equal(t, timezone.NewDate(startYear, time.August, 1), p.StartDate)
+		assert.Equal(t, timezone.NewDate(startYear+1, time.July, 31), p.EndDate)
+		assert.Equal(t, scheduleModels.PeriodTypeSchoolYear, p.PeriodType)
+		assert.True(t, p.IsActive)
+		assert.Equal(t, 1, p.WeekCycleLength)
+	})
+
+	t.Run("is idempotent on repeated calls", func(t *testing.T) {
+		_, ctx := newBootstrapTenant(t, db, 720000)
+
+		first, created, err := svc.EnsureDefaultSchoolYear(ctx)
+		require.NoError(t, err)
+		assert.True(t, created)
+		require.Len(t, first, 1)
+
+		second, createdAgain, err := svc.EnsureDefaultSchoolYear(ctx)
+		require.NoError(t, err)
+		assert.False(t, createdAgain)
+		require.Len(t, second, 1)
+		assert.Equal(t, first[0].ID, second[0].ID)
+	})
+
+	t.Run("no-op when any period already exists", func(t *testing.T) {
+		_, ctx := newBootstrapTenant(t, db, 730000)
+
+		existing := &scheduleModels.CalendarPeriod{
+			Name:            fmt.Sprintf("Vorhandener-Zeitraum-%d", time.Now().UnixNano()),
+			PeriodType:      scheduleModels.PeriodTypeCustom,
+			StartDate:       timezone.NewDate(2030, time.January, 1),
+			EndDate:         timezone.NewDate(2030, time.June, 30),
+			WeekCycleLength: 1,
+			IsActive:        false,
+		}
+		require.NoError(t, svc.CreatePeriod(ctx, existing))
+
+		periods, created, err := svc.EnsureDefaultSchoolYear(ctx)
+
+		require.NoError(t, err)
+		assert.False(t, created, "must not create a school year next to an existing period")
+		require.Len(t, periods, 1)
+		assert.Equal(t, existing.ID, periods[0].ID)
+	})
+
+	t.Run("tenant isolation", func(t *testing.T) {
+		tenantA, ctxA := newBootstrapTenant(t, db, 740000)
+		tenantB, ctxB := newBootstrapTenant(t, db, 750000)
+		require.NotEqual(t, tenantA, tenantB)
+
+		periodsA, createdA, err := svc.EnsureDefaultSchoolYear(ctxA)
+		require.NoError(t, err)
+		assert.True(t, createdA)
+		require.Len(t, periodsA, 1)
+
+		// Tenant B starts empty even though A now has the same-named period.
+		periodsB, createdB, err := svc.EnsureDefaultSchoolYear(ctxB)
+		require.NoError(t, err)
+		assert.True(t, createdB, "tenant B must get its own default period")
+		require.Len(t, periodsB, 1)
+		assert.NotEqual(t, periodsA[0].ID, periodsB[0].ID)
+
+		// A's view is unchanged by B's bootstrap.
+		again, created, err := svc.EnsureDefaultSchoolYear(ctxA)
+		require.NoError(t, err)
+		assert.False(t, created)
+		require.Len(t, again, 1)
+		assert.Equal(t, periodsA[0].ID, again[0].ID)
+	})
+
+	t.Run("concurrent calls yield one row and no error", func(t *testing.T) {
+		tenantID, ctx := newBootstrapTenant(t, db, 760000)
+
+		type outcome struct {
+			periods []*scheduleModels.CalendarPeriod
+			created bool
+			err     error
+		}
+		results := make(chan outcome, 2)
+		var wg sync.WaitGroup
+		for range 2 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				periods, created, err := svc.EnsureDefaultSchoolYear(ctx)
+				results <- outcome{periods: periods, created: created, err: err}
+			}()
+		}
+		wg.Wait()
+		close(results)
+
+		createdCount := 0
+		for res := range results {
+			require.NoError(t, res.err)
+			assert.Len(t, res.periods, 1)
+			if res.created {
+				createdCount++
+			}
+		}
+		assert.Equal(t, 1, createdCount, "exactly one caller must win the insert")
+
+		var rowCount int
+		require.NoError(t, db.NewSelect().
+			TableExpr("schedule.calendar_periods").
+			ColumnExpr("COUNT(*)").
+			Where("tenant_id = ?", tenantID).
+			Scan(ctx, &rowCount))
+		assert.Equal(t, 1, rowCount)
+	})
+}
+
+// =============================================================================
+// FindActiveOverlaps Tests (WP-B2)
+// =============================================================================
+
+func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc := setupCalendarPeriodService(t, db)
+	_, ctx := newBootstrapTenant(t, db, 770000)
+
+	suffix := time.Now().UnixNano()
+	active := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Overlaps-Aktiv-%d", suffix),
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       timezone.NewDate(2030, time.August, 1),
+		EndDate:         timezone.NewDate(2031, time.July, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, svc.CreatePeriod(ctx, active))
+
+	t.Run("finds overlapping active period", func(t *testing.T) {
+		candidate := &scheduleModels.CalendarPeriod{
+			Name:            fmt.Sprintf("Overlaps-Kandidat-%d", suffix),
+			PeriodType:      scheduleModels.PeriodTypeSemester,
+			StartDate:       timezone.NewDate(2031, time.January, 1),
+			EndDate:         timezone.NewDate(2031, time.December, 31),
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+		require.NoError(t, svc.CreatePeriod(ctx, candidate))
+
+		overlaps, err := svc.FindActiveOverlaps(ctx, candidate)
+
+		require.NoError(t, err)
+		require.Len(t, overlaps, 1)
+		assert.Equal(t, active.ID, overlaps[0].ID)
+	})
+
+	t.Run("inactive candidate short-circuits to nil", func(t *testing.T) {
+		candidate := &scheduleModels.CalendarPeriod{
+			Name:       "wird nicht gespeichert",
+			PeriodType: scheduleModels.PeriodTypeSemester,
+			StartDate:  timezone.NewDate(2031, time.January, 1),
+			EndDate:    timezone.NewDate(2031, time.December, 31),
+			IsActive:   false,
+		}
+
+		overlaps, err := svc.FindActiveOverlaps(ctx, candidate)
+
+		require.NoError(t, err)
+		assert.Nil(t, overlaps)
 	})
 }
 

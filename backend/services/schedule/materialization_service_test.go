@@ -598,6 +598,14 @@ func (materializationAllowCalendarService) DeletePeriod(context.Context, int64) 
 	panic("unused")
 }
 
+func (materializationAllowCalendarService) EnsureDefaultSchoolYear(context.Context) ([]*schedule.CalendarPeriod, bool, error) {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) FindActiveOverlaps(context.Context, *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error) {
+	panic("unused")
+}
+
 func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date, *schedule.CalendarPeriod) bool {
 	return true
 }

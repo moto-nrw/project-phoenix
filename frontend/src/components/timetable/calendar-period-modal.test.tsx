@@ -46,8 +46,10 @@ const period: CalendarPeriod = {
 describe("CalendarPeriodModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreate.mockResolvedValue(period);
-    mockUpdate.mockResolvedValue(period);
+    // create/update return { period, warnings } since the period-warning
+    // contract landed; the modal destructures .period and ignores warnings.
+    mockCreate.mockResolvedValue({ period, warnings: [] });
+    mockUpdate.mockResolvedValue({ period, warnings: [] });
     mockDelete.mockResolvedValue(undefined);
   });
 

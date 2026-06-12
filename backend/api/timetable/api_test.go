@@ -33,6 +33,11 @@ type mockCalendarPeriodService struct {
 	lastUpdated       *schedule.CalendarPeriod
 	lastDeletedID     int64
 	shouldMaterialize bool
+	overlaps          []*schedule.CalendarPeriod // returned by FindActiveOverlaps
+	overlapsErr       error                      // if set, FindActiveOverlaps fails
+	bootstrapPeriods  []*schedule.CalendarPeriod // returned by EnsureDefaultSchoolYear
+	bootstrapCreated  bool
+	bootstrapErr      error // if set, EnsureDefaultSchoolYear fails
 }
 
 func (m *mockCalendarPeriodService) GetAllPeriods(_ context.Context) ([]*schedule.CalendarPeriod, error) {
@@ -76,6 +81,20 @@ func (m *mockCalendarPeriodService) DeletePeriod(_ context.Context, id int64) er
 
 func (m *mockCalendarPeriodService) ShouldMaterialize(_ int, _ timezone.Date, _ *schedule.CalendarPeriod) bool {
 	return m.shouldMaterialize
+}
+
+func (m *mockCalendarPeriodService) EnsureDefaultSchoolYear(_ context.Context) ([]*schedule.CalendarPeriod, bool, error) {
+	if m.bootstrapErr != nil {
+		return nil, false, m.bootstrapErr
+	}
+	return m.bootstrapPeriods, m.bootstrapCreated, nil
+}
+
+func (m *mockCalendarPeriodService) FindActiveOverlaps(_ context.Context, _ *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error) {
+	if m.overlapsErr != nil {
+		return nil, m.overlapsErr
+	}
+	return m.overlaps, nil
 }
 
 // scheduleSvcErr is a minimal stand-in for services/schedule.ScheduleError.
@@ -675,6 +694,161 @@ func TestCreatePeriod(t *testing.T) {
 		}
 
 		w := executeRequest(router, http.MethodPost, "/", body)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+// =============================================================================
+// Overlap Warning Tests (WP-B2) — advisory, never blocking
+// =============================================================================
+
+func TestCreatePeriodOverlapWarnings(t *testing.T) {
+	validBody := CalendarPeriodRequest{
+		Name:       "Aktiv mit Kollision",
+		PeriodType: "school_year",
+		StartDate:  "2030-08-01",
+		EndDate:    "2031-07-31",
+		IsActive:   true,
+	}
+
+	t.Run("attaches one warning per overlapping active period", func(t *testing.T) {
+		other := newTestPeriod()
+		other.Name = "Schuljahr 2030/2031"
+		other.StartDate = timezone.NewDate(2030, 8, 1)
+		other.EndDate = timezone.NewDate(2031, 7, 31)
+
+		mock := &mockCalendarPeriodService{overlaps: []*schedule.CalendarPeriod{other}}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", validBody)
+
+		require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+		var env struct {
+			Data CalendarPeriodResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		require.Len(t, env.Data.Warnings, 1)
+		warning := env.Data.Warnings[0]
+		assert.Equal(t, "overlapping_active_periods", warning.Code)
+		assert.Equal(t, []int64{other.ID}, warning.OverlappingPeriodIDs)
+		assert.Equal(t, []string{other.Name}, warning.OverlappingPeriodNames)
+		assert.Contains(t, warning.Message, "Schuljahr 2030/2031")
+		assert.Contains(t, warning.Message, "01.08.2030")
+		assert.Contains(t, warning.Message, "31.07.2031")
+		assert.Contains(t, warning.Message, "Überschneidet sich mit aktivem Zeitraum")
+	})
+
+	t.Run("omits warnings field when nothing overlaps", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", validBody)
+
+		require.Equal(t, http.StatusCreated, w.Code)
+		assert.NotContains(t, w.Body.String(), "warnings")
+	})
+
+	t.Run("overlap check failure never breaks the create", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{overlapsErr: errors.New("overlap lookup exploded")}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", validBody)
+
+		require.Equal(t, http.StatusCreated, w.Code, "advisory check must not block the save")
+		assert.NotContains(t, w.Body.String(), "warnings")
+	})
+}
+
+func TestUpdatePeriodOverlapWarnings(t *testing.T) {
+	t.Run("attaches warning on update of overlapping active period", func(t *testing.T) {
+		other := newTestPeriod()
+		other.Name = "Schuljahr 2030/2031"
+
+		mock := &mockCalendarPeriodService{
+			period:   newTestPeriod(),
+			overlaps: []*schedule.CalendarPeriod{other},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+		r := chi.NewRouter()
+		r.Use(render.SetContentType(render.ContentTypeJSON))
+		r.Put("/{id}", res.updatePeriod)
+
+		body := CalendarPeriodRequest{
+			Name:       "Umbenannt",
+			PeriodType: "school_year",
+			StartDate:  "2030-08-01",
+			EndDate:    "2031-07-31",
+			IsActive:   true,
+		}
+
+		w := executeRequest(r, http.MethodPut, "/42", body)
+
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		var env struct {
+			Data CalendarPeriodResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		require.Len(t, env.Data.Warnings, 1)
+		assert.Equal(t, "overlapping_active_periods", env.Data.Warnings[0].Code)
+		assert.Equal(t, []string{other.Name}, env.Data.Warnings[0].OverlappingPeriodNames)
+	})
+}
+
+// =============================================================================
+// bootstrapPeriods Handler Tests (WP-B1)
+// =============================================================================
+
+func TestBootstrapPeriods(t *testing.T) {
+	t.Run("returns 200 with created flag", func(t *testing.T) {
+		p := newTestPeriod()
+		mock := &mockCalendarPeriodService{
+			bootstrapPeriods: []*schedule.CalendarPeriod{p},
+			bootstrapCreated: true,
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", nil)
+
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		var env struct {
+			Data bootstrapPeriodsResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		assert.True(t, env.Data.Created)
+		require.Len(t, env.Data.Periods, 1)
+		assert.Equal(t, p.Name, env.Data.Periods[0].Name)
+	})
+
+	t.Run("returns 200 with created false when periods already exist", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			bootstrapPeriods: []*schedule.CalendarPeriod{newTestPeriod()},
+			bootstrapCreated: false,
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", nil)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		var env struct {
+			Data bootstrapPeriodsResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &env))
+		assert.False(t, env.Data.Created)
+	})
+
+	t.Run("returns 500 on service error", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{bootstrapErr: errors.New("bootstrap failed")}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
