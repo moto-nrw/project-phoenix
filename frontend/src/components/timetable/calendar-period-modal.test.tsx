@@ -79,18 +79,15 @@ describe("CalendarPeriodModal", () => {
     fireEvent.change(screen.getByLabelText("Enddatum*"), {
       target: { value: "2027-07-31" },
     });
-    fireEvent.change(
-      screen.getByLabelText("Rhythmus in Wochen (1 = jede Woche)"),
-      {
-        target: { value: "2" },
-      },
-    );
+    fireEvent.change(screen.getByLabelText("Wiederholung in Wochen"), {
+      target: { value: "2" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bei einem Rhythmus über mehrere Wochen ist ein Startdatum für den Rhythmus erforderlich.",
+      "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
     );
 
-    fireEvent.change(screen.getByLabelText("Start für Rhythmus*"), {
+    fireEvent.change(screen.getByLabelText("Startdatum der Wiederholung*"), {
       target: { value: "2026-08-03" },
     });
     fireEvent.click(screen.getByLabelText(/Zeitraum im Plan verwenden/));

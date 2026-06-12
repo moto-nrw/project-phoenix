@@ -11,7 +11,7 @@
  *
  * The new dropdown shows three things:
  * 1. Per-day assignment for the visible week, preserves the
- *    "Grenzwoche" insight when a week crosses period boundaries.
+ *    "Übergangswoche" insight when a week crosses period boundaries.
  * 2. All registered periods, grouped by status (active / upcoming /
  *    archived). Clicking jumps the calendar to that period's start.
  * 3. A "Neuen Zeitraum anlegen" footer.
@@ -93,7 +93,7 @@ export function PeriodSwitcherDropdown({
             : assignedPeriods.length === 1 && !hasMissingDays
               ? assignedPeriods[0]!.name
               : view === "week"
-                ? "Grenzwoche"
+                ? "Übergangswoche"
                 : "Mehrere Zeiträume";
 
   // Group all periods for the list section.

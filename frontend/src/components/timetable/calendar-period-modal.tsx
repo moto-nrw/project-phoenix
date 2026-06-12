@@ -128,7 +128,7 @@ export function CalendarPeriodModal({
     }
     if (cycleLength > 1 && form.weekCycleAnchor === "") {
       setValidationError(
-        "Bei einem Rhythmus über mehrere Wochen ist ein Startdatum für den Rhythmus erforderlich.",
+        "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
       );
       return;
     }
@@ -327,10 +327,7 @@ export function CalendarPeriodModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field
-            label="Rhythmus in Wochen (1 = jede Woche)"
-            htmlFor="cycle_length"
-          >
+          <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
             <Input
               id="cycle_length"
               type="number"
@@ -340,9 +337,12 @@ export function CalendarPeriodModal({
               controlSize="compact"
               onChange={(e) => update("weekCycleLength", e.target.value)}
             />
+            <span className="text-xs font-normal text-gray-500">
+              1 = jede Woche, 2 = alle 2 Wochen
+            </span>
           </Field>
           <Field
-            label="Start für Rhythmus"
+            label="Startdatum der Wiederholung"
             htmlFor="cycle_anchor"
             required={cycleLength > 1}
           >
@@ -389,12 +389,12 @@ interface FieldProps {
 
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (
-    <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-gray-700">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
-      </span>
+      </label>
       {children}
-    </label>
+    </div>
   );
 }
