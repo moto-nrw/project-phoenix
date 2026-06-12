@@ -468,6 +468,8 @@ describe("EnrollmentForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
+    // The message renders twice by design: once in the error banner and
+    // once inline at the unchecked block.
     expect(
       await screen.findAllByText(
         "Bitte diese erforderliche Bestätigung auswählen.",

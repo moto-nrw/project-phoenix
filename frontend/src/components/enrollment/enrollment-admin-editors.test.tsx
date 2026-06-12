@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteCareOffering: vi.fn(),
   deletePhase: vi.fn(),
   deleteSchema: vi.fn(),
+  fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
@@ -92,6 +93,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
     ...actual,
     createSchema: mocks.createSchema,
     deleteSchema: mocks.deleteSchema,
+    fetchPublicLegalTexts: mocks.fetchPublicLegalTexts,
     listSchemas: mocks.listSchemas,
     updateSchema: mocks.updateSchema,
   };
@@ -217,6 +219,18 @@ beforeEach(() => {
   mocks.deleteCareOffering.mockReset();
   mocks.deletePhase.mockReset();
   mocks.deleteSchema.mockReset();
+  mocks.fetchPublicLegalTexts.mockReset();
+  // Without this mock the editor's loadAll() fires a real fetch
+  // (ECONNREFUSED in CI). Empty blocks = no tenant legal texts
+  // configured, so the standard blocks stay disabled by default.
+  mocks.fetchPublicLegalTexts.mockResolvedValue({
+    agb: "",
+    dsgvo: "",
+    email_contact: "",
+    photo: "",
+    terms_enabled: false,
+    blocks: [],
+  });
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
@@ -481,6 +495,28 @@ describe("PhasesEditor", () => {
   });
 });
 
+// The editor always sends the template's legal blocks on save (PR #1632).
+// With no tenant legal texts configured (see the fetchPublicLegalTexts
+// default above), the four standard blocks are passed through disabled.
+const defaultLegalBlocksForSave = [
+  expect.objectContaining({ key: "agb", enabled: false, source: "standard" }),
+  expect.objectContaining({
+    key: "data_processing",
+    enabled: false,
+    source: "standard",
+  }),
+  expect.objectContaining({
+    key: "photo",
+    enabled: false,
+    source: "standard",
+  }),
+  expect.objectContaining({
+    key: "email_contact",
+    enabled: false,
+    source: "standard",
+  }),
+];
+
 describe("EnrollmentFormEditor", () => {
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
@@ -537,12 +573,7 @@ describe("EnrollmentFormEditor", () => {
           }),
         ]),
         {},
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "agb",
-            source: "standard",
-          }),
-        ]),
+        defaultLegalBlocksForSave,
       );
     });
 
@@ -567,12 +598,7 @@ describe("EnrollmentFormEditor", () => {
         "schema-1",
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
         {},
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: "agb",
-            source: "standard",
-          }),
-        ]),
+        defaultLegalBlocksForSave,
       );
     });
 
