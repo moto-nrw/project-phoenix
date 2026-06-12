@@ -14,8 +14,9 @@
 //     instances) stays attached to the old template untouched.
 //   - Only status='planned' AND is_spontaneous=false instances of the OLD
 //     template are deleted, and only from the effective date onward.
-//   - The successor's schedules start open-ended (valid_until = NULL); its
-//     roster rows start at the effective date.
+//   - The successor's schedules start at the effective date (valid_from)
+//     and end open (valid_until = NULL); its roster rows start at the
+//     effective date.
 //
 // Transaction boundary is the caller's (TenantTxMiddleware) — any failure
 // rolls back the whole split.
@@ -183,15 +184,15 @@ func (s *templateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 		return nil, err
 	}
 
-	// Remove the old template's still-planned future instances inside the
-	// materialization horizon. Started/completed/cancelled and spontaneous
-	// rows survive (same protection rule as ReplanWeek).
-	horizonEnd := in.EffectiveDate.AddDays(MaxMaterializationWindowDays - 1)
-	if in.MaterializeTo != nil {
-		horizonEnd = *in.MaterializeTo
-	}
+	// Remove ALL of the old template's still-planned future instances from
+	// the effective date onward — deliberately open-ended (nil `to`), NOT
+	// tied to the materialization window: the split must guarantee that no
+	// planned non-spontaneous old-template instance survives on/after the
+	// effective date, however far materialization once reached.
+	// Started/completed/cancelled and spontaneous rows survive (same
+	// protection rule as ReplanWeek).
 	oldID := old.ID
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, horizonEnd, &oldID)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &oldID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}
@@ -259,6 +260,41 @@ func validateSplitInput(in TemplateSplitInput) error {
 	if in.EffectiveDate.Before(timezone.TodayDate()) {
 		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
 	}
+	return validateSplitMaterializationWindow(in)
+}
+
+// validateSplitMaterializationWindow rejects self-inconsistent materialization
+// windows up front so they surface as 400 instead of bubbling out of the
+// materialization service as 500s:
+//
+//   - materialize_to before effective_date (window entirely before the split)
+//   - materialize_from after materialize_to (inverted window)
+//   - clamped span over MaxMaterializationWindowDays (would trip the
+//     materializer's own "window exceeds" guard mid-split)
+//
+// The span check uses the same clamp materializeWindow applies (from never
+// before the effective date), so a wide materialize_from that gets clamped
+// into range still passes.
+func validateSplitMaterializationWindow(in TemplateSplitInput) error {
+	if in.MaterializeTo == nil {
+		return nil
+	}
+	if in.MaterializeTo.Before(in.EffectiveDate) {
+		return fmt.Errorf("%w: materialize_to must not be before effective_date", ErrSplitInvalidInput)
+	}
+	if in.MaterializeFrom == nil {
+		return nil
+	}
+	if in.MaterializeFrom.After(*in.MaterializeTo) {
+		return fmt.Errorf("%w: materialize_from must not be after materialize_to", ErrSplitInvalidInput)
+	}
+	clampedFrom := *in.MaterializeFrom
+	if clampedFrom.Before(in.EffectiveDate) {
+		clampedFrom = in.EffectiveDate
+	}
+	if clampedFrom.DaysUntil(*in.MaterializeTo)+1 > MaxMaterializationWindowDays {
+		return fmt.Errorf("%w: materialization window exceeds %d days", ErrSplitInvalidInput, MaxMaterializationWindowDays)
+	}
 	return nil
 }
 
@@ -279,8 +315,13 @@ func (s *templateSplitService) loadTemplate(ctx context.Context, id int64) (*act
 }
 
 // loadActiveRoster returns the old template's still-active enrollment and
-// supervisor rows (valid_until IS NULL). The partial unique indexes on both
-// tables guarantee at most one active row per person and group.
+// supervisor rows (valid_until IS NULL). Since migration 1.15.52 the partial
+// unique indexes are period-scoped — (tenant, person, group,
+// COALESCE(calendar_period_id, 0)) WHERE valid_until IS NULL — so a person
+// can have SEVERAL active rows on the same group, one per calendar period.
+// Carry-over must therefore dedupe per person before stamping the successor's
+// calendar_period_id, or the insert violates the index (see
+// createStudentRoster / createStaffRoster).
 func (s *templateSplitService) loadActiveRoster(ctx context.Context, groupID int64) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
 	enrollments, err := s.deps.EnrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
@@ -332,7 +373,9 @@ func (s *templateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	return group, nil
 }
 
-// createSuccessorSchedules creates one open-ended schedule row per weekday.
+// createSuccessorSchedules creates one schedule row per weekday, starting at
+// the effective date (valid_from inclusive) with an open end (valid_until
+// NULL).
 func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, groupID, timeframeID int64, in TemplateSplitInput, tenantID int64) ([]int64, error) {
 	weekPattern := 0
 	if in.WeekPattern != nil {
@@ -341,13 +384,15 @@ func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, gro
 	scheduleIDs := make([]int64, 0, len(in.Weekdays))
 	for _, weekday := range in.Weekdays {
 		tfID := timeframeID
+		validFrom := in.EffectiveDate
 		sched := &activitiesModel.Schedule{
 			Weekday:          weekday,
 			TimeframeID:      &tfID,
 			ActivityGroupID:  groupID,
 			WeekPattern:      weekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
-			ValidUntil:       nil, // successor starts open-ended
+			ValidFrom:        &validFrom, // never materialize before the split point
+			ValidUntil:       nil,        // successor ends open-ended
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ScheduleRepo.Create(ctx, sched); err != nil {
@@ -361,6 +406,13 @@ func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, gro
 // createStudentRoster writes the successor's enrollments. Explicit StudentIDs
 // win; nil carries over the previously-active roster (selected_weekdays
 // preserved). All new rows start at the effective date.
+//
+// The carry path dedupes per student: loadActiveRoster can return several
+// active rows per student (one per calendar period since migration 1.15.52),
+// and stamping them all with in.CalendarPeriodID would collide on
+// idx_student_enrollments_active. The row matching in.CalendarPeriodID is
+// preferred; selected_weekdays are unioned across the student's rows (an
+// empty list means "all weekdays" and wins the union).
 func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.StudentEnrollment, tenantID int64) error {
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
 	if in.StudentIDs != nil {
@@ -368,10 +420,20 @@ func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID 
 			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
 		}
 	} else {
+		byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(carried))
+		order := make([]int64, 0, len(carried))
 		for _, e := range carried {
+			if _, seen := byStudent[e.StudentID]; !seen {
+				order = append(order, e.StudentID)
+			}
+			byStudent[e.StudentID] = append(byStudent[e.StudentID], e)
+		}
+		for _, studentID := range order {
+			group := byStudent[studentID]
+			preferred := preferCarriedRow(group, in.CalendarPeriodID, func(e *activitiesModel.StudentEnrollment) *int64 { return e.CalendarPeriodID })
 			rows = append(rows, &activitiesModel.StudentEnrollment{
-				StudentID:        e.StudentID,
-				SelectedWeekdays: e.SelectedWeekdays,
+				StudentID:        studentID,
+				SelectedWeekdays: unionSelectedWeekdays(group, preferred),
 			})
 		}
 	}
@@ -390,6 +452,11 @@ func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID 
 // createStaffRoster writes the successor's supervisors. Explicit StaffIDs win
 // (primary derived from PrimaryStaffID); nil carries over the previously-
 // active roster with each row's is_primary flag preserved.
+//
+// Like createStudentRoster, the carry path dedupes per staff member: several
+// active rows per staff (one per calendar period, migration 1.15.52) collapse
+// to one successor row, preferring the row matching in.CalendarPeriodID. The
+// preferred row's is_primary flag is kept.
 func (s *templateSplitService) createStaffRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.SupervisorPlanned, tenantID int64) error {
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(carried))
 	if in.StaffIDs != nil {
@@ -400,10 +467,19 @@ func (s *templateSplitService) createStaffRoster(ctx context.Context, groupID in
 			})
 		}
 	} else {
+		byStaff := make(map[int64][]*activitiesModel.SupervisorPlanned, len(carried))
+		order := make([]int64, 0, len(carried))
 		for _, sp := range carried {
+			if _, seen := byStaff[sp.StaffID]; !seen {
+				order = append(order, sp.StaffID)
+			}
+			byStaff[sp.StaffID] = append(byStaff[sp.StaffID], sp)
+		}
+		for _, staffID := range order {
+			preferred := preferCarriedRow(byStaff[staffID], in.CalendarPeriodID, func(sp *activitiesModel.SupervisorPlanned) *int64 { return sp.CalendarPeriodID })
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
-				StaffID:   sp.StaffID,
-				IsPrimary: sp.IsPrimary,
+				StaffID:   staffID,
+				IsPrimary: preferred.IsPrimary,
 			})
 		}
 	}
@@ -417,6 +493,47 @@ func (s *templateSplitService) createStaffRoster(ctx context.Context, groupID in
 		}
 	}
 	return nil
+}
+
+// preferCarriedRow picks the carried roster row whose calendar_period_id
+// matches the successor's target period (both nil counts as a match); when
+// none matches it falls back to the first row. Generic over the two roster
+// row types so the per-person selection rule lives in one place.
+func preferCarriedRow[T any](rows []T, targetPeriodID *int64, periodOf func(T) *int64) T {
+	for _, row := range rows {
+		p := periodOf(row)
+		if (p == nil && targetPeriodID == nil) ||
+			(p != nil && targetPeriodID != nil && *p == *targetPeriodID) {
+			return row
+		}
+	}
+	return rows[0]
+}
+
+// unionSelectedWeekdays merges selected_weekdays across one student's carried
+// rows. An empty/nil list means "all weekdays" and dominates the union; the
+// result preserves ascending weekday order. With a single row this returns
+// the preferred row's list unchanged.
+func unionSelectedWeekdays(rows []*activitiesModel.StudentEnrollment, preferred *activitiesModel.StudentEnrollment) []int {
+	if len(rows) == 1 {
+		return preferred.SelectedWeekdays
+	}
+	seen := make(map[int]struct{})
+	for _, e := range rows {
+		if len(e.SelectedWeekdays) == 0 {
+			return nil // "all weekdays" wins the union
+		}
+		for _, wd := range e.SelectedWeekdays {
+			seen[wd] = struct{}{}
+		}
+	}
+	out := make([]int, 0, len(seen))
+	for wd := activitiesModel.WeekdayMonday; wd <= activitiesModel.WeekdaySunday; wd++ {
+		if _, ok := seen[wd]; ok {
+			out = append(out, wd)
+		}
+	}
+	return out
 }
 
 // materializeWindow re-materializes the requested window, clamped so it never

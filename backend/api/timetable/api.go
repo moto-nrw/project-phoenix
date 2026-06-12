@@ -236,6 +236,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/exception-conflicts", rs.getExceptionConflicts)
 
+		// Planning-time conflict probe for a hypothetical slot (read-only,
+		// advisory). Same permission + tx middleware as /exception-conflicts.
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/conflicts", rs.getPlannedConflicts)
+
 		r.Route("/operations", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/capabilities", rs.operationsCapabilities)

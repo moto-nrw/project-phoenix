@@ -406,3 +406,193 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
 	assert.Nil(t, oldSchedule.ValidUntil, "failed splits must not cap the old schedule")
 }
+
+// Successor schedules carry valid_from = effective date, so a later
+// materialization run over a window BEFORE the split point never emits
+// phantom successor instances next to the old template's rows.
+func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T) {
+	effective := futureMonday(1)
+	prevMonday := effective.AddDays(-7) // still in the future (futureMonday(0))
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-ValidFrom-%d", suffix))
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+	newSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
+	require.Len(t, newSchedules, 1)
+	require.NotNil(t, newSchedules[0].ValidFrom, "successor schedule must carry valid_from")
+	assert.Equal(t, effective, *newSchedules[0].ValidFrom)
+
+	// Materialize the week BEFORE the effective date: the old (capped)
+	// template still owns it; the successor must be skipped as not started.
+	r, err := s.svc.MaterializeForTenant(s.ctx, prevMonday, prevMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	for _, inst := range listInstancesForDate(t, s.db, s.template.ID, prevMonday) {
+		s.registerCleanup("schedule.activity_instances", inst.ID)
+	}
+	assert.Equal(t, 1, r.InstancesCreated, "old template still materializes before the split point")
+	assert.Equal(t, 1, r.CandidatesSkippedNotStarted, "successor skipped before its valid_from")
+	assert.Empty(t, listInstancesForDate(t, s.db, res.NewTemplateID, prevMonday),
+		"no phantom successor instance before the effective date")
+}
+
+// Multi-period rosters (one active row per calendar period since migration
+// 1.15.52) must collapse to ONE successor row per person — previously the
+// carry path stamped every active row with the successor's period id and
+// violated idx_student_enrollments_active (500 on split).
+func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	// Scope the first student's existing active row to weekdays [Mon].
+	// jsonb column — bind the JSON literal, not a Go slice (bun would render
+	// a slice as an SQL list, not jsonb).
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments`).
+		Set("selected_weekdays = ?::jsonb", `[1]`).
+		Where("id = ?", s.enrollmentIDs[0]).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	// … and add a SECOND active row for the same student, scoped to the
+	// scenario period and weekdays [Wed]. Both rows are active (valid_until
+	// IS NULL) — legal under the period-scoped unique index.
+	secondEnroll := &activitiesModels.StudentEnrollment{
+		StudentID:        s.students[0],
+		ActivityGroupID:  s.template.ID,
+		ValidFrom:        effective.AddDays(-14),
+		CalendarPeriodID: &s.period.ID,
+		SelectedWeekdays: []int{activitiesModels.WeekdayWednesday},
+	}
+	secondEnroll.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(secondEnroll).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.student_enrollments", secondEnroll.ID)
+
+	// Same situation for the supervisor: a second active period-scoped row.
+	secondSup := &activitiesModels.SupervisorPlanned{
+		StaffID:          s.staffID,
+		GroupID:          s.template.ID,
+		IsPrimary:        false,
+		ValidFrom:        effective.AddDays(-14),
+		CalendarPeriodID: &s.period.ID,
+	}
+	secondSup.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(secondSup).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.supervisors", secondSup.ID)
+
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-MultiPeriode-%d", suffix))
+	// nil StudentIDs/StaffIDs → carry; nil CalendarPeriodID → successor rows
+	// land on COALESCE(calendar_period_id, 0) = 0 and would collide without
+	// the per-person dedupe.
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err, "multi-period roster must not violate idx_student_enrollments_active")
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+	newEnrollments := loadSplitEnrollments(t, s, res.NewTemplateID)
+	require.Len(t, newEnrollments, 2, "exactly one successor row per student")
+	byStudent := map[int64]*activitiesModels.StudentEnrollment{}
+	for _, e := range newEnrollments {
+		byStudent[e.StudentID] = e
+	}
+	require.Contains(t, byStudent, s.students[0])
+	require.Contains(t, byStudent, s.students[1])
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
+		byStudent[s.students[0]].SelectedWeekdays, "selected_weekdays unioned across the student's rows")
+
+	newSupervisors := loadSplitSupervisors(t, s, res.NewTemplateID)
+	require.Len(t, newSupervisors, 1, "exactly one successor row per staff member")
+	assert.Equal(t, s.staffID, newSupervisors[0].StaffID)
+	assert.True(t, newSupervisors[0].IsPrimary,
+		"preferred (period-matching, here nil-period) row's is_primary flag wins")
+}
+
+// Self-inconsistent materialization windows are rejected up front as
+// ErrSplitInvalidInput (→ 400) instead of bubbling out of the materializer
+// as 500s.
+func TestTemplateSplit_WindowValidation(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	t.Run("materialize_to before effective_date", func(t *testing.T) {
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Fenster-A-%d", suffix))
+		before := effective.AddDays(-1)
+		in.MaterializeTo = &before
+		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+	})
+
+	t.Run("materialize_from after materialize_to", func(t *testing.T) {
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Fenster-B-%d", suffix))
+		from := effective.AddDays(14)
+		to := effective.AddDays(7)
+		in.MaterializeFrom = &from
+		in.MaterializeTo = &to
+		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+	})
+
+	t.Run("window exceeds max days after clamping", func(t *testing.T) {
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-Fenster-C-%d", suffix))
+		from := effective
+		to := effective.AddDays(scheduleSvc.MaxMaterializationWindowDays) // span = max+1
+		in.MaterializeFrom = &from
+		in.MaterializeTo = &to
+		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+	})
+
+	// None of the failed attempts may have mutated the old template.
+	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
+	assert.Nil(t, oldSchedule.ValidUntil, "failed splits must not cap the old schedule")
+}
+
+// The old-template purge is decoupled from the materialization window: after
+// a successful split NO planned non-spontaneous old-template instance exists
+// on/after the effective date, even beyond materialize_to.
+func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
+	effective := futureMonday(1)
+	secondMonday := effective.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	// Materialize the old template for BOTH Mondays.
+	r0, err := s.svc.MaterializeForTenant(s.ctx, effective, secondMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 2, r0.InstancesCreated)
+	first := listInstancesForDate(t, s.db, s.template.ID, effective)
+	require.Len(t, first, 1)
+	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
+	require.Len(t, second, 1)
+	s.registerCleanup("schedule.activity_instances", first[0].ID, second[0].ID)
+
+	// Split with a materialization window covering ONLY the first Monday.
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-OffenesEnde-%d", suffix))
+	in.MaterializeFrom = &effective
+	in.MaterializeTo = &effective
+
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+	for _, inst := range listInstancesForDate(t, s.db, res.NewTemplateID, effective) {
+		s.registerCleanup("schedule.activity_instances", inst.ID)
+	}
+
+	assert.Equal(t, 2, res.DeletedInstances,
+		"both planned old-template instances deleted, including the one beyond materialize_to")
+	assert.False(t, splitInstanceExists(t, s, first[0].ID))
+	assert.False(t, splitInstanceExists(t, s, second[0].ID),
+		"planned old-template instance beyond the materialization window must not survive")
+}

@@ -585,3 +585,39 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 	require.Len(t, created, 1)
 	s.registerCleanup("schedule.activity_instances", created[0].ID)
 }
+
+// -----------------------------------------------------------------------------
+// WP-B3 follow-up: schedules with valid_from never materialize before that
+// date — the successor of a template split must not produce phantom instances
+// next to the old template's rows when a window starts before the split point.
+// -----------------------------------------------------------------------------
+
+func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.T) {
+	firstMonday := timezone.NewDate(2026, time.April, 20) // Mon
+	secondMonday := firstMonday.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	defer s.runCleanup(t)
+
+	// Start the schedule on the second Monday (inclusive): the first Monday
+	// is before valid_from and must be skipped, the second materializes.
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.Schedule)(nil)).
+		ModelTableExpr(`activities.schedules`).
+		Set("valid_from = ?", secondMonday).
+		Where("id = ?", s.schedule.ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	r, err := s.svc.MaterializeForTenant(s.ctx, firstMonday, secondMonday.AddDays(6), scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.InstancesCreated, "only the Monday on/after valid_from materializes")
+	assert.Equal(t, 1, r.CandidatesSkippedNotStarted, "the Monday before valid_from counts as not started")
+	assert.Zero(t, r.CandidatesSkippedEnded)
+
+	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, firstMonday),
+		"no phantom instance before valid_from")
+	created := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
+	require.Len(t, created, 1, "valid_from is inclusive")
+	s.registerCleanup("schedule.activity_instances", created[0].ID)
+}

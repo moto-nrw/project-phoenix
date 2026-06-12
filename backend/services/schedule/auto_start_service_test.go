@@ -161,6 +161,9 @@ func (r *autoStartStaffRepo) FindByInstanceID(context.Context, int64) ([]*schedu
 func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
+func (r *autoStartStaffRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStaff, error) {
+	return nil, nil
+}
 func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids []int64) (map[int64]int, error) {
 	r.requestedIDs = append(r.requestedIDs, ids...)
 	return r.counts, nil
@@ -223,7 +226,7 @@ func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezon
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date, *int64) (int64, error) {
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
 	return 0, nil
 }
 

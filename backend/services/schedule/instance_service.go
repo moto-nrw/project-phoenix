@@ -139,6 +139,7 @@ type InstanceServiceDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
+	ExceptionRepo     scheduleModel.ActivityExceptionRepository
 	ActiveGroupRepo   activeModel.GroupRepository
 	SupervisorRepo    activeModel.GroupSupervisorRepository
 	VisitRepo         activeModel.VisitRepository
@@ -162,6 +163,7 @@ type instanceService struct {
 // transitions, so the factory must wire it completely at startup.
 func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.InstanceStudents == nil ||
+		deps.ExceptionRepo == nil ||
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
@@ -473,6 +475,18 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
 	}
 
+	// Capture the slot the instance occupied BEFORE mutation: if the edit
+	// moves a template-backed occurrence (date or start_time change), the
+	// original (group, date, start) key becomes vacant and a later
+	// materialization run would re-create it as a duplicate. consumeMovedSlot
+	// writes a cancelled activity_exception for the original date so the
+	// materializer treats that slot as consumed (skipped_exception).
+	origSlot := capturedSlot{
+		ActivityGroupID: instance.ActivityGroupID,
+		Date:            instance.Date,
+		StartHHMMSS:     formatTimeOfDay(instance.StartTime),
+	}
+
 	instance.Date = req.Date
 	instance.StartTime = req.StartTime
 	instance.EndTime = req.EndTime
@@ -498,38 +512,121 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	); err != nil {
 		return nil, &ScheduleError{Op: "update instance", Err: err}
 	}
-	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instance.ID); err != nil {
-		return nil, &ScheduleError{Op: "update instance: clear staff", Err: err}
+	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {
+		return nil, err
 	}
-	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
-		return nil, &ScheduleError{Op: "update instance: clear students", Err: err}
+	if err := s.replaceInstanceAssignments(ctx, instance.ID, req.StaffIDs, req.StudentIDs); err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+// replaceInstanceAssignments wipes and re-creates the instance's staff and
+// student rows from the request lists. Extracted from UpdatePlanned to keep
+// its cognitive complexity in check.
+func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instanceID int64, staffIDs, studentIDs []int64) error {
+	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
+		return &ScheduleError{Op: "update instance: clear staff", Err: err}
+	}
+	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instanceID); err != nil {
+		return &ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
-		if staffID <= 0 {
-			continue
-		}
-		row := &scheduleModel.InstanceStaff{InstanceID: instance.ID, StaffID: staffID}
+	for _, staffID := range uniquePositiveInt64(staffIDs) {
+		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "update instance: assign staff", Err: err}
+			return &ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
-		if studentID <= 0 {
-			continue
-		}
+	for _, studentID := range uniquePositiveInt64(studentIDs) {
 		row := &scheduleModel.InstanceStudent{
-			InstanceID: instance.ID,
+			InstanceID: instanceID,
 			StudentID:  studentID,
 			Status:     scheduleModel.AttendanceStatusExpected,
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
-			return nil, &ScheduleError{Op: "update instance: assign student", Err: err}
+			return &ScheduleError{Op: "update instance: assign student", Err: err}
 		}
 	}
-	return instance, nil
+	return nil
+}
+
+// capturedSlot is the (template, date, start) key an instance occupied before
+// an UpdatePlanned mutation. StartHHMMSS is the formatTimeOfDay string so the
+// comparison is independent of the year anchor bun picks when scanning TIME
+// columns (existing rows scan as year 0000, request values are anchored at
+// 2000-01-01).
+type capturedSlot struct {
+	ActivityGroupID *int64
+	Date            timezone.Date
+	StartHHMMSS     string
+}
+
+// movedSlotReason is the audit hint stored on the auto-created exception so
+// admins can tell it apart from manually entered cancellations.
+const movedSlotReason = "Einzeltermin verschoben"
+
+// consumeMovedSlot writes a cancelled activity_exception for the original
+// (template, date) when an UpdatePlanned call moved a template-backed
+// instance to a different date or start time. Without it the original slot
+// key is vacant again and the next materialization run re-creates the
+// occurrence next to the moved one.
+//
+// Notes:
+//   - Spontaneous instances (no activity_group_id before the edit) are never
+//     re-materialized, so nothing is written for them.
+//   - Exceptions are unique per (template, date) — a cancelled exception
+//     consumes ALL of the template's slots on that date. For the common
+//     one-slot-per-weekday template this is exact; on multi-slot days the
+//     sibling slots' instances already exist (skipped_existing), so the only
+//     collateral is that newly added schedule slots skip that single date.
+//   - If an exception row already exists for the original date the slot is
+//     already consumed (or deliberately modified by an admin); it is left
+//     untouched and the situation is logged.
+func (s *instanceService) consumeMovedSlot(ctx context.Context, orig capturedSlot, req UpdateInstanceInput) error {
+	if orig.ActivityGroupID == nil {
+		return nil // spontaneous before the edit — materialization never recreates it
+	}
+	if orig.Date == req.Date && orig.StartHHMMSS == formatTimeOfDay(req.StartTime) {
+		return nil // slot key unchanged — nothing vacated
+	}
+
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, orig.Date)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: check slot exception", Err: err}
+	}
+	if existing != nil {
+		// Unique per (template, date): we cannot add a second row. A
+		// cancelled exception already consumes the slot; a modified one was
+		// authored deliberately — overwriting it would destroy admin data.
+		s.getLogger().Warn("moved instance: exception already exists for original date, leaving it untouched",
+			slog.Int64("activity_group_id", *orig.ActivityGroupID),
+			slog.String("original_date", orig.Date.String()),
+			slog.String("exception_type", existing.ExceptionType),
+		)
+		return nil
+	}
+
+	reason := movedSlotReason
+	exc := &scheduleModel.ActivityException{
+		ActivityGroupID: *orig.ActivityGroupID,
+		ExceptionDate:   orig.Date,
+		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
+		Reason:          &reason,
+	}
+	exc.SetTenantID(tenant.FromContext(ctx))
+	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
+		return &ScheduleError{Op: "update instance: consume moved slot", Err: err}
+	}
+	s.getLogger().Info("moved instance: original slot consumed via cancelled exception",
+		slog.Int64("activity_group_id", *orig.ActivityGroupID),
+		slog.String("original_date", orig.Date.String()),
+		slog.String("original_start", orig.StartHHMMSS),
+		slog.String("new_date", req.Date.String()),
+	)
+	return nil
 }
 
 func (s *instanceService) validateInstanceReferences(
@@ -657,7 +754,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, to, activityGroupID)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}

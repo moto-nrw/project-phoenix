@@ -125,6 +125,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		InstanceRepo:      s.repos.ActivityInstance,
 		InstanceStaffRepo: s.repos.InstanceStaff,
 		InstanceStudents:  s.repos.InstanceStudent,
+		ExceptionRepo:     s.repos.ActivityException,
 		ActiveGroupRepo:   s.repos.ActiveGroup,
 		SupervisorRepo:    s.repos.GroupSupervisor,
 		VisitRepo:         s.repos.ActiveVisit,
