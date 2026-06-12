@@ -24,8 +24,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
@@ -46,13 +48,54 @@ func newTestService(db *bun.DB) slotlists.Service {
 type stubSlotListSettings map[string]string
 
 func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModels.KeyStudentDataScope {
+		return configModels.StudentDataScopeAllStaff, nil
+	}
 	return s[key], nil
+}
+
+func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyStudentDataScope {
+		return true, nil
+	}
+	_, ok := s[key]
+	return ok, nil
 }
 
 type failingSlotListSettings struct{}
 
 func (failingSlotListSettings) ResolveString(context.Context, string) (string, error) {
 	return "", errors.New("settings unavailable")
+}
+
+func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+type groupSupervisorOnlySlotListSettings struct{}
+
+func (groupSupervisorOnlySlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModels.KeyStudentDataScope {
+		return configModels.StudentDataScopeGroupSupervisorsOnly, nil
+	}
+	return "", nil
+}
+
+func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	return key == configModels.KeyStudentDataScope, nil
+}
+
+type slotListUserContext struct {
+	currentStaff *userModels.Staff
+	groups       []*educationModels.Group
+}
+
+func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
+	return u.currentStaff, nil
+}
+
+func (u slotListUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
+	return u.groups, nil
 }
 
 type failingRoomRepo struct {
@@ -69,6 +112,7 @@ func newTestServiceWithSettings(db *bun.DB, settings stubSlotListSettings) slotl
 
 func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 	ResolveString(context.Context, string) (string, error)
+	HasTenantOverride(context.Context, string) (bool, error)
 }) slotlists.Service {
 	return newTestServiceWithCustomRoomRepo(db, facilitiesRepo.NewRoomRepository(db), settings)
 }
@@ -76,8 +120,18 @@ func newTestServiceWithSettingsReader(db *bun.DB, settings interface {
 func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
 	FindByID(context.Context, any) (*facilitiesModels.Room, error)
 }, settings interface {
+	HasTenantOverride(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
 }) slotlists.Service {
+	return newTestServiceWithCustomAccess(db, roomRepo, settings, slotListUserContext{currentStaff: &userModels.Staff{}})
+}
+
+func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
+	FindByID(context.Context, any) (*facilitiesModels.Room, error)
+}, settings interface {
+	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveString(context.Context, string) (string, error)
+}, userCtx slotListUserContext) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
@@ -92,8 +146,9 @@ func newTestServiceWithCustomRoomRepo(db *bun.DB, roomRepo interface {
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
 			scheduleRepo.NewStudentPickupNoteRepository(db),
 		),
-		ListExport: listexport.NewService(),
-		Settings:   settings,
+		ListExport:  listexport.NewService(),
+		Settings:    settings,
+		UserContext: userCtx,
 	})
 }
 
@@ -217,6 +272,62 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 	require.NotNil(t, walkInRow)
 	assert.Equal(t, "Ungeplant anwesend", walkInRow.StatusLabel)
 	assert.True(t, walkInRow.Unplanned)
+}
+
+func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing.T) {
+	f := buildMensaFixture(t)
+	ctx := testpkg.TenantContext(1)
+
+	allowedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Allowed")
+	deniedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Denied")
+	t.Cleanup(func() {
+		_, err := f.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set(`group_id = NULL`).
+			Where(`id IN (?)`, bun.In([]int64{f.plannedID, f.missingID, f.walkInID})).
+			Exec(ctx)
+		require.NoError(t, err)
+		testpkg.CleanupTableRecords(t, f.db, "education.groups", allowedGroup.ID, deniedGroup.ID)
+	})
+
+	for studentID, groupID := range map[int64]int64{
+		f.plannedID: allowedGroup.ID,
+		f.missingID: deniedGroup.ID,
+		f.walkInID:  deniedGroup.ID,
+	} {
+		_, err := f.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set(`group_id = ?`, groupID).
+			Where(`id = ?`, studentID).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	svc := newTestServiceWithCustomAccess(
+		f.db,
+		facilitiesRepo.NewRoomRepository(f.db),
+		groupSupervisorOnlySlotListSettings{},
+		slotListUserContext{
+			currentStaff: &userModels.Staff{},
+			groups:       []*educationModels.Group{allowedGroup},
+		},
+	)
+
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:   listDate,
+		Target: slotlists.TargetSlots,
+		Source: slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	require.Len(t, result.Rows, 1)
+	assert.Equal(t, f.plannedID, result.Rows[0].StudentID)
+	assert.Equal(t, 1, result.Counters.Planned)
+	assert.Equal(t, 1, result.Counters.Present)
+	assert.Equal(t, 0, result.Counters.Missing)
+	assert.Equal(t, 0, result.Counters.Unplanned)
+	require.Len(t, result.Groups, 1)
+	assert.Equal(t, allowedGroup.ID, result.Groups[0].ID)
 }
 
 func TestBuildList_SlotFilter(t *testing.T) {

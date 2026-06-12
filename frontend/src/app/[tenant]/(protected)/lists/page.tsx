@@ -963,7 +963,13 @@ export default function SlotListsPage() {
               onValueChange={(v) => {
                 const nextSource = v as SlotListSource;
                 setSource(nextSource);
-                replaceListUrl({ source: nextSource });
+                setSelectedGroupIds(null);
+                setSelectedClasses(null);
+                replaceListUrl({
+                  source: nextSource,
+                  selectedGroupIds: null,
+                  selectedClasses: null,
+                });
               }}
             >
               <TabsList variant="default">

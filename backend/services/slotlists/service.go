@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -75,6 +78,7 @@ type pickupTimeReader interface {
 }
 
 type settingsReader interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
@@ -91,6 +95,8 @@ type Dependencies struct {
 	PickupService       pickupTimeReader
 	ListExport          listexport.Service
 	Settings            settingsReader
+	UserContext         authorize.StudentReadUserContext
+	Logger              *slog.Logger
 }
 
 type service struct {
@@ -105,6 +111,8 @@ type service struct {
 	pickupService       pickupTimeReader
 	listExport          listexport.Service
 	settings            settingsReader
+	userContext         authorize.StudentReadUserContext
+	logger              *slog.Logger
 }
 
 // NewService creates a slot list service.
@@ -121,6 +129,8 @@ func NewService(deps Dependencies) Service {
 		pickupService:       deps.PickupService,
 		listExport:          deps.ListExport,
 		settings:            deps.Settings,
+		userContext:         deps.UserContext,
+		logger:              deps.Logger,
 	}
 }
 
@@ -161,6 +171,88 @@ func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error)
 		return cfg, fmt.Errorf("long-day pickup cutoff %s must be after short-day pickup cutoff %s", cfg.LongCutoff, cfg.ShortCutoff)
 	}
 	return cfg, nil
+}
+
+type studentReadAccess struct {
+	unrestricted bool
+	groupIDs     map[int64]struct{}
+}
+
+func (a studentReadAccess) canReadGroup(groupID *int64) bool {
+	if a.unrestricted {
+		return true
+	}
+	if groupID == nil || a.groupIDs == nil {
+		return false
+	}
+	_, ok := a.groupIDs[*groupID]
+	return ok
+}
+
+func (s *service) resolveStudentReadAccess(ctx context.Context) studentReadAccess {
+	if authorize.HasPermission("admin:*", jwt.PermissionsFromCtx(ctx)) {
+		return studentReadAccess{unrestricted: true}
+	}
+	if s.userContext == nil {
+		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+	}
+
+	staff, err := s.userContext.GetCurrentStaff(ctx)
+	if err != nil || staff == nil {
+		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+	}
+
+	scope := s.resolveStringSettingOrDefault(
+		ctx,
+		configModel.KeyStudentDataScope,
+		configModel.StudentDataScopeGroupSupervisorsOnly,
+	)
+	if scope == configModel.StudentDataScopeAllStaff {
+		return studentReadAccess{unrestricted: true}
+	}
+
+	educationGroups, err := s.userContext.GetMyGroups(ctx)
+	if err != nil {
+		return studentReadAccess{groupIDs: map[int64]struct{}{}}
+	}
+	groupIDs := make(map[int64]struct{}, len(educationGroups))
+	for _, group := range educationGroups {
+		groupIDs[group.ID] = struct{}{}
+	}
+	return studentReadAccess{groupIDs: groupIDs}
+}
+
+func (s *service) resolveStringSettingOrDefault(ctx context.Context, key, fallback string) string {
+	if s.settings == nil {
+		return fallback
+	}
+	has, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("settings override check failed, using fallback",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		}
+		return fallback
+	}
+	if !has {
+		return fallback
+	}
+	val, err := s.settings.ResolveString(ctx, key)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.Warn("settings resolve failed, using fallback",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		}
+		return fallback
+	}
+	if val == "" {
+		return fallback
+	}
+	return val
 }
 
 func normalizeHHMM(value string) (string, error) {
@@ -228,6 +320,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	if !params.GroupBy.ValidFor(params.Target) {
 		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
 	}
+	access := s.resolveStudentReadAccess(ctx)
 
 	listLabel, err := s.listLabel(ctx, params)
 	if err != nil {
@@ -258,7 +351,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 
 	// Full (unfiltered) rows for the requested source — used both to derive the
 	// available group/class options and as the input to the row filters.
-	allRows, err := s.enrichEntries(ctx, entries, params.Source)
+	allRows, err := s.enrichEntries(ctx, entries, params.Source, access)
 	if err != nil {
 		return nil, err
 	}
@@ -651,9 +744,9 @@ func pickupMatchesCohort(cohort PickupCohort, hhmm string, buckets pickupBucketC
 	}
 }
 
-// enrichEntries filters by source, resolves names/classes/groups, and maps
-// to display rows.
-func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source Source) ([]Row, error) {
+// enrichEntries filters by source/read access, resolves names/classes/groups,
+// and maps to display rows.
+func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source Source, access studentReadAccess) ([]Row, error) {
 	filtered := make([]mergedEntry, 0, len(entries))
 	for _, entry := range entries {
 		switch source {
@@ -686,10 +779,19 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 		return nil, err
 	}
 
+	readableStudents := make(map[int64]*userModel.Student, len(students))
 	personIDs := make([]int64, 0, len(students))
 	groupIDSet := map[int64]struct{}{}
 	groupIDs := []int64{}
-	for _, student := range students {
+	for _, entry := range filtered {
+		student := students[entry.StudentID]
+		if student == nil || !access.canReadGroup(student.GroupID) {
+			continue
+		}
+		if _, ok := readableStudents[student.ID]; ok {
+			continue
+		}
+		readableStudents[student.ID] = student
 		personIDs = append(personIDs, student.PersonID)
 		if student.GroupID != nil {
 			if _, ok := groupIDSet[*student.GroupID]; !ok {
@@ -697,6 +799,9 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 				groupIDs = append(groupIDs, *student.GroupID)
 			}
 		}
+	}
+	if len(readableStudents) == 0 {
+		return []Row{}, nil
 	}
 	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
 	if err != nil {
@@ -712,7 +817,7 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 
 	rows := make([]Row, 0, len(filtered))
 	for _, entry := range filtered {
-		student := students[entry.StudentID]
+		student := readableStudents[entry.StudentID]
 		if student == nil {
 			continue
 		}

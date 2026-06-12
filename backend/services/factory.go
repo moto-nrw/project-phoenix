@@ -1005,6 +1005,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupService:       pickupScheduleService,
 		ListExport:          listExportService,
 		Settings:            settingsService,
+		UserContext:         userContextService,
+		Logger:              logger.With("service", "slot_lists"),
 	})
 
 	factory := &Factory{
