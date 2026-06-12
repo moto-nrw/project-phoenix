@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	guardianProfilesPortalLocaleVersion     = "1.15.121"
+	guardianProfilesPortalLocaleVersion     = "1.15.123"
 	guardianProfilesPortalLocaleDescription = "Add nullable portal_locale to users.guardian_profiles. NULL = the parent has never picked a language in the parents portal, which lets the portal honour an anonymous (cookie/Accept-Language) choice on first login instead of snapping back to German. Deliberately separate from language_preference, which records the guardian's contact/spoken language for the school (fed by import) and is written 'de' on creation everywhere."
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func addGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.121: Adding portal_locale column to users.guardian_profiles...")
+	fmt.Println("Migration 1.15.123: Adding portal_locale column to users.guardian_profiles...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -65,7 +65,7 @@ func addGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
 }
 
 func dropGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.121: Dropping users.guardian_profiles.portal_locale...")
+	fmt.Println("Rolling back migration 1.15.123: Dropping users.guardian_profiles.portal_locale...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
