@@ -352,12 +352,9 @@ export async function fetchPublicLegalTexts(
   tenantSlug: string,
   phaseId?: string,
 ): Promise<PublicLegalTexts> {
-  const path = phaseId
-    ? `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}/${encodeURIComponent(
-        phaseId,
-      )}`
-    : `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-  const response = await fetch(path, { cache: "no-store" });
+  const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
+  const url = phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path;
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
       response,

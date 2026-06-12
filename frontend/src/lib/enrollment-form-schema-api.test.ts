@@ -279,7 +279,9 @@ describe("fetchPublicLegalTexts", () => {
 
     await fetchPublicLegalTexts("test tenant", "phase/5");
 
-    expect(seenURL).toBe("/api/enrollment/legal/test%20tenant/phase%2F5");
+    expect(seenURL).toBe(
+      "/api/enrollment/legal/test%20tenant?phaseId=phase%2F5",
+    );
   });
 
   it("keeps the tenant-only fallback URL when no phase id is provided", async () => {
