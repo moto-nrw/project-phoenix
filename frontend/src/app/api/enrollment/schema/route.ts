@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       name?: unknown;
       fields?: unknown;
       core_requirements?: unknown;
+      legal_blocks?: unknown;
     };
     const response = await fetch(`${getServerApiUrl()}/api/enrollment/schema`, {
       method: "POST",
@@ -61,6 +62,11 @@ export async function POST(request: NextRequest) {
         ...(body.core_requirements === undefined
           ? {}
           : { core_requirements: body.core_requirements }),
+        // Same for legal_blocks: absent = backend keeps its defaults,
+        // present = the template's consent blocks are persisted.
+        ...(body.legal_blocks === undefined
+          ? {}
+          : { legal_blocks: body.legal_blocks }),
       }),
     });
     const payload = await response.json().catch(() => ({}));
