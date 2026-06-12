@@ -55,7 +55,7 @@ func (r *FormSchemaRepository) FindByID(ctx context.Context, id int64) (*enrollm
 	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("form schema %d not found", id)
+			return nil, fmt.Errorf("form schema %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find form schema: %w", err)
 	}

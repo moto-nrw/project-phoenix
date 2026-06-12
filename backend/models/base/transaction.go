@@ -32,6 +32,13 @@ func ContextWithTx(ctx context.Context, tx *bun.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
+// ContextWithoutTx masks any transaction stored on ctx while preserving
+// cancellation, deadlines, and other context values. Use this when a nested
+// operation must commit independently from an ambient request transaction.
+func ContextWithoutTx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, txKey{}, (*bun.Tx)(nil))
+}
+
 // TxFromContext extracts a transaction from context if present.
 // ContextWithTx stores *bun.Tx, so the type assertion must match.
 func TxFromContext(ctx context.Context) (*bun.Tx, bool) {
