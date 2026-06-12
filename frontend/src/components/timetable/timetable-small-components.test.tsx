@@ -232,6 +232,34 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
   });
 
+  it("shows a missing-room hint only when the template has no room", () => {
+    const { rerender } = render(
+      <TemplateCard
+        template={template}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText("Raum fehlt – wird nicht eingeplant"),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <TemplateCard
+        template={{ ...template, roomId: undefined, roomName: undefined }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Raum fehlt – wird nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
   it("handles toolbar view, navigation, add, and density controls", () => {
     const onViewChange = vi.fn();
     const onPrev = vi.fn();
@@ -423,5 +451,72 @@ describe("small timetable components", () => {
     expect(screen.getByRole("button", { name: /spättermin/i })).toHaveStyle({
       top: "630px",
     });
+  });
+
+  it("renders hourly slot click targets when onSlotClick is provided", () => {
+    const onSlotClick = vi.fn();
+    const onInstanceClick = vi.fn();
+    const weekDays = [
+      new Date("2026-05-04T00:00:00"),
+      new Date("2026-05-05T00:00:00"),
+      new Date("2026-05-06T00:00:00"),
+      new Date("2026-05-07T00:00:00"),
+      new Date("2026-05-08T00:00:00"),
+    ];
+
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={onInstanceClick}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={60}
+        onSlotClick={onSlotClick}
+      />,
+    );
+
+    // 8 full hours (09:00–16:00) per day, 5 visible days
+    const slotButtons = screen.getAllByRole("button", {
+      name: /Neuen Termin anlegen/,
+    });
+    expect(slotButtons).toHaveLength(40);
+    expect(slotButtons[0]).toHaveAttribute(
+      "aria-label",
+      "Neuen Termin anlegen: Mo 04.05., 09:00 Uhr",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Neuen Termin anlegen: Di 05.05., 14:00 Uhr",
+      }),
+    );
+    expect(onSlotClick).toHaveBeenCalledWith("2026-05-05", 14);
+
+    // Instance blocks keep their own click handlers with slots present.
+    fireEvent.click(screen.getByRole("button", { name: /mensa/i }));
+    expect(onInstanceClick).toHaveBeenCalledWith(instance);
+    expect(onSlotClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders no slot click targets without onSlotClick", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={[new Date("2026-05-04T00:00:00")]}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={60}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Neuen Termin anlegen/ }),
+    ).not.toBeInTheDocument();
   });
 });

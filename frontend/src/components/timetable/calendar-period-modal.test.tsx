@@ -46,8 +46,8 @@ const period: CalendarPeriod = {
 describe("CalendarPeriodModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // create/update return { period, warnings } since the period-warning
-    // contract landed; the modal destructures .period and ignores warnings.
+    // create/update return { period, warnings }; with empty warnings the
+    // modal closes right after saving, otherwise it stays open and lists them.
     mockCreate.mockResolvedValue({ period, warnings: [] });
     mockUpdate.mockResolvedValue({ period, warnings: [] });
     mockDelete.mockResolvedValue(undefined);
@@ -157,6 +157,55 @@ describe("CalendarPeriodModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
+  });
+
+  it("keeps the modal open and lists warnings when the save overlaps active periods", async () => {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    mockCreate.mockResolvedValueOnce({
+      period,
+      warnings: [
+        {
+          code: "overlapping_active_periods",
+          message:
+            'Der Zeitraum überschneidet sich mit dem aktiven Zeitraum "Schuljahr 2025/2026".',
+          overlappingPeriodIds: ["3"],
+          overlappingPeriodNames: ["Schuljahr 2025/2026"],
+        },
+      ],
+    });
+
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={onSaved}
+        createDefaults={{
+          name: "Schuljahr 2026/2027",
+          startDate: "2026-08-01",
+          endDate: "2027-07-31",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    expect(
+      await screen.findByText(
+        'Der Zeitraum überschneidet sich mit dem aktiven Zeitraum "Schuljahr 2025/2026".',
+      ),
+    ).toBeInTheDocument();
+    expect(onSaved).toHaveBeenCalledWith(period);
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Anlegen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("surfaces API failures", async () => {

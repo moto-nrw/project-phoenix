@@ -125,6 +125,16 @@ export function TemplateCard({
             </span>
           </div>
         </dl>
+
+        {!template.roomId && (
+          <p className="flex items-center gap-1.5 text-xs text-gray-600">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#EAB308]"
+              aria-hidden
+            />
+            Raum fehlt – wird nicht eingeplant
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">

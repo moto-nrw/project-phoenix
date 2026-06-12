@@ -47,6 +47,12 @@ interface WeeklyCalendarGridProps {
   dayEndHour: number;
   /** Pixel height per hour row. Driven by zoom controls. */
   hourHeightPx: number;
+  /**
+   * When provided, every full hour of every day column becomes a click
+   * target for creating a new instance at that slot. Without it the grid
+   * renders exactly as before (no extra elements).
+   */
+  onSlotClick?: (dateISO: string, hour: number) => void;
   emptyState?: {
     title: string;
     description: string;
@@ -62,6 +68,7 @@ export function WeeklyCalendarGrid({
   dayStartHour,
   dayEndHour,
   hourHeightPx,
+  onSlotClick,
   emptyState,
 }: WeeklyCalendarGridProps) {
   const grouped = groupInstancesByDate(instances);
@@ -250,6 +257,28 @@ export function WeeklyCalendarGrid({
                     />
                   );
                 })}
+
+                {/* Empty-slot click targets — before the event blocks in DOM
+                    order, so blocks paint on top and keep their own click
+                    handlers without z-index tricks. */}
+                {onSlotClick &&
+                  hours.slice(0, -1).map((hour) => (
+                    <button
+                      key={`slot-${hour}`}
+                      type="button"
+                      onClick={() => onSlotClick(iso, hour)}
+                      aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
+                      className="group absolute inset-x-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+                      style={{
+                        top: `${(hour - renderStartHour) * hourHeightPx}px`,
+                        height: `${hourHeightPx}px`,
+                      }}
+                    >
+                      <span className="pointer-events-none hidden rounded-md bg-gray-100/70 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 group-hover:inline group-focus-visible:inline">
+                        + Termin
+                      </span>
+                    </button>
+                  ))}
 
                 {/* Event blocks */}
                 {laned.map(({ instance, lane, laneCount }) => {
