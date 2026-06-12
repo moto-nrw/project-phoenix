@@ -391,6 +391,16 @@ type PublicCareOfferingsResponse struct {
 	CareRequired              bool                   `json:"care_required"`
 }
 
+type PublicEnrollmentFormBootstrapResponse struct {
+	Phase                     PublicPhase                 `json:"phase"`
+	Schema                    *PublicFormSchemaResponse   `json:"schema"`
+	Offerings                 []CareOfferingResponse      `json:"offerings"`
+	CareOfferingSelectionMode string                      `json:"care_offering_selection_mode"`
+	CareRequired              bool                        `json:"care_required"`
+	CaptchaConfig             PublicCaptchaConfigResponse `json:"captcha_config"`
+	LegalTexts                PublicLegalTextsResponse    `json:"legal_texts"`
+}
+
 // We deliberately don't expose enrollmentService here — it is already
 // referenced via *Resource.CareOfferingService.
 var _ = enrollmentService.ErrCareOfferingNotFound
@@ -407,6 +417,126 @@ type PublicPhase struct {
 	EnrollmentCloseAt         string `json:"enrollment_close_at,omitempty"`
 	ShowStatusReasonToParent  bool   `json:"show_status_reason_to_parent"`
 	CareOfferingSelectionMode string `json:"care_offering_selection_mode"`
+}
+
+func toPublicPhase(p *enrollmentModels.Phase) PublicPhase {
+	entry := PublicPhase{
+		ID:                        strconv.FormatInt(p.ID, 10),
+		Name:                      p.Name,
+		Kind:                      p.Kind,
+		ServiceStartDate:          p.ServiceStartDate.String(),
+		ServiceEndDate:            p.ServiceEndDate.String(),
+		ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
+		CareOfferingSelectionMode: p.CareOfferingSelectionMode,
+	}
+	if p.EnrollmentOpenAt != nil {
+		entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)
+	}
+	if p.EnrollmentCloseAt != nil {
+		entry.EnrollmentCloseAt = p.EnrollmentCloseAt.Format(time.RFC3339)
+	}
+	return entry
+}
+
+func toPublicFormSchemaResponse(schema *enrollmentModels.FormSchema) *PublicFormSchemaResponse {
+	if schema == nil {
+		return nil
+	}
+	return &PublicFormSchemaResponse{
+		ID:               strconv.FormatInt(schema.ID, 10),
+		Version:          schema.Version,
+		Fields:           schema.Fields,
+		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
+		LegalBlocks:      legalBlocksValue(schema.LegalBlocks),
+	}
+}
+
+func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) {
+	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.CareOfferingService == nil ||
+		rs.RequestService == nil || rs.CaptchaService == nil || rs.db == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public enrollment bootstrap endpoint not wired")))
+		return
+	}
+
+	slug := chi.URLParam(r, "tenantSlug")
+	if slug == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
+		return
+	}
+	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
+	if err != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+		return
+	}
+
+	var (
+		phase     *enrollmentModels.Phase
+		schema    *enrollmentModels.FormSchema
+		offerings []*enrollmentModels.CareOffering
+		texts     enrollmentService.LegalTexts
+		captcha   PublicCaptchaConfigResponse
+	)
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+			if !rs.RequestService.IsEnrollmentEnabled(txCtx) {
+				return enrollmentService.ErrEnrollmentDisabled
+			}
+			loadedPhase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			if phaseErr != nil {
+				return errors.New("phase not found")
+			}
+			phase = loadedPhase
+			if phase.FormSchemaID != nil {
+				if rs.FormSchemaService == nil {
+					return errors.New("form schema service not configured")
+				}
+				loadedSchema, schemaErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
+				if schemaErr != nil {
+					return schemaErr
+				}
+				schema = loadedSchema
+			}
+			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
+			if listErr != nil {
+				return listErr
+			}
+			offerings = list
+			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
+			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
+			legalTexts, legalErr := rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
+			if legalErr != nil {
+				return legalErr
+			}
+			texts = legalTexts
+			return nil
+		})
+	}
+	if resolveErr != nil {
+		renderPublicEnrollmentError(w, r, resolveErr)
+		return
+	}
+
+	items := make([]CareOfferingResponse, 0, len(offerings))
+	for _, o := range offerings {
+		items = append(items, toCareOfferingResponse(o))
+	}
+	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
+		Phase:                     toPublicPhase(phase),
+		Schema:                    toPublicFormSchemaResponse(schema),
+		Offerings:                 items,
+		CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
+		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CaptchaConfig:             captcha,
+		LegalTexts: PublicLegalTextsResponse{
+			AGB:          texts.AGB,
+			DSGVO:        texts.DSGVO,
+			EmailContact: texts.EmailContact,
+			Photo:        texts.Photo,
+			TermsEnabled: texts.TermsEnabled,
+			Blocks:       texts.Blocks,
+		},
+	}, "Public enrollment form bootstrap retrieved")
 }
 
 // listPublicPhases returns the currently-open phases for the given
@@ -443,22 +573,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]PublicPhase, 0, len(phases))
 	for _, p := range phases {
-		entry := PublicPhase{
-			ID:                        strconv.FormatInt(p.ID, 10),
-			Name:                      p.Name,
-			Kind:                      p.Kind,
-			ServiceStartDate:          p.ServiceStartDate.String(),
-			ServiceEndDate:            p.ServiceEndDate.String(),
-			ShowStatusReasonToParent:  p.ShowStatusReasonToParent,
-			CareOfferingSelectionMode: p.CareOfferingSelectionMode,
-		}
-		if p.EnrollmentOpenAt != nil {
-			entry.EnrollmentOpenAt = p.EnrollmentOpenAt.Format(time.RFC3339)
-		}
-		if p.EnrollmentCloseAt != nil {
-			entry.EnrollmentCloseAt = p.EnrollmentCloseAt.Format(time.RFC3339)
-		}
-		out = append(out, entry)
+		out = append(out, toPublicPhase(p))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Public phases retrieved")
 }

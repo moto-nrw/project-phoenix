@@ -1,5 +1,10 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type {
+  PublicCaptchaConfig,
+  PublicFormSchema,
+  PublicLegalTexts,
+} from "~/lib/enrollment-form-schema-api";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
@@ -186,6 +191,36 @@ export interface MeProfileResponse {
     phone?: string;
   };
   children: MeProfileChild[];
+}
+
+export interface PublicEnrollmentBootstrap {
+  phase: PublicPhase;
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  care_offering_selection_mode: CareOfferingSelectionMode;
+  care_required: boolean;
+  captcha_config: PublicCaptchaConfig | null;
+  legal_texts: PublicLegalTexts;
+  profile?: MeProfileResponse | null;
+}
+
+export async function fetchPublicEnrollmentBootstrap(
+  tenantSlug: string,
+  phaseId: string,
+): Promise<PublicEnrollmentBootstrap> {
+  const response = await fetch(
+    `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+      tenantSlug,
+    )}/${encodeURIComponent(phaseId)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldeformular konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PublicEnrollmentBootstrap>(response);
 }
 
 /**

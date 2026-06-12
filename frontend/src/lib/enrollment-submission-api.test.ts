@@ -4,6 +4,7 @@ import {
   confirmRenewal,
   fetchMyEnrollmentProfile,
   fetchPublicCareOfferings,
+  fetchPublicEnrollmentBootstrap,
   fetchPublicPhases,
   fetchStatus,
   patchStatus,
@@ -115,6 +116,45 @@ describe("enrollment-submission-api", () => {
 
     mockFetch.mockResolvedValueOnce(jsonResponse({ data: { id: "bad" } }));
     await expect(fetchPublicPhases("demo")).resolves.toEqual([]);
+  });
+
+  it("loads public enrollment bootstrap from the combined endpoint", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          phase: {
+            id: "5",
+            name: "Ferien",
+            kind: "holiday",
+            service_start_date: "2026-07-01",
+            service_end_date: "2026-07-31",
+            show_status_reason_to_parent: false,
+            care_offering_selection_mode: "exactly_one",
+          },
+          schema: { id: "12", version: 1, fields: [] },
+          offerings: [{ id: "77", name: "Sommer", is_required: false }],
+          care_offering_selection_mode: "exactly_one",
+          care_required: true,
+          captcha_config: { enabled: true, site_key: "site" },
+          legal_texts: { blocks: [] },
+        },
+      }),
+    );
+
+    await expect(
+      fetchPublicEnrollmentBootstrap("demo slug", "ph/5"),
+    ).resolves.toMatchObject({
+      phase: { id: "5", name: "Ferien" },
+      schema: { id: "12" },
+      offerings: [{ id: "77" }],
+      care_offering_selection_mode: "exactly_one",
+      captcha_config: { site_key: "site" },
+      legal_texts: { blocks: [] },
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/enrollment/form-bootstrap/public/demo%20slug/ph%2F5",
+      { cache: "no-store" },
+    );
   });
 
   it("returns null for unauthenticated profile requests", async () => {

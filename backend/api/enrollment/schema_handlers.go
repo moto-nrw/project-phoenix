@@ -117,6 +117,88 @@ type PublicFormSchemaResponse struct {
 	LegalBlocks      []enrollmentModels.FormLegalBlock `json:"legal_blocks"`
 }
 
+type SchemaPreviewBootstrapResponse struct {
+	Schema                   *FormSchemaResponse `json:"schema"`
+	AssignedPhaseCount       int                 `json:"assigned_phase_count"`
+	ActiveAssignedPhaseCount int                 `json:"active_assigned_phase_count"`
+}
+
+func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil || rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("schema preview endpoint not configured")))
+		return
+	}
+
+	isBasePreview := r.URL.Query().Get("base") == "1"
+	schemaIDParam := r.URL.Query().Get("schemaId")
+	if !isBasePreview && schemaIDParam == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("schemaId is required")))
+		return
+	}
+
+	var (
+		schema *enrollmentModels.FormSchema
+		phases []*enrollmentModels.Phase
+	)
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		if !isBasePreview {
+			schemaID, parseErr := strconv.ParseInt(schemaIDParam, 10, 64)
+			if parseErr != nil || schemaID <= 0 {
+				return errors.New("schemaId must be a positive integer")
+			}
+			loaded, loadErr := rs.FormSchemaService.GetByID(ctx, schemaID)
+			if loadErr != nil {
+				return loadErr
+			}
+			schema = loaded
+		}
+		list, listErr := rs.PhaseService.List(ctx)
+		if listErr != nil {
+			return listErr
+		}
+		phases = list
+		return nil
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	var schemaOut *FormSchemaResponse
+	if schema != nil {
+		out := toFormSchemaResponse(schema)
+		schemaOut = &out
+	}
+	assigned, active := countAssignedPreviewPhases(phases, schema)
+	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
+		Schema:                   schemaOut,
+		AssignedPhaseCount:       assigned,
+		ActiveAssignedPhaseCount: active,
+	}, "Schema preview bootstrap retrieved")
+}
+
+func countAssignedPreviewPhases(phases []*enrollmentModels.Phase, schema *enrollmentModels.FormSchema) (int, int) {
+	assigned := 0
+	active := 0
+	for _, phase := range phases {
+		if phase == nil {
+			continue
+		}
+		matches := phase.FormSchemaID == nil
+		if schema != nil {
+			matches = phase.FormSchemaID != nil && *phase.FormSchemaID == schema.ID
+		}
+		if !matches {
+			continue
+		}
+		assigned++
+		if phase.IsActive {
+			active++
+		}
+	}
+	return assigned, active
+}
+
 // listPublicActiveSchema returns the form schema for a (tenant, phase)
 // pair. The phase's pinned form_schema_id wins; if the phase has none,
 // we fall back to the tenant's currently-active schema; if neither

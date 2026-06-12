@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   RESERVED_TARGETS,
   blankField,
+  fetchEnrollmentPreviewBootstrap,
   latestSchemasByName,
   schemaToPublicFormSchema,
   listSchemas,
@@ -297,6 +298,51 @@ describe("fetchPublicActiveSchema", () => {
     await expect(fetchPublicActiveSchema("slug", "1")).rejects.toThrow(
       /Formular konnte nicht geladen werden/,
     );
+  });
+});
+
+// --- fetchEnrollmentPreviewBootstrap ---------------------------------
+
+describe("fetchEnrollmentPreviewBootstrap", () => {
+  it("loads schema preview bootstrap and URL-encodes schema id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: {
+          schema: mkSchema("12", "Ferien", 1, "2026-04-01T12:00:00Z"),
+          assigned_phase_count: 2,
+          active_assigned_phase_count: 1,
+        },
+      });
+    });
+
+    const out = await fetchEnrollmentPreviewBootstrap({ schemaId: "12/3" });
+
+    expect(seenURL).toContain("/api/enrollment/schema/preview?");
+    expect(seenURL).toContain("schemaId=12%2F3");
+    expect(out.schema?.name).toBe("Ferien");
+    expect(out.assigned_phase_count).toBe(2);
+    expect(out.active_assigned_phase_count).toBe(1);
+  });
+
+  it("loads base preview bootstrap", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: {
+          schema: null,
+          assigned_phase_count: 1,
+          active_assigned_phase_count: 0,
+        },
+      });
+    });
+
+    await fetchEnrollmentPreviewBootstrap({ base: true });
+
+    expect(seenURL).toContain("base=1");
+    expect(seenURL).not.toContain("schemaId=");
   });
 });
 

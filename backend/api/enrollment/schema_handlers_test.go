@@ -20,6 +20,28 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
+func TestCountAssignedPreviewPhases(t *testing.T) {
+	schemaID := int64(1234)
+	otherSchemaID := int64(5678)
+	phases := []*enrollmentModels.Phase{
+		{FormSchemaID: &schemaID, IsActive: true},
+		{FormSchemaID: &schemaID, IsActive: false},
+		{FormSchemaID: &otherSchemaID, IsActive: true},
+		{FormSchemaID: nil, IsActive: true},
+		nil,
+	}
+
+	assigned, active := countAssignedPreviewPhases(phases, &enrollmentModels.FormSchema{
+		Model: baseModel.Model{ID: schemaID},
+	})
+	require.Equal(t, 2, assigned)
+	require.Equal(t, 1, active)
+
+	baseAssigned, baseActive := countAssignedPreviewPhases(phases, nil)
+	require.Equal(t, 1, baseAssigned)
+	require.Equal(t, 1, baseActive)
+}
+
 // mockFormSchemaService records inputs + replays outputs. Same pattern
 // as mockRolloverService / mockDecisionService in this package.
 type mockFormSchemaService struct {

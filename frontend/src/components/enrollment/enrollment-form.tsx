@@ -85,6 +85,7 @@ interface Props {
   readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
+  readonly prefetchedData?: EnrollmentFormPrefetchedData;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -105,6 +106,15 @@ interface Props {
   readonly skipCaptcha?: boolean;
 }
 
+export interface EnrollmentFormPrefetchedData {
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
+  captchaConfig: PublicCaptchaConfig | null;
+  legalTexts: PublicLegalTexts;
+  profile?: MeProfileResponse | null;
+}
+
 /**
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
@@ -121,6 +131,7 @@ export function EnrollmentForm({
   phaseID,
   gradeLevelMax,
   onSubmitted,
+  prefetchedData,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -128,17 +139,26 @@ export function EnrollmentForm({
   skipCaptcha,
 }: Props) {
   const { tenantSlug } = useTenant();
-  const [schema, setSchema] = useState<PublicFormSchema | null>(null);
-  const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
+  const initialRequiredOfferingIDs =
+    prefetchedData?.offerings.filter((o) => o.is_required).map((o) => o.id) ??
+    [];
+  const [schema, setSchema] = useState<PublicFormSchema | null>(
+    prefetchedData?.schema ?? null,
+  );
+  const [offerings, setOfferings] = useState<PublicCareOffering[]>(
+    prefetchedData?.offerings ?? [],
+  );
   const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
-    useState<CareOfferingSelectionMode>("optional");
+    useState<CareOfferingSelectionMode>(
+      prefetchedData?.careOfferingSelectionMode ?? "optional",
+    );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
     () => offerings.filter((o) => o.is_required).map((o) => o.id),
     [offerings],
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(prefetchedData === undefined);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childOfferingErrors, setChildOfferingErrors] = useState<
@@ -163,34 +183,83 @@ export function EnrollmentForm({
   // successful submit nothing is marked invalid so it's a no-op.
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
-  const [guardianFirstName, setGuardianFirstName] = useState("");
-  const [guardianLastName, setGuardianLastName] = useState("");
-  const [guardianEmail, setGuardianEmail] = useState("");
-  const [guardianPhone, setGuardianPhone] = useState("");
+  const [guardianFirstName, setGuardianFirstName] = useState(
+    prefetchedData?.profile?.guardian.first_name ?? "",
+  );
+  const [guardianLastName, setGuardianLastName] = useState(
+    prefetchedData?.profile?.guardian.last_name ?? "",
+  );
+  const [guardianEmail, setGuardianEmail] = useState(
+    prefetchedData?.profile?.guardian.email ?? "",
+  );
+  const [guardianPhone, setGuardianPhone] = useState(
+    prefetchedData?.profile?.guardian.phone ?? "",
+  );
   const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
     {},
   );
-  const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
+  const [children, setChildren] = useState<ChildDraft[]>([
+    blankChild(initialRequiredOfferingIDs),
+  ]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
   // shared across all children in the submission.
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
-    useState<PublicCaptchaConfig | null>(null);
+    useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
   // Per-tenant legal block contract. null until fetched.
-  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
+  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(
+    prefetchedData?.legalTexts ?? null,
+  );
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
   );
-  const [profile, setProfile] = useState<MeProfileResponse | null>(null);
+  const [profile, setProfile] = useState<MeProfileResponse | null>(
+    prefetchedData?.profile ?? null,
+  );
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
   );
 
   useEffect(() => {
     let cancelled = false;
+    if (prefetchedData !== undefined) {
+      setSchema(prefetchedData.schema);
+      setOfferings(prefetchedData.offerings);
+      setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setCaptchaConfig(prefetchedData.captchaConfig);
+      setLegalTexts(prefetchedData.legalTexts);
+      setProfile(prefetchedData.profile ?? null);
+      setChildren((prev) =>
+        seedRequiredOfferings(
+          prev.length > 0 ? prev : [blankChild()],
+          prefetchedData.offerings
+            .filter((o) => o.is_required)
+            .map((o) => o.id),
+        ),
+      );
+      if (prefetchedData.profile) {
+        setGuardianFirstName(
+          (prev) => prev || prefetchedData.profile?.guardian.first_name || "",
+        );
+        setGuardianLastName(
+          (prev) => prev || prefetchedData.profile?.guardian.last_name || "",
+        );
+        setGuardianEmail(
+          (prev) => prev || prefetchedData.profile?.guardian.email || "",
+        );
+        setGuardianPhone(
+          (prev) => prev || prefetchedData.profile?.guardian.phone || "",
+        );
+      }
+      setError(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     async function load() {
       setLoading(true);
       setError(null);
@@ -278,7 +347,14 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID, previewSchema, profileFetcher, skipCaptcha]);
+  }, [
+    tenantSlug,
+    phaseID,
+    prefetchedData,
+    previewSchema,
+    profileFetcher,
+    skipCaptcha,
+  ]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>

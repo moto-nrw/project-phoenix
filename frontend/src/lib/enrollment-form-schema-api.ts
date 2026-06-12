@@ -299,6 +299,33 @@ export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
   };
 }
 
+export interface EnrollmentPreviewBootstrap {
+  schema: FormSchema | null;
+  assigned_phase_count: number;
+  active_assigned_phase_count: number;
+}
+
+export async function fetchEnrollmentPreviewBootstrap(params: {
+  schemaId?: string | null;
+  base?: boolean;
+}): Promise<EnrollmentPreviewBootstrap> {
+  const search = new URLSearchParams();
+  if (params.schemaId) search.set("schemaId", params.schemaId);
+  if (params.base) search.set("base", "1");
+  const response = await fetch(`${SCHEMA_PATH}/preview?${search.toString()}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readEnrollmentError(
+      response,
+      "Formularvorschau konnte nicht geladen werden",
+      logger,
+      "schema_preview_bootstrap_failed",
+    );
+  }
+  return readJSON<EnrollmentPreviewBootstrap>(response);
+}
+
 /**
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the

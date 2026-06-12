@@ -87,6 +87,7 @@ func (rs *Resource) Router() chi.Router {
 	// below so the JWT middleware doesn't reject anonymous requests.
 	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)
 	r.Get("/care-offerings/public/{tenantSlug}/{phaseId}", rs.listPublicCareOfferings)
+	r.Get("/form-bootstrap/public/{tenantSlug}/{phaseId}", rs.publicFormBootstrap)
 	r.Get("/schema/public/{tenantSlug}/{phaseId}", rs.listPublicActiveSchema)
 	r.Get("/captcha-config/{tenantSlug}", rs.publicCaptchaConfig)
 	r.Get("/legal/{tenantSlug}/{phaseId}", rs.publicLegalTexts)
@@ -107,6 +108,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/schema", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getActiveSchema)
 			r.With(authorize.RequiresPermission("config:read")).Get("/versions", rs.listSchemaVersions)
+			r.With(authorize.RequiresPermission("config:read")).Get("/preview", rs.getSchemaPreviewBootstrap)
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
