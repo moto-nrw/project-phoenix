@@ -353,7 +353,7 @@ func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing
 		_, err := f.db.NewUpdate().
 			TableExpr(`users.students`).
 			Set(`group_id = NULL`).
-			Where(`id IN (?)`, bun.In([]int64{f.plannedID, f.missingID, f.walkInID})).
+			Where(`id IN (?)`, bun.List([]int64{f.plannedID, f.missingID, f.walkInID})).
 			Exec(ctx)
 		require.NoError(t, err)
 		testpkg.CleanupTableRecords(t, f.db, "education.groups", allowedGroup.ID, deniedGroup.ID)

@@ -96,7 +96,7 @@ interface SlotListPickupCohortOption {
   row_count: number;
 }
 
-export interface SlotListKindOption {
+interface SlotListKindOption {
   kind: SlotListKind;
   label: string;
   available: boolean;
