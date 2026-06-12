@@ -186,9 +186,14 @@ func formatWeekdayMode(raw any) string {
 		return stringifyValue(raw)
 	}
 	parts := make([]string, 0, len(weekdayOrder))
+	hasAnswer := false
 	for _, day := range weekdayOrder {
 		mode := modes[day]
-		if mode == "" || mode == enrollmentModels.WeekdayModeAlone {
+		if mode == "" {
+			continue
+		}
+		hasAnswer = true
+		if mode == enrollmentModels.WeekdayModeAlone {
 			continue
 		}
 		label := dayLabelsDE[day]
@@ -200,6 +205,9 @@ func formatWeekdayMode(raw any) string {
 			modeLabel = mode
 		}
 		parts = append(parts, label+": "+modeLabel)
+	}
+	if len(parts) == 0 && hasAnswer {
+		return "Geht immer alleine"
 	}
 	return strings.Join(parts, ", ")
 }
