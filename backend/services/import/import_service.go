@@ -43,8 +43,9 @@ func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService
 }
 
 // SetAuditRepository wires the GDPR import-audit repository (issue #584:
-// audit writes moved out of api/import). Optional; RecordAudit no-ops when
-// unset.
+// audit writes moved out of api/import). Optional at construction time, but
+// production wiring must set it — RecordAudit logs an error and drops the
+// audit record when unset.
 func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
 	s.auditRepo = repo
 }
@@ -55,6 +56,14 @@ func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
 // context.Background() with panic recovery, exactly as before.
 func (s *ImportService[T]) RecordAudit(entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
 	if s.auditRepo == nil {
+		// GDPR Article 30 requires these records — a missing repo is a wiring
+		// bug, never a valid configuration. Log loudly instead of silently
+		// dropping the record.
+		slog.Default().Error("import audit repository not wired, dropping GDPR import audit record",
+			slog.String("entity_type", entityType),
+			slog.String("filename", filename),
+			slog.Int64("tenant_id", tenantID),
+		)
 		return
 	}
 	auditRepo := s.auditRepo

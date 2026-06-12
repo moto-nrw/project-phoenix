@@ -37,6 +37,11 @@ import (
 //   - A file may never exceed its allowed count.
 //   - When refactoring removes hits, the test fails until the entry is
 //     lowered/removed — the ratchet only turns one way. Never raise a number.
+//
+// Known limitation: R1 matches the textual "name pkg.SomethingRepository"
+// declaration shape, so it is bypassable via type aliases and embedded
+// fields. The ratchet catches the realistic copy-paste case, which is its
+// job — a green run is not proof that no repository reaches a handler.
 var (
 	// R1: "name pkg.SomethingRepository" declaration pairs — struct fields and
 	// constructor params. Service-typed fields never match (their types end in
