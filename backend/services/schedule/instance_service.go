@@ -72,7 +72,10 @@ type InstanceService interface {
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
-	ReplanWeek(ctx context.Context, from, to timezone.Date) (*ReplanWeekResult, error)
+	// ReplanWeek deletes planned non-spontaneous instances in [from, to] and
+	// re-materializes. A non-nil activityGroupID restricts the delete to one
+	// template's instances; nil re-plans the whole grid.
+	ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64) (*ReplanWeekResult, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
 	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
 }
@@ -634,10 +637,13 @@ func (s *instanceService) updateLifecycleColumns(ctx context.Context, instance *
 
 // ReplanWeek deletes protected-status='planned' non-spontaneous rows in
 // [from, to] for the current tenant, then re-materializes the window.
-// Everything else survives. The DELETE is one raw statement so the predicate
-// stays explicit and readable; the cascade on instance_staff / instance_students
-// is declared at the DDL level (ON DELETE CASCADE).
-func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date) (*ReplanWeekResult, error) {
+// Everything else survives. A non-nil activityGroupID narrows the delete to
+// that template's instances (the re-materialization still covers the whole
+// window — insert-only, so other templates' surviving rows are skipped as
+// existing). The DELETE is one raw statement so the predicate stays explicit
+// and readable; the cascade on instance_staff / instance_students is declared
+// at the DDL level (ON DELETE CASCADE).
+func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64) (*ReplanWeekResult, error) {
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
 	}
@@ -651,7 +657,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, to)
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, to, activityGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}

@@ -169,8 +169,10 @@ type ActivityInstanceRepository interface {
 
 	// DeletePlannedNonSpontaneousInWindow removes still-planned,
 	// template-backed instances in the inclusive [from, to] window and
-	// returns the number of rows deleted. Used by ReplanWeek.
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to timezone.Date) (int64, error)
+	// returns the number of rows deleted. activityGroupID narrows the delete
+	// to one template's instances; nil deletes across all templates. Used by
+	// ReplanWeek and the template split (WP-B3).
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to timezone.Date, activityGroupID *int64) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

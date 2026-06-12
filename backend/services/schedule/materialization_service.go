@@ -81,6 +81,7 @@ type MaterializationResult struct {
 	CandidatesSkippedABWeek     int // week_pattern did not match period cycle
 	CandidatesSkippedNoPeriod   int // template pinned to period not covering date, or no active period matches
 	CandidatesSkippedIncomplete int // template missing planned room or schedule missing timeframe/end_time
+	CandidatesSkippedEnded      int // schedule.valid_until reached (template split ended this recurrence)
 	CandidatesRaced             int // UNIQUE violation absorbed (concurrent run won the insert)
 	InstanceStudentsCreated     int
 	InstanceStaffCreated        int
@@ -299,6 +300,7 @@ func (s *materializationService) finishLog(tenantID int64, source Materializatio
 		slog.Int("skipped_ab", r.CandidatesSkippedABWeek),
 		slog.Int("skipped_no_period", r.CandidatesSkippedNoPeriod),
 		slog.Int("skipped_incomplete", r.CandidatesSkippedIncomplete),
+		slog.Int("skipped_ended", r.CandidatesSkippedEnded),
 		slog.Int("raced", r.CandidatesRaced),
 		slog.Int("instance_students_created", r.InstanceStudentsCreated),
 		slog.Int("instance_staff_created", r.InstanceStaffCreated),
@@ -339,6 +341,11 @@ func (s *materializationService) materializeTemplate(
 		isoWd := isoWeekday(date)
 		for _, sch := range schedules {
 			if sch.Weekday != isoWd {
+				continue
+			}
+
+			if scheduleEndedOn(sch, date) {
+				result.CandidatesSkippedEnded++
 				continue
 			}
 
@@ -630,6 +637,14 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 		return false
 	}
 	return true
+}
+
+// scheduleEndedOn answers: has this schedule's recurrence ended by `date`?
+// valid_until is EXCLUSIVE — the schedule no longer produces instances ON or
+// AFTER that date (same convention as enrollment valid_until). A nil
+// valid_until means open-ended.
+func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
+	return sch != nil && sch.ValidUntil != nil && !date.Before(*sch.ValidUntil)
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.

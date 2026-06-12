@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -120,6 +121,33 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 	}
 
 	return &supervisor, nil
+}
+
+// CapActiveByGroup ends every still-active supervision (valid_until IS NULL)
+// of the given group at validUntil (exclusive). Returns the number of rows
+// changed. Custom method (backend-conventions Rule 2): multi-row bulk update
+// for the template split (WP-B3).
+func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(tableExprSupervisorPlanned).
+		Set("valid_until = ?", validUntil).
+		Where(`"supervisor_planned".group_id = ?`, groupID).
+		Where(`"supervisor_planned".valid_until IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+		query = query.Where(where, val)
+	}
+
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "cap active supervisors by group",
+			Err: err,
+		}
+	}
+	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return rows, nil
 }
 
 // FindByStaffID finds all supervisions for a specific staff member

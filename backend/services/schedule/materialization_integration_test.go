@@ -541,3 +541,47 @@ func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date time
 	require.NoError(tb, err)
 	return rows
 }
+
+// -----------------------------------------------------------------------------
+// WP-B3: schedules capped via valid_until stop producing instances at the cap.
+// -----------------------------------------------------------------------------
+
+func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
+	firstMonday := timezone.NewDate(2026, time.April, 20) // Mon
+	secondMonday := firstMonday.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
+	defer s.runCleanup(t)
+
+	// Baseline: valid_until is NULL — the second Monday materializes normally
+	// and nothing is counted as ended.
+	r0, err := s.svc.MaterializeForTenant(s.ctx, secondMonday, secondMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r0.InstancesCreated, "open-ended schedule materializes unchanged")
+	assert.Zero(t, r0.CandidatesSkippedEnded)
+	for _, row := range listInstancesForDate(t, s.db, s.template.ID, secondMonday) {
+		s.registerCleanup("schedule.activity_instances", row.ID)
+	}
+
+	// Cap the schedule between the two Mondays (exclusive end): the first
+	// Monday is before the cap and still materializes, the second is ended.
+	capDate := firstMonday.AddDays(1) // Tue
+	_, err = s.db.NewUpdate().
+		Model((*activitiesModels.Schedule)(nil)).
+		ModelTableExpr(`activities.schedules`).
+		Set("valid_until = ?", capDate).
+		Where("id = ?", s.schedule.ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	r, err := s.svc.MaterializeForTenant(s.ctx, firstMonday, secondMonday.AddDays(6), scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 1, r.InstancesCreated, "only the Monday before valid_until materializes")
+	assert.Equal(t, 1, r.CandidatesSkippedEnded, "the Monday on/after valid_until counts as ended")
+	assert.Zero(t, r.CandidatesSkippedExisting,
+		"the ended check fires before the existing-row check, so the pre-existing second-Monday row is not double-counted")
+
+	created := listInstancesForDate(t, s.db, s.template.ID, firstMonday)
+	require.Len(t, created, 1)
+	s.registerCleanup("schedule.activity_instances", created[0].ID)
+}

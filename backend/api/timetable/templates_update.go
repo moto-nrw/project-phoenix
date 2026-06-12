@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -171,7 +172,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 		return
 	}
-	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
+	timeframeID, err := scheduleSvc.FindOrCreateTimeframe(ctx, rs.timeframeRepo, startTime, endTime, req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return

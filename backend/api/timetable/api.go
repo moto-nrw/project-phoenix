@@ -42,6 +42,7 @@ type Resource struct {
 	materializationService scheduleSvc.MaterializationService
 	instanceService        scheduleSvc.InstanceService
 	operationsService      scheduleSvc.TimetableOperationsService
+	templateSplitService   scheduleSvc.TemplateSplitService
 	personService          userSvc.PersonService
 	instanceStudentRepo    schedule.InstanceStudentRepository
 	activityInstanceRepo   schedule.ActivityInstanceRepository
@@ -79,6 +80,7 @@ type Dependencies struct {
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
+	TemplateSplitService   scheduleSvc.TemplateSplitService
 	PersonService          userSvc.PersonService
 	InstanceStudentRepo    schedule.InstanceStudentRepository
 	ActivityInstanceRepo   schedule.ActivityInstanceRepository
@@ -116,6 +118,7 @@ func NewResource(deps Dependencies) *Resource {
 		materializationService: deps.MaterializationService,
 		instanceService:        deps.InstanceService,
 		operationsService:      deps.OperationsService,
+		templateSplitService:   deps.TemplateSplitService,
 		personService:          deps.PersonService,
 		instanceStudentRepo:    deps.InstanceStudentRepo,
 		activityInstanceRepo:   deps.ActivityInstanceRepo,
@@ -272,6 +275,10 @@ func (rs *Resource) Router() chi.Router {
 			Post("/templates", rs.createTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Put("/templates/{id}", rs.updateTemplate)
+		// WP-B3: "Dieser und alle folgenden" — cap the old template at the
+		// effective date and continue with a successor template.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/templates/{id}/split", rs.splitTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
 	})

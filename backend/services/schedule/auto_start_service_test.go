@@ -195,7 +195,7 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64) (*scheduleMode
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date) (*ReplanWeekResult, error) {
+func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64) (*ReplanWeekResult, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
@@ -223,7 +223,7 @@ func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezon
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date, *int64) (int64, error) {
 	return 0, nil
 }
 

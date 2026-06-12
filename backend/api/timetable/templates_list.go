@@ -24,6 +24,9 @@ type templateScheduleResponse struct {
 	EndTime          string `json:"end_time"`
 	WeekPattern      int    `json:"week_pattern"`
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	// ValidUntil is the exclusive recurrence end (YYYY-MM-DD) set by a
+	// template split; empty = open-ended.
+	ValidUntil string `json:"valid_until,omitempty"`
 }
 
 func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
@@ -52,7 +55,8 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
 			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
 			s.week_pattern,
-			s.calendar_period_id
+			s.calendar_period_id,
+			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
 		FROM activities.groups AS g
 		INNER JOIN activities.schedules AS s
 			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id
@@ -166,6 +170,7 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 			EndTime:          row.EndTime.String,
 			WeekPattern:      row.WeekPattern,
 			CalendarPeriodID: calendarPeriodID,
+			ValidUntil:       row.ScheduleValidUntil.String,
 		})
 	}
 	return templates
@@ -226,6 +231,7 @@ type templateRow struct {
 	EndTime            sql.NullString `bun:"end_time"`
 	WeekPattern        int            `bun:"week_pattern"`
 	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidUntil sql.NullString `bun:"schedule_valid_until"`
 }
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +287,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
 			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
 			s.week_pattern,
-			s.calendar_period_id
+			s.calendar_period_id,
+			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
 		FROM activities.groups AS g
 		INNER JOIN activities.schedules AS s
 			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id

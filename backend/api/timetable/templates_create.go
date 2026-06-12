@@ -16,17 +16,14 @@
 package timetable
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -176,10 +173,9 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Find or create timeframe matching the requested clock window.
-	//    Reusing existing timeframes keeps the schedule.timeframes table
-	//    from growing one row per template — common slots (12:00–12:50)
-	//    end up shared across Mensa templates from different weeks.
-	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
+	//    The find-or-create rule lives in the schedule service (shared with
+	//    the WP-B3 template split) so it exists in exactly one place.
+	timeframeID, err := scheduleSvc.FindOrCreateTimeframe(ctx, rs.timeframeRepo, startTime, endTime, req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"resolve timeframe failed", err))
@@ -283,49 +279,6 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		slog.Int("instances_created", resp.InstancesCreated),
 	)
 	common.Respond(w, r, http.StatusCreated, resp, "Template created")
-}
-
-// findOrCreateTimeframe returns the id of an existing schedule.timeframes
-// row matching [start, end] or inserts a fresh one. Description is set to
-// the template name on first creation as a debug hint, but is informational
-// only — lookups go by time window.
-func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	existing, err := rs.timeframeRepo.FindByTimeRange(ctx, start, end)
-	if err == nil {
-		for _, tf := range existing {
-			if tf == nil {
-				continue
-			}
-			// Match exact clock times; FindByTimeRange may return overlapping
-			// windows depending on impl, so be precise. Do not use
-			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
-			// drivers may decode TIME with a different date anchor than the
-			// handler's parseClockTime uses.
-			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
-				return tf.ID, nil
-			}
-		}
-	}
-
-	endCopy := end
-	tf := &scheduleModel.Timeframe{
-		StartTime:   start,
-		EndTime:     &endCopy,
-		IsActive:    true,
-		Description: fmt.Sprintf("auto: %s", descHint),
-	}
-	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timeframeRepo.Create(ctx, tf); err != nil {
-		return 0, fmt.Errorf("create timeframe: %w", err)
-	}
-	return tf.ID, nil
-}
-
-func sameClockTime(a, b time.Time) bool {
-	return a.Hour() == b.Hour() &&
-		a.Minute() == b.Minute() &&
-		a.Second() == b.Second() &&
-		a.Nanosecond() == b.Nanosecond()
 }
 
 // isValidActivityType matches the constants in models/activities/group.go.

@@ -68,6 +68,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
+	TemplateSplit            schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
@@ -418,6 +419,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		calendarPeriodService,
 		logger.With("service", "materialization"),
 	)
+
+	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
+	// caps the old template's schedules + rosters at an effective date,
+	// creates a successor template and re-plans the affected window via the
+	// materialization service.
+	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
+		GroupRepo:       repos.ActivityGroup,
+		ScheduleRepo:    repos.ActivitySchedule,
+		EnrollmentRepo:  repos.StudentEnrollment,
+		SupervisorRepo:  repos.ActivitySupervisor,
+		InstanceRepo:    repos.ActivityInstance,
+		TimeframeRepo:   repos.Timeframe,
+		Materialization: materializationService,
+		Logger:          logger.With("service", "template-split"),
+	})
 
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
@@ -1033,6 +1049,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
+		TemplateSplit:            templateSplitService,
 		TimetableCleanup:         timetableCleanupService,
 		TimeTrackingCleanup:      timeTrackingCleanupService,
 		Instance:                 instanceService,

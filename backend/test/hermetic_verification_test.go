@@ -295,6 +295,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
