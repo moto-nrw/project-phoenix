@@ -2087,7 +2087,7 @@ function requiredMessageForField(
     return tr("errors.weekdayRequired");
   }
   if (field.type === "weekday_mode") {
-    return "Bitte die Geh- und Abholregelung bestätigen.";
+    return tr("errors.weekdayModeConfirm");
   }
   if (field.type === "select") {
     return tr("errors.select");
@@ -2455,13 +2455,10 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   return out;
 }
 
-const DEPARTURE_MODE_OPTIONS: ReadonlyArray<{
-  value: DepartureModeValue;
-  short: string;
-}> = [
-  { value: "alone", short: "Alleine" },
-  { value: "bus", short: "Bus" },
-  { value: "pickup", short: "Abholung" },
+const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
+  "alone",
+  "bus",
+  "pickup",
 ];
 
 function WeekdayScheduleInput({
@@ -2575,6 +2572,7 @@ function WeekdayModeInput({
 }: CustomFieldInputProps) {
   const modes = asWeekdayModeObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
+  const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
   const modeFor = (key: string): DepartureModeValue => {
     const m = modes[key];
     return m === "bus" || m === "pickup" ? m : "alone";
@@ -2594,8 +2592,7 @@ function WeekdayModeInput({
         </p>
       )}
       <p className="text-xs text-gray-500">
-        Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist
-        „Geht alleine“.
+        {tr("structured.departureModeHelp")}
       </p>
       <div className="mt-2 space-y-2">
         {WEEKDAYS.map((w) => {
@@ -2606,17 +2603,17 @@ function WeekdayModeInput({
                 {weekdayLabels[w] ?? w}
               </span>
               <div className="grid flex-1 grid-cols-3 gap-1">
-                {DEPARTURE_MODE_OPTIONS.map((opt) => {
-                  const active = current === opt.value;
+                {DEPARTURE_MODE_OPTIONS.map((mode) => {
+                  const active = current === mode;
                   return (
                     <button
-                      key={opt.value}
+                      key={mode}
                       type="button"
                       aria-pressed={active}
                       onClick={() => {
                         const next = { ...modes };
-                        if (opt.value === "alone") delete next[w];
-                        else next[w] = opt.value;
+                        if (mode === "alone") delete next[w];
+                        else next[w] = mode;
                         onChange(next);
                       }}
                       className={`flex h-9 items-center justify-center rounded-md border px-1 text-xs font-medium transition-colors ${
@@ -2625,7 +2622,7 @@ function WeekdayModeInput({
                           : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
                       }`}
                     >
-                      {opt.short}
+                      {departureModeLabels[mode] ?? mode}
                     </button>
                   );
                 })}

@@ -79,7 +79,20 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	response.BusDays = departure.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = departure.PickupDays()
-	response.PickupStatus = departure.LegacyPickupStatus()
+	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+}
+
+func responsePickupStatus(student *users.Student, derived string) string {
+	if student.PickupStatus == nil {
+		return derived
+	}
+	stored := strings.TrimSpace(*student.PickupStatus)
+	if stored == "" ||
+		stored == users.PickupStatusPickedUp ||
+		stored == users.PickupStatusGoesAlone {
+		return derived
+	}
+	return *student.PickupStatus
 }
 
 // populateSensitiveStudentFields sets fields visible only to supervisors/admins
@@ -214,7 +227,7 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	response.BusDays = departure.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = departure.PickupDays()
-	response.PickupStatus = departure.LegacyPickupStatus()
+	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student

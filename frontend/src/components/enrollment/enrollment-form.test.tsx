@@ -920,6 +920,50 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("localizes weekday departure mode labels and validation copy", async () => {
+    mockIntlLocale.value = "en";
+    const withDeparture = schema();
+    withDeparture.fields = [
+      ...withDeparture.fields,
+      {
+        key: "departure",
+        label: "Geh-/Abholregelung",
+        type: "weekday_mode",
+        target: "student.departure",
+        required: true,
+        applies_to_child: true,
+        sort_order: 7,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(withDeparture);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm({ localizedCopy: true });
+
+    expect(await screen.findByText("Geh-/Abholregelung")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Goes alone" })).toHaveLength(
+      5,
+    );
+    expect(screen.getAllByRole("button", { name: "Bus" })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Pickup" })).toHaveLength(5);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit enrollment" }));
+
+    expect(
+      await screen.findAllByText("Please confirm the departure arrangement."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
   it("requires at least one selected weekday for required weekday boolean fields", async () => {
     const requiredBusDays = schema();
     requiredBusDays.fields = requiredBusDays.fields.map((field) =>
