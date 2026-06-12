@@ -19,6 +19,8 @@ const {
   mockArchiveTemplate,
   mockBootstrap,
   mockEventModalProps,
+  mockLoggerWarn,
+  mockLoggerError,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
@@ -37,6 +39,8 @@ const {
   mockArchiveTemplate: vi.fn(),
   mockBootstrap: vi.fn(),
   mockEventModalProps: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockLoggerError: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -58,8 +62,8 @@ vi.mock("~/contexts/ToastContext", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
+    error: mockLoggerError,
+    warn: mockLoggerWarn,
   }),
 }));
 
@@ -913,6 +917,43 @@ describe("TimetablesPage", () => {
     render(<TimetablesPage />);
 
     expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  it("logs a warning when the bootstrap fails with 403", async () => {
+    setupSWR({ periods: [] });
+    mockBootstrap.mockRejectedValue(
+      Object.assign(new Error("permission denied"), { httpStatus: 403 }),
+    );
+
+    render(<TimetablesPage />);
+
+    await waitFor(() =>
+      expect(mockLoggerWarn).toHaveBeenCalledWith("periods_bootstrap_failed", {
+        error: "permission denied",
+        status: 403,
+      }),
+    );
+    expect(mockLoggerError).not.toHaveBeenCalledWith(
+      "periods_bootstrap_failed",
+      expect.anything(),
+    );
+  });
+
+  it("logs an error when the bootstrap fails for other reasons", async () => {
+    setupSWR({ periods: [] });
+    mockBootstrap.mockRejectedValue(new Error("backend down"));
+
+    render(<TimetablesPage />);
+
+    await waitFor(() =>
+      expect(mockLoggerError).toHaveBeenCalledWith("periods_bootstrap_failed", {
+        error: "backend down",
+      }),
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+      "periods_bootstrap_failed",
+      expect.anything(),
+    );
   });
 
   it("opens the quick-create modal from an empty week slot", () => {

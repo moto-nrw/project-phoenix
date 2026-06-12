@@ -35,7 +35,6 @@ import {
   mapSubstitute,
   mapTemplates,
   mapWeeklyInstances,
-  materializeWarningHint,
   parseTimeToMinutes,
   toISODate,
 } from "./timetable-helpers";
@@ -755,53 +754,5 @@ describe("mapConflictCheckResult", () => {
       endTime: "13:00",
       warnings: [],
     });
-  });
-});
-
-describe("materializeWarningHint", () => {
-  it("appends an actionable hint for skipped_no_room", () => {
-    expect(
-      materializeWarningHint({
-        code: "skipped_no_room",
-        message: "Yoga: Raum fehlt",
-      }),
-    ).toBe("Yoga: Raum fehlt – Regeltermin bearbeiten und Raum ergänzen.");
-  });
-
-  it("appends an actionable hint for skipped_incomplete", () => {
-    expect(
-      materializeWarningHint({
-        code: "skipped_incomplete",
-        message: "Yoga: Angaben unvollständig",
-      }),
-    ).toBe(
-      "Yoga: Angaben unvollständig – Regeltermin bearbeiten und fehlende Angaben ergänzen.",
-    );
-  });
-
-  it("falls back to a generic detail when the message is empty", () => {
-    expect(
-      materializeWarningHint({ code: "skipped_no_room", message: "" }),
-    ).toBe("Raum fehlt – Regeltermin bearbeiten und Raum ergänzen.");
-    expect(
-      materializeWarningHint({ code: "skipped_incomplete", message: "" }),
-    ).toBe(
-      "Angaben unvollständig – Regeltermin bearbeiten und fehlende Angaben ergänzen.",
-    );
-  });
-
-  it("returns the raw backend message for other codes", () => {
-    expect(
-      materializeWarningHint({
-        code: "no_active_period",
-        message: "Kein aktiver Planungszeitraum",
-      }),
-    ).toBe("Kein aktiver Planungszeitraum");
-    expect(
-      materializeWarningHint({
-        code: "some_future_code",
-        message: "Unbekannte Warnung",
-      }),
-    ).toBe("Unbekannte Warnung");
   });
 });

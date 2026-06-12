@@ -141,6 +141,14 @@ const WEEKDAYS = [1, 2, 3, 4, 5] as const;
  */
 const MATERIALIZE_CHUNK_DAYS = 56;
 
+/**
+ * Shown when the primary template write succeeded but a follow-up
+ * materialize/replan chunk failed. The form must still close in that case —
+ * re-submitting would duplicate the already-saved template.
+ */
+const FOLLOW_UP_WARNING =
+  "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.";
+
 /** Plain-language repeat presets shown in the quick variant. */
 type QuickRepeatPreset =
   | "einmalig"
@@ -296,7 +304,11 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
 }: TimetableEventModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const {
+    success: toastSuccess,
+    error: toastError,
+    warning: toastWarning,
+  } = useToast();
   const { isModalOpen } = useModal();
   const [form, setForm] = useState<EventFormState>(() =>
     emptyForm(
@@ -473,10 +485,19 @@ export function TimetableEventModal({
     studentIds: form.studentIds,
   });
   const debouncedProbeKey = useDebounce(probeKey, 500);
-  const excludeInstanceId = initialInstance?.id;
+  // The convert flow edits an existing instance too — its own slot must not
+  // self-conflict, exactly like the regular instance edit.
+  const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
 
   useEffect(() => {
     if (!isOpen) return;
+    // While the debounced key lags behind the live form (typing, or a
+    // reopen that reset the form), probing would use outdated values —
+    // skip and invalidate any in-flight probe for the outdated key.
+    if (debouncedProbeKey !== probeKey) {
+      probeSeq.current++;
+      return;
+    }
     const probe = JSON.parse(debouncedProbeKey) as {
       date: string;
       startTime: string;
@@ -514,7 +535,7 @@ export function TimetableEventModal({
         });
         if (probeSeq.current === seq) setConflictWarnings([]);
       });
-  }, [debouncedProbeKey, excludeInstanceId, isOpen]);
+  }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
 
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
@@ -727,28 +748,38 @@ export function TimetableEventModal({
   /**
    * Rebuilds a template's future planned instances: chunked scoped
    * re-plan from today through the period end (each window stays within
-   * the backend's 56-day materialization cap). Returns the created count.
+   * the backend's 56-day materialization cap). Chunk failures are caught
+   * here — the primary template write already succeeded, so they must not
+   * bubble into the form's error path. Returns false when a chunk failed.
    */
   const replanTemplateFuture = async (
     templateId: string,
     periodEndISO?: string,
-  ): Promise<number> => {
+  ): Promise<boolean> => {
     const endISO =
       periodEndISO ?? findPeriod(form.calendarPeriodId)?.endDate ?? weekTo;
-    if (!endISO) return 0;
+    if (!endISO) return true;
     const chunks = chunkDateRange(todayISO(), endISO, MATERIALIZE_CHUNK_DAYS);
-    let created = 0;
     for (const chunk of chunks) {
-      const result = await timetableService.replanWeek(
-        chunk.from,
-        chunk.to,
-        templateId,
-      );
-      created += result.instancesCreated;
-      // A precondition like "no_active_period" applies to every chunk.
-      if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      try {
+        const result = await timetableService.replanWeek(
+          chunk.from,
+          chunk.to,
+          templateId,
+        );
+        // A precondition like "no_active_period" applies to every chunk.
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      } catch (err) {
+        logger.error("series_replan_chunk_failed", {
+          template_id: templateId,
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
     }
-    return created;
+    return true;
   };
 
   /**
@@ -756,11 +787,17 @@ export function TimetableEventModal({
    * Phase 3). The backend caps one materialization window at 56 days, so
    * the create call carries only the first chunk; the rest follow as
    * separate materialize calls. Falls back to the visible week when no
-   * period is resolvable.
+   * period is resolvable. Follow-up chunk failures are caught here (the
+   * template already exists; a thrown error would invite a duplicating
+   * retry) and reported via `followUpOk`.
    */
   const createSeriesForPeriod = async (
     body: CreateTemplateBody,
-  ): Promise<{ templateId: string; totalCreated: number }> => {
+  ): Promise<{
+    templateId: string;
+    totalCreated: number;
+    followUpOk: boolean;
+  }> => {
     const period = findPeriod(form.calendarPeriodId);
     const chunks = period
       ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
@@ -775,6 +812,7 @@ export function TimetableEventModal({
       return {
         templateId: created.templateId,
         totalCreated: created.instancesCreated ?? 0,
+        followUpOk: true,
       };
     }
     const created = await timetableService.createTemplate({
@@ -783,29 +821,53 @@ export function TimetableEventModal({
       materialize_to: firstChunk.to,
     });
     let totalCreated = created.instancesCreated ?? 0;
+    let followUpOk = true;
     for (const chunk of restChunks) {
-      const result = await timetableService.materialize(chunk.from, chunk.to);
-      totalCreated += result.instancesCreated;
-      if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      try {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        totalCreated += result.instancesCreated;
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      } catch (err) {
+        logger.error("series_materialize_chunk_failed", {
+          template_id: created.templateId,
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        followUpOk = false;
+        break;
+      }
     }
-    return { templateId: created.templateId, totalCreated };
+    return { templateId: created.templateId, totalCreated, followUpOk };
   };
 
-  /** Materializes the whole selected period after linking a converted instance. */
-  const materializePeriodAfterConvert = async (): Promise<void> => {
+  /**
+   * Materializes the whole selected period after linking a converted
+   * instance. Failures are caught (template and link are already saved)
+   * and reported via the return value.
+   */
+  const materializePeriodAfterConvert = async (): Promise<boolean> => {
     const period = findPeriod(form.calendarPeriodId);
     const chunks = period
       ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
       : [];
-    if (chunks.length === 0) {
-      if (weekFrom && weekTo) {
-        await timetableService.materialize(weekFrom, weekTo);
+    try {
+      if (chunks.length === 0) {
+        if (weekFrom && weekTo) {
+          await timetableService.materialize(weekFrom, weekTo);
+        }
+        return true;
       }
-      return;
-    }
-    for (const chunk of chunks) {
-      const result = await timetableService.materialize(chunk.from, chunk.to);
-      if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      for (const chunk of chunks) {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      }
+      return true;
+    } catch (err) {
+      logger.error("series_materialize_chunk_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return false;
     }
   };
 
@@ -851,8 +913,11 @@ export function TimetableEventModal({
           initialSeries.id,
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        await replanTemplateFuture(initialSeries.id);
-        toastSuccess("Regeltermin gespeichert");
+        if (await replanTemplateFuture(initialSeries.id)) {
+          toastSuccess("Regeltermin gespeichert");
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
+        }
         onSaved({ kind: "series", seriesId: initialSeries.id });
         onClose();
         return;
@@ -866,22 +931,30 @@ export function TimetableEventModal({
           convertInstance.id,
           instanceBody(parsed.roomId, created.templateId),
         );
-        await materializePeriodAfterConvert();
-        toastSuccess("Termin wiederholt");
+        if (await materializePeriodAfterConvert()) {
+          toastSuccess("Termin wiederholt");
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
+        }
         onSaved({
           kind: "series",
           seriesId: created.templateId,
           linkedInstanceId: convertInstance.id,
         });
       } else {
-        const { templateId, totalCreated } = await createSeriesForPeriod(
-          seriesBody(parsed.roomId, parsed.categoryId),
-        );
-        toastSuccess(
-          totalCreated > 0
-            ? `Regeltermin angelegt: ${totalCreated} Termin${totalCreated === 1 ? "" : "e"} eingetragen`
-            : "Regeltermin angelegt",
-        );
+        const { templateId, totalCreated, followUpOk } =
+          await createSeriesForPeriod(
+            seriesBody(parsed.roomId, parsed.categoryId),
+          );
+        if (followUpOk) {
+          toastSuccess(
+            totalCreated > 0
+              ? `Regeltermin angelegt: ${totalCreated} Termin${totalCreated === 1 ? "" : "e"} eingetragen`
+              : "Regeltermin angelegt",
+          );
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
+        }
         onSaved({ kind: "series", seriesId: templateId });
       }
       onClose();
@@ -943,22 +1016,48 @@ export function TimetableEventModal({
           // Beyond the first 56-day window the split leaves the old
           // template's stale planned rows in place; a scoped re-plan per
           // chunk clears them and materializes the successor template.
+          // Chunk failures are follow-up only — the split already
+          // succeeded, so warn and close instead of re-opening the form.
+          let followUpOk = true;
           for (const chunk of chunks.slice(1)) {
-            const result = await timetableService.replanWeek(
-              chunk.from,
-              chunk.to,
-              groupId,
-            );
-            if (result.warnings.some((w) => w.code === "no_active_period")) {
+            try {
+              const result = await timetableService.replanWeek(
+                chunk.from,
+                chunk.to,
+                groupId,
+              );
+              if (result.warnings.some((w) => w.code === "no_active_period")) {
+                break;
+              }
+            } catch (chunkErr) {
+              logger.error("series_replan_chunk_failed", {
+                template_id: groupId,
+                from: chunk.from,
+                to: chunk.to,
+                error:
+                  chunkErr instanceof Error
+                    ? chunkErr.message
+                    : String(chunkErr),
+              });
+              followUpOk = false;
               break;
             }
           }
-          toastSuccess(`Regeltermin ab ${formatDate(effectiveDate)} geändert`);
+          if (followUpOk) {
+            toastSuccess(
+              `Regeltermin ab ${formatDate(effectiveDate)} geändert`,
+            );
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
           onSaved({ kind: "series", seriesId: split.newTemplateId });
         } else {
           await timetableService.updateTemplate(groupId, body);
-          await replanTemplateFuture(groupId, periodEnd);
-          toastSuccess("Regeltermin gespeichert");
+          if (await replanTemplateFuture(groupId, periodEnd)) {
+            toastSuccess("Regeltermin gespeichert");
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
           onSaved({ kind: "series", seriesId: groupId });
         }
       }
@@ -969,10 +1068,15 @@ export function TimetableEventModal({
         scope,
         error: err instanceof Error ? err.message : String(err),
       });
-      const msg =
+      const raw =
         err instanceof Error
           ? err.message
           : "Termin konnte nicht gespeichert werden";
+      // Backend rejects splits whose effective date already passed; the
+      // raw English message is meaningless to school staff.
+      const msg = raw.includes("effective_date must not be in the past")
+        ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
+        : raw;
       setPendingSeriesEdit(null);
       setValidationError(msg);
       toastError(msg);
@@ -1018,8 +1122,12 @@ export function TimetableEventModal({
     ];
   }, [students]);
 
+  // Datum and Notiz only apply to the single-instance scope — series-wide
+  // scopes write the template, which carries neither field.
   const dateChanged =
     initialInstance !== null && form.date !== initialInstance.date;
+  const notesChanged =
+    initialInstance !== null && form.notes !== (initialInstance.notes ?? "");
 
   const title = isEditingSeries
     ? "Regeltermin bearbeiten"
@@ -1102,12 +1210,17 @@ export function TimetableEventModal({
         // drawer's DOM. Without these guards Vaul's DismissableLayer treats
         // every click inside the open dialog as an outside-click and closes
         // the slide-over, unmounting the dialog before its buttons can
-        // fire. See issue #1358.
+        // fire. See issue #1358. `submitting` additionally blocks dismissal
+        // mid-save (both the form submit and the scope flow set it).
         onInteractOutside={(event) => {
-          if (isModalOpen || choiceDialogOpen) event.preventDefault();
+          if (isModalOpen || choiceDialogOpen || submitting) {
+            event.preventDefault();
+          }
         }}
         onEscapeKeyDown={(event) => {
-          if (isModalOpen || choiceDialogOpen) event.preventDefault();
+          if (isModalOpen || choiceDialogOpen || submitting) {
+            event.preventDefault();
+          }
         }}
       >
         <SlideOverHeader>
@@ -1241,7 +1354,7 @@ export function TimetableEventModal({
             {expanded ? (
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-semibold text-gray-700">
-                  Wiederholen
+                  Wiederholt sich
                 </span>
                 <Tabs
                   value={form.repeat}
@@ -1281,9 +1394,13 @@ export function TimetableEventModal({
                   className={FORM_SELECT_CLASS}
                 >
                   <option value="einmalig">Einmalig</option>
-                  <option value="woechentlich-am">
-                    {`Wöchentlich am ${dateWeekdayName}`}
-                  </option>
+                  {/* On Sa/So a weekly preset would silently save a Monday
+                      series (weekdays are Mo–Fr) — omit it instead. */}
+                  {dateWeekday >= 1 && dateWeekday <= 5 && (
+                    <option value="woechentlich-am">
+                      {`Wöchentlich am ${dateWeekdayName}`}
+                    </option>
+                  )}
                   <option value="jeden-wochentag">
                     Jeden Wochentag (Mo–Fr)
                   </option>
@@ -1509,7 +1626,7 @@ export function TimetableEventModal({
         {conflictWarnings.length > 0 && (
           // Advisory pre-save hints (QA M7): visible in quick and expanded
           // mode, pinned above the footer. Never disables Speichern.
-          <div className="flex flex-col gap-2 border-t border-slate-200 px-5 py-3">
+          <div className="flex flex-col gap-2 border-t border-gray-200 px-5 py-3">
             {conflictWarnings.map((warning, index) => (
               <Alert
                 key={`${warning.kind}-${warning.resourceId}-${index}`}
@@ -1553,8 +1670,8 @@ export function TimetableEventModal({
             title="Wiederholenden Termin ändern"
             description={
               `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
-              (dateChanged
-                ? ' Das geänderte Datum gilt nur bei "Nur dieser Termin".'
+              (dateChanged || notesChanged
+                ? " Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“."
                 : "")
             }
             options={[
@@ -1566,7 +1683,7 @@ export function TimetableEventModal({
               {
                 value: "following",
                 label: "Dieser und alle folgenden",
-                description: `Teilt den Regeltermin ab ${formatDate(initialInstance.date)}; frühere Termine bleiben unverändert.`,
+                description: `Die Änderung gilt ab dem ${formatDate(initialInstance.date)} für diesen und alle weiteren Termine; frühere bleiben unverändert.`,
               },
               {
                 value: "all",

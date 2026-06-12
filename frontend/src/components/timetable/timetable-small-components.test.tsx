@@ -535,6 +535,9 @@ describe("small timetable components", () => {
       "aria-label",
       "Neuen Termin anlegen: Mo 04.05., 09:00 Uhr",
     );
+    // Slots stay out of the tab order — they would add ~40 stops before
+    // the first event; keyboard users go through the "Neu" menu.
+    expect(slotButtons[0]).toHaveAttribute("tabindex", "-1");
 
     fireEvent.click(
       screen.getByRole("button", {

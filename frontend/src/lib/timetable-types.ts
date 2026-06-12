@@ -312,12 +312,7 @@ export interface MaterializeResult {
  * MaterializationWarning constants (services/schedule/materialization_service.go).
  */
 export interface MaterializeWarning {
-  code:
-    | "no_active_period"
-    | "no_templates"
-    | "skipped_no_room"
-    | "skipped_incomplete"
-    | (string & {});
+  code: "no_active_period" | "no_templates" | (string & {});
   message: string;
 }
 

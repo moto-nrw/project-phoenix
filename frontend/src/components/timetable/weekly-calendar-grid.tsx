@@ -266,6 +266,10 @@ export function WeeklyCalendarGrid({
                     <button
                       key={`slot-${hour}`}
                       type="button"
+                      // Out of the tab order: ~100 hourly slots would bury
+                      // the first event behind dozens of tab stops; keyboard
+                      // users create events via the "Neu" menu instead.
+                      tabIndex={-1}
                       onClick={() => onSlotClick(iso, hour)}
                       aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
                       className="group absolute inset-x-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"

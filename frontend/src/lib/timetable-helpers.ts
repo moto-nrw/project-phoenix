@@ -35,7 +35,6 @@ import type {
   InstanceStudentSummary,
   InstanceStatusResult,
   MaterializeResult,
-  MaterializeWarning,
   ReplanWeekResult,
   SplitTemplateResult,
   StartInstanceResult,
@@ -557,27 +556,6 @@ export function mapConflictCheckResult(
       conflictingTitle: warning.conflicting_title,
     })),
   };
-}
-
-/**
- * Actionable German hint for a materialization warning. The backend
- * message names the affected template (e.g. "Yoga: Raum fehlt"); for the
- * skipped_* codes we append what the user can do about it. Unknown codes
- * fall back to the raw backend message.
- */
-export function materializeWarningHint(w: MaterializeWarning): string {
-  switch (w.code) {
-    case "skipped_no_room": {
-      const detail = w.message || "Raum fehlt";
-      return `${detail} – Regeltermin bearbeiten und Raum ergänzen.`;
-    }
-    case "skipped_incomplete": {
-      const detail = w.message || "Angaben unvollständig";
-      return `${detail} – Regeltermin bearbeiten und fehlende Angaben ergänzen.`;
-    }
-    default:
-      return w.message;
-  }
 }
 
 export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {

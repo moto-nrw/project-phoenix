@@ -40,12 +40,20 @@ export function ChoiceModal({
   onSelect,
   isBusy = false,
 }: ChoiceModalProps) {
+  // While the caller is working, every dismiss path (backdrop, Escape,
+  // close button, Abbrechen) must be inert — closing mid-save would let
+  // the user re-trigger an already-running mutation.
+  const handleClose = () => {
+    if (isBusy) return;
+    onClose();
+  };
+
   const footer = (
     <Button
       type="button"
       variant="outline"
       size="md"
-      onClick={onClose}
+      onClick={handleClose}
       disabled={isBusy}
     >
       Abbrechen
@@ -53,7 +61,7 @@ export function ChoiceModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
+    <Modal isOpen={isOpen} onClose={handleClose} title={title} footer={footer}>
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>
       )}

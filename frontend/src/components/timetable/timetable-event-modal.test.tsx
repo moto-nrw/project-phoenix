@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -10,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockToastSuccess,
   mockToastError,
+  mockToastWarning,
   mockCreate,
   mockUpdate,
   mockCreateTemplate,
@@ -24,6 +26,7 @@ const {
 } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockToastWarning: vi.fn(),
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockCreateTemplate: vi.fn(),
@@ -38,7 +41,11 @@ const {
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
-  useToast: () => ({ success: mockToastSuccess, error: mockToastError }),
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+    warning: mockToastWarning,
+  }),
 }));
 
 vi.mock("~/lib/logger", () => ({
@@ -675,6 +682,16 @@ describe("TimetableEventModal", () => {
       await screen.findByText("Wiederholenden Termin ändern"),
     ).toBeInTheDocument();
     expect(mockUpdate).not.toHaveBeenCalled();
+    // The scope copy explains the effect, not the split mechanism.
+    expect(
+      screen.getByText(
+        "Die Änderung gilt ab dem 04.05.2026 für diesen und alle weiteren Termine; frühere bleiben unverändert.",
+      ),
+    ).toBeInTheDocument();
+    // Neither Datum nor Notiz changed — no single-scope hint.
+    expect(
+      screen.queryByText(/Geändertes Datum und Notiz/),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Nur dieser Termin/ }));
 
@@ -890,5 +907,198 @@ describe("TimetableEventModal", () => {
       expect(screen.queryByText(/Hinweis:/)).not.toBeInTheDocument(),
     );
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("excludes the converted instance from the conflict probe", async () => {
+    renderModal({ convertInstance: savedInstance });
+
+    await screen.findByText("Haus A - Mensa");
+    await waitFor(
+      () =>
+        expect(mockCheckConflicts).toHaveBeenCalledWith(
+          expect.objectContaining({
+            roomId: "3",
+            excludeInstanceId: "42",
+          }),
+        ),
+      { timeout: 2000 },
+    );
+  });
+
+  it("skips the stale conflict probe when the modal reopens mid-debounce", async () => {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    const baseProps = {
+      isOpen: true,
+      onClose,
+      onSaved,
+      defaultDate: "2026-05-04",
+      weekFrom: "2026-05-04",
+      weekTo: "2026-05-08",
+      calendarPeriods: periods,
+      defaultCalendarPeriodId: "5",
+    } as const;
+    const { rerender } = render(<TimetableEventModal {...baseProps} />);
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    await waitFor(() => expect(mockCheckConflicts).toHaveBeenCalledTimes(1), {
+      timeout: 2000,
+    });
+
+    // Clearing the room changes the probe key; the debounced key still
+    // holds the room for ~500ms. Reopening inside that window used to
+    // fire one probe with the previous draft.
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "" },
+    });
+    mockCheckConflicts.mockClear();
+    setupRefs();
+    rerender(<TimetableEventModal {...baseProps} isOpen={false} />);
+    rerender(<TimetableEventModal {...baseProps} isOpen />);
+
+    await screen.findByText("Haus A - Mensa");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
+    expect(mockCheckConflicts).not.toHaveBeenCalled();
+  });
+
+  it("warns but still saves and closes when a materialize chunk fails after the series was created", async () => {
+    mockMaterialize.mockRejectedValue(new Error("chunk down"));
+    const { onClose, onSaved } = renderModal({ variant: "quick" });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText("Wiederholt sich"), {
+      target: { value: "jeden-wochentag" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    // The template landed once; the follow-up failure must not re-open
+    // the form (a retry would create a duplicate template).
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(mockCreateTemplate).toHaveBeenCalledTimes(1);
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+    );
+    expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("warns but still saves and closes when replanning fails after the series split", async () => {
+    mockReplanWeek.mockRejectedValue(new Error("replan down"));
+    const { onClose, onSaved } = renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Dieser und alle folgenden/ }),
+    );
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(mockSplitTemplate).toHaveBeenCalledTimes(1);
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+    );
+    expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("warns but still saves and closes when replanning fails after the template update", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+    mockReplanWeek.mockRejectedValue(new Error("replan down"));
+    const { onClose, onSaved } = renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(mockUpdateTemplate).toHaveBeenCalledTimes(1);
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.",
+    );
+    expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+    expect(mockToastError).not.toHaveBeenCalled();
+  });
+
+  it("translates the past-effective-date backend error in the scope flow", async () => {
+    mockSplitTemplate.mockRejectedValue(
+      new Error("effective_date must not be in the past"),
+    );
+    const { onClose } = renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Dieser und alle folgenden/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockToastError).toHaveBeenCalledWith(
+        "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen.",
+      ),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("flags date and note as single-scope-only when the note changed", async () => {
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Notiz"), {
+      target: { value: "neuer Hinweis" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await screen.findByText("Wiederholenden Termin ändern");
+    expect(
+      screen.getByText(
+        /Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the weekly preset for weekend dates in quick mode", async () => {
+    // 2026-05-09 is a Saturday — a "Wöchentlich am Samstag" preset would
+    // silently save a Monday series.
+    renderModal({ variant: "quick", defaultDate: "2026-05-09" });
+
+    await screen.findByText("Haus A - Mensa");
+    expect(
+      screen.queryByRole("option", { name: /Wöchentlich am/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Einmalig" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Jeden Wochentag (Mo–Fr)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Benutzerdefiniert …" }),
+    ).toBeInTheDocument();
   });
 });

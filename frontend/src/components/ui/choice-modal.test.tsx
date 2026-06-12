@@ -179,4 +179,48 @@ describe("ChoiceModal", () => {
     fireEvent.click(optionButton);
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it("ignores backdrop, Escape and close button while isBusy", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <ChoiceModal
+          isOpen
+          onClose={onClose}
+          title="Änderung anwenden"
+          options={options}
+          onSelect={vi.fn()}
+          isBusy
+        />
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // The shared Modal defers its onClose by 250ms (exit animation);
+    // advance past that after every dismiss attempt.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hintergrund - Klicken zum Schließen",
+      }),
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

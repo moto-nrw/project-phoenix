@@ -927,9 +927,21 @@ function TimetablesContent() {
       .bootstrap()
       .then(() => tenantMutate(PERIODS_SWR_KEY))
       .catch((err: unknown) => {
-        logger.error("periods_bootstrap_failed", {
+        // 403 (missing SchedulesCreate permission) is expected for
+        // non-admin staff opening the planner — warn instead of error.
+        const httpStatus =
+          typeof err === "object" && err !== null && "httpStatus" in err
+            ? (err as { httpStatus?: unknown }).httpStatus
+            : undefined;
+        const context = {
           error: err instanceof Error ? err.message : String(err),
-        });
+          ...(typeof httpStatus === "number" ? { status: httpStatus } : {}),
+        };
+        if (httpStatus === 403) {
+          logger.warn("periods_bootstrap_failed", context);
+        } else {
+          logger.error("periods_bootstrap_failed", context);
+        }
       });
   }, [
     periods,
