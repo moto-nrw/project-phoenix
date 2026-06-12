@@ -4,6 +4,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -124,7 +125,14 @@ func (s *formSchemaService) GetByID(ctx context.Context, id int64) (*enrollmentM
 	if id <= 0 {
 		return nil, fmt.Errorf("schema id must be positive")
 	}
-	return s.repo.FindByID(ctx, id)
+	schema, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %w", ErrFormSchemaNotFound, err)
+		}
+		return nil, err
+	}
+	return schema, nil
 }
 
 func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentModels.FormSchema, error) {

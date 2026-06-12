@@ -1497,6 +1497,35 @@ func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest
 		return nil
 	}
 
+	if s.db != nil {
+		rateCtx := modelBase.ContextWithoutTx(ctx)
+		var limitErr error
+		err := tenant.WithTenantTx(rateCtx, s.db, req.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			limitErr = s.enforceRateLimitBuckets(txCtx, req)
+			if errors.Is(limitErr, ErrRateLimited) {
+				return nil
+			}
+			return limitErr
+		})
+		if err != nil {
+			s.logger.Warn("enrollment submit: rate-limit transaction failed; allowing through",
+				slog.String("error", err.Error()),
+				slog.Int64("tenant_id", req.TenantID))
+		}
+		if errors.Is(limitErr, ErrRateLimited) {
+			return limitErr
+		}
+		return nil
+	}
+
+	return s.enforceRateLimitBuckets(ctx, req)
+}
+
+func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
+	if s.rateLimitRepo == nil || req.TenantID <= 0 {
+		return nil
+	}
+
 	ip := strings.TrimSpace(req.RemoteIP)
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 

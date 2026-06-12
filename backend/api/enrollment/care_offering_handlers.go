@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -459,7 +460,6 @@ func toPublicFormSchemaResponse(schema *enrollmentModels.FormSchema) *PublicForm
 		Version:          schema.Version,
 		Fields:           schema.Fields,
 		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
-		LegalBlocks:      legalBlocksValue(schema.LegalBlocks),
 	}
 }
 
@@ -487,6 +487,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		offerings []*enrollmentModels.CareOffering
 		texts     enrollmentService.LegalTexts
 		captcha   PublicCaptchaConfigResponse
+		legalErr  error
 	)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
@@ -503,9 +504,13 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				}
 				loadedSchema, schemaErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
 				if schemaErr != nil {
-					return schemaErr
+					if !errors.Is(schemaErr, enrollmentService.ErrFormSchemaNotFound) {
+						return schemaErr
+					}
+					// Stale pinned schema: degrade to Basis/core fields.
+				} else {
+					schema = loadedSchema
 				}
-				schema = loadedSchema
 			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			if listErr != nil {
@@ -514,15 +519,24 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 			offerings = list
 			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
-			legalTexts, legalErr := rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
-			if legalErr != nil {
-				return legalErr
+			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
+			if legalTextErr != nil {
+				if !errors.Is(legalTextErr, enrollmentService.ErrInvalidSubmission) &&
+					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentDisabled) &&
+					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentWindowClosed) {
+					legalErr = legalTextErr
+				}
+				return legalTextErr
 			}
 			texts = legalTexts
 			return nil
 		})
 	}
 	if resolveErr != nil {
+		if legalErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", legalErr)))
+			return
+		}
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
 	}

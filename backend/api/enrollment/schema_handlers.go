@@ -115,7 +115,6 @@ type PublicFormSchemaResponse struct {
 	Version          int                               `json:"version"`
 	Fields           []enrollmentModels.FormField      `json:"fields"`
 	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
-	LegalBlocks      []enrollmentModels.FormLegalBlock `json:"legal_blocks"`
 }
 
 type SchemaPreviewBootstrapResponse struct {
@@ -169,7 +168,7 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		// A missing schema id is the caller's problem (404); everything
 		// else (phase listing, DB failures) is a genuine 500 — rendering
 		// those as 400 would hide internal failures behind client blame.
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, enrollmentService.ErrFormSchemaNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -256,6 +255,9 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 			}
 			s, innerErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
 			if innerErr != nil {
+				if errors.Is(innerErr, enrollmentService.ErrFormSchemaNotFound) {
+					return enrollmentService.ErrNoActiveSchema
+				}
 				return innerErr
 			}
 			schema = s
@@ -272,7 +274,6 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		Version:          schema.Version,
 		Fields:           schema.Fields,
 		CoreRequirements: coreRequirementsValue(schema.CoreRequirements),
-		LegalBlocks:      legalBlocksValue(schema.LegalBlocks),
 	}
 	common.Respond(w, r, http.StatusOK, out, "Public active form schema retrieved")
 }

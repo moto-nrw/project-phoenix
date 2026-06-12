@@ -155,6 +155,8 @@ func TestFormSchemaRepository_FindByID_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "not found")
+	assert.True(t, errors.Is(err, sql.ErrNoRows),
+		"FindByID not-found must preserve sql.ErrNoRows for stale schema fallbacks")
 }
 
 // --- FindActive ---------------------------------------------------------

@@ -24,7 +24,12 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json(payload, { status: response.status });
     }
 
-    const session = await auth();
+    const session = await auth().catch((error: unknown) => {
+      logger.warn("profile_auth_prefetch_failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
     const token = session?.user?.token;
     if (!token) {
       return NextResponse.json(payload, { status: response.status });
