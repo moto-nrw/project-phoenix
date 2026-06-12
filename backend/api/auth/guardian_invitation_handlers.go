@@ -150,10 +150,8 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolService != nil && rs.db != nil {
-		if slug := rs.lookupTenantSlugForGuardianInvitation(r.Context(), token); slug != "" {
-			resp.TenantSlug = slug
-		}
+	if slug := rs.lookupTenantSlugForGuardianInvitation(r.Context(), token); slug != "" {
+		resp.TenantSlug = slug
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Guardian invitation accepted successfully")
 }

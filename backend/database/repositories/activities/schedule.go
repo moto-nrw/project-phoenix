@@ -274,7 +274,9 @@ func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryO
 }
 
 // DeleteByGroupID removes all schedules of an activity group (issue #584:
-// moved verbatim from api/timetable's template update).
+// moved verbatim from api/timetable's template update). Custom method
+// (Rule 2): the generic Delete works on a single primary key — a bulk
+// delete by foreign key plus tenant filter is not expressible through it.
 func (r *ScheduleRepository) DeleteByGroupID(ctx context.Context, groupID int64) error {
 	tenantID := tenant.FromContext(ctx)
 	_, err := base.GetDB(ctx, r.db).NewDelete().

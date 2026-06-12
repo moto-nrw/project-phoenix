@@ -229,7 +229,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 	}
 
 	if rs.timetableData == nil {
-		return nil, errors.New("instanceStudentRepo not wired")
+		return nil, errors.New("timetable data service not wired")
 	}
 	enrolledRows, err := rs.timetableData.GetStudentInstancesWithAttendance(
 		ctx, studentID, from, to,
@@ -242,9 +242,6 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		out.enrolledByDate[k] = append(out.enrolledByDate[k], row)
 	}
 
-	if rs.timetableData == nil {
-		return nil, errors.New("activityInstanceRepo not wired")
-	}
 	allInstances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load all tenant instances: %w", err)
@@ -271,7 +268,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		}
 	}
 
-	if len(activeGroupIDs) > 0 && rs.timetableData != nil {
+	if len(activeGroupIDs) > 0 {
 		visits, err := rs.timetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load student visits: %w", err)
@@ -286,44 +283,36 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 
 	// Arrival/pickup weekly schedules: one query each returns up to 5 rows
 	// total per student (one per weekday). Cheaper than per-weekday queries.
-	if rs.timetableData != nil {
-		schedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.arrivalSchedByWeekly[s.Weekday] = s
-		}
+	arrivalSchedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival schedules: %w", err)
 	}
-	if rs.timetableData != nil {
-		schedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.pickupSchedByWeekly[s.Weekday] = s
-		}
+	for _, s := range arrivalSchedules {
+		out.arrivalSchedByWeekly[s.Weekday] = s
+	}
+	pickupSchedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup schedules: %w", err)
+	}
+	for _, s := range pickupSchedules {
+		out.pickupSchedByWeekly[s.Weekday] = s
 	}
 
 	// Arrival/pickup exceptions: range-scoped (avoid loading unbounded
 	// history).
-	if rs.timetableData != nil {
-		excs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	arrivalExcs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival exceptions: %w", err)
 	}
-	if rs.timetableData != nil {
-		excs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	for _, e := range arrivalExcs {
+		out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
+	}
+	pickupExcs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup exceptions: %w", err)
+	}
+	for _, e := range pickupExcs {
+		out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
 	}
 
 	return out, nil

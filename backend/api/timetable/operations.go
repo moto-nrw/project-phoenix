@@ -367,6 +367,10 @@ func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
 	instanceID, studentID, ok := parseOperationInstanceStudentIDs(w, r)
 	if !ok {
 		return
@@ -381,6 +385,10 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
 	instanceID, studentID, ok := parseOperationInstanceStudentIDs(w, r)
 	if !ok {
 		return
