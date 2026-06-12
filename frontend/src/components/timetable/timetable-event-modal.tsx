@@ -272,6 +272,7 @@ export function TimetableEventModal({
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -290,6 +291,7 @@ export function TimetableEventModal({
             : emptyForm(defaultDate, defaultCalendarPeriodId, defaultRepeat),
     );
     setValidationError(null);
+    setFieldErrors({});
     setLoadingRefs(true);
 
     void Promise.all([
@@ -388,12 +390,25 @@ export function TimetableEventModal({
     isOpen,
   ]);
 
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const update = <K extends keyof EventFormState>(
     key: K,
     value: EventFormState[K],
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setValidationError(null);
+    clearFieldError(key);
+    // The end-before-start error is stored under endTime but depends on both
+    // time fields, so correcting the start time must clear it too.
+    if (key === "startTime") clearFieldError("endTime");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -405,54 +420,47 @@ export function TimetableEventModal({
       return { ...prev, weekdays: next };
     });
     setValidationError(null);
+    clearFieldError("weekdays");
   };
 
-  const canSubmit = useMemo(() => {
-    if (submitting) return false;
-    if (form.title.trim() === "") return false;
-    if (form.date === "" || form.startTime === "" || form.endTime === "") {
-      return false;
+  const validateForm = (): { roomId: number; categoryId?: number } | null => {
+    const errors: Record<string, string> = {};
+    if (form.title.trim() === "") {
+      errors.title = "Bitte einen Titel eingeben.";
     }
-    if (form.roomId === "") return false;
-    if (isSeriesFlow && form.categoryId === "") return false;
-    if (isSeriesFlow && form.weekdays.length === 0) return false;
-    if (isSeriesFlow && form.calendarPeriodId === "") return false;
-    if (isEditingInstance && initialInstance?.status !== "planned")
-      return false;
-    return true;
-  }, [
-    form,
-    initialInstance?.status,
-    isEditingInstance,
-    isSeriesFlow,
-    submitting,
-  ]);
-
-  const validateShared = (): { roomId: number; categoryId?: number } | null => {
-    if (form.endTime <= form.startTime) {
-      setValidationError("Endzeit muss nach der Startzeit liegen.");
-      return null;
+    if (form.date === "") {
+      errors.date = "Bitte ein Datum auswählen.";
+    }
+    if (form.startTime === "") {
+      errors.startTime = "Bitte eine Startzeit angeben.";
+    }
+    if (form.endTime === "") {
+      errors.endTime = "Bitte eine Endzeit angeben.";
+    } else if (form.startTime !== "" && form.endTime <= form.startTime) {
+      errors.endTime = "Endzeit muss nach der Startzeit liegen.";
     }
     const roomId = Number.parseInt(form.roomId, 10);
     if (!Number.isFinite(roomId) || roomId <= 0) {
-      setValidationError("Bitte einen Raum auswählen.");
-      return null;
+      errors.roomId = "Bitte einen Raum auswählen.";
     }
-    if (!isSeriesFlow) return { roomId };
-    const categoryId = Number.parseInt(form.categoryId, 10);
-    if (!Number.isFinite(categoryId) || categoryId <= 0) {
-      setValidationError("Bitte eine Kategorie auswählen.");
-      return null;
+    let categoryId: number | undefined;
+    if (isSeriesFlow) {
+      const parsedCategoryId = Number.parseInt(form.categoryId, 10);
+      if (!Number.isFinite(parsedCategoryId) || parsedCategoryId <= 0) {
+        errors.categoryId = "Bitte eine Kategorie auswählen.";
+      } else {
+        categoryId = parsedCategoryId;
+      }
+      const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
+      if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
+        errors.calendarPeriodId = "Bitte einen Planungszeitraum auswählen.";
+      }
+      if (form.weekdays.length === 0) {
+        errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
+      }
     }
-    const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
-    if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
-      setValidationError("Bitte einen Planungszeitraum auswählen.");
-      return null;
-    }
-    if (form.weekdays.length === 0) {
-      setValidationError("Bitte mindestens einen Wochentag auswählen.");
-      return null;
-    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return null;
     return { roomId, categoryId };
   };
 
@@ -494,8 +502,9 @@ export function TimetableEventModal({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    const parsed = validateShared();
+    if (submitting) return;
+    if (isEditingInstance && initialInstance?.status !== "planned") return;
+    const parsed = validateForm();
     if (!parsed) return;
 
     setSubmitting(true);
@@ -517,7 +526,7 @@ export function TimetableEventModal({
       }
 
       if (!parsed.categoryId) {
-        setValidationError("Bitte eine Kategorie auswählen.");
+        setFieldErrors({ categoryId: "Bitte eine Kategorie auswählen." });
         return;
       }
 
@@ -602,7 +611,9 @@ export function TimetableEventModal({
               <SlideOverDescription>
                 {isSeriesFlow
                   ? "Regelmäßigen Termin mit Kindern und Personal planen."
-                  : "Einmaligen Termin im Dienstplan anlegen."}
+                  : isEditingInstance
+                    ? "Termin im Betreuungsplan bearbeiten."
+                    : "Einmaligen Termin im Betreuungsplan anlegen."}
               </SlideOverDescription>
             </div>
             <SlideOverCloseButton />
@@ -611,6 +622,7 @@ export function TimetableEventModal({
 
         <form
           id="timetable-event-form"
+          noValidate
           onSubmit={(event) => void handleSubmit(event)}
           className="flex-1 overflow-y-auto px-5 py-4"
         >
@@ -629,6 +641,7 @@ export function TimetableEventModal({
                 placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
                 maxLength={255}
                 controlSize="compact"
+                error={fieldErrors.title}
                 autoFocus
                 required
               />
@@ -641,6 +654,7 @@ export function TimetableEventModal({
                   type="date"
                   value={form.date}
                   controlSize="compact"
+                  error={fieldErrors.date}
                   onChange={(event) => {
                     const nextDate = event.target.value;
                     const nextWeekday = isoWeekday(nextDate);
@@ -658,6 +672,7 @@ export function TimetableEventModal({
                   type="time"
                   value={form.startTime}
                   controlSize="compact"
+                  error={fieldErrors.startTime}
                   onChange={(event) => update("startTime", event.target.value)}
                   required
                 />
@@ -668,19 +683,29 @@ export function TimetableEventModal({
                   type="time"
                   value={form.endTime}
                   controlSize="compact"
+                  error={fieldErrors.endTime}
                   onChange={(event) => update("endTime", event.target.value)}
                   required
                 />
               </Field>
             </div>
 
-            <Field label="Raum" htmlFor="event_room" required>
+            <Field
+              label="Raum"
+              htmlFor="event_room"
+              required
+              error={fieldErrors.roomId}
+            >
               <select
                 id="event_room"
                 value={form.roomId}
                 onChange={(event) => update("roomId", event.target.value)}
                 disabled={loadingRefs}
                 required
+                aria-invalid={fieldErrors.roomId ? true : undefined}
+                aria-describedby={
+                  fieldErrors.roomId ? "event_room_error" : undefined
+                }
                 className={FORM_SELECT_CLASS}
               >
                 <option value="">
@@ -789,10 +814,20 @@ export function TimetableEventModal({
                       );
                     })}
                   </div>
+                  {fieldErrors.weekdays && (
+                    <p role="alert" className="mt-1 text-xs text-red-600">
+                      {fieldErrors.weekdays}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Kategorie" htmlFor="event_category" required>
+                  <Field
+                    label="Kategorie"
+                    htmlFor="event_category"
+                    required
+                    error={fieldErrors.categoryId}
+                  >
                     <select
                       id="event_category"
                       value={form.categoryId}
@@ -801,6 +836,12 @@ export function TimetableEventModal({
                       }
                       required
                       disabled={loadingRefs}
+                      aria-invalid={fieldErrors.categoryId ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.categoryId
+                          ? "event_category_error"
+                          : undefined
+                      }
                       className={FORM_SELECT_CLASS}
                     >
                       <option value="">
@@ -841,6 +882,7 @@ export function TimetableEventModal({
                       label="Planungszeitraum"
                       htmlFor="event_period"
                       required
+                      error={fieldErrors.calendarPeriodId}
                     >
                       <select
                         id="event_period"
@@ -849,6 +891,14 @@ export function TimetableEventModal({
                           update("calendarPeriodId", event.target.value)
                         }
                         required
+                        aria-invalid={
+                          fieldErrors.calendarPeriodId ? true : undefined
+                        }
+                        aria-describedby={
+                          fieldErrors.calendarPeriodId
+                            ? "event_period_error"
+                            : undefined
+                        }
                         className={FORM_SELECT_CLASS}
                       >
                         <option value="">Zeitraum auswählen ...</option>
@@ -874,6 +924,11 @@ export function TimetableEventModal({
                           </span>
                         </span>
                       </div>
+                      {fieldErrors.calendarPeriodId && (
+                        <p role="alert" className="mt-1 text-xs text-red-600">
+                          {fieldErrors.calendarPeriodId}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -964,7 +1019,10 @@ export function TimetableEventModal({
             size="md"
             isLoading={submitting}
             loadingText="Speichere ..."
-            disabled={!canSubmit}
+            disabled={
+              submitting ||
+              (isEditingInstance && initialInstance?.status !== "planned")
+            }
           >
             Speichern
           </Button>
@@ -978,21 +1036,32 @@ function Field({
   label,
   htmlFor,
   required = false,
+  error,
   children,
 }: {
   label: string;
   htmlFor: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-gray-700">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
         {label}
         {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
-      </span>
+      </label>
       {children}
-    </label>
+      {error && (
+        <p
+          id={`${htmlFor}_error`}
+          role="alert"
+          className="mt-1 text-xs text-red-600"
+        >
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 

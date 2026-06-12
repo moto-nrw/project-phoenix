@@ -300,10 +300,70 @@ describe("TimetableEventModal", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Endzeit muss nach der Startzeit liegen.",
-    );
+    expect(
+      await screen.findByText("Endzeit muss nach der Startzeit liegen."),
+    ).toBeInTheDocument();
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("shows inline required-field errors on submit and clears them on change", async () => {
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte einen Titel eingeben."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bitte einen Raum auswählen.")).toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/Titel\*/), {
+      target: { value: "Mensa" },
+    });
+    expect(
+      screen.queryByText("Bitte einen Titel eingeben."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Bitte einen Raum auswählen.")).toBeInTheDocument();
+  });
+
+  it("shows inline errors for series-only fields", async () => {
+    renderModal({ showPeriodField: true });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte eine Kategorie auswählen."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte einen Planungszeitraum auswählen."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte mindestens einen Wochentag auswählen."),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    expect(
+      screen.queryByText("Bitte mindestens einen Wochentag auswählen."),
+    ).not.toBeInTheDocument();
   });
 
   it("creates a recurring series and materializes the visible week", async () => {

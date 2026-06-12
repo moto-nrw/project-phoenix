@@ -38,10 +38,15 @@ export function Input({
         name={name}
         type={type}
         maxLength={maxLength ?? getDefaultMaxLength(type ?? "text")}
+        aria-invalid={error ? true : undefined}
         className={`${controlClassName} ${className}`}
         {...props}
       />
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
