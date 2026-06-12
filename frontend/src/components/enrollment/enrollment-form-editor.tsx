@@ -1912,13 +1912,13 @@ function LegalBlocksSection({
               {block.source === "standard" ? (
                 <p className="max-w-xl text-xs leading-5 text-gray-500">
                   Kommt aus den Standard-Einstellungen. Der Haken aktiviert oder
-                  deaktiviert diesen Block nur fuer diese Vorlage; Text und
-                  Pflichtstatus koennen hier ueberschrieben werden.
+                  deaktiviert diesen Block nur für diese Vorlage; Text und
+                  Pflichtstatus können hier überschrieben werden.
                 </p>
               ) : (
                 <p className="max-w-xl text-xs leading-5 text-gray-500">
-                  Eigene Zustimmung fuer diese Vorlage. Sie erscheint als
-                  zusaetzliche Checkbox im Anmeldeformular.
+                  Eigene Zustimmung für diese Vorlage. Sie erscheint als
+                  zusätzliche Checkbox im Anmeldeformular.
                 </p>
               )}
               {block.source === "custom" ? (
@@ -2038,7 +2038,7 @@ function LegalBlocksSection({
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Eigene Zustimmung hinzufuegen
+          Eigene Zustimmung hinzufügen
         </button>
       </div>
     </section>
