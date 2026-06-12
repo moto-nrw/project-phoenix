@@ -637,6 +637,55 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  it("activates a standard legal block when an admin enters legal text", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Rechtstextformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "Rechtstextformular" },
+      },
+    );
+    const legalTextAreas = await screen.findAllByLabelText(
+      "Rechtstext / Erklärung",
+    );
+    fireEvent.change(legalTextAreas[0] as HTMLTextAreaElement, {
+      target: { value: "AGB Text aus der Vorlage" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ key: string; enabled: boolean; text: string }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          enabled: true,
+          text: "AGB Text aus der Vorlage",
+        }),
+      ]),
+    );
+  });
+
   it("shows enabled legal blocks in the compact form preview", async () => {
     mocks.listSchemas.mockResolvedValue([
       schema({

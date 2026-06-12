@@ -1861,7 +1861,18 @@ function LegalBlocksSection({
 }>) {
   const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
     onChange(
-      blocks.map((block, i) => (i === index ? { ...block, ...patch } : block)),
+      blocks.map((block, i) => {
+        if (i !== index) return block;
+        const next = { ...block, ...patch };
+        if (
+          patch.enabled === undefined &&
+          patch.text !== undefined &&
+          patch.text.trim() !== ""
+        ) {
+          next.enabled = true;
+        }
+        return next;
+      }),
     );
   };
   const addCustomBlock = () => {
@@ -1931,9 +1942,7 @@ function LegalBlocksSection({
                   }
                   className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
                 />
-                {block.source === "standard"
-                  ? "Standardblock"
-                  : "Eigener Block"}
+                Im Formular anzeigen
               </label>
               {block.source === "standard" ? (
                 <p className="max-w-xl text-xs leading-5 text-gray-500">
