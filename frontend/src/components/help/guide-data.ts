@@ -552,12 +552,12 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
-          "Plant Termine, Serien, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
+          "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Betreuungsplan` öffnen und die Planungsperiode wählen.",
+          "`Betreuungsplan` öffnen und den Planungszeitraum wählen.",
           "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
-          "Für wiederkehrende Angebote eine Serie anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Dienstplan markieren kann.",
-          "`Termine erzeugen` nutzen, damit die Serie in konkrete Termine der Planungsperiode übernommen wird.",
+          "Für wiederkehrende Angebote einen Regeltermin anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Betreuungsplan markieren kann.",
+          "`Termine erzeugen` nutzen, damit der Regeltermin in konkrete Termine des Planungszeitraums übernommen wird.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
         ],
         callout: {
@@ -565,7 +565,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Der Betreuungsplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
           tone: "blue",
         },
-        screenshot: "Betreuungsplan-Kalender mit Termin und Serien.",
+        screenshot: "Betreuungsplan-Kalender mit Termin und Regelterminen.",
         image: "/help/screens/stundenplan.webp",
       },
       {
@@ -729,7 +729,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
-          "Unter `Betreuungsplan-Vorlage` die passende Serie verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
+          "Unter `Betreuungsplan-Vorlage` den passenden Regeltermin verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],

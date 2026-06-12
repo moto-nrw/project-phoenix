@@ -687,7 +687,9 @@ describe("TimetablesPage", () => {
   it("renders month view by default and opens create/edit period flows", async () => {
     render(<TimetablesPage />);
 
-    expect(screen.getByRole("heading", { name: "Dienstplan" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Betreuungsplan" }),
+    ).toBeVisible();
     expect(screen.getByText(/month:/)).toBeInTheDocument();
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
 

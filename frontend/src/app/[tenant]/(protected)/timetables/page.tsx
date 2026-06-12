@@ -374,7 +374,7 @@ function TimetableToolbarSkeleton() {
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Dienstplan Werkzeugleiste wird geladen"
+      aria-label="Betreuungsplan-Werkzeugleiste wird geladen"
       data-testid="timetable-toolbar-skeleton"
       className="flex min-h-16 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
     >
@@ -400,7 +400,7 @@ function TimetableToolbarSkeleton() {
 function TimetablePageSkeleton() {
   return (
     <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
-      <PageHeader title="Dienstplan" />
+      <PageHeader title="Betreuungsplan" />
       <TimetableToolbarSkeleton />
       <TimetableContentSkeleton view="month" />
     </div>
@@ -837,7 +837,7 @@ function TimetablesContent() {
   useEffect(() => {
     if (!errorMessage) return;
     logger.error("week_load_failed", { error: errorMessage });
-    toastError(`Dienstplan konnte nicht geladen werden: ${errorMessage}`);
+    toastError(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
   }, [errorMessage, toastError]);
 
   useEffect(() => {
@@ -1364,7 +1364,7 @@ function TimetablesContent() {
           the sidebar provides page context, matching every other page. The
           period switcher lives inside the toolbar (below) so it isn't a dead
           top row. */}
-      <PageHeader title="Dienstplan" />
+      <PageHeader title="Betreuungsplan" />
 
       <TimetableToolbar
         view={view}
@@ -1629,7 +1629,7 @@ function TimetablesContent() {
             </>
           ) : null}{" "}
           verschwindet aus der Liste. Bereits eingetragene Termine bleiben im
-          Dienstplan erhalten.
+          Betreuungsplan erhalten.
         </p>
       </ConfirmationModal>
     </div>
