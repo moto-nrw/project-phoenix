@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CalendarDays, Check, Clock, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import type { TenantInfo } from "~/lib/tenant-api";
 import {
   PublicEnrollmentBrand,
   PublicEnrollmentLocaleSwitcher,
@@ -68,25 +69,24 @@ export default function EnrollPhasePickerPage() {
 
   if (loading) {
     return (
-      <PublicEnrollmentPageShell>
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <div className="moto-content-surface rounded-2xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm">
+      <PublicEnrollmentPageShell withInlineSwitcher>
+        <PhasePickerHeader tenant={tenant} />
+        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-3xl border shadow-sm">
+          <div
+            className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
+            role="status"
+            aria-live="polite"
+          >
             {t("loading")}
           </div>
-        </div>
+        </section>
       </PublicEnrollmentPageShell>
     );
   }
 
   return (
     <PublicEnrollmentPageShell withInlineSwitcher>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <PublicEnrollmentBrand tenant={tenant} />
-        <div className="flex items-center gap-3">
-          <PublicEnrollmentSteps current="phase" />
-          <PublicEnrollmentLocaleSwitcher />
-        </div>
-      </div>
+      <PhasePickerHeader tenant={tenant} />
 
       {error && (
         <div
@@ -192,6 +192,18 @@ export default function EnrollPhasePickerPage() {
         </div>
       </section>
     </PublicEnrollmentPageShell>
+  );
+}
+
+function PhasePickerHeader({ tenant }: { readonly tenant: TenantInfo | null }) {
+  return (
+    <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <PublicEnrollmentBrand tenant={tenant} />
+      <div className="flex items-center gap-3">
+        <PublicEnrollmentSteps current="phase" />
+        <PublicEnrollmentLocaleSwitcher />
+      </div>
+    </div>
   );
 }
 

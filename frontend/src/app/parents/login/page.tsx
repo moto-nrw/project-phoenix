@@ -12,7 +12,6 @@ import {
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
-import { Loading } from "~/components/ui/loading";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { parentPath } from "~/lib/parent-url";
@@ -35,6 +34,12 @@ export default function ParentLoginPage() {
     () => buildParentAuthShellCopy(tAuthShell),
     [tAuthShell],
   );
+  const isRedirectingToParent =
+    status === "authenticated" &&
+    session?.user?.scope === "parent" &&
+    Boolean(session.user.token);
+  const isSessionSettling =
+    status === "loading" || isCleaningUp || isRedirectingToParent;
 
   // Redirect if already authenticated as parent, or clear stale sessions.
   useEffect(() => {
@@ -66,22 +71,9 @@ export default function ParentLoginPage() {
     void check();
   }, [status, session, router]);
 
-  if (
-    status === "loading" ||
-    isCleaningUp ||
-    (status === "authenticated" &&
-      session?.user?.scope === "parent" &&
-      session?.user?.token)
-  ) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading message={t("loading")} />
-      </div>
-    );
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSessionSettling) return;
     setIsLoading(true);
     setError("");
 
@@ -125,7 +117,12 @@ export default function ParentLoginPage() {
       footer={<LanguageSwitcher />}
       testimonialPanelCopy={testimonialPanelCopy}
     >
-      <form onSubmit={handleSubmit} noValidate className="space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="space-y-6"
+        aria-busy={isSessionSettling || undefined}
+      >
         {error && <Alert type="error" message={error} />}
 
         <div className="space-y-4">
@@ -142,6 +139,7 @@ export default function ParentLoginPage() {
               type="email"
               autoComplete="username"
               required
+              disabled={isSessionSettling}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={authInputClassName}
@@ -162,6 +160,7 @@ export default function ParentLoginPage() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
+                disabled={isSessionSettling}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`${authInputClassName} pr-10`}
@@ -178,7 +177,7 @@ export default function ParentLoginPage() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || isSessionSettling}
           className={authPrimaryButtonClassName}
         >
           <span className="relative z-10">

@@ -83,9 +83,9 @@ describe("ParentLoginPage i18n", () => {
   it("renders a pre-login language switcher and localized parent auth chrome", () => {
     render(<ParentLoginPage />);
 
-    expect(screen.getByRole("combobox", { name: "Language" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Language" })).toBeVisible();
     expect(screen.getByText("Language")).toBeInTheDocument();
-    expect(screen.getAllByText("English")).toHaveLength(2);
+    expect(screen.getByText("English")).toBeInTheDocument();
 
     expect(screen.getByText("Made for after-school care")).toBeInTheDocument();
     expect(screen.getByText("Hosted in Germany")).toBeInTheDocument();
@@ -107,5 +107,22 @@ describe("ParentLoginPage i18n", () => {
     expect(
       within(screen.getByRole("main")).queryByText("Elternteil"),
     ).not.toBeInTheDocument();
+  });
+
+  it("keeps the auth shell and language switcher stable while the session loads", () => {
+    mocks.useSession.mockReturnValue({
+      status: "loading",
+      data: null,
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(screen.getByRole("button", { name: "Language" })).toBeVisible();
+    expect(screen.getByText("Welcome to the parent portal")).toBeVisible();
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+
+    expect(screen.getByLabelText("Email address")).toBeDisabled();
+    expect(screen.getByLabelText("Password")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
   });
 });
