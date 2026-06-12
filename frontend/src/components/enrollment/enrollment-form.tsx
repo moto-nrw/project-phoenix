@@ -298,7 +298,7 @@ export function EnrollmentForm({
           // texts return empty strings (no rejection) and just drop the
           // link.
           previewSchema !== undefined
-            ? Promise.resolve(previewLegalTexts(previewSchema))
+            ? resolvePreviewLegalTexts(tenantSlug, previewSchema)
             : phaseID
               ? fetchPublicLegalTexts(tenantSlug, phaseID)
               : fetchPublicLegalTexts(tenantSlug),
@@ -1749,6 +1749,21 @@ function LegalMarkdown({ text }: { readonly text: string }) {
   );
 }
 
+/**
+ * Resolves the legal blocks an admin preview shows. Template-owned blocks
+ * win; base previews and templates without enabled blocks fall back to the
+ * tenant-wide legal settings — the same resolution the live form uses, so
+ * the preview can never omit blocks the live form will require.
+ */
+async function resolvePreviewLegalTexts(
+  tenantSlug: string,
+  schema: PublicFormSchema | null,
+): Promise<PublicLegalTexts> {
+  const fromTemplate = previewLegalTexts(schema);
+  if (fromTemplate.blocks.length > 0) return fromTemplate;
+  return fetchPublicLegalTexts(tenantSlug);
+}
+
 function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
   const blocks =
     schema?.legal_blocks
@@ -1762,7 +1777,8 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
         required: block.required,
         sort_order: block.sort_order,
         source: block.source,
-      })) ?? [];
+      }))
+      .sort((a, b) => a.sort_order - b.sort_order) ?? [];
   return {
     agb: blocks.find((block) => block.key === "agb")?.text ?? "",
     dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",

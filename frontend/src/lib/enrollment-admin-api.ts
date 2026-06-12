@@ -88,6 +88,12 @@ export interface AdminRequestSummary {
    * empty when the phase didn't pin a schema.
    */
   schema_fields?: AdminRequestSchemaField[];
+  /**
+   * key→title pairs from the pinned schema's legal blocks, used to label
+   * custom consent flags instead of rendering raw keys. Detail endpoint
+   * only.
+   */
+  schema_legal_blocks?: Array<{ key: string; title: string }>;
   children: AdminRequestChild[];
 }
 

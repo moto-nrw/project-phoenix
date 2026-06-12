@@ -204,8 +204,14 @@ export function ListboxDropdown<K extends string>({
         selectAt(focusIndex);
         break;
       case "Escape":
-      case "Tab":
         event.preventDefault();
+        closeAndReturnFocus();
+        break;
+      case "Tab":
+        // Close and move focus back to the trigger WITHOUT cancelling the
+        // default action: the browser then continues the Tab traversal
+        // from the trigger, so keyboard users reach the next field instead
+        // of being trapped inside the popup.
         closeAndReturnFocus();
         break;
       default:
@@ -255,7 +261,9 @@ export function ListboxDropdown<K extends string>({
             const isActive = option.value === value;
             const isFocused = index === focusIndex;
             return (
-              <li key={option.value}>
+              // The option role lives on the inner button; the list item
+              // is pure structure and must not surface in the a11y tree.
+              <li key={option.value} role="presentation">
                 <button
                   ref={(el) => {
                     optionRefs.current[index] = el;

@@ -42,7 +42,18 @@ type AdminRequestSummary struct {
 	CustomData        map[string]any            `json:"custom_data,omitempty"`
 	ConsentFlags      map[string]any            `json:"consent_flags,omitempty"`
 	SchemaFields      []AdminRequestSchemaField `json:"schema_fields,omitempty"`
-	Children          []AdminRequestChild       `json:"children"`
+	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
+	// legal blocks so the detail UI can label custom consent flags (e.g.
+	// "Schwimmbad") instead of rendering raw keys. Detail endpoint only.
+	SchemaLegalBlocks []AdminRequestSchemaLegalBlock `json:"schema_legal_blocks,omitempty"`
+	Children          []AdminRequestChild            `json:"children"`
+}
+
+// AdminRequestSchemaLegalBlock is the slim legal-block shape the admin
+// detail UI needs to render consent flags with their original title.
+type AdminRequestSchemaLegalBlock struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
 }
 
 // AdminRequestSchemaField is the slim form-field shape the admin UI
@@ -184,6 +195,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 
 	var summary *enrollmentService.RequestSummary
 	var schemaFields []AdminRequestSchemaField
+	var schemaLegalBlocks []AdminRequestSchemaLegalBlock
 	var childOfferings map[int64][]enrollmentService.ChildOfferingRow
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
@@ -224,6 +236,13 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 						Options:        opts,
 					})
 				}
+				schemaLegalBlocks = make([]AdminRequestSchemaLegalBlock, 0, len(fs.LegalBlocks))
+				for _, b := range fs.LegalBlocks {
+					schemaLegalBlocks = append(schemaLegalBlocks, AdminRequestSchemaLegalBlock{
+						Key:   b.Key,
+						Title: b.Title,
+					})
+				}
 			}
 		}
 		return nil
@@ -240,6 +259,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	detail.CustomData = summary.Request.CustomData
 	detail.ConsentFlags = summary.Request.ConsentFlags
 	detail.SchemaFields = schemaFields
+	detail.SchemaLegalBlocks = schemaLegalBlocks
 	// Stitch per-child offerings onto the detail-response children.
 	// childOfferings is keyed by request_child.id as a raw int64; the
 	// summary's children carry their id as the original int64 too —

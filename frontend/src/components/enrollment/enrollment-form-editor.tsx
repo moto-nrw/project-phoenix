@@ -314,12 +314,14 @@ export function EnrollmentFormEditor() {
     setLoading(true);
     setError(null);
     try {
+      // Legal texts are NOT best-effort: silently swallowing a fetch
+      // failure would seed the builder with all-disabled standard blocks
+      // and nudge admins into saving a template without the tenant's
+      // consent contract. A failure fails the whole load instead.
       const [list, phaseList, legalTexts] = await Promise.all([
         listSchemas(),
         listPhases().catch(() => [] as Phase[]),
-        tenantSlug
-          ? fetchPublicLegalTexts(tenantSlug).catch(() => null)
-          : Promise.resolve(null),
+        tenantSlug ? fetchPublicLegalTexts(tenantSlug) : Promise.resolve(null),
       ]);
       const legalDefaults = mergeStandardLegalBlocks(legalTexts?.blocks ?? []);
       setStandardLegalBlocks(legalDefaults);
@@ -466,8 +468,16 @@ export function EnrollmentFormEditor() {
     [coreRequirements],
   );
   const savedLegalBlocksSignature = useMemo(
+    // Mirror selectSchema's hydration: the backend returns [] for legacy
+    // templates, which the editor displays as the standard blocks. The
+    // saved signature must apply the same substitution, otherwise every
+    // pre-existing template opens with phantom unsaved changes.
     () =>
-      legalBlocksSignature(currentSchema?.legal_blocks ?? standardLegalBlocks),
+      legalBlocksSignature(
+        currentSchema?.legal_blocks && currentSchema.legal_blocks.length > 0
+          ? currentSchema.legal_blocks
+          : standardLegalBlocks,
+      ),
     [currentSchema?.legal_blocks, standardLegalBlocks],
   );
   const currentLegalBlocksSignature = useMemo(
@@ -1886,7 +1896,9 @@ function LegalBlocksSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             Diese Blöcke gehören zur Vorlage und erscheinen in jeder Phase, die
-            diese Vorlage nutzt.
+            diese Vorlage nutzt. Die Texte werden mit der Vorlage gespeichert:
+            Spätere Änderungen an den Rechtstexten in den Einstellungen
+            übernimmst du hier manuell.
           </p>
         </div>
       </div>
@@ -3590,9 +3602,8 @@ function getSchemaDraftValidationMessage({
   }
 
   const seenLegalKeys = new Set<string>();
-  for (const [index, block] of prepareLegalBlocksForSave(
-    legalBlocks,
-  ).entries()) {
+  const preparedLegalBlocks = prepareLegalBlocksForSave(legalBlocks);
+  for (const [index, block] of preparedLegalBlocks.entries()) {
     const position = index + 1;
     if (seenLegalKeys.has(block.key)) {
       return `Bitte ändere Zustimmung ${position}. Zwei Zustimmungen haben denselben internen Schlüssel.`;
@@ -3605,6 +3616,16 @@ function getSchemaDraftValidationMessage({
     if (block.label === "") {
       return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
     }
+  }
+  // Mirror of the backend rule: enabling any block while the
+  // Datenschutzinformation is disabled would collect personal data
+  // without the DSGVO acknowledgment.
+  const anyLegalEnabled = preparedLegalBlocks.some((block) => block.enabled);
+  const dataProcessingEnabled = preparedLegalBlocks.some(
+    (block) => block.key === "data_processing" && block.enabled,
+  );
+  if (anyLegalEnabled && !dataProcessingEnabled) {
+    return "Die Datenschutzinformation muss aktiviert bleiben, solange andere Zustimmungen aktiv sind.";
   }
 
   return null;

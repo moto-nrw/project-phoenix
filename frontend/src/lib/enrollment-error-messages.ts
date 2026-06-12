@@ -26,6 +26,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
   "enrollment.disabled":
     "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
+  "enrollment.window_closed":
+    "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
   "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
   "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
   "enrollment.schema_has_phases":
@@ -206,6 +208,14 @@ const RAW_MESSAGE_TRANSLATIONS: Array<[RegExp, string]> = [
   [
     /notice legal block .* cannot be required/i,
     "Ein Hinweistext darf nicht als Pflichtzustimmung markiert sein.",
+  ],
+  [
+    /data_processing block cannot be disabled/i,
+    "Die Datenschutzinformation muss aktiviert bleiben, solange andere Zustimmungen aktiv sind.",
+  ],
+  [
+    /enrollment window is closed/i,
+    "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
   ],
   [
     /invalid schema/i,
