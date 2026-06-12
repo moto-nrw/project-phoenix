@@ -233,7 +233,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Nur bei NFC-/Tablet-Nutzung sichtbar",
-          body: "Wenn Ihre Einrichtung kein NFC oder keine Tablets nutzt, wird der Bereich `Aktivitäten` in der Datenverwaltung nicht angezeigt. In diesem Fall können Angebote je nach Freischaltung später im Alltag über `Aktuelle Aufsicht` oder den `Betreuungsplan` entstehen (siehe `Die App im Alltag` -> `Aktuelle Aufsicht` und `Betreuungsplan`).",
+          body: "Wenn Ihre Einrichtung kein NFC oder keine Tablets nutzt, wird der Bereich `Aktivitäten` in der Datenverwaltung nicht angezeigt. In diesem Fall können Angebote später im Alltag über den `Betreuungsplan` oder, je nach Freischaltung, über `Aktuelle Aufsicht` entstehen (siehe `Die App im Alltag` -> `Aktuelle Aufsicht` und `Betreuungsplan`).",
           tone: "blue",
         },
         screenshot:
@@ -554,18 +554,21 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Betreuungsplan` öffnen und den Planungszeitraum wählen.",
-          "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
-          "Für wiederkehrende Angebote einen Regeltermin anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Betreuungsplan markieren kann.",
-          "`Termine erzeugen` nutzen, damit der Regeltermin in konkrete Termine des Planungszeitraums übernommen wird.",
-          "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
+          "`Betreuungsplan` öffnen.",
+          "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`).",
+          "`Titel` eintragen und `Raum` wählen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
+          "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen.",
+          "Über `Weitere Optionen` `Personal` und `Kinder` zuordnen. Mit `Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Klasse oder Gruppe auf einmal in die Auswahl.",
+          "Speichern. Wiederholte Termine trägt Phoenix automatisch für das gesamte Schuljahr ein. Hinweise zu doppelt belegten Räumen, Personal oder Kindern können beim Ausfüllen erscheinen, verhindern das Speichern aber nicht.",
+          "Beim Bearbeiten eines Termins aus einer Serie fragt die App, wofür die Änderung gilt: `Nur dieser Termin`, `Dieser und alle folgenden` oder `Alle Termine der Serie`.",
+          "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen.",
         ],
         callout: {
-          title: "Betreuungsplan zuerst aktivieren",
-          body: "Der Betreuungsplan ist anfangs ausgeblendet. Ein Admin schaltet ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` frei; danach erscheint er in der Seitenleiste.",
+          title: "Betreuungsplan bei Bedarf abschalten",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; danach verschwindet er aus der Seitenleiste.",
           tone: "blue",
         },
-        screenshot: "Betreuungsplan-Kalender mit Termin und Regelterminen.",
+        screenshot: "Betreuungsplan-Kalender mit geplanten Terminen.",
         image: "/help/screens/stundenplan.webp",
       },
       {
@@ -784,7 +787,7 @@ export const appChapters: readonly GuideChapter[] = [
     id: "einstellungen",
     title: "Einstellungen",
     description:
-      "Hier stellen Admins ein, wie sich die App im Alltag verhält. Viele Funktionen (etwa der Betreuungsplan, die Online-Anmeldung oder die Aktivitäts-Indikatoren) sind erst sichtbar, wenn sie hier eingeschaltet wurden.",
+      "Hier stellen Admins ein, wie sich die App im Alltag verhält. Manche Funktionen (etwa die Online-Anmeldung oder die Aktivitäts-Indikatoren) sind erst sichtbar, wenn sie hier eingeschaltet wurden; andere wie der Betreuungsplan lassen sich hier abschalten.",
     icon: SlidersHorizontal,
     tone: "gray",
     steps: [
