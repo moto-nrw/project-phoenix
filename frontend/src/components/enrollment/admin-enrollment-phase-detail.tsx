@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Copy,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -38,6 +39,8 @@ import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -154,6 +157,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
+  const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
+  const { copied: phaseUrlCopied, copy: copyPhaseUrl } = useClipboardCopy(
+    `AdminEnrollmentPhaseDetail:${phaseId}`,
+    2000,
+  );
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
 
   const handleExport = useCallback(
@@ -408,6 +416,16 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Elternansicht öffnen
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
             </a>
+            {phaseUrl ? (
+              <button
+                type="button"
+                onClick={() => void copyPhaseUrl(phaseUrl)}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                {phaseUrlCopied ? "Link kopiert" : "Link kopieren"}
+                <Copy className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
             <Link
               href="/enrollment-phases"
               className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
