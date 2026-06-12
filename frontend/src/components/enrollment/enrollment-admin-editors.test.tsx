@@ -202,13 +202,17 @@ function textareaByName(name: string): HTMLTextAreaElement {
   ) as HTMLTextAreaElement;
 }
 
-function selectByName(name: string): HTMLSelectElement {
-  return document.querySelector(`select[name="${name}"]`) as HTMLSelectElement;
-}
-
 async function waitForInputByName(name: string): Promise<HTMLInputElement> {
   await waitFor(() => expect(inputByName(name)).toBeInTheDocument());
   return inputByName(name);
+}
+
+async function chooseOption(
+  label: string | RegExp,
+  optionName: string | RegExp,
+) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByRole("option", { name: optionName }));
 }
 
 beforeEach(() => {
@@ -388,9 +392,7 @@ describe("CareOfferingsEditor", () => {
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
     await waitForInputByName("name");
-    fireEvent.change(screen.getByLabelText("Stundenplan-Vorlage"), {
-      target: { value: "8" },
-    });
+    await chooseOption("Stundenplan-Vorlage", /Lernzeit/);
 
     expect(
       screen.getByText(
@@ -443,13 +445,11 @@ describe("PhasesEditor", () => {
     fireEvent.change(inputByName("name"), {
       target: { value: "Sommerferien" },
     });
-    fireEvent.change(selectByName("kind"), { target: { value: "holiday" } });
+    await chooseOption("Typ", "Ferienbetreuung");
     fireEvent.click(
       document.querySelector("#schema-source-reuse") as HTMLInputElement,
     );
-    fireEvent.change(screen.getByLabelText("Formular auswählen"), {
-      target: { value: "schema-1" },
-    });
+    await chooseOption("Formular auswählen", "Regelformular");
     fireEvent.click(screen.getByText("Begründung für Eltern sichtbar"));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
@@ -546,9 +546,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
       target: { value: "Lieblingsessen" },
     });
-    fireEvent.change(screen.getByLabelText("Typ"), {
-      target: { value: "select" },
-    });
+    await chooseOption("Typ", "Auswahl");
     fireEvent.change(screen.getByLabelText("Auswahloptionen"), {
       target: { value: "Pasta\nReis" },
     });

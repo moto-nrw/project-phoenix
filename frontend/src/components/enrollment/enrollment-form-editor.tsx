@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   blankField,
@@ -2008,23 +2009,27 @@ function LegalBlocksSection({
                 />
                 Muss bestätigt werden
               </label>
-              <select
+              <CustomSelect
                 value={block.kind}
                 disabled={disabled}
-                onChange={(event) => {
-                  const kind = event.target.value as FormLegalBlock["kind"];
+                onChange={(value) => {
+                  const kind = value as FormLegalBlock["kind"];
                   updateBlock(index, {
                     kind,
                     required: kind === "notice" ? false : block.required,
                   });
                 }}
-                className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-              >
-                <option value="terms">AGB / Teilnahmebedingungen</option>
-                <option value="privacy_notice">Datenschutz-Bestätigung</option>
-                <option value="consent">Einwilligung</option>
-                <option value="notice">Hinweis ohne Checkbox</option>
-              </select>
+                className="h-9 w-auto min-w-56 border-gray-200 bg-white"
+                options={[
+                  { value: "terms", label: "AGB / Teilnahmebedingungen" },
+                  {
+                    value: "privacy_notice",
+                    label: "Datenschutz-Bestätigung",
+                  },
+                  { value: "consent", label: "Einwilligung" },
+                  { value: "notice", label: "Hinweis ohne Checkbox" },
+                ]}
+              />
             </div>
           </div>
         ))}
@@ -2458,22 +2463,21 @@ function FieldEditorRow({
                       </span>
                     ) : null}
                   </span>
-                  <select
+                  <CustomSelect
                     value={field.type}
-                    onChange={(event) =>
-                      onChange({ type: event.target.value as FormFieldType })
+                    onChange={(value) =>
+                      onChange({ type: value as FormFieldType })
                     }
                     disabled={disabled || isTargetField}
-                    className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-                  >
-                    {(isTargetField ? [field.type] : freeFieldTypes).map(
-                      (value) => (
-                        <option key={value} value={value}>
-                          {fieldTypeLabels[value]}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                    className="mt-1"
+                    options={(isTargetField
+                      ? [field.type]
+                      : freeFieldTypes
+                    ).map((value) => ({
+                      value,
+                      label: fieldTypeLabels[value],
+                    }))}
+                  />
                 </label>
               </div>
 
@@ -2588,7 +2592,7 @@ function FormChoice({
 }
 
 const conditionInputClass =
-  "moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
+  "moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
 
 // Field-source operators offered in the condition editor. "includes" is
 // reserved for the care-offering source and is not listed here.
@@ -2705,29 +2709,28 @@ function ConditionEditor({
 
       {condition ? (
         <div className="mt-3 space-y-2">
-          <label className="block">
+          <label className="block" htmlFor={`condition-${index}-source`}>
             <span className="text-xs font-medium text-gray-700">
               Sichtbar wenn
             </span>
-            <select
+            <CustomSelect
+              id={`condition-${index}-source`}
               value={condition.source}
-              onChange={(event) =>
+              onChange={(value) =>
                 setCondition(
                   defaultConditionForSource(
-                    event.target.value as ConditionSource,
+                    value as ConditionSource,
                     controllers,
                   ),
                 )
               }
               disabled={disabled}
               className={conditionInputClass}
-            >
-              {sources.map((source) => (
-                <option key={source} value={source}>
-                  {conditionSourceLabels[source]}
-                </option>
-              ))}
-            </select>
+              options={sources.map((source) => ({
+                value: source,
+                label: conditionSourceLabels[source],
+              }))}
+            />
           </label>
 
           {condition.source === "field" ? (
@@ -2737,12 +2740,14 @@ function ConditionEditor({
               onPatch={patchCondition}
               onReplace={setCondition}
               disabled={disabled}
+              idPrefix={`condition-${index}-field`}
             />
           ) : condition.source === "grade_level" ? (
             <ConditionGradeControls
               condition={condition}
               onPatch={patchCondition}
               disabled={disabled}
+              idPrefix={`condition-${index}-grade`}
             />
           ) : (
             <ConditionOfferingControls
@@ -2763,12 +2768,14 @@ function ConditionFieldControls({
   onPatch,
   onReplace,
   disabled,
+  idPrefix,
 }: Readonly<{
   condition: VisibilityCondition;
   controllers: FormField[];
   onPatch: (patch: Partial<VisibilityCondition>) => void;
   onReplace: (next: VisibilityCondition) => void;
   disabled: boolean;
+  idPrefix: string;
 }>) {
   const controller = controllers.find((c) => c.key === condition.field);
 
@@ -2796,68 +2803,63 @@ function ConditionFieldControls({
 
   return (
     <>
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-question`}>
         <span className="text-xs font-medium text-gray-700">Frage</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-question`}
           value={condition.field ?? ""}
-          onChange={(event) => changeController(event.target.value)}
+          onChange={changeController}
           disabled={disabled}
           className={conditionInputClass}
-        >
-          {controllers.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.label.trim() || c.key}
-            </option>
-          ))}
-        </select>
+          options={controllers.map((controller) => ({
+            value: controller.key,
+            label: controller.label.trim() || controller.key,
+          }))}
+        />
       </label>
 
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-operator`}>
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-operator`}
           value={condition.operator}
-          onChange={(event) =>
-            changeOperator(event.target.value as ConditionOperator)
-          }
+          onChange={(value) => changeOperator(value as ConditionOperator)}
           disabled={disabled}
           className={conditionInputClass}
-        >
-          {FIELD_CONDITION_OPERATORS.map((op) => (
-            <option key={op} value={op}>
-              {conditionOperatorLabels[op]}
-            </option>
-          ))}
-        </select>
+          options={FIELD_CONDITION_OPERATORS.map((operator) => ({
+            value: operator,
+            label: conditionOperatorLabels[operator],
+          }))}
+        />
       </label>
 
       {condition.operator !== "not_empty" && controller ? (
-        <label className="block">
+        <label className="block" htmlFor={`${idPrefix}-value`}>
           <span className="text-xs font-medium text-gray-700">Wert</span>
           {controller.type === "boolean" ? (
-            <select
+            <CustomSelect
+              id={`${idPrefix}-value`}
               value={condition.value === true ? "true" : "false"}
-              onChange={(event) =>
-                onPatch({ value: event.target.value === "true" })
-              }
+              onChange={(value) => onPatch({ value: value === "true" })}
               disabled={disabled}
               className={conditionInputClass}
-            >
-              <option value="true">Ja</option>
-              <option value="false">Nein</option>
-            </select>
+              options={[
+                { value: "true", label: "Ja" },
+                { value: "false", label: "Nein" },
+              ]}
+            />
           ) : (
-            <select
+            <CustomSelect
+              id={`${idPrefix}-value`}
               value={String(condition.value ?? "")}
-              onChange={(event) => onPatch({ value: event.target.value })}
+              onChange={(value) => onPatch({ value })}
               disabled={disabled}
               className={conditionInputClass}
-            >
-              {(controller.options ?? []).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              options={(controller.options ?? []).map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
           )}
         </label>
       ) : null}
@@ -2869,26 +2871,30 @@ function ConditionGradeControls({
   condition,
   onPatch,
   disabled,
+  idPrefix,
 }: Readonly<{
   condition: VisibilityCondition;
   onPatch: (patch: Partial<VisibilityCondition>) => void;
   disabled: boolean;
+  idPrefix: string;
 }>) {
   return (
     <>
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-operator`}>
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-operator`}
           value={condition.operator}
-          onChange={(event) =>
-            onPatch({ operator: event.target.value as ConditionOperator })
+          onChange={(value) =>
+            onPatch({ operator: value as ConditionOperator })
           }
           disabled={disabled}
           className={conditionInputClass}
-        >
-          <option value="eq">{conditionOperatorLabels.eq}</option>
-          <option value="neq">{conditionOperatorLabels.neq}</option>
-        </select>
+          options={[
+            { value: "eq", label: conditionOperatorLabels.eq },
+            { value: "neq", label: conditionOperatorLabels.neq },
+          ]}
+        />
       </label>
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Klassenstufe</span>

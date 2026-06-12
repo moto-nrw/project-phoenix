@@ -243,7 +243,12 @@ async function waitForLoaded() {
   });
 }
 
-function fillRequiredFields() {
+async function chooseOption(label: string, optionName: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByRole("option", { name: optionName }));
+}
+
+async function fillRequiredFields() {
   const firstNameInputs = screen.getAllByLabelText("Vorname *");
   const lastNameInputs = screen.getAllByLabelText("Nachname *");
   fireEvent.change(firstNameInputs[0]!, { target: { value: "Mara" } });
@@ -253,14 +258,10 @@ function fillRequiredFields() {
   });
   fireEvent.change(firstNameInputs[1]!, { target: { value: "Lina" } });
   fireEvent.change(lastNameInputs[1]!, { target: { value: "Muster" } });
-  fireEvent.change(screen.getByLabelText("Tag"), { target: { value: "15" } });
-  fireEvent.change(screen.getByLabelText("Monat"), { target: { value: "4" } });
-  fireEvent.change(screen.getByLabelText("Jahr"), {
-    target: { value: "2018" },
-  });
-  fireEvent.change(screen.getByLabelText("Klassenstufe *"), {
-    target: { value: "2" },
-  });
+  await chooseOption("Tag", "15");
+  await chooseOption("Monat", "April");
+  await chooseOption("Jahr", "2018");
+  await chooseOption("Klassenstufe *", "2. Klasse");
   const agb = screen.queryByText(/AGB|Ganztag Info-Brief/);
   if (agb) {
     fireEvent.click(agb);
@@ -401,7 +402,7 @@ describe("EnrollmentForm", () => {
       screen.queryByText(/Status-Benachrichtigungen/),
     ).not.toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -429,7 +430,7 @@ describe("EnrollmentForm", () => {
       screen.queryByText("Zustimmungen & Hinweise"),
     ).not.toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -464,7 +465,7 @@ describe("EnrollmentForm", () => {
 
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
@@ -497,7 +498,7 @@ describe("EnrollmentForm", () => {
     renderForm({ onSubmitted });
     await waitForLoaded();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "+49 221 1234567" },
     });
@@ -594,15 +595,15 @@ describe("EnrollmentForm", () => {
 
     expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "✓ übernommen" })).toBeDisabled();
-    expect(
-      (screen.getByLabelText("Klassenstufe *") as HTMLSelectElement).value,
-    ).toBe("2");
+    expect(screen.getByLabelText("Klassenstufe *")).toHaveTextContent(
+      "2. Klasse",
+    );
   });
 
   it("requires care offerings and parent-choice days before submit", async () => {
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
@@ -660,7 +661,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
@@ -711,7 +712,7 @@ describe("EnrollmentForm", () => {
       profileFetcher: vi.fn().mockResolvedValue(null),
     });
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByText("Fixe Betreuung"));
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -728,7 +729,7 @@ describe("EnrollmentForm", () => {
   it("submits selected bus weekdays for weekday boolean fields", async () => {
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Fr" }));
@@ -790,7 +791,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
@@ -829,7 +830,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     // Untouched required pickup is "missing" — submission is blocked and the
     // pickup-specific confirm message (not the bus "pick a day" message) shows.
@@ -888,7 +889,7 @@ describe("EnrollmentForm", () => {
     expect(checkbox).toBeDisabled();
     expect(screen.getByText("Pflicht")).toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -943,7 +944,7 @@ describe("EnrollmentForm", () => {
     expect(required).toBeChecked();
     expect(required).toBeDisabled();
 
-    fillRequiredFields();
+    await fillRequiredFields();
 
     // Submitting with ONLY the required offering must be rejected: exactly_one
     // counts the choosable offerings, and none is chosen yet. The required

@@ -47,6 +47,7 @@ import {
   DataTableStatusBadge,
   type DataTableColumn,
 } from "~/components/ui/data-table";
+import { CustomSelect } from "~/components/ui/custom-select";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -1085,18 +1086,19 @@ function PhaseForm(props: PhaseFormProps) {
           />
         </label>
 
-        <label className="block">
+        <label className="block" htmlFor="phase-kind">
           <span className="text-xs font-medium text-gray-700">Typ</span>
-          <select
-            name="kind"
+          <CustomSelect
+            id="phase-kind"
             value={draft.kind}
-            onChange={(e) => update({ kind: e.target.value as PhaseKind })}
-            className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="school_year">{KIND_LABELS.school_year}</option>
-            <option value="holiday">{KIND_LABELS.holiday}</option>
-            <option value="custom">{KIND_LABELS.custom}</option>
-          </select>
+            onChange={(value) => update({ kind: value as PhaseKind })}
+            className="mt-1"
+            options={[
+              { value: "school_year", label: KIND_LABELS.school_year },
+              { value: "holiday", label: KIND_LABELS.holiday },
+              { value: "custom", label: KIND_LABELS.custom },
+            ]}
+          />
         </label>
       </div>
 
@@ -1256,23 +1258,23 @@ function PhaseForm(props: PhaseFormProps) {
               <strong>Eigene Vorlage wählen</strong>: Eltern sehen zusätzlich
               die Fragen aus dieser Formularvorlage.
               {schemaSource === "reuse" && (
-                <select
+                <CustomSelect
                   value={draft.form_schema_id ?? ""}
-                  onChange={(e) =>
-                    update({ form_schema_id: e.target.value || null })
+                  onChange={(value) =>
+                    update({ form_schema_id: value || null })
                   }
-                  className="moto-select moto-content-surface mt-1 block w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  className="mt-1 py-2"
                   disabled={schemas.length === 0}
-                  aria-required={schemaSource === "reuse"}
-                  aria-label="Formular auswählen"
-                >
-                  <option value="">Wählen</option>
-                  {schemas.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name || "Formularvorlage"}
-                    </option>
-                  ))}
-                </select>
+                  required={schemaSource === "reuse"}
+                  ariaLabel="Formular auswählen"
+                  options={[
+                    { value: "", label: "Wählen" },
+                    ...schemas.map((schema) => ({
+                      value: schema.id,
+                      label: schema.name || "Formularvorlage",
+                    })),
+                  ]}
+                />
               )}
               {schemas.length === 0 && (
                 <p className="mt-1 text-xs text-gray-500">
@@ -1286,52 +1288,56 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
+        <label className="block" htmlFor="phase-care-selection-mode">
           <span className="text-xs font-medium text-gray-700">
             Betreuungsauswahl
           </span>
-          <select
-            name="care_offering_selection_mode"
+          <CustomSelect
+            id="phase-care-selection-mode"
             value={draft.care_offering_selection_mode}
-            onChange={(e) =>
+            onChange={(value) =>
               update({
-                care_offering_selection_mode: e.target
-                  .value as PhaseCareOfferingSelectionMode,
+                care_offering_selection_mode:
+                  value as PhaseCareOfferingSelectionMode,
               })
             }
-            className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="optional">{CARE_SELECTION_LABELS.optional}</option>
-            <option value="at_least_one">
-              {CARE_SELECTION_LABELS.at_least_one}
-            </option>
-            <option value="exactly_one">
-              {CARE_SELECTION_LABELS.exactly_one}
-            </option>
-          </select>
+            className="mt-1 py-2"
+            options={[
+              { value: "optional", label: CARE_SELECTION_LABELS.optional },
+              {
+                value: "at_least_one",
+                label: CARE_SELECTION_LABELS.at_least_one,
+              },
+              {
+                value: "exactly_one",
+                label: CARE_SELECTION_LABELS.exactly_one,
+              },
+            ]}
+          />
           <span className="mt-1 block text-xs text-gray-500">
             Pflichtangebote bleiben davon getrennt und sind immer vorausgewählt.
           </span>
         </label>
 
-        <label className="block">
+        <label className="block" htmlFor="phase-care-overflow-mode">
           <span className="text-xs font-medium text-gray-700">
             Verhalten bei voller Betreuung
           </span>
-          <select
-            name="care_overflow_mode"
+          <CustomSelect
+            id="phase-care-overflow-mode"
             value={draft.care_overflow_mode}
-            onChange={(e) =>
+            onChange={(value) =>
               update({
-                care_overflow_mode: e.target.value as PhaseCareOverflowMode,
+                care_overflow_mode: value as PhaseCareOverflowMode,
               })
             }
-            className="moto-select moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="waitlist">{OVERFLOW_LABELS.waitlist}</option>
-            <option value="reject">{OVERFLOW_LABELS.reject}</option>
-            <option value="allow">{OVERFLOW_LABELS.allow}</option>
-          </select>
+            className="mt-1 py-2"
+            options={[
+              { value: "waitlist", label: OVERFLOW_LABELS.waitlist },
+              { value: "reject", label: OVERFLOW_LABELS.reject },
+              { value: "allow", label: OVERFLOW_LABELS.allow },
+            ]}
+          />
         </label>
 
         <div className="flex flex-col gap-2 pt-5">

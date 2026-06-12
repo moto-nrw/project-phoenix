@@ -31,6 +31,7 @@ import {
 } from "~/lib/enrollment-field-visibility";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -935,7 +936,7 @@ export function EnrollmentForm({
                 />
               </div>
               <GradeLevelSelect
-                name={`children_${i}_target_grade_level`}
+                id={`children-${i}-target-grade-level`}
                 value={child.target_grade_level}
                 onChange={(v) => updateChild(i, { target_grade_level: v })}
                 max={gradeLevelMax}
@@ -1535,44 +1536,38 @@ function Input({
 }
 
 function GradeLevelSelect({
-  name,
+  id,
   value,
   onChange,
   max,
   error,
 }: {
-  readonly name: string;
+  readonly id: string;
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly max: number;
   readonly error?: string;
 }) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="block text-sm font-semibold text-gray-700">
         Klassenstufe *
       </span>
-      <select
-        name={name}
+      <CustomSelect
+        id={id}
         value={value}
         required
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-          error
-            ? "border-[#FF3130] bg-[#FF3130]/5"
-            : "moto-content-surface hover:border-gray-300"
-        }`}
-      >
-        <option value="" disabled>
-          Bitte wählen
-        </option>
-        {Array.from({ length: max }, (_, n) => n + 1).map((g) => (
-          <option key={g} value={g}>
-            {g}. Klasse
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        invalid={Boolean(error)}
+        className="mt-1"
+        options={[
+          { value: "", label: "Bitte wählen", disabled: true },
+          ...Array.from({ length: max }, (_, n) => {
+            const grade = String(n + 1);
+            return { value: grade, label: `${grade}. Klasse` };
+          }),
+        ]}
+      />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
@@ -1955,21 +1950,20 @@ function CustomFieldInput({
     return (
       <label className="block">
         {labelEl}
-        <select
-          name={field.key}
+        <CustomSelect
           value={valueStr}
-          onChange={(e) => onChange(e.target.value)}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
-          className={`moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
-        >
-          <option value="">Bitte wählen</option>
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={onChange}
+          required={field.required}
+          invalid={Boolean(error)}
+          className="mt-1"
+          options={[
+            { value: "", label: "Bitte wählen" },
+            ...(field.options ?? []).map((option) => ({
+              value: option.value,
+              label: option.label,
+            })),
+          ]}
+        />
         {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </label>
     );
@@ -2112,25 +2106,25 @@ function PhoneListInput({
                 className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor={`phone-type-${idx}`}>
               <span className="text-xs font-medium text-gray-700">Typ</span>
-              <select
+              <CustomSelect
+                id={`phone-type-${idx}`}
                 value={p.phone_type}
-                onChange={(e) =>
+                onChange={(value) =>
                   setRow(idx, {
-                    phone_type: e.target.value as PhoneEntry["phone_type"],
+                    phone_type: value as PhoneEntry["phone_type"],
                   })
                 }
-                className="moto-select mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {(
+                ariaLabel="Typ"
+                className="mt-1 border-gray-200 bg-white"
+                options={(
                   Object.keys(PHONE_TYPE_LABELS) as PhoneEntry["phone_type"][]
-                ).map((k) => (
-                  <option key={k} value={k}>
-                    {PHONE_TYPE_LABELS[k]}
-                  </option>
-                ))}
-              </select>
+                ).map((key) => ({
+                  value: key,
+                  label: PHONE_TYPE_LABELS[key],
+                }))}
+              />
             </label>
             <StructuredToggle
               checked={Boolean(p.is_primary)}
@@ -2580,7 +2574,7 @@ function ExistingChildrenPanel({
 // DateOfBirthPicker uses three dropdowns (Tag / Monat / Jahr).
 // Calendar widgets are awkward for DOB because parents need to jump
 // 5-10 years back; native <input type="date"> auto-validates partial
-// year input and snaps back. Three <select>s let parents pick fast
+// year input and snaps back. Three explicit dropdowns let parents pick fast
 // without touching a keyboard. Wire format stays YYYY-MM-DD.
 const MONTH_LABELS = [
   "Januar",
@@ -2672,57 +2666,48 @@ function DateOfBirthPicker({
     emit(day, month, v);
   };
 
-  const selectClass = `moto-select h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-    error
-      ? "border-[#FF3130] bg-[#FF3130]/5"
-      : "moto-content-surface hover:border-gray-300"
-  }`;
-
   return (
     <>
       <div className="mt-1 grid grid-cols-3 gap-2">
-        <select
+        <CustomSelect
           value={day}
-          onChange={(e) => handleDay(e.target.value)}
-          className={selectClass}
-          aria-label="Tag"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Tag</option>
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={String(d)}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleDay}
+          ariaLabel="Tag"
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: "Tag" },
+            ...Array.from({ length: daysInMonth }, (_, i) => {
+              const dayValue = String(i + 1);
+              return { value: dayValue, label: dayValue };
+            }),
+          ]}
+        />
+        <CustomSelect
           value={month}
-          onChange={(e) => handleMonth(e.target.value)}
-          className={selectClass}
-          aria-label="Monat"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Monat</option>
-          {MONTH_LABELS.map((label, idx) => (
-            <option key={label} value={String(idx + 1)}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleMonth}
+          ariaLabel="Monat"
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: "Monat" },
+            ...MONTH_LABELS.map((label, idx) => ({
+              value: String(idx + 1),
+              label,
+            })),
+          ]}
+        />
+        <CustomSelect
           value={year}
-          onChange={(e) => handleYear(e.target.value)}
-          className={selectClass}
-          aria-label="Jahr"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Jahr</option>
-          {years.map((y) => (
-            <option key={y} value={String(y)}>
-              {y}
-            </option>
-          ))}
-        </select>
+          onChange={handleYear}
+          ariaLabel="Jahr"
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: "Jahr" },
+            ...years.map((yearValue) => ({
+              value: String(yearValue),
+              label: String(yearValue),
+            })),
+          ]}
+        />
       </div>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </>
@@ -2737,7 +2722,7 @@ function parseDOBParts(
   if (!m) return null;
   return {
     year: m[1] ?? "",
-    month: String(Number(m[2])), // strip leading zero so the <select> matches
+    month: String(Number(m[2])), // strip leading zero so the dropdown matches
     day: String(Number(m[3])),
   };
 }
