@@ -135,7 +135,7 @@ export default function PickupScheduleManager({
         student_id: studentId,
       });
       setError(
-        err instanceof Error ? err.message : "Fehler beim Laden des Abholplans",
+        err instanceof Error ? err.message : "Fehler beim Laden des Gehplans",
       );
     } finally {
       setIsLoading(false);
@@ -286,7 +286,7 @@ export default function PickupScheduleManager({
             <Calendar className="h-5 w-5" />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Abholplan & Notizen
+            Gehplan & Notizen
           </h2>
         </div>
         {!readOnly && (

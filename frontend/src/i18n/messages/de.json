@@ -130,7 +130,7 @@
         "description": "Tagesmeldung für dieses Kind"
       },
       "pickupTime": {
-        "label": "Abholzeit ändern",
+        "label": "Gehzeit ändern",
         "description": "Abholung mitteilen"
       },
       "message": {
@@ -387,7 +387,8 @@
       "groupAtLeastOne": "Bitte bei „{group}“ mindestens ein Angebot wählen.",
       "groupAtMostOne": "Bitte bei „{group}“ höchstens ein Angebot wählen.",
       "pickupConfirm": "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).",
-      "weekdayRequired": "Bitte mindestens einen Wochentag auswählen."
+      "weekdayRequired": "Bitte mindestens einen Wochentag auswählen.",
+      "weekdayModeConfirm": "Bitte die Geh- und Abholregelung bestätigen."
     },
     "actions": {
       "addChild": "Weiteres Kind",
@@ -457,7 +458,13 @@
       "month": "Monat",
       "year": "Jahr",
       "pickupDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind abgeholt wird. An nicht gewählten Tagen geht es alleine nach Hause.",
-      "busDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt."
+      "busDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt.",
+      "departureModeHelp": "Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist „Geht alleine“.",
+      "departureModes": {
+        "alone": "Geht alleine",
+        "bus": "Bus",
+        "pickup": "Abholung"
+      }
     },
     "months": [
       "Januar",

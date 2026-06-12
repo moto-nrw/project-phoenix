@@ -828,6 +828,29 @@ function formatWeekdayObject(
   o: Record<string, unknown>,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
+  // weekday_mode (Geh- und Abholregelung, #1610): values are per-day mode
+  // strings ({mon: "bus", wed: "pickup"}). Render "Mo: fährt Bus, Mi: wird
+  // abgeholt", mirroring the backend formatWeekdayMode. Must run before the
+  // weekday_schedule fallback, which would otherwise print the raw mode string.
+  const isWeekdayMode =
+    field?.type === "weekday_mode" ||
+    WEEKDAYS.some(
+      ([key]) => o[key] === "bus" || o[key] === "pickup" || o[key] === "alone",
+    );
+  if (isWeekdayMode) {
+    const modeLabels: Record<string, string> = {
+      alone: "geht alleine",
+      bus: "fährt Bus",
+      pickup: "wird abgeholt",
+    };
+    const parts = WEEKDAYS.filter(
+      ([key]) => o[key] === "bus" || o[key] === "pickup",
+    ).map(([key, label]) => `${label}: ${modeLabels[o[key] as string]}`);
+    if (parts.length > 0) return parts.join(", ");
+    if (field?.type === "weekday_mode") return "Geht immer alleine";
+    return null;
+  }
+
   // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
   // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
   // mirroring the backend export renderer (formatWeekdayBoolean in

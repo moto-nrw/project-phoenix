@@ -505,7 +505,7 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 }
 
 // ============================================================================
-// Portal Locale Tests (parent-portal i18n, migration 1.15.121)
+// Portal Locale Tests (parent-portal i18n, migration 1.15.123)
 // ============================================================================
 
 // TestGuardianProfileRepository_UpdatePortalLocaleByAccountID covers the new

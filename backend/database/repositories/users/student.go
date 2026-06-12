@@ -276,10 +276,7 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 	if err := r.Repository.Create(ctx, student); err != nil {
 		return err
 	}
-	if err := r.persistBusDays(ctx, student); err != nil {
-		return err
-	}
-	return r.persistPickupDays(ctx, student)
+	return r.persistDepartureDays(ctx, student, nil)
 }
 
 // Update overrides the base Update method to handle validation
@@ -293,23 +290,67 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
+	currentDeparture, err := r.findCurrentDepartureState(ctx, student.ID)
+	if err != nil {
+		return err
+	}
+
 	if err := r.Repository.Update(ctx, student); err != nil {
 		return err
 	}
-	if err := r.persistBusDays(ctx, student); err != nil {
+	return r.persistDepartureDays(ctx, student, currentDeparture)
+}
+
+// persistDepartureDays writes the unified per-weekday departure mode AND its
+// derived legacy mirrors (bus_days, pickup_days, pickup_status) in a single
+// update, so the repository is the single source of truth (#1610): any caller
+// that mutates the departure plan — via DepartureDays or one of the legacy
+// maps — leaves all columns consistent and free of the bus/pickup contradiction
+// the old two-map model allowed. Callers that touch unrelated student fields
+// without loading the departure plan leave all four nil and this is a no-op,
+// preserving the previous "don't clobber what wasn't provided" behavior.
+func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
+	if student.DepartureDays == nil &&
+		student.BusDays == nil &&
+		student.PickupDays == nil &&
+		student.PickupStatus == nil {
+		return nil
+	}
+
+	departure := resolveDepartureDays(student, current)
+	busDays := departure.BusDays()
+	pickupDays := departure.PickupDays()
+	pickupStatus := departure.LegacyPickupStatus()
+
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Set(`pickup_status = ?`, pickupStatus).
+		Where(`"student".id = ?`, student.ID)
+
+	// departure_days (1.15.120), bus_days (1.15.112) and pickup_days (1.15.116)
+	// each landed in their own migration. Migration tests exercise historical
+	// schemas with the current model, so only set columns that actually exist.
+	hasDeparture, err := r.hasStudentColumn(ctx, "departure_days")
+	if err != nil {
 		return err
 	}
-	return r.persistPickupDays(ctx, student)
-}
-
-func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.Student) error {
-	// bus_days is the single source of truth (#1582). A nil map normalizes to an
-	// empty selection, so no legacy bus fallback is needed.
-	normalized := student.BusDays.Normalize()
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Set(`bus_days = ?`, normalized).
-		Where(`"student".id = ?`, student.ID)
+	if hasDeparture {
+		query = query.Set(`departure_days = ?`, departure)
+	}
+	hasBus, err := r.hasStudentColumn(ctx, "bus_days")
+	if err != nil {
+		return err
+	}
+	if hasBus {
+		query = query.Set(`bus_days = ?`, busDays)
+	}
+	hasPickup, err := r.hasStudentColumn(ctx, "pickup_days")
+	if err != nil {
+		return err
+	}
+	if hasPickup {
+		query = query.Set(`pickup_days = ?`, pickupDays)
+	}
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -317,60 +358,106 @@ func (r *StudentRepository) persistBusDays(ctx context.Context, student *users.S
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		// Migration tests exercise historical schemas with the current model.
-		// Before 1.15.112 the column legitimately does not exist; let the
-		// legacy bus flag continue to cover those test/database states.
+		// Before 1.6.18.1 even pickup_status did not exist; on those ancient
+		// schemas the legacy in-memory fields cover the gap.
 		if isUndefinedColumnError(err) {
 			return nil
 		}
 		return &modelBase.DatabaseError{
-			Op:  "update student bus days",
+			Op:  "update student departure days",
 			Err: err,
 		}
 	}
-	student.BusDays = normalized
-	return base.AssertRowsAffected(result, 1, "update student bus days")
+
+	student.DepartureDays = departure
+	student.BusDays = busDays
+	student.PickupDays = pickupDays
+	student.PickupStatus = &pickupStatus
+	return base.AssertRowsAffected(result, 1, "update student departure days")
 }
 
-// persistPickupDays writes the per-weekday pickup map AND the derived legacy
-// pickup_status string in the same update, so the repository is the single
-// source of truth: any caller that mutates PickupDays directly (not just the
-// HTTP reconcile helpers) can never leave pickup_status stale. HasAny →
-// "Wird abgeholt", else "Geht alleine nach Hause". Mirrors persistBusDays.
-func (r *StudentRepository) persistPickupDays(ctx context.Context, student *users.Student) error {
-	if student.PickupDays == nil {
-		if student.PickupStatus == nil {
-			return nil
-		}
-		student.PickupDays = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+// resolveDepartureDays determines the per-weekday departure plan to persist.
+// Freshly built students can provide only DepartureDays. Hydrated updates can
+// carry both the stored unified plan and the stored legacy mirrors, so updates
+// compare against a pre-update snapshot: if only DepartureDays changed, the
+// unified field wins; otherwise legacy map changes remain supported.
+func resolveDepartureDays(student *users.Student, current *studentDepartureState) users.DepartureDays {
+	pickup := student.PickupDays
+	if pickup == nil && student.PickupStatus != nil {
+		pickup = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
 	}
-	normalized := student.PickupDays.Normalize()
-	legacyStatus := normalized.LegacyPickupStatus()
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Set(`pickup_days = ?`, normalized).
-		Set(`pickup_status = ?`, legacyStatus).
-		Where(`"student".id = ?`, student.ID)
+	if student.DepartureDays != nil && shouldUseUnifiedDeparture(student, pickup, current) {
+		return student.DepartureDays.Normalize()
+	}
+	return users.DepartureDaysFromLegacy(student.BusDays, pickup)
+}
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+type studentDepartureState struct {
+	BusDays       users.BusDays
+	PickupDays    users.PickupDays
+	DepartureDays users.DepartureDays
+}
 
-	result, err := query.Exec(ctx)
-	if err != nil {
-		// Before 1.15.116 the column legitimately does not exist; let the
-		// legacy pickup_status field continue to cover those test states.
-		if isUndefinedColumnError(err) {
-			return nil
-		}
-		return &modelBase.DatabaseError{
-			Op:  "update student pickup days",
-			Err: err,
+func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, studentID int64) (*studentDepartureState, error) {
+	if studentID == 0 {
+		return nil, nil
+	}
+	student := &users.Student{}
+	student.ID = studentID
+	students := []*users.Student{student}
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+	return &studentDepartureState{
+		BusDays:       student.BusDays.Normalize(),
+		PickupDays:    student.PickupDays.Normalize(),
+		DepartureDays: student.DepartureDays.Normalize(),
+	}, nil
+}
+
+func shouldUseUnifiedDeparture(student *users.Student, pickup users.PickupDays, current *studentDepartureState) bool {
+	if student.BusDays == nil && pickup == nil {
+		return true
+	}
+	if current == nil {
+		return false
+	}
+	legacyUnchanged := busDaysEqual(student.BusDays, current.BusDays) && pickupDaysEqual(pickup, current.PickupDays)
+	unifiedChanged := !departureDaysEqual(student.DepartureDays, current.DepartureDays)
+	return legacyUnchanged && unifiedChanged
+}
+
+func departureDaysEqual(a, b users.DepartureDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a.ModeFor(day) != b.ModeFor(day) {
+			return false
 		}
 	}
-	student.PickupDays = normalized
-	student.PickupStatus = &legacyStatus
-	return base.AssertRowsAffected(result, 1, "update student pickup days")
+	return true
+}
+
+func busDaysEqual(a, b users.BusDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a[day] != b[day] {
+			return false
+		}
+	}
+	return true
+}
+
+func pickupDaysEqual(a, b users.PickupDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a[day] != b[day] {
+			return false
+		}
+	}
+	return true
 }
 
 func isUndefinedColumnError(err error) bool {
@@ -704,27 +791,37 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		return nil
 	}
 
-	// pickup_days (1.15.116) lands one migration after bus_days (1.15.112),
-	// so there is a schema window where bus_days exists but pickup_days does
-	// not. Detect the column independently and only select it when present —
-	// otherwise a missing pickup_days would fail the whole query and drop the
-	// bus_days hydration along with it.
+	// departure_days (1.15.120) is the source of truth, but pickup_days
+	// (1.15.116) and departure_days each landed after bus_days (1.15.112), so
+	// there are schema windows where a later column does not exist yet. Detect
+	// each independently and only select present columns — otherwise a missing
+	// column would fail the whole query and drop the bus_days hydration with it.
 	hasPickupDays, err := r.hasStudentColumn(ctx, "pickup_days")
+	if err != nil {
+		return err
+	}
+	hasDepartureDays, err := r.hasStudentColumn(ctx, "departure_days")
 	if err != nil {
 		return err
 	}
 
 	type weekdayDaysRow struct {
-		ID         int64            `bun:"id"`
-		BusDays    users.BusDays    `bun:"bus_days"`
-		PickupDays users.PickupDays `bun:"pickup_days"`
+		ID            int64               `bun:"id"`
+		BusDays       users.BusDays       `bun:"bus_days"`
+		PickupDays    users.PickupDays    `bun:"pickup_days"`
+		DepartureDays users.DepartureDays `bun:"departure_days"`
 	}
 	var rows []weekdayDaysRow
 	pickupCol := `, NULL::jsonb AS pickup_days`
 	if hasPickupDays {
 		pickupCol = `, "student".pickup_days`
 	}
-	sql := `SELECT "student".id, "student".bus_days` + pickupCol + ` FROM users.students AS "student" WHERE "student".id IN (?)`
+	departureCol := `, NULL::jsonb AS departure_days`
+	if hasDepartureDays {
+		departureCol = `, "student".departure_days`
+	}
+	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol +
+		` FROM users.students AS "student" WHERE "student".id IN (?)`
 	args := []any{bun.List(ids)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		sql += ` AND "student".tenant_id = ?`
@@ -745,10 +842,25 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	}
 
 	for _, row := range rows {
-		if student := byID[row.ID]; student != nil {
-			student.BusDays = row.BusDays.Normalize()
-			student.PickupDays = row.PickupDays.Normalize()
+		student := byID[row.ID]
+		if student == nil {
+			continue
 		}
+		// departure_days is authoritative when it carries any non-alone day:
+		// derive the legacy per-day views from it. When it is empty we cannot
+		// tell "genuinely all alone" from "not yet backfilled" (e.g. the
+		// pre-1.15.120 schema window, or a row written straight to bus_days),
+		// so we fall back to the stored legacy maps — which are empty too for a
+		// truly all-alone child, giving the same result either way.
+		if departure := row.DepartureDays.Normalize(); hasDepartureDays && departure.HasAny() {
+			student.DepartureDays = departure
+			student.BusDays = departure.BusDays()
+			student.PickupDays = departure.PickupDays()
+			continue
+		}
+		student.BusDays = row.BusDays.Normalize()
+		student.PickupDays = row.PickupDays.Normalize()
+		student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
 	}
 	return nil
 }

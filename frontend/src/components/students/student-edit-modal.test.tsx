@@ -58,49 +58,28 @@ vi.mock("./student-form-fields", () => ({
       />
     </div>
   ),
-  BusStatusSection: ({
-    value,
+  // Unified per-day departure selector (#1610): renders each weekday's current
+  // mode and offers a button to set Monday to "bus" for interaction tests.
+  DepartureSection: ({
     days,
     onChange,
   }: {
-    value: unknown;
-    days?: Record<string, boolean>;
-    onChange: (v: Record<string, boolean>) => void;
+    days?: Record<string, string>;
+    onChange: (v: Record<string, string>) => void;
   }) => (
-    <div data-testid="bus-status-section">
-      <input
-        type="checkbox"
-        data-testid="bus-checkbox"
-        checked={(value as boolean) ?? false}
-        onChange={(e) => onChange(e.target.checked ? { mon: true } : {})}
-      />
-      <input
-        type="checkbox"
-        data-testid="bus-day-mon"
-        checked={Boolean(days?.mon)}
-        onChange={(e) => onChange({ ...days, mon: e.target.checked })}
-      />
-      <input
-        type="checkbox"
-        data-testid="bus-day-wed"
-        checked={Boolean(days?.wed)}
-        onChange={(e) => onChange({ ...days, wed: e.target.checked })}
-      />
-    </div>
-  ),
-  PickupStatusSection: ({
-    value,
-    onChange,
-  }: {
-    value: unknown;
-    onChange: (v: string) => void;
-  }) => (
-    <div data-testid="pickup-status-section">
-      <input
-        data-testid="pickup-input"
-        value={(value as string) ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
+    <div data-testid="departure-section">
+      {["mon", "tue", "wed", "thu", "fri"].map((d) => (
+        <span key={d} data-testid={`departure-${d}`}>
+          {days?.[d] ?? "alone"}
+        </span>
+      ))}
+      <button
+        type="button"
+        data-testid="departure-set-mon-bus"
+        onClick={() => onChange({ ...days, mon: "bus" })}
+      >
+        set-mon-bus
+      </button>
     </div>
   ),
 }));
@@ -260,7 +239,7 @@ describe("StudentEditModal", () => {
     });
   });
 
-  it("renders bus status section", async () => {
+  it("renders the unified departure section", async () => {
     render(
       <StudentEditModal
         isOpen={true}
@@ -271,11 +250,11 @@ describe("StudentEditModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("bus-status-section")).toBeInTheDocument();
+      expect(screen.getByTestId("departure-section")).toBeInTheDocument();
     });
   });
 
-  it("renders pickup status section", async () => {
+  it("updates the departure plan on interaction", async () => {
     render(
       <StudentEditModal
         isOpen={true}
@@ -286,8 +265,12 @@ describe("StudentEditModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("pickup-status-section")).toBeInTheDocument();
+      expect(screen.getByTestId("departure-section")).toBeInTheDocument();
     });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("departure-set-mon-bus"));
+    });
+    expect(screen.getByTestId("departure-mon")).toHaveTextContent("bus");
   });
 
   it("renders common form sections", async () => {
@@ -416,7 +399,7 @@ describe("StudentEditModal", () => {
     });
   });
 
-  it("initializes bus days from the student", async () => {
+  it("initializes the departure plan from the student's bus days", async () => {
     render(
       <StudentEditModal
         isOpen={true}
@@ -430,9 +413,11 @@ describe("StudentEditModal", () => {
       />,
     );
 
+    // Legacy bus_days fold into the unified plan as "bus" on those weekdays.
     await waitFor(() => {
-      expect(screen.getByTestId("bus-day-mon")).toBeChecked();
-      expect(screen.getByTestId("bus-day-wed")).toBeChecked();
+      expect(screen.getByTestId("departure-mon")).toHaveTextContent("bus");
+      expect(screen.getByTestId("departure-wed")).toHaveTextContent("bus");
+      expect(screen.getByTestId("departure-tue")).toHaveTextContent("alone");
     });
   });
 

@@ -142,6 +142,8 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 		return formatWeekdaySchedule(raw)
 	case enrollmentModels.FormFieldWeekdayBoolean:
 		return formatWeekdayBoolean(raw)
+	case enrollmentModels.FormFieldWeekdayMode:
+		return formatWeekdayMode(raw)
 	case enrollmentModels.FormFieldPhoneList:
 		return formatPhoneList(raw)
 	case enrollmentModels.FormFieldContactList:
@@ -165,6 +167,53 @@ func formatWeekdayBoolean(raw any) string {
 			}
 			parts = append(parts, label)
 		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// departureModeLabelsDE renders a per-day departure mode for staff exports.
+var departureModeLabelsDE = map[string]string{
+	enrollmentModels.WeekdayModeAlone:  "geht alleine",
+	enrollmentModels.WeekdayModeBus:    "fährt Bus",
+	enrollmentModels.WeekdayModePickup: "wird abgeholt",
+}
+
+// formatWeekdayMode renders mon..fri → alone/bus/pickup as
+// "Mo: fährt Bus, Mi: wird abgeholt" in week order, skipping alone/unset days.
+func formatWeekdayMode(raw any) string {
+	if raw == nil {
+		return ""
+	}
+	var modes enrollmentModels.WeekdayMode
+	if !decodeComposite(raw, &modes) {
+		return stringifyValue(raw)
+	}
+	if len(modes) == 0 {
+		return "Geht immer alleine"
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	hasAnswer := false
+	for _, day := range weekdayOrder {
+		mode := modes[day]
+		if mode == "" {
+			continue
+		}
+		hasAnswer = true
+		if mode == enrollmentModels.WeekdayModeAlone {
+			continue
+		}
+		label := dayLabelsDE[day]
+		if label == "" {
+			label = day
+		}
+		modeLabel := departureModeLabelsDE[mode]
+		if modeLabel == "" {
+			modeLabel = mode
+		}
+		parts = append(parts, label+": "+modeLabel)
+	}
+	if len(parts) == 0 && hasAnswer {
+		return "Geht immer alleine"
 	}
 	return strings.Join(parts, ", ")
 }
