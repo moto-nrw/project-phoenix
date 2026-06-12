@@ -527,6 +527,39 @@ describe("timetableService", () => {
     );
   });
 
+  it("re-plans a week scoped to a single template", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          from: "2026-05-04",
+          to: "2026-05-08",
+          deleted_instances: 2,
+          candidates_skipped_existing: 0,
+          instances_created: 3,
+          instance_students_created: 6,
+          instance_staff_created: 3,
+          duration_ms: 5,
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.replanWeek("2026-05-04", "2026-05-08", "7"),
+    ).resolves.toMatchObject({ deletedInstances: 2, instancesCreated: 3 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/re-plan-week",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          from_date: "2026-05-04",
+          to_date: "2026-05-08",
+          activity_group_id: 7,
+        }),
+      }),
+    );
+  });
+
   it("substitutes staff and patches attendance", async () => {
     fetchMock
       .mockResolvedValueOnce(

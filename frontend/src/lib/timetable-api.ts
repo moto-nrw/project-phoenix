@@ -430,7 +430,21 @@ class TimetableService {
     return mapMaterializeResult(raw);
   }
 
-  async replanWeek(from: string, to: string): Promise<ReplanWeekResult> {
+  /**
+   * POST /api/timetable/instances/re-plan-week.
+   * Optional activityGroupId narrows the re-plan to one template's planned
+   * instances (backend body field activity_group_id); the
+   * re-materialization still covers the whole window (insert-only).
+   */
+  async replanWeek(
+    from: string,
+    to: string,
+    activityGroupId?: string,
+  ): Promise<ReplanWeekResult> {
+    const body: Record<string, unknown> = { from_date: from, to_date: to };
+    if (activityGroupId) {
+      body.activity_group_id = Number(activityGroupId);
+    }
     const response = await fetch("/api/timetable/instances/re-plan-week", {
       method: "POST",
       headers: {
@@ -438,7 +452,7 @@ class TimetableService {
         Accept: "application/json",
       },
       credentials: "include",
-      body: JSON.stringify({ from_date: from, to_date: to }),
+      body: JSON.stringify(body),
     });
 
     const raw = await unwrap<BackendReplanWeekResult>(response);
