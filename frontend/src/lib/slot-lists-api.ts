@@ -18,9 +18,9 @@ export interface SlotListRequest {
   pickup_cohort?: SlotListPickupCohort;
   source: SlotListSource;
   /** Selected timetable slots. Omit = all selectable slots; [] = none selected. */
-  instance_ids?: number[];
+  instance_ids?: string[];
   /** Optional education-group filter. Omit/empty = all groups. */
-  group_ids?: number[];
+  group_ids?: string[];
   /** Optional school-class filter. Omit/empty = all classes. */
   classes?: string[];
   /** Section the preview/export. Omit/"" = one flat list. */
@@ -28,19 +28,19 @@ export interface SlotListRequest {
 }
 
 interface SlotListSlot {
-  instance_id: number;
+  instance_id: string;
   title: string;
   time_range: string;
   status: string;
 }
 
 export interface SlotListRow {
-  student_id: number;
+  student_id: string;
   name: string;
   school_class: string;
   group_name: string;
-  group_id?: number;
-  instance_id?: number;
+  group_id?: string;
+  instance_id?: string;
   slot: string;
   room_name?: string;
   pickup_time?: string;
@@ -54,7 +54,7 @@ export interface SlotListRow {
 }
 
 interface SlotListGroupOption {
-  id: number;
+  id: string;
   name: string;
 }
 

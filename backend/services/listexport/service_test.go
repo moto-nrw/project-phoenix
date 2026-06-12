@@ -123,6 +123,35 @@ func TestPDFPagesKeepGroupHeadingWithFirstRow(t *testing.T) {
 	}
 }
 
+func TestPDFPagesKeepStandaloneGroupMarkerWithFirstRow(t *testing.T) {
+	cols := ResolveColumns([]ColumnID{ColumnName}, PresetOGSWeekly)
+	widths := pdfColumnWidths(cols, 180)
+	doc := Document{
+		Title:       "Grouped List",
+		GeneratedAt: time.Date(2026, time.May, 27, 14, 30, 0, 0, time.UTC),
+		Columns:     cols,
+		Rows: []Row{
+			{Values: map[ColumnID]string{ColumnName: "Filler Row"}},
+			{GroupTitle: "Standalone Group"},
+			{Values: map[ColumnID]string{ColumnName: "First Child"}},
+		},
+	}
+
+	pages := pdfPages(doc, cols, widths, 200, 130, 10)
+	if len(pages) != 2 {
+		t.Fatalf("pages len = %d, want 2", len(pages))
+	}
+	if strings.Contains(pages[0], "(Standalone Group)") {
+		t.Fatal("standalone group heading was orphaned on the previous PDF page")
+	}
+	if strings.Contains(pages[1], "()") {
+		t.Fatalf("standalone group marker rendered as an empty table row: %q", pages[1])
+	}
+	if !strings.Contains(pages[1], "(Standalone Group)") || !strings.Contains(pages[1], "(First Child)") {
+		t.Fatalf("second page must contain standalone group heading and first row, got %q", pages[1])
+	}
+}
+
 func TestRenderDOCXWritesWordDocument(t *testing.T) {
 	file, err := NewService().Render(sampleDocument(), FormatDOCX, "liste")
 	if err != nil {

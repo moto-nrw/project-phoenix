@@ -30,8 +30,8 @@ type slotListRequest struct {
 	PickupCohort string   `json:"pickup_cohort,omitempty"`
 	Source       string   `json:"source"`
 	Format       string   `json:"format,omitempty"`
-	InstanceIDs  []int64  `json:"instance_ids,omitempty"`
-	GroupIDs     []int64  `json:"group_ids,omitempty"`
+	InstanceIDs  []string `json:"instance_ids,omitempty"`
+	GroupIDs     []string `json:"group_ids,omitempty"`
 	Classes      []string `json:"classes,omitempty"`
 	GroupBy      string   `json:"group_by,omitempty"`
 }
@@ -43,6 +43,16 @@ type slotListOptionsRequest struct {
 // parseSlotListParams validates the shared request fields. Returns the
 // params or writes an error response and returns false.
 func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, req slotListRequest) (slotlists.Params, bool) {
+	instanceIDs, err := parseSlotListIDList(req.InstanceIDs, "instance_ids")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return slotlists.Params{}, false
+	}
+	groupIDs, err := parseSlotListIDList(req.GroupIDs, "group_ids")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return slotlists.Params{}, false
+	}
 	date, err := berlinDate(req.Date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
@@ -73,12 +83,27 @@ func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, 
 		Target:         target,
 		PickupCohort:   pickupCohort,
 		Source:         source,
-		InstanceIDs:    req.InstanceIDs,
+		InstanceIDs:    instanceIDs,
 		InstanceIDsSet: req.InstanceIDs != nil,
-		GroupIDs:       req.GroupIDs,
+		GroupIDs:       groupIDs,
 		Classes:        req.Classes,
 		GroupBy:        groupBy,
 	}, true
+}
+
+func parseSlotListIDList(values []string, field string) ([]int64, error) {
+	if values == nil {
+		return nil, nil
+	}
+	ids := make([]int64, 0, len(values))
+	for _, raw := range values {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("%s must contain positive int64 strings", field)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 // listSlotListOptions handles POST /api/timetable/lists/options.

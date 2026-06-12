@@ -176,7 +176,7 @@ type Params struct {
 // Slot is one activity instance on the selected date, returned so the UI can
 // offer concrete single- or multi-slot selection and explain empty results.
 type Slot struct {
-	InstanceID int64  `json:"instance_id"`
+	InstanceID int64  `json:"instance_id,string"`
 	Title      string `json:"title"`
 	TimeRange  string `json:"time_range"`
 	Status     string `json:"status"`
@@ -184,18 +184,18 @@ type Slot struct {
 
 // GroupOption is one selectable education group in the group filter.
 type GroupOption struct {
-	ID   int64  `json:"id"`
+	ID   int64  `json:"id,string"`
 	Name string `json:"name"`
 }
 
 // Row is one child on the list.
 type Row struct {
-	StudentID   int64  `json:"student_id"`
+	StudentID   int64  `json:"student_id,string"`
 	Name        string `json:"name"`
 	SchoolClass string `json:"school_class"`
 	GroupName   string `json:"group_name"`
-	GroupID     *int64 `json:"group_id,omitempty"`
-	InstanceID  int64  `json:"instance_id,omitempty"`
+	GroupID     *int64 `json:"group_id,string,omitempty"`
+	InstanceID  int64  `json:"instance_id,string,omitempty"`
 	Slot        string `json:"slot"`
 	RoomName    string `json:"room_name,omitempty"`
 	PickupTime  string `json:"pickup_time,omitempty"`

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
+import { normalizeSlotListRequestBody } from "../request-normalizer";
 
 const logger = createLogger({ component: "SlotListExportRoute" });
 
@@ -47,7 +48,10 @@ export async function POST(request: NextRequest) {
     if (!session?.user?.token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const body = await request.text();
+    const rawBody = await request.text();
+    const body = JSON.stringify(
+      normalizeSlotListRequestBody(rawBody ? JSON.parse(rawBody) : {}),
+    );
 
     const response = await proxyExport(session.user.token, body);
     if (response.status !== 401) return response;

@@ -92,7 +92,7 @@ func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
 		"date":         "2030-09-04",
 		"target":       "slots",
 		"source":       "reconciliation",
-		"instance_ids": []int64{},
+		"instance_ids": []string{},
 	})
 
 	require.Equal(t, http.StatusOK, w.Code)
@@ -100,6 +100,31 @@ func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
 	assert.Empty(t, mock.lastParams.InstanceIDs)
 	assert.Equal(t, slotlists.TargetSlots, mock.lastParams.Target)
 	assert.Equal(t, slotlists.SourceReconciliation, mock.lastParams.Source)
+}
+
+func TestPreviewSlotListParsesStringIDs(t *testing.T) {
+	mock := &mockSlotListsService{
+		buildResult: &slotlists.Result{
+			Date:   "2030-09-04",
+			Target: slotlists.TargetSlots,
+			Source: slotlists.SourcePlanned,
+			Rows:   []slotlists.Row{},
+		},
+	}
+	rs := NewResource(Dependencies{SlotListsService: mock})
+	router := slotListTestRouter(rs.previewSlotList, "/preview")
+
+	w := slotListPost(t, router, "/preview", map[string]any{
+		"date":         "2030-09-04",
+		"target":       "slots",
+		"source":       "planned",
+		"instance_ids": []string{"9007199254740993"},
+		"group_ids":    []string{"9223372036854775807"},
+	})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []int64{9007199254740993}, mock.lastParams.InstanceIDs)
+	assert.Equal(t, []int64{9223372036854775807}, mock.lastParams.GroupIDs)
 }
 
 func TestPreviewSlotListRejectsInvalidGroupingForTarget(t *testing.T) {

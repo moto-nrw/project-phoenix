@@ -136,8 +136,8 @@ interface InitialListState {
   source: SlotListSource;
   groupBy: SlotListGroupBy;
   dateISO: string;
-  selectedSlotIds: number[] | null;
-  selectedGroupIds: number[] | null;
+  selectedSlotIds: string[] | null;
+  selectedGroupIds: string[] | null;
   selectedClasses: string[] | null;
 }
 
@@ -231,17 +231,17 @@ function nextSelection<T>(values: T[], total: number): T[] | null {
   return values.length === 0 || values.length === total ? null : values;
 }
 
-function parseNumberList(
+function parseIdList(
   value: string | null,
   emptyToken: string | null = null,
-): number[] | null {
+): string[] | null {
   if (!value) return null;
   if (emptyToken && value === emptyToken) return [];
-  const numbers = value
+  const ids = value
     .split(",")
-    .map((part) => Number(part.trim()))
-    .filter((id) => Number.isSafeInteger(id) && id > 0);
-  return numbers.length > 0 ? numbers : null;
+    .map((part) => part.trim())
+    .filter((id) => /^\d+$/.test(id) && id !== "0");
+  return ids.length > 0 ? ids : null;
 }
 
 function parseStringList(value: string | null): string[] | null {
@@ -285,8 +285,8 @@ function parseInitialListState(
     source,
     groupBy: groupByOptionsFor(target).includes(rawGroupBy) ? rawGroupBy : "",
     dateISO,
-    selectedSlotIds: parseNumberList(searchParams.get("angebote"), "keine"),
-    selectedGroupIds: parseNumberList(searchParams.get("gruppen")),
+    selectedSlotIds: parseIdList(searchParams.get("angebote"), "keine"),
+    selectedGroupIds: parseIdList(searchParams.get("gruppen")),
     selectedClasses: parseStringList(searchParams.get("klassen")),
   };
 }
@@ -340,10 +340,10 @@ export default function SlotListsPage() {
   const [groupBy, setGroupBy] = useState<SlotListGroupBy>(initialState.groupBy);
   const [dateISO, setDateISO] = useState<string>(initialState.dateISO);
   // null = no restriction on that dimension; otherwise an explicit subset.
-  const [selectedSlotIds, setSelectedSlotIds] = useState<number[] | null>(
+  const [selectedSlotIds, setSelectedSlotIds] = useState<string[] | null>(
     initialState.selectedSlotIds,
   );
-  const [selectedGroupIds, setSelectedGroupIds] = useState<number[] | null>(
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[] | null>(
     initialState.selectedGroupIds,
   );
   const [selectedClasses, setSelectedClasses] = useState<string[] | null>(
@@ -508,7 +508,7 @@ export default function SlotListsPage() {
     [replaceListUrl, resetFilters],
   );
   const toggleSlot = useCallback(
-    (slotId: number) => {
+    (slotId: string) => {
       if (!selectableSlotIds.includes(slotId)) return;
       const current = selectedSlotIds ?? selectableSlotIds;
       const next = current.includes(slotId)
@@ -617,7 +617,7 @@ export default function SlotListsPage() {
 
     if (result.groups.length > 1) {
       const groupIds = result.groups.map((g) => g.id);
-      const active = (selectedGroupIds ?? groupIds).map(String);
+      const active = selectedGroupIds ?? groupIds;
       configs.push({
         id: "group",
         label: "Gruppe",
@@ -625,15 +625,12 @@ export default function SlotListsPage() {
         multiSelect: true,
         value: active,
         onChange: (v) => {
-          const nextGroupIds = nextSelection(
-            (v as string[]).map(Number),
-            groupIds.length,
-          );
+          const nextGroupIds = nextSelection(v as string[], groupIds.length);
           setSelectedGroupIds(nextGroupIds);
           replaceListUrl({ selectedGroupIds: nextGroupIds });
         },
         options: result.groups.map((g) => ({
-          value: String(g.id),
+          value: g.id,
           label: g.name,
         })),
       });

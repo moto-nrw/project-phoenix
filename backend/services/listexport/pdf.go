@@ -50,13 +50,25 @@ func pdfPages(doc Document, cols []Column, widths []float64, pageWidth, pageHeig
 	pages := make([]string, 0, 1)
 	page, y := newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
 	currentGroup := ""
+	pendingGroup := ""
 	for _, row := range doc.Rows {
+		if row.GroupTitle != "" && len(row.Values) == 0 {
+			pendingGroup = row.GroupTitle
+			continue
+		}
+
+		groupTitle := row.GroupTitle
+		if groupTitle == "" && pendingGroup != "" {
+			groupTitle = pendingGroup
+		}
+		pendingGroup = ""
+
 		lines := pdfRowLines(row, cols, widths)
 		rowHeight := pdfRowHeight(lines)
 		// A non-empty GroupTitle that differs from the running section opens a
 		// new section heading above the next row (flat lists never set it).
-		if row.GroupTitle != "" && row.GroupTitle != currentGroup {
-			currentGroup = row.GroupTitle
+		if groupTitle != "" && groupTitle != currentGroup {
+			currentGroup = groupTitle
 			if y-groupTitleSpacing-groupTitleHeight-rowHeight < margin+12 {
 				pages = append(pages, page.String())
 				page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
