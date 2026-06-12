@@ -4,10 +4,12 @@ import { use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
   PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
+  PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
   PublicInfoCard,
@@ -33,6 +35,8 @@ interface PageProps {
  * promote this later.
  */
 export default function EnrollPhaseFormPage({ params }: PageProps) {
+  const t = useTranslations("enrollmentPublic");
+  const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
   const { tenantSlug, tenant } = useTenant();
@@ -41,13 +45,16 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchPublicPhases(tenantSlug)
-      .then((result) => {
-        if (!cancelled) setPhases(result);
-      })
-      .catch(() => {
+    async function loadPhases() {
+      try {
+        const result = await fetchPublicPhases(tenantSlug);
+        if (cancelled) return;
+        setPhases(result);
+      } catch {
         if (!cancelled) setPhaseLoadFailed(true);
-      });
+      }
+    }
+    void loadPhases();
     return () => {
       cancelled = true;
     };
@@ -68,28 +75,29 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   };
 
   return (
-    <PublicEnrollmentPageShell>
+    <PublicEnrollmentPageShell withInlineSwitcher>
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <PublicEnrollmentBrand tenant={tenant} />
-        <PublicEnrollmentSteps current="form" />
+        <div className="flex items-center gap-3">
+          <PublicEnrollmentSteps current="form" />
+          <PublicEnrollmentLocaleSwitcher />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
           <div className="moto-content-surface rounded-3xl border p-5 shadow-sm sm:p-8">
             <PublicEnrollmentBackLink href="/enroll">
-              Andere Anmeldung wählen
+              {t("backToPicker")}
             </PublicEnrollmentBackLink>
             <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-              Formular ausfüllen
+              {t("formEyebrow")}
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
-              {phase?.name ?? "Anmeldung"}
+              {phase?.name ?? t("formTitleFallback")}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
-              Bitte füllen Sie alle Pflichtfelder aus. Wenn Sie mehrere Kinder
-              anmelden möchten, können Sie sie direkt in diesem Formular
-              hinzufügen.
+              {t("formDescription")}
             </p>
           </div>
 
@@ -97,68 +105,70 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             phaseID={phaseId}
             gradeLevelMax={4}
             onSubmitted={handleSubmitted}
+            localizedCopy
           />
         </section>
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
           <section className="moto-content-surface rounded-3xl border p-5 shadow-sm">
             <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-              Ihre Anmeldung
+              {t("sideTitleFallback")}
             </p>
             <h2 className="mt-2 text-xl font-semibold text-gray-900">
-              {phase?.name ?? "Anmeldeformular"}
+              {phase?.name ?? t("sideTitleFallback")}
             </h2>
             {phase ? (
               <dl className="mt-4 space-y-3 text-sm text-gray-600">
                 <div>
                   <dt className="font-semibold text-gray-900">
-                    Betreuungszeitraum
+                    {t("carePeriod")}
                   </dt>
                   <dd>
-                    {formatDate(phase.service_start_date)} bis{" "}
-                    {formatDate(phase.service_end_date)}
+                    {t("dateRange", {
+                      from: formatDate(phase.service_start_date, locale),
+                      to: formatDate(phase.service_end_date, locale),
+                    })}
                   </dd>
                 </div>
                 {phase.enrollment_close_at && (
                   <div>
                     <dt className="font-semibold text-gray-900">
-                      Anmeldefrist
+                      {t("deadline")}
                     </dt>
-                    <dd>{formatDateTime(phase.enrollment_close_at)}</dd>
+                    <dd>{formatDateTime(phase.enrollment_close_at, locale)}</dd>
                   </div>
                 )}
               </dl>
             ) : (
               <p className="mt-3 text-sm leading-6 text-gray-600">
-                {phaseLoadFailed
-                  ? "Die Detaildaten konnten nicht geladen werden. Das Formular kann trotzdem ausgefüllt werden."
-                  : "Die Detaildaten werden geladen."}
+                {phaseLoadFailed ? t("detailsLoadFailed") : t("detailsLoading")}
               </p>
             )}
           </section>
 
           <PublicInfoCard
             icon={<CalendarDays className="h-5 w-5" />}
-            title="Ein Formular pro Zeitraum"
+            title={t("oneFormTitle")}
           >
-            Diese Anmeldung gilt nur für den angezeigten Betreuungszeitraum. Für
-            einen anderen Zeitraum starten Sie bitte eine weitere Anmeldung.
+            {t("oneFormText")}
           </PublicInfoCard>
-          <PublicInfoCard icon={<Mail className="h-5 w-5" />} title="E-Mail">
-            Verwenden Sie eine E-Mail-Adresse, die Sie zuverlässig erreichen.
-            Dorthin gehen Rückfragen, Entscheidungen und der Status-Link.
+          <PublicInfoCard
+            icon={<Mail className="h-5 w-5" />}
+            title={t("emailTitle")}
+          >
+            {t("emailText")}
           </PublicInfoCard>
           <PublicInfoCard
             icon={<ShieldCheck className="h-5 w-5" />}
-            title="Prüfung durch die OGS"
+            title={t("reviewTitle")}
           >
-            Die OGS prüft Ihre Angaben nach dem Absenden. Eine Online-Anmeldung
-            ist deshalb noch keine endgültige Platzzusage.
+            {t("reviewText")}
           </PublicInfoCard>
-          <PublicInfoCard icon={<Check className="h-5 w-5" />} title="Status">
-            Nach dem Absenden wechseln Sie automatisch zur Statusseite. Dort
-            sehen Sie, ob die Anmeldung eingegangen ist, geprüft wird oder
-            entschieden wurde.
+          <PublicInfoCard
+            icon={<Check className="h-5 w-5" />}
+            title={t("statusTitle")}
+          >
+            {t("statusAfterSubmitText")}
           </PublicInfoCard>
         </aside>
       </div>
@@ -166,16 +176,16 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   );
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("de-DE", {
+function formatDate(value: string, locale: string): string {
+  return new Date(value).toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
+function formatDateTime(value: string, locale: string): string {
+  return new Date(value).toLocaleString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

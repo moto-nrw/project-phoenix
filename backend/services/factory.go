@@ -971,6 +971,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:             repos.ParentChild,
 		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		GuardianProfileRepo:   repos.GuardianProfile,
 		StatusDayRepo:         repos.StudentStatusDay,
 		StudentRepo:           repos.Student,
 		NoteRepo:              repos.StudentParentNote,

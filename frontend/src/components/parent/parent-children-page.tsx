@@ -3,23 +3,37 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Users } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ParentChildrenPage" });
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return "Noch offen";
-  return new Intl.DateTimeFormat("de-DE", {
+function formatDate(
+  iso: string | undefined,
+  locale: string,
+  empty: string,
+): string {
+  if (!iso) return empty;
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   }).format(new Date(iso));
 }
 
-function formatServiceRange(child: Child): string {
-  if (!child.enrolled_from && !child.enrolled_until) return "Zeitraum offen";
-  return `${formatDate(child.enrolled_from)} bis ${formatDate(child.enrolled_until)}`;
+function formatServiceRange(
+  child: Child,
+  locale: string,
+  empty: string,
+  connector: string,
+): string {
+  if (!child.enrolled_from && !child.enrolled_until) return empty;
+  return `${formatDate(child.enrolled_from, locale, empty)} ${connector} ${formatDate(
+    child.enrolled_until,
+    locale,
+    empty,
+  )}`;
 }
 
 function getInitials(child: Child): string {
@@ -27,6 +41,8 @@ function getInitials(child: Child): string {
 }
 
 export function ParentChildrenPage() {
+  const t = useTranslations("parentChildren");
+  const locale = useLocale();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +53,7 @@ export function ParentChildrenPage() {
     try {
       setChildren(await listMyChildren());
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : "Unknown error";
       logger.warn("parent_children_load_failed", { error: message });
       setError(message);
     } finally {
@@ -57,8 +73,7 @@ export function ParentChildrenPage() {
     return (
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
-          Die Kinderübersicht konnte nicht geladen werden. Bitte aktualisieren
-          Sie die Seite oder versuchen Sie es später erneut.
+          {t("loadError")}
         </div>
       </div>
     );
@@ -69,14 +84,13 @@ export function ParentChildrenPage() {
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 sm:p-6 lg:p-8">
           <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-            Meine Kinder
+            {t("eyebrow")}
           </p>
           <h1 className="mt-1 text-3xl font-semibold text-gray-900 sm:text-4xl">
-            Kinderübersicht
+            {t("title")}
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600 sm:text-base">
-            Wählen Sie ein Kind aus, um Betreuung, Abholberechtigte und
-            Neuigkeiten zu öffnen.
+            {t("description")}
           </p>
         </div>
       </section>
@@ -87,7 +101,7 @@ export function ParentChildrenPage() {
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
             {children.map((child) => (
-              <ChildCard key={child.student_id} child={child} />
+              <ChildCard key={child.student_id} child={child} locale={locale} />
             ))}
           </div>
         )}
@@ -96,7 +110,11 @@ export function ParentChildrenPage() {
   );
 }
 
-function ChildCard({ child }: Readonly<{ child: Child }>) {
+function ChildCard({
+  child,
+  locale,
+}: Readonly<{ child: Child; locale: string }>) {
+  const t = useTranslations("parentChildren");
   const name = `${child.first_name} ${child.last_name}`;
   return (
     <Link
@@ -122,7 +140,14 @@ function ChildCard({ child }: Readonly<{ child: Child }>) {
             </div>
           </div>
           <p className="mt-2 text-sm leading-5 break-words text-gray-500">
-            Betreuung {formatServiceRange(child)}
+            {t("careRange", {
+              range: formatServiceRange(
+                child,
+                locale,
+                t("openRange"),
+                t("dateRangeConnector"),
+              ),
+            })}
           </p>
         </div>
         <ArrowRight
@@ -135,16 +160,17 @@ function ChildCard({ child }: Readonly<{ child: Child }>) {
 }
 
 function EmptyChildren() {
+  const t = useTranslations("parentChildren");
   return (
     <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-8 text-center">
       <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
         <Users className="h-5 w-5" aria-hidden="true" />
       </span>
       <h2 className="mt-3 text-sm font-semibold text-gray-900">
-        Noch keine Kinder
+        {t("emptyTitle")}
       </h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">
-        Sobald ein Kind bestätigt ist, erscheint es hier.
+        {t("emptyDescription")}
       </p>
     </div>
   );

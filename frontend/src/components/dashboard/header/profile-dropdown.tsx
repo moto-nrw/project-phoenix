@@ -4,6 +4,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Avatar } from "~/components/ui/avatar";
 
 // UserAvatar is a thin compatibility wrapper around the shared <Avatar>.
@@ -147,6 +148,10 @@ export function ProfileDropdownMenu({
   onLogout,
   profileUrl,
 }: ProfileDropdownMenuProps) {
+  // parentNav carries German values in the staff/operator shells (via
+  // ShellNavIntlProvider), so those portals render unchanged; only the parents
+  // portal swaps in the localized catalog.
+  const t = useTranslations("parentNav");
   const handleLogoutClick = (e: React.MouseEvent) => {
     e.preventDefault();
     onClose();
@@ -161,7 +166,7 @@ export function ProfileDropdownMenu({
           type="button"
           className="fixed inset-0 z-40 cursor-default"
           onClick={onClose}
-          aria-label="Menü schließen"
+          aria-label={t("closeMenu")}
         />
       )}
 
@@ -201,7 +206,7 @@ export function ProfileDropdownMenu({
               className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
             >
               <ProfileIcon />
-              Profil
+              {t("profile")}
             </Link>
           )}
 
@@ -214,7 +219,7 @@ export function ProfileDropdownMenu({
             className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
           >
             <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
-            Abmelden
+            {t("logout")}
           </button>
         </div>
       </div>

@@ -1,20 +1,25 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
 import { useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui";
 import {
   AuthShell,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import { Loading } from "~/components/ui/loading";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { parentPath } from "~/lib/parent-url";
 
 export default function ParentLoginPage() {
+  const t = useTranslations("parentLogin");
+  const tAuthShell = useTranslations("parentAuthShell");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -26,6 +31,10 @@ export default function ParentLoginPage() {
   // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const testimonialPanelCopy = useMemo(
+    () => buildParentAuthShellCopy(tAuthShell),
+    [tAuthShell],
+  );
 
   // Redirect if already authenticated as parent, or clear stale sessions.
   useEffect(() => {
@@ -66,7 +75,7 @@ export default function ParentLoginPage() {
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
+        <Loading message={t("loading")} />
       </div>
     );
   }
@@ -85,29 +94,22 @@ export default function ParentLoginPage() {
 
       if (result?.error) {
         const errorMessages: Record<string, string> = {
-          account_inactive:
-            "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule.",
-          rate_limited:
-            "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+          account_inactive: t("errors.accountInactive"),
+          rate_limited: t("errors.rateLimited"),
           // ErrAccountNoGuardianRole: backend sends 403 which CredentialsProvider
           // surfaces here with code "invalid_credentials" by default. A future
           // refinement could plumb a separate code; for now the German copy
           // covers both "wrong password" and "not a parent" cases without
           // leaking which one applies (account-enumeration mask).
-          invalid_credentials:
-            "Anmeldung nicht möglich. Bitte prüfen Sie Ihre Zugangsdaten oder verwenden Sie das Schul-Login, falls Sie zum Personal gehören.",
+          invalid_credentials: t("errors.invalidCredentials"),
         };
-        setError(errorMessages[result.code ?? ""] ?? "Ungültige Anmeldedaten");
+        setError(errorMessages[result.code ?? ""] ?? t("errors.invalid"));
         return;
       }
 
       router.push(parentPath("/parents"));
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Anmeldefehler. Bitte versuchen Sie es erneut.",
-      );
+      setError(err instanceof Error ? err.message : t("errors.generic"));
     } finally {
       setIsLoading(false);
     }
@@ -115,11 +117,13 @@ export default function ParentLoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Elternportal"
+      eyebrow={t("eyebrow")}
       eyebrowClassName="text-[#83CD2D]"
-      title="Willkommen im Eltern-Portal"
-      subtitle="Melden Sie sich an, um alles Wichtige zur Betreuung Ihres Kindes im Blick zu behalten."
+      title={t("title")}
+      subtitle={t("subtitle")}
       variant="parents"
+      footer={<LanguageSwitcher />}
+      testimonialPanelCopy={testimonialPanelCopy}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {error && <Alert type="error" message={error} />}
@@ -130,7 +134,7 @@ export default function ParentLoginPage() {
               htmlFor="parent-email"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              E-Mail-Adresse
+              {t("emailLabel")}
             </label>
             <input
               id="parent-email"
@@ -149,7 +153,7 @@ export default function ParentLoginPage() {
               htmlFor="parent-password"
               className="mb-1 block text-sm font-medium text-gray-700"
             >
-              Passwort
+              {t("passwordLabel")}
             </label>
             <div className="relative">
               <input
@@ -165,6 +169,8 @@ export default function ParentLoginPage() {
               <PasswordToggleButton
                 showPassword={showPassword}
                 onToggle={() => setShowPassword(!showPassword)}
+                showLabel={t("showPassword")}
+                hideLabel={t("hidePassword")}
               />
             </div>
           </div>
@@ -176,12 +182,12 @@ export default function ParentLoginPage() {
           className={authPrimaryButtonClassName}
         >
           <span className="relative z-10">
-            {isLoading ? "Anmeldung läuft..." : "Anmelden"}
+            {isLoading ? t("submitting") : t("submit")}
           </span>
         </button>
 
         <p className="text-center text-sm leading-6 text-gray-500">
-          Passwort vergessen? Bitte wenden Sie sich an Ihre OGS.
+          {t("forgotPassword")}
         </p>
       </form>
     </AuthShell>

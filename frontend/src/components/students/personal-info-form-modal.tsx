@@ -228,7 +228,6 @@ function DateInput({ id, label, value, onChange }: Readonly<DateInputProps>) {
   );
 }
 
-
 interface TextAreaInputProps {
   id: string;
   label: string;

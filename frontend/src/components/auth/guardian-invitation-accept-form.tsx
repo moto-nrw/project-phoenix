@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, Circle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import {
   authInputClassName,
@@ -28,29 +29,29 @@ interface Props {
 const getErrorMessage = (
   apiError: ApiError | undefined,
   err: unknown,
+  t: ReturnType<typeof useTranslations<"guardianInvite">>,
 ): string => {
   if (apiError?.status === 410) {
-    return "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung bei der Schule an.";
+    return t("formErrors.expired");
   }
   if (apiError?.status === 404) {
-    return "Einladung wurde nicht gefunden.";
+    return t("formErrors.notFound");
   }
   if (apiError?.status === 409) {
-    return "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.";
+    return t("formErrors.conflict");
   }
   if (apiError?.status === 400) {
-    return (
-      apiError.message ?? "Ungültige Eingaben. Bitte überprüfe das Formular."
-    );
+    return apiError.message ?? t("formErrors.invalid");
   }
   return (
     apiError?.message ??
     (err instanceof Error ? err.message : undefined) ??
-    "Beim Annehmen der Einladung ist ein Fehler aufgetreten."
+    t("formErrors.generic")
   );
 };
 
 export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
+  const t = useTranslations("guardianInvite");
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -64,11 +65,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
 
   const requirementStatus = useMemo(
     () =>
-      PASSWORD_RULES.map(({ label, test }) => ({
-        label,
+      PASSWORD_RULES.map(({ test }, index) => ({
+        label: t(`passwordRules.${index}`),
         met: test(password),
       })),
-    [password],
+    [password, t],
   );
 
   const allRequirementsMet = useMemo(
@@ -87,14 +88,12 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     setErrorFieldName(null);
 
     if (!allRequirementsMet) {
-      setError(
-        "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
-      );
+      setError(t("formErrors.passwordRules"));
       setErrorFieldName("password");
       return;
     }
     if (password !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.");
+      setError(t("formErrors.passwordMismatch"));
       setErrorFieldName("confirmPassword");
       return;
     }
@@ -130,9 +129,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         logger.warn("guardian_invitation_accept_offline", {
           error: "no_network_connection",
         });
-        setError(
-          "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
-        );
+        setError(t("formErrors.offline"));
         setIsSubmitting(false);
         return;
       }
@@ -140,7 +137,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         error: err instanceof Error ? err.message : String(err),
       });
       const apiError = err as ApiError | undefined;
-      setError(getErrorMessage(apiError, err));
+      setError(getErrorMessage(apiError, err, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -166,11 +163,9 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           </svg>
         </div>
         <h3 className="mb-1 text-base font-semibold text-gray-900">
-          Konto erstellt
+          {t("acceptedTitle")}
         </h3>
-        <p className="mb-6 text-sm text-gray-500">
-          Bitte melde dich mit deinen neuen Zugangsdaten an.
-        </p>
+        <p className="mb-6 text-sm text-gray-500">{t("acceptedText")}</p>
         <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
           <div
             className="h-full rounded-full bg-gray-900"
@@ -208,7 +203,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
 
       <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
         <p className="font-medium text-gray-700">
-          Einladung für{" "}
+          {t("invitationFor")}{" "}
           <span className="font-semibold text-gray-900">
             {guardianFullName || invitation.email}
           </span>
@@ -223,7 +218,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           htmlFor="password"
           className={`mb-2 block text-sm font-medium ${errorFieldName === "password" ? "text-[#CC2626]" : "text-gray-700"}`}
         >
-          Passwort
+          {t("passwordLabel")}
         </label>
         <div className="relative">
           <input
@@ -240,6 +235,8 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           <PasswordToggleButton
             showPassword={showPassword}
             onToggle={() => setShowPassword(!showPassword)}
+            showLabel={t("showPassword")}
+            hideLabel={t("hidePassword")}
           />
         </div>
       </div>
@@ -249,7 +246,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           htmlFor="confirmPassword"
           className={`mb-2 block text-sm font-medium ${errorFieldName === "confirmPassword" ? "text-[#CC2626]" : "text-gray-700"}`}
         >
-          Passwort bestätigen
+          {t("confirmPasswordLabel")}
         </label>
         <div className="relative">
           <input
@@ -266,13 +263,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
           <PasswordToggleButton
             showPassword={showConfirmPassword}
             onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+            showLabel={t("showPassword")}
+            hideLabel={t("hidePassword")}
           />
         </div>
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
         <p className="text-xs font-medium text-gray-700">
-          Passwortanforderungen
+          {t("requirementsTitle")}
         </p>
         <div className="mt-3 grid gap-1.5 sm:grid-cols-2 sm:gap-2">
           {requirementStatus.map((requirement) => (
@@ -309,7 +308,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         disabled={isSubmitting}
         className={authPrimaryButtonClassName}
       >
-        {isSubmitting ? "Wird übernommen..." : "Einladung akzeptieren"}
+        {isSubmitting ? t("submitting") : t("submit")}
       </button>
     </form>
   );

@@ -1,7 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { AuthShell } from "~/components/auth/auth-shell";
+import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import { GuardianInvitationAcceptForm } from "~/components/auth/guardian-invitation-accept-form";
+import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import {
   validateGuardianInvitation,
   type GuardianInvitationValidation,
@@ -23,6 +26,7 @@ interface ValidationOutcome {
 
 async function fetchInvitationServer(
   token: string,
+  t: Awaited<ReturnType<typeof getTranslations>>,
 ): Promise<ValidationOutcome> {
   // Server-side fetch bypasses the route handler because this page runs on the server.
   try {
@@ -34,19 +38,18 @@ async function fetchInvitationServer(
       if (response.status === 410) {
         return {
           invitation: null,
-          errorMessage:
-            "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
+          errorMessage: t("errors.expired"),
         };
       }
       if (response.status === 404) {
         return {
           invitation: null,
-          errorMessage: "Wir konnten diese Einladung nicht finden.",
+          errorMessage: t("errors.notFound"),
         };
       }
       return {
         invitation: null,
-        errorMessage: "Beim Laden der Einladung ist ein Fehler aufgetreten.",
+        errorMessage: t("errors.load"),
       };
     }
 
@@ -73,8 +76,7 @@ async function fetchInvitationServer(
     if (!payload?.email || !payload?.expires_at) {
       return {
         invitation: null,
-        errorMessage:
-          "Die Einladungsdaten sind unvollständig. Bitte fordere eine neue Einladung an.",
+        errorMessage: t("errors.incomplete"),
       };
     }
 
@@ -96,7 +98,7 @@ async function fetchInvitationServer(
     });
     return {
       invitation: null,
-      errorMessage: "Beim Laden der Einladung ist ein Fehler aufgetreten.",
+      errorMessage: t("errors.load"),
     };
   }
 }
@@ -104,25 +106,28 @@ async function fetchInvitationServer(
 void validateGuardianInvitation;
 
 export default async function AcceptGuardianInvitePage({ params }: PageProps) {
+  const t = await getTranslations("guardianInvite");
+  const tAuthShell = await getTranslations("parentAuthShell");
   const { token } = await params;
   const { invitation, errorMessage } = token
-    ? await fetchInvitationServer(token)
+    ? await fetchInvitationServer(token, t)
     : {
         invitation: null,
-        errorMessage: "Kein Einladungstoken angegeben.",
+        errorMessage: t("errors.missingToken"),
       };
 
-  const schoolName = invitation?.schoolName?.trim() || "deiner Schule";
+  const schoolName = invitation?.schoolName?.trim() || t("fallbackSchool");
   const schoolLogoUrl = normalizeSchoolLogoUrl(
     invitation?.schoolLogoUrl?.trim() || null,
   );
+  const testimonialPanelCopy = buildParentAuthShellCopy(tAuthShell);
 
   return (
     <AuthShell
-      eyebrow="Eltern-Portal"
+      eyebrow={t("eyebrow")}
       eyebrowClassName="text-[#83CD2D]"
-      title="Willkommen"
-      subtitle={`Bestätige deine Einladung für ${schoolName} und lege dein persönliches Passwort fest.`}
+      title={t("title")}
+      subtitle={t("subtitle", { school: schoolName })}
       variant="parents"
       brand={
         <SchoolBrandMark
@@ -131,6 +136,8 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
         />
       }
       formMaxWidth="max-w-[32rem]"
+      footer={<LanguageSwitcher />}
+      testimonialPanelCopy={testimonialPanelCopy}
     >
       {errorMessage && (
         <div className="space-y-4">
@@ -139,15 +146,14 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
           </div>
           <div className="text-center text-sm text-gray-600">
             <p>
-              Du kannst eine neue Einladung bei der Schule anfordern oder dich
-              über{" "}
+              {t("errorHelpBefore")}{" "}
               <Link
                 href="/"
                 className="font-medium text-gray-900 underline hover:text-gray-700"
               >
-                die Startseite
+                {t("startPage")}
               </Link>{" "}
-              anmelden.
+              {t("errorHelpAfter")}
             </p>
           </div>
         </div>

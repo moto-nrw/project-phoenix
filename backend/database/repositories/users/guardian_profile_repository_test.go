@@ -503,3 +503,136 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 		assert.True(t, found, "repeated matching tokens must still find the guardian")
 	})
 }
+
+// ============================================================================
+// Portal Locale Tests (parent-portal i18n, migration 1.15.121)
+// ============================================================================
+
+// TestGuardianProfileRepository_UpdatePortalLocaleByAccountID covers the new
+// write path that persists the parent's explicit portals-portal language.
+func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("persists locale and is reflected by FindByAccountID", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "portallocale")
+		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+		account := testpkg.CreateTestAccount(t, db, "portallocale")
+		defer testpkg.CleanupAccount(t, db, account.ID)
+
+		require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
+
+		// A profile starts with no portal language chosen.
+		before, err := repo.FindByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		assert.Nil(t, before.PortalLocale, "a fresh profile must have NULL portal_locale")
+
+		// First explicit choice.
+		require.NoError(t, repo.UpdatePortalLocaleByAccountID(ctx, account.ID, "en"))
+		afterEN, err := repo.FindByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		require.NotNil(t, afterEN.PortalLocale)
+		assert.Equal(t, "en", *afterEN.PortalLocale)
+
+		// Changing the choice overwrites the prior value.
+		require.NoError(t, repo.UpdatePortalLocaleByAccountID(ctx, account.ID, "ru"))
+		afterRU, err := repo.FindByAccountID(ctx, account.ID)
+		require.NoError(t, err)
+		require.NotNil(t, afterRU.PortalLocale)
+		assert.Equal(t, "ru", *afterRU.PortalLocale, "a later choice must replace the earlier one")
+	})
+
+	t.Run("returns ErrGuardianProfileNotFound when the account has no profile", func(t *testing.T) {
+		// Zero rows matched must fail loud, not silently succeed — otherwise a
+		// "saved" preference that never persisted would masquerade as success.
+		err := repo.UpdatePortalLocaleByAccountID(ctx, int64(999999), "en")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
+	})
+}
+
+// TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile exercises
+// the happy path of the reworked FindByAccountID (deterministic ordering +
+// Limit(1)): a linked account resolves to its profile and carries portal_locale.
+func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := testpkg.TenantContext(1)
+
+	profile := testpkg.CreateTestGuardianProfile(t, db, "findbyaccount")
+	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
+
+	account := testpkg.CreateTestAccount(t, db, "findbyaccount")
+	defer testpkg.CleanupAccount(t, db, account.ID)
+
+	require.NoError(t, repo.LinkAccount(ctx, profile.ID, account.ID))
+
+	found, err := repo.FindByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, profile.ID, found.ID, "FindByAccountID must resolve to the linked profile")
+	require.NotNil(t, found.AccountID)
+	assert.Equal(t, account.ID, *found.AccountID)
+}
+
+// TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale
+// locks in the reason the ordering clause exists. A cross-tenant parent owns
+// one guardian_profiles row per school, so several rows share account_id
+// (UNIQUE is per (tenant_id, account_id), not global). When the parent has
+// already chosen a portal language and a newer enrollment then inserts a fresh
+// row whose portal_locale is still NULL, FindByAccountID must return the row
+// with the explicit choice — not the lowest id. The `portal_locale IS NULL, id`
+// ordering guarantees that even though the explicit row is inserted *second*
+// (higher id) in a *different* tenant.
+func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "localeordering")
+	defer testpkg.CleanupAccount(t, db, account.ID)
+
+	// Older row in tenant 1, no portal language chosen (portal_locale NULL).
+	older := testpkg.CreateTestGuardianProfile(t, db, "localeordering-a")
+	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", older.ID)
+	require.NoError(t, repo.LinkAccount(ctx, older.ID, account.ID))
+
+	// Newer row in a second tenant with an explicit "en". Different tenant_id
+	// so it doesn't collide with the per-(tenant_id, account_id) UNIQUE index.
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+
+	newerEmail := fmt.Sprintf("localeordering-b-%d@example.test", time.Now().UnixNano())
+	enLocale := "en"
+	newer := &users.GuardianProfile{
+		FirstName:              "Guardian",
+		LastName:               "Test",
+		Email:                  &newerEmail,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+		PortalLocale:           &enLocale,
+	}
+	newer.SetTenantID(tenantB)
+	err := db.NewInsert().
+		Model(newer).
+		ModelTableExpr(`users.guardian_profiles`).
+		Scan(context.Background())
+	require.NoError(t, err, "failed to insert second-tenant guardian profile")
+	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", newer.ID)
+	require.NoError(t, repo.LinkAccount(ctx, newer.ID, account.ID))
+	require.Greater(t, newer.ID, older.ID, "explicit row must have the higher id for the test to be meaningful")
+
+	found, err := repo.FindByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found.PortalLocale, "the row with an explicit portal_locale must win over the NULL one")
+	assert.Equal(t, "en", *found.PortalLocale)
+	assert.Equal(t, newer.ID, found.ID, "ordering must prefer the explicit-locale row, not the lowest id")
+}
