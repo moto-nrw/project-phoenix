@@ -369,6 +369,7 @@
       "agb": "Please accept the terms.",
       "data": "Please consent to data processing.",
       "emailContact": "Please consent to email contact.",
+      "consentRequired": "Please select this required confirmation.",
       "required": "Please fill in this required field.",
       "careMissing": "Please choose at least one care offer for each child.",
       "careExactlyOne": "Please choose exactly one care offer for each child.",

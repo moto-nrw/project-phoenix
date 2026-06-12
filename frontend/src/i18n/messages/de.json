@@ -372,6 +372,7 @@
       "agb": "Bitte den AGB zustimmen.",
       "data": "Bitte der Datenverarbeitung zustimmen.",
       "emailContact": "Bitte dem E-Mail-Kontakt zustimmen.",
+      "consentRequired": "Bitte diese erforderliche Bestätigung auswählen.",
       "yesNo": "Bitte Ja oder Nein auswählen.",
       "phoneList": "Bitte mindestens eine Telefonnummer angeben.",
       "contactList": "Bitte mindestens einen vollständigen Kontakt mit E-Mail oder Telefonnummer angeben.",

@@ -34,6 +34,7 @@ import {
 } from "~/lib/enrollment-field-visibility";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -77,6 +78,7 @@ interface Props {
   readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
+  readonly prefetchedData?: EnrollmentFormPrefetchedData;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -108,6 +110,15 @@ type EnrollmentFormTranslator = TranslationFn & {
   raw: (key: string) => unknown;
 };
 
+export interface EnrollmentFormPrefetchedData {
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
+  captchaConfig: PublicCaptchaConfig | null;
+  legalTexts: PublicLegalTexts;
+  profile?: MeProfileResponse | null;
+}
+
 /**
  * Public enrollment form. Loads the active schema + open care offerings,
  * collects guardian info + 1..n children + offering selections, and
@@ -124,6 +135,7 @@ export function EnrollmentForm({
   phaseID,
   gradeLevelMax,
   onSubmitted,
+  prefetchedData,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -138,17 +150,26 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
-  const [schema, setSchema] = useState<PublicFormSchema | null>(null);
-  const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
+  const initialRequiredOfferingIDs =
+    prefetchedData?.offerings.filter((o) => o.is_required).map((o) => o.id) ??
+    [];
+  const [schema, setSchema] = useState<PublicFormSchema | null>(
+    prefetchedData?.schema ?? null,
+  );
+  const [offerings, setOfferings] = useState<PublicCareOffering[]>(
+    prefetchedData?.offerings ?? [],
+  );
   const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
-    useState<CareOfferingSelectionMode>("optional");
+    useState<CareOfferingSelectionMode>(
+      prefetchedData?.careOfferingSelectionMode ?? "optional",
+    );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
     () => offerings.filter((o) => o.is_required).map((o) => o.id),
     [offerings],
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(prefetchedData === undefined);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childOfferingErrors, setChildOfferingErrors] = useState<
@@ -173,36 +194,83 @@ export function EnrollmentForm({
   // successful submit nothing is marked invalid so it's a no-op.
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
-  const [guardianFirstName, setGuardianFirstName] = useState("");
-  const [guardianLastName, setGuardianLastName] = useState("");
-  const [guardianEmail, setGuardianEmail] = useState("");
-  const [guardianPhone, setGuardianPhone] = useState("");
-  // Consent states are only used when the tenant's legal block resolver
-  // returns the matching visible block.
-  const [agbConsent, setAgbConsent] = useState(false);
-  const [dataConsent, setDataConsent] = useState(false);
-  const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
-  const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
+  const [guardianFirstName, setGuardianFirstName] = useState(
+    prefetchedData?.profile?.guardian.first_name ?? "",
+  );
+  const [guardianLastName, setGuardianLastName] = useState(
+    prefetchedData?.profile?.guardian.last_name ?? "",
+  );
+  const [guardianEmail, setGuardianEmail] = useState(
+    prefetchedData?.profile?.guardian.email ?? "",
+  );
+  const [guardianPhone, setGuardianPhone] = useState(
+    prefetchedData?.profile?.guardian.phone ?? "",
+  );
+  const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [children, setChildren] = useState<ChildDraft[]>([
+    blankChild(initialRequiredOfferingIDs),
+  ]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
   // shared across all children in the submission.
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
-    useState<PublicCaptchaConfig | null>(null);
+    useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
   // Per-tenant legal block contract. null until fetched.
-  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
+  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(
+    prefetchedData?.legalTexts ?? null,
+  );
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
   );
-  const [profile, setProfile] = useState<MeProfileResponse | null>(null);
+  const [profile, setProfile] = useState<MeProfileResponse | null>(
+    prefetchedData?.profile ?? null,
+  );
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
   );
 
   useEffect(() => {
     let cancelled = false;
+    if (prefetchedData !== undefined) {
+      setSchema(prefetchedData.schema);
+      setOfferings(prefetchedData.offerings);
+      setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setCaptchaConfig(prefetchedData.captchaConfig);
+      setLegalTexts(prefetchedData.legalTexts);
+      setProfile(prefetchedData.profile ?? null);
+      setChildren((prev) =>
+        seedRequiredOfferings(
+          prev.length > 0 ? prev : [blankChild()],
+          prefetchedData.offerings
+            .filter((o) => o.is_required)
+            .map((o) => o.id),
+        ),
+      );
+      if (prefetchedData.profile) {
+        setGuardianFirstName(
+          (prev) => prev || prefetchedData.profile?.guardian.first_name || "",
+        );
+        setGuardianLastName(
+          (prev) => prev || prefetchedData.profile?.guardian.last_name || "",
+        );
+        setGuardianEmail(
+          (prev) => prev || prefetchedData.profile?.guardian.email || "",
+        );
+        setGuardianPhone(
+          (prev) => prev || prefetchedData.profile?.guardian.phone || "",
+        );
+      }
+      setError(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     async function load() {
       setLoading(true);
       setError(null);
@@ -234,13 +302,17 @@ export function EnrollmentForm({
           skipCaptcha
             ? Promise.resolve(null)
             : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
-          // Legal texts are tenant-wide (no phase param). NOT best-
+          // Legal texts are phase/template-aware. NOT best-
           // effort: a real load failure rejects the whole load so the
           // form shows an error instead of collecting legally relevant
           // consent without the configured documents. Unconfigured
           // texts return empty strings (no rejection) and just drop the
           // link.
-          fetchPublicLegalTexts(tenantSlug),
+          previewSchema !== undefined
+            ? resolvePreviewLegalTexts(tenantSlug, previewSchema)
+            : phaseID
+              ? fetchPublicLegalTexts(tenantSlug, phaseID)
+              : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -286,7 +358,15 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID, previewSchema, profileFetcher, skipCaptcha, tr]);
+  }, [
+    tenantSlug,
+    phaseID,
+    prefetchedData,
+    previewSchema,
+    profileFetcher,
+    skipCaptcha,
+    tr,
+  ]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -409,14 +489,6 @@ export function EnrollmentForm({
     (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
   );
   const legalBlocks = legalTexts?.blocks ?? [];
-  const agbBlock = legalBlocks.find((block) => block.key === "agb");
-  const dataProcessingBlock = legalBlocks.find(
-    (block) => block.key === "data_processing",
-  );
-  const emailContactBlock = legalBlocks.find(
-    (block) => block.key === "email_contact",
-  );
-  const photoBlock = legalBlocks.find((block) => block.key === "photo");
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
@@ -516,15 +588,14 @@ export function EnrollmentForm({
       }
     }
     // Required legal blocks are collected into the same pass so a missing
-    // confirmation is marked (red checkbox) together with any other missing
-    // field. The backend derives the same required keys from the public legal
-    // block contract; the messages are localized chrome (Tier A) even though the
-    // block labels/texts themselves stay German (Tier C).
-    if (agbBlock?.required && !agbConsent) {
-      newFieldErrors.consent_agb = tr("errors.agb");
-    }
-    if (dataProcessingBlock?.required && !dataConsent) {
-      newFieldErrors.consent_data_processing = tr("errors.data");
+    // confirmation is marked together with other missing fields. The backend
+    // derives the same required keys from the public legal block contract; the
+    // messages are localized chrome even though the legal labels/texts stay
+    // school-authored.
+    for (const block of legalBlocks) {
+      if (block.required && !legalConsents[block.key]) {
+        newFieldErrors[`consent_${block.key}`] = tr("errors.consentRequired");
+      }
     }
     // Offering validation runs in the SAME pass as the field checks above
     // so a missing care-offering day and a missing core field (e.g. phone)
@@ -690,17 +761,9 @@ export function EnrollmentForm({
     setSubmitting(true);
     try {
       const consentFlags: Record<string, unknown> = {};
-      if (agbBlock) {
-        consentFlags.agb = agbConsent;
-      }
-      if (dataProcessingBlock) {
-        consentFlags.data_processing = dataConsent;
-      }
-      if (emailContactBlock) {
-        consentFlags.email_contact = true;
-      }
-      if (photoBlock) {
-        consentFlags.photo = photoConsent === true;
+      for (const block of legalBlocks) {
+        consentFlags[block.key] =
+          block.kind === "notice" ? true : legalConsents[block.key] === true;
       }
 
       const payload: SubmitEnrollmentPayload = {
@@ -972,7 +1035,7 @@ export function EnrollmentForm({
                 />
               </div>
               <GradeLevelSelect
-                name={`children_${i}_target_grade_level`}
+                id={`children-${i}-target-grade-level`}
                 value={child.target_grade_level}
                 onChange={(v) => updateChild(i, { target_grade_level: v })}
                 max={gradeLevelMax}
@@ -1176,50 +1239,37 @@ export function EnrollmentForm({
               {tr("legalGermanNotice")}
             </p>
           ) : null}
-          {agbBlock && (
-            <Consent
-              name="consent_agb"
-              label={agbBlock.label}
-              checked={agbConsent}
-              onChange={setAgbConsent}
-              required={agbBlock.required}
-              error={fieldErrors.consent_agb}
-              legalText={agbBlock.text}
-              onViewLegal={() => setOpenLegalDoc(agbBlock)}
-              tr={tr}
-            />
-          )}
-          {dataProcessingBlock && (
-            <Consent
-              name="consent_data_processing"
-              label={dataProcessingBlock.label}
-              checked={dataConsent}
-              onChange={setDataConsent}
-              required={dataProcessingBlock.required}
-              error={fieldErrors.consent_data_processing}
-              legalText={dataProcessingBlock.text}
-              onViewLegal={() => setOpenLegalDoc(dataProcessingBlock)}
-              tr={tr}
-            />
-          )}
-          {photoBlock && (
-            <Consent
-              name="consent_photo"
-              label={photoBlock.label}
-              checked={photoConsent === true}
-              onChange={(checked) => setPhotoConsent(checked)}
-              required={photoBlock.required}
-              legalText={photoBlock.text}
-              onViewLegal={() => setOpenLegalDoc(photoBlock)}
-              tr={tr}
-            />
-          )}
-          {emailContactBlock && (
-            <EmailContactNotice
-              block={emailContactBlock}
-              onViewLegal={() => setOpenLegalDoc(emailContactBlock)}
-              showMoreLabel={tr("actions.showMore")}
-            />
+          {legalBlocks.map((block) =>
+            block.kind === "notice" ? (
+              <EmailContactNotice
+                key={block.key}
+                block={block}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+                showMoreLabel={tr("actions.showMore")}
+              />
+            ) : (
+              <Consent
+                key={block.key}
+                name={`consent_${block.key}`}
+                label={block.label}
+                checked={legalConsents[block.key] === true}
+                onChange={(checked) =>
+                  setLegalConsents((prev) => ({
+                    ...prev,
+                    [block.key]: checked,
+                  }))
+                }
+                required={block.required}
+                error={fieldErrors[`consent_${block.key}`]}
+                legalText={block.text}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+                tr={tr}
+              />
+            ),
           )}
         </section>
       )}
@@ -1655,14 +1705,14 @@ function Input({
 }
 
 function GradeLevelSelect({
-  name,
+  id,
   value,
   onChange,
   max,
   error,
   tr,
 }: {
-  readonly name: string;
+  readonly id: string;
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly max: number;
@@ -1670,31 +1720,28 @@ function GradeLevelSelect({
   readonly tr: EnrollmentFormTranslator;
 }) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="block text-sm font-semibold text-gray-700">
         {tr("fields.gradeLevel")}
       </span>
-      <select
-        name={name}
+      <CustomSelect
+        id={id}
         value={value}
         required
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-          error
-            ? "border-[#FF3130] bg-[#FF3130]/5"
-            : "moto-content-surface hover:border-gray-300"
-        }`}
-      >
-        <option value="" disabled>
-          {tr("fields.choose")}
-        </option>
-        {Array.from({ length: max }, (_, n) => n + 1).map((g) => (
-          <option key={g} value={g}>
-            {tr("fields.grade", { grade: g })}
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        invalid={Boolean(error)}
+        className="mt-1"
+        options={[
+          { value: "", label: tr("fields.choose"), disabled: true },
+          ...Array.from({ length: max }, (_, n) => {
+            const grade = String(n + 1);
+            return {
+              value: grade,
+              label: tr("fields.grade", { grade: n + 1 }),
+            };
+          }),
+        ]}
+      />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
@@ -1793,6 +1840,47 @@ function LegalMarkdown({ text }: { readonly text: string }) {
   return (
     <ReactMarkdown components={LEGAL_MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
   );
+}
+
+/**
+ * Resolves the legal blocks an admin preview shows. Template-owned blocks
+ * win; base previews and templates without enabled blocks fall back to the
+ * tenant-wide legal settings — the same resolution the live form uses, so
+ * the preview can never omit blocks the live form will require.
+ */
+async function resolvePreviewLegalTexts(
+  tenantSlug: string,
+  schema: PublicFormSchema | null,
+): Promise<PublicLegalTexts> {
+  const fromTemplate = previewLegalTexts(schema);
+  if (fromTemplate.blocks.length > 0) return fromTemplate;
+  return fetchPublicLegalTexts(tenantSlug);
+}
+
+function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
+  const blocks =
+    schema?.legal_blocks
+      ?.filter((block) => block.enabled)
+      .map((block) => ({
+        key: block.key,
+        kind: block.kind,
+        title: block.title,
+        label: block.label,
+        text: block.text,
+        required: block.required,
+        sort_order: block.sort_order,
+        source: block.source,
+      }))
+      .sort((a, b) => a.sort_order - b.sort_order) ?? [];
+  return {
+    agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
+    email_contact:
+      blocks.find((block) => block.key === "email_contact")?.text ?? "",
+    photo: blocks.find((block) => block.key === "photo")?.text ?? "",
+    terms_enabled: blocks.some((block) => block.key === "agb"),
+    blocks,
+  };
 }
 
 function Consent({
@@ -2084,21 +2172,21 @@ function CustomFieldInput({
     return (
       <label className="block">
         {labelEl}
-        <select
-          name={field.key}
+        <CustomSelect
           value={valueStr}
-          onChange={(e) => onChange(e.target.value)}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
-          className={`moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
-        >
-          <option value="">{tr("fields.choose")}</option>
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={onChange}
+          name={field.key}
+          required={field.required}
+          invalid={Boolean(error)}
+          className="mt-1"
+          options={[
+            { value: "", label: tr("fields.choose") },
+            ...(field.options ?? []).map((option) => ({
+              value: option.value,
+              label: option.label,
+            })),
+          ]}
+        />
         {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </label>
     );
@@ -2242,32 +2330,32 @@ function PhoneListInput({
                 className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
-            <label className="block">
+            <label className="block" htmlFor={`phone-type-${idx}`}>
               <span className="text-xs font-medium text-gray-700">
                 {tr("structured.type")}
               </span>
-              <select
+              <CustomSelect
+                id={`phone-type-${idx}`}
                 value={p.phone_type}
-                onChange={(e) =>
+                onChange={(value) =>
                   setRow(idx, {
-                    phone_type: e.target.value as PhoneEntry["phone_type"],
+                    phone_type: value as PhoneEntry["phone_type"],
                   })
                 }
-                className="moto-select mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {(
+                ariaLabel={tr("structured.type")}
+                className="mt-1 border-gray-200 bg-white"
+                options={(
                   [
                     "mobile",
                     "home",
                     "work",
                     "other",
                   ] as PhoneEntry["phone_type"][]
-                ).map((k) => (
-                  <option key={k} value={k}>
-                    {phoneTypeLabels[k] ?? k}
-                  </option>
-                ))}
-              </select>
+                ).map((key) => ({
+                  value: key,
+                  label: phoneTypeLabels[key] ?? key,
+                }))}
+              />
             </label>
             <StructuredToggle
               checked={Boolean(p.is_primary)}
@@ -2721,7 +2809,7 @@ function ExistingChildrenPanel({
 // DateOfBirthPicker uses three dropdowns (Tag / Monat / Jahr).
 // Calendar widgets are awkward for DOB because parents need to jump
 // 5-10 years back; native <input type="date"> auto-validates partial
-// year input and snaps back. Three <select>s let parents pick fast
+// year input and snaps back. Three explicit dropdowns let parents pick fast
 // without touching a keyboard. Wire format stays YYYY-MM-DD.
 function DateOfBirthPicker({
   value,
@@ -2801,57 +2889,48 @@ function DateOfBirthPicker({
     emit(day, month, v);
   };
 
-  const selectClass = `moto-select h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-    error
-      ? "border-[#FF3130] bg-[#FF3130]/5"
-      : "moto-content-surface hover:border-gray-300"
-  }`;
-
   return (
     <>
       <div className="mt-1 grid grid-cols-3 gap-2">
-        <select
+        <CustomSelect
           value={day}
-          onChange={(e) => handleDay(e.target.value)}
-          className={selectClass}
-          aria-label={tr("structured.day")}
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">{tr("structured.day")}</option>
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={String(d)}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleDay}
+          ariaLabel={tr("structured.day")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.day") },
+            ...Array.from({ length: daysInMonth }, (_, i) => {
+              const dayValue = String(i + 1);
+              return { value: dayValue, label: dayValue };
+            }),
+          ]}
+        />
+        <CustomSelect
           value={month}
-          onChange={(e) => handleMonth(e.target.value)}
-          className={selectClass}
-          aria-label={tr("structured.month")}
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">{tr("structured.month")}</option>
-          {monthLabels.map((label, idx) => (
-            <option key={label} value={String(idx + 1)}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleMonth}
+          ariaLabel={tr("structured.month")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.month") },
+            ...monthLabels.map((label, idx) => ({
+              value: String(idx + 1),
+              label,
+            })),
+          ]}
+        />
+        <CustomSelect
           value={year}
-          onChange={(e) => handleYear(e.target.value)}
-          className={selectClass}
-          aria-label={tr("structured.year")}
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">{tr("structured.year")}</option>
-          {years.map((y) => (
-            <option key={y} value={String(y)}>
-              {y}
-            </option>
-          ))}
-        </select>
+          onChange={handleYear}
+          ariaLabel={tr("structured.year")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.year") },
+            ...years.map((yearValue) => ({
+              value: String(yearValue),
+              label: String(yearValue),
+            })),
+          ]}
+        />
       </div>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </>
@@ -2866,7 +2945,7 @@ function parseDOBParts(
   if (!m) return null;
   return {
     year: m[1] ?? "",
-    month: String(Number(m[2])), // strip leading zero so the <select> matches
+    month: String(Number(m[2])), // strip leading zero so the dropdown matches
     day: String(Number(m[3])),
   };
 }

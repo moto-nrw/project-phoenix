@@ -5,7 +5,10 @@ import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import {
+  EnrollmentForm,
+  type EnrollmentFormPrefetchedData,
+} from "~/components/enrollment/enrollment-form";
 import {
   PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
@@ -16,8 +19,8 @@ import {
 } from "~/components/enrollment/public-enrollment-shell";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
-  fetchPublicPhases,
-  type PublicPhase,
+  fetchPublicEnrollmentBootstrap,
+  type PublicEnrollmentBootstrap,
 } from "~/lib/enrollment-submission-api";
 
 interface PageProps {
@@ -40,30 +43,47 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   const { phaseId } = use(params);
   const router = useRouter();
   const { tenantSlug, tenant } = useTenant();
-  const [phases, setPhases] = useState<PublicPhase[]>([]);
-  const [phaseLoadFailed, setPhaseLoadFailed] = useState(false);
+  const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function loadPhases() {
-      try {
-        const result = await fetchPublicPhases(tenantSlug);
-        if (cancelled) return;
-        setPhases(result);
-      } catch {
-        if (!cancelled) setPhaseLoadFailed(true);
-      }
-    }
-    void loadPhases();
+    setLoading(true);
+    setError(null);
+    void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId)
+      .then((result) => {
+        if (!cancelled) setBootstrap(result);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t("unknownError"));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug]);
+  }, [phaseId, tenantSlug, t]);
 
-  const phase = useMemo(
-    () => phases.find((item) => item.id === phaseId) ?? null,
-    [phaseId, phases],
-  );
+  const phase = bootstrap?.phase ?? null;
+  const prefetchedData = useMemo<
+    EnrollmentFormPrefetchedData | undefined
+  >(() => {
+    if (!bootstrap) return undefined;
+    return {
+      schema: bootstrap.schema,
+      offerings: bootstrap.offerings,
+      careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+      captchaConfig: bootstrap.captcha_config,
+      legalTexts: bootstrap.legal_texts,
+      profile: bootstrap.profile ?? null,
+    };
+  }, [bootstrap]);
 
   const handleSubmitted = (statusURL: string) => {
     try {
@@ -101,12 +121,23 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             </p>
           </div>
 
-          <EnrollmentForm
-            phaseID={phaseId}
-            gradeLevelMax={4}
-            onSubmitted={handleSubmitted}
-            localizedCopy
-          />
+          {loading ? (
+            <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
+              {t("detailsLoading")}
+            </div>
+          ) : error ? (
+            <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
+              {error}
+            </div>
+          ) : (
+            <EnrollmentForm
+              phaseID={phaseId}
+              gradeLevelMax={4}
+              onSubmitted={handleSubmitted}
+              prefetchedData={prefetchedData}
+              localizedCopy
+            />
+          )}
         </section>
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
@@ -141,7 +172,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
               </dl>
             ) : (
               <p className="mt-3 text-sm leading-6 text-gray-600">
-                {phaseLoadFailed ? t("detailsLoadFailed") : t("detailsLoading")}
+                {error ? t("detailsLoadFailed") : t("detailsLoading")}
               </p>
             )}
           </section>

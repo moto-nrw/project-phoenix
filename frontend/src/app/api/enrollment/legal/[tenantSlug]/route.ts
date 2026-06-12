@@ -18,12 +18,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     );
   }
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}/api/enrollment/legal/${encodeURIComponent(
-        tenantSlug,
-      )}`,
-      { cache: "no-store" },
-    );
+    const phaseId = _request.nextUrl.searchParams.get("phaseId");
+    const backendPath = phaseId
+      ? `/api/enrollment/legal/${encodeURIComponent(
+          tenantSlug,
+        )}/${encodeURIComponent(phaseId)}`
+      : `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
+    const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
+      cache: "no-store",
+    });
     const payload = await response.json().catch(() => ({}));
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Eye, Info, ShieldCheck } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
@@ -14,11 +14,11 @@ import {
 } from "~/components/enrollment/public-enrollment-shell";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
-  fetchSchemaById,
+  fetchEnrollmentPreviewBootstrap,
+  schemaToPublicFormSchema,
   type FormSchema,
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
-import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 
 export default function EnrollmentPreviewPage() {
   const searchParams = useSearchParams();
@@ -26,9 +26,11 @@ export default function EnrollmentPreviewPage() {
   const isBasePreview = searchParams.get("base") === "1";
   const { tenant } = useTenant();
   const [schema, setSchema] = useState<FormSchema | null>(null);
-  const [phases, setPhases] = useState<Phase[]>([]);
+  const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
+  const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const previewProfileFetcher = useCallback(() => Promise.resolve(null), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,13 +45,14 @@ export default function EnrollmentPreviewPage() {
       setLoading(true);
       setError(null);
       try {
-        const [schemaResult, phaseResult] = await Promise.all([
-          schemaId ? fetchSchemaById(schemaId) : Promise.resolve(null),
-          listPhases().catch(() => []),
-        ]);
+        const result = await fetchEnrollmentPreviewBootstrap({
+          schemaId,
+          base: isBasePreview,
+        });
         if (cancelled) return;
-        setSchema(schemaResult);
-        setPhases(phaseResult);
+        setSchema(result.schema);
+        setAssignedPhaseCount(result.assigned_phase_count);
+        setActiveAssignedPhaseCount(result.active_assigned_phase_count);
       } catch (err) {
         if (cancelled) return;
         setError(
@@ -69,38 +72,27 @@ export default function EnrollmentPreviewPage() {
 
   const previewSchema = useMemo<PublicFormSchema | null>(() => {
     if (!schema) return null;
-    return {
-      id: schema.id,
-      version: schema.version,
-      fields: schema.fields,
-    };
+    return schemaToPublicFormSchema(schema);
   }, [schema]);
 
-  const assignedPhases = useMemo(() => {
-    if (schema) {
-      return phases.filter((phase) => phase.form_schema_id === schema.id);
-    }
-    if (isBasePreview) {
-      return phases.filter((phase) => !phase.form_schema_id);
-    }
-    return [];
-  }, [isBasePreview, phases, schema]);
-
-  const activeAssignedPhaseCount = assignedPhases.filter(
-    (phase) => phase.is_active,
-  ).length;
-  const previewStatus =
-    activeAssignedPhaseCount > 0
+  const previewStatus = loading
+    ? {
+        label: "Vorschau wird geladen",
+        hint: "Die Formularvorschau wird geladen.",
+        className: "bg-gray-100 text-gray-600",
+        dotClassName: "bg-gray-300",
+      }
+    : activeAssignedPhaseCount > 0
       ? {
           label: "Aktiv in Anmeldephase",
           hint: `Diese Vorlage wird in ${activeAssignedPhaseCount} aktiver Anmeldephase verwendet.`,
           className: "bg-[#83CD2D]/10 text-[#5F9F20]",
           dotClassName: "bg-[#83CD2D]",
         }
-      : assignedPhases.length > 0
+      : assignedPhaseCount > 0
         ? {
             label: "In Phase verwendet",
-            hint: `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`,
+            hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
             className: "bg-[#83CD2D]/10 text-[#5F9F20]",
             dotClassName: "bg-[#83CD2D]",
           }
@@ -110,6 +102,9 @@ export default function EnrollmentPreviewPage() {
             className: "bg-gray-100 text-gray-600",
             dotClassName: "bg-gray-300",
           };
+  const previewTitle = loading
+    ? "Formularvorschau wird geladen"
+    : (schema?.name ?? "Basisformular");
 
   return (
     <PublicEnrollmentPageShell withInlineSwitcher>
@@ -131,7 +126,7 @@ export default function EnrollmentPreviewPage() {
               Formularvorschau
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              {schema?.name ?? "Basisformular"}
+              {previewTitle}
             </h1>
             <span
               className={`mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${previewStatus.className}`}
@@ -162,6 +157,7 @@ export default function EnrollmentPreviewPage() {
               gradeLevelMax={4}
               localizedCopy
               onSubmitted={() => undefined}
+              profileFetcher={previewProfileFetcher}
               previewMode
               previewSchema={previewSchema}
               skipCaptcha
