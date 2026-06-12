@@ -7,9 +7,17 @@
  * one-off appointments, lifecycle actions, and plan-quality checks.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { CalendarOff } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -39,6 +47,10 @@ import { YearPlannerGrid } from "~/components/timetable/year-planner-grid";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
@@ -407,6 +419,29 @@ function TimetablePageSkeleton() {
   );
 }
 
+/**
+ * Rendered when the tenant setting `timetable.enabled` resolves to false.
+ * The sidebar already hides the nav entry for disabled tenants; this guard
+ * covers direct navigation without redirecting (no redirect loops).
+ */
+function TimetableDisabledState() {
+  return (
+    <div className="flex flex-col gap-4" data-testid="timetable-disabled-state">
+      <PageHeader title="Betreuungsplan" />
+      <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
+        <h2 className="mt-4 text-base font-semibold text-gray-900">
+          Betreuungsplan ist deaktiviert
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
+          Der Betreuungsplan ist für diese Schule ausgeschaltet. Er kann in den
+          Einstellungen unter „Betrieb“ wieder aktiviert werden.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function TimetablesContent() {
   const searchParams = useSearchParams();
   const { status } = useSession({ required: true });
@@ -442,6 +477,14 @@ function TimetablesContent() {
   const [eventDefaultRepeat, setEventDefaultRepeat] = useState<
     "none" | "weekly"
   >("none");
+  // US-1 quick create: set when the modal was opened from an empty week
+  // slot. Non-null switches the event modal into the "quick" variant with
+  // prefilled date and times; cleared when the modal closes.
+  const [quickPrefill, setQuickPrefill] = useState<{
+    date: string;
+    startTime: string;
+    endTime: string;
+  } | null>(null);
   const [editingInstance, setEditingInstance] =
     useState<EnrichedInstance | null>(null);
   const [editingTemplate, setEditingTemplate] =
@@ -456,6 +499,13 @@ function TimetablesContent() {
   const [editingPeriod, setEditingPeriod] = useState<CalendarPeriod | null>(
     null,
   );
+  // "Schuljahre & Ferien" in the toolbar overflow menu forces the period
+  // switcher pill visible even when it would otherwise be hidden (single
+  // fully-covering period), so list + edit stays reachable.
+  const [periodManagementVisible, setPeriodManagementVisible] = useState(false);
+  // StrictMode double-invokes effects; the ref keeps the (idempotent)
+  // bootstrap POST from firing twice per mount.
+  const bootstrapAttemptedRef = useRef(false);
   // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
   // 60/90/120 px per hour). Local-only, not synced to URL because density
   // is a cosmetic preference, and we never expose pixel values in the UI.
@@ -806,6 +856,20 @@ function TimetablesContent() {
   } = useSWRAuth(status === "authenticated" ? PERIODS_SWR_KEY : null, () =>
     calendarPeriodService.list(),
   );
+  // H4 route guard: same source the sidebar uses to hide the nav entry
+  // (settings schema -> timetable.enabled). fetchSettingsSchema returns
+  // null when the user cannot read settings; the page then renders
+  // normally (graceful default, mirroring the sidebar).
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } = useSWRAuth(
+    status === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    { revalidateOnFocus: false, revalidateOnReconnect: false },
+  );
+  const timetableDisabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === false;
 
   // SWR retries (errorRetryCount=3) produce a fresh Error per attempt. Keying
   // the effect on the message string keeps the toast from firing once per
@@ -849,6 +913,32 @@ function TimetablesContent() {
     logger.error("periods_load_failed", { error: message });
     toastError(`Planungszeiträume konnten nicht geladen werden: ${message}`);
   }, [periodsError, toastError]);
+
+  // Phase 2: silently create the default school-year period when the
+  // tenant has none. The backend POST /periods/bootstrap is idempotent;
+  // failures are logged but non-fatal (the planner just stays empty).
+  useEffect(() => {
+    if (periodsLoading || periodsError || periods === undefined) return;
+    if (periods.length > 0) return;
+    if (settingsSchemaLoading || timetableDisabled) return;
+    if (bootstrapAttemptedRef.current) return;
+    bootstrapAttemptedRef.current = true;
+    void calendarPeriodService
+      .bootstrap()
+      .then(() => tenantMutate(PERIODS_SWR_KEY))
+      .catch((err: unknown) => {
+        logger.error("periods_bootstrap_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, [
+    periods,
+    periodsError,
+    periodsLoading,
+    settingsSchemaLoading,
+    tenantMutate,
+    timetableDisabled,
+  ]);
 
   useEffect(() => {
     if (!planQualityErrorMessage) return;
@@ -962,59 +1052,6 @@ function TimetablesContent() {
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
 
-  const handleMaterialize = useCallback(async () => {
-    if (!weekHasFullPeriodCoverage) {
-      toastWarning(
-        "Lege zuerst einen aktiven Planungszeitraum für diese Woche an.",
-      );
-      openPeriodCreate();
-      return;
-    }
-
-    try {
-      const result = await timetableService.materialize(fromISO, toISO);
-
-      if (result.warnings.length > 0) {
-        for (const w of result.warnings) {
-          toastWarning(w.message);
-        }
-        if (result.warnings.some((w) => w.code === "no_active_period")) {
-          openPeriodCreate();
-        }
-        await tenantMutate(swrKey);
-        await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
-        return;
-      }
-
-      toastSuccess(
-        `Fehlende Termine eingetragen: ${result.instancesCreated} ${
-          result.instancesCreated === 1 ? "Termin" : "Termine"
-        } ergänzt`,
-      );
-      await tenantMutate(swrKey);
-      await tenantMutate(gapsSWRKey);
-      await tenantMutate(exceptionConflictsSWRKey);
-    } catch (err) {
-      logger.error("materialize_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toastError("Woche konnte nicht geplant werden");
-    }
-  }, [
-    fromISO,
-    toISO,
-    swrKey,
-    gapsSWRKey,
-    exceptionConflictsSWRKey,
-    toastSuccess,
-    toastError,
-    toastWarning,
-    tenantMutate,
-    openPeriodCreate,
-    weekHasFullPeriodCoverage,
-  ]);
-
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
       if (!selectedInstance) return;
@@ -1062,43 +1099,6 @@ function TimetablesContent() {
       toastError,
     ],
   );
-
-  const handleReplanWeek = useCallback(async () => {
-    try {
-      const result = await timetableService.replanWeek(fromISO, toISO);
-      if (result.warnings.length > 0) {
-        for (const warning of result.warnings) {
-          toastError(warning.message);
-        }
-      } else {
-        toastSuccess(
-          `Regeltermine neu aufgebaut: ${result.instancesCreated} Termine eingetragen`,
-        );
-      }
-      await tenantMutate(swrKey);
-      await tenantMutate(gapsSWRKey);
-      await tenantMutate(exceptionConflictsSWRKey);
-    } catch (err) {
-      logger.error("replan_week_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Woche konnte nicht neu berechnet werden",
-      );
-      throw err;
-    }
-  }, [
-    fromISO,
-    toISO,
-    swrKey,
-    gapsSWRKey,
-    exceptionConflictsSWRKey,
-    tenantMutate,
-    toastError,
-    toastSuccess,
-  ]);
 
   const handleSubstitute = useCallback(
     async (absentStaffId: string, substituteStaffId: string, date: string) => {
@@ -1220,6 +1220,44 @@ function TimetablesContent() {
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
   }, []);
+
+  // US-1 quick create: clicking an empty hour slot in the week grid opens
+  // the event modal in its compact "quick" variant, prefilled with that
+  // slot's date and a one-hour window (capped at 23:59).
+  const openQuickCreate = useCallback((dateISO: string, hour: number) => {
+    const startTime = `${String(hour).padStart(2, "0")}:00`;
+    const endTime =
+      hour >= 23 ? "23:59" : `${String(hour + 1).padStart(2, "0")}:00`;
+    setEditingInstance(null);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setEventDefaultRepeat("none");
+    setQuickPrefill({ date: dateISO, startTime, endTime });
+    setEventModalOpen(true);
+  }, []);
+
+  // The period pill is only chrome when it carries information: several
+  // periods exist, or the visible range crosses a period boundary / has
+  // uncovered days ("Übergangswoche"). A single fully-covering period is
+  // the default and needs no UI; the zero-period state shows nothing at
+  // all (the silent bootstrap fills it). "Schuljahre & Ferien" in the
+  // toolbar overflow menu forces the pill visible for management.
+  const hasUncoveredContextDays = useMemo(
+    () => periodAssignments.some((assignment) => assignment.period === null),
+    [periodAssignments],
+  );
+  const showPeriodSwitcher =
+    periodManagementVisible ||
+    calendarPeriods.length > 1 ||
+    (calendarPeriods.length > 0 && hasUncoveredContextDays);
+
+  const handleManagePeriods = useCallback(() => {
+    if (calendarPeriods.length === 0) {
+      openPeriodCreate();
+      return;
+    }
+    setPeriodManagementVisible(true);
+  }, [calendarPeriods.length, openPeriodCreate]);
 
   const handleApplyTemplate = useCallback(
     async (template: TimetableTemplate) => {
@@ -1348,6 +1386,16 @@ function TimetablesContent() {
     return <TimetablePageSkeleton />;
   }
 
+  // While the settings schema loads we cannot tell yet whether the feature
+  // is enabled — show the normal skeleton instead of flashing the planner.
+  if (settingsSchemaLoading) {
+    return <TimetablePageSkeleton />;
+  }
+
+  if (timetableDisabled) {
+    return <TimetableDisabledState />;
+  }
+
   const isOnToday =
     view === "week"
       ? weekOffset === 0 && !selectedDay
@@ -1383,31 +1431,25 @@ function TimetablesContent() {
         navDisabled={view === "series"}
         density={density}
         onDensityChange={setDensity}
+        onManagePeriods={handleManagePeriods}
         periodSwitcher={
-          <PeriodSwitcherDropdown
-            periods={calendarPeriods}
-            weekDays={periodContextDays}
-            view={view}
-            selectedPeriodId={focusedPeriodID}
-            isLoading={periodsLoading}
-            onCreate={openPeriodCreate}
-            onEdit={openPeriodEdit}
-            onSelect={jumpToPeriod}
-          />
+          showPeriodSwitcher ? (
+            <PeriodSwitcherDropdown
+              periods={calendarPeriods}
+              weekDays={periodContextDays}
+              view={view}
+              selectedPeriodId={focusedPeriodID}
+              isLoading={periodsLoading}
+              onCreate={openPeriodCreate}
+              onEdit={openPeriodEdit}
+              onSelect={jumpToPeriod}
+            />
+          ) : undefined
         }
         planWeekAction={
           <TimetableAddMenu
             onAddInstance={openEventCreate}
             onAddSeries={openSeriesCreate}
-            planning={
-              view === "week" && weekHasFullPeriodCoverage
-                ? {
-                    onMaterialize: handleMaterialize,
-                    onReplan: handleReplanWeek,
-                    weekLabel,
-                  }
-                : undefined
-            }
           />
         }
       />
@@ -1452,6 +1494,7 @@ function TimetablesContent() {
               instances={instances}
               selectedId={selectedInstanceId}
               onInstanceClick={handleSelectInstance}
+              onSlotClick={openQuickCreate}
               todayISO={todayISO}
               dayStartHour={dayStartHour}
               dayEndHour={dayEndHour}
@@ -1561,17 +1604,21 @@ function TimetablesContent() {
           setEditingTemplate(null);
           setConvertingInstance(null);
           setEventDefaultRepeat("none");
+          setQuickPrefill(null);
         }}
-        defaultDate={selectedDay ?? fromISO}
+        defaultDate={quickPrefill?.date ?? selectedDay ?? fromISO}
         weekFrom={fromISO}
         weekTo={toISO}
         calendarPeriods={assignedPeriods}
-        defaultCalendarPeriodId={defaultTemplatePeriod?.id ?? null}
+        defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
         initialInstance={editingInstance}
         initialSeries={editingTemplate}
         convertInstance={convertingInstance}
         defaultRepeat={eventDefaultRepeat}
+        variant={quickPrefill ? "quick" : "full"}
+        defaultStartTime={quickPrefill?.startTime}
+        defaultEndTime={quickPrefill?.endTime}
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);

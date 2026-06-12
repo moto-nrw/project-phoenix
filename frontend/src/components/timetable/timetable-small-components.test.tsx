@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { InstanceBlock } from "./instance-block";
 import { MonthPlannerGrid } from "./month-planner-grid";
-import { PlanningMenu } from "./planning-menu";
 import { TemplateCard } from "./template-card";
 import { TemplateList } from "./template-list";
+import { TimetableAddMenu } from "./timetable-add-menu";
 import { TimetableToolbar } from "./timetable-toolbar";
 import { WeeklyCalendarGrid } from "./weekly-calendar-grid";
 import { YearPlannerGrid } from "./year-planner-grid";
@@ -140,33 +140,36 @@ describe("small timetable components", () => {
     expect(screen.getByText("Spontan")).toBeInTheDocument();
   });
 
-  it("opens planning actions and confirms week replanning", async () => {
-    const onMaterialize = vi.fn().mockResolvedValue(undefined);
-    const onReplan = vi.fn().mockResolvedValue(undefined);
+  it("offers only one-off and recurring entries in the add menu", () => {
+    const onAddInstance = vi.fn();
+    const onAddSeries = vi.fn();
 
     render(
-      <PlanningMenu
-        onMaterialize={onMaterialize}
-        onReplan={onReplan}
-        weekLabel="KW 19"
+      <TimetableAddMenu
+        onAddInstance={onAddInstance}
+        onAddSeries={onAddSeries}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /neu/i }));
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(
+      screen.queryByText("Fehlende Termine eintragen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Regeltermine neu aufbauen"),
+    ).not.toBeInTheDocument();
+
     fireEvent.click(
-      screen.getByRole("menuitem", { name: /fehlende termine eintragen/i }),
+      screen.getByRole("menuitem", { name: /einmaliger termin/i }),
     );
-    await waitFor(() => expect(onMaterialize).toHaveBeenCalledOnce());
+    expect(onAddInstance).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
+    fireEvent.click(screen.getByRole("button", { name: /neu/i }));
     fireEvent.click(
-      screen.getByRole("menuitem", { name: /regeltermine neu aufbauen/i }),
+      screen.getByRole("menuitem", { name: /regelmäßiger termin/i }),
     );
-    expect(screen.getByRole("dialog")).toHaveTextContent("KW 19");
-
-    fireEvent.click(screen.getByRole("button", { name: "Neu aufbauen" }));
-
-    await waitFor(() => expect(onReplan).toHaveBeenCalledOnce());
+    expect(onAddSeries).toHaveBeenCalledOnce();
   });
 
   it("renders template cards/lists and wires create/edit/apply callbacks", () => {
@@ -326,6 +329,51 @@ describe("small timetable components", () => {
 
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("offers period management in the toolbar overflow menu in every view", () => {
+    const onManagePeriods = vi.fn();
+    const sharedProps = {
+      onViewChange: vi.fn(),
+      rangeLabel: "Mai 2026",
+      onPrev: vi.fn(),
+      onNext: vi.fn(),
+      onToday: vi.fn(),
+      onManagePeriods,
+    };
+
+    const { rerender } = render(
+      <TimetableToolbar view="month" {...sharedProps} />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    // Density only applies to the week view; outside it the menu carries
+    // just the Verwaltung section.
+    expect(screen.queryByText("Zeilenhöhe")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
+    );
+    expect(onManagePeriods).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    rerender(<TimetableToolbar view="series" {...sharedProps} navDisabled />);
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(
+      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    rerender(
+      <TimetableToolbar
+        view="week"
+        {...sharedProps}
+        density="normal"
+        onDensityChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(screen.getByText("Zeilenhöhe")).toBeInTheDocument();
+    expect(screen.getByText("Verwaltung")).toBeInTheDocument();
   });
 
   it("hides irrelevant toolbar controls for series and today states", () => {

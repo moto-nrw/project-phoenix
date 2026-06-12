@@ -13,6 +13,7 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
+  CalendarRange,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -66,6 +67,12 @@ interface TimetableToolbarProps {
   /** Primary add actions live in the toolbar to keep chrome on one row. */
   onAddInstance?: () => void;
   planWeekAction?: ReactNode;
+  /**
+   * Opens period management ("Schuljahre & Ferien") from the overflow
+   * menu. Rendered in every view so management stays reachable even when
+   * the period pill is hidden.
+   */
+  onManagePeriods?: () => void;
 }
 
 const VIEW_TABS: Array<{ id: TimetableView; label: string }> = [
@@ -89,9 +96,11 @@ export function TimetableToolbar({
   periodSwitcher,
   onAddInstance,
   planWeekAction,
+  onManagePeriods,
 }: TimetableToolbarProps) {
   const showRangeNav = view !== "series";
   const showDensity = view === "week" && density && onDensityChange;
+  const showOverflow = Boolean(showDensity) || Boolean(onManagePeriods);
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
@@ -162,7 +171,7 @@ export function TimetableToolbar({
         </div>
       )}
 
-      {(periodSwitcher || onAddInstance || planWeekAction || showDensity) && (
+      {(periodSwitcher || onAddInstance || planWeekAction || showOverflow) && (
         <div className="flex w-full flex-wrap items-stretch gap-2 sm:w-auto sm:items-center lg:ml-auto lg:shrink-0 lg:flex-nowrap">
           {periodSwitcher}
           {planWeekAction && (
@@ -181,8 +190,12 @@ export function TimetableToolbar({
             </Button>
           )}
 
-          {showDensity && (
-            <DensityMenu density={density} onDensityChange={onDensityChange} />
+          {showOverflow && (
+            <ToolbarOverflowMenu
+              density={showDensity ? density : undefined}
+              onDensityChange={showDensity ? onDensityChange : undefined}
+              onManagePeriods={onManagePeriods}
+            />
           )}
         </div>
       )}
@@ -190,17 +203,26 @@ export function TimetableToolbar({
   );
 }
 
-function DensityMenu({
+/**
+ * General toolbar overflow menu ("Weitere Optionen"). Carries the week-view
+ * density picker (where it applies) and the Verwaltung section that opens
+ * period management from every view.
+ */
+function ToolbarOverflowMenu({
   density,
   onDensityChange,
+  onManagePeriods,
 }: {
-  density: WeekDensity;
-  onDensityChange: (next: WeekDensity) => void;
+  density?: WeekDensity;
+  onDensityChange?: (next: WeekDensity) => void;
+  onManagePeriods?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useClickOutside(containerRef, () => setOpen(false), open);
+
+  const showDensitySection = Boolean(density && onDensityChange);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -221,34 +243,64 @@ function DensityMenu({
           role="menu"
           className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
         >
-          <div className="border-b border-gray-100 px-3 py-2">
-            <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
-              Zeilenhöhe
-            </p>
-          </div>
-          {DENSITY_OPTIONS.map((opt) => {
-            const isActive = density === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="menuitemradio"
-                aria-checked={isActive}
-                onClick={() => {
-                  onDensityChange(opt.value);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center justify-between px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50 ${
-                  isActive ? "text-gray-900" : "text-gray-600"
+          {showDensitySection && (
+            <>
+              <div className="border-b border-gray-100 px-3 py-2">
+                <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                  Zeilenhöhe
+                </p>
+              </div>
+              {DENSITY_OPTIONS.map((opt) => {
+                const isActive = density === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isActive}
+                    onClick={() => {
+                      onDensityChange?.(opt.value);
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50 ${
+                      isActive ? "text-gray-900" : "text-gray-600"
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {isActive && (
+                      <Check className="h-4 w-4 text-gray-900" aria-hidden />
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {onManagePeriods && (
+            <>
+              <div
+                className={`border-b border-gray-100 px-3 py-2 ${
+                  showDensitySection ? "border-t" : ""
                 }`}
               >
-                <span>{opt.label}</span>
-                {isActive && (
-                  <Check className="h-4 w-4 text-gray-900" aria-hidden />
-                )}
+                <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                  Verwaltung
+                </p>
+              </div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onManagePeriods();
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+              >
+                <CalendarRange className="h-4 w-4 text-gray-500" aria-hidden />
+                Schuljahre &amp; Ferien
               </button>
-            );
-          })}
+            </>
+          )}
         </div>
       )}
     </div>
