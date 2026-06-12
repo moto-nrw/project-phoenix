@@ -134,7 +134,7 @@ type listTemplatesResponse struct {
 type templateRow = activities.TemplateListRow
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
-	if rs.db == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}

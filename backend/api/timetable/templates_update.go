@@ -84,6 +84,10 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if rs.timetableData == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
+		return
+	}
 	templates, err := rs.loadTemplates(r.Context(), &id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
@@ -211,6 +215,10 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 	id, ok := templateIDFromRequest(w, r)
 	if !ok {
+		return
+	}
+	if rs.timetableData == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 	tenantID := tenant.FromContext(r.Context())

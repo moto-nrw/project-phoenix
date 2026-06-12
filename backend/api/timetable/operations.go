@@ -149,7 +149,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.operationsService == nil {
+	if rs.instanceService == nil || rs.operationsService == nil || rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return
 	}
@@ -169,16 +169,14 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
 		return
 	}
-	if rs.timetableData != nil {
-		hasRoomConflict, _, err := rs.timetableData.CheckRoomConflict(r.Context(), req.RoomID, 0)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
-			return
-		}
-		if hasRoomConflict {
-			common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
-			return
-		}
+	hasRoomConflict, _, err := rs.timetableData.CheckRoomConflict(r.Context(), req.RoomID, 0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+		return
+	}
+	if hasRoomConflict {
+		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+		return
 	}
 
 	currentStaffID := rs.resolveStartedByStaffID(r.Context())
