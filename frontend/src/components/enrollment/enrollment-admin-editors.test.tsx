@@ -537,6 +537,12 @@ describe("EnrollmentFormEditor", () => {
           }),
         ]),
         {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "agb",
+            source: "standard",
+          }),
+        ]),
       );
     });
 
@@ -561,6 +567,12 @@ describe("EnrollmentFormEditor", () => {
         "schema-1",
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
         {},
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: "agb",
+            source: "standard",
+          }),
+        ]),
       );
     });
 

@@ -171,9 +171,9 @@ export type CoreRequirementKey = "guardian_phone";
 
 export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
 
-export type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
+type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
 
-export type LegalBlockSource = "standard" | "custom";
+type LegalBlockSource = "standard" | "custom";
 
 export interface FormLegalBlock {
   key: string;

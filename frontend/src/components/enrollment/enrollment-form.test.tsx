@@ -468,7 +468,11 @@ describe("EnrollmentForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
-    await screen.findByText("Bitte diese erforderliche Bestätigung auswählen.");
+    expect(
+      await screen.findAllByText(
+        "Bitte diese erforderliche Bestätigung auswählen.",
+      ),
+    ).not.toHaveLength(0);
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
 
     fireEvent.click(
