@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -17,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -41,7 +38,6 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	staffImportService   *importService.ImportService[importModels.StaffImportRow]
-	auditRepo            audit.DataImportRepository
 	personService        userSvc.PersonService
 	db                   *bun.DB
 }
@@ -50,14 +46,12 @@ type Resource struct {
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
 	staffImportService *importService.ImportService[importModels.StaffImportRow],
-	auditRepo audit.DataImportRepository,
 	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		staffImportService:   staffImportService,
-		auditRepo:            auditRepo,
 		personService:        personService,
 		db:                   db,
 	}
@@ -546,7 +540,7 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("person not found for account %d", accountID)
 	}
 
-	staff, err := rs.personService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("find staff for person %d: %w", person.ID, err)
 	}
@@ -559,46 +553,7 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 
 // logImportAudit creates an audit record for student import operations (GDPR compliance)
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
-	recordImportAudit(rs.auditRepo, "student", filename, result, userID, dryRun, tenantID)
-}
-
-// recordImportAudit asynchronously writes a GDPR audit record for any import
-// operation. entityType identifies the imported entity (e.g. "student", "staff").
-func recordImportAudit[T any](auditRepo audit.DataImportRepository, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in import audit logging: %v", r)
-				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		auditCtx := context.Background()
-		auditRecord := &audit.DataImport{
-			EntityType:   entityType,
-			Filename:     filename,
-			TotalRows:    result.TotalRows,
-			CreatedCount: result.CreatedCount,
-			UpdatedCount: result.UpdatedCount,
-			SkippedCount: 0, // Not tracked separately
-			ErrorCount:   result.ErrorCount,
-			WarningCount: result.WarningCount,
-			DryRun:       dryRun,
-			ImportedBy:   userID,
-			StartedAt:    result.StartedAt,
-			CompletedAt:  &result.CompletedAt,
-			Metadata:     audit.JSONBMap{},
-		}
-		auditRecord.SetTenantID(tenantID)
-		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
-			if dryRun {
-				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
-			} else {
-				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
-			}
-		}
-	}()
+	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }
 
 // =============================================================================

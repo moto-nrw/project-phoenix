@@ -97,8 +97,7 @@ type weeklyInstancesResponse struct {
 
 // listInstances handles GET /api/timetable/instances?from=&to=.
 func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
-	if rs.activityInstanceRepo == nil || rs.instanceStaffRepo == nil ||
-		rs.instanceStudentRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -139,7 +138,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"load instances failed", err))
@@ -193,7 +192,7 @@ func (rs *Resource) enrichInstance(
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
 	activityType := rs.lookupActivityType(ctx, inst.ActivityGroupID, typeCache)
 
-	staffRows, err := rs.instanceStaffRepo.FindByInstanceID(ctx, inst.ID)
+	staffRows, err := rs.timetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
 	}
@@ -211,7 +210,7 @@ func (rs *Resource) enrichInstance(
 		})
 	}
 
-	studentRows, err := rs.instanceStudentRepo.FindByInstanceID(ctx, inst.ID)
+	studentRows, err := rs.timetableData.GetInstanceStudents(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
@@ -277,23 +276,10 @@ func (rs *Resource) instanceConflictWarnings(
 	if inst.Date != timezone.TodayDate() {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	if rs.activeGroupRepo == nil || rs.supervisorRepo == nil ||
-		rs.visitRepo == nil || rs.instanceStaffRepo == nil ||
-		rs.instanceStudentRepo == nil {
+	if rs.timetableData == nil {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	return scheduleSvc.DetectStartConflicts(
-		ctx,
-		scheduleSvc.ConflictDependencies{
-			GroupRepo:         rs.activeGroupRepo,
-			SupervisorRepo:    rs.supervisorRepo,
-			VisitRepo:         rs.visitRepo,
-			InstanceStaffRepo: rs.instanceStaffRepo,
-			InstanceStudents:  rs.instanceStudentRepo,
-		},
-		inst,
-		rs.getLogger(),
-	)
+	return rs.timetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request
@@ -303,11 +289,11 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 	if name, ok := cache[roomID]; ok {
 		return name
 	}
-	if rs.roomRepo == nil {
+	if rs.timetableData == nil {
 		cache[roomID] = ""
 		return ""
 	}
-	room, err := rs.roomRepo.FindByID(ctx, roomID)
+	room, err := rs.timetableData.GetRoom(ctx, roomID)
 	if err != nil || room == nil {
 		// Logged at debug only — a missing room reference here is recoverable.
 		rs.getLogger().Debug("instance list: room lookup failed",
@@ -331,11 +317,11 @@ func (rs *Resource) lookupActivityType(ctx context.Context, activityGroupID *int
 	if t, ok := cache[*activityGroupID]; ok {
 		return t
 	}
-	if rs.activityGroupRepo == nil {
+	if rs.timetableData == nil {
 		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
 		return activitiesModel.GroupTypeActivity
 	}
-	group, err := rs.activityGroupRepo.FindByID(ctx, *activityGroupID)
+	group, err := rs.timetableData.GetActivityGroup(ctx, *activityGroupID)
 	if err != nil || group == nil {
 		rs.getLogger().Debug("instance list: activity group lookup failed",
 			slog.Int64("activity_group_id", *activityGroupID),

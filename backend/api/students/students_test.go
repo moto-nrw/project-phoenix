@@ -1165,7 +1165,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayWednesday])
@@ -1192,7 +1192,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
@@ -1219,7 +1219,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
 		// Unified replacement fully overrides the prior Monday bus day.
 		assert.Equal(t, usersModel.DeparturePickup, fresh.DepartureDays.ModeFor("tue"))
@@ -1262,7 +1262,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "sat")
 
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])

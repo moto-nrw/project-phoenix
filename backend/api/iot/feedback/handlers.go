@@ -62,8 +62,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 	)
 
 	// Validate student exists before creating feedback
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByID(r.Context(), req.StudentID)
+	student, err := rs.UsersService.GetStudentByID(r.Context(), req.StudentID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		slog.Default().ErrorContext(r.Context(), "failed to lookup student",
 			slog.Int64("student_id", req.StudentID),

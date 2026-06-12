@@ -28,6 +28,10 @@ type mockInvitationService struct {
 	listFn     func(context.Context) ([]*authModels.InvitationToken, error)
 }
 
+func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
+	return ""
+}
+
 func (m *mockInvitationService) CreateInvitation(ctx context.Context, req authService.InvitationRequest) (*authModels.InvitationToken, error) {
 	return m.createFn(ctx, req)
 }

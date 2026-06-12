@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -20,7 +19,6 @@ type Resource struct {
 	PersonService      guardianSvc.PersonService
 	EducationService   educationSvc.Service
 	UserContextService userContextSvc.UserContextService
-	StudentRepo        users.StudentRepository
 	db                 *bun.DB
 }
 
@@ -30,7 +28,6 @@ func NewResource(
 	personService guardianSvc.PersonService,
 	educationService educationSvc.Service,
 	userContextService userContextSvc.UserContextService,
-	studentRepo users.StudentRepository,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
@@ -38,7 +35,6 @@ func NewResource(
 		PersonService:      personService,
 		EducationService:   educationService,
 		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
 		db:                 db,
 	}
 }

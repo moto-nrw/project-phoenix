@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -1233,4 +1234,21 @@ type visitSSEData struct {
 	StudentID int64
 	Name      string
 	Student   *userModels.Student
+}
+
+// HasOpenAttendanceOn reports whether any attendance row on the given
+// calendar date is still open (check_out_time IS NULL).
+func (s *service) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+	return s.attendanceRepo.HasOpenAttendanceOn(ctx, date)
+}
+
+// GetRoomsByIDs retrieves rooms by ID.
+func (s *service) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error) {
+	return s.roomRepo.FindByIDs(ctx, ids)
+}
+
+// GetActiveGroupVisitsWithDisplay returns the open visits of an active group
+// joined with student display data.
+func (s *service) GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error) {
+	return s.visitRepo.FindActiveWithStudentDisplayByGroup(ctx, activeGroupID)
 }

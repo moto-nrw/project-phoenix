@@ -7,9 +7,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -50,15 +49,15 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolRepo platformModels.SchoolRepository
+	SchoolService platformSvc.SchoolService
+	ActiveService activeSvc.Service
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
 	// which is the operator's own MFA service (operator login flow).
-	TenantMFAService        authSvc.MFAService
-	AccountTenantRepository authModels.AccountTenantRepository
-	TokenAuth               *jwt.TokenAuth
-	DB                      *bun.DB
+	TenantMFAService authSvc.MFAService
+	TokenAuth        *jwt.TokenAuth
+	DB               *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -114,12 +113,11 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolRepo)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
 	resource.provisioningResource.TenantMFAService = cfg.TenantMFAService
-	resource.provisioningResource.AccountTenantRepository = cfg.AccountTenantRepository
 	return resource
 }
 

@@ -24,9 +24,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -62,13 +59,9 @@ func buildCreateSetup(t *testing.T) *createSetup {
 
 	mock := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
-		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
-		InstanceService:      mock,
-		DB:                   db,
+		TimetableData:   testTimetableData(db),
+		InstanceService: mock,
+		DB:              db,
 	})
 
 	return &createSetup{res: res, mock: mock, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -277,13 +270,9 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: repoFactory.ActivityInstance,
-		InstanceStaffRepo:    repoFactory.InstanceStaff,
-		InstanceStudentRepo:  repoFactory.InstanceStudent,
-		RoomRepo:             repoFactory.Room,
-		ActivityGroupRepo:    repoFactory.ActivityGroup,
-		InstanceService:      serviceFactory.Instance,
-		DB:                   db,
+		TimetableData:   testTimetableData(db),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
 	})
 	router := createRouter(ctx, res)
 

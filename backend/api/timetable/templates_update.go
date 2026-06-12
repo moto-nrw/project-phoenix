@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -71,11 +69,7 @@ func (rs *Resource) validateTemplateEducationGroup(ctx context.Context, groupID 
 	if tenantID <= 0 {
 		return errors.New("no tenant in context")
 	}
-	exists, err := base.GetDB(ctx, rs.db).NewSelect().
-		TableExpr(`education.groups AS "group"`).
-		Where(`"group".tenant_id = ?`, tenantID).
-		Where(`"group".id = ?`, *groupID).
-		Exists(ctx)
+	exists, err := rs.timetableData.EducationGroupExists(ctx, *groupID)
 	if err != nil {
 		return fmt.Errorf("validate education_group_id: %w", err)
 	}
@@ -88,6 +82,10 @@ func (rs *Resource) validateTemplateEducationGroup(ctx context.Context, groupID 
 func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	id, ok := templateIDFromRequest(w, r)
 	if !ok {
+		return
+	}
+	if rs.timetableData == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 	templates, err := rs.loadTemplates(r.Context(), &id)
@@ -107,8 +105,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.activityGroupRepo == nil || rs.activityScheduleRepo == nil || rs.timeframeRepo == nil ||
-		rs.studentEnrollmentRepo == nil || rs.activitySupervisorRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -176,28 +173,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	if _, err := base.GetDB(ctx, rs.db).NewUpdate().
-		Table("activities.groups").
-		Set("name = ?", req.Name).
-		Set("type = ?", req.Type).
-		Set("category_id = ?", req.CategoryID).
-		Set("planned_room_id = ?", req.RoomID).
-		Set("education_group_id = ?", req.EducationGroupID).
-		Set("max_participants = ?", maxParticipants).
-		Set("updated_at = ?", time.Now()).
-		Where("tenant_id = ?", tenantID).
-		Where("id = ?", id).
-		Where("is_template = true").
-		Where("archived_at IS NULL").
-		Exec(ctx); err != nil {
+	if _, err := rs.timetableData.UpdateTemplateFields(ctx, id, req.Name, req.Type, req.CategoryID, req.RoomID, req.EducationGroupID, maxParticipants); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
 		return
 	}
-	if _, err := base.GetDB(ctx, rs.db).NewDelete().
-		Table("activities.schedules").
-		Where("tenant_id = ?", tenantID).
-		Where("activity_group_id = ?", id).
-		Exec(ctx); err != nil {
+	if err := rs.timetableData.DeleteSchedulesByGroupID(ctx, id); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("replace template schedules failed", err))
 		return
 	}
@@ -211,7 +191,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 			CalendarPeriodID: req.CalendarPeriodID,
 		}
 		sched.SetTenantID(tenantID)
-		if err := rs.activityScheduleRepo.Create(ctx, sched); err != nil {
+		if err := rs.timetableData.CreateActivitySchedule(ctx, sched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("create schedule failed", err))
 			return
 		}
@@ -237,25 +217,20 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if rs.timetableData == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
+		return
+	}
 	tenantID := tenant.FromContext(r.Context())
 	if tenantID <= 0 {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	res, err := base.GetDB(r.Context(), rs.db).NewUpdate().
-		Table("activities.groups").
-		Set("archived_at = ?", time.Now()).
-		Set("updated_at = ?", time.Now()).
-		Where("tenant_id = ?", tenantID).
-		Where("id = ?", id).
-		Where("is_template = true").
-		Where("archived_at IS NULL").
-		Exec(r.Context())
+	n, err := rs.timetableData.ArchiveTemplate(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("archive template failed", err))
 		return
 	}
-	n, _ := res.RowsAffected()
 	if n == 0 {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 		return

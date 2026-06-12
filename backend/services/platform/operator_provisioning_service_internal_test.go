@@ -1054,6 +1054,10 @@ func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
 
 type failingInvitationServiceStub struct{}
 
+func (f *failingInvitationServiceStub) GetTenantSlugForToken(_ context.Context, _ string) string { //nolint:unused
+	return ""
+}
+
 func (f *failingInvitationServiceStub) WithTx(_ bun.Tx) interface{} { return f } //nolint:unused
 
 // ---------------------------------------------------------------------------

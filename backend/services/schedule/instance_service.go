@@ -73,6 +73,10 @@ type InstanceService interface {
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
 	ReplanWeek(ctx context.Context, from, to timezone.Date) (*ReplanWeekResult, error)
+	// GetPlannedStudentIDsByDate returns the unique student IDs (of the given
+	// candidates) that have a planned instance on the date (issue #584
+	// lookup; repository result returned verbatim).
+	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
 	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
 }
@@ -821,4 +825,10 @@ func isNotFoundDBError(err error) bool {
 		return errors.Is(dbErr.Err, sql.ErrNoRows)
 	}
 	return false
+}
+
+// GetPlannedStudentIDsByDate returns the unique student IDs (of the given
+// candidates) that have a planned instance on the date.
+func (s *instanceService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error) {
+	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, date)
 }

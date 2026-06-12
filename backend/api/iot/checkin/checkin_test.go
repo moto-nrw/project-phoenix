@@ -16,6 +16,7 @@ import (
 
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -61,18 +62,18 @@ func (s *failingPersonService) FindByTagID(ctx context.Context, tagID string) (*
 	return s.PersonService.FindByTagID(ctx, tagID)
 }
 
-func (s *failingPersonService) StudentRepository() userModels.StudentRepository {
+func (s *failingPersonService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
 	if s.studentRepo != nil {
-		return s.studentRepo
+		return s.studentRepo.FindByPersonID(ctx, personID)
 	}
-	return s.PersonService.StudentRepository()
+	return s.PersonService.GetStudentByPersonID(ctx, personID)
 }
 
-func (s *failingPersonService) StaffRepository() userModels.StaffRepository {
+func (s *failingPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
 	if s.staffRepo != nil {
-		return s.staffRepo
+		return s.staffRepo.FindByPersonID(ctx, personID)
 	}
-	return s.PersonService.StaffRepository()
+	return s.PersonService.GetStaffByPersonID(ctx, personID)
 }
 
 type failingStudentRepository struct {
@@ -2966,7 +2967,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 	ctx.resource.UsersService = &failingPersonService{
 		PersonService: ctx.services.Users,
 		studentRepo: &failingStudentRepository{
-			StudentRepository: ctx.services.Users.StudentRepository(),
+			StudentRepository: repositories.NewFactory(ctx.db).Student,
 			err:               errors.New("student lookup exploded"),
 		},
 	}
@@ -3208,7 +3209,7 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	ctx.resource.UsersService = &failingPersonService{
 		PersonService: ctx.services.Users,
 		staffRepo: &failingStaffRepository{
-			StaffRepository: ctx.services.Users.StaffRepository(),
+			StaffRepository: repositories.NewFactory(ctx.db).Staff,
 			err:             errors.New("staff lookup exploded"),
 		},
 	}

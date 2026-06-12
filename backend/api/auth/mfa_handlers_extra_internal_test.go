@@ -38,6 +38,10 @@ type stubMFAService struct {
 	revokeTrustedDeviceFn func(ctx context.Context, accountID, tenantID, deviceID int64) error
 }
 
+func (s *stubMFAService) AccountBelongsToTenant(_ context.Context, _, _ int64) (bool, error) {
+	return true, nil
+}
+
 func (s *stubMFAService) IsRequired(context.Context, *authModels.Account, int64) (bool, error) {
 	return false, nil
 }

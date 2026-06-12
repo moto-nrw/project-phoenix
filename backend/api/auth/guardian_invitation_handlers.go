@@ -150,10 +150,8 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolRepo != nil && rs.db != nil {
-		if slug := rs.lookupTenantSlugForGuardianInvitation(r.Context(), token); slug != "" {
-			resp.TenantSlug = slug
-		}
+	if slug := rs.lookupTenantSlugForGuardianInvitation(r.Context(), token); slug != "" {
+		resp.TenantSlug = slug
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Guardian invitation accepted successfully")
 }
@@ -161,29 +159,10 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 // lookupTenantSlugForGuardianInvitation resolves the tenant slug from a
 // guardian invitation token. Best-effort; returns "" on error.
 func (rs *Resource) lookupTenantSlugForGuardianInvitation(ctx context.Context, token string) string {
-	var slug string
-	_ = tenant.WithAdminTx(ctx, rs.db, func(txCtx context.Context, tx bun.Tx) error {
-		invitation := new(authModels.GuardianInvitation)
-		err := tx.NewSelect().
-			Model(invitation).
-			ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-			Column("tenant_id").
-			Where(`"guardian_invitation".token = ?`, token).
-			Scan(txCtx)
-		if err != nil {
-			return err
-		}
-		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
-		if err != nil {
-			return err
-		}
-		if school == nil || school.IsDeleted() {
-			return nil
-		}
-		slug = school.Slug
-		return nil
-	})
-	return slug
+	if rs.GuardianInvitationService == nil {
+		return ""
+	}
+	return rs.GuardianInvitationService.GetTenantSlugForToken(ctx, token)
 }
 
 func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Request) {

@@ -26,6 +26,10 @@ type stubMFAService struct {
 	hasEnrollmentErr error
 }
 
+func (s *stubMFAService) AccountBelongsToTenant(_ context.Context, _, _ int64) (bool, error) {
+	return true, nil
+}
+
 func (s *stubMFAService) IsRequired(_ context.Context, _ *authmodel.Account, _ int64) (bool, error) {
 	return s.isRequiredResult, s.isRequiredErr
 }

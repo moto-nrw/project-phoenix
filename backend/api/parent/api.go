@@ -25,11 +25,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -39,8 +38,7 @@ type Resource struct {
 	ParentService         parentService.Service
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader usersService.GuardianProfileLoader
-	SchoolRepo            platformModels.SchoolRepository
-	AccountTenantRepo     authModels.AccountTenantRepository
+	SchoolService         platformSvc.SchoolService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
 }
@@ -59,8 +57,7 @@ func NewResource(
 	parent parentService.Service,
 	requestSvc enrollmentService.RequestService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
-	schoolRepo platformModels.SchoolRepository,
-	accountTenantRepo authModels.AccountTenantRepository,
+	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
@@ -68,8 +65,7 @@ func NewResource(
 		ParentService:         parent,
 		RequestService:        requestSvc,
 		GuardianProfileLoader: guardianProfileLoader,
-		SchoolRepo:            schoolRepo,
-		AccountTenantRepo:     accountTenantRepo,
+		SchoolService:         schoolService,
 		db:                    db,
 	}
 }

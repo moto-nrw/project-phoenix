@@ -14,9 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -51,7 +52,7 @@ var ErrPresenceModeSwitchBlocked = errors.New(errPresenceModeSwitchBlockedMsg)
 // flipping presence mode mid-day (stale open visits, SSE events mis-keyed,
 // device UX inconsistent with the tenant it's authenticated for) is far
 // larger than any other operator setting. Other keys don't need this.
-func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, force bool) error {
+func enforcePresenceModeSwitchGuard(ctx context.Context, activeSvc activeSvc.Service, key string, force bool) error {
 	if key != configModel.KeyPresenceMode {
 		return nil
 	}
@@ -66,14 +67,7 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, tx bun.Tx, key string, 
 	// under "today" — and the guard would silently let the switch through
 	// in exactly the window it's supposed to block.
 	today := timezone.TodayDate()
-	var exists bool
-	err := tx.NewRaw(`
-		SELECT EXISTS(
-			SELECT 1 FROM active.attendance
-			WHERE date = ?
-			  AND check_out_time IS NULL
-		)
-	`, today).Scan(ctx, &exists)
+	exists, err := activeSvc.HasOpenAttendanceOn(ctx, today)
 	if err != nil {
 		return fmt.Errorf("failed to check active attendance before mode switch: %w", err)
 	}
@@ -107,7 +101,8 @@ type SettingsResource struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
-	schoolRepo platformModels.SchoolRepository
+	schoolService platformSvc.SchoolService
+	activeService activeSvc.Service
 	// onValueSet shares its signature with config.ValueSetCallback — see
 	// that type for the in-tx vs post-commit contract. Duplicated here
 	// (rather than imported) so api/operator stays free of api/config
@@ -122,12 +117,13 @@ type SettingsResource struct {
 // operator proxy can additionally bust the `tenant-${slug}` Next.js cache
 // for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 // Both are optional — nil disables the corresponding mechanism.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolRepo platformModels.SchoolRepository) *SettingsResource {
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolService platformSvc.SchoolService, activeService activeSvc.Service) *SettingsResource {
 	return &SettingsResource{
 		settingsService: svc,
 		db:              db,
 		broadcaster:     broadcaster,
-		schoolRepo:      schoolRepo,
+		schoolService:   schoolService,
+		activeService:   activeService,
 	}
 }
 
@@ -181,10 +177,10 @@ type schoolSettingMutationResponse struct {
 // is 5 min) whereas a 500 here would mislead the operator about whether the
 // setting actually persisted.
 func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int64) string {
-	if rs.schoolRepo == nil {
+	if rs.schoolService == nil {
 		return ""
 	}
-	school, err := rs.schoolRepo.FindByID(ctx, schoolID)
+	school, err := rs.schoolService.GetSchoolByID(ctx, schoolID)
 	if err != nil || school == nil {
 		slog.Warn("operator settings: school slug lookup failed",
 			slog.Int64("school_id", schoolID),
@@ -253,7 +249,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	}
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, tx bun.Tx) error {
-		if err := enforcePresenceModeSwitchGuard(ctx, tx, key, force); err != nil {
+		if err := enforcePresenceModeSwitchGuard(ctx, rs.activeService, key, force); err != nil {
 			return err
 		}
 		if err := rs.settingsService.SetValue(ctx, key, req.Value, &changedBy, nil); err != nil {

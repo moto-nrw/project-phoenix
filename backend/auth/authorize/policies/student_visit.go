@@ -65,12 +65,12 @@ func (p *StudentVisitPolicy) Evaluate(ctx context.Context, authCtx *policy.Conte
 	}
 
 	// Check if person is staff/teacher supervising the student
-	staff, err := p.usersService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := p.usersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return false, nil
 	}
 
-	teacher, err := p.usersService.TeacherRepository().FindByStaffID(ctx, staff.ID)
+	teacher, err := p.usersService.GetTeacherByStaffID(ctx, staff.ID)
 	if err != nil || teacher == nil {
 		return false, nil
 	}
@@ -115,7 +115,7 @@ func (p *StudentVisitPolicy) extractStudentID(ctx context.Context, authCtx *poli
 
 // isStudentOwnVisit checks if the person is the student accessing their own visits
 func (p *StudentVisitPolicy) isStudentOwnVisit(ctx context.Context, personID, studentID int64) bool {
-	student, err := p.usersService.StudentRepository().FindByPersonID(ctx, personID)
+	student, err := p.usersService.GetStudentByPersonID(ctx, personID)
 	return err == nil && student != nil && student.ID == studentID
 }
 
@@ -126,7 +126,7 @@ func (p *StudentVisitPolicy) isTeacherSupervisingStudent(ctx context.Context, te
 		return false, err
 	}
 
-	targetStudent, err := p.usersService.StudentRepository().FindByID(ctx, studentID)
+	targetStudent, err := p.usersService.GetStudentByID(ctx, studentID)
 	if err != nil || targetStudent == nil || targetStudent.GroupID == nil {
 		return false, nil
 	}

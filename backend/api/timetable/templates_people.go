@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -56,18 +55,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 	if tenantID <= 0 {
 		return nil
 	}
-	update := base.GetDB(ctx, rs.db).NewUpdate().
-		Table("activities.student_enrollments").
-		Set("valid_until = ?", validFrom).
-		Where("tenant_id = ?", tenantID).
-		Where("activity_group_id = ?", groupID).
-		Where("valid_until IS NULL")
-	if calendarPeriodID == nil {
-		update = update.Where("calendar_period_id IS NULL")
-	} else {
-		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
-	}
-	if _, err := update.Exec(ctx); err != nil {
+	if err := rs.timetableData.CloseOpenEnrollmentsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
 	for _, studentID := range uniquePositiveIDs(studentIDs) {
@@ -78,7 +66,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 			CalendarPeriodID: calendarPeriodID,
 		}
 		row.SetTenantID(tenantID)
-		if err := rs.studentEnrollmentRepo.Create(ctx, row); err != nil {
+		if err := rs.timetableData.CreateStudentEnrollment(ctx, row); err != nil {
 			return err
 		}
 	}
@@ -90,18 +78,7 @@ func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, sta
 	if tenantID <= 0 {
 		return nil
 	}
-	update := base.GetDB(ctx, rs.db).NewUpdate().
-		Table("activities.supervisors").
-		Set("valid_until = ?", validFrom).
-		Where("tenant_id = ?", tenantID).
-		Where("group_id = ?", groupID).
-		Where("valid_until IS NULL")
-	if calendarPeriodID == nil {
-		update = update.Where("calendar_period_id IS NULL")
-	} else {
-		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
-	}
-	if _, err := update.Exec(ctx); err != nil {
+	if err := rs.timetableData.CloseOpenSupervisorsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
 	for _, staffID := range uniquePositiveIDs(staffIDs) {
@@ -114,7 +91,7 @@ func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, sta
 			CalendarPeriodID: calendarPeriodID,
 		}
 		row.SetTenantID(tenantID)
-		if err := rs.activitySupervisorRepo.Create(ctx, row); err != nil {
+		if err := rs.timetableData.CreatePlannedSupervisor(ctx, row); err != nil {
 			return err
 		}
 	}

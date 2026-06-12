@@ -14,11 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -41,26 +37,7 @@ type Resource struct {
 	instanceService        scheduleSvc.InstanceService
 	operationsService      scheduleSvc.TimetableOperationsService
 	personService          userSvc.PersonService
-	instanceStudentRepo    schedule.InstanceStudentRepository
-	activityInstanceRepo   schedule.ActivityInstanceRepository
-	activityExceptionRepo  schedule.ActivityExceptionRepository
-	activityScheduleRepo   activities.ScheduleRepository
-	instanceStaffRepo      schedule.InstanceStaffRepository
-	activeGroupRepo        active.GroupRepository
-	supervisorRepo         active.GroupSupervisorRepository
-	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
-	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
-	pickupScheduleRepo     schedule.StudentPickupScheduleRepository
-	pickupExceptionRepo    schedule.StudentPickupExceptionRepository
-	visitRepo              active.VisitRepository
-	studentRepo            users.StudentRepository
-	staffRepo              users.StaffRepository
-	roomRepo               facilities.RoomRepository
-	activityCategoryRepo   activities.CategoryRepository
-	activityGroupRepo      activities.GroupRepository
-	activitySupervisorRepo activities.SupervisorPlannedRepository
-	studentEnrollmentRepo  activities.StudentEnrollmentRepository
-	timeframeRepo          schedule.TimeframeRepository
+	timetableData          scheduleSvc.TimetableDataService
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
 	broadcaster            realtime.Broadcaster
@@ -78,26 +55,7 @@ type Dependencies struct {
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
 	PersonService          userSvc.PersonService
-	InstanceStudentRepo    schedule.InstanceStudentRepository
-	ActivityInstanceRepo   schedule.ActivityInstanceRepository
-	ActivityExceptionRepo  schedule.ActivityExceptionRepository
-	ActivityScheduleRepo   activities.ScheduleRepository
-	InstanceStaffRepo      schedule.InstanceStaffRepository
-	ActiveGroupRepo        active.GroupRepository
-	SupervisorRepo         active.GroupSupervisorRepository
-	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
-	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
-	PickupScheduleRepo     schedule.StudentPickupScheduleRepository
-	PickupExceptionRepo    schedule.StudentPickupExceptionRepository
-	VisitRepo              active.VisitRepository
-	StudentRepo            users.StudentRepository
-	StaffRepo              users.StaffRepository
-	RoomRepo               facilities.RoomRepository
-	ActivityCategoryRepo   activities.CategoryRepository
-	ActivityGroupRepo      activities.GroupRepository
-	ActivitySupervisorRepo activities.SupervisorPlannedRepository
-	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
-	TimeframeRepo          schedule.TimeframeRepository
+	TimetableData          scheduleSvc.TimetableDataService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster
@@ -115,26 +73,7 @@ func NewResource(deps Dependencies) *Resource {
 		instanceService:        deps.InstanceService,
 		operationsService:      deps.OperationsService,
 		personService:          deps.PersonService,
-		instanceStudentRepo:    deps.InstanceStudentRepo,
-		activityInstanceRepo:   deps.ActivityInstanceRepo,
-		activityExceptionRepo:  deps.ActivityExceptionRepo,
-		activityScheduleRepo:   deps.ActivityScheduleRepo,
-		instanceStaffRepo:      deps.InstanceStaffRepo,
-		activeGroupRepo:        deps.ActiveGroupRepo,
-		supervisorRepo:         deps.SupervisorRepo,
-		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
-		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
-		pickupScheduleRepo:     deps.PickupScheduleRepo,
-		pickupExceptionRepo:    deps.PickupExceptionRepo,
-		visitRepo:              deps.VisitRepo,
-		studentRepo:            deps.StudentRepo,
-		staffRepo:              deps.StaffRepo,
-		roomRepo:               deps.RoomRepo,
-		activityCategoryRepo:   deps.ActivityCategoryRepo,
-		activityGroupRepo:      deps.ActivityGroupRepo,
-		activitySupervisorRepo: deps.ActivitySupervisorRepo,
-		studentEnrollmentRepo:  deps.StudentEnrollmentRepo,
-		timeframeRepo:          deps.TimeframeRepo,
+		timetableData:          deps.TimetableData,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
 		broadcaster:            deps.Broadcaster,

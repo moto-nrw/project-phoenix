@@ -140,8 +140,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 // resolveStudentFromPerson finds a student from a person record without rendering an HTTP response.
 // A missing student returns (nil, nil); repository failures are returned to the caller.
 func (rs *Resource) resolveStudentFromPerson(ctx context.Context, personID int64) (*users.Student, error) {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(ctx, personID)
+	student, err := rs.UsersService.GetStudentByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -154,8 +153,7 @@ func (rs *Resource) resolveStudentFromPerson(ctx context.Context, personID int64
 // resolveStaffFromPerson finds a staff record from a person record without rendering an HTTP response.
 // A missing staff member returns (nil, nil); repository failures are returned to the caller.
 func (rs *Resource) resolveStaffFromPerson(ctx context.Context, personID int64) (*users.Staff, error) {
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByPersonID(ctx, personID)
+	staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -172,8 +170,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 		slog.Int64("person_id", person.ID),
 	)
 
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.UsersService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil {
 		rs.getLogger().ErrorContext(r.Context(), "failed to lookup staff for person",
 			slog.Int64("person_id", person.ID),

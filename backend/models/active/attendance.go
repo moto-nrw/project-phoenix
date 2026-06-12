@@ -103,6 +103,11 @@ type AttendanceRepository interface {
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
 
+	// HasOpenAttendanceOn reports whether any attendance row on the given
+	// calendar date is still open (check_out_time IS NULL). Used by the
+	// operator presence-mode switch guard.
+	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
+
 	// FindByStudentAndDate finds all attendance records for a student on a specific date
 	FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*Attendance, error)
 

@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,14 +63,8 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		ArrivalScheduleRepo:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo: scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
-		PickupExceptionRepo:  scheduleRepo.NewStudentPickupExceptionRepository(db),
-		VisitRepo:            activeRepo.NewVisitRepository(db),
-		StudentRepo:          usersRepo.NewStudentRepository(db),
+		TimetableData: testTimetableData(db),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: usersRepo.NewStudentRepository(db)}),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
 		// the fallthrough returning false when userCtx is nil.

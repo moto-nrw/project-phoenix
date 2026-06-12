@@ -296,7 +296,7 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	}
 
 	// Get staff from person ID
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
 		return 0, errors.New("user is not a staff member")
 	}
@@ -840,7 +840,7 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 	}
 
 	// Get all students in these groups
-	students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), groupIDs)
+	students, err := rs.PersonService.GetStudentsByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		return nil, err
 	}

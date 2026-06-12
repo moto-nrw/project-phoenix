@@ -292,12 +292,12 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := factory.Users.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := repositories.NewFactory(db).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID) })
 
-	teacher, err := factory.Users.TeacherRepository().FindByStaffID(ctx, staff.ID)
+	teacher, err := repositories.NewFactory(db).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.teachers", teacher.ID) })

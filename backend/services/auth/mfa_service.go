@@ -105,6 +105,10 @@ type MFAService interface {
 	// the tenant explicitly instead of relying on tenant.FromContext.
 	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
+	// AccountBelongsToTenant reports whether the account has a tenant mapping
+	// for the given school — the operator MFA admin endpoints gate on this
+	// before managing a staff account's MFA state (issue #584).
+	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 
 	// Email-code challenge flow.
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
@@ -1706,4 +1710,10 @@ func (s *mfaService) recordAuthEvent(ctx context.Context, accountID, tenantID in
 			)
 		}
 	}()
+}
+
+// AccountBelongsToTenant reports whether the account has a tenant mapping for
+// the given school (issue #584; repository result verbatim).
+func (s *mfaService) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
 }

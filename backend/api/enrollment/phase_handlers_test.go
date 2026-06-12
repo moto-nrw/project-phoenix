@@ -24,6 +24,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -203,9 +204,11 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	}))
 
 	rs := &Resource{
-		SchoolRepo: schoolRepo,
-		PhaseRepo:  phaseRepo,
-		db:         db,
+		SchoolService: platformSvc.NewSchoolService(schoolRepo),
+		PhaseService: enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+			Repo: phaseRepo,
+		}),
+		db: db,
 	}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

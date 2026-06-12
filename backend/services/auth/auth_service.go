@@ -176,3 +176,9 @@ func (s *Service) runInTx(
 		return fn(txCtx)
 	})
 }
+
+// VerifyAccountTenantMembership reports whether the account has a tenant
+// mapping for the given school (issue #584; repository result verbatim).
+func (s *Service) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+}

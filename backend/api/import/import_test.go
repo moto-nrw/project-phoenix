@@ -46,7 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create import resource
-	resource := importAPI.NewResource(svc.Import, svc.StaffImport, repos.DataImport, svc.Users, db)
+	resource := importAPI.NewResource(svc.Import, svc.StaffImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,

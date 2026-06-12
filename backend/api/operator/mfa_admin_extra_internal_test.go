@@ -20,51 +20,24 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-// stubAccountTenantRepo is a minimal AccountTenantRepository satisfying
-// just the lookup the operator admin handlers depend on.
-type stubAccountTenantRepo struct {
-	existsFn func(ctx context.Context, accountID, tenantID int64) (bool, error)
-}
-
-func (s *stubAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	if s.existsFn != nil {
-		return s.existsFn(ctx, accountID, tenantID)
-	}
-	return true, nil
-}
-
-func (s *stubAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
-	return nil
-}
-func (s *stubAccountTenantRepo) FindActiveByAccountID(context.Context, int64) ([]authModels.AccountTenant, error) {
-	return nil, nil
-}
-func (s *stubAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
-	return nil, nil
-}
-func (s *stubAccountTenantRepo) ListAccountsByOrganizationID(context.Context, int64) ([]authModels.OrgAccountInfo, error) {
-	return nil, nil
-}
-func (s *stubAccountTenantRepo) ListAllAccounts(context.Context) ([]authModels.OrgAccountInfo, error) {
-	return nil, nil
-}
-func (s *stubAccountTenantRepo) EnsureActive(context.Context, *authModels.AccountTenant) error {
-	return nil
-}
-func (s *stubAccountTenantRepo) Deactivate(context.Context, int64, int64) error {
-	return nil
-}
-
 // stubTenantMFAService satisfies authSvc.MFAService minimally for the
 // operator admin endpoints (HasEnrollment, GetTenantMFAOverride,
 // OperatorAdminDisable, OperatorSetMFAOverride, etc.).
 type stubTenantMFAService struct {
+	accountBelongsFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	hasEnrollmentFn        func(ctx context.Context, accountID int64) (bool, error)
 	getTenantOverrideFn    func(ctx context.Context, accountID, tenantID int64) (string, error)
 	getGlobalOverrideFn    func(ctx context.Context, accountID int64) (string, error)
 	operatorAdminDisableFn func(ctx context.Context, operatorID, schoolID, accountID int64, reason string) error
 	operatorSetOverrideFn  func(ctx context.Context, operatorID, schoolID, accountID int64, override, reason string) error
 	operatorSetGlobalFn    func(ctx context.Context, operatorID, accountID int64, override, reason string) error
+}
+
+func (s *stubTenantMFAService) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	if s.accountBelongsFn != nil {
+		return s.accountBelongsFn(ctx, accountID, tenantID)
+	}
+	return true, nil
 }
 
 func (s *stubTenantMFAService) IsRequired(context.Context, *authModels.Account, int64) (bool, error) {
@@ -175,10 +148,9 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	return r.WithContext(ctx)
 }
 
-func provisioningResourceFor(mfa authSvc.MFAService, repo authModels.AccountTenantRepository) *ProvisioningResource {
+func provisioningResourceFor(mfa authSvc.MFAService) *ProvisioningResource {
 	return &ProvisioningResource{
-		TenantMFAService:        mfa,
-		AccountTenantRepository: repo,
+		TenantMFAService: mfa,
 	}
 }
 
@@ -189,10 +161,8 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 		hasEnrollmentFn:     func(context.Context, int64) (bool, error) { return true, nil },
 		getTenantOverrideFn: func(context.Context, int64, int64) (string, error) { return authSvc.MFAAdminOverrideForceOn, nil },
 	}
-	repo := &stubAccountTenantRepo{
-		existsFn: func(context.Context, int64, int64) (bool, error) { return true, nil },
-	}
-	rs := provisioningResourceFor(mfa, repo)
+	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return true, nil }
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -203,10 +173,8 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 
 func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
 	mfa := &stubTenantMFAService{}
-	repo := &stubAccountTenantRepo{
-		existsFn: func(context.Context, int64, int64) (bool, error) { return false, nil },
-	}
-	rs := provisioningResourceFor(mfa, repo)
+	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return false, nil }
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -218,21 +186,8 @@ func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
 
 func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
 	mfa := &stubTenantMFAService{}
-	repo := &stubAccountTenantRepo{
-		existsFn: func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") },
-	}
-	rs := provisioningResourceFor(mfa, repo)
-
-	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
-	rr := httptest.NewRecorder()
-	rs.GetSchoolAccountMFAState(rr, r)
-
-	assert.Equal(t, http.StatusInternalServerError, rr.Code)
-}
-
-func TestGetSchoolAccountMFAState_MissingDeps_Returns500(t *testing.T) {
-	// MFA service wired but repo nil — must fail closed.
-	rs := &ProvisioningResource{TenantMFAService: &stubTenantMFAService{}}
+	mfa.accountBelongsFn = func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") }
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -249,8 +204,7 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 			return nil
 		},
 	}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "User left organization"}, 7)
@@ -263,8 +217,7 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 
 func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 	mfa := &stubTenantMFAService{}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "ok ok ok"}, 0) // no claim
@@ -276,8 +229,7 @@ func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 
 func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
 	mfa := &stubTenantMFAService{}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	// Empty reason fails Bind validation
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
@@ -294,8 +246,7 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 			return authSvc.ErrMFAPermissionDenied
 		},
 	}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "User left"}, 7)
@@ -313,8 +264,7 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 			return nil
 		},
 	}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{
@@ -330,8 +280,7 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 
 func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
 	mfa := &stubTenantMFAService{}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: "bogus", Reason: "ok ok"}, 7)
@@ -347,8 +296,7 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 			return authSvc.ErrMFAInvalidOverride
 		},
 	}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: authSvc.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
@@ -364,8 +312,7 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 			return authSvc.ErrMFAPermissionDenied
 		},
 	}
-	repo := &stubAccountTenantRepo{}
-	rs := provisioningResourceFor(mfa, repo)
+	rs := provisioningResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: authSvc.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)
