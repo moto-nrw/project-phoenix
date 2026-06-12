@@ -124,7 +124,7 @@ export default function EnrollPhasePickerPage() {
                     <li key={phase.id}>
                       <Link
                         href={`/enroll/${encodeURIComponent(phase.id)}`}
-                        className="group moto-content-surface flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] duration-150 hover:border-gray-300 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5 md:hover:-translate-y-0.5"
+                        className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
