@@ -11,7 +11,6 @@ import {
   Check,
   ClipboardList,
   Clock3,
-  Copy,
   ExternalLink,
   FileText,
   MoreVertical,
@@ -44,7 +43,7 @@ import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
-import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -839,7 +838,6 @@ function PhaseActions({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
-  const { copied, copy } = useClipboardCopy(`PhaseActions:${phase.id}`, 2000);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
 
   useEffect(() => {
@@ -943,21 +941,6 @@ function PhaseActions({
         Phase ansehen
       </a>
 
-      {phaseUrl ? (
-        <button
-          type="button"
-          role="menuitem"
-          onClick={() => {
-            void copy(phaseUrl);
-            setOpen(false);
-          }}
-          className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
-        >
-          <Copy className="h-4 w-4 text-gray-500" aria-hidden />
-          {copied ? "Link kopiert" : "Link kopieren"}
-        </button>
-      ) : null}
-
       <button
         type="button"
         role="menuitem"
@@ -1032,7 +1015,13 @@ function PhaseActions({
   );
 
   return (
-    <div className="flex justify-end">
+    <div className="flex justify-end gap-1.5">
+      {phaseUrl ? (
+        <PublicLinkCopyButton
+          url={phaseUrl}
+          componentId={`PhaseActions:${phase.id}`}
+        />
+      ) : null}
       <div>
         <button
           ref={buttonRef}

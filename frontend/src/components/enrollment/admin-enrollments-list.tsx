@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ClipboardList,
-  Copy,
   Eye,
   ExternalLink,
   FileText,
@@ -32,7 +31,7 @@ import { fetchSettingsSchema } from "~/lib/settings-api";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
-import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
@@ -323,13 +322,8 @@ function EnrollmentPhaseOverview({
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
+                    enrollmentsHref={`/admin/enrollments/phases/${phase.id}`}
                   />
-                  <Link
-                    href={`/admin/enrollments/phases/${phase.id}`}
-                    className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    Anmeldungen ansehen
-                  </Link>
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
@@ -349,12 +343,13 @@ function EnrollmentPhaseOverview({
 function PhasePublicLinkActions({
   phase,
   tenantSlug,
-}: Readonly<{ phase: Phase; tenantSlug: string | null }>) {
+  enrollmentsHref,
+}: Readonly<{
+  phase: Phase;
+  tenantSlug: string | null;
+  enrollmentsHref: string;
+}>) {
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
-  const { copied, copy } = useClipboardCopy(
-    `AdminEnrollmentsList:${phase.id}`,
-    2000,
-  );
 
   return (
     <>
@@ -367,15 +362,17 @@ function PhasePublicLinkActions({
         Phase ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
+      <Link
+        href={enrollmentsHref}
+        className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        Anmeldungen ansehen
+      </Link>
       {phaseUrl ? (
-        <button
-          type="button"
-          onClick={() => void copy(phaseUrl)}
-          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          {copied ? "Link kopiert" : "Link kopieren"}
-          <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+        <PublicLinkCopyButton
+          url={phaseUrl}
+          componentId={`AdminEnrollmentsList:${phase.id}`}
+        />
       ) : null}
     </>
   );
