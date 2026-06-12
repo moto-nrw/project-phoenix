@@ -42,6 +42,8 @@ import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
+import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -836,6 +838,7 @@ function PhaseActions({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
+  const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
 
   useEffect(() => {
     setMounted(true);
@@ -1012,7 +1015,13 @@ function PhaseActions({
   );
 
   return (
-    <div className="flex justify-end">
+    <div className="flex justify-end gap-1.5">
+      {phaseUrl ? (
+        <PublicLinkCopyButton
+          url={phaseUrl}
+          componentId={`PhaseActions:${phase.id}`}
+        />
+      ) : null}
       <div>
         <button
           ref={buttonRef}

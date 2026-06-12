@@ -29,6 +29,9 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
@@ -52,6 +55,7 @@ interface CareOfferingStats {
 }
 
 export function AdminEnrollmentsList() {
+  const tenantSlug = useTenantSlugSafe();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [careOfferingStats, setCareOfferingStats] = useState<CareOfferingStats>(
@@ -149,7 +153,11 @@ export function AdminEnrollmentsList() {
         </div>
       )}
 
-      <EnrollmentPhaseOverview phases={phases} requests={allRequests} />
+      <EnrollmentPhaseOverview
+        phases={phases}
+        requests={allRequests}
+        tenantSlug={tenantSlug}
+      />
     </div>
   );
 }
@@ -188,9 +196,11 @@ const OPEN_STATUSES = new Set<ChildStatus>([
 function EnrollmentPhaseOverview({
   phases,
   requests,
+  tenantSlug,
 }: Readonly<{
   phases: Phase[];
   requests: AdminRequestSummary[];
+  tenantSlug: string | null;
 }>) {
   const phaseStats = useMemo(() => {
     const stats = new Map<
@@ -309,21 +319,11 @@ function EnrollmentPhaseOverview({
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                  <a
-                    href={`/enroll/${encodeURIComponent(phase.id)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    Phase ansehen
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  </a>
-                  <Link
-                    href={`/admin/enrollments/phases/${phase.id}`}
-                    className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  >
-                    Anmeldungen ansehen
-                  </Link>
+                  <PhasePublicLinkActions
+                    phase={phase}
+                    tenantSlug={tenantSlug}
+                    enrollmentsHref={`/admin/enrollments/phases/${phase.id}`}
+                  />
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
@@ -337,6 +337,44 @@ function EnrollmentPhaseOverview({
         })}
       </div>
     </section>
+  );
+}
+
+function PhasePublicLinkActions({
+  phase,
+  tenantSlug,
+  enrollmentsHref,
+}: Readonly<{
+  phase: Phase;
+  tenantSlug: string | null;
+  enrollmentsHref: string;
+}>) {
+  const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
+
+  return (
+    <>
+      <a
+        href={`/enroll/${encodeURIComponent(phase.id)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        Phase ansehen
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
+      <Link
+        href={enrollmentsHref}
+        className="inline-flex h-8 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        Anmeldungen ansehen
+      </Link>
+      {phaseUrl ? (
+        <PublicLinkCopyButton
+          url={phaseUrl}
+          componentId={`AdminEnrollmentsList:${phase.id}`}
+        />
+      ) : null}
+    </>
   );
 }
 
