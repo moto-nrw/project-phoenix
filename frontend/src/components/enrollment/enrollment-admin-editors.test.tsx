@@ -637,6 +637,51 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  it("shows enabled legal blocks in the compact form preview", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        legal_blocks: [
+          {
+            key: "custom_photo_trip",
+            kind: "consent",
+            title: "Fotoausflug",
+            label: "Mein Kind darf beim Ausflug fotografiert werden.",
+            text: "Details",
+            required: true,
+            enabled: true,
+            sort_order: 10,
+            source: "custom",
+          },
+          {
+            key: "disabled_consent",
+            kind: "consent",
+            title: "Ausgeblendet",
+            label: "Diese Zustimmung ist deaktiviert.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 20,
+            source: "custom",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Prüfen" }));
+
+    expect(screen.getByText("Zustimmungen & Hinweise")).toBeInTheDocument();
+    expect(screen.getByText("Fotoausflug")).toBeInTheDocument();
+    expect(screen.getAllByText("Pflicht").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Ausgeblendet")).not.toBeInTheDocument();
+  });
+
   it("handles load and save errors", async () => {
     mocks.listSchemas.mockRejectedValueOnce(new Error("Schema kaputt"));
     mocks.listPhases.mockResolvedValue([]);

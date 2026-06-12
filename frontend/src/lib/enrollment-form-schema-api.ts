@@ -285,6 +285,20 @@ export interface PublicFormSchema {
   legal_blocks?: FormLegalBlock[];
 }
 
+export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
+  return {
+    id: schema.id,
+    version: schema.version,
+    fields: schema.fields,
+    ...(schema.core_requirements === undefined
+      ? {}
+      : { core_requirements: schema.core_requirements }),
+    ...(schema.legal_blocks === undefined
+      ? {}
+      : { legal_blocks: schema.legal_blocks }),
+  };
+}
+
 /**
  * Public Cloudflare Turnstile config for a tenant. enabled mirrors the
  * server-side enrollment.require_captcha setting; site_key is the

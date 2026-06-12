@@ -809,6 +809,7 @@ export function EnrollmentFormEditor() {
             <FormPreview
               fields={fields}
               coreRequirements={coreRequirements}
+              legalBlocks={legalBlocks}
               templateName={name}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
@@ -1402,6 +1403,7 @@ function FormTemplateDetail({
               <FormPreview
                 fields={schema.fields}
                 coreRequirements={schema.core_requirements ?? {}}
+                legalBlocks={schema.legal_blocks ?? []}
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
@@ -2948,6 +2950,7 @@ function ConditionOfferingControls({
 function FormPreview({
   fields,
   coreRequirements,
+  legalBlocks,
   templateName,
   isActive,
   isSaved,
@@ -2958,6 +2961,7 @@ function FormPreview({
 }: Readonly<{
   fields: FormField[];
   coreRequirements: CoreRequirements;
+  legalBlocks: FormLegalBlock[];
   templateName: string;
   isActive: boolean;
   isSaved: boolean;
@@ -2971,6 +2975,7 @@ function FormPreview({
     isActive,
     isSaved,
   });
+  const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
   const guardianFields = [
     "Vorname *",
     "Nachname *",
@@ -3121,6 +3126,59 @@ function FormPreview({
               </div>
             )}
           </section>
+
+          {enabledLegalBlocks.length > 0 ? (
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Zustimmungen & Hinweise
+                </h4>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {enabledLegalBlocks.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {enabledLegalBlocks.map((block) => (
+                  <div
+                    key={block.key}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                          block.kind === "notice"
+                            ? "border-[#5080D8]/30 bg-[#5080D8]/10"
+                            : "border-gray-300 bg-white"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {block.kind === "notice" ? (
+                          <Info className="h-3 w-3 text-[#5080D8]" />
+                        ) : null}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {block.title.trim() || block.label}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                            {block.kind === "notice"
+                              ? "Hinweis"
+                              : block.required
+                                ? "Pflicht"
+                                : "Optional"}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                          {block.label}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <button
             type="button"

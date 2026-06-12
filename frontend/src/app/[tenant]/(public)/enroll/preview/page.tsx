@@ -14,6 +14,7 @@ import {
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
   fetchSchemaById,
+  schemaToPublicFormSchema,
   type FormSchema,
   type PublicFormSchema,
 } from "~/lib/enrollment-form-schema-api";
@@ -68,11 +69,7 @@ export default function EnrollmentPreviewPage() {
 
   const previewSchema = useMemo<PublicFormSchema | null>(() => {
     if (!schema) return null;
-    return {
-      id: schema.id,
-      version: schema.version,
-      fields: schema.fields,
-    };
+    return schemaToPublicFormSchema(schema);
   }, [schema]);
 
   const assignedPhases = useMemo(() => {

@@ -4,6 +4,7 @@ import {
   RESERVED_TARGETS,
   blankField,
   latestSchemasByName,
+  schemaToPublicFormSchema,
   listSchemas,
   fetchSchemaById,
   fetchPublicActiveSchema,
@@ -161,6 +162,38 @@ describe("latestSchemasByName", () => {
 
   it("returns an empty array for an empty input", () => {
     expect(latestSchemasByName([])).toEqual([]);
+  });
+});
+
+// --- schemaToPublicFormSchema ----------------------------------------
+
+describe("schemaToPublicFormSchema", () => {
+  it("preserves core requirements and legal blocks for previews", () => {
+    const fullSchema: FormSchema = {
+      ...mkSchema("preview", "Vorschau", 3, "2026-04-01T12:00:00Z"),
+      core_requirements: { guardian_phone: true },
+      legal_blocks: [
+        {
+          key: "custom_photo_trip",
+          kind: "consent",
+          title: "Fotoausflug",
+          label: "Mein Kind darf beim Ausflug fotografiert werden.",
+          text: "Details",
+          required: true,
+          enabled: true,
+          sort_order: 10,
+          source: "custom",
+        },
+      ],
+    };
+
+    expect(schemaToPublicFormSchema(fullSchema)).toEqual({
+      id: "preview",
+      version: 3,
+      fields: fullSchema.fields,
+      core_requirements: { guardian_phone: true },
+      legal_blocks: fullSchema.legal_blocks,
+    });
   });
 });
 

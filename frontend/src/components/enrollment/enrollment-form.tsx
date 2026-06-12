@@ -228,9 +228,11 @@ export function EnrollmentForm({
           // consent without the configured documents. Unconfigured
           // texts return empty strings (no rejection) and just drop the
           // link.
-          phaseID
-            ? fetchPublicLegalTexts(tenantSlug, phaseID)
-            : fetchPublicLegalTexts(tenantSlug),
+          previewSchema !== undefined
+            ? Promise.resolve(previewLegalTexts(previewSchema))
+            : phaseID
+              ? fetchPublicLegalTexts(tenantSlug, phaseID)
+              : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -1666,6 +1668,31 @@ function LegalMarkdown({ text }: { readonly text: string }) {
   return (
     <ReactMarkdown components={LEGAL_MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
   );
+}
+
+function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
+  const blocks =
+    schema?.legal_blocks
+      ?.filter((block) => block.enabled)
+      .map((block) => ({
+        key: block.key,
+        kind: block.kind,
+        title: block.title,
+        label: block.label,
+        text: block.text,
+        required: block.required,
+        sort_order: block.sort_order,
+        source: block.source,
+      })) ?? [];
+  return {
+    agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
+    email_contact:
+      blocks.find((block) => block.key === "email_contact")?.text ?? "",
+    photo: blocks.find((block) => block.key === "photo")?.text ?? "",
+    terms_enabled: blocks.some((block) => block.key === "agb"),
+    blocks,
+  };
 }
 
 function Consent({

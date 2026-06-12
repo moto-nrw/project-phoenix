@@ -3,7 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { ListboxDropdown } from "./listbox-dropdown";
 
-export interface CustomSelectOption {
+interface CustomSelectOption {
   readonly value: string;
   readonly label: string;
   readonly disabled?: boolean;

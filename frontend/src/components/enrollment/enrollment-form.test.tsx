@@ -493,6 +493,54 @@ describe("EnrollmentForm", () => {
     expect(payload.consent_flags).toEqual({ custom_pool: true });
   });
 
+  it("renders legal blocks from preview schemas without loading tenant legal texts", async () => {
+    mockFetchPublicLegalTexts.mockClear();
+
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: {
+        id: "preview-schema",
+        version: 1,
+        fields: [],
+        legal_blocks: [
+          {
+            key: "custom_photo_trip",
+            kind: "consent",
+            title: "Fotoausflug",
+            label: "Mein Kind darf beim Ausflug fotografiert werden.",
+            text: "Details zum Fotoausflug",
+            required: true,
+            enabled: true,
+            sort_order: 10,
+            source: "custom",
+          },
+          {
+            key: "disabled_consent",
+            kind: "consent",
+            title: "Ausgeblendet",
+            label: "Diese Zustimmung ist deaktiviert.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 20,
+            source: "custom",
+          },
+        ],
+      },
+      skipCaptcha: true,
+    });
+    await waitForLoaded();
+
+    expect(mockFetchPublicLegalTexts).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Mein Kind darf beim Ausflug fotografiert werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Diese Zustimmung ist deaktiviert."),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits guardian, child, custom field, offering, and consent payloads", async () => {
     const onSubmitted = vi.fn();
     renderForm({ onSubmitted });
