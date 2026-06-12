@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { useModal } from "~/components/dashboard/modal-context";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   SlideOver,
@@ -51,6 +53,35 @@ import type {
 } from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel";
+
+type PendingConfirmAction = "complete" | "cancel" | "delete";
+
+const CONFIRM_DIALOGS: Record<
+  PendingConfirmAction,
+  {
+    title: string;
+    body: string;
+    confirmText: string;
+    confirmButtonClass?: string;
+  }
+> = {
+  complete: {
+    title: "Termin beenden?",
+    body: "Der laufende Termin wird beendet und kann nicht erneut gestartet werden.",
+    confirmText: "Beenden",
+  },
+  cancel: {
+    title: "Termin absagen?",
+    body: "Der Termin wird im Plan als abgesagt markiert. Das kann nicht rückgängig gemacht werden.",
+    confirmText: "Absagen",
+  },
+  delete: {
+    title: "Abgesagten Termin löschen?",
+    body: "Der abgesagte Termin wird dauerhaft entfernt.",
+    confirmText: "Löschen",
+    confirmButtonClass: "bg-red-600 hover:bg-red-700",
+  },
+};
 
 interface InstanceDetailSlideOverProps {
   instance: EnrichedInstance | null;
@@ -170,10 +201,12 @@ export function InstanceDetailSlideOver({
   onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
+  const { isModalOpen } = useModal();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [pendingConfirm, setPendingConfirm] =
+    useState<PendingConfirmAction | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const students = useMemo(
@@ -195,11 +228,10 @@ export function InstanceDetailSlideOver({
   );
 
   useEffect(() => {
-    setDeleteConfirm(false);
+    setPendingConfirm(null);
   }, [instance?.id]);
 
   const handleLifecycle = async (action: LifecycleAction) => {
-    setDeleteConfirm(false);
     setPendingAction(action);
     try {
       await onLifecycleAction(action);
@@ -210,15 +242,21 @@ export function InstanceDetailSlideOver({
 
   const handleDeleteCancelled = async () => {
     if (!instance || !onDeleteCancelled) return;
-    if (!deleteConfirm) {
-      setDeleteConfirm(true);
-      return;
-    }
     setPendingDelete(true);
     try {
       await onDeleteCancelled(instance);
     } finally {
       setPendingDelete(false);
+    }
+  };
+
+  const handleConfirm = () => {
+    const action = pendingConfirm;
+    setPendingConfirm(null);
+    if (action === "delete") {
+      void handleDeleteCancelled();
+    } else if (action) {
+      void handleLifecycle(action);
     }
   };
 
@@ -245,7 +283,19 @@ export function InstanceDetailSlideOver({
       }}
     >
       {instance && (
-        <SlideOverContent>
+        <SlideOverContent
+          // The confirmation modal portals to document.body and therefore
+          // lives outside the drawer's DOM. Without these guards Vaul's
+          // DismissableLayer treats every click inside the open modal as an
+          // outside-click and closes the slide-over, unmounting the modal
+          // before its buttons can fire. See issue #1358.
+          onInteractOutside={(event) => {
+            if (isModalOpen || pendingConfirm !== null) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (isModalOpen || pendingConfirm !== null) event.preventDefault();
+          }}
+        >
           <SlideOverHeader>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -253,8 +303,11 @@ export function InstanceDetailSlideOver({
                   <SlideOverTitle>{instance.title}</SlideOverTitle>
                   <StatusBadge status={instance.status} />
                   {instance.isSpontaneous && (
-                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
-                      Spontan
+                    <span
+                      className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                      title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+                    >
+                      Spontan gestartet
                     </span>
                   )}
                   {(() => {
@@ -423,7 +476,7 @@ export function InstanceDetailSlideOver({
                   variant="primary"
                   size="md"
                   type="button"
-                  onClick={() => void handleLifecycle("complete")}
+                  onClick={() => setPendingConfirm("complete")}
                   isLoading={pendingAction === "complete"}
                   loadingText="Beende …"
                   disabled={pendingAction !== null}
@@ -440,7 +493,7 @@ export function InstanceDetailSlideOver({
                   variant="outline_danger"
                   size="md"
                   type="button"
-                  onClick={() => void handleLifecycle("cancel")}
+                  onClick={() => setPendingConfirm("cancel")}
                   isLoading={pendingAction === "cancel"}
                   loadingText="Sage ab …"
                   disabled={pendingAction !== null}
@@ -468,25 +521,15 @@ export function InstanceDetailSlideOver({
                       variant="outline_danger"
                       size="md"
                       type="button"
-                      onClick={() => void handleDeleteCancelled()}
+                      onClick={() => setPendingConfirm("delete")}
                       isLoading={pendingDelete}
                       loadingText="Lösche …"
                       disabled={pendingAction !== null || pendingDelete}
                     >
                       <span className="inline-flex items-center gap-2">
                         <Trash2 className="h-4 w-4" />
-                        {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
+                        Löschen
                       </span>
-                    </Button>
-                  )}
-                  {deleteConfirm && !pendingDelete && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="compact"
-                      onClick={() => setDeleteConfirm(false)}
-                    >
-                      Löschen abbrechen
                     </Button>
                   )}
                 </>
@@ -500,6 +543,25 @@ export function InstanceDetailSlideOver({
             )}
           </SlideOverFooter>
         </SlideOverContent>
+      )}
+      {pendingConfirm && (
+        <ConfirmationModal
+          isOpen
+          onClose={() => setPendingConfirm(null)}
+          onConfirm={handleConfirm}
+          title={CONFIRM_DIALOGS[pendingConfirm].title}
+          confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
+          cancelText="Abbrechen"
+          confirmButtonClass={
+            CONFIRM_DIALOGS[pendingConfirm].confirmButtonClass
+          }
+        >
+          <p className="text-sm leading-relaxed text-gray-600">
+            {pendingConfirm === "cancel" && instance?.status === "active"
+              ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
+              : CONFIRM_DIALOGS[pendingConfirm].body}
+          </p>
+        </ConfirmationModal>
       )}
     </SlideOver>
   );

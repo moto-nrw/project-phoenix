@@ -119,7 +119,10 @@ export function MonthPlannerGrid({
                           {inst.title}
                         </span>
                         {inst.isSpontaneous && !isCancelled && (
-                          <span className="shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase">
+                          <span
+                            className="shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                            title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+                          >
                             Spontan
                           </span>
                         )}

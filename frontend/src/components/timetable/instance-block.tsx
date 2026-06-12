@@ -116,7 +116,10 @@ export function InstanceBlock({
         )}
 
         {!isCompact && instance.isSpontaneous && !isCancelled && (
-          <div className="truncate text-[10px] font-semibold text-gray-600">
+          <div
+            className="truncate text-[10px] font-semibold text-gray-600"
+            title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+          >
             <span
               className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
               style={{

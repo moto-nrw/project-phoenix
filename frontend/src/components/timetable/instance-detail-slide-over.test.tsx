@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstanceDetailSlideOver } from "./instance-detail-slide-over";
@@ -52,6 +58,11 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     ],
     ...overrides,
   };
+}
+
+function confirmDialogButton(name: string) {
+  const dialogs = screen.getAllByRole("dialog");
+  return within(dialogs[dialogs.length - 1]!).getByRole("button", { name });
 }
 
 describe("InstanceDetailSlideOver", () => {
@@ -140,7 +151,7 @@ describe("InstanceDetailSlideOver", () => {
       />,
     );
 
-    expect(screen.getByText("Spontan")).toBeInTheDocument();
+    expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
   });
 
   it("handles active, cancelled and fallback student states", async () => {
@@ -157,10 +168,14 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Beenden/ }));
+    expect(screen.getByText("Termin beenden?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Beenden"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("complete"),
     );
     fireEvent.click(screen.getByRole("button", { name: /Absagen/ }));
+    expect(screen.getByText("Termin absagen?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Absagen"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("cancel"),
     );
@@ -210,10 +225,8 @@ describe("InstanceDetailSlideOver", () => {
 
     expect(screen.getByText("Fallback Kind")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(
-      screen.getByRole("button", { name: /Löschen bestätigen/ }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Löschen bestätigen/ }));
+    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42" }),
@@ -298,13 +311,11 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(
-      screen.getByRole("button", { name: /Löschen bestätigen/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Löschen abbrechen/ }));
+    fireEvent.click(confirmDialogButton("Abbrechen"));
     expect(
-      screen.queryByRole("button", { name: /Löschen bestätigen/ }),
+      screen.queryByText("Abgesagten Termin löschen?"),
     ).not.toBeInTheDocument();
     expect(onDeleteCancelled).not.toHaveBeenCalled();
   });
