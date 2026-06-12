@@ -328,12 +328,13 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
 	if err == nil {
 		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
-				return enrollmentService.ErrEnrollmentDisabled
+			if rs.RequestService == nil {
+				return errors.New("request service not configured")
 			}
-			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			// Shared public phase gate: enabled + active + open window.
+			phase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
 			if phaseErr != nil {
-				return errors.New("phase not found")
+				return phaseErr
 			}
 			selectionMode = phase.CareOfferingSelectionMode
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
@@ -365,16 +366,27 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 // frontend/src/lib/enrollment-submission-api.ts.
 const ErrCodeEnrollmentDisabled = "enrollment.disabled"
 
+// ErrCodeEnrollmentWindowClosed is returned by the public form-load
+// endpoints when a direct/stale parent link points at a phase whose
+// enrollment window is closed (or not yet open). Keep in sync with the
+// matching entry in frontend/src/lib/enrollment-error-messages.ts.
+const ErrCodeEnrollmentWindowClosed = "enrollment.window_closed"
+
 // renderPublicEnrollmentError renders the error chain returned from a
 // public enrollment endpoint. Disabled-tenant errors get a 404 with a
 // stable code so the parent landing page can render the localized
 // "Anmeldung aktuell deaktiviert" notice instead of the raw English
-// service sentinel. Anything else falls through to the generic 404
-// path so the existing "tenant not found" / "phase not found" messages
-// still work.
+// service sentinel; closed-window phases get their own code so stale
+// links explain the Anmeldefrist instead of "nicht gefunden". Anything
+// else falls through to the generic 404 path so the existing "tenant
+// not found" / "phase not found" messages still work.
 func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, enrollmentService.ErrEnrollmentDisabled) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentDisabled))
+		return
+	}
+	if errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentWindowClosed))
 		return
 	}
 	common.RenderError(w, r, common.ErrorNotFound(err))
@@ -479,12 +491,10 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			if !rs.RequestService.IsEnrollmentEnabled(txCtx) {
-				return enrollmentService.ErrEnrollmentDisabled
-			}
-			loadedPhase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			// Shared public phase gate: enabled + active + open window.
+			loadedPhase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
 			if phaseErr != nil {
-				return errors.New("phase not found")
+				return phaseErr
 			}
 			phase = loadedPhase
 			if phase.FormSchemaID != nil {

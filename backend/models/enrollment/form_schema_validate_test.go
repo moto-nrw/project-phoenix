@@ -106,6 +106,59 @@ func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
 	require.NoError(t, s.Validate())
 }
 
+func TestFormSchema_Validate_RejectsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
+	// Enabling any block while the Datenschutzinformation is disabled
+	// would let a phase collect personal data without the DSGVO
+	// acknowledgment — the save must be rejected.
+	s := validSchema()
+	s.LegalBlocks = []FormLegalBlock{
+		{
+			Key:      ConsentKeyDataProcessing,
+			Kind:     LegalBlockKindPrivacyNotice,
+			Title:    "Datenschutzinformation",
+			Label:    "Ich habe die Datenschutzinformation zur Kenntnis genommen.",
+			Required: true,
+			Enabled:  false,
+			Source:   LegalBlockSourceStandard,
+		},
+		{
+			Key:     "custom_pool",
+			Kind:    LegalBlockKindConsent,
+			Title:   "Schwimmbad",
+			Label:   "Mein Kind darf am Schwimmbad-Ausflug teilnehmen.",
+			Enabled: true,
+		},
+	}
+
+	err := s.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "data_processing")
+}
+
+func TestFormSchema_Validate_AcceptsAllDisabledLegalBlocks(t *testing.T) {
+	// An all-disabled snapshot stays valid — the submission service falls
+	// back to the tenant-wide legal settings for those templates.
+	s := validSchema()
+	s.LegalBlocks = []FormLegalBlock{
+		{
+			Key:     ConsentKeyDataProcessing,
+			Kind:    LegalBlockKindPrivacyNotice,
+			Title:   "Datenschutzinformation",
+			Label:   "Ich habe die Datenschutzinformation zur Kenntnis genommen.",
+			Enabled: false,
+		},
+		{
+			Key:     "custom_pool",
+			Kind:    LegalBlockKindConsent,
+			Title:   "Schwimmbad",
+			Label:   "Mein Kind darf am Schwimmbad-Ausflug teilnehmen.",
+			Enabled: false,
+		},
+	}
+
+	require.NoError(t, s.Validate())
+}
+
 func TestFormSchema_Validate_RejectsDuplicateLegalBlockKey(t *testing.T) {
 	s := validSchema()
 	s.LegalBlocks = []FormLegalBlock{

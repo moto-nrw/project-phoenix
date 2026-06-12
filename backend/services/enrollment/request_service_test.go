@@ -430,7 +430,7 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
-	assert.ErrorContains(t, err, "resolve required consents")
+	assert.ErrorContains(t, err, "resolve legal blocks")
 	assert.ErrorContains(t, err, "resolve DSGVO legal text")
 }
 

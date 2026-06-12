@@ -85,6 +85,17 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
 }
 
+func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
+	// A stale parent link to a phase whose enrollment window is closed
+	// returns 404 with a stable code so the form explains the
+	// Anmeldefrist instead of "nicht gefunden".
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/x", nil)
+	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentWindowClosed)
+}
+
 func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
 	// Any other error → bare 404 (no stable code). The catalog endpoint
 	// intentionally hides the difference between "phase not found" and

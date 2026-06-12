@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"net/mail"
+	"sort"
 	"strings"
 	"time"
 
@@ -181,9 +182,21 @@ type RequestService interface {
 	LegalTexts(ctx context.Context) (LegalTexts, error)
 
 	// LegalTextsForPhase returns the legal block contract for the selected
-	// phase. When the phase's template carries legal_blocks those blocks
-	// win; otherwise it falls back to the tenant-wide legal settings.
+	// phase. When the phase's template carries at least one ENABLED legal
+	// block those blocks win; otherwise it falls back to the tenant-wide
+	// legal settings. Runs the same public phase gate as
+	// LoadOpenPublicPhase, so stale or closed phases surface the sentinel
+	// errors instead of an incomplete legal contract.
 	LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
+
+	// LoadOpenPublicPhase is the shared public phase gate: every public
+	// form-load endpoint (schema, offerings, legal texts, bootstrap) calls
+	// this so a direct or stale parent link cannot load detail data for a
+	// phase the picker would hide. Returns ErrEnrollmentDisabled when the
+	// tenant toggle is off or the phase is inactive, ErrInvalidSubmission
+	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
+	// phase's enrollment window. Caller must be inside a tenant-tx.
+	LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -376,9 +389,17 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
-	if err := s.validateSubmission(ctx, req, schema); err != nil {
+	legalBlocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve legal blocks: %w", err)
+	}
+	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
 		return nil, err
 	}
+	// consent_flags is legally meaningful data: persist only keys the
+	// resolved legal-block contract declares so a stale or manipulated
+	// client cannot smuggle arbitrary consent entries into the request.
+	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, legalBlocks)
 
 	// Single required-field gate: enforces required core + custom fields
 	// server-side (defense-in-depth; the client checks the same), while
@@ -545,7 +566,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	}, nil
 }
 
-func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, schema *enrollmentModels.FormSchema) error {
+func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, legalBlocks []LegalBlock) error {
 	if !s.isEnrollmentEnabled(ctx) {
 		return ErrEnrollmentDisabled
 	}
@@ -581,11 +602,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	requiredConsents, err := s.resolveRequiredConsents(ctx, schema)
-	if err != nil {
-		return fmt.Errorf("resolve required consents: %w", err)
-	}
-	for _, key := range requiredConsents {
+	for _, key := range requiredConsentKeys(legalBlocks) {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
 			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
@@ -799,8 +816,10 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	// Same hidden-answer sanitizing as Submit: an edit must not be able to
 	// (re)introduce a value for a guardian field the parent couldn't see.
 	// Children aren't edited here, so only the guardian scope is filtered.
+	var schema *enrollmentModels.FormSchema
 	if req.SchemaID != nil {
-		if schema, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+		if loaded, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+			schema = loaded
 			byKey := buildFieldsByKey(schema)
 			req.CustomData = sanitizeVisibleAnswers(
 				schema, false, req.CustomData,
@@ -812,6 +831,15 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	tenantID := req.GetTenantID()
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
 	return tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Same consent-key allowlist as Submit. Resolved inside the tenant
+		// tx because the settings fallback needs the per-tenant override.
+		if patch.ConsentFlags != nil {
+			blocks, blockErr := s.resolveSubmissionLegalBlocks(txCtx, schema)
+			if blockErr != nil {
+				return fmt.Errorf("edit: resolve legal blocks: %w", blockErr)
+			}
+			req.ConsentFlags = filterConsentFlags(req.ConsentFlags, blocks)
+		}
 		return s.requestRepo.UpdateGuardianData(txCtx, req)
 	})
 }
@@ -1097,11 +1125,11 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 }
 
 func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
-	texts, err := s.LegalTexts(ctx)
+	phase, err := s.LoadOpenPublicPhase(ctx, phaseID, time.Now())
 	if err != nil {
 		return LegalTexts{}, err
 	}
-	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	texts, err := s.LegalTexts(ctx)
 	if err != nil {
 		return LegalTexts{}, err
 	}
@@ -1109,11 +1137,33 @@ func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) 
 	if err != nil {
 		return LegalTexts{}, err
 	}
-	if schema == nil || len(schema.LegalBlocks) == 0 {
-		return texts, nil
+	// Template blocks replace the settings-derived blocks only when at
+	// least one of them is enabled. A template whose blocks are all
+	// disabled (saved before the Rechtstexte were configured, or via the
+	// API) must not erase the tenant's consent contract — that would let
+	// parents submit without the expected DSGVO acknowledgment.
+	if schema != nil && len(schema.LegalBlocks) > 0 {
+		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
+			texts.Blocks = blocks
+		}
 	}
-	texts.Blocks = buildTemplateLegalBlocks(schema.LegalBlocks)
 	return texts, nil
+}
+
+// LoadOpenPublicPhase implements the shared public phase gate documented
+// on the RequestService interface.
+func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
+	if !s.isEnrollmentEnabled(ctx) {
+		return nil, ErrEnrollmentDisabled
+	}
+	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
+	if !IsEnrollmentWindowOpen(phase, now) {
+		return nil, ErrEnrollmentWindowClosed
+	}
+	return phase, nil
 }
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
@@ -1186,6 +1236,11 @@ func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []Le
 			Source:    block.Source,
 		})
 	}
+	// The editor writes blocks in display order, but API-written templates
+	// may store them out of order — enforce sort_order at render time.
+	sort.SliceStable(blocks, func(i, j int) bool {
+		return blocks[i].SortOrder < blocks[j].SortOrder
+	})
 	return blocks
 }
 
@@ -1211,27 +1266,67 @@ func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
 	return v, nil
 }
 
-// resolveRequiredConsents returns the visible legal blocks the parent must
-// accept for this tenant. It uses the same derived block list as the public
-// endpoint so a hidden/empty block never blocks submit server-side.
-func (s *requestService) resolveRequiredConsents(ctx context.Context, schema *enrollmentModels.FormSchema) ([]string, error) {
-	var blocks []LegalBlock
+// resolveSubmissionLegalBlocks returns the legal blocks a submission is
+// validated and persisted against: the template's enabled blocks when the
+// pinned schema declares at least one, otherwise the tenant-wide settings
+// blocks. Zero enabled template blocks fall back to settings (same rule as
+// LegalTextsForPhase) so an all-disabled snapshot can never erase the
+// tenant's consent contract.
+func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
-		blocks = buildTemplateLegalBlocks(schema.LegalBlocks)
-	} else {
-		texts, err := s.LegalTexts(ctx)
-		if err != nil {
-			return nil, err
+		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
+			return blocks, nil
 		}
-		blocks = texts.Blocks
 	}
+	texts, err := s.LegalTexts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return texts.Blocks, nil
+}
+
+// requiredConsentKeys extracts the keys the parent must accept from the
+// resolved block list, so a hidden/empty block never blocks submit
+// server-side.
+func requiredConsentKeys(blocks []LegalBlock) []string {
 	required := make([]string, 0, len(blocks))
 	for _, block := range blocks {
 		if block.Required {
 			required = append(required, block.Key)
 		}
 	}
-	return required, nil
+	return required
+}
+
+// resolveRequiredConsents returns the consent keys the parent must accept
+// for this schema/tenant. Kept as the single entry point combining block
+// resolution + required filtering.
+func (s *requestService) resolveRequiredConsents(ctx context.Context, schema *enrollmentModels.FormSchema) ([]string, error) {
+	blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
+	if err != nil {
+		return nil, err
+	}
+	return requiredConsentKeys(blocks), nil
+}
+
+// filterConsentFlags drops every consent key the resolved legal-block
+// contract doesn't declare. The flags are legally meaningful data, so
+// arbitrary client-sent keys must not be persisted.
+func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]any {
+	if len(flags) == 0 {
+		return flags
+	}
+	allowed := make(map[string]bool, len(blocks))
+	for _, block := range blocks {
+		allowed[block.Key] = true
+	}
+	out := make(map[string]any, len(flags))
+	for key, value := range flags {
+		if allowed[key] {
+			out[key] = value
+		}
+	}
+	return out
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

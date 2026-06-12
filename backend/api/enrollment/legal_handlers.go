@@ -58,7 +58,11 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	// legalErr captures a genuine settings/DB/JSON resolve failure so we
 	// can return a 500 instead of the 404 path. These texts sit behind
 	// legally relevant blocks — on a real failure the endpoint must fail
-	// rather than let the form collect an incomplete legal state.
+	// rather than let the form collect an incomplete legal state. The
+	// public phase-gate sentinels (unknown phase, disabled tenant/phase,
+	// closed window) are NOT failures: they fall through to the same
+	// controlled 404/disabled mapping every other public enrollment
+	// endpoint uses.
 	var legalErr error
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
@@ -73,7 +77,11 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 				texts, err = rs.RequestService.LegalTexts(txCtx)
 			}
 			if err != nil {
-				legalErr = err
+				if !errors.Is(err, enrollmentService.ErrInvalidSubmission) &&
+					!errors.Is(err, enrollmentService.ErrEnrollmentDisabled) &&
+					!errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) {
+					legalErr = err
+				}
 				return err
 			}
 			out.AGB = texts.AGB

@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -135,17 +136,22 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("schemaId is required")))
 		return
 	}
+	var schemaID int64
+	if !isBasePreview {
+		parsed, parseErr := strconv.ParseInt(schemaIDParam, 10, 64)
+		if parseErr != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("schemaId must be a positive integer")))
+			return
+		}
+		schemaID = parsed
+	}
 
 	var (
 		schema *enrollmentModels.FormSchema
 		phases []*enrollmentModels.Phase
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		if !isBasePreview {
-			schemaID, parseErr := strconv.ParseInt(schemaIDParam, 10, 64)
-			if parseErr != nil || schemaID <= 0 {
-				return errors.New("schemaId must be a positive integer")
-			}
+		if schemaID > 0 {
 			loaded, loadErr := rs.FormSchemaService.GetByID(ctx, schemaID)
 			if loadErr != nil {
 				return loadErr
@@ -160,7 +166,14 @@ func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Req
 		return nil
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		// A missing schema id is the caller's problem (404); everything
+		// else (phase listing, DB failures) is a genuine 500 — rendering
+		// those as 400 would hide internal failures behind client blame.
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -224,12 +237,13 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
-				return enrollmentService.ErrEnrollmentDisabled
+			if rs.RequestService == nil {
+				return errors.New("request service not configured")
 			}
-			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			// Shared public phase gate: enabled + active + open window.
+			phase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
 			if phaseErr != nil {
-				return errors.New("phase not found")
+				return phaseErr
 			}
 			if phase.FormSchemaID == nil {
 				// Basis phase — admin explicitly chose "nur die
