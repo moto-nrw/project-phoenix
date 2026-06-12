@@ -347,6 +347,17 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the compulsory attendance notice near care offerings", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.getByText(
+        /Mit der Anmeldung zum Ganztagsangebot ist Ihr Kind laut Ganztagsschulerlass zu den angemeldeten Zeiten schulpflichtig\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("fails closed when the legal texts cannot be loaded", async () => {
     // A real load failure (settings/DB/JSON error) must reject the whole
     // form load so the parent never submits legally relevant consent

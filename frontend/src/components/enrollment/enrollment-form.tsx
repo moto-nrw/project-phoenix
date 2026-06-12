@@ -1076,7 +1076,10 @@ export function EnrollmentForm({
                         : careOfferingSelectionMode === "at_least_one"
                           ? "Wählen Sie mindestens ein Angebot aus, das für dieses Kind gewünscht ist."
                           : "Wählen Sie die Angebote aus, die für dieses Kind gewünscht sind."}{" "}
-                      Die OGS prüft freie Plätze nach dem Absenden.
+                      Die OGS prüft freie Plätze nach dem Absenden. Bitte
+                      beachten Sie: Mit der Anmeldung zum Ganztagsangebot ist
+                      Ihr Kind laut Ganztagsschulerlass zu den angemeldeten
+                      Zeiten schulpflichtig.
                     </p>
                     <div
                       aria-invalid={childOfferingErrors[i] ? true : undefined}
