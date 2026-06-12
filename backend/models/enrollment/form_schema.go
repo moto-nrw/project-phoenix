@@ -692,9 +692,12 @@ func (s *FormSchema) Validate() error {
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
 	}
+	// NOTE: a template may deliberately enable blocks while keeping
+	// data_processing disabled — pilot schools without a standalone
+	// Datenschutzinformation run their consent via the Elternbrief/AGB
+	// block. The editor surfaces a non-blocking hint instead of a hard
+	// validation here.
 	legalByKey := make(map[string]bool, len(s.LegalBlocks))
-	anyLegalEnabled := false
-	dataProcessingEnabled := false
 	for i := range s.LegalBlocks {
 		if err := s.LegalBlocks[i].Validate(); err != nil {
 			return fmt.Errorf("legal block %d: %w", i, err)
@@ -703,20 +706,6 @@ func (s *FormSchema) Validate() error {
 			return fmt.Errorf("duplicate legal block key %q", s.LegalBlocks[i].Key)
 		}
 		legalByKey[s.LegalBlocks[i].Key] = true
-		if s.LegalBlocks[i].Enabled {
-			anyLegalEnabled = true
-			if s.LegalBlocks[i].Key == ConsentKeyDataProcessing {
-				dataProcessingEnabled = true
-			}
-		}
-	}
-	// A template that enables any consent block must keep the
-	// Datenschutzinformation enabled — disabling it would let a phase
-	// collect personal data without the DSGVO acknowledgment. All-disabled
-	// templates stay valid; the submission service falls back to the
-	// tenant-wide legal settings for those.
-	if anyLegalEnabled && !dataProcessingEnabled {
-		return errors.New("legal blocks: the data_processing block cannot be disabled while other blocks are enabled")
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
 	for i := range s.Fields {

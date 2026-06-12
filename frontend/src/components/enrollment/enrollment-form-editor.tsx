@@ -1903,6 +1903,17 @@ function LegalBlocksSection({
         </div>
       </div>
 
+      {blocks.some((block) => block.enabled) &&
+      !blocks.some(
+        (block) => block.key === "data_processing" && block.enabled,
+      ) ? (
+        <p className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm leading-6 text-gray-700">
+          Hinweis: Die Datenschutzinformation ist in dieser Vorlage deaktiviert.
+          Stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg
+          erhalten, zum Beispiel über den Elternbrief.
+        </p>
+      ) : null}
+
       <div className="mt-4 space-y-3">
         {blocks.map((block, index) => (
           <div
@@ -3602,8 +3613,9 @@ function getSchemaDraftValidationMessage({
   }
 
   const seenLegalKeys = new Set<string>();
-  const preparedLegalBlocks = prepareLegalBlocksForSave(legalBlocks);
-  for (const [index, block] of preparedLegalBlocks.entries()) {
+  for (const [index, block] of prepareLegalBlocksForSave(
+    legalBlocks,
+  ).entries()) {
     const position = index + 1;
     if (seenLegalKeys.has(block.key)) {
       return `Bitte ändere Zustimmung ${position}. Zwei Zustimmungen haben denselben internen Schlüssel.`;
@@ -3616,16 +3628,6 @@ function getSchemaDraftValidationMessage({
     if (block.label === "") {
       return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
     }
-  }
-  // Mirror of the backend rule: enabling any block while the
-  // Datenschutzinformation is disabled would collect personal data
-  // without the DSGVO acknowledgment.
-  const anyLegalEnabled = preparedLegalBlocks.some((block) => block.enabled);
-  const dataProcessingEnabled = preparedLegalBlocks.some(
-    (block) => block.key === "data_processing" && block.enabled,
-  );
-  if (anyLegalEnabled && !dataProcessingEnabled) {
-    return "Die Datenschutzinformation muss aktiviert bleiben, solange andere Zustimmungen aktiv sind.";
   }
 
   return null;

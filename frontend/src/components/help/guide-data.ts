@@ -757,7 +757,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Formular und Phase gehören zusammen",
-          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Die `Datenschutzinformation` bleibt immer aktiv, solange andere Zustimmungen eingeschaltet sind.",
+          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Wenn du die `Datenschutzinformation` in einer Vorlage deaktivierst, stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, etwa über den Elternbrief.",
           tone: "blue",
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",

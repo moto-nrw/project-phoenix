@@ -210,10 +210,6 @@ const RAW_MESSAGE_TRANSLATIONS: Array<[RegExp, string]> = [
     "Ein Hinweistext darf nicht als Pflichtzustimmung markiert sein.",
   ],
   [
-    /data_processing block cannot be disabled/i,
-    "Die Datenschutzinformation muss aktiviert bleiben, solange andere Zustimmungen aktiv sind.",
-  ],
-  [
     /enrollment window is closed/i,
     "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
   ],

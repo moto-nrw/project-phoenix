@@ -106,10 +106,11 @@ func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
 	require.NoError(t, s.Validate())
 }
 
-func TestFormSchema_Validate_RejectsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
-	// Enabling any block while the Datenschutzinformation is disabled
-	// would let a phase collect personal data without the DSGVO
-	// acknowledgment — the save must be rejected.
+func TestFormSchema_Validate_AcceptsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
+	// Deliberately supported: pilot schools without a standalone
+	// Datenschutzinformation run their consent via the Elternbrief/AGB
+	// block, so a template may enable blocks while keeping
+	// data_processing disabled. The editor shows a non-blocking hint.
 	s := validSchema()
 	s.LegalBlocks = []FormLegalBlock{
 		{
@@ -130,9 +131,7 @@ func TestFormSchema_Validate_RejectsDisabledDataProcessingWithEnabledBlocks(t *t
 		},
 	}
 
-	err := s.Validate()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "data_processing")
+	require.NoError(t, s.Validate())
 }
 
 func TestFormSchema_Validate_AcceptsAllDisabledLegalBlocks(t *testing.T) {
