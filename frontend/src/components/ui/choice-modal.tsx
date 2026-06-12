@@ -14,7 +14,7 @@
 import { Button } from "./button";
 import { Modal } from "./modal";
 
-export interface ChoiceModalOption {
+interface ChoiceModalOption {
   value: string;
   label: string;
   description?: string;
