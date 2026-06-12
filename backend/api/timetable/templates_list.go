@@ -250,11 +250,14 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		periodID = &id
 	}
 
+	// WP-B6: the people subqueries (enrollment_count / supervisor_count) are
+	// deliberately NOT filtered by calendar_period_id. The roster of a
+	// template that is shown is always shown — rosters are period-scoped at
+	// write time (see templates_people.go), so a card visible under an
+	// overlapping period must still display its real headcount instead of
+	// "0 Kinder". Only the schedule join below stays period-filtered, which
+	// decides WHETHER the card appears at all.
 	rows := make([]templateRow, 0)
-	peoplePeriodFilter := ""
-	if periodID != nil {
-		peoplePeriodFilter = ` AND (calendar_period_id = ? OR calendar_period_id IS NULL)`
-	}
 	query := `
 		SELECT
 			g.id AS template_id,
@@ -300,7 +303,6 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 					FROM activities.student_enrollments
 					WHERE tenant_id = ?
 					  AND valid_until IS NULL
-					  ` + peoplePeriodFilter + `
 				) AS active_enrollments
 				GROUP BY activity_group_id
 			) AS enrollments ON enrollments.activity_group_id = g.id
@@ -315,7 +317,6 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 					FROM activities.supervisors
 					WHERE tenant_id = ?
 					  AND valid_until IS NULL
-					  ` + peoplePeriodFilter + `
 					GROUP BY group_id, staff_id
 				) AS active_supervisors
 				GROUP BY group_id
@@ -324,15 +325,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		  AND g.is_template = true
 		  AND g.archived_at IS NULL`
 
-	args := []any{tenantID}
-	if periodID != nil {
-		args = append(args, *periodID)
-	}
-	args = append(args, tenantID)
-	if periodID != nil {
-		args = append(args, *periodID)
-	}
-	args = append(args, tenantID)
+	args := []any{tenantID, tenantID, tenantID}
 	if periodID != nil {
 		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
 		args = append(args, *periodID)
