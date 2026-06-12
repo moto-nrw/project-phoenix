@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -54,7 +53,6 @@ type Resource struct {
 	PickupScheduleService   scheduleService.PickupScheduleService
 	ArrivalScheduleService  scheduleService.ArrivalScheduleService
 	InstanceService         scheduleService.InstanceService
-	SchoolRepo              platform.SchoolRepository
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
@@ -80,7 +78,6 @@ type ResourceConfig struct {
 	PickupScheduleService   scheduleService.PickupScheduleService
 	ArrivalScheduleService  scheduleService.ArrivalScheduleService
 	InstanceService         scheduleService.InstanceService
-	SchoolRepo              platform.SchoolRepository
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
@@ -111,7 +108,6 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PickupScheduleService:   cfg.PickupScheduleService,
 		ArrivalScheduleService:  cfg.ArrivalScheduleService,
 		InstanceService:         cfg.InstanceService,
-		SchoolRepo:              cfg.SchoolRepo,
 		SchoolService:           cfg.SchoolService,
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
@@ -220,7 +216,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolRepo, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolService, nil))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// RFID tag assignment endpoint

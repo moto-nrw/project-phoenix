@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -55,7 +54,6 @@ type ServiceDependencies struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
-	SchoolRepo            platform.SchoolRepository
 	TimetableDataService  scheduleSvc.TimetableDataService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
@@ -74,7 +72,6 @@ type Resource struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
-	SchoolRepo            platform.SchoolRepository
 	TimetableDataService  scheduleSvc.TimetableDataService
 	Broadcaster           realtime.Broadcaster
 	logger                *slog.Logger
@@ -94,7 +91,6 @@ func NewResource(deps ServiceDependencies) *Resource {
 		FeedbackService:       deps.FeedbackService,
 		PickupScheduleService: deps.PickupScheduleService,
 		SchoolService:         deps.SchoolService,
-		SchoolRepo:            deps.SchoolRepo,
 		TimetableDataService:  deps.TimetableDataService,
 		Broadcaster:           deps.Broadcaster,
 		logger:                deps.Logger,
@@ -161,7 +157,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolRepo))
+		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
@@ -181,7 +177,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo, rs.pinResolver()))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolService, rs.pinResolver()))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 

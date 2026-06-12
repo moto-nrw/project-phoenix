@@ -83,7 +83,7 @@ func setupTestContext(t *testing.T) *testContext {
 		IoTService:              svc.IoT,
 		PickupScheduleService:   svc.PickupSchedule,
 		ArrivalScheduleService:  svc.ArrivalSchedule,
-		SchoolRepo:              repoFactory.School,
+		SchoolService:           svc.Schools,
 		SettingsService:         svc.Settings,
 		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog),
 		InstanceService:         svc.Instance,

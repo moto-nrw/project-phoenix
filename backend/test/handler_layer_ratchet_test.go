@@ -58,11 +58,9 @@ var (
 )
 
 // R1 — repository-typed declarations in api/ (fields + params).
-// Seeded 2026-06-11 from the issue #584 audit; shrink-only.
-var apiRepoDeclAllowlist = map[string]int{
-	"api/iot/api.go":      2, // SchoolRepo ×2 (deps + resource) — device-authenticator middleware wiring only
-	"api/students/api.go": 2, // SchoolRepo ×2 (field + config) — device-authenticator middleware wiring only
-}
+// Seeded 2026-06-11 from the issue #584 audit; shrink-only. Empty since the
+// device authenticators take a SchoolLookup served by SchoolService.
+var apiRepoDeclAllowlist = map[string]int{}
 
 // R2 — `.XxxRepository()` getter calls, backend-wide minus database/ + test/.
 // Target: empty — the three PersonService getters are scheduled for deletion.
