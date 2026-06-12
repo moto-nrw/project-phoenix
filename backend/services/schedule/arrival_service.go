@@ -19,6 +19,10 @@ import (
 type ArrivalScheduleService interface {
 	// Schedule operations
 	GetStudentArrivalSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalSchedule, error)
+	// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly arrival
+	// schedules of many students for one weekday (issue #584 lookup;
+	// repository result returned verbatim — no exception merging).
+	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentArrivalSchedule, error)
 	GetStudentArrivalScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentArrivalSchedule, error)
 	UpsertStudentArrivalSchedule(ctx context.Context, scheduleData *schedule.StudentArrivalSchedule) error
 	UpsertBulkStudentArrivalSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentArrivalSchedule) error
@@ -703,4 +707,10 @@ func arrivalScheduleNotes(sched *schedule.StudentArrivalSchedule) string {
 	}
 
 	return strings.TrimSpace(*sched.Notes)
+}
+
+// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly arrival
+// schedules of many students for one weekday.
+func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentArrivalSchedule, error) {
+	return s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
 }

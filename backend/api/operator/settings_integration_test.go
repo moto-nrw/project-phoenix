@@ -60,7 +60,7 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
-	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, nil)
+	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, nil, svc.Active)
 
 	// Operator routes do not use TenantTxMiddleware — handlers call
 	// tenant.WithTenantTx internally using the school ID from the URL path.

@@ -295,7 +295,7 @@ export const setupChapters: readonly GuideChapter[] = [
       },
       {
         id: "betreuungszeiten-pflegen",
-        title: "Ankunfts- und Abholzeiten pflegen",
+        title: "Ankunfts- und Gehzeiten pflegen",
         summary:
           "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Kinddetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
         steps: [
@@ -303,12 +303,12 @@ export const setupChapters: readonly GuideChapter[] = [
           "Das Kind in der Liste auswählen.",
           "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
           "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
-          "Im Bereich `Abholplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Abholzeiten, Abholer sowie Hinweise eintragen.",
+          "Im Bereich `Gehplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Gehzeiten, Abholer sowie Hinweise eintragen.",
           "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",
           "Speichern.",
         ],
         screenshot:
-          "Betreuungszeiten mit Ankunftsplan, Abholplan und Tag bearbeiten.",
+          "Betreuungszeiten mit Ankunftsplan, Gehplan und Tag bearbeiten.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
     ],
@@ -652,7 +652,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
-          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` pflegst du nur die Texte, die eure Einrichtung tatsächlich nutzt. Leere Rechtstexte werden im Elternformular nicht angezeigt. Wenn ihr mit einem Ganztag Info-Brief, AGB oder Teilnahmebedingungen arbeitet, `AGB / Teilnahmebedingungen abfragen` einschalten und den Text dort hinterlegen; dann müssen Eltern genau diesen Block bestätigen.",
+          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` pflegst du nur die Texte, die eure Einrichtung tatsächlich nutzt. Leere Rechtstexte werden im Elternformular nicht angezeigt. Wenn ihr mit einem Ganztag Info-Brief, AGB oder Teilnahmebedingungen arbeitet, `AGB / Teilnahmebedingungen abfragen` einschalten und den Text dort hinterlegen; dann müssen Eltern genau diesen Block bestätigen. Eigene Formularvorlagen können diese Blöcke unter `Rechtstexte und Einwilligungen` je Vorlage anpassen oder um eigene Einwilligungen ergänzen.",
         ],
         callout: {
           title: "So hängt alles zusammen",
@@ -753,13 +753,14 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Buskind` und `Abholregelung` wählen Eltern die passenden Wochentage aus.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Geh- und Abholregelung` wählen Eltern pro Wochentag, ob das Kind alleine geht, mit dem Bus fährt oder abgeholt wird.",
+          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen Eltern bestätigen: Die Standardblöcke kommen aus den Einstellungen und lassen sich hier anpassen; über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],
         callout: {
           title: "Formular und Phase gehören zusammen",
-          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular.",
+          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Wenn du die `Datenschutzinformation` in einer Vorlage deaktivierst, stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, etwa über den Elternbrief.",
           tone: "blue",
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",

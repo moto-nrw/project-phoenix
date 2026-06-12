@@ -496,7 +496,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalPhotoText,
 		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
-		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, wenn keine Fotoeinwilligung im Formular angezeigt werden soll.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",

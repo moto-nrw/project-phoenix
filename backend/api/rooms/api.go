@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -37,7 +36,6 @@ type Resource struct {
 	ActiveService      activeService.Service
 	PersonService      userService.PersonService
 	EducationService   educationService.Service
-	StudentRepo        users.StudentRepository
 	ListExportService  listexport.Service
 	SettingsService    configService.SettingsService
 	UserContextService userContextService.UserContextService

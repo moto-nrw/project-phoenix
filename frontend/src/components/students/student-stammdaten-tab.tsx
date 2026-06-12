@@ -4,10 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
-  BusStatusSection,
+  DepartureSection,
   EnrollmentConsentsSection,
   PersonalInfoSection,
-  PickupStatusSection,
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
 import { StudentPhotoSection } from "./student-photo-section";
@@ -26,6 +25,13 @@ import {
   pickupDaysHaveAny,
   normalizePickupDays,
   type PickupDays,
+  type DepartureDays,
+  normalizeDepartureDays,
+  departureDaysFromLegacy,
+  departureToBusDays,
+  departureToPickupDays,
+  departureModeFor,
+  DEPARTURE_WEEKDAYS,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
 
@@ -81,6 +87,15 @@ function pickupDaysEqual(
   );
 }
 
+function departureDaysEqual(
+  a?: DepartureDays | null,
+  b?: DepartureDays | null,
+): boolean {
+  return DEPARTURE_WEEKDAYS.every(
+    (day) => departureModeFor(a, day.key) === departureModeFor(b, day.key),
+  );
+}
+
 function buildDraft(
   student: Student,
   photosEnabled: boolean,
@@ -102,6 +117,9 @@ function buildDraft(
     bus: student.bus ?? false,
     bus_days: normalizeBusDays(student.bus_days),
     pickup_days: normalizePickupDays(student.pickup_days),
+    departure_days: student.departure_days
+      ? normalizeDepartureDays(student.departure_days)
+      : departureDaysFromLegacy(student.bus_days, student.pickup_days),
     pickup_status: student.pickup_status ?? "",
   };
   // Only mirror consent state into the form when the photo feature is
@@ -289,6 +307,12 @@ export function StudentStammdatenTab({
           formData.pickup_days,
         );
       }
+      if (key === "departure_days") {
+        return !departureDaysEqual(
+          originalDraft.departure_days,
+          formData.departure_days,
+        );
+      }
       return originalDraft[key] !== formData[key];
     });
   }, [originalDraft, formData, pendingPhotoBlob, pendingPhotoRemoved]);
@@ -377,6 +401,10 @@ export function StudentStammdatenTab({
       }
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
+      submitData.departure_days = normalizeDepartureDays(
+        formData.departure_days ??
+          departureDaysFromLegacy(formData.bus_days, formData.pickup_days),
+      );
       if (
         submitData.photo_consent_given === originalDraft.photo_consent_given
       ) {
@@ -501,29 +529,22 @@ export function StudentStammdatenTab({
         onChange={handleChange}
       />
 
-      <PickupStatusSection
-        days={formData.pickup_days}
+      <DepartureSection
+        days={formData.departure_days}
         onChange={(value) => {
-          const normalized = normalizePickupDays(value);
+          const departure = normalizeDepartureDays(value);
+          const busDays = departureToBusDays(departure);
+          const pickupDays = departureToPickupDays(departure);
           setFormData((prev) => ({
             ...prev,
-            pickup_days: normalized,
-            pickup_status: pickupDaysHaveAny(normalized)
+            departure_days: departure,
+            // Keep the derived legacy fields consistent for any reader.
+            bus_days: busDays,
+            bus: busDaysHaveAny(busDays),
+            pickup_days: pickupDays,
+            pickup_status: pickupDaysHaveAny(pickupDays)
               ? "Wird abgeholt"
               : "Geht alleine nach Hause",
-          }));
-        }}
-      />
-
-      <BusStatusSection
-        value={formData.bus}
-        days={formData.bus_days}
-        onChange={(value) => {
-          const normalized = normalizeBusDays(value);
-          setFormData((prev) => ({
-            ...prev,
-            bus_days: normalized,
-            bus: busDaysHaveAny(normalized),
           }));
         }}
       />

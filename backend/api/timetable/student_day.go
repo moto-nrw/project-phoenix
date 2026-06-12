@@ -166,12 +166,12 @@ func parseStudentIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request, studentID int64) (*usersModel.Student, bool) {
 	ctx := r.Context()
 
-	if rs.studentRepo == nil {
+	if rs.timetableData == nil || rs.personService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("student repo not wired")))
 		return nil, false
 	}
 
-	student, err := rs.studentRepo.FindByID(ctx, studentID)
+	student, err := rs.personService.GetStudentByID(ctx, studentID)
 	if err != nil {
 		if isNotFoundDBError(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
@@ -228,10 +228,10 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		pickupExcByDate:      map[string]*scheduleModel.StudentPickupException{},
 	}
 
-	if rs.instanceStudentRepo == nil {
-		return nil, errors.New("instanceStudentRepo not wired")
+	if rs.timetableData == nil {
+		return nil, errors.New("timetable data service not wired")
 	}
-	enrolledRows, err := rs.instanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(
+	enrolledRows, err := rs.timetableData.GetStudentInstancesWithAttendance(
 		ctx, studentID, from, to,
 	)
 	if err != nil {
@@ -242,10 +242,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		out.enrolledByDate[k] = append(out.enrolledByDate[k], row)
 	}
 
-	if rs.activityInstanceRepo == nil {
-		return nil, errors.New("activityInstanceRepo not wired")
-	}
-	allInstances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	allInstances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load all tenant instances: %w", err)
 	}
@@ -271,8 +268,8 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		}
 	}
 
-	if len(activeGroupIDs) > 0 && rs.visitRepo != nil {
-		visits, err := rs.visitRepo.FindByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
+	if len(activeGroupIDs) > 0 {
+		visits, err := rs.timetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load student visits: %w", err)
 		}
@@ -286,44 +283,36 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 
 	// Arrival/pickup weekly schedules: one query each returns up to 5 rows
 	// total per student (one per weekday). Cheaper than per-weekday queries.
-	if rs.arrivalScheduleRepo != nil {
-		schedules, err := rs.arrivalScheduleRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.arrivalSchedByWeekly[s.Weekday] = s
-		}
+	arrivalSchedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival schedules: %w", err)
 	}
-	if rs.pickupScheduleRepo != nil {
-		schedules, err := rs.pickupScheduleRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.pickupSchedByWeekly[s.Weekday] = s
-		}
+	for _, s := range arrivalSchedules {
+		out.arrivalSchedByWeekly[s.Weekday] = s
+	}
+	pickupSchedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup schedules: %w", err)
+	}
+	for _, s := range pickupSchedules {
+		out.pickupSchedByWeekly[s.Weekday] = s
 	}
 
 	// Arrival/pickup exceptions: range-scoped (avoid loading unbounded
 	// history).
-	if rs.arrivalExceptionRepo != nil {
-		excs, err := rs.arrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	arrivalExcs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival exceptions: %w", err)
 	}
-	if rs.pickupExceptionRepo != nil {
-		excs, err := rs.pickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	for _, e := range arrivalExcs {
+		out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
+	}
+	pickupExcs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup exceptions: %w", err)
+	}
+	for _, e := range pickupExcs {
+		out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
 	}
 
 	return out, nil

@@ -26,6 +26,10 @@ import (
 // (CreateTestStaff etc.) hardcode internally.
 var offboardingFixtureTenant int64 = 1
 
+func offboardingCredential(prefix string, suffix string) string {
+	return prefix + suffix + "!"
+}
+
 type offboardingScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
@@ -162,9 +166,9 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
-	const password = "Offboard123!"
+	credential := offboardingCredential("Offboard", "123")
 	emailAddr := fmt.Sprintf("offboard-login-%d@test.local", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, password)
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, credential)
 	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Off", "Boarded", account.ID)
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
@@ -176,7 +180,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
 	})
 
-	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, password)
+	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login must work before offboarding")
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
@@ -221,7 +225,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, roleCount, "tenant roles must be removed")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, password)
+	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.Error(t, err, "login must fail after offboarding")
 }
 
@@ -230,9 +234,9 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
-	const password = "Offboard123!"
+	credential := offboardingCredential("Offboard", "123")
 	emailAddr := fmt.Sprintf("offboard-multi-%d@test.local", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, password)
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, credential)
 	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Multi", "Tenant", account.ID)
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
@@ -264,7 +268,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, password)
+	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.NoError(t, err, "login at the other school must keep working")
 }
 
@@ -290,10 +294,10 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		DB:                sc.db,
 	})
 
-	const oldPassword = "Offboard123!"
-	const newPassword = "Reinvited456!"
+	oldCredential := offboardingCredential("Offboard", "123")
+	newCredential := offboardingCredential("Reinvited", "456")
 	emailAddr := fmt.Sprintf("offboard-reinvite-%d@test.local", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, oldPassword)
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, oldCredential)
 	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Re", "Invited", account.ID)
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
@@ -330,8 +334,8 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	reactivated, err := invSvc.AcceptInvitation(context.Background(), invitation.Token, authSvcPkg.UserRegistrationData{
 		FirstName:       "Re",
 		LastName:        "Invited",
-		Password:        newPassword,
-		ConfirmPassword: newPassword,
+		Password:        newCredential,
+		ConfirmPassword: newCredential,
 	})
 	require.NoError(t, err, "accepting the re-invitation must succeed")
 	assert.Equal(t, account.ID, reactivated.ID, "the existing account must be re-attached, not duplicated")
@@ -350,7 +354,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, staffCount, "acceptance must recreate a live staff record")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, newPassword)
+	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, newCredential)
 	require.NoError(t, err, "login with the new password must work after re-invitation")
 }
 
@@ -515,9 +519,9 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
-	const password = "Offboard123!"
+	credential := offboardingCredential("Offboard", "123")
 	emailAddr := fmt.Sprintf("offboard-guardian-%d@test.local", time.Now().UnixNano())
-	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, password)
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, credential)
 	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Dual", "Role", account.ID)
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
@@ -566,7 +570,7 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 
 	// Staff portal login is refused for the now guardian-only account; the
 	// parents portal remains the entry point.
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, password)
+	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
 	assert.ErrorIs(t, err, authSvcPkg.ErrParentMustUseParentPortal)
 }

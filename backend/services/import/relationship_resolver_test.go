@@ -327,6 +327,10 @@ type mockGroupRepo struct {
 	err    error
 }
 
+func (m *mockGroupRepo) Exists(_ context.Context, _ int64) (bool, error) {
+	return false, nil
+}
+
 func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { return nil }
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil
@@ -404,6 +408,10 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 type mockRoomRepo struct {
 	rooms []*facilities.Room
 	err   error
+}
+
+func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return nil, nil
 }
 
 func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { return nil }

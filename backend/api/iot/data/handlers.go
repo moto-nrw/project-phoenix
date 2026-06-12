@@ -34,7 +34,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 
 	// Use the teacher roster directly so kiosk selection remains independent
 	// of caregiver-account lifecycle state.
-	teachers, err := rs.UsersService.TeacherRepository().ListAllWithStaffAndPerson(r.Context())
+	teachers, err := rs.UsersService.ListTeachersWithStaffAndPerson(r.Context())
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return
@@ -279,10 +279,8 @@ func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]i
 // Uses batch lookup to resolve staff IDs → teachers in a single query.
 func (rs *Resource) fetchStudentsForTeachers(ctx context.Context, teacherIDs []int64) map[int64]usersSvc.StudentWithGroup {
 	uniqueStudents := make(map[int64]usersSvc.StudentWithGroup)
-	teacherRepo := rs.UsersService.TeacherRepository()
-
 	// Batch resolve all staff IDs → teachers in one query (WHERE staff_id IN (?))
-	teacherMap, err := teacherRepo.FindByStaffIDs(ctx, teacherIDs)
+	teacherMap, err := rs.UsersService.GetTeachersByStaffIDs(ctx, teacherIDs)
 	if err != nil {
 		slog.Default().WarnContext(ctx, "failed to batch-find teachers by staff IDs",
 			slog.String("error", err.Error()),
@@ -384,7 +382,7 @@ func (rs *Resource) buildRFIDAssignmentResponse(ctx context.Context, person *use
 
 // buildStudentRFIDResponse builds response if person is a student
 func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
-	student, err := rs.UsersService.StudentRepository().FindByPersonID(ctx, person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(ctx, person.ID)
 	if err != nil || student == nil {
 		if err != nil {
 			slog.Default().WarnContext(ctx, "error finding student for person",
@@ -414,7 +412,7 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 
 // buildStaffRFIDResponse builds response if person is staff
 func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Person, fullName string) *RFIDTagAssignmentResponse {
-	staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.UsersService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		if err != nil {
 			slog.Default().WarnContext(ctx, "error finding staff for person",
@@ -441,7 +439,7 @@ func (rs *Resource) buildStaffRFIDResponse(ctx context.Context, person *users.Pe
 
 // getStaffGroupInfo gets role/group information for staff
 func (rs *Resource) getStaffGroupInfo(ctx context.Context, staffID int64) string {
-	teacher, err := rs.UsersService.TeacherRepository().FindByStaffID(ctx, staffID)
+	teacher, err := rs.UsersService.GetTeacherByStaffID(ctx, staffID)
 	if err != nil || teacher == nil {
 		if err != nil {
 			slog.Default().WarnContext(ctx, "error checking teacher status for staff",

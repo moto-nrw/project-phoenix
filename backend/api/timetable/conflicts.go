@@ -47,7 +47,7 @@ type plannedConflictParams struct {
 
 // getPlannedConflicts handles GET /api/timetable/conflicts.
 func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) {
-	if rs.activityInstanceRepo == nil || rs.instanceStaffRepo == nil || rs.instanceStudentRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -57,11 +57,7 @@ func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	warnings := scheduleSvc.DetectPlannedConflicts(r.Context(), scheduleSvc.PlannedConflictDependencies{
-		InstanceRepo:      rs.activityInstanceRepo,
-		InstanceStaffRepo: rs.instanceStaffRepo,
-		InstanceStudents:  rs.instanceStudentRepo,
-	}, scheduleSvc.PlannedConflictQuery{
+	warnings := rs.timetableData.DetectPlannedConflicts(r.Context(), scheduleSvc.PlannedConflictQuery{
 		Date:              params.date,
 		StartTime:         params.startTime,
 		EndTime:           params.endTime,

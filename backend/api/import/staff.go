@@ -151,7 +151,7 @@ func (rs *Resource) PreviewStaffImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// GDPR Compliance: Audit log for preview (Article 30)
-	recordImportAudit(rs.auditRepo, "staff", uploadResult.Filename, result, accountID, true, tenant.FromContext(ctx))
+	rs.staffImportService.RecordAudit("staff", uploadResult.Filename, result, accountID, true, tenant.FromContext(ctx))
 
 	common.Respond(w, r, http.StatusOK, result, "Import-Vorschau erfolgreich")
 }
@@ -196,7 +196,7 @@ func (rs *Resource) ImportStaff(w http.ResponseWriter, r *http.Request) {
 		slog.String("filename", uploadResult.Filename))
 
 	// GDPR Compliance: Audit log for actual import (Article 30)
-	recordImportAudit(rs.auditRepo, "staff", uploadResult.Filename, result, accountID, false, tenantID)
+	rs.staffImportService.RecordAudit("staff", uploadResult.Filename, result, accountID, false, tenantID)
 
 	message := fmt.Sprintf("Import abgeschlossen: %d erstellt, %d aktualisiert, %d Fehler",
 		result.CreatedCount, result.UpdatedCount, result.ErrorCount)

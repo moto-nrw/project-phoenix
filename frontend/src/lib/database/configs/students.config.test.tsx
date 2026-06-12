@@ -52,4 +52,26 @@ describe("studentsConfig", () => {
   it("has custom labels", () => {
     expect(studentsConfig.labels?.createButton).toBe("Neues Kind erstellen");
   });
+
+  it("does not forward stale departure_days from the legacy database editor", () => {
+    const mapped = studentsConfig.service?.mapRequest?.({
+      id: "42",
+      first_name: "Max",
+      second_name: "Mustermann",
+      group_id: "12",
+      bus: false,
+      bus_days: { mon: true, wed: true },
+      departure_days: { mon: "bus", fri: "pickup" },
+    });
+
+    expect(mapped).toMatchObject({
+      id: "42",
+      first_name: "Max",
+      second_name: "Mustermann",
+      group_id: 12,
+      bus: false,
+      bus_days: {},
+    });
+    expect(mapped).not.toHaveProperty("departure_days");
+  });
 });

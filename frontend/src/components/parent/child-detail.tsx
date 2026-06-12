@@ -13,6 +13,7 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
   type ChildFeatures,
@@ -33,14 +34,14 @@ import {
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
 const SUPPORTED_ACTIONS: Record<string, "sick" | "notes"> = {
-  "Krank melden": "sick",
-  "Nachricht schreiben": "notes",
+  sick: "sick",
+  message: "notes",
 };
 
 // An action is usable only when it's wired AND the child's school has the
 // matching feature enabled — otherwise the backend would reject it with 403.
-function isActionEnabled(label: string, features: ChildFeatures): boolean {
-  const target = SUPPORTED_ACTIONS[label];
+function isActionEnabled(actionKey: string, features: ChildFeatures): boolean {
+  const target = SUPPORTED_ACTIONS[actionKey];
   if (target === "sick") return features.sick_note_enabled;
   if (target === "notes") return features.notes_enabled;
   return false;
@@ -50,38 +51,32 @@ const logger = createLogger({ component: "ChildDetail" });
 
 const CHILD_ACTIONS = [
   {
-    label: "Krank melden",
-    description: "Tagesmeldung für dieses Kind",
+    key: "sick",
     icon: HeartPulse,
     tone: "text-[#D6373E] bg-[#D6373E]/10",
   },
   {
-    label: "Abholzeit ändern",
-    description: "Abholung mitteilen",
+    key: "pickupTime",
     icon: CalendarClock,
     tone: "text-[#5080D8] bg-[#5080D8]/10",
   },
   {
-    label: "Nachricht schreiben",
-    description: "Direkt an die Betreuung",
+    key: "message",
     icon: MessageCircle,
     tone: "text-[#F78C10] bg-[#F78C10]/10",
   },
   {
-    label: "Abholrecht",
-    description: "Freigaben verwalten",
+    key: "pickupPermission",
     icon: ShieldCheck,
     tone: "text-[#83CD2D] bg-[#83CD2D]/15",
   },
   {
-    label: "Personen",
-    description: "Kontakte und Eltern",
+    key: "people",
     icon: Users,
     tone: "text-[#8B5CF6] bg-[#8B5CF6]/10",
   },
   {
-    label: "Neuigkeiten",
-    description: "Infos zur Gruppe",
+    key: "news",
     icon: Newspaper,
     tone: "text-[#5080D8] bg-[#5080D8]/10",
   },
@@ -91,10 +86,19 @@ interface Props {
   readonly studentId: string;
 }
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return "Noch offen";
+type ChildAction = (typeof CHILD_ACTIONS)[number];
+type ChildDetailTranslator = ReturnType<
+  typeof useTranslations<"parentChildDetail">
+>;
+
+function formatDate(
+  iso: string | undefined,
+  locale: string,
+  t: ChildDetailTranslator,
+): string {
+  if (!iso) return t("open");
   try {
-    return new Intl.DateTimeFormat("de-DE", {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -104,9 +108,16 @@ function formatDate(iso: string | undefined): string {
   }
 }
 
-function getServiceRange(child: Child): string {
-  if (!child.enrolled_from && !child.enrolled_until) return "Noch offen";
-  return `${formatDate(child.enrolled_from)} bis ${formatDate(child.enrolled_until)}`;
+function getServiceRange(
+  child: Child,
+  locale: string,
+  t: ChildDetailTranslator,
+): string {
+  if (!child.enrolled_from && !child.enrolled_until) return t("open");
+  return t("range", {
+    from: formatDate(child.enrolled_from, locale, t),
+    to: formatDate(child.enrolled_until, locale, t),
+  });
 }
 
 function getInitials(child: Child): string {
@@ -114,6 +125,7 @@ function getInitials(child: Child): string {
 }
 
 export function ChildDetail({ studentId }: Props) {
+  const t = useTranslations("parentChildDetail");
   const [child, setChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +138,7 @@ export function ChildDetail({ studentId }: Props) {
       const match = list.find((c) => c.student_id === studentId) ?? null;
       setChild(match);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.warn("child_detail_load_failed", {
         error: message,
         student_id: studentId,
@@ -135,7 +147,7 @@ export function ChildDetail({ studentId }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, t]);
 
   useEffect(() => {
     void load();
@@ -149,8 +161,7 @@ export function ChildDetail({ studentId }: Props) {
     return (
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
-          Die Kinderdaten konnten nicht geladen werden. Bitte aktualisieren Sie
-          die Seite oder versuchen Sie es später erneut.
+          {t("loadError")}
         </div>
       </div>
     );
@@ -162,8 +173,7 @@ export function ChildDetail({ studentId }: Props) {
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
           <BackBar />
           <div className="p-6 text-sm leading-6 text-gray-600">
-            Kein Kind mit dieser Kennung gefunden. Vermutlich gehört es zu einem
-            Schulwechsel oder ist im Elternportal nicht mehr freigeschaltet.
+            {t("notFound")}
           </div>
         </div>
       </div>
@@ -174,28 +184,30 @@ export function ChildDetail({ studentId }: Props) {
 }
 
 function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
+  const t = useTranslations("parentChildDetail");
+  const locale = useLocale();
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
   const care = useChildCare(child.student_id);
   const [modal, setModal] = useState<null | "sick" | "notes">(null);
 
   const openAction = useCallback(
-    (label: string) => {
-      const target = SUPPORTED_ACTIONS[label];
-      if (target && isActionEnabled(label, care.features)) setModal(target);
+    (actionKey: string) => {
+      const target = SUPPORTED_ACTIONS[actionKey];
+      if (target && isActionEnabled(actionKey, care.features)) setModal(target);
     },
     [care.features],
   );
 
   const summaryItems = useMemo(
     () => [
-      { label: "Schule", value: child.school_name },
-      { label: "Klasse", value: child.school_class || "Noch nicht hinterlegt" },
-      { label: "Betreuung", value: getServiceRange(child) },
+      { label: t("schoolLabel"), value: child.school_name },
+      { label: t("classLabel"), value: child.school_class || t("notSet") },
+      { label: t("careLabel"), value: getServiceRange(child, locale, t) },
     ],
-    [child],
+    [child, locale, t],
   );
-  const pickupPeople = getPickupPeople();
+  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -219,7 +231,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-                    Kind
+                    {t("childEyebrow")}
                   </p>
                   <h1 className="mt-1 text-3xl font-semibold break-words text-gray-900 sm:text-4xl">
                     {fullName}
@@ -233,11 +245,11 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">
                 {CHILD_ACTIONS.slice(0, 3).map((action) => (
                   <DesktopQuickAction
-                    key={action.label}
+                    key={action.key}
                     action={action}
                     onClick={
-                      isActionEnabled(action.label, care.features)
-                        ? () => openAction(action.label)
+                      isActionEnabled(action.key, care.features)
+                        ? () => openAction(action.key)
                         : undefined
                     }
                   />
@@ -255,9 +267,9 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
           <div className="p-5 sm:p-6">
             <PanelHeader
-              eyebrow="Kinderdaten"
-              title="Stammdaten"
-              description="Die wichtigsten Angaben zu Kind und Betreuung."
+              eyebrow={t("masterDataEyebrow")}
+              title={t("masterDataTitle")}
+              description={t("masterDataDescription")}
             />
           </div>
           <dl className="divide-y divide-gray-100 border-t border-gray-100">
@@ -304,10 +316,12 @@ function MobileChildAppView({
   child: Child;
   fullName: string;
   care: ChildCare;
-  onAction: (label: string) => void;
+  onAction: (actionKey: string) => void;
 }>) {
+  const t = useTranslations("parentChildDetail");
+  const locale = useLocale();
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
-  const pickupPeople = getPickupPeople();
+  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="space-y-5 lg:hidden">
@@ -329,7 +343,7 @@ function MobileChildAppView({
                 {child.school_class ? `, ${child.school_class}` : ""}
               </p>
               <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#4A7A15]">
-                Betreuung hinterlegt
+                {t("careRecorded")}
               </span>
             </div>
           </div>
@@ -339,11 +353,11 @@ function MobileChildAppView({
       <div className="grid grid-cols-3 gap-3">
         {primaryActions.map((action) => (
           <MobileQuickAction
-            key={action.label}
+            key={action.key}
             action={action}
             onClick={
-              isActionEnabled(action.label, care.features)
-                ? () => onAction(action.label)
+              isActionEnabled(action.key, care.features)
+                ? () => onAction(action.key)
                 : undefined
             }
           />
@@ -352,7 +366,7 @@ function MobileChildAppView({
 
       <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Tagesmeldung
+          {t("today.sickLabel")}
         </p>
         <div className="mt-2">
           <SickStatusSummary sickDays={care.sickDays} />
@@ -362,21 +376,21 @@ function MobileChildAppView({
       <MessagesPanel
         notes={care.notes}
         composeDisabled={!care.features.notes_enabled}
-        onCompose={() => onAction("Nachricht schreiben")}
+        onCompose={() => onAction("message")}
         mobile
       />
 
       <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            Abholberechtigte
+            {t("pickupPeopleTitle")}
           </h2>
           <button
             type="button"
             disabled
             className="inline-flex h-9 items-center rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Verwalten
+            {t("manage")}
           </button>
         </div>
         <div className="mt-4 flex items-start gap-3 overflow-x-auto pb-1">
@@ -387,7 +401,7 @@ function MobileChildAppView({
             type="button"
             disabled
             className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-gray-500 disabled:cursor-not-allowed disabled:opacity-70"
-            aria-label="Person hinzufügen"
+            aria-label={t("addPerson")}
           >
             <span className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-gray-300 bg-gray-50 text-gray-500">
               <Plus className="h-5 w-5" aria-hidden="true" />
@@ -399,12 +413,17 @@ function MobileChildAppView({
       <NewsPanel mobile />
 
       <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">Betreuung</h2>
+        <h2 className="text-lg font-semibold text-gray-900">
+          {t("careLabel")}
+        </h2>
         <dl className="mt-4 space-y-3">
-          <CompactInfoRow label="Zeitraum" value={getServiceRange(child)} />
           <CompactInfoRow
-            label="Klasse"
-            value={child.school_class || "Noch nicht hinterlegt"}
+            label={t("periodLabel")}
+            value={getServiceRange(child, locale, t)}
+          />
+          <CompactInfoRow
+            label={t("classLabel")}
+            value={child.school_class || t("notSet")}
           />
         </dl>
       </section>
@@ -412,22 +431,20 @@ function MobileChildAppView({
   );
 }
 
-function getPickupPeople() {
+function getPickupPeople(t: ChildDetailTranslator) {
   return [
-    { initials: "MM", name: "Mama", relation: "Mutter" },
-    { initials: "PM", name: "Papa", relation: "Vater" },
-    { initials: "OM", name: "Oma", relation: "Abholung" },
-    { initials: "TA", name: "Tante", relation: "Abholung" },
+    { initials: "MM", name: t("demo.momName"), relation: t("demo.mother") },
+    { initials: "PM", name: t("demo.dadName"), relation: t("demo.father") },
+    { initials: "OM", name: t("demo.grandmaName"), relation: t("demo.pickup") },
+    { initials: "TA", name: t("demo.auntName"), relation: t("demo.pickup") },
   ];
 }
 
 function MobileQuickAction({
   action,
   onClick,
-}: Readonly<{
-  action: (typeof CHILD_ACTIONS)[number];
-  onClick?: () => void;
-}>) {
+}: Readonly<{ action: ChildAction; onClick?: () => void }>) {
+  const t = useTranslations("parentChildDetail");
   const Icon = action.icon;
   const enabled = Boolean(onClick);
   return (
@@ -447,7 +464,7 @@ function MobileQuickAction({
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       <span className="text-xs leading-4 font-semibold text-gray-900">
-        {action.label}
+        {t(`actions.${action.key}.label`)}
       </span>
     </button>
   );
@@ -456,11 +473,10 @@ function MobileQuickAction({
 function DesktopQuickAction({
   action,
   onClick,
-}: Readonly<{
-  action: (typeof CHILD_ACTIONS)[number];
-  onClick?: () => void;
-}>) {
+}: Readonly<{ action: ChildAction; onClick?: () => void }>) {
+  const t = useTranslations("parentChildDetail");
   const Icon = action.icon;
+  const label = t(`actions.${action.key}.label`);
   const enabled = Boolean(onClick);
   return (
     <button
@@ -472,7 +488,7 @@ function DesktopQuickAction({
           ? "border-gray-200 bg-white hover:bg-gray-50"
           : "cursor-not-allowed border-gray-200 bg-gray-50/70 opacity-80"
       }`}
-      aria-label={enabled ? action.label : `${action.label} bald verfügbar`}
+      aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
       <span
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.tone}`}
@@ -481,10 +497,10 @@ function DesktopQuickAction({
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-gray-900">
-          {action.label}
+          {label}
         </span>
         <span className="mt-0.5 block text-sm leading-5 text-gray-600">
-          {action.description}
+          {t(`actions.${action.key}.description`)}
         </span>
       </span>
     </button>
@@ -492,15 +508,16 @@ function DesktopQuickAction({
 }
 
 function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
+  const t = useTranslations("parentChildDetail");
   const noteCount = care.notes.length;
   return (
     <div className="relative z-10 space-y-4">
       <div>
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Heute
+          {t("today.title")}
         </p>
         <p className="mt-1 text-sm leading-6 text-gray-600">
-          Aktuelle Hinweise für dieses Kind.
+          {t("today.description")}
         </p>
       </div>
       <div className="space-y-2">
@@ -510,7 +527,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Tagesmeldung
+              {t("today.sickLabel")}
             </p>
             <div className="mt-0.5">
               <SickStatusSummary sickDays={care.sickDays} />
@@ -523,10 +540,10 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Abholung
+              {t("today.pickupLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              Reguläre Abholung
+              {t("today.regularPickup")}
             </p>
           </div>
         </div>
@@ -536,12 +553,12 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Nachrichten
+              {t("today.messagesLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
               {noteCount === 0
-                ? "Keine Nachrichten gesendet"
-                : `${noteCount} gesendet`}
+                ? t("today.noMessagesSent")
+                : t("today.messagesSent", { count: noteCount })}
             </p>
           </div>
         </div>
@@ -561,6 +578,7 @@ function MessagesPanel({
   composeDisabled?: boolean;
   mobile?: boolean;
 }>) {
+  const t = useTranslations("parentChildDetail");
   return (
     <section
       className={
@@ -571,9 +589,9 @@ function MessagesPanel({
     >
       <div className="flex items-start justify-between gap-4">
         <PanelHeader
-          eyebrow="Elternportal"
-          title="Nachrichten an das Team"
-          description="Kurze Mitteilungen an die Betreuung."
+          eyebrow={t("messages.eyebrow")}
+          title={t("messages.title")}
+          description={t("messages.description")}
         />
         {!composeDisabled && (
           <button
@@ -582,7 +600,7 @@ function MessagesPanel({
             className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
-            Schreiben
+            {t("messages.compose")}
           </button>
         )}
       </div>
@@ -613,13 +631,14 @@ function PersonBubble({
 function PickupPeoplePanel({
   people,
 }: Readonly<{ people: ReturnType<typeof getPickupPeople> }>) {
+  const t = useTranslations("parentChildDetail");
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <PanelHeader
-          eyebrow="Abholung"
-          title="Abholberechtigte"
-          description="Personen, die dieses Kind abholen dürfen."
+          eyebrow={t("pickupEyebrow")}
+          title={t("pickupPeopleTitle")}
+          description={t("pickupPeopleDescription")}
         />
         <button
           type="button"
@@ -627,7 +646,7 @@ function PickupPeoplePanel({
           className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Hinzufügen
+          {t("add")}
         </button>
       </div>
       <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/70">
@@ -650,6 +669,7 @@ function PickupPeoplePanel({
 }
 
 function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
+  const t = useTranslations("parentChildDetail");
   return (
     <section
       className={
@@ -659,12 +679,14 @@ function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
       }
     >
       {mobile ? (
-        <h2 className="text-lg font-semibold text-gray-900">Neuigkeiten</h2>
+        <h2 className="text-lg font-semibold text-gray-900">
+          {t("newsTitle")}
+        </h2>
       ) : (
         <PanelHeader
-          eyebrow="Aktuelles"
-          title="Neuigkeiten"
-          description="Meldungen zur Gruppe und zur Betreuung."
+          eyebrow={t("newsEyebrow")}
+          title={t("newsTitle")}
+          description={t("newsDescription")}
         />
       )}
       <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
@@ -673,10 +695,10 @@ function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900">
-            Keine Neuigkeiten vorhanden
+            {t("noNewsTitle")}
           </p>
           <p className="mt-0.5 text-sm leading-5 text-gray-600">
-            Meldungen zur Gruppe erscheinen hier.
+            {t("noNewsDescription")}
           </p>
         </div>
       </div>
@@ -701,6 +723,7 @@ function CompactInfoRow({
 }
 
 function BackBar() {
+  const t = useTranslations("parentChildDetail");
   return (
     <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
       <Link
@@ -708,7 +731,7 @@ function BackBar() {
         className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Zurück zu Meine Kinder
+        {t("back")}
       </Link>
     </div>
   );

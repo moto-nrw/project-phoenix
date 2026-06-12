@@ -16,6 +16,10 @@ import (
 type PickupScheduleService interface {
 	// Schedule operations
 	GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error)
+	// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly pickup
+	// schedules of many students for one weekday (issue #584 lookup;
+	// repository result returned verbatim — no exception merging).
+	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
@@ -550,4 +554,10 @@ func pickupScheduleNotes(sched *schedule.StudentPickupSchedule) string {
 	}
 
 	return strings.TrimSpace(*sched.Notes)
+}
+
+// GetWeeklySchedulesByStudentIDsAndWeekday returns the raw weekly pickup
+// schedules of many students for one weekday.
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error) {
+	return s.scheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
 }

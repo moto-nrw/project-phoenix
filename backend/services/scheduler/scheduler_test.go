@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
@@ -965,6 +966,18 @@ type mockActiveService struct {
 	cleanupAbandonedResult   int
 	cleanupAbandonedErr      error
 	cleanupAbandonedDuration time.Duration
+}
+
+func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return nil, nil
+}
+
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+	return nil, nil
+}
+
+func (m *mockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
 }
 
 func (m *mockActiveService) EndDailySessions(_ context.Context) (*activeService.DailySessionCleanupResult, error) {

@@ -234,7 +234,7 @@ func buildPatchSetup(t *testing.T) *patchSetup {
 	require.NoError(t, isRepo.Create(ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID) })
 
-	res := NewResource(Dependencies{InstanceStudentRepo: isRepo, DB: db})
+	res := NewResource(Dependencies{TimetableData: testTimetableData(db), DB: db})
 
 	return &patchSetup{
 		res:        res,
@@ -312,10 +312,10 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 	initial := "pre"
 	s.row.Note = &initial
 	s.row.Status = schedule.AttendanceStatusPresent
-	_, err := s.res.instanceStudentRepo.UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
+	_, err := scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFromCheckin(s.ctx, s.instanceID, s.studentID, time.Now())
 	_ = err // best-effort — the row is present so this is a no-op, we just need it to exist
 	// Directly set note via the repo's update-fields path to be sure.
-	require.NoError(t, s.res.instanceStudentRepo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
+	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Note: &initial,
 	}))
 
@@ -389,7 +389,7 @@ func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
 func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
-	require.NoError(t, s.res.instanceStudentRepo.UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
+	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
 		Status: strPtr(schedule.AttendanceStatusExpected),
 	}))
 	router := patchRouter(testpkg.TenantContext(1), s.res)

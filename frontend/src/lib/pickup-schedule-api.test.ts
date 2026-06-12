@@ -268,7 +268,7 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupSchedules("123", formData),
-      ).rejects.toThrow("Abholzeit ist erforderlich");
+      ).rejects.toThrow("Gehzeit ist erforderlich");
     });
 
     it("throws error when data is missing", async () => {

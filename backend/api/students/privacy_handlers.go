@@ -30,7 +30,7 @@ func (rs *Resource) getStudentPrivacyConsent(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get privacy consents
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
+	consents, err := rs.StudentService.ListPrivacyConsents(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -112,7 +112,7 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	consents, err := rs.PrivacyConsentRepo.FindByStudentID(r.Context(), student.ID)
+	consents, err := rs.StudentService.ListPrivacyConsents(r.Context(), student.ID)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -129,9 +129,9 @@ func (rs *Resource) updateStudentPrivacyConsent(w http.ResponseWriter, r *http.R
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if consent.ID == 0 {
-			return rs.PrivacyConsentRepo.Create(ctx, consent)
+			return rs.StudentService.CreatePrivacyConsent(ctx, consent)
 		}
-		return rs.PrivacyConsentRepo.Update(ctx, consent)
+		return rs.StudentService.UpdatePrivacyConsent(ctx, consent)
 	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return

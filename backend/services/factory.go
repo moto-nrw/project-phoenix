@@ -97,6 +97,12 @@ type Factory struct {
 	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
+	Schools              platform.SchoolService
+	WorkTimeModels       config.WorkTimeModelService
+	Students             users.StudentService
+	StudentStatusDays    active.StudentStatusDayService
+	StudentHistory       active.StudentHistoryService
+	TimetableData        schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 
@@ -782,6 +788,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig)
+	studentImportService.SetAuditRepository(repos.DataImport)
 
 	// Staff import bulk-creates invitations (reuses the invitation service);
 	// Person/Account/Staff/Teacher are created when each invitee accepts.
@@ -795,6 +802,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
+	staffImportService.SetAuditRepository(repos.DataImport)
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -988,6 +996,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:             repos.ParentChild,
 		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		GuardianProfileRepo:   repos.GuardianProfile,
 		StatusDayRepo:         repos.StudentStatusDay,
 		StudentRepo:           repos.Student,
 		NoteRepo:              repos.StudentParentNote,
@@ -1085,8 +1094,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
-		OperatorSuggestions:  operatorSuggestionsService,
-		OperatorMFA:          operatorMFAService,
+		Schools:              platform.NewSchoolService(repos.School),
+		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
+		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
+		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+			InstanceStudentRepo:    repos.InstanceStudent,
+			ActivityInstanceRepo:   repos.ActivityInstance,
+			ActivityExceptionRepo:  repos.ActivityException,
+			ActivityScheduleRepo:   repos.ActivitySchedule,
+			InstanceStaffRepo:      repos.InstanceStaff,
+			ActiveGroupRepo:        repos.ActiveGroup,
+			SupervisorRepo:         repos.GroupSupervisor,
+			ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
+			ArrivalExceptionRepo:   repos.StudentArrivalException,
+			PickupScheduleRepo:     repos.StudentPickupSchedule,
+			PickupExceptionRepo:    repos.StudentPickupException,
+			VisitRepo:              repos.ActiveVisit,
+			RoomRepo:               repos.Room,
+			ActivityCategoryRepo:   repos.ActivityCategory,
+			ActivityGroupRepo:      repos.ActivityGroup,
+			ActivitySupervisorRepo: repos.ActivitySupervisor,
+			StudentEnrollmentRepo:  repos.StudentEnrollment,
+			TimeframeRepo:          repos.Timeframe,
+			EducationGroupRepo:     repos.Group,
+			DB:                     db,
+		}),
+		OperatorSuggestions: operatorSuggestionsService,
+		OperatorMFA:         operatorMFAService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

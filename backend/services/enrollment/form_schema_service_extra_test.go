@@ -254,6 +254,15 @@ func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrFormSchemaNotFound))
 }
 
+func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
+	_, svc, _, _ := setupFullSchemaTest(t)
+	ctx := testpkg.TenantContext(1)
+
+	_, err := svc.GetByID(ctx, 999_999_999)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrFormSchemaNotFound))
+}
+
 func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) {
 	db, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.TenantContext(1)

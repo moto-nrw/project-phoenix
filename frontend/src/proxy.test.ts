@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
@@ -17,6 +18,13 @@ function makeRequest(url: string, host?: string): NextRequest {
     req.headers.set("host", host);
   }
   return req;
+}
+
+function getForwardedRequestHeader(
+  res: Response,
+  headerName: string,
+): string | null {
+  return res.headers.get(`x-middleware-request-${headerName}`);
 }
 
 describe("proxy env validation", () => {
@@ -335,6 +343,21 @@ describe("proxy", () => {
       expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
     });
 
+    it("localizes tenant-prefixed enrollment paths on tenant subdomains", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/school-a/enroll/phase-1`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBe("1");
+    });
+
     it("skips rewrite when path is exactly the tenant slug", () => {
       const res = proxy(
         makeRequest(
@@ -398,6 +421,32 @@ describe("proxy", () => {
       const redirect = res.headers.get("location");
       expect(rewrite).toBeNull();
       expect(redirect).toBeNull();
+    });
+
+    it("localizes tenant-prefixed enrollment paths on the bare domain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/school-a/enroll/phase-1`,
+          "localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      const redirect = res.headers.get("location");
+      expect(rewrite).toBeNull();
+      expect(redirect).toBeNull();
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBe("1");
+    });
+
+    it("does not localize tenant-prefixed staff paths on the bare domain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/school-a/dashboard`,
+          "localhost:3000",
+        ),
+      );
+
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBeNull();
     });
   });
 

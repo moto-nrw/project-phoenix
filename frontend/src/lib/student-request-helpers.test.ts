@@ -428,6 +428,30 @@ describe("buildBackendStudentRequest", () => {
     });
   });
 
+  it("forwards departure_days without requiring legacy mirrors", () => {
+    const validated = {
+      firstName: "Max",
+      lastName: "Mustermann",
+      schoolClass: "1a",
+    };
+    const body = {
+      first_name: "Max",
+      second_name: "Mustermann",
+      school_class: "1a",
+      departure_days: { mon: "bus", tue: "pickup", wed: "alone" },
+    } satisfies Partial<Student>;
+    const guardianContact = { email: undefined, phone: undefined };
+
+    const result = buildBackendStudentRequest(validated, body, guardianContact);
+
+    expect(result.departure_days).toEqual({
+      mon: "bus",
+      tue: "pickup",
+    });
+    expect(result.bus_days).toBeUndefined();
+    expect(result.pickup_days).toBeUndefined();
+  });
+
   it("uses current_location from body if provided", () => {
     const validated = {
       firstName: "Max",

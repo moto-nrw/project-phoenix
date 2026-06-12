@@ -13,6 +13,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
@@ -198,27 +199,42 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   },
 ];
 
-const PARENT_MAIN_ITEMS: NavItem[] = [
-  { href: "/parents", label: "Start", iconKey: "home", alwaysShow: true },
+// `tKey` is the parentNav catalog key; the German `label` is the fallback used
+// only when rendered outside an intl context. Mapping on a stable key (not the
+// German label or href, which are "#" for coming-soon items) keeps the
+// translation correct even if the fallback wording changes.
+const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
+  {
+    href: "/parents",
+    label: "Start",
+    tKey: "start",
+    iconKey: "home",
+    alwaysShow: true,
+  },
   {
     href: "/parents/children",
     label: "Meine Kinder",
+    tKey: "children",
     iconKey: "group",
     alwaysShow: true,
   },
   {
     href: "#",
     label: "Kalender",
+    tKey: "calendar",
     iconKey: "calendar",
     alwaysShow: true,
     comingSoon: true,
   },
 ];
 
-const PARENT_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
+const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
+  tKey: string;
+})[] = [
   {
     href: "#",
     label: "Nachrichten",
+    tKey: "messages",
     iconKey: "chat",
     alwaysShow: true,
     comingSoon: true,
@@ -226,6 +242,7 @@ const PARENT_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   {
     href: "#",
     label: "Kontaktdaten",
+    tKey: "contactData",
     iconKey: "profile",
     alwaysShow: true,
     comingSoon: true,
@@ -342,6 +359,7 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
+  const tParentNav = useTranslations("parentNav");
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
@@ -420,9 +438,25 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [],
   );
+  const parentMainItems = useMemo(
+    () =>
+      PARENT_MAIN_ITEMS.map((item) => ({
+        ...item,
+        label: tParentNav(item.tKey),
+      })),
+    [tParentNav],
+  );
+  const parentAdditionalItems = useMemo(
+    () =>
+      PARENT_ADDITIONAL_ITEMS.map((item) => ({
+        ...item,
+        label: tParentNav(item.tKey),
+      })),
+    [tParentNav],
+  );
   const baseMain =
     mode === "parent"
-      ? PARENT_MAIN_ITEMS
+      ? parentMainItems
       : mode === "operator"
         ? resolvedOperatorMainItems
         : isCaregiver(session)
@@ -518,7 +552,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
   const displayAdditionalItems =
     mode === "parent"
-      ? PARENT_ADDITIONAL_ITEMS.filter((i) => !mainHrefs.has(i.href))
+      ? parentAdditionalItems.filter((i) => !mainHrefs.has(i.href))
       : mode === "operator"
         ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
         : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));

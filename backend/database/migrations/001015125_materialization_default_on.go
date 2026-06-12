@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	materializationDefaultOnVersion     = "1.15.122"
+	materializationDefaultOnVersion     = "1.15.125"
 	materializationDefaultOnDescription = "Make timetable materialization opt-out by removing stale false overrides."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.122: Making timetable.materialization_enabled opt-out...")
+			fmt.Println("Migration 1.15.125: Making timetable.materialization_enabled opt-out...")
 
 			if _, err := db.NewRaw(`
 				WITH deleted AS (
@@ -53,7 +53,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.122: no-op for materialization opt-out reset...")
+			fmt.Println("Rolling back migration 1.15.125: no-op for materialization opt-out reset...")
 			return nil
 		},
 	)

@@ -208,6 +208,10 @@ type stubStaffInvitationService struct {
 	err error
 }
 
+func (s *stubStaffInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
+	return ""
+}
+
 func (s *stubStaffInvitationService) WithTx(bun.Tx) interface{} { return s }
 func (s *stubStaffInvitationService) CreateInvitation(_ context.Context, req authsvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	s.req = req

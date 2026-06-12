@@ -88,9 +88,9 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve tenant display name for the invitation email.
-	if rs.SchoolRepo != nil {
+	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
-		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
 			invitationReq.SchoolName = school.Name
 		}
 	}
@@ -294,7 +294,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		AccountID: account.ID,
 		Email:     account.Email,
 	}
-	if rs.SchoolRepo != nil && rs.db != nil {
+	if rs.SchoolService != nil && rs.db != nil {
 		if slug := rs.lookupTenantSlugForInvitation(r.Context(), token); slug != "" {
 			resp.TenantSlug = slug
 		}
@@ -302,32 +302,11 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Invitation accepted successfully")
 }
 
-// lookupTenantSlugForInvitation resolves the tenant slug from an invitation token.
-// Best-effort: returns "" on any error so the accept response still succeeds.
+// lookupTenantSlugForInvitation resolves the tenant slug from an invitation
+// token via the invitation service. Best-effort: returns "" on any error so
+// the accept response still succeeds.
 func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token string) string {
-	var slug string
-	_ = tenant.WithAdminTx(ctx, rs.db, func(txCtx context.Context, tx bun.Tx) error {
-		invitation := new(authModels.InvitationToken)
-		err := tx.NewSelect().
-			Model(invitation).
-			ModelTableExpr(`auth.invitation_tokens AS "invitation_token"`).
-			Column("tenant_id").
-			Where(`"invitation_token".token = ?`, token).
-			Scan(txCtx)
-		if err != nil {
-			return err
-		}
-		school, err := rs.SchoolRepo.FindByID(txCtx, invitation.TenantID)
-		if err != nil {
-			return err
-		}
-		if school == nil || school.IsDeleted() {
-			return nil
-		}
-		slug = school.Slug
-		return nil
-	})
-	return slug
+	return rs.InvitationService.GetTenantSlugForToken(ctx, token)
 }
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {

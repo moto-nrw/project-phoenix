@@ -72,7 +72,9 @@ export function MasterDetailLayout({
         style={{ height }}
         className={cn("flex w-full flex-col", className)}
       >
-        <div className="min-h-0 flex-1 overflow-auto">{list}</div>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="h-full overflow-auto">{list}</div>
+        </div>
         <Drawer
           open={selectedId !== null}
           onOpenChange={(open) => {
@@ -80,7 +82,7 @@ export function MasterDetailLayout({
           }}
         >
           <DrawerContent
-            className="max-h-[90vh]"
+            className="max-h-[90vh] bg-white"
             aria-describedby={undefined}
             // Modals (Edit/Confirmation) portal to document.body and therefore
             // live outside the drawer's DOM. Without these guards Vaul's

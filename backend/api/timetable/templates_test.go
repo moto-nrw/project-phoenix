@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -77,13 +76,8 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
 
 	res := NewResource(Dependencies{
-		ActivityGroupRepo:      activitiesRepo.NewGroupRepository(db),
-		ActivityScheduleRepo:   activitiesRepo.NewScheduleRepository(db),
-		StudentEnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(db),
-		ActivitySupervisorRepo: activitiesRepo.NewSupervisorPlannedRepository(db),
-		TimeframeRepo:          scheduleRepo.NewTimeframeRepository(db),
+		TimetableData:          testTimetableData(db),
 		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), nil),
-		RoomRepo:               facilitiesRepo.NewRoomRepository(db),
 		MaterializationService: mat,
 		DB:                     db,
 	})
@@ -507,7 +501,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(1)
-	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, periodBEnrollment))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
@@ -515,7 +509,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
 	globalEnrollment.SetTenantID(1)
-	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, globalEnrollment))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
@@ -524,7 +518,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(1)
-	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, periodBSupervisor))
+	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
@@ -532,7 +526,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
 	globalSupervisor.SetTenantID(1)
-	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, globalSupervisor))
+	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
 	updateBody["calendar_period_id"] = periodA.ID
@@ -647,7 +641,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			CalendarPeriodID: &periodP.ID,
 		}
 		enrollment.SetTenantID(1)
-		require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, enrollment))
+		require.NoError(t, s.res.timetableData.CreateStudentEnrollment(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
@@ -656,7 +650,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(1)
-	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, supervisor))
+	require.NoError(t, s.res.timetableData.CreatePlannedSupervisor(s.ctx, supervisor))
 
 	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
 		t.Helper()

@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -28,6 +29,7 @@ type FormSchemaResponse struct {
 	IsActive         bool                              `json:"is_active"`
 	Fields           []enrollmentModels.FormField      `json:"fields"`
 	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
+	LegalBlocks      []enrollmentModels.FormLegalBlock `json:"legal_blocks"`
 	CreatedBy        string                            `json:"created_by"`
 	CreatedAt        time.Time                         `json:"created_at"`
 }
@@ -40,6 +42,7 @@ func toFormSchemaResponse(s *enrollmentModels.FormSchema) FormSchemaResponse {
 		IsActive:         s.IsActive,
 		Fields:           s.Fields,
 		CoreRequirements: coreRequirementsValue(s.CoreRequirements),
+		LegalBlocks:      legalBlocksValue(s.LegalBlocks),
 		CreatedBy:        strconv.FormatInt(s.CreatedBy, 10),
 		CreatedAt:        s.CreatedAt,
 	}
@@ -59,6 +62,13 @@ func coreRequirementsOrEmpty(value *enrollmentModels.CoreRequirements) enrollmen
 	return *value
 }
 
+func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModels.FormLegalBlock {
+	if value == nil {
+		return []enrollmentModels.FormLegalBlock{}
+	}
+	return value
+}
+
 // PublishSchemaRequest is the wire shape POST /schema accepts. When
 // Name is set, the handler routes to CreateSchema (new named schema);
 // when empty it falls back to PublishVersion (legacy single-schema
@@ -67,6 +77,7 @@ type PublishSchemaRequest struct {
 	Name             string                             `json:"name"`
 	Fields           []enrollmentModels.FormField       `json:"fields"`
 	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -84,6 +95,7 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 type UpdateSchemaRequest struct {
 	Fields           []enrollmentModels.FormField       `json:"fields"`
 	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
+	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
 }
 
 func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
@@ -105,12 +117,106 @@ type PublicFormSchemaResponse struct {
 	CoreRequirements enrollmentModels.CoreRequirements `json:"core_requirements"`
 }
 
+type SchemaPreviewBootstrapResponse struct {
+	Schema                   *FormSchemaResponse `json:"schema"`
+	AssignedPhaseCount       int                 `json:"assigned_phase_count"`
+	ActiveAssignedPhaseCount int                 `json:"active_assigned_phase_count"`
+}
+
+func (rs *Resource) getSchemaPreviewBootstrap(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil || rs.PhaseService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("schema preview endpoint not configured")))
+		return
+	}
+
+	isBasePreview := r.URL.Query().Get("base") == "1"
+	schemaIDParam := r.URL.Query().Get("schemaId")
+	if !isBasePreview && schemaIDParam == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("schemaId is required")))
+		return
+	}
+	var schemaID int64
+	if !isBasePreview {
+		parsed, parseErr := strconv.ParseInt(schemaIDParam, 10, 64)
+		if parseErr != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("schemaId must be a positive integer")))
+			return
+		}
+		schemaID = parsed
+	}
+
+	var (
+		schema *enrollmentModels.FormSchema
+		phases []*enrollmentModels.Phase
+	)
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		if schemaID > 0 {
+			loaded, loadErr := rs.FormSchemaService.GetByID(ctx, schemaID)
+			if loadErr != nil {
+				return loadErr
+			}
+			schema = loaded
+		}
+		list, listErr := rs.PhaseService.List(ctx)
+		if listErr != nil {
+			return listErr
+		}
+		phases = list
+		return nil
+	})
+	if err != nil {
+		// A missing schema id is the caller's problem (404); everything
+		// else (phase listing, DB failures) is a genuine 500 — rendering
+		// those as 400 would hide internal failures behind client blame.
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, enrollmentService.ErrFormSchemaNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	var schemaOut *FormSchemaResponse
+	if schema != nil {
+		out := toFormSchemaResponse(schema)
+		schemaOut = &out
+	}
+	assigned, active := countAssignedPreviewPhases(phases, schema)
+	common.Respond(w, r, http.StatusOK, SchemaPreviewBootstrapResponse{
+		Schema:                   schemaOut,
+		AssignedPhaseCount:       assigned,
+		ActiveAssignedPhaseCount: active,
+	}, "Schema preview bootstrap retrieved")
+}
+
+func countAssignedPreviewPhases(phases []*enrollmentModels.Phase, schema *enrollmentModels.FormSchema) (int, int) {
+	assigned := 0
+	active := 0
+	for _, phase := range phases {
+		if phase == nil {
+			continue
+		}
+		matches := phase.FormSchemaID == nil
+		if schema != nil {
+			matches = phase.FormSchemaID != nil && *phase.FormSchemaID == schema.ID
+		}
+		if !matches {
+			continue
+		}
+		assigned++
+		if phase.IsActive {
+			active++
+		}
+	}
+	return assigned, active
+}
+
 // listPublicActiveSchema returns the form schema for a (tenant, phase)
 // pair. The phase's pinned form_schema_id wins; if the phase has none,
 // we fall back to the tenant's currently-active schema; if neither
 // exists, 404 → form falls back to core fields only.
 func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if rs.FormSchemaService == nil || rs.PhaseRepo == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.FormSchemaService == nil || rs.RequestService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
 		return
 	}
@@ -127,19 +233,16 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	}
 
 	var schema *enrollmentModels.FormSchema
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
-			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
-				return enrollmentService.ErrEnrollmentDisabled
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
+			if rs.RequestService == nil {
+				return errors.New("request service not configured")
 			}
-			phase, phaseErr := rs.PhaseRepo.FindByID(txCtx, phaseID)
+			// Shared public phase gate: enabled + active + open window.
+			phase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
 			if phaseErr != nil {
-				return errors.New("phase not found")
+				return phaseErr
 			}
 			if phase.FormSchemaID == nil {
 				// Basis phase — admin explicitly chose "nur die
@@ -152,12 +255,15 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 			}
 			s, innerErr := rs.FormSchemaService.GetByID(txCtx, *phase.FormSchemaID)
 			if innerErr != nil {
+				if errors.Is(innerErr, enrollmentService.ErrFormSchemaNotFound) {
+					return enrollmentService.ErrNoActiveSchema
+				}
 				return innerErr
 			}
 			schema = s
 			return nil
 		})
-	})
+	}
 	if resolveErr != nil {
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
@@ -185,7 +291,7 @@ type PublicCaptchaConfigResponse struct {
 // publicCaptchaConfig serves the captcha config for the parent form.
 // Slug-gated, no JWT.
 func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) {
-	if rs.CaptchaService == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.CaptchaService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("captcha config endpoint not wired")))
 		return
 	}
@@ -197,18 +303,14 @@ func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	out := PublicCaptchaConfigResponse{}
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			out.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			out.SiteKey = rs.CaptchaService.SiteKey(txCtx)
 			return nil
 		})
-	})
+	}
 	if resolveErr != nil {
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
@@ -323,12 +425,20 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	var schema *enrollmentModels.FormSchema
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		updateExisting := func(id int64) (*enrollmentModels.FormSchema, error) {
+			if req.LegalBlocks != nil {
+				return rs.FormSchemaService.UpdateSchemaWithLegal(ctx, id, req.Fields, int64(claims.ID), req.CoreRequirements, req.LegalBlocks)
+			}
 			if req.CoreRequirements == nil {
 				return rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
 			}
 			return rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID), *req.CoreRequirements)
 		}
 		if req.Name != "" {
+			if req.LegalBlocks != nil {
+				s, innerErr := rs.FormSchemaService.CreateSchemaWithLegal(ctx, req.Name, req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements), *req.LegalBlocks)
+				schema = s
+				return innerErr
+			}
 			s, innerErr := rs.FormSchemaService.CreateSchema(ctx, req.Name, req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements))
 			schema = s
 			return innerErr
@@ -345,6 +455,11 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 					schema = s
 					return updateErr
 				}
+			}
+			if req.LegalBlocks != nil {
+				s, createErr := rs.FormSchemaService.CreateSchemaWithLegal(ctx, "Standardformular", req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements), *req.LegalBlocks)
+				schema = s
+				return createErr
 			}
 			s, createErr := rs.FormSchemaService.CreateSchema(ctx, "Standardformular", req.Fields, int64(claims.ID), coreRequirementsOrEmpty(req.CoreRequirements))
 			schema = s
@@ -405,7 +520,9 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 			s        *enrollmentModels.FormSchema
 			innerErr error
 		)
-		if req.CoreRequirements == nil {
+		if req.LegalBlocks != nil {
+			s, innerErr = rs.FormSchemaService.UpdateSchemaWithLegal(ctx, id, req.Fields, int64(claims.ID), req.CoreRequirements, req.LegalBlocks)
+		} else if req.CoreRequirements == nil {
 			s, innerErr = rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID))
 		} else {
 			s, innerErr = rs.FormSchemaService.UpdateSchema(ctx, id, req.Fields, int64(claims.ID), *req.CoreRequirements)

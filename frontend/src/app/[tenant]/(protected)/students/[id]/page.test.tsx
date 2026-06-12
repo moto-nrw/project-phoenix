@@ -736,6 +736,49 @@ describe("StudentDetailPage", () => {
       });
     });
 
+    it("sends explicit departure_days when saving personal info", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+      mockUseStudentData.mockReturnValue({
+        student: {
+          ...mockStudent,
+          bus_days: { mon: true },
+          pickup_days: { wed: true },
+          departure_days: undefined,
+        },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("edit-personal-info"));
+      await waitFor(() => {
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("save-personal-info"));
+      });
+
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            bus_days: { mon: true },
+            pickup_days: { wed: true },
+            departure_days: { mon: "bus", wed: "pickup" },
+          }),
+        );
+      });
+    });
+
     it("does not close modal when save fails", async () => {
       mockUpdateStudent.mockRejectedValue(new Error("Save failed"));
 

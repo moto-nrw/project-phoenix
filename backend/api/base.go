@@ -337,7 +337,7 @@ func parsePositiveInt(envVar string, defaultValue int) int {
 
 // initializeAPIResources initializes all API resource instances
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun.DB, logger *slog.Logger) {
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, repoFactory.School, db)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
@@ -352,7 +352,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Rooms.ActiveService = api.Services.Active
 	api.Rooms.PersonService = api.Services.Users
 	api.Rooms.EducationService = api.Services.Education
-	api.Rooms.StudentRepo = repoFactory.Student
 	api.Rooms.ListExportService = api.Services.ListExport
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
 		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker")),
@@ -361,38 +360,32 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:      logger.With("service", "student-photo"),
 	})
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:          api.Services.Users,
-		GuardianService:        api.Services.Guardian,
-		StudentRepo:            repoFactory.Student,
-		EducationService:       api.Services.Education,
-		UserContextService:     api.Services.UserContext,
-		ActiveService:          api.Services.Active,
-		IoTService:             api.Services.IoT,
-		PrivacyConsentRepo:     repoFactory.PrivacyConsent,
-		PickupScheduleService:  api.Services.PickupSchedule,
-		ArrivalScheduleService: api.Services.ArrivalSchedule,
-		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
-		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
-		InstanceStudentRepo:    repoFactory.InstanceStudent,
-		SchoolRepo:             repoFactory.School,
-		SettingsService:        api.Services.Settings,
-		AttendanceRepo:         repoFactory.Attendance,
-		StudentStatusDayRepo:   repoFactory.StudentStatusDay,
-		StudentParentNoteRepo:  repoFactory.StudentParentNote,
-		VisitRepo:              repoFactory.ActiveVisit,
-		DataAccessLogRepo:      repoFactory.DataAccessLog,
-		Broadcaster:            api.Services.RealtimeHub,
-		StudentPhotos:          api.Services.StudentPhotos,
-		ListExportService:      api.Services.ListExport,
-		Logger:                 logger.With("handler", "students"),
-		DB:                     db,
+		PersonService:           api.Services.Users,
+		GuardianService:         api.Services.Guardian,
+		StudentService:          api.Services.Students,
+		EducationService:        api.Services.Education,
+		UserContextService:      api.Services.UserContext,
+		ActiveService:           api.Services.Active,
+		IoTService:              api.Services.IoT,
+		PickupScheduleService:   api.Services.PickupSchedule,
+		ArrivalScheduleService:  api.Services.ArrivalSchedule,
+		InstanceService:         api.Services.Instance,
+		SchoolService:           api.Services.Schools,
+		SettingsService:         api.Services.Settings,
+		StudentStatusDayService: api.Services.StudentStatusDays,
+		StudentHistoryService:   api.Services.StudentHistory,
+		Broadcaster:             api.Services.RealtimeHub,
+		StudentPhotos:           api.Services.StudentPhotos,
+		ListExportService:       api.Services.ListExport,
+		Logger:                  logger.With("handler", "students"),
+		DB:                      db,
 	})
-	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, repoFactory.Student, repoFactory.GroupSubstitution, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, repoFactory.Student, db)
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, repoFactory.DataImport, api.Services.Users, db)
+	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
-	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, repoFactory.GroupSupervisor, api.Services.WorkSession, api.Services.StaffAbsence, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, logger.With("handler", "staff"))
-	api.WorkTimeModels = worktimemodelsAPI.NewResource(repoFactory.WorkTimeModel, db, logger.With("handler", "work-time-models"))
+	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
+	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
@@ -404,8 +397,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentRollover,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
-		repoFactory.School,
-		repoFactory.Phase,
+		api.Services.Schools,
 		db,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
@@ -424,9 +416,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EducationService:      api.Services.Education,
 		FeedbackService:       api.Services.Feedback,
 		PickupScheduleService: api.Services.PickupSchedule,
-		SchoolRepo:            repoFactory.School,
-		ActivityInstanceRepo:  repoFactory.ActivityInstance,
-		InstanceStaffRepo:     repoFactory.InstanceStaff,
+		SchoolService:         api.Services.Schools,
+		TimetableDataService:  api.Services.TimetableData,
 		Broadcaster:           api.Services.RealtimeHub,
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
@@ -445,26 +436,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		OperationsService:      api.Services.TimetableOperations,
 		TemplateSplitService:   api.Services.TemplateSplit,
 		PersonService:          api.Services.Users,
-		InstanceStudentRepo:    repoFactory.InstanceStudent,
-		ActivityInstanceRepo:   repoFactory.ActivityInstance,
-		ActivityExceptionRepo:  repoFactory.ActivityException,
-		ActivityScheduleRepo:   repoFactory.ActivitySchedule,
-		InstanceStaffRepo:      repoFactory.InstanceStaff,
-		ActiveGroupRepo:        repoFactory.ActiveGroup,
-		SupervisorRepo:         repoFactory.GroupSupervisor,
-		ArrivalScheduleRepo:    repoFactory.StudentArrivalSchedule,
-		ArrivalExceptionRepo:   repoFactory.StudentArrivalException,
-		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
-		PickupExceptionRepo:    repoFactory.StudentPickupException,
-		VisitRepo:              repoFactory.ActiveVisit,
-		StudentRepo:            repoFactory.Student,
-		StaffRepo:              repoFactory.Staff,
-		RoomRepo:               repoFactory.Room,
-		ActivityCategoryRepo:   repoFactory.ActivityCategory,
-		ActivityGroupRepo:      repoFactory.ActivityGroup,
-		ActivitySupervisorRepo: repoFactory.ActivitySupervisor,
-		StudentEnrollmentRepo:  repoFactory.StudentEnrollment,
-		TimeframeRepo:          repoFactory.Timeframe,
+		TimetableData:          api.Services.TimetableData,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
 		Broadcaster:            api.Services.RealtimeHub,
@@ -484,9 +456,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService:       api.Services.Announcement,
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
-		SchoolRepo:                 repoFactory.School,
+		SchoolService:              api.Services.Schools,
+		ActiveService:              api.Services.Active,
 		TenantMFAService:           api.Services.MFA,
-		AccountTenantRepository:    repoFactory.AccountTenant,
 		TokenAuth:                  nil, // Created internally by operator API
 		DB:                         db,
 	})
@@ -499,8 +471,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Parent,
 		api.Services.EnrollmentRequest,
 		api.Services.GuardianProfileLoader,
-		repoFactory.School,
-		repoFactory.AccountTenant,
+		api.Services.Schools,
 		db,
 	)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{

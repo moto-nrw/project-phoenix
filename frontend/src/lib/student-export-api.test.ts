@@ -56,6 +56,16 @@ describe("student export metadata", () => {
       "weekly_friday",
     ]);
   });
+
+  it("offers the departure column and includes it in the pickup list (#1610)", () => {
+    const ids = STUDENT_EXPORT_COLUMNS.map((column) => column.id);
+    expect(ids).toContain("departure");
+
+    const pickupPreset = STUDENT_EXPORT_PRESETS.find(
+      (preset) => preset.id === "pickup_list",
+    );
+    expect(pickupPreset?.columns).toContain("departure");
+  });
 });
 
 describe("exportStudents", () => {

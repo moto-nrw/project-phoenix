@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,10 +41,8 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID) })
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &plannedConflictsSetup{

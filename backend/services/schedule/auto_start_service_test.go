@@ -181,6 +181,10 @@ type autoStartInstanceStarter struct {
 	err               error
 }
 
+func (s *autoStartInstanceStarter) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
+	return nil, nil
+}
+
 func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
 	if s.err != nil {
 		return nil, s.err

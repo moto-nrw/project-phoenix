@@ -3,11 +3,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "~/components/ui/modal";
 import type { Student } from "@/lib/api";
-import {
-  PersonalInfoSection,
-  BusStatusSection,
-  PickupStatusSection,
-} from "./student-form-fields";
+import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
 import {
   validateStudentForm,
@@ -19,6 +15,10 @@ import {
   type BusDays,
   pickupDaysHaveAny,
   normalizePickupDays,
+  normalizeDepartureDays,
+  departureDaysFromLegacy,
+  departureToBusDays,
+  departureToPickupDays,
 } from "~/lib/student-helpers";
 
 interface StudentEditModalProps {
@@ -61,6 +61,9 @@ export function StudentEditModal({
         bus: student.bus ?? false,
         bus_days: normalizeBusDays(student.bus_days),
         pickup_days: normalizePickupDays(student.pickup_days),
+        departure_days: student.departure_days
+          ? normalizeDepartureDays(student.departure_days)
+          : departureDaysFromLegacy(student.bus_days, student.pickup_days),
         pickup_status: student.pickup_status ?? "",
       });
       setErrors({});
@@ -199,31 +202,22 @@ export function StudentEditModal({
             onChange={handleChange}
           />
 
-          {/* Pickup Status */}
-          <PickupStatusSection
-            days={formData.pickup_days}
+          {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
+          <DepartureSection
+            days={formData.departure_days}
             onChange={(value) => {
-              const normalized = normalizePickupDays(value);
+              const departure = normalizeDepartureDays(value);
+              const busDays = departureToBusDays(departure);
+              const pickupDays = departureToPickupDays(departure);
               setFormData((prev) => ({
                 ...prev,
-                pickup_days: normalized,
-                pickup_status: pickupDaysHaveAny(normalized)
+                departure_days: departure,
+                bus_days: busDays,
+                bus: busDaysHaveAny(busDays),
+                pickup_days: pickupDays,
+                pickup_status: pickupDaysHaveAny(pickupDays)
                   ? "Wird abgeholt"
                   : "Geht alleine nach Hause",
-              }));
-            }}
-          />
-
-          {/* Bus Status */}
-          <BusStatusSection
-            value={formData.bus}
-            days={formData.bus_days}
-            onChange={(value) => {
-              const normalized = normalizeBusDays(value);
-              setFormData((prev) => ({
-                ...prev,
-                bus_days: normalized,
-                bus: busDaysHaveAny(normalized),
               }));
             }}
           />

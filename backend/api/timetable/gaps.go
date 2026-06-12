@@ -89,12 +89,12 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rs.activityInstanceRepo == nil || rs.instanceStaffRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instances failed", err))
 		return
@@ -114,7 +114,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Single GROUP-BY query for non-absent counts across all candidates.
-	nonAbsentCounts, err := rs.instanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, candidateIDs)
+	nonAbsentCounts, err := rs.timetableData.CountNonAbsentInstanceStaffByInstanceIDs(ctx, candidateIDs)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("count non-absent staff failed", err))
 		return
@@ -136,7 +136,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		// Load the full instance_staff list to compute absent count. Not
 		// every gap has absent rows; the count is 0 when no staff was ever
 		// assigned.
-		rows, err := rs.instanceStaffRepo.FindByInstanceID(ctx, inst.ID)
+		rows, err := rs.timetableData.GetInstanceStaff(ctx, inst.ID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 			return

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	scheduleValidUntilVersion     = "1.15.123"
+	scheduleValidUntilVersion     = "1.15.126"
 	scheduleValidUntilDescription = "Add valid_until and valid_from DATE columns to activities.schedules for template splits (WP-B3)."
 )
 
@@ -24,7 +24,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.123: Adding valid_until and valid_from to activities.schedules...")
+			fmt.Println("Migration 1.15.126: Adding valid_until and valid_from to activities.schedules...")
 
 			// valid_until: exclusive end of a schedule's recurrence — the
 			// schedule no longer produces instances ON or AFTER this date
@@ -48,7 +48,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.123: Removing valid_until and valid_from from activities.schedules...")
+			fmt.Println("Rolling back migration 1.15.126: Removing valid_until and valid_from from activities.schedules...")
 
 			if _, err := db.NewRaw(`
 				ALTER TABLE activities.schedules

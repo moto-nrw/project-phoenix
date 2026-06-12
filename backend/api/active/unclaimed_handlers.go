@@ -50,7 +50,7 @@ func (rs *Resource) claimGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get staff record from person
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		common.RespondWithError(w, r, http.StatusUnauthorized, "Staff authentication required")
 		return

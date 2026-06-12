@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
@@ -10,9 +11,13 @@ import { AppShell } from "~/components/dashboard/app-shell";
 import { Loading } from "~/components/ui/loading";
 
 function FullPageLoading() {
+  // Always rendered under the parents-portal NextIntlClientProvider, so the
+  // localized loading label is safe here. Loading keeps its German default for
+  // the German staff/operator portals that also use it.
+  const t = useTranslations("parentNav");
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Loading />
+      <Loading message={t("loading")} />
     </div>
   );
 }
@@ -87,6 +92,8 @@ export function ParentAuthGuard({
     return <FullPageLoading />;
   }
 
+  // Locale handling lives in the single ParentLocaleProvider mounted by
+  // ParentProviders; it picks up the now-authenticated session on its own.
   return (
     <ParentShellProvider>
       <BreadcrumbProvider>

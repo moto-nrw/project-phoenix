@@ -233,8 +233,12 @@ func (s *requestService) validateRequiredCustomFields(
 // from the value shape alone, so the value lookup is sufficient for them.
 func customAnswerSatisfiesRequired(field enrollmentModels.FormField, answers map[string]any) bool {
 	value, present := answers[field.Key]
-	if field.Type == enrollmentModels.FormFieldWeekdayBoolean &&
-		field.Target == enrollmentModels.TargetStudentPickupStatus && !present {
+	// The pickup target and the unified departure field accept an empty
+	// selection ("geht alleine") as a valid answer, so a required one must still
+	// reject a never-touched field (no key in custom_data).
+	pickupBoolean := field.Type == enrollmentModels.FormFieldWeekdayBoolean &&
+		field.Target == enrollmentModels.TargetStudentPickupStatus
+	if (pickupBoolean || field.Type == enrollmentModels.FormFieldWeekdayMode) && !present {
 		return false
 	}
 	return customValueSatisfiesRequired(field, value)
@@ -267,6 +271,10 @@ func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) b
 			return weekdayBooleanWellFormed(value)
 		}
 		return weekdayBooleanHasAnySelected(value)
+	case enrollmentModels.FormFieldWeekdayMode:
+		// An all-alone (empty) plan is a valid answer, so a well-formed map
+		// satisfies a required Geh-/Abholregelung (#1610).
+		return weekdayModeWellFormed(value)
 	case enrollmentModels.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
 	default:
@@ -295,6 +303,17 @@ func weekdayBooleanWellFormed(value any) bool {
 		return false
 	}
 	return days.Validate() == nil
+}
+
+// weekdayModeWellFormed reports whether the value decodes to a valid per-day
+// departure map, without requiring any non-alone day. Used for the unified
+// departure target, where an all-alone (empty) plan is a legitimate answer.
+func weekdayModeWellFormed(value any) bool {
+	var modes enrollmentModels.WeekdayMode
+	if err := decodeStructured(value, &modes); err != nil {
+		return false
+	}
+	return modes.Validate() == nil
 }
 
 func phoneListSatisfiesRequired(value any) bool {

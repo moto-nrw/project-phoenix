@@ -458,3 +458,23 @@ func (r *SupervisorPlannedRepository) ListPlannedSupervisionBlockers(ctx context
 	}
 	return results, nil
 }
+
+// CloseOpenByGroupAndPeriod closes the open planned supervisions of a group
+// for the given calendar period (issue #584: moved verbatim from
+// api/timetable).
+func (r *SupervisorPlannedRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	update := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.supervisors").
+		Set("valid_until = ?", validFrom).
+		Where("tenant_id = ?", tenantID).
+		Where("group_id = ?", groupID).
+		Where("valid_until IS NULL")
+	if calendarPeriodID == nil {
+		update = update.Where("calendar_period_id IS NULL")
+	} else {
+		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
+	}
+	_, err := update.Exec(ctx)
+	return err
+}

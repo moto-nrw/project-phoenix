@@ -73,17 +73,12 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if rs.activityExceptionRepo == nil ||
-		rs.activityInstanceRepo == nil ||
-		rs.instanceStudentRepo == nil ||
-		rs.arrivalExceptionRepo == nil ||
-		rs.arrivalScheduleRepo == nil ||
-		rs.activityScheduleRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	exceptions, err := rs.activityExceptionRepo.FindByDateRange(ctx, from, to)
+	exceptions, err := rs.timetableData.GetActivityExceptionsByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity exceptions failed", err))
 		return
@@ -93,7 +88,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity instances failed", err))
 		return
@@ -130,7 +125,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 	}
 
 	affectedInstanceIDs := uniqueInstanceIDs(affected)
-	expectedStudents, err := rs.instanceStudentRepo.FindExpectedByInstanceIDs(ctx, affectedInstanceIDs)
+	expectedStudents, err := rs.timetableData.GetExpectedInstanceStudentsByInstanceIDs(ctx, affectedInstanceIDs)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load expected students failed", err))
 		return
@@ -325,7 +320,7 @@ func (rs *Resource) loadArrivalPreload(
 		for id := range stuMap {
 			ids = append(ids, id)
 		}
-		excs, err := rs.arrivalExceptionRepo.FindByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
+		excs, err := rs.timetableData.GetArrivalExceptionsByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
 		if err != nil {
 			return nil, fmt.Errorf("load arrival exceptions for %s: %w", dk, err)
 		}
@@ -361,7 +356,7 @@ func (rs *Resource) loadArrivalPreload(
 		for id := range stuMap {
 			ids = append(ids, id)
 		}
-		schedules, err := rs.arrivalScheduleRepo.FindByStudentIDsAndWeekday(ctx, ids, wd)
+		schedules, err := rs.timetableData.GetArrivalSchedulesByStudentIDsAndWeekday(ctx, ids, wd)
 		if err != nil {
 			return nil, fmt.Errorf("load arrival schedules for weekday %d: %w", wd, err)
 		}
@@ -445,7 +440,7 @@ func (rs *Resource) loadTemplatePreload(
 	for id := range needed {
 		ids = append(ids, id)
 	}
-	rows, err := rs.activityScheduleRepo.FindTemplateStartTimesByGroupIDs(ctx, ids)
+	rows, err := rs.timetableData.GetTemplateStartTimesByGroupIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load template start times: %w", err)
 	}

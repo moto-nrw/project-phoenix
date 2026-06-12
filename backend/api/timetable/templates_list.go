@@ -7,13 +7,12 @@ package timetable
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -30,82 +29,8 @@ type templateScheduleResponse struct {
 }
 
 func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
-	tenantID := tenant.FromContext(ctx)
-	rows := make([]templateRow, 0)
-	query := `
-		SELECT
-			g.id AS template_id,
-			g.name,
-			g.type,
-			g.category_id,
-			COALESCE(c.name, '') AS category_name,
-				g.planned_room_id AS room_id,
-				COALESCE(r.name, '') AS room_name,
-				g.education_group_id,
-				COALESCE(eg.name, '') AS education_group_name,
-				g.is_open,
-			g.max_participants,
-			COALESCE(enrollments.count, 0) AS enrollment_count,
-			COALESCE(supervisors.count, 0) AS supervisor_count,
-			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
-			COALESCE(supervisors.staff_ids, ARRAY[]::BIGINT[]) AS staff_ids,
-			supervisors.primary_staff_id,
-			s.id AS schedule_id,
-			s.weekday,
-			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
-			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
-			s.week_pattern,
-			s.calendar_period_id,
-			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
-		FROM activities.groups AS g
-		INNER JOIN activities.schedules AS s
-			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id
-		LEFT JOIN schedule.timeframes AS tf
-			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
-		LEFT JOIN activities.categories AS c
-			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
-			LEFT JOIN facilities.rooms AS r
-				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-			LEFT JOIN education.groups AS eg
-				ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id
-			LEFT JOIN (
-				SELECT
-					activity_group_id,
-					COUNT(*) AS count,
-					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
-				FROM (
-					SELECT DISTINCT activity_group_id, student_id
-					FROM activities.student_enrollments
-					WHERE tenant_id = ?
-					  AND valid_until IS NULL
-				) AS active_enrollments
-				GROUP BY activity_group_id
-			) AS enrollments ON enrollments.activity_group_id = g.id
-			LEFT JOIN (
-			SELECT
-				group_id,
-					COUNT(*) AS count,
-					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
-					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
-				FROM (
-					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
-					FROM activities.supervisors
-					WHERE tenant_id = ?
-					  AND valid_until IS NULL
-					GROUP BY group_id, staff_id
-				) AS active_supervisors
-				GROUP BY group_id
-			) AS supervisors ON supervisors.group_id = g.id
-		WHERE g.tenant_id = ?
-		  AND g.is_template = true
-		  AND g.archived_at IS NULL`
-	args := []any{tenantID, tenantID, tenantID}
-	if templateID != nil {
-		query += ` AND g.id = ?`
-		args = append(args, *templateID)
-	}
-	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
-	if err := base.GetDB(ctx, rs.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
+	rows, err := rs.timetableData.ListTemplateRows(ctx, templateID)
+	if err != nil {
 		return nil, err
 	}
 	return mapTemplateRows(rows), nil
@@ -208,34 +133,12 @@ type listTemplatesResponse struct {
 	Templates []templateResponse `json:"templates"`
 }
 
-type templateRow struct {
-	TemplateID         int64          `bun:"template_id"`
-	Name               string         `bun:"name"`
-	Type               string         `bun:"type"`
-	CategoryID         int64          `bun:"category_id"`
-	CategoryName       string         `bun:"category_name"`
-	RoomID             sql.NullInt64  `bun:"room_id"`
-	RoomName           sql.NullString `bun:"room_name"`
-	EducationGroupID   sql.NullInt64  `bun:"education_group_id"`
-	EducationGroupName sql.NullString `bun:"education_group_name"`
-	IsOpen             bool           `bun:"is_open"`
-	MaxParticipants    int            `bun:"max_participants"`
-	EnrollmentCount    int            `bun:"enrollment_count"`
-	SupervisorCount    int            `bun:"supervisor_count"`
-	StudentIDs         []int64        `bun:"student_ids,array"`
-	StaffIDs           []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID     sql.NullInt64  `bun:"primary_staff_id"`
-	ScheduleID         int64          `bun:"schedule_id"`
-	Weekday            int            `bun:"weekday"`
-	StartTime          sql.NullString `bun:"start_time"`
-	EndTime            sql.NullString `bun:"end_time"`
-	WeekPattern        int            `bun:"week_pattern"`
-	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
-	ScheduleValidUntil sql.NullString `bun:"schedule_valid_until"`
-}
+// templateRow aliases the repository read model (issue #584: the
+// aggregation queries moved into the activities GroupRepository).
+type templateRow = activities.TemplateListRow
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
-	if rs.db == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -263,83 +166,8 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	// overlapping period must still display its real headcount instead of
 	// "0 Kinder". Only the schedule join below stays period-filtered, which
 	// decides WHETHER the card appears at all.
-	rows := make([]templateRow, 0)
-	query := `
-		SELECT
-			g.id AS template_id,
-			g.name,
-			g.type,
-			g.category_id,
-			COALESCE(c.name, '') AS category_name,
-			g.planned_room_id AS room_id,
-			COALESCE(r.name, '') AS room_name,
-			g.education_group_id,
-			COALESCE(eg.name, '') AS education_group_name,
-			g.is_open,
-			g.max_participants,
-			COALESCE(enrollments.count, 0) AS enrollment_count,
-			COALESCE(supervisors.count, 0) AS supervisor_count,
-			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
-			COALESCE(supervisors.staff_ids, ARRAY[]::BIGINT[]) AS staff_ids,
-			supervisors.primary_staff_id,
-			s.id AS schedule_id,
-			s.weekday,
-			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
-			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
-			s.week_pattern,
-			s.calendar_period_id,
-			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
-		FROM activities.groups AS g
-		INNER JOIN activities.schedules AS s
-			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id
-		LEFT JOIN schedule.timeframes AS tf
-			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
-		LEFT JOIN activities.categories AS c
-			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
-		LEFT JOIN facilities.rooms AS r
-			ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
-		LEFT JOIN education.groups AS eg
-			ON eg.id = g.education_group_id AND eg.tenant_id = g.tenant_id
-			LEFT JOIN (
-				SELECT
-					activity_group_id,
-					COUNT(*) AS count,
-					ARRAY_AGG(student_id ORDER BY student_id) AS student_ids
-				FROM (
-					SELECT DISTINCT activity_group_id, student_id
-					FROM activities.student_enrollments
-					WHERE tenant_id = ?
-					  AND valid_until IS NULL
-				) AS active_enrollments
-				GROUP BY activity_group_id
-			) AS enrollments ON enrollments.activity_group_id = g.id
-		LEFT JOIN (
-			SELECT
-				group_id,
-					COUNT(*) AS count,
-					ARRAY_AGG(staff_id ORDER BY is_primary DESC, staff_id) AS staff_ids,
-					MAX(staff_id) FILTER (WHERE is_primary) AS primary_staff_id
-				FROM (
-					SELECT group_id, staff_id, BOOL_OR(is_primary) AS is_primary
-					FROM activities.supervisors
-					WHERE tenant_id = ?
-					  AND valid_until IS NULL
-					GROUP BY group_id, staff_id
-				) AS active_supervisors
-				GROUP BY group_id
-			) AS supervisors ON supervisors.group_id = g.id
-		WHERE g.tenant_id = ?
-		  AND g.is_template = true
-		  AND g.archived_at IS NULL`
-
-	args := []any{tenantID, tenantID, tenantID}
-	if periodID != nil {
-		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
-		args = append(args, *periodID)
-	}
-	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
-
-	if err := base.GetDB(r.Context(), rs.db).NewRaw(query, args...).Scan(r.Context(), &rows); err != nil {
+	rows, err := rs.timetableData.ListTemplateRowsForPeriod(r.Context(), periodID)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return
 	}

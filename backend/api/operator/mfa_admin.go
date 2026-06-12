@@ -62,7 +62,7 @@ func (req *MFAAdminOverrideSetRequest) Bind(_ *http.Request) error {
 // both the tenant MFA service and the account-tenant repo must be wired.
 // Returns false (with a 503 already written) when either is missing.
 func (rs *ProvisioningResource) requireMFAAdminDeps(w http.ResponseWriter, r *http.Request) bool {
-	if rs.TenantMFAService == nil || rs.AccountTenantRepository == nil {
+	if rs.TenantMFAService == nil {
 		common.RenderError(w, r, ErrInternal("MFA admin endpoints are not configured"))
 		return false
 	}
@@ -82,7 +82,7 @@ func (rs *ProvisioningResource) resolveOperatorMFAAdminTarget(w http.ResponseWri
 	if !ok {
 		return 0, 0, false
 	}
-	exists, err := rs.AccountTenantRepository.ExistsByAccountAndTenant(r.Context(), accountID, schoolID)
+	exists, err := rs.TenantMFAService.AccountBelongsToTenant(r.Context(), accountID, schoolID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to verify account membership"))
 		return 0, 0, false

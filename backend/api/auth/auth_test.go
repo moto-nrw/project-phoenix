@@ -29,6 +29,7 @@ import (
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -2063,7 +2064,7 @@ func TestListTenants(t *testing.T) {
 	}()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2135,7 +2136,7 @@ func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
@@ -2382,7 +2383,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

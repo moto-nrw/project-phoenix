@@ -47,7 +47,7 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 // Error message translations (English backend -> German frontend)
 const errorTranslations: Record<string, string> = {
   "invalid weekday": "Ungültiger Wochentag",
-  "pickup_time is required": "Abholzeit ist erforderlich",
+  "pickup_time is required": "Gehzeit ist erforderlich",
   "invalid pickup_time format": "Ungültiges Zeitformat (erwartet HH:MM)",
   "exception_date is required": "Datum ist erforderlich",
   "invalid exception_date format":

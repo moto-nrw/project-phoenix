@@ -15,9 +15,8 @@ import {
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
-  formatBusDays,
-  formatPickupDays,
-  pickupDaysHaveAny,
+  formatDepartureDays,
+  departureDaysFromLegacy,
 } from "~/lib/student-helpers";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
@@ -698,14 +697,12 @@ export function PersonalInfoReadOnly({
           value={student.group_name ?? "Nicht zugewiesen"}
         />
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
-        <InfoItem label="Buskind" value={formatBusDays(student.bus_days)} />
         <InfoItem
-          label="Abholregelung"
-          value={
-            pickupDaysHaveAny(student.pickup_days)
-              ? `Wird abgeholt: ${formatPickupDays(student.pickup_days)}`
-              : "Geht alleine nach Hause"
-          }
+          label="Geh- und Abholregelung"
+          value={formatDepartureDays(
+            student.departure_days ??
+              departureDaysFromLegacy(student.bus_days, student.pickup_days),
+          )}
         />
         {student.health_info && (
           <InfoItem

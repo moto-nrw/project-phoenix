@@ -14,9 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -48,11 +45,8 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		StaffRepo:            usersRepo.NewStaffRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &gapsSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
