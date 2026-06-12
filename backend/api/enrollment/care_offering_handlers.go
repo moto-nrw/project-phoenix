@@ -325,13 +325,9 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		offerings     []*enrollmentModels.CareOffering
 		selectionMode = enrollmentModels.PhaseCareOfferingSelectionOptional
 	)
-	err = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
+	if err == nil {
+		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
@@ -344,7 +340,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			offerings = list
 			return listErr
 		})
-	})
+	}
 	if err != nil {
 		renderPublicEnrollmentError(w, r, err)
 		return
@@ -429,13 +425,9 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var phases []*enrollmentModels.Phase
-	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
+	if err == nil {
+		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
@@ -443,7 +435,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 			phases = list
 			return listErr
 		})
-	})
+	}
 	if err != nil {
 		renderPublicEnrollmentError(w, r, err)
 		return

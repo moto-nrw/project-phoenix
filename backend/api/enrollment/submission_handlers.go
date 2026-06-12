@@ -122,36 +122,32 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		result    *enrollmentService.SubmitResult
 		submitErr error
 	)
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if err != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(tenantCtx context.Context, _ bun.Tx) error {
+			// Captcha gate runs before the DB write.
+			if err := rs.CaptchaService.Verify(tenantCtx, wireReq.CaptchaToken, remoteIP); err != nil {
+				submitErr = fmt.Errorf("captcha: %w", err)
+				return nil
+			}
 
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+			serviceReq, parseErr := buildServiceRequest(wireReq, schoolID, remoteIP)
+			if parseErr != nil {
+				submitErr = parseErr
+				return nil
+			}
 
-		// Captcha gate runs before the DB write.
-		if err := rs.CaptchaService.Verify(tenantCtx, wireReq.CaptchaToken, remoteIP); err != nil {
-			submitErr = fmt.Errorf("captcha: %w", err)
+			// Hand off to the service; it manages its own inner tx via
+			// TxHandler.RunInTx, picking up the tenant context we set.
+			res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
+			if err != nil {
+				submitErr = err
+				return nil
+			}
+			result = res
 			return nil
-		}
-
-		serviceReq, parseErr := buildServiceRequest(wireReq, school.ID, remoteIP)
-		if parseErr != nil {
-			submitErr = parseErr
-			return nil
-		}
-
-		// Hand off to the service; it manages its own inner tx via
-		// TxHandler.RunInTx, picking up the tenant context we set.
-		res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
-		if err != nil {
-			submitErr = err
-			return nil
-		}
-		result = res
-		return nil
-	})
+		})
+	}
 	if resolveErr != nil {
 		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
 		return

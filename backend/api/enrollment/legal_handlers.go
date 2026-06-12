@@ -60,13 +60,9 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	// legally relevant blocks — on a real failure the endpoint must fail
 	// rather than let the form collect an incomplete legal state.
 	var legalErr error
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			var (
 				texts enrollmentService.LegalTexts
 				err   error
@@ -88,7 +84,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 			out.Blocks = texts.Blocks
 			return nil
 		})
-	})
+	}
 	if resolveErr != nil {
 		if legalErr != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", legalErr)))

@@ -139,13 +139,9 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	}
 
 	var schema *enrollmentModels.FormSchema
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
@@ -169,7 +165,7 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 			schema = s
 			return nil
 		})
-	})
+	}
 	if resolveErr != nil {
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
@@ -210,18 +206,14 @@ func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) 
 	}
 
 	out := PublicCaptchaConfigResponse{}
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, schoolErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		return tenant.WithTenantTx(tenantCtx, rs.db, school.ID, func(txCtx context.Context, _ bun.Tx) error {
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			out.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			out.SiteKey = rs.CaptchaService.SiteKey(txCtx)
 			return nil
 		})
-	})
+	}
 	if resolveErr != nil {
 		renderPublicEnrollmentError(w, r, resolveErr)
 		return
