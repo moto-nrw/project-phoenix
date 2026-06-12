@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -52,6 +53,7 @@ type createTemplateRequest struct {
 	WeekPattern      *int    `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64  `json:"education_group_id,omitempty"`
+	ListKind         *string `json:"list_kind,omitempty"`
 	MaterializeFrom  *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo    *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
 	StudentIDs       []int64 `json:"student_ids,omitempty"`
@@ -91,6 +93,20 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+func normalizeTemplateListKind(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	kind := strings.TrimSpace(*raw)
+	if kind == "" {
+		return nil, nil
+	}
+	if !activitiesModel.IsValidListKind(kind) {
+		return nil, fmt.Errorf("invalid list_kind %q", kind)
+	}
+	return &kind, nil
+}
+
 // createTemplateResponse describes what the caller needs to update the
 // planner UI: the new template id, the schedule ids, and (if materialize
 // was requested) the count of fresh instances on the grid.
@@ -122,6 +138,11 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	if !isValidActivityType(req.Type) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+		return
+	}
+	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -203,6 +224,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		PlannedRoomID:    &roomIDCopy,
 		Type:             req.Type,
 		EducationGroupID: req.EducationGroupID,
+		ListKind:         listKind,
 		IsTemplate:       true,
 		CreatedBy:        createdByPtr,
 	}

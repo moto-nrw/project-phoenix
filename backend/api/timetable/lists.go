@@ -30,6 +30,7 @@ type slotListRequest struct {
 	PickupCohort string   `json:"pickup_cohort,omitempty"`
 	Source       string   `json:"source"`
 	Format       string   `json:"format,omitempty"`
+	ListKind     string   `json:"list_kind,omitempty"`
 	InstanceIDs  []string `json:"instance_ids,omitempty"`
 	GroupIDs     []string `json:"group_ids,omitempty"`
 	Classes      []string `json:"classes,omitempty"`
@@ -78,11 +79,21 @@ func (rs *Resource) parseSlotListParams(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("grouping %q is not valid for target %q", req.GroupBy, req.Target)))
 		return slotlists.Params{}, false
 	}
+	listKind := slotlists.ListKind(req.ListKind)
+	if target != slotlists.TargetSlots && listKind != slotlists.ListKindNone {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("list_kind is not valid for target %q", req.Target)))
+		return slotlists.Params{}, false
+	}
+	if !listKind.Valid() {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unknown list_kind %q", req.ListKind)))
+		return slotlists.Params{}, false
+	}
 	return slotlists.Params{
 		Date:           date,
 		Target:         target,
 		PickupCohort:   pickupCohort,
 		Source:         source,
+		ListKind:       listKind,
 		InstanceIDs:    instanceIDs,
 		InstanceIDsSet: req.InstanceIDs != nil,
 		GroupIDs:       groupIDs,

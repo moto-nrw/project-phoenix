@@ -15,6 +15,7 @@ package slotlists
 
 import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
 // Target selects which data domain a list is built from.
@@ -49,6 +50,33 @@ func (t Target) Label() string {
 	default:
 		return string(t)
 	}
+}
+
+// ListKind selects a stable timetable list classification on activity
+// templates/instances. Empty means the manual "Freie Angebotsauswahl" flow.
+type ListKind string
+
+const (
+	ListKindNone         ListKind = ""
+	ListKindEdgeHours    ListKind = activitiesModel.ListKindEdgeHours
+	ListKindLearningTime ListKind = activitiesModel.ListKindLearningTime
+	ListKindActivity     ListKind = activitiesModel.ListKindActivity
+	ListKindMensa        ListKind = activitiesModel.ListKindMensa
+)
+
+var AllListKinds = []ListKind{
+	ListKindEdgeHours,
+	ListKindLearningTime,
+	ListKindActivity,
+	ListKindMensa,
+}
+
+func (k ListKind) Valid() bool {
+	return activitiesModel.IsValidListKind(string(k))
+}
+
+func (k ListKind) Label() string {
+	return activitiesModel.ListKindLabel(string(k))
 }
 
 // PickupCohort selects the configured Ganztag pickup bucket.
@@ -158,11 +186,15 @@ type Params struct {
 	PickupCohort PickupCohort
 	// InstanceIDs restricts a slot-based list to those activity instances (the
 	// selected slots). Empty means all non-cancelled slots on the selected date.
-	// Ignored for pickup cohorts.
+	// Ignored for pickup cohorts. When ListKind is set, this optionally
+	// restricts within that list kind.
 	InstanceIDs []int64
 	// InstanceIDsSet distinguishes an omitted instance_ids field (all slots)
 	// from an explicit empty array (no slots selected).
 	InstanceIDsSet bool
+	// ListKind restricts a slot-based list to instances explicitly classified
+	// for that list kind. Empty keeps the manual free-offer selection.
+	ListKind ListKind
 	// GroupIDs restricts to children of those education groups. Applies to
 	// every target, including Ganztag pickup cohorts.
 	GroupIDs []int64
@@ -233,6 +265,7 @@ type Result struct {
 	Date         string        `json:"date"`
 	Target       Target        `json:"target"`
 	PickupCohort PickupCohort  `json:"pickup_cohort,omitempty"`
+	ListKind     ListKind      `json:"list_kind,omitempty"`
 	ListLabel    string        `json:"list_label"`
 	Source       Source        `json:"source"`
 	GroupBy      GroupBy       `json:"group_by,omitempty"`
@@ -253,8 +286,17 @@ type PickupCohortOption struct {
 	RowCount  int          `json:"row_count"`
 }
 
+type ListKindOption struct {
+	Kind      ListKind `json:"kind"`
+	Label     string   `json:"label"`
+	Available bool     `json:"available"`
+	SlotCount int      `json:"slot_count"`
+	RowCount  int      `json:"row_count"`
+}
+
 type OptionsResult struct {
 	Date          string               `json:"date"`
 	Slots         []Slot               `json:"slots"`
 	PickupCohorts []PickupCohortOption `json:"pickup_cohorts"`
+	ListKinds     []ListKindOption     `json:"list_kinds"`
 }

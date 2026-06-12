@@ -532,6 +532,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Stundenplan` öffnen und die Planungsperiode wählen.",
           "Auf `Termin` klicken und Zeit, Raum, Personal und Kinder eintragen.",
+          "Bei Bedarf eine `Listenart` setzen, z. B. Mensa, Lernzeit, AG-Angebote oder Randstunden. Diese Zuordnung steuert später die passenden Tageslisten.",
           "Für wiederkehrende Angebote eine Serie anlegen. Bei Bedarf die passende `Klassengruppe` setzen, damit Phoenix später Abweichungen im erwarteten Dienstplan markieren kann.",
           "`Termine erzeugen` nutzen, damit die Serie in konkrete Termine der Planungsperiode übernommen wird.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Jetzt geplant` und werden dort mit `Jetzt starten` begonnen.",
@@ -552,9 +553,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Erzeugt druckbare Tageslisten aus Angeboten, Ganztag und dokumentierter Anwesenheit.",
         steps: [
           "`Tageslisten` in der Seitenleiste öffnen.",
-          "Als Quelle `Freie Angebotsauswahl` wählen oder eine Ganztagsliste wie `Ganztag bis 14:30`.",
+          "Als Quelle `Freie Angebotsauswahl`, eine Listenart wie `Mensa` oder `Lernzeit` oder eine Ganztagsliste wie `Ganztag bis 14:30` wählen.",
           "Datum prüfen (vorausgewählt ist heute).",
-          "Unter `Freie Angebotsauswahl` ein oder mehrere Angebote des Tages auswählen. Ohne Einschränkung nutzt Phoenix alle aktiven Angebote des gewählten Datums.",
+          "Unter `Freie Angebotsauswahl` ein oder mehrere Angebote des Tages auswählen. Ohne Einschränkung nutzt Phoenix alle aktiven Angebote des gewählten Datums. Bei einer Listenart nimmt Phoenix automatisch die Termine, denen diese Listenart im Stundenplan zugeordnet wurde.",
           "Datenbasis wählen: `Plan` (laut Tagesplanung), `Ist` (dokumentierte Anwesenheit am Datum) oder `Abgleich` (geplant, anwesend, fehlend, abgemeldet und ungeplant in einer Liste). `Abgemeldet` ist ein berechtigtes Fehlen und wird vom unklaren `Fehlt` getrennt gezählt.",
           "Bei Bedarf über die Filter weiter eingrenzen: `Gruppe` oder `Klasse`.",
           "Optional über `Gruppieren` die Liste in Abschnitte unterteilen, z. B. nach `Klasse`, `Angebot`, `Raum` oder `Abholzeit`. Die Abschnitte erscheinen auch im PDF und XLSX.",
@@ -563,11 +564,11 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Woher kommen die Daten?",
-          body: "Tageslisten entstehen aus den ausgewählten Angeboten des Datums. Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten aufgenommen. Ganztagslisten entstehen aus den hinterlegten Abholzeiten und den unter Einstellungen -> Betrieb -> Stundenplan gepflegten Grenzen. Die Seite zeigt die Datenherkunft jeweils an. Die Notfallliste bleibt davon unabhängig.",
+          body: "Tageslisten entstehen aus den ausgewählten Angeboten des Datums oder aus der am Termin hinterlegten Listenart. Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten aufgenommen. Ganztagslisten entstehen aus den hinterlegten Abholzeiten und den unter Einstellungen -> Betrieb -> Stundenplan gepflegten Grenzen. Die Seite zeigt die Datenherkunft jeweils an. Die Notfallliste bleibt davon unabhängig.",
           tone: "blue",
         },
         screenshot:
-          "Tageslisten-Seite mit Quellen-Auswahl, Datum, Datenbasis Plan/Ist/Abgleich, enthaltenen Angeboten, Gruppierung, Gruppen-/Klassen-Filter und Vorschau-Tabelle.",
+          "Tageslisten-Seite mit Quellen-Auswahl, Listenarten, Datum, Datenbasis Plan/Ist/Abgleich, enthaltenen Angeboten, Gruppierung, Gruppen-/Klassen-Filter und Vorschau-Tabelle.",
       },
       {
         id: "zeiterfassung",

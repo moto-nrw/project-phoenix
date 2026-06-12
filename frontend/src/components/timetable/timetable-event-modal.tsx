@@ -30,6 +30,7 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   EnrichedInstance,
+  TimetableListKind,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -67,6 +68,7 @@ interface BackendGroupsEnvelope {
 }
 
 type RepeatMode = "none" | "weekly" | "biweekly";
+type ListKindFormValue = "" | TimetableListKind;
 
 interface EventFormState {
   title: string;
@@ -75,6 +77,7 @@ interface EventFormState {
   endTime: string;
   roomId: string;
   type: ActivityType;
+  listKind: ListKindFormValue;
   categoryId: string;
   educationGroupId: string;
   notes: string;
@@ -120,6 +123,16 @@ const TYPE_OPTIONS: Array<{
   { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
 ];
 
+const LIST_KIND_OPTIONS: Array<{
+  value: TimetableListKind;
+  label: string;
+}> = [
+  { value: "edge_hours", label: "Randstunden" },
+  { value: "learning_time", label: "Lernzeit" },
+  { value: "activity", label: "AG-Angebote" },
+  { value: "mensa", label: "Mensa" },
+];
+
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
   { value: "weekly", label: "Jede Woche" },
@@ -152,6 +165,7 @@ function emptyForm(
     endTime: "13:00",
     roomId: "",
     type: "care",
+    listKind: "",
     categoryId: "",
     educationGroupId: "",
     notes: "",
@@ -177,6 +191,7 @@ function formFromInstance(
     endTime: instance.endTime,
     roomId: instance.roomId,
     type: instance.activityType,
+    listKind: instance.listKind ?? "",
     categoryId: "",
     educationGroupId: "",
     notes: instance.notes ?? "",
@@ -205,6 +220,7 @@ function formFromSeries(
     endTime: firstSchedule?.endTime ?? "13:00",
     roomId: series.roomId ?? "",
     type: series.type,
+    listKind: series.listKind ?? "",
     categoryId: series.categoryId,
     educationGroupId: series.educationGroupId ?? "",
     notes: "",
@@ -458,6 +474,7 @@ export function TimetableEventModal({
       room_id: roomId,
       notes: form.notes.trim() || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
+      list_kind: form.listKind || undefined,
       staff_ids: form.staffIds.map(Number),
       student_ids: form.studentIds.map(Number),
     }) satisfies CreateInstanceBody;
@@ -468,6 +485,7 @@ export function TimetableEventModal({
   ): CreateTemplateBody => ({
     name: form.title.trim(),
     type: form.type,
+    list_kind: form.listKind || undefined,
     weekdays: form.weekdays,
     start_time: form.startTime,
     end_time: form.endTime,
@@ -688,6 +706,24 @@ export function TimetableEventModal({
                     {room.building
                       ? `${room.building} - ${room.name}`
                       : room.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Listenart" htmlFor="event_list_kind">
+              <select
+                id="event_list_kind"
+                value={form.listKind}
+                onChange={(event) =>
+                  update("listKind", event.target.value as ListKindFormValue)
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+              >
+                <option value="">Keine Zuordnung</option>
+                {LIST_KIND_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>

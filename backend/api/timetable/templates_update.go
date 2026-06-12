@@ -28,6 +28,7 @@ type updateTemplateRequest struct {
 	WeekPattern      *int    `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64  `json:"education_group_id,omitempty"`
+	ListKind         *string `json:"list_kind,omitempty"`
 	StudentIDs       []int64 `json:"student_ids,omitempty"`
 	StaffIDs         []int64 `json:"staff_ids,omitempty"`
 	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
@@ -121,6 +122,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
 		return
 	}
+	listKind, err := normalizeTemplateListKind(req.ListKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	startTime, err := parseClockTime(req.StartTime)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_time format, expected HH:MM")))
@@ -183,6 +189,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		Set("category_id = ?", req.CategoryID).
 		Set("planned_room_id = ?", req.RoomID).
 		Set("education_group_id = ?", req.EducationGroupID).
+		Set("list_kind = ?", listKind).
 		Set("max_participants = ?", maxParticipants).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).

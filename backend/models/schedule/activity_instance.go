@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -52,6 +53,7 @@ type ActivityInstance struct {
 	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
 	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
+	ListKind         *string       `bun:"list_kind" json:"list_kind,omitempty"`
 	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
 	Notes            *string       `bun:"notes" json:"notes,omitempty"`
 	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
@@ -109,6 +111,9 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if !IsValidInstanceStatus(i.Status) {
 		return errors.New("invalid instance status")
+	}
+	if i.ListKind != nil && !activitiesModel.IsValidListKind(*i.ListKind) {
+		return errors.New("invalid list kind")
 	}
 	return nil
 }

@@ -265,6 +265,9 @@ func normalizeHHMM(value string) (string, error) {
 
 func (s *service) listLabel(ctx context.Context, params Params) (string, error) {
 	if params.Target == TargetSlots {
+		if params.ListKind != ListKindNone {
+			return params.ListKind.Label(), nil
+		}
 		if len(params.InstanceIDs) == 1 {
 			return "Ausgewähltes Angebot", nil
 		}
@@ -286,6 +289,9 @@ func (s *service) listLabel(ctx context.Context, params Params) (string, error) 
 
 func (s *service) provenance(params Params, listLabel string) string {
 	plan := "Geplante Kinder laut Tagesplanung"
+	if params.Target == TargetSlots && params.ListKind != ListKindNone {
+		plan = "Geplante Kinder laut Tagesplanung (" + listLabel + ")"
+	}
 	if params.Target == TargetPickupCohort {
 		plan = "Geplante Kinder laut Tagesplanung und Abholzeiten (" + listLabel + ")"
 	}
@@ -317,6 +323,12 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	if params.Target == TargetPickupCohort && !params.PickupCohort.Valid() {
 		return nil, fmt.Errorf("unknown pickup cohort %q", params.PickupCohort)
 	}
+	if !params.ListKind.Valid() {
+		return nil, fmt.Errorf("unknown list kind %q", params.ListKind)
+	}
+	if params.Target != TargetSlots && params.ListKind != ListKindNone {
+		return nil, fmt.Errorf("list kind %q is not valid for target %q", params.ListKind, params.Target)
+	}
 	if !params.GroupBy.ValidFor(params.Target) {
 		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
 	}
@@ -331,6 +343,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 		Date:         params.Date.String(),
 		Target:       params.Target,
 		PickupCohort: params.PickupCohort,
+		ListKind:     params.ListKind,
 		ListLabel:    listLabel,
 		Source:       params.Source,
 		GroupBy:      params.GroupBy,
@@ -376,7 +389,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 }
 
 func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*OptionsResult, error) {
-	result, err := s.BuildList(ctx, Params{
+	slotResult, err := s.BuildList(ctx, Params{
 		Date:   date,
 		Target: TargetSlots,
 		Source: SourcePlanned,
@@ -403,7 +416,27 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 			RowCount:  rowCount,
 		})
 	}
-	return &OptionsResult{Date: date.String(), Slots: result.Slots, PickupCohorts: cohorts}, nil
+	listKinds := make([]ListKindOption, 0, len(AllListKinds))
+	for _, kind := range AllListKinds {
+		result, err := s.BuildList(ctx, Params{
+			Date:     date,
+			Target:   TargetSlots,
+			ListKind: kind,
+			Source:   SourcePlanned,
+		})
+		if err != nil {
+			return nil, err
+		}
+		slotCount := selectableSlotCount(result.Slots)
+		listKinds = append(listKinds, ListKindOption{
+			Kind:      kind,
+			Label:     kind.Label(),
+			Available: slotCount > 0,
+			SlotCount: slotCount,
+			RowCount:  len(result.Rows),
+		})
+	}
+	return &OptionsResult{Date: date.String(), Slots: slotResult.Slots, PickupCohorts: cohorts, ListKinds: listKinds}, nil
 }
 
 // applyGrouping stamps each row's GroupTitle from the chosen dimension. With
@@ -524,6 +557,9 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 	roomCache := map[int64]string{}
 	entries := []mergedEntry{}
 	for _, inst := range instances {
+		if !instanceMatchesListKind(inst, params.ListKind) {
+			continue
+		}
 		slotLabel := fmt.Sprintf("%s (%s–%s)", inst.Title, inst.StartTime.Format(timeLayout), inst.EndTime.Format(timeLayout))
 		roomName, err := s.lookupRoomName(ctx, inst.RoomID, roomCache)
 		if err != nil {
@@ -579,6 +615,16 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		}
 	}
 	return entries, nil
+}
+
+func instanceMatchesListKind(inst *scheduleModel.ActivityInstance, listKind ListKind) bool {
+	if listKind == ListKindNone {
+		return true
+	}
+	if inst == nil || inst.ListKind == nil {
+		return false
+	}
+	return *inst.ListKind == string(listKind)
 }
 
 // lookupRoomName resolves a room's display name, cached per build. A missing
@@ -982,6 +1028,10 @@ func exportFilters(params Params, result *Result) []string {
 func includedSummary(params Params, result *Result) string {
 	if params.Target == TargetPickupCohort {
 		return result.ListLabel
+	}
+	if params.ListKind != ListKindNone {
+		count := selectableSlotCount(result.Slots)
+		return fmt.Sprintf("%s (%d %s)", result.ListLabel, count, plural(count, "Termin", "Termine"))
 	}
 	count := selectableSlotCount(result.Slots)
 	if params.InstanceIDsSet {

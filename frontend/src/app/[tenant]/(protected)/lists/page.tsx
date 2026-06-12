@@ -4,13 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
+  AlarmClock,
+  BookOpen,
   Check,
   Clock3,
   Clock4,
   Download,
   FileSpreadsheet,
+  Palette,
   Printer,
   Rows3,
+  Utensils,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -21,12 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import type { FilterConfig } from "~/components/ui/page-header";
 import { useTenantRouter } from "~/lib/tenant-router";
-import {
-  formatDate,
-  parseISODate,
-  toISODate,
-  todayISO,
-} from "~/lib/date-helpers";
+import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -34,10 +33,12 @@ import {
   fetchSlotListOptions,
   fetchSlotListPreview,
   groupByOptionsFor,
+  SLOT_LIST_KIND_LABELS,
   SLOT_LIST_GROUP_BY_LABELS,
   SLOT_LIST_SOURCE_LABELS,
   type SlotListFormat,
   type SlotListGroupBy,
+  type SlotListKind,
   type SlotListOptionsResult,
   type SlotListPickupCohort,
   type SlotListResult,
@@ -49,9 +50,10 @@ import {
 const logger = createLogger({ component: "SlotListsPage" });
 
 interface SelectionOption {
-  id: "slots" | SlotListPickupCohort;
+  id: "slots" | SlotListPickupCohort | SlotListKind;
   target: SlotListTarget;
   pickupCohort?: SlotListPickupCohort;
+  listKind?: SlotListKind;
   label: string;
   description: string;
   icon: LucideIcon;
@@ -60,11 +62,36 @@ interface SelectionOption {
 // One short, single-line description each so every card is the same height.
 const SELECTION_OPTIONS: SelectionOption[] = [
   {
-    id: "slots",
+    id: "edge_hours",
     target: "slots",
-    label: "Freie Angebotsauswahl",
-    description: "Angebote des Tages auswählen",
-    icon: Rows3,
+    listKind: "edge_hours",
+    label: SLOT_LIST_KIND_LABELS.edge_hours,
+    description: "Über Listenart zugeordnet",
+    icon: AlarmClock,
+  },
+  {
+    id: "learning_time",
+    target: "slots",
+    listKind: "learning_time",
+    label: SLOT_LIST_KIND_LABELS.learning_time,
+    description: "Über Listenart zugeordnet",
+    icon: BookOpen,
+  },
+  {
+    id: "activity",
+    target: "slots",
+    listKind: "activity",
+    label: SLOT_LIST_KIND_LABELS.activity,
+    description: "Über Listenart zugeordnet",
+    icon: Palette,
+  },
+  {
+    id: "mensa",
+    target: "slots",
+    listKind: "mensa",
+    label: SLOT_LIST_KIND_LABELS.mensa,
+    description: "Über Listenart zugeordnet",
+    icon: Utensils,
   },
   {
     id: "short_day",
@@ -82,10 +109,18 @@ const SELECTION_OPTIONS: SelectionOption[] = [
     description: "Abholung nach 14:30 Uhr",
     icon: Clock4,
   },
+  {
+    id: "slots",
+    target: "slots",
+    label: "Freie Angebotsauswahl",
+    description: "Angebote des Tages auswählen",
+    icon: Rows3,
+  },
 ];
 
 const SOURCES: SlotListSource[] = ["planned", "actual", "reconciliation"];
 const CANCELLED_SLOT_STATUS = "cancelled";
+const PREVIEW_PAGE_SIZE = 50;
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const SOURCE_TO_URL: Record<SlotListSource, string> = {
@@ -116,12 +151,20 @@ const URL_TO_GROUP_BY: Record<string, SlotListGroupBy> = {
 
 const SELECTION_TO_URL: Record<SelectionOption["id"], string> = {
   slots: "angebote",
+  edge_hours: "randstunden",
+  learning_time: "lernzeit",
+  activity: "ag-angebote",
+  mensa: "mensa",
   short_day: "ganztag-1430",
   long_day: "ganztag-1600",
 };
 
 const URL_TO_SELECTION: Record<string, SelectionOption["id"]> = {
   angebote: "slots",
+  randstunden: "edge_hours",
+  lernzeit: "learning_time",
+  "ag-angebote": "activity",
+  mensa: "mensa",
   "ganztag-1430": "short_day",
   "ganztag-1600": "long_day",
 };
@@ -133,6 +176,7 @@ interface QueryParamsLike {
 interface InitialListState {
   target: SlotListTarget;
   pickupCohort: SlotListPickupCohort;
+  listKind: SlotListKind | "";
   source: SlotListSource;
   groupBy: SlotListGroupBy;
   dateISO: string;
@@ -168,61 +212,6 @@ function StatusBadge({
       <span style={{ color }}>{row.status_label}</span>
     </span>
   );
-}
-
-interface CounterChip {
-  label: string;
-  value: number;
-  color: string;
-}
-
-function buildCounterChips(result: SlotListResult): CounterChip[] {
-  switch (result.source) {
-    case "planned":
-      return [
-        {
-          label: "Geplant",
-          value: result.counters.planned,
-          color: LOCATION_COLORS.OTHER_ROOM,
-        },
-      ];
-    case "actual":
-      return [
-        {
-          label: "Anwesend",
-          value: result.counters.present,
-          color: LOCATION_COLORS.GROUP_ROOM,
-        },
-      ];
-    default:
-      return [
-        {
-          label: "Geplant",
-          value: result.counters.planned,
-          color: LOCATION_COLORS.OTHER_ROOM,
-        },
-        {
-          label: "Anwesend",
-          value: result.counters.present,
-          color: LOCATION_COLORS.GROUP_ROOM,
-        },
-        {
-          label: "Fehlt",
-          value: result.counters.missing,
-          color: LOCATION_COLORS.HOME,
-        },
-        {
-          label: "Abgemeldet",
-          value: result.counters.excused,
-          color: LOCATION_COLORS.EXCUSED,
-        },
-        {
-          label: "Ungeplant",
-          value: result.counters.unplanned,
-          color: LOCATION_COLORS.SCHOOLYARD,
-        },
-      ];
-  }
 }
 
 // nextStringSelection collapses a multi-select to null ("all") when the chosen
@@ -271,6 +260,7 @@ function parseInitialListState(
     defaultSelectionOption();
   const target = option.target;
   const pickupCohort = option.pickupCohort ?? "short_day";
+  const listKind = option.listKind ?? "";
   const source = URL_TO_SOURCE[searchParams.get("basis") ?? ""] ?? "planned";
   const rawGroupBy =
     URL_TO_GROUP_BY[searchParams.get("gruppieren") ?? ""] ?? "";
@@ -282,6 +272,7 @@ function parseInitialListState(
   return {
     target,
     pickupCohort,
+    listKind,
     source,
     groupBy: groupByOptionsFor(target).includes(rawGroupBy) ? rawGroupBy : "",
     dateISO,
@@ -295,14 +286,21 @@ function serializeListState(state: InitialListState): string {
   const params = new URLSearchParams();
   params.set("datum", state.dateISO);
 
-  const selectionId = state.target === "slots" ? "slots" : state.pickupCohort;
+  const selectionId =
+    state.target === "pickup_cohort"
+      ? state.pickupCohort
+      : state.listKind || "slots";
   params.set("quelle", SELECTION_TO_URL[selectionId]);
   params.set("basis", SOURCE_TO_URL[state.source]);
 
   if (state.groupBy) {
     params.set("gruppieren", GROUP_BY_TO_URL[state.groupBy]);
   }
-  if (state.target === "slots" && state.selectedSlotIds !== null) {
+  if (
+    state.target === "slots" &&
+    !state.listKind &&
+    state.selectedSlotIds !== null
+  ) {
     params.set(
       "angebote",
       state.selectedSlotIds.length === 0
@@ -320,10 +318,6 @@ function serializeListState(state: InitialListState): string {
   return params.toString();
 }
 
-function offerCountLabel(count: number): string {
-  return `${count} Angebot${count === 1 ? "" : "e"}`;
-}
-
 export default function SlotListsPage() {
   const { status: authStatus } = useSession({ required: true });
   const searchParams = useSearchParams();
@@ -335,6 +329,9 @@ export default function SlotListsPage() {
   const [target, setTarget] = useState<SlotListTarget>(initialState.target);
   const [pickupCohort, setPickupCohort] = useState<SlotListPickupCohort>(
     initialState.pickupCohort,
+  );
+  const [listKind, setListKind] = useState<SlotListKind | "">(
+    initialState.listKind,
   );
   const [source, setSource] = useState<SlotListSource>(initialState.source);
   const [groupBy, setGroupBy] = useState<SlotListGroupBy>(initialState.groupBy);
@@ -359,15 +356,17 @@ export default function SlotListsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const isPickupBased = target === "pickup_cohort";
+  const isManualSlotSelection = target === "slots" && listKind === "";
 
   const request = useMemo(
     () => ({
       date: dateISO,
       target,
       ...(isPickupBased ? { pickup_cohort: pickupCohort } : {}),
+      ...(!isPickupBased && listKind ? { list_kind: listKind } : {}),
       source,
       ...(groupBy ? { group_by: groupBy } : {}),
-      ...(!isPickupBased && selectedSlotIds !== null
+      ...(isManualSlotSelection && selectedSlotIds !== null
         ? { instance_ids: selectedSlotIds }
         : {}),
       ...(selectedGroupIds ? { group_ids: selectedGroupIds } : {}),
@@ -378,6 +377,8 @@ export default function SlotListsPage() {
       target,
       pickupCohort,
       isPickupBased,
+      isManualSlotSelection,
+      listKind,
       source,
       groupBy,
       selectedSlotIds,
@@ -390,6 +391,7 @@ export default function SlotListsPage() {
       const query = serializeListState({
         target,
         pickupCohort,
+        listKind,
         source,
         groupBy,
         dateISO,
@@ -406,6 +408,7 @@ export default function SlotListsPage() {
       source,
       groupBy,
       dateISO,
+      listKind,
       selectedSlotIds,
       selectedGroupIds,
       selectedClasses,
@@ -417,6 +420,7 @@ export default function SlotListsPage() {
     const next = parseInitialListState(searchParams);
     setTarget(next.target);
     setPickupCohort(next.pickupCohort);
+    setListKind(next.listKind);
     setSource(next.source);
     setGroupBy(next.groupBy);
     setDateISO(next.dateISO);
@@ -476,7 +480,9 @@ export default function SlotListsPage() {
     (option: SelectionOption) => {
       setTarget(option.target);
       const nextPickupCohort = option.pickupCohort ?? pickupCohort;
+      const nextListKind = option.listKind ?? "";
       if (option.pickupCohort) setPickupCohort(option.pickupCohort);
+      setListKind(nextListKind);
       // slot/room/pickup_time groupings are target-specific, so a switch can
       // invalidate the current choice — reset to a flat list.
       setGroupBy("");
@@ -484,6 +490,7 @@ export default function SlotListsPage() {
       replaceListUrl({
         target: option.target,
         pickupCohort: nextPickupCohort,
+        listKind: nextListKind,
         groupBy: "",
         selectedSlotIds: null,
         selectedGroupIds: null,
@@ -735,42 +742,17 @@ export default function SlotListsPage() {
   const selectedOption = SELECTION_OPTIONS.find(
     (option) =>
       option.target === target &&
-      (option.target === "slots" || option.pickupCohort === pickupCohort),
+      (option.target === "pickup_cohort"
+        ? option.pickupCohort === pickupCohort
+        : (option.listKind ?? "") === listKind),
   );
   const selectedListLabel =
     result?.list_label ??
     (isPickupBased ? pickupOptionByCohort.get(pickupCohort)?.label : null) ??
     selectedOption?.label ??
     "";
-  const includedMeta = result
-    ? result.target === "pickup_cohort"
-      ? result.list_label
-      : selectedSlotIds === null
-        ? offerCountLabel(selectableSlotIds.length)
-        : offerCountLabel(selectedSlotIds.length)
-    : "";
-  const sourceMeta = result
-    ? `${SLOT_LIST_SOURCE_LABELS[result.source]} – ${result.provenance}`
-    : "";
-  const groupByMeta = groupBy
-    ? SLOT_LIST_GROUP_BY_LABELS[groupBy]
-    : "Nicht gruppiert";
-
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <header className="mb-6">
-        <p className="text-sm font-bold tracking-[0.08em] text-[#3F6F12] uppercase">
-          Listen &amp; Exporte
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl">
-          Tageslisten
-        </h1>
-        <p className="mt-2 max-w-3xl text-base leading-7 text-gray-600">
-          Plan, Anwesenheit und Abgleich für Angebote und Ganztag prüfen, dann
-          drucken oder exportieren. Die Notfallliste bleibt davon unberührt.
-        </p>
-      </header>
-
       {/* Selection: source + date + data mode */}
       <section
         aria-label="Listenauswahl"
@@ -784,20 +766,35 @@ export default function SlotListsPage() {
             const Icon = option.icon;
             const selected =
               option.target === target &&
-              (option.target === "slots" ||
-                option.pickupCohort === pickupCohort);
+              (option.target === "pickup_cohort"
+                ? option.pickupCohort === pickupCohort
+                : (option.listKind ?? "") === listKind);
             const availability = option.pickupCohort
               ? pickupOptionByCohort.get(option.pickupCohort)
               : null;
-            const label = availability?.label ?? option.label;
-            const hasAvailability = Boolean(availability);
+            const kindAvailability = option.listKind
+              ? listOptions?.list_kinds.find(
+                  (item) => item.kind === option.listKind,
+                )
+              : null;
+            const label =
+              availability?.label ?? kindAvailability?.label ?? option.label;
+            const hasAvailability = Boolean(availability ?? kindAvailability);
             const slotCount = listOptions?.slots.length ?? 0;
-            const available =
-              option.target === "slots"
+            const available = option.listKind
+              ? (kindAvailability?.available ?? true)
+              : option.target === "slots"
                 ? slotCount > 0
                 : (availability?.available ?? true);
-            const detail =
-              option.target === "slots"
+            const detail = option.listKind
+              ? kindAvailability
+                ? kindAvailability.slot_count > 0
+                  ? `${kindAvailability.slot_count} Termin${kindAvailability.slot_count === 1 ? "" : "e"} zugeordnet`
+                  : "Keine Termine zugeordnet"
+                : isOptionsLoading
+                  ? "Prüfe Datum…"
+                  : option.description
+              : option.target === "slots"
                 ? isOptionsLoading
                   ? "Prüfe Datum…"
                   : slotCount > 0
@@ -819,19 +816,19 @@ export default function SlotListsPage() {
                 onClick={() => pickSelection(option)}
                 aria-pressed={selected}
                 className={`flex h-full items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                  option.id === "slots" ? "col-span-2 lg:col-span-3" : ""
+                } ${
                   selected
                     ? "border-[#83CD2D]/50 bg-[#83CD2D]/10"
-                    : available || !hasAvailability
-                      ? "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-                      : "border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300"
+                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                 }`}
               >
                 <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-100 ${
                     selected
                       ? "bg-[#83CD2D]/20 text-[#3F6F12]"
                       : available || !hasAvailability
-                        ? "bg-gray-100 text-gray-500"
+                        ? "bg-white text-gray-500"
                         : "bg-white text-gray-400"
                   }`}
                 >
@@ -850,7 +847,7 @@ export default function SlotListsPage() {
           })}
         </div>
 
-        {target === "slots" ? (
+        {isManualSlotSelection ? (
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="mb-2 grid min-h-7 grid-cols-[auto_1fr_auto] items-center gap-2">
               <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -997,98 +994,53 @@ export default function SlotListsPage() {
         aria-label="Vorschau und Export"
         className="moto-content-surface mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {result
-              ? buildCounterChips(result).map((chip) => (
-                  <span
-                    key={chip.label}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-sm font-medium"
-                  >
-                    <span
-                      aria-hidden
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ backgroundColor: chip.color }}
-                    />
-                    <span style={{ color: chip.color }}>
-                      {chip.label}: {chip.value}
-                    </span>
-                  </span>
-                ))
-              : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              isLoading={isExporting}
-              loadingText="Erstelle PDF…"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("pdf", "print")}
-              className="gap-2"
-            >
-              <Printer className="h-4 w-4" aria-hidden />
-              Drucken
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("pdf", "download")}
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              PDF herunterladen
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isExporting || isLoading || !result}
-              onClick={() => void handleExport("xlsx", "download")}
-              className="gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" aria-hidden />
-              XLSX
-            </Button>
+        <div className="space-y-3 border-b border-gray-100 pb-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="min-w-0">
+              {/* Standard filters that narrow the list (offering / group / class) */}
+              {filterConfigs.length > 0 ? (
+                <DesktopFilters filters={filterConfigs} />
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                isLoading={isExporting}
+                loadingText="Erstelle PDF…"
+                disabled={isExporting || isLoading || !result}
+                onClick={() => void handleExport("pdf", "print")}
+                className="gap-2"
+              >
+                <Printer className="h-4 w-4" aria-hidden />
+                Drucken
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isExporting || isLoading || !result}
+                onClick={() => void handleExport("pdf", "download")}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" aria-hidden />
+                PDF herunterladen
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isExporting || isLoading || !result}
+                onClick={() => void handleExport("xlsx", "download")}
+                className="gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" aria-hidden />
+                XLSX
+              </Button>
+            </div>
           </div>
         </div>
-
-        {result ? (
-          <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-gray-100 pt-3 text-sm text-gray-600">
-            <div className="flex gap-1.5">
-              <dt className="font-medium text-gray-500">Datum:</dt>
-              <dd className="font-medium text-gray-900">
-                {formatDate(result.date)}
-              </dd>
-            </div>
-            <div className="flex min-w-0 gap-1.5">
-              <dt className="shrink-0 font-medium text-gray-500">
-                Datenbasis:
-              </dt>
-              <dd className="min-w-0 truncate font-medium text-gray-900">
-                {sourceMeta}
-              </dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt className="font-medium text-gray-500">Enthalten:</dt>
-              <dd className="font-medium text-gray-900">{includedMeta}</dd>
-            </div>
-            <div className="flex gap-1.5">
-              <dt className="font-medium text-gray-500">Gruppiert nach:</dt>
-              <dd className="font-medium text-gray-900">{groupByMeta}</dd>
-            </div>
-          </dl>
-        ) : null}
-
-        {/* Standard filters that narrow the list (offering / group / class) */}
-        {filterConfigs.length > 0 ? (
-          <div className="mt-3">
-            <DesktopFilters filters={filterConfigs} />
-          </div>
-        ) : null}
 
         <div className="mt-4">
           {groupBy && !isLoading && (result?.rows.length ?? 0) > 0 ? (
@@ -1115,11 +1067,14 @@ export default function SlotListsPage() {
               rows={result?.rows ?? []}
               getRowKey={(r) => `${r.slot}-${r.student_id}`}
               isLoading={isLoading}
+              pageSize={PREVIEW_PAGE_SIZE}
               emptyState={
                 <div className="py-8 text-center text-gray-500">
                   {isPickupBased
                     ? "Keine Kinder mit passender Abholzeit an diesem Tag."
-                    : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben ein oder mehrere Angebote.`}
+                    : listKind
+                      ? `Keine Kinder für „${selectedListLabel}“ an diesem Tag.`
+                      : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben ein oder mehrere Angebote.`}
                 </div>
               }
             />

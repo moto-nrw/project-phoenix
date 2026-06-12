@@ -94,6 +94,7 @@ type CreateInstanceInput struct {
 	Notes            *string
 	RoomID           int64
 	ActivityGroupID  *int64
+	ListKind         *string
 	IsSpontaneous    *bool
 	StaffIDs         []int64
 	StudentIDs       []int64
@@ -109,6 +110,7 @@ type UpdateInstanceInput struct {
 	Notes           *string
 	RoomID          int64
 	ActivityGroupID *int64
+	ListKind        *string
 	StaffIDs        []int64
 	StudentIDs      []int64
 }
@@ -407,6 +409,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		Notes:           req.Notes,
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
+		ListKind:        req.ListKind,
 		Status:          scheduleModel.InstanceStatusPlanned,
 		IsSpontaneous:   isSpontaneous,
 		CreatedBy:       req.CreatedByStaffID,
@@ -478,6 +481,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	instance.Notes = req.Notes
 	instance.RoomID = req.RoomID
 	instance.ActivityGroupID = req.ActivityGroupID
+	instance.ListKind = req.ListKind
 	instance.IsSpontaneous = req.ActivityGroupID == nil
 
 	if err := s.updateLifecycleColumns(
@@ -491,6 +495,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		"notes",
 		"room_id",
 		"activity_group_id",
+		"list_kind",
 		"is_spontaneous",
 	); err != nil {
 		return nil, &ScheduleError{Op: "update instance", Err: err}

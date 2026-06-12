@@ -408,6 +408,7 @@ func (s *materializationService) materializeTemplate(
 				StartTime:        effective.StartTime,
 				EndTime:          effective.EndTime,
 				RoomID:           effective.RoomID,
+				ListKind:         tmpl.ListKind,
 				Status:           schedule.InstanceStatusPlanned,
 				IsSpontaneous:    false,
 			}

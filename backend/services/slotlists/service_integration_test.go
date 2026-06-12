@@ -23,6 +23,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -155,11 +156,12 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 // buildMensaFixture seeds one active Mensa instance bridged to an active
 // group with three students: planned+present, planned-only, unplanned visitor.
 type mensaFixture struct {
-	db        *bun.DB
-	svc       slotlists.Service
-	plannedID int64 // planned + slot-overlapping visit → present
-	missingID int64 // planned, no visit → missing
-	walkInID  int64 // slot-overlapping visit only → unplanned
+	db         *bun.DB
+	svc        slotlists.Service
+	instanceID int64
+	plannedID  int64 // planned + slot-overlapping visit → present
+	missingID  int64 // planned, no visit → missing
+	walkInID   int64 // slot-overlapping visit only → unplanned
 }
 
 func buildMensaFixture(t *testing.T) *mensaFixture {
@@ -173,6 +175,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("SL-Room-%d", suffix))
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("SL-Act-%d", suffix))
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	listKind := activitiesModels.ListKindMensa
 
 	instance := &scheduleModels.ActivityInstance{
 		Date:            listDate,
@@ -183,6 +186,7 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 		RoomID:          room.ID,
 		Status:          scheduleModels.InstanceStatusActive,
 		ActiveGroupID:   &activeGroup.ID,
+		ListKind:        &listKind,
 	}
 	instance.SetTenantID(1)
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
@@ -223,11 +227,12 @@ func buildMensaFixture(t *testing.T) *mensaFixture {
 	})
 
 	return &mensaFixture{
-		db:        db,
-		svc:       newTestService(db),
-		plannedID: planned.ID,
-		missingID: missing.ID,
-		walkInID:  walkIn.ID,
+		db:         db,
+		svc:        newTestService(db),
+		instanceID: instance.ID,
+		plannedID:  planned.ID,
+		missingID:  missing.ID,
+		walkInID:   walkIn.ID,
 	}
 }
 
@@ -272,6 +277,70 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 	require.NotNil(t, walkInRow)
 	assert.Equal(t, "Ungeplant anwesend", walkInRow.StatusLabel)
 	assert.True(t, walkInRow.Unplanned)
+}
+
+func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
+	f := buildMensaFixture(t)
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+
+	room := testpkg.CreateTestRoom(t, f.db, fmt.Sprintf("SL-Other-Room-%d", suffix))
+	activity := testpkg.CreateTestActivityGroup(t, f.db, fmt.Sprintf("SL-Other-Act-%d", suffix))
+	listKind := activitiesModels.ListKindLearningTime
+	otherInstance := &scheduleModels.ActivityInstance{
+		Date:            listDate,
+		ActivityGroupID: &activity.ID,
+		Title:           fmt.Sprintf("Lernzeit %d", suffix),
+		StartTime:       time.Date(1, 1, 1, 13, 30, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+		RoomID:          room.ID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		ListKind:        &listKind,
+	}
+	otherInstance.SetTenantID(1)
+	_, err := f.db.NewInsert().Model(otherInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+
+	student := testpkg.CreateTestStudent(t, f.db, "SL-Other", fmt.Sprintf("O-%d", suffix), "3c")
+	row := &scheduleModels.InstanceStudent{
+		InstanceID: otherInstance.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	row.SetTenantID(1)
+	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(f.db).Create(ctx, row))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, f.db, "schedule.instance_students", row.ID)
+		testpkg.CleanupTableRecords(t, f.db, "schedule.activity_instances", otherInstance.ID)
+		testpkg.CleanupActivityFixtures(t, f.db, student.ID)
+		testpkg.CleanupActivityFixtures(t, f.db, 0, 0, 0, activity.ID, room.ID)
+	})
+
+	result, err := f.svc.BuildList(ctx, slotlists.Params{
+		Date:     listDate,
+		Target:   slotlists.TargetSlots,
+		ListKind: slotlists.ListKindMensa,
+		Source:   slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Slots, 1)
+	assert.Equal(t, f.instanceID, result.Slots[0].InstanceID)
+	require.Len(t, result.Rows, 2)
+	assert.NotNil(t, rowByStudent(result.Rows, f.plannedID))
+	assert.NotNil(t, rowByStudent(result.Rows, f.missingID))
+	assert.Nil(t, rowByStudent(result.Rows, student.ID))
+
+	options, err := f.svc.ListOptions(ctx, listDate)
+	require.NoError(t, err)
+	require.Len(t, options.ListKinds, 4)
+	byKind := map[slotlists.ListKind]slotlists.ListKindOption{}
+	for _, option := range options.ListKinds {
+		byKind[option.Kind] = option
+	}
+	assert.Equal(t, 1, byKind[slotlists.ListKindMensa].SlotCount)
+	assert.Equal(t, 2, byKind[slotlists.ListKindMensa].RowCount)
+	assert.Equal(t, 1, byKind[slotlists.ListKindLearningTime].SlotCount)
+	assert.Equal(t, 1, byKind[slotlists.ListKindLearningTime].RowCount)
 }
 
 func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing.T) {

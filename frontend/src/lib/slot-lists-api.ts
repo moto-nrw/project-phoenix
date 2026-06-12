@@ -6,6 +6,12 @@ export type SlotListTarget = "slots" | "pickup_cohort";
 
 export type SlotListPickupCohort = "short_day" | "long_day";
 
+export type SlotListKind =
+  | "edge_hours"
+  | "learning_time"
+  | "activity"
+  | "mensa";
+
 export type SlotListSource = "planned" | "actual" | "reconciliation";
 
 export type SlotListGroupBy = "" | "slot" | "room" | "class" | "pickup_time";
@@ -16,6 +22,7 @@ export interface SlotListRequest {
   date: string; // YYYY-MM-DD
   target: SlotListTarget;
   pickup_cohort?: SlotListPickupCohort;
+  list_kind?: SlotListKind;
   source: SlotListSource;
   /** Selected timetable slots. Omit = all selectable slots; [] = none selected. */
   instance_ids?: string[];
@@ -70,6 +77,7 @@ export interface SlotListResult {
   date: string;
   target: SlotListTarget;
   pickup_cohort?: SlotListPickupCohort;
+  list_kind?: SlotListKind;
   list_label: string;
   source: SlotListSource;
   group_by?: SlotListGroupBy;
@@ -88,11 +96,27 @@ interface SlotListPickupCohortOption {
   row_count: number;
 }
 
+export interface SlotListKindOption {
+  kind: SlotListKind;
+  label: string;
+  available: boolean;
+  slot_count: number;
+  row_count: number;
+}
+
 export interface SlotListOptionsResult {
   date: string;
   slots: SlotListSlot[];
   pickup_cohorts: SlotListPickupCohortOption[];
+  list_kinds: SlotListKindOption[];
 }
+
+export const SLOT_LIST_KIND_LABELS: Record<SlotListKind, string> = {
+  edge_hours: "Randstunden",
+  learning_time: "Lernzeit",
+  activity: "AG-Angebote",
+  mensa: "Mensa",
+};
 
 export const SLOT_LIST_SOURCE_LABELS: Record<SlotListSource, string> = {
   planned: "Plan",
@@ -194,7 +218,9 @@ function fallbackFilename(
       ? request.pickup_cohort === "long_day"
         ? "ganztag-1600"
         : "ganztag-1430"
-      : "angebote";
+      : request.list_kind
+        ? request.list_kind
+        : "angebote";
   return `tagesliste-${source}-${target}-${request.date}.${format}`;
 }
 

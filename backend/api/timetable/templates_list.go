@@ -34,6 +34,7 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 			g.id AS template_id,
 			g.name,
 			g.type,
+			g.list_kind,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
 				g.planned_room_id AS room_id,
@@ -135,6 +136,7 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 				ID:                 row.TemplateID,
 				Name:               row.Name,
 				Type:               row.Type,
+				ListKind:           listKindFromRow(row),
 				CategoryID:         row.CategoryID,
 				CategoryName:       row.CategoryName,
 				RoomID:             roomID,
@@ -179,10 +181,19 @@ func educationGroupIDFromRow(row templateRow) *int64 {
 	return &id
 }
 
+func listKindFromRow(row templateRow) *string {
+	if !row.ListKind.Valid || row.ListKind.String == "" {
+		return nil
+	}
+	kind := row.ListKind.String
+	return &kind
+}
+
 type templateResponse struct {
 	ID                 int64                      `json:"id"`
 	Name               string                     `json:"name"`
 	Type               string                     `json:"type"`
+	ListKind           *string                    `json:"list_kind,omitempty"`
 	CategoryID         int64                      `json:"category_id"`
 	CategoryName       string                     `json:"category_name"`
 	RoomID             *int64                     `json:"room_id,omitempty"`
@@ -207,6 +218,7 @@ type templateRow struct {
 	TemplateID         int64          `bun:"template_id"`
 	Name               string         `bun:"name"`
 	Type               string         `bun:"type"`
+	ListKind           sql.NullString `bun:"list_kind"`
 	CategoryID         int64          `bun:"category_id"`
 	CategoryName       string         `bun:"category_name"`
 	RoomID             sql.NullInt64  `bun:"room_id"`
@@ -260,6 +272,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 			g.id AS template_id,
 			g.name,
 			g.type,
+			g.list_kind,
 			g.category_id,
 			COALESCE(c.name, '') AS category_name,
 			g.planned_room_id AS room_id,

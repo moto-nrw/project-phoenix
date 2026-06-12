@@ -10,6 +10,12 @@ export type InstanceStatus = "planned" | "active" | "completed" | "cancelled";
 
 export type ActivityType = "care" | "activity" | "external";
 
+export type TimetableListKind =
+  | "edge_hours"
+  | "learning_time"
+  | "activity"
+  | "mensa";
+
 type ConflictKind = "room" | "staff" | "student";
 
 /**
@@ -70,6 +76,7 @@ export interface EnrichedInstance {
   isSpontaneous: boolean;
   isLive: boolean;
   activityGroupId?: string;
+  listKind?: TimetableListKind;
   activityType: ActivityType;
   roomId: string;
   roomName: string;
@@ -121,6 +128,7 @@ export interface BackendEnrichedInstance {
   is_spontaneous: boolean;
   is_live: boolean;
   activity_group_id?: number;
+  list_kind?: TimetableListKind;
   activity_type: ActivityType;
   room_id: number;
   room_name: string;
@@ -238,6 +246,7 @@ export interface TimetableTemplate {
   id: string;
   name: string;
   type: ActivityType;
+  listKind?: TimetableListKind;
   categoryId: string;
   categoryName: string;
   roomId?: string;
@@ -271,6 +280,7 @@ export interface BackendTimetableTemplate {
   id: number;
   name: string;
   type: ActivityType;
+  list_kind?: TimetableListKind;
   category_id: number;
   category_name: string;
   room_id?: number;
@@ -472,6 +482,7 @@ export interface CreateInstanceBody {
   description?: string;
   notes?: string;
   activity_group_id?: number;
+  list_kind?: TimetableListKind;
   staff_ids?: number[];
   student_ids?: number[];
 }
@@ -487,6 +498,7 @@ export interface CreateInstanceBody {
 export interface CreateTemplateBody {
   name: string;
   type: ActivityType;
+  list_kind?: TimetableListKind;
   weekdays: number[];
   start_time: string; // HH:MM
   end_time: string; // HH:MM
