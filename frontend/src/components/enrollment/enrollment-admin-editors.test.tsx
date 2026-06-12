@@ -493,6 +493,29 @@ describe("PhasesEditor", () => {
     );
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
+
+  it("shows a German validation error when the phase name is blank", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte gib einen Namen für die Anmeldephase ein.",
+    );
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "Bitte gib einen Namen für die Anmeldephase ein.",
+    );
+    expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
 });
 
 // The editor always sends the template's legal blocks on save (PR #1632).

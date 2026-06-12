@@ -273,8 +273,12 @@ export function PhasesEditor() {
       // Normalise schema_source to form_schema_id.
       const payload: PhaseInput = {
         ...draft,
+        name: draft.name.trim(),
         form_schema_id: schemaSource === "base" ? null : draft.form_schema_id,
       };
+      if (!payload.name) {
+        throw new Error("Bitte gib einen Namen für die Anmeldephase ein.");
+      }
       if (schemaSource === "reuse" && !payload.form_schema_id) {
         throw new Error("Bitte ein Formular auswählen oder Basis wählen.");
       }

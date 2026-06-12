@@ -1,4 +1,5 @@
 import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
@@ -86,50 +87,13 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-// Backend → German UI message map for stable error codes returned by
-// the submission flow. Add new entries here when the backend returns
-// a new `code`.
-const SUBMISSION_ERROR_MESSAGES: Record<string, string> = {
-  "enrollment.care_offering_missing":
-    "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
-  "enrollment.care_offering_exactly_one":
-    "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
-  "enrollment.required_care_offering_missing":
-    "Für jedes Kind muss ein verpflichtendes Betreuungsangebot ausgewählt sein.",
-  "enrollment.care_offering_full":
-    "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
-  "enrollment.disabled":
-    "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
-  "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
-  "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
-};
-
 async function readError(response: Response, fallback: string): Promise<Error> {
-  let message = fallback;
-  let code: string | undefined;
-  try {
-    const payload = (await response.json()) as BackendEnvelope<unknown> & {
-      code?: string;
-    };
-    code = payload.code;
-    const localized = code ? SUBMISSION_ERROR_MESSAGES[code] : undefined;
-    message =
-      localized ??
-      payload.error ??
-      payload.message ??
-      `${fallback} (HTTP ${response.status})`;
-  } catch {
-    /* ignore */
-  }
-  logger.error("enrollment_submission_api_failed", {
-    status: response.status,
-    message,
-    code,
-  });
-  const err = new Error(message) as Error & { status?: number; code?: string };
-  err.status = response.status;
-  err.code = code;
-  return err;
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "enrollment_submission_api_failed",
+  );
 }
 
 export interface PublicCareOfferingsResult {

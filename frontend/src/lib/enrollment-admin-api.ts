@@ -1,4 +1,5 @@
 import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -113,23 +114,12 @@ async function readJSON<T>(response: Response): Promise<T> {
 }
 
 async function readError(response: Response, fallback: string): Promise<Error> {
-  let message = fallback;
-  try {
-    const payload = (await response.json()) as BackendEnvelope<unknown>;
-    message =
-      payload.error ??
-      payload.message ??
-      `${fallback} (HTTP ${response.status})`;
-  } catch {
-    /* ignore */
-  }
-  logger.error("enrollment_admin_request_failed", {
-    status: response.status,
-    message,
-  });
-  const err = new Error(message) as Error & { status?: number };
-  err.status = response.status;
-  return err;
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "enrollment_admin_request_failed",
+  );
 }
 
 export interface ListAdminRequestsFilters {

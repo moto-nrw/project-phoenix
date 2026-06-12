@@ -184,9 +184,11 @@ describe("listSchemas", () => {
     expect(out).toEqual([]);
   });
 
-  it("throws with the HTTP status on non-OK", async () => {
+  it("throws with the German fallback on non-OK", async () => {
     mockFetch(async () => new Response("server boom", { status: 500 }));
-    await expect(listSchemas()).rejects.toThrow(/HTTP 500/);
+    await expect(listSchemas()).rejects.toThrow(
+      /Formularvorlagen konnten nicht geladen werden/,
+    );
   });
 });
 
@@ -215,9 +217,11 @@ describe("fetchSchemaById", () => {
     expect(seenURL).toContain("..%2Fbad%2Fid");
   });
 
-  it("throws on non-OK", async () => {
+  it("throws with the German fallback on non-OK", async () => {
     mockFetch(async () => new Response("nope", { status: 404 }));
-    await expect(fetchSchemaById("999")).rejects.toThrow(/HTTP 404/);
+    await expect(fetchSchemaById("999")).rejects.toThrow(
+      /Formularvorlage konnte nicht geladen werden/,
+    );
   });
 });
 
@@ -255,10 +259,10 @@ describe("fetchPublicActiveSchema", () => {
     expect(seenURL).toContain("ph%2Fase");
   });
 
-  it("throws on non-OK non-404", async () => {
+  it("throws with the German fallback on non-OK non-404", async () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(fetchPublicActiveSchema("slug", "1")).rejects.toThrow(
-      /HTTP 500/,
+      /Formular konnte nicht geladen werden/,
     );
   });
 });
@@ -342,11 +346,13 @@ describe("createSchema", () => {
     expect(seenBody).toContain(`"required":true`);
   });
 
-  it("throws with the backend error message on non-OK", async () => {
+  it("translates duplicate-name errors on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "duplicate name" }, { status: 400 }),
     );
-    await expect(createSchema("X", [])).rejects.toThrow(/duplicate name/);
+    await expect(createSchema("X", [])).rejects.toThrow(
+      /Dieser Name ist bereits vergeben/,
+    );
   });
 
   it("falls back to HTTP status when body has no error string", async () => {
@@ -418,11 +424,13 @@ describe("updateSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("throws with the backend error on non-OK", async () => {
+  it("translates schema validation errors on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "invalid schema" }, { status: 400 }),
     );
-    await expect(updateSchema("1234", [])).rejects.toThrow(/invalid schema/);
+    await expect(updateSchema("1234", [])).rejects.toThrow(
+      /Formularvorlage ist ungültig/,
+    );
   });
 });
 
@@ -444,7 +452,7 @@ describe("deleteSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("uses SCHEMA_ERROR_MESSAGES for schema_has_phases", async () => {
+  it("uses German code messages for schema_has_phases", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_phases", error: "raw English msg" },
@@ -456,7 +464,7 @@ describe("deleteSchema", () => {
     );
   });
 
-  it("uses SCHEMA_ERROR_MESSAGES for schema_has_requests", async () => {
+  it("uses German code messages for schema_has_requests", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_requests", error: "raw English msg" },
@@ -466,14 +474,16 @@ describe("deleteSchema", () => {
     await expect(deleteSchema("1234")).rejects.toThrow(/Anmeldungen verwendet/);
   });
 
-  it("falls back to backend error text for unknown codes", async () => {
+  it("uses the German fallback for unknown English codes", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "something.else", error: "weird backend error" },
         { status: 500 },
       ),
     );
-    await expect(deleteSchema("1234")).rejects.toThrow(/weird backend error/);
+    await expect(deleteSchema("1234")).rejects.toThrow(
+      /Formularvorlage konnte nicht gelöscht werden/,
+    );
   });
 
   it("falls back to HTTP status when body has neither code nor error", async () => {
