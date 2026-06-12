@@ -312,7 +312,12 @@ export interface MaterializeResult {
  * MaterializationWarning constants (services/schedule/materialization_service.go).
  */
 export interface MaterializeWarning {
-  code: "no_active_period" | "no_templates" | (string & {});
+  code:
+    | "no_active_period"
+    | "no_templates"
+    | "skipped_no_room"
+    | "skipped_incomplete"
+    | (string & {});
   message: string;
 }
 
@@ -524,4 +529,81 @@ export interface BackendCreateTemplateResult {
   instances_created?: number;
   materialized_from?: string;
   materialized_to?: string;
+}
+
+/**
+ * Body for POST /api/timetable/templates/{id}/split — the "ab Datum
+ * ändern" flow. Carries every field of the regular update-template body
+ * plus the required effective_date (YYYY-MM-DD) from which the new
+ * template version applies. The optional materialize window triggers an
+ * immediate materialization run for the new template, mirroring the
+ * create-template behaviour.
+ */
+export interface SplitTemplateBody extends UpdateTemplateBody {
+  effective_date: string; // YYYY-MM-DD
+  materialize_from?: string; // YYYY-MM-DD
+  materialize_to?: string; // YYYY-MM-DD
+}
+
+export interface SplitTemplateResult {
+  oldTemplateId: string;
+  newTemplateId: string;
+  scheduleIds: string[];
+  deletedInstances: number;
+  instancesCreated: number;
+}
+
+export interface BackendSplitTemplateResult {
+  old_template_id: number;
+  new_template_id: number;
+  schedule_ids: number[];
+  deleted_instances: number;
+  instances_created: number;
+}
+
+/**
+ * Params for GET /api/timetable/conflict-check. Optional resource params
+ * are omitted from the query string when empty — the backend treats a
+ * missing param as "do not check this resource kind".
+ */
+export interface ConflictCheckParams {
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  roomId?: string;
+  staffIds?: string[];
+  studentIds?: string[];
+  excludeInstanceId?: string;
+}
+
+/**
+ * One advisory conflict from the pre-save check. Never blocking — the
+ * caller surfaces it as a hint and the user can always proceed.
+ */
+export interface ConflictWarningItem {
+  kind: ConflictKind;
+  resourceId: string;
+  message: string;
+  conflictingInstanceId: string;
+  conflictingTitle: string;
+}
+
+export interface ConflictCheckResult {
+  date: string;
+  startTime: string;
+  endTime: string;
+  warnings: ConflictWarningItem[];
+}
+
+export interface BackendConflictCheckResult {
+  date: string;
+  start_time: string;
+  end_time: string;
+  warnings?: Array<{
+    kind: ConflictKind;
+    resource_id: number;
+    message: string;
+    conflicting_instance_id: number;
+    conflicting_title: string;
+  }>;
 }

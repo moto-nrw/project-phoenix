@@ -23,16 +23,19 @@ import {
   getYearRange,
   groupInstancesByDate,
   mapAttendance,
+  mapConflictCheckResult,
   mapCreateTemplateResult,
   mapExceptionConflicts,
   mapGaps,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
+  mapSplitTemplateResult,
   mapStartInstanceResult,
   mapSubstitute,
   mapTemplates,
   mapWeeklyInstances,
+  materializeWarningHint,
   parseTimeToMinutes,
   toISODate,
 } from "./timetable-helpers";
@@ -685,5 +688,120 @@ describe("assignBlockLanes", () => {
     expect(a.laneCount).toBe(2);
     expect(b.laneCount).toBe(2);
     expect(c.laneCount).toBe(2);
+  });
+});
+
+describe("mapSplitTemplateResult", () => {
+  it("maps snake_case ints to camelCase strings", () => {
+    expect(
+      mapSplitTemplateResult({
+        old_template_id: 7,
+        new_template_id: 8,
+        schedule_ids: [11, 12],
+        deleted_instances: 4,
+        instances_created: 6,
+      }),
+    ).toEqual({
+      oldTemplateId: "7",
+      newTemplateId: "8",
+      scheduleIds: ["11", "12"],
+      deletedInstances: 4,
+      instancesCreated: 6,
+    });
+  });
+});
+
+describe("mapConflictCheckResult", () => {
+  it("maps warnings and defaults missing warnings to []", () => {
+    expect(
+      mapConflictCheckResult({
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+        warnings: [
+          {
+            kind: "staff",
+            resource_id: 11,
+            message: "Person doppelt eingeplant",
+            conflicting_instance_id: 42,
+            conflicting_title: "Mensa",
+          },
+        ],
+      }),
+    ).toEqual({
+      date: "2026-05-04",
+      startTime: "12:00",
+      endTime: "13:00",
+      warnings: [
+        {
+          kind: "staff",
+          resourceId: "11",
+          message: "Person doppelt eingeplant",
+          conflictingInstanceId: "42",
+          conflictingTitle: "Mensa",
+        },
+      ],
+    });
+
+    expect(
+      mapConflictCheckResult({
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+      }),
+    ).toEqual({
+      date: "2026-05-04",
+      startTime: "12:00",
+      endTime: "13:00",
+      warnings: [],
+    });
+  });
+});
+
+describe("materializeWarningHint", () => {
+  it("appends an actionable hint for skipped_no_room", () => {
+    expect(
+      materializeWarningHint({
+        code: "skipped_no_room",
+        message: "Yoga: Raum fehlt",
+      }),
+    ).toBe("Yoga: Raum fehlt – Regeltermin bearbeiten und Raum ergänzen.");
+  });
+
+  it("appends an actionable hint for skipped_incomplete", () => {
+    expect(
+      materializeWarningHint({
+        code: "skipped_incomplete",
+        message: "Yoga: Angaben unvollständig",
+      }),
+    ).toBe(
+      "Yoga: Angaben unvollständig – Regeltermin bearbeiten und fehlende Angaben ergänzen.",
+    );
+  });
+
+  it("falls back to a generic detail when the message is empty", () => {
+    expect(
+      materializeWarningHint({ code: "skipped_no_room", message: "" }),
+    ).toBe("Raum fehlt – Regeltermin bearbeiten und Raum ergänzen.");
+    expect(
+      materializeWarningHint({ code: "skipped_incomplete", message: "" }),
+    ).toBe(
+      "Angaben unvollständig – Regeltermin bearbeiten und fehlende Angaben ergänzen.",
+    );
+  });
+
+  it("returns the raw backend message for other codes", () => {
+    expect(
+      materializeWarningHint({
+        code: "no_active_period",
+        message: "Kein aktiver Planungszeitraum",
+      }),
+    ).toBe("Kein aktiver Planungszeitraum");
+    expect(
+      materializeWarningHint({
+        code: "some_future_code",
+        message: "Unbekannte Warnung",
+      }),
+    ).toBe("Unbekannte Warnung");
   });
 });

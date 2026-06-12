@@ -11,6 +11,7 @@ import { toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
+  BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendExceptionConflictsResponse,
@@ -19,11 +20,13 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendSplitTemplateResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
   BackendSubstituteResponse,
   BackendWeeklyInstancesResponse,
   AttendanceResponse,
+  ConflictCheckResult,
   CreateTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
@@ -32,7 +35,9 @@ import type {
   InstanceStudentSummary,
   InstanceStatusResult,
   MaterializeResult,
+  MaterializeWarning,
   ReplanWeekResult,
+  SplitTemplateResult,
   StartInstanceResult,
   SubstituteResponse,
   TemplatesResponse,
@@ -523,6 +528,56 @@ export function mapCreateTemplateResult(
     materializedFrom: raw.materialized_from,
     materializedTo: raw.materialized_to,
   };
+}
+
+export function mapSplitTemplateResult(
+  raw: BackendSplitTemplateResult,
+): SplitTemplateResult {
+  return {
+    oldTemplateId: String(raw.old_template_id),
+    newTemplateId: String(raw.new_template_id),
+    scheduleIds: (raw.schedule_ids ?? []).map(String),
+    deletedInstances: raw.deleted_instances,
+    instancesCreated: raw.instances_created,
+  };
+}
+
+export function mapConflictCheckResult(
+  raw: BackendConflictCheckResult,
+): ConflictCheckResult {
+  return {
+    date: raw.date,
+    startTime: raw.start_time,
+    endTime: raw.end_time,
+    warnings: (raw.warnings ?? []).map((warning) => ({
+      kind: warning.kind,
+      resourceId: String(warning.resource_id),
+      message: warning.message,
+      conflictingInstanceId: String(warning.conflicting_instance_id),
+      conflictingTitle: warning.conflicting_title,
+    })),
+  };
+}
+
+/**
+ * Actionable German hint for a materialization warning. The backend
+ * message names the affected template (e.g. "Yoga: Raum fehlt"); for the
+ * skipped_* codes we append what the user can do about it. Unknown codes
+ * fall back to the raw backend message.
+ */
+export function materializeWarningHint(w: MaterializeWarning): string {
+  switch (w.code) {
+    case "skipped_no_room": {
+      const detail = w.message || "Raum fehlt";
+      return `${detail} – Regeltermin bearbeiten und Raum ergänzen.`;
+    }
+    case "skipped_incomplete": {
+      const detail = w.message || "Angaben unvollständig";
+      return `${detail} – Regeltermin bearbeiten und fehlende Angaben ergänzen.`;
+    }
+    default:
+      return w.message;
+  }
 }
 
 export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {

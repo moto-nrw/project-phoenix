@@ -266,6 +266,142 @@ describe("timetableService", () => {
     );
   });
 
+  it("loads a single template and splits a template from an effective date", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: backendTemplate }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            old_template_id: 7,
+            new_template_id: 8,
+            schedule_ids: [11, 12],
+            deleted_instances: 4,
+            instances_created: 6,
+          },
+        }),
+      );
+
+    await expect(timetableService.getTemplate("7")).resolves.toMatchObject({
+      id: "7",
+      name: "Yoga",
+      primaryStaffId: "11",
+    });
+
+    const splitBody = {
+      name: "Yoga",
+      type: "activity" as const,
+      weekdays: [1],
+      start_time: "15:00",
+      end_time: "16:00",
+      room_id: 3,
+      category_id: 2,
+      effective_date: "2026-06-01",
+      materialize_from: "2026-06-01",
+      materialize_to: "2026-06-07",
+    };
+
+    await expect(
+      timetableService.splitTemplate("7", splitBody),
+    ).resolves.toEqual({
+      oldTemplateId: "7",
+      newTemplateId: "8",
+      scheduleIds: ["11", "12"],
+      deletedInstances: 4,
+      instancesCreated: 6,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/templates/7",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/templates/7/split",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(splitBody),
+      }),
+    );
+  });
+
+  it("checks conflicts with only the provided params in the query string", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            date: "2026-05-04",
+            start_time: "12:00",
+            end_time: "13:00",
+            warnings: [
+              {
+                kind: "room",
+                resource_id: 3,
+                message: "Raum doppelt belegt",
+                conflicting_instance_id: 42,
+                conflicting_title: "Mensa",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            date: "2026-05-04",
+            start_time: "12:00",
+            end_time: "13:00",
+            warnings: [],
+          },
+        }),
+      );
+
+    await expect(
+      timetableService.checkConflicts({
+        date: "2026-05-04",
+        startTime: "12:00",
+        endTime: "13:00",
+        roomId: "3",
+        staffIds: ["11", "12"],
+        studentIds: ["21"],
+        excludeInstanceId: "42",
+      }),
+    ).resolves.toEqual({
+      date: "2026-05-04",
+      startTime: "12:00",
+      endTime: "13:00",
+      warnings: [
+        {
+          kind: "room",
+          resourceId: "3",
+          message: "Raum doppelt belegt",
+          conflictingInstanceId: "42",
+          conflictingTitle: "Mensa",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/conflict-check?date=2026-05-04&start_time=12%3A00&end_time=13%3A00&room_id=3&staff_ids=11%2C12&student_ids=21&exclude_instance_id=42",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+
+    // Optional params (and empty arrays) are omitted entirely.
+    await expect(
+      timetableService.checkConflicts({
+        date: "2026-05-04",
+        startTime: "12:00",
+        endTime: "13:00",
+        staffIds: [],
+      }),
+    ).resolves.toMatchObject({ warnings: [] });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/conflict-check?date=2026-05-04&start_time=12%3A00&end_time=13%3A00",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("calls lifecycle, materialize, re-plan and quality endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce(
