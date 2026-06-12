@@ -4,10 +4,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
+import { LanguageSwitcher } from "~/components/parent/language-switcher";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -53,6 +55,9 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  // parentNav is available in every shell; only parent-mode branches read it, so
+  // the German staff/operator labels are untouched (they render the de mirror).
+  const tParentNav = useTranslations("parentNav");
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
     user,
@@ -62,10 +67,19 @@ export function Header() {
     homeUrl,
     profileUrl,
   } = useShellAuth();
-  const displayedPageTitle =
-    mode === "parent" && (pathname === "/" || pathname === "/parents")
-      ? "Start"
-      : pageTitle;
+  // getPageTitle() is a pure helper and can't read the locale, so the
+  // parent-portal page titles it returns ("Meine Kinder", "Kinderprofil", …)
+  // would render German even on a localized portal. Override them here, where
+  // the parentNav catalog is in scope. Staff/operator modes keep getPageTitle.
+  const parentPageTitle = (() => {
+    if (mode !== "parent") return null;
+    if (pathname === "/" || pathname === "/parents") return tParentNav("start");
+    if (pathname === "/parents/children") return tParentNav("children");
+    if (pathname.startsWith("/parents/children/"))
+      return tParentNav("childProfile");
+    return null;
+  })();
+  const displayedPageTitle = parentPageTitle ?? pageTitle;
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -75,7 +89,7 @@ export function Header() {
     mode === "operator"
       ? "Operator"
       : mode === "parent"
-        ? "Eltern"
+        ? tParentNav("role")
         : userRoles.includes("admin")
           ? "Admin"
           : "Betreuer";
@@ -182,6 +196,7 @@ export function Header() {
             </div>
 
             {mode === "teacher" ? <TenantSwitcher /> : null}
+            {mode === "parent" ? <LanguageSwitcher compact /> : null}
 
             {/* User menu */}
             <div ref={profileMenuRef} className="relative">

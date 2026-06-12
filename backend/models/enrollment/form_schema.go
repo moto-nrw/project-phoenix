@@ -47,6 +47,7 @@ const (
 	FormFieldPhoneList       FormFieldType = "phone_list"       // 0..N labelled phone numbers
 	FormFieldWeekdaySchedule FormFieldType = "weekday_schedule" // mon..fri → HH:MM, optional per day
 	FormFieldWeekdayBoolean  FormFieldType = "weekday_boolean"  // mon..fri → bool, optional per day
+	FormFieldWeekdayMode     FormFieldType = "weekday_mode"     // mon..fri → alone/bus/pickup, optional per day
 	FormFieldContactList     FormFieldType = "contact_list"     // 0..N people (name + phones + flags)
 )
 
@@ -62,6 +63,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldPhoneList:       true,
 	FormFieldWeekdaySchedule: true,
 	FormFieldWeekdayBoolean:  true,
+	FormFieldWeekdayMode:     true,
 	FormFieldContactList:     true,
 }
 
@@ -252,9 +254,16 @@ type ReservedTarget struct {
 const (
 	TargetStudentHealthInfo = "student.health_info"
 	TargetStudentExtraInfo  = "student.extra_info"
-	// TargetStudentBusDays is the canonical Buskind target. TargetStudentBus
+	// TargetStudentDeparture is the canonical unified target: per weekday, how
+	// the child leaves (alone/bus/pickup). It supersedes the separate Buskind
+	// (TargetStudentBusDays/TargetStudentBus) and Abholregelung
+	// (TargetStudentPickupStatus) targets, which are kept as legacy aliases so
+	// older saved schemas keep working; all of them dispatch onto
+	// student.departure_days, the single source of truth (#1610).
+	TargetStudentDeparture = "student.departure"
+	// TargetStudentBusDays is the legacy Buskind target. TargetStudentBus
 	// ("student.bus") is kept as a legacy alias so older saved schemas keep
-	// working; both dispatch onto student.bus_days (#1582).
+	// working; both dispatch onto student.departure_days as bus days.
 	TargetStudentBusDays      = "student.bus_days"
 	TargetStudentBus          = "student.bus"
 	TargetStudentPickupStatus = "student.pickup_status"
@@ -276,6 +285,7 @@ const (
 var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
+	TargetStudentDeparture:    {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
 	TargetStudentBusDays:      {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
 	TargetStudentPickupStatus: {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
@@ -421,7 +431,7 @@ func (f *FormField) validateQuestion() error {
 // renderer and decision service treat these specially.
 func isStructuredFieldType(t FormFieldType) bool {
 	switch t {
-	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldContactList:
+	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldContactList:
 		return true
 	default:
 		return false
@@ -472,6 +482,40 @@ type WeekdaySchedule map[string]string
 // WeekdayBoolean is the value of a FormFieldWeekdayBoolean field.
 // Keys are weekday names (mon/tue/wed/thu/fri); true means selected.
 type WeekdayBoolean map[string]bool
+
+// Weekday departure modes for a FormFieldWeekdayMode value. They mirror
+// users.DepartureMode without importing the users package, keeping the
+// enrollment model layer self-contained.
+const (
+	WeekdayModeAlone  = "alone"
+	WeekdayModeBus    = "bus"
+	WeekdayModePickup = "pickup"
+)
+
+// ValidWeekdayModes is the set of accepted WeekdayMode values.
+var ValidWeekdayModes = map[string]bool{
+	WeekdayModeAlone:  true,
+	WeekdayModeBus:    true,
+	WeekdayModePickup: true,
+}
+
+// WeekdayMode is the value of a FormFieldWeekdayMode field. Keys are weekday
+// names (mon/tue/wed/thu/fri); values are alone/bus/pickup. A missing day (or
+// "alone") means the child goes home alone that day.
+type WeekdayMode map[string]string
+
+// Validate checks every entry is a known weekday with a known mode.
+func (w WeekdayMode) Validate() error {
+	for day, mode := range w {
+		if !ValidWeekdays[day] {
+			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
+		}
+		if !ValidWeekdayModes[mode] {
+			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+		}
+	}
+	return nil
+}
 
 // ValidWeekdays mirrors the keys WeekdaySchedule accepts; aligns
 // with how schedule.student_pickup_schedules / arrival_schedules
@@ -564,6 +608,95 @@ func (c *ContactEntry) Validate() error {
 	return nil
 }
 
+const (
+	LegalBlockKindTerms         = "terms"
+	LegalBlockKindPrivacyNotice = "privacy_notice"
+	LegalBlockKindNotice        = "notice"
+	LegalBlockKindConsent       = "consent"
+
+	LegalBlockSourceStandard = "standard"
+	LegalBlockSourceCustom   = "custom"
+)
+
+var validLegalBlockKinds = map[string]bool{
+	LegalBlockKindTerms:         true,
+	LegalBlockKindPrivacyNotice: true,
+	LegalBlockKindNotice:        true,
+	LegalBlockKindConsent:       true,
+}
+
+var standardLegalBlockKeys = map[string]bool{
+	ConsentKeyAGB:            true,
+	ConsentKeyDataProcessing: true,
+	ConsentKeyEmailContact:   true,
+	ConsentKeyPhoto:          true,
+}
+
+// FormLegalBlock is one consent/legal row owned by a form template.
+// Standard blocks originate from tenant settings and may be overridden or
+// disabled on the template. Custom blocks are stored only on the template.
+type FormLegalBlock struct {
+	Key       string `json:"key"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Label     string `json:"label"`
+	Text      string `json:"text"`
+	Required  bool   `json:"required"`
+	Enabled   bool   `json:"enabled"`
+	SortOrder int    `json:"sort_order"`
+	Source    string `json:"source,omitempty"`
+}
+
+func (b *FormLegalBlock) Validate() error {
+	b.Key = strings.TrimSpace(b.Key)
+	b.Kind = strings.TrimSpace(b.Kind)
+	b.Title = strings.TrimSpace(b.Title)
+	b.Label = strings.TrimSpace(b.Label)
+	b.Text = strings.TrimSpace(b.Text)
+	b.Source = strings.TrimSpace(b.Source)
+
+	if b.Key == "" {
+		return errors.New("legal block key is required")
+	}
+	if len(b.Key) > formFieldKeyMaxLength {
+		return errors.New("legal block key must be at most 64 characters")
+	}
+	for _, r := range b.Key {
+		if !keyAllowedRunes(r) {
+			return fmt.Errorf("legal block key %q must be lowercase letters, digits, or underscores", b.Key)
+		}
+	}
+	if b.Source == "" {
+		if standardLegalBlockKeys[b.Key] {
+			b.Source = LegalBlockSourceStandard
+		} else {
+			b.Source = LegalBlockSourceCustom
+		}
+	}
+	if b.Source != LegalBlockSourceStandard && b.Source != LegalBlockSourceCustom {
+		return fmt.Errorf("legal block source %q must be standard or custom", b.Source)
+	}
+	if b.Source == LegalBlockSourceStandard && !standardLegalBlockKeys[b.Key] {
+		return fmt.Errorf("standard legal block key %q is not recognized", b.Key)
+	}
+	if b.Source == LegalBlockSourceCustom && standardLegalBlockKeys[b.Key] {
+		return fmt.Errorf("custom legal block key %q is reserved for a standard block", b.Key)
+	}
+	if !validLegalBlockKinds[b.Kind] {
+		return fmt.Errorf("legal block %q has unknown kind %q", b.Key, b.Kind)
+	}
+	if b.Enabled && b.Label == "" {
+		return fmt.Errorf("enabled legal block %q requires a label", b.Key)
+	}
+	if b.Enabled && b.Title == "" {
+		return fmt.Errorf("enabled legal block %q requires a title", b.Key)
+	}
+	if b.Kind == LegalBlockKindNotice && b.Required {
+		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
+	}
+	return nil
+}
+
 // FormSchema is a row in enrollment.form_schemas. Each save creates a new
 // version; submissions pin to a specific schema_id so editing the active
 // schema doesn't break already-submitted requests. Name groups versions
@@ -576,6 +709,7 @@ type FormSchema struct {
 	Version          int              `bun:"version,notnull" json:"version"`
 	Fields           []FormField      `bun:"fields,type:jsonb,notnull,default:'[]'" json:"fields"`
 	CoreRequirements CoreRequirements `bun:"core_requirements,type:jsonb,notnull,default:'{}'" json:"core_requirements"`
+	LegalBlocks      []FormLegalBlock `bun:"legal_blocks,type:jsonb,notnull,default:'[]'" json:"legal_blocks"`
 	IsActive         bool             `bun:"is_active,notnull,default:false" json:"is_active"`
 	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
 }
@@ -601,6 +735,21 @@ func (s *FormSchema) Validate() error {
 	}
 	if err := s.CoreRequirements.Validate(); err != nil {
 		return err
+	}
+	// NOTE: a template may deliberately enable blocks while keeping
+	// data_processing disabled — pilot schools without a standalone
+	// Datenschutzinformation run their consent via the Elternbrief/AGB
+	// block. The editor surfaces a non-blocking hint instead of a hard
+	// validation here.
+	legalByKey := make(map[string]bool, len(s.LegalBlocks))
+	for i := range s.LegalBlocks {
+		if err := s.LegalBlocks[i].Validate(); err != nil {
+			return fmt.Errorf("legal block %d: %w", i, err)
+		}
+		if legalByKey[s.LegalBlocks[i].Key] {
+			return fmt.Errorf("duplicate legal block key %q", s.LegalBlocks[i].Key)
+		}
+		legalByKey[s.LegalBlocks[i].Key] = true
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
 	for i := range s.Fields {

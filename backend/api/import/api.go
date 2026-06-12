@@ -199,7 +199,7 @@ func getStudentImportHeaders() []string {
 		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
 		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
 		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus.Mo (optional)", "Bus.Di (optional)", "Bus.Mi (optional)", "Bus.Do (optional)", "Bus.Fr (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Gehweise.Mo", "Gehweise.Di", "Gehweise.Mi", "Gehweise.Do", "Gehweise.Fr", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
 		"Ankunft.Mo (optional)", "Ankunft.Mo.Notizen (optional)", "Ankunft.Di (optional)", "Ankunft.Di.Notizen (optional)", "Ankunft.Mi (optional)", "Ankunft.Mi.Notizen (optional)", "Ankunft.Do (optional)", "Ankunft.Do.Notizen (optional)", "Ankunft.Fr (optional)", "Ankunft.Fr.Notizen (optional)",
 		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
@@ -217,8 +217,8 @@ func getStudentImportExamples() [][]any {
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			// Guardian 2: address, notes, language
 			testAddressMusterstr, "Köln", "50667", "", "de",
-			// Additional info (per-day Bus.Mo–Fr: rides Mo/Mi/Fr)
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Ja", "Nein", "Ja", "Nein", "Ja", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
+			// Additional info (per-day Gehweise: Bus Mo/Mi/Fr, abholung Di, alleine Do)
+			"", "Sehr ruhiges Kind", "", "Ja", 30, "bus", "abholung", "bus", "alleine", "bus", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
 			// Arrival schedule (Mon-Fri)
 			"08:00", "", "08:00", "", "08:00", "", "08:00", "", "08:30", "Frühbetreuung",
 			// Pickup schedule (Mon-Fri)
@@ -232,8 +232,8 @@ func getStudentImportExamples() [][]any {
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Guardian 2: empty profile fields
 			"", "", "", "", "",
-			// Additional info (per-day Bus.Mo–Fr all set: rides every weekday)
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja", "Ja", "Ja", "Ja", "Ja", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
+			// Additional info (per-day Gehweise: rides the bus every weekday)
+			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "bus", "bus", "bus", "bus", "bus", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
 			// Arrival schedule (partial)
 			"07:45", "", "07:45", "", "07:45", "", "", "", "", "",
 			// Pickup schedule (partial)
@@ -285,8 +285,8 @@ func writeHinweiseSheet(f *excelize.File) {
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
 		23: "Schüler-Zusatzinfos",
-		37: "Abholzeiten (Montag bis Freitag)",
-		41: "Allgemeine Hinweise",
+		36: "Gehzeiten (Montag bis Freitag)",
+		40: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -319,10 +319,9 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
-		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Bus.Mo", "Nein", hintYesNo, "Buskind am Montag. Di, Mi, Do, Fr analog: Bus.Di, Bus.Mi, Bus.Do, Bus.Fr. (Ältere Dateien mit einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert: Ja = Mo–Fr.)"},
+		{"Gehweise.Mo", "Nein", "alleine, bus oder abholung", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
 		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
 		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
 		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
@@ -330,8 +329,8 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
 		{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
 		// row 37: section header "Abholzeiten" (injected)
-		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
-		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
+		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Gehzeit am Montag (wann das Kind geht)"},
+		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Gehzeit am Montag"},
 		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
 		// row 33: section header (injected)
 		// row 34: general hints

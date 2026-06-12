@@ -23,11 +23,11 @@ vi.mock("~/components/background-wrapper", () => ({
 }));
 
 describe("RootLayout", () => {
-  it("renders children wrapped in providers", () => {
+  // RootLayout is an async server component (it awaits getLocale() for the
+  // <html lang>), so it must be resolved before handing the element to render.
+  it("renders children wrapped in providers", async () => {
     const { getByText, getByTestId } = render(
-      <RootLayout>
-        <div>Test Content</div>
-      </RootLayout>,
+      await RootLayout({ children: <div>Test Content</div> }),
     );
 
     expect(getByText("Test Content")).toBeInTheDocument();
@@ -35,11 +35,9 @@ describe("RootLayout", () => {
     expect(getByTestId("background-wrapper")).toBeInTheDocument();
   });
 
-  it("renders html and body structure", () => {
+  it("renders html and body structure", async () => {
     const { container } = render(
-      <RootLayout>
-        <div>Test</div>
-      </RootLayout>,
+      await RootLayout({ children: <div>Test</div> }),
     );
 
     // RootLayout is a server component that renders html and body tags
@@ -47,11 +45,9 @@ describe("RootLayout", () => {
     expect(container).toBeTruthy();
   });
 
-  it("wraps content in providers and background wrapper", () => {
+  it("wraps content in providers and background wrapper", async () => {
     const { getByTestId } = render(
-      <RootLayout>
-        <div>Test</div>
-      </RootLayout>,
+      await RootLayout({ children: <div>Test</div> }),
     );
 
     // Verify both wrapper components are present

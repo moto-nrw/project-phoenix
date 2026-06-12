@@ -721,10 +721,27 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	applyBusDays(req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 
 	return student
+}
+
+// applyDeparturePlan sets how a child leaves each weekday from a create/update
+// request. A unified DepartureDays is authoritative when present and is
+// decomposed (full replacement) onto the legacy per-day maps; otherwise the
+// legacy pickup_status/pickup_days/bus/bus_days inputs are applied. Either way
+// the repository folds bus_days + pickup_days into departure_days, the single
+// source of truth, on persist (#1610).
+func applyDeparturePlan(departure *users.DepartureDays, status *string, pickupDays *users.PickupDays, legacyBus *bool, busDays *users.BusDays, student *users.Student) {
+	if departure != nil {
+		dd := departure.Normalize()
+		student.DepartureDays = dd
+		student.BusDays = dd.BusDays()
+		student.PickupDays = dd.PickupDays()
+		return
+	}
+	reconcilePickupFields(student, status, pickupDays)
+	applyBusDays(legacyBus, busDays, student)
 }
 
 // applyBusDays sets the student's bus_days from a create/update request.
@@ -1112,8 +1129,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	applyBusDays(req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

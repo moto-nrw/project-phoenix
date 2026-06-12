@@ -3,9 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, Check, Clock, ShieldCheck } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import type { TenantInfo } from "~/lib/tenant-api";
 import {
   PublicEnrollmentBrand,
+  PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
   PublicInfoCard,
@@ -18,12 +21,6 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollPhasePicker" });
 
-const KIND_LABELS: Record<PublicPhase["kind"], string> = {
-  school_year: "Schuljahr",
-  holiday: "Ferienbetreuung",
-  custom: "Sonstiges",
-};
-
 /**
  * Phase picker for the new public landing page for parents. Lists every
  * currently-open phase as a card. Clicking a phase navigates to
@@ -32,6 +29,8 @@ const KIND_LABELS: Record<PublicPhase["kind"], string> = {
  * model splits the picker out so each phase carries its own form.
  */
 export default function EnrollPhasePickerPage() {
+  const t = useTranslations("enrollmentPublic");
+  const locale = useLocale();
   const { tenantSlug, tenant } = useTenant();
   const [phases, setPhases] = useState<PublicPhase[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +49,7 @@ export default function EnrollPhasePickerPage() {
         setPhases(list);
       } catch (err) {
         if (cancelled) return;
-        const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
+        const message = err instanceof Error ? err.message : t("unknownError");
         const code = (err as { code?: string } | undefined)?.code;
         logger.error("phase_picker_load_failed", { error: message, code });
         if (code === "enrollment.disabled") {
@@ -67,26 +65,28 @@ export default function EnrollPhasePickerPage() {
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, t]);
 
   if (loading) {
     return (
-      <PublicEnrollmentPageShell>
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <div className="moto-content-surface rounded-2xl border px-5 py-4 text-sm font-medium text-gray-600 shadow-sm">
-            Anmeldung wird geladen…
+      <PublicEnrollmentPageShell withInlineSwitcher>
+        <PhasePickerHeader tenant={tenant} />
+        <section className="moto-content-surface flex min-h-[24rem] items-center justify-center rounded-3xl border shadow-sm">
+          <div
+            className="rounded-2xl border border-gray-200 bg-white px-5 py-4 text-sm font-medium text-gray-600 shadow-sm"
+            role="status"
+            aria-live="polite"
+          >
+            {t("loading")}
           </div>
-        </div>
+        </section>
       </PublicEnrollmentPageShell>
     );
   }
 
   return (
-    <PublicEnrollmentPageShell>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <PublicEnrollmentBrand tenant={tenant} />
-        <PublicEnrollmentSteps current="phase" />
-      </div>
+    <PublicEnrollmentPageShell withInlineSwitcher>
+      <PhasePickerHeader tenant={tenant} />
 
       {error && (
         <div
@@ -103,24 +103,20 @@ export default function EnrollPhasePickerPage() {
           <div className="p-5 sm:p-8 lg:p-10">
             <div className="max-w-3xl">
               <p className="text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-                Anmeldung starten
+                {t("phaseEyebrow")}
               </p>
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
-                Wofür möchten Sie Ihr Kind anmelden?
+                {t("phaseTitle")}
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
-                Wählen Sie den Zeitraum aus, zu dem Ihr Kind betreut werden
-                soll. Im nächsten Schritt erfassen Sie die Kontaktdaten, die
-                Angaben zum Kind und die gewünschten Betreuungsangebote.
+                {t("phaseDescription")}
               </p>
             </div>
 
             <div className="mt-8">
               {!phases || phases.length === 0 ? (
                 <div className="rounded-2xl border border-[#F78C10]/20 bg-[#F78C10]/10 p-5 text-sm leading-6 text-[#9A570A]">
-                  {enrollmentDisabled
-                    ? "Die Online-Anmeldung ist aktuell nicht freigeschaltet. Bitte wenden Sie sich an die OGS, wenn Sie eine Anmeldung abgeben möchten."
-                    : "Aktuell ist keine Anmeldephase geöffnet. Bitte schauen Sie später wieder vorbei oder wenden Sie sich an die OGS, wenn Sie eine Frist erwartet haben."}
+                  {enrollmentDisabled ? t("disabled") : t("noPhase")}
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -128,18 +124,22 @@ export default function EnrollPhasePickerPage() {
                     <li key={phase.id}>
                       <Link
                         href={`/enroll/${encodeURIComponent(phase.id)}`}
-                        className="group moto-content-surface flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] duration-150 hover:border-gray-300 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5 md:hover:-translate-y-0.5"
+                        className="group moto-content-surface moto-hover-elevated flex flex-col gap-4 rounded-xl border p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:p-5"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                              {KIND_LABELS[phase.kind]}
+                              {t(`kind.${phase.kind}`)}
                             </span>
                             {phase.enrollment_close_at && (
                               <span className="inline-flex items-center gap-1 rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
                                 <Clock className="h-3.5 w-3.5" />
-                                Offen bis{" "}
-                                {formatDateTime(phase.enrollment_close_at)}
+                                {t("openUntil", {
+                                  date: formatDateTime(
+                                    phase.enrollment_close_at,
+                                    locale,
+                                  ),
+                                })}
                               </span>
                             )}
                           </div>
@@ -147,13 +147,17 @@ export default function EnrollPhasePickerPage() {
                             {phase.name}
                           </h2>
                           <p className="mt-1 text-sm text-gray-600">
-                            Betreuungszeitraum:{" "}
-                            {formatDate(phase.service_start_date)} bis{" "}
-                            {formatDate(phase.service_end_date)}
+                            {t("serviceRange", {
+                              from: formatDate(
+                                phase.service_start_date,
+                                locale,
+                              ),
+                              to: formatDate(phase.service_end_date, locale),
+                            })}
                           </p>
                         </div>
                         <span className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white transition-colors group-hover:bg-gray-800 sm:w-auto">
-                          Anmeldung starten
+                          {t("start")}
                         </span>
                       </Link>
                     </li>
@@ -167,26 +171,21 @@ export default function EnrollPhasePickerPage() {
             <div className="space-y-4 lg:sticky lg:top-8">
               <PublicInfoCard
                 icon={<CalendarDays className="h-5 w-5" />}
-                title="Angebot wählen"
+                title={t("chooseOfferTitle")}
               >
-                Wählen Sie das passende Betreuungsangebot für Ihr Kind. Prüfen
-                Sie dabei den Betreuungszeitraum und die Anmeldefrist.
+                {t("chooseOfferText")}
               </PublicInfoCard>
               <PublicInfoCard
                 icon={<Check className="h-5 w-5" />}
-                title="Formular absenden"
+                title={t("submitTitle")}
               >
-                Halten Sie Kontaktdaten, Geburtsdatum, Klassenstufe und
-                gewünschte Betreuungsangebote bereit. Pflichtfelder sind im
-                Formular markiert.
+                {t("submitText")}
               </PublicInfoCard>
               <PublicInfoCard
                 icon={<ShieldCheck className="h-5 w-5" />}
-                title="Status verfolgen"
+                title={t("statusTitle")}
               >
-                Nach dem Absenden öffnet sich Ihre Statusseite. Speichern Sie
-                den Link oder die Bestätigungs-E-Mail, damit Sie später wieder
-                darauf zugreifen können.
+                {t("statusText")}
               </PublicInfoCard>
             </div>
           </aside>
@@ -196,16 +195,28 @@ export default function EnrollPhasePickerPage() {
   );
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("de-DE", {
+function PhasePickerHeader({ tenant }: { readonly tenant: TenantInfo | null }) {
+  return (
+    <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      <PublicEnrollmentBrand tenant={tenant} />
+      <div className="flex items-center gap-3">
+        <PublicEnrollmentSteps current="phase" />
+        <PublicEnrollmentLocaleSwitcher />
+      </div>
+    </div>
+  );
+}
+
+function formatDate(value: string, locale: string): string {
+  return new Date(value).toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
 }
 
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
+function formatDateTime(value: string, locale: string): string {
+  return new Date(value).toLocaleString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

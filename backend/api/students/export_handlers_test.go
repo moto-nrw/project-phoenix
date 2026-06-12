@@ -303,3 +303,31 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestDepartureSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		days users.DepartureDays
+		want string
+	}{
+		{
+			name: "mixed modes in week order, alone days skipped",
+			days: users.DepartureDays{
+				users.PickupDayMonday:    users.DepartureBus,
+				users.PickupDayWednesday: users.DeparturePickup,
+				users.PickupDayThursday:  users.DepartureAlone,
+			},
+			want: "Mo: Bus, Mi: Abholung",
+		},
+		{name: "empty plan", days: users.DepartureDays{}, want: "Geht alleine"},
+		{name: "nil plan", days: nil, want: "Geht alleine"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := departureSummary(tt.days); got != tt.want {
+				t.Fatalf("departureSummary() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

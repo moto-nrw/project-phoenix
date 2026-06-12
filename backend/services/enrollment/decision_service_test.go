@@ -404,6 +404,72 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
 }
 
+// TestDecisionService_Decide_AppliesDepartureField verifies the unified
+// weekday_mode departure field (#1610) flows from the enrollment submission
+// onto the approved student's departure_days, deriving the legacy mirrors.
+func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Pin a schema that carries the unified departure field onto the phase.
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "departure",
+		Label:       "Geh- und Abholregelung",
+		Type:        enrollmentModels.FormFieldWeekdayMode,
+		Target:      enrollmentModels.TargetStudentDeparture,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	// Submit a child whose custom_data carries the per-day departure plan.
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "dep-approve@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Dep",
+			LastName:         "Child",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: map[string]any{
+				"departure": map[string]any{"mon": "bus", "wed": "pickup"},
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.DepartureBus, student.DepartureDays.ModeFor(usersModels.PickupDayMonday))
+	assert.Equal(t, usersModels.DeparturePickup, student.DepartureDays.ModeFor(usersModels.PickupDayWednesday))
+	assert.True(t, student.BusDays[usersModels.BusDayMonday], "derived bus_days mirror")
+	assert.True(t, student.PickupDays[usersModels.PickupDayWednesday], "derived pickup_days mirror")
+}
+
 // ---- Decide: activation mode (enrollment.default_activation_mode) -------
 
 // Default / "scheduled": an approved child becomes a PENDING student

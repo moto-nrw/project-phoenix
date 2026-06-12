@@ -643,6 +643,15 @@ function RequestExtraSection({
     (f) => formatCustomValue(request.custom_data?.[f.key], f) !== null,
   );
   const hasConsents = Object.keys(request.consent_flags ?? {}).length > 0;
+  // Titles from the pinned schema's legal blocks label custom consents
+  // (e.g. "Schwimmbad" instead of "custom_pool"); the static map covers
+  // the standard keys for legacy requests without a pinned schema.
+  const consentTitles = new Map(
+    (request.schema_legal_blocks ?? []).map((block) => [
+      block.key,
+      block.title,
+    ]),
+  );
 
   if (!hasCustom && !hasConsents) return null;
 
@@ -667,7 +676,7 @@ function RequestExtraSection({
                   }}
                 />
                 <span className="text-gray-700">
-                  {CONSENT_LABELS[key] ?? key}:
+                  {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
                 </span>
                 <span className="font-medium text-gray-900">
                   {val === true ? "Ja" : val === false ? "Nein" : String(val)}
@@ -819,6 +828,29 @@ function formatWeekdayObject(
   o: Record<string, unknown>,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
+  // weekday_mode (Geh- und Abholregelung, #1610): values are per-day mode
+  // strings ({mon: "bus", wed: "pickup"}). Render "Mo: fährt Bus, Mi: wird
+  // abgeholt", mirroring the backend formatWeekdayMode. Must run before the
+  // weekday_schedule fallback, which would otherwise print the raw mode string.
+  const isWeekdayMode =
+    field?.type === "weekday_mode" ||
+    WEEKDAYS.some(
+      ([key]) => o[key] === "bus" || o[key] === "pickup" || o[key] === "alone",
+    );
+  if (isWeekdayMode) {
+    const modeLabels: Record<string, string> = {
+      alone: "geht alleine",
+      bus: "fährt Bus",
+      pickup: "wird abgeholt",
+    };
+    const parts = WEEKDAYS.filter(
+      ([key]) => o[key] === "bus" || o[key] === "pickup",
+    ).map(([key, label]) => `${label}: ${modeLabels[o[key] as string]}`);
+    if (parts.length > 0) return parts.join(", ");
+    if (field?.type === "weekday_mode") return "Geht immer alleine";
+    return null;
+  }
+
   // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
   // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
   // mirroring the backend export renderer (formatWeekdayBoolean in

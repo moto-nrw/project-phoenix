@@ -137,6 +137,9 @@ describe("Parent portal components", () => {
       "href",
       "/parents/children/42",
     );
+    expect(
+      screen.getByText("Betreuung 01.08.2026 bis 31.07.2027"),
+    ).toBeInTheDocument();
 
     cleanup();
     mocks.listMyChildren.mockResolvedValueOnce([]);
@@ -161,7 +164,7 @@ describe("Parent portal components", () => {
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Krank melden").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abholzeit ändern").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Gehzeit ändern").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(mocks.setBreadcrumb).toHaveBeenCalledWith({
         pageTitle: "Lina Muster",

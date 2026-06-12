@@ -228,9 +228,7 @@ export function PickupDayEditModal({
 
         {/* Section 1: Pickup Time Override */}
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-gray-900">
-            Abholzeit
-          </h3>
+          <h3 className="mb-2 text-sm font-semibold text-gray-900">Gehzeit</h3>
 
           {/* Show base schedule time */}
           {baseTime && (

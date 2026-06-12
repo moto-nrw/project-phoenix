@@ -72,6 +72,7 @@ export async function PUT(
     const body = (await request.json()) as {
       fields?: unknown;
       core_requirements?: unknown;
+      legal_blocks?: unknown;
     };
     const response = await fetch(
       `${getServerApiUrl()}/api/enrollment/schema/${id}`,
@@ -89,6 +90,11 @@ export async function PUT(
           ...(body.core_requirements === undefined
             ? {}
             : { core_requirements: body.core_requirements }),
+          // Same for legal_blocks: absent = preserve existing, present =
+          // overwrite the template's consent blocks.
+          ...(body.legal_blocks === undefined
+            ? {}
+            : { legal_blocks: body.legal_blocks }),
         }),
       },
     );
