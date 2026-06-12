@@ -276,7 +276,7 @@ func (r *StudentRepository) Create(ctx context.Context, student *users.Student) 
 	if err := r.Repository.Create(ctx, student); err != nil {
 		return err
 	}
-	return r.persistDepartureDays(ctx, student)
+	return r.persistDepartureDays(ctx, student, nil)
 }
 
 // Update overrides the base Update method to handle validation
@@ -290,10 +290,15 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 
+	currentDeparture, err := r.findCurrentDepartureState(ctx, student.ID)
+	if err != nil {
+		return err
+	}
+
 	if err := r.Repository.Update(ctx, student); err != nil {
 		return err
 	}
-	return r.persistDepartureDays(ctx, student)
+	return r.persistDepartureDays(ctx, student, currentDeparture)
 }
 
 // persistDepartureDays writes the unified per-weekday departure mode AND its
@@ -304,7 +309,7 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 // the old two-map model allowed. Callers that touch unrelated student fields
 // without loading the departure plan leave all four nil and this is a no-op,
 // preserving the previous "don't clobber what wasn't provided" behavior.
-func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student) error {
+func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
 	if student.DepartureDays == nil &&
 		student.BusDays == nil &&
 		student.PickupDays == nil &&
@@ -312,7 +317,7 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		return nil
 	}
 
-	departure := resolveDepartureDays(student)
+	departure := resolveDepartureDays(student, current)
 	busDays := departure.BusDays()
 	pickupDays := departure.PickupDays()
 	pickupStatus := departure.LegacyPickupStatus()
@@ -372,21 +377,87 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 }
 
 // resolveDepartureDays determines the per-weekday departure plan to persist.
-// The legacy BusDays/PickupDays maps are the working input — handlers, the
-// import and the enrollment dispatch all mutate them (decomposing a unified
-// departure into the two maps when needed) — so the plan is folded from them.
-// Only when both legacy maps are untouched (nil) does it fall back to a
-// directly-set DepartureDays, supporting callers that populate just the unified
-// field (e.g. a freshly built import student).
-func resolveDepartureDays(student *users.Student) users.DepartureDays {
+// Freshly built students can provide only DepartureDays. Hydrated updates can
+// carry both the stored unified plan and the stored legacy mirrors, so updates
+// compare against a pre-update snapshot: if only DepartureDays changed, the
+// unified field wins; otherwise legacy map changes remain supported.
+func resolveDepartureDays(student *users.Student, current *studentDepartureState) users.DepartureDays {
 	pickup := student.PickupDays
 	if pickup == nil && student.PickupStatus != nil {
 		pickup = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
 	}
-	if student.BusDays == nil && pickup == nil && student.DepartureDays != nil {
+	if student.DepartureDays != nil && shouldUseUnifiedDeparture(student, pickup, current) {
 		return student.DepartureDays.Normalize()
 	}
 	return users.DepartureDaysFromLegacy(student.BusDays, pickup)
+}
+
+type studentDepartureState struct {
+	BusDays       users.BusDays
+	PickupDays    users.PickupDays
+	DepartureDays users.DepartureDays
+}
+
+func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, studentID int64) (*studentDepartureState, error) {
+	if studentID == 0 {
+		return nil, nil
+	}
+	student := &users.Student{}
+	student.ID = studentID
+	students := []*users.Student{student}
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+	return &studentDepartureState{
+		BusDays:       student.BusDays.Normalize(),
+		PickupDays:    student.PickupDays.Normalize(),
+		DepartureDays: student.DepartureDays.Normalize(),
+	}, nil
+}
+
+func shouldUseUnifiedDeparture(student *users.Student, pickup users.PickupDays, current *studentDepartureState) bool {
+	if student.BusDays == nil && pickup == nil {
+		return true
+	}
+	if current == nil {
+		return false
+	}
+	legacyUnchanged := busDaysEqual(student.BusDays, current.BusDays) && pickupDaysEqual(pickup, current.PickupDays)
+	unifiedChanged := !departureDaysEqual(student.DepartureDays, current.DepartureDays)
+	return legacyUnchanged && unifiedChanged
+}
+
+func departureDaysEqual(a, b users.DepartureDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a.ModeFor(day) != b.ModeFor(day) {
+			return false
+		}
+	}
+	return true
+}
+
+func busDaysEqual(a, b users.BusDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a[day] != b[day] {
+			return false
+		}
+	}
+	return true
+}
+
+func pickupDaysEqual(a, b users.PickupDays) bool {
+	a = a.Normalize()
+	b = b.Normalize()
+	for _, day := range users.PickupDayOrder {
+		if a[day] != b[day] {
+			return false
+		}
+	}
+	return true
 }
 
 func isUndefinedColumnError(err error) bool {

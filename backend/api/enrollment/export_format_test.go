@@ -155,6 +155,16 @@ func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
 	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, raw))
 }
 
+func TestFormatCustomValue_WeekdayMode_EmptyMapIsExplicitAllAlone(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, map[string]any{}))
+}
+
+func TestFormatCustomValue_WeekdayMode_NilStaysMissing(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	assert.Empty(t, formatCustomValue(field, nil))
+}
+
 func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {
 	if got := formatPhoneList("0151"); got != "0151" {
 		t.Errorf("garbage = %q, want passthrough", got)

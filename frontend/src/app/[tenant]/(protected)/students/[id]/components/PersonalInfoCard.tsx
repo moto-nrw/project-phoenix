@@ -2,7 +2,7 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
-import type { BusDays, DepartureDays } from "~/lib/student-helpers";
+import type { BusDays, DepartureDays, PickupDays } from "~/lib/student-helpers";
 import {
   formatDepartureDays,
   departureDaysFromLegacy,
@@ -15,6 +15,7 @@ interface ExtendedStudent {
   birthday?: string;
   buskind?: boolean;
   bus_days?: BusDays;
+  pickup_days?: PickupDays;
   departure_days?: DepartureDays;
   pickup_status?: string;
   health_info?: string;
@@ -100,7 +101,7 @@ function PersonalInfoDisplay({
         label="Geh- und Abholregelung"
         value={formatDepartureDays(
           student.departure_days ??
-            departureDaysFromLegacy(student.bus_days, undefined),
+            departureDaysFromLegacy(student.bus_days, student.pickup_days),
         )}
       />
 

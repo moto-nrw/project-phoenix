@@ -181,9 +181,15 @@ var departureModeLabelsDE = map[string]string{
 // formatWeekdayMode renders mon..fri → alone/bus/pickup as
 // "Mo: fährt Bus, Mi: wird abgeholt" in week order, skipping alone/unset days.
 func formatWeekdayMode(raw any) string {
+	if raw == nil {
+		return ""
+	}
 	var modes enrollmentModels.WeekdayMode
 	if !decodeComposite(raw, &modes) {
 		return stringifyValue(raw)
+	}
+	if len(modes) == 0 {
+		return "Geht immer alleine"
 	}
 	parts := make([]string, 0, len(weekdayOrder))
 	hasAnswer := false

@@ -109,4 +109,28 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		require.NotNil(t, found.PickupStatus)
 		assert.Equal(t, users.PickupStatusGoesAlone, *found.PickupStatus)
 	})
+
+	t.Run("hydrated unified update replaces stale legacy mirrors", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "HydratedReplace", "4a")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		student.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		require.NoError(t, repo.Update(ctx, student))
+
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.True(t, fresh.BusDays[users.PickupDayMonday])
+
+		fresh.DepartureDays = users.DepartureDays{users.PickupDayThursday: users.DeparturePickup}
+		require.NoError(t, repo.Update(ctx, fresh))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.DepartureAlone, found.DepartureDays.ModeFor(users.PickupDayMonday))
+		assert.Equal(t, users.DeparturePickup, found.DepartureDays.ModeFor(users.PickupDayThursday))
+		assert.False(t, found.BusDays.HasAny())
+		assert.True(t, found.PickupDays[users.PickupDayThursday])
+	})
 }

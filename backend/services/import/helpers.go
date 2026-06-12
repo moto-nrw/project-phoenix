@@ -148,23 +148,24 @@ var departureModeAliases = map[string]string{
 // bus columns, the generated template always emits the headers, so keying off
 // header presence alone would wrongly blank out the legacy fallback for a row
 // the user left empty. departure_days is the single source of truth (#1610).
-func parseDepartureDayColumns(mapper *ColumnMapper) map[string]string {
+func parseDepartureDayColumns(mapper *ColumnMapper) (map[string]string, error) {
 	var days map[string]string
 	for _, d := range departureDayColumns {
 		raw := mapper.GetCol(d.col)
 		if raw == "" {
 			continue
 		}
-		mode, ok := departureModeAliases[strings.ToLower(strings.TrimSpace(raw))]
+		normalized := strings.ToLower(strings.TrimSpace(raw))
+		mode, ok := departureModeAliases[normalized]
 		if !ok {
-			continue
+			return nil, fmt.Errorf("%s enthält ungültigen Wert %q (erlaubt: alleine, bus, abholung)", d.col, raw)
 		}
 		if days == nil {
 			days = make(map[string]string, len(departureDayColumns))
 		}
 		days[d.key] = mode
 	}
-	return days
+	return days, nil
 }
 
 // parseBusDayColumns reads optional per-day Buskind columns (Bus.Mo..Bus.Fr).
@@ -213,7 +214,11 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
 	row.BusDays = parseBusDayColumns(mapper)
-	row.DepartureDays = parseDepartureDayColumns(mapper)
+	departureDays, err := parseDepartureDayColumns(mapper)
+	if err != nil {
+		return row, err
+	}
+	row.DepartureDays = departureDays
 	row.EnrolledFrom = mapper.GetCol("einschreibung von")
 	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 
