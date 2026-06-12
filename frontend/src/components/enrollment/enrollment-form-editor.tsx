@@ -31,12 +31,14 @@ import {
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
   blankField,
   blankInfoField,
   createSchema,
   deleteSchema,
+  fetchPublicLegalTexts,
   latestSchemasByName,
   listSchemas,
   updateSchema,
@@ -46,13 +48,16 @@ import {
   type FormField,
   type FormFieldTarget,
   type FormFieldType,
+  type FormLegalBlock,
   type FormSchema,
   type CoreRequirementKey,
   type CoreRequirements,
+  type PublicLegalBlock,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -161,6 +166,57 @@ const NEW_SCHEMA_VALUE = "__new__";
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
+const STANDARD_LEGAL_BLOCKS: FormLegalBlock[] = [
+  {
+    key: "agb",
+    kind: "terms",
+    title: "AGB / Teilnahmebedingungen",
+    label:
+      "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+    text: "",
+    required: true,
+    enabled: false,
+    sort_order: 10,
+    source: "standard",
+  },
+  {
+    key: "data_processing",
+    kind: "privacy_notice",
+    title: "Datenschutzinformation",
+    label:
+      "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
+    text: "",
+    required: true,
+    enabled: false,
+    sort_order: 20,
+    source: "standard",
+  },
+  {
+    key: "photo",
+    kind: "consent",
+    title: "Fotoeinwilligung",
+    label:
+      "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
+    text: "",
+    required: false,
+    enabled: false,
+    sort_order: 30,
+    source: "standard",
+  },
+  {
+    key: "email_contact",
+    kind: "notice",
+    title: "E-Mail-Kontakt",
+    label:
+      "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
+    text: "",
+    required: false,
+    enabled: false,
+    sort_order: 40,
+    source: "standard",
+  },
+];
+
 interface CoreField {
   readonly key: string;
   readonly label: string;
@@ -236,6 +292,7 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
 
 export function EnrollmentFormEditor() {
   const toast = useToast();
+  const tenantSlug = useTenantSlugSafe();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
@@ -243,6 +300,12 @@ export function EnrollmentFormEditor() {
   const [fields, setFields] = useState<FormField[]>([]);
   const [coreRequirements, setCoreRequirements] = useState<CoreRequirements>(
     {},
+  );
+  const [standardLegalBlocks, setStandardLegalBlocks] = useState<
+    FormLegalBlock[]
+  >(STANDARD_LEGAL_BLOCKS);
+  const [legalBlocks, setLegalBlocks] = useState<FormLegalBlock[]>(
+    STANDARD_LEGAL_BLOCKS,
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -262,10 +325,17 @@ export function EnrollmentFormEditor() {
     setLoading(true);
     setError(null);
     try {
-      const [list, phaseList] = await Promise.all([
+      // Legal texts are NOT best-effort: silently swallowing a fetch
+      // failure would seed the builder with all-disabled standard blocks
+      // and nudge admins into saving a template without the tenant's
+      // consent contract. A failure fails the whole load instead.
+      const [list, phaseList, legalTexts] = await Promise.all([
         listSchemas(),
         listPhases().catch(() => [] as Phase[]),
+        tenantSlug ? fetchPublicLegalTexts(tenantSlug) : Promise.resolve(null),
       ]);
+      const legalDefaults = mergeStandardLegalBlocks(legalTexts?.blocks ?? []);
+      setStandardLegalBlocks(legalDefaults);
       setAllSchemas(list);
       setPhases(phaseList);
       return list;
@@ -277,7 +347,7 @@ export function EnrollmentFormEditor() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenantSlug]);
 
   useEffect(() => {
     void loadAll();
@@ -288,6 +358,11 @@ export function EnrollmentFormEditor() {
     setName(schema.name);
     setFields(schema.fields);
     setCoreRequirements(schema.core_requirements ?? {});
+    setLegalBlocks(
+      schema.legal_blocks && schema.legal_blocks.length > 0
+        ? schema.legal_blocks
+        : standardLegalBlocks,
+    );
     setError(null);
     setMode(nextMode);
   };
@@ -328,6 +403,7 @@ export function EnrollmentFormEditor() {
     setName("");
     setFields([]);
     setCoreRequirements({});
+    setLegalBlocks(standardLegalBlocks);
     setError(null);
     setMode("builder");
   };
@@ -402,16 +478,40 @@ export function EnrollmentFormEditor() {
     () => coreRequirementsSignature(coreRequirements),
     [coreRequirements],
   );
+  const savedLegalBlocksSignature = useMemo(
+    // Mirror selectSchema's hydration: the backend returns [] for legacy
+    // templates, which the editor displays as the standard blocks. The
+    // saved signature must apply the same substitution, otherwise every
+    // pre-existing template opens with phantom unsaved changes.
+    () =>
+      legalBlocksSignature(
+        currentSchema?.legal_blocks && currentSchema.legal_blocks.length > 0
+          ? currentSchema.legal_blocks
+          : standardLegalBlocks,
+      ),
+    [currentSchema?.legal_blocks, standardLegalBlocks],
+  );
+  const currentLegalBlocksSignature = useMemo(
+    () => legalBlocksSignature(legalBlocks),
+    [legalBlocks],
+  );
+  const standardLegalBlocksSignature = useMemo(
+    () => legalBlocksSignature(standardLegalBlocks),
+    [standardLegalBlocks],
+  );
   const hasUnsavedChanges =
     mode === "builder" &&
     (isCreating
       ? name.trim() !== "" ||
         fields.length > 0 ||
-        currentCoreRequirementSignature !== "{}"
+        currentCoreRequirementSignature !== "{}" ||
+        currentLegalBlocksSignature !== standardLegalBlocksSignature
       : currentFieldSignature !== savedFieldSignature ||
-        savedCoreRequirementSignature !== currentCoreRequirementSignature);
+        savedCoreRequirementSignature !== currentCoreRequirementSignature ||
+        savedLegalBlocksSignature !== currentLegalBlocksSignature);
   const saveBlockedMessage = getSchemaDraftValidationMessage({
     fields,
+    legalBlocks,
     isCreating,
     name,
   });
@@ -424,6 +524,7 @@ export function EnrollmentFormEditor() {
     try {
       const validationMessage = getSchemaDraftValidationMessage({
         fields,
+        legalBlocks,
         isCreating,
         name,
       });
@@ -434,18 +535,21 @@ export function EnrollmentFormEditor() {
       }
 
       const fieldsForSave = prepareFieldsForSave(fields);
+      const legalBlocksForSave = prepareLegalBlocksForSave(legalBlocks);
       let result: FormSchema;
       if (isCreating) {
         result = await createSchema(
           name.trim(),
           fieldsForSave,
           coreRequirements,
+          legalBlocksForSave,
         );
       } else {
         result = await updateSchema(
           selectedKey,
           fieldsForSave,
           coreRequirements,
+          legalBlocksForSave,
         );
       }
       const refreshed = await loadAll();
@@ -623,6 +727,12 @@ export function EnrollmentFormEditor() {
               disabled={saving}
             />
 
+            <LegalBlocksSection
+              blocks={legalBlocks}
+              onChange={setLegalBlocks}
+              disabled={saving}
+            />
+
             <section className="space-y-4">
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -720,6 +830,7 @@ export function EnrollmentFormEditor() {
             <FormPreview
               fields={fields}
               coreRequirements={coreRequirements}
+              legalBlocks={legalBlocks}
               templateName={name}
               isActive={currentSchema?.is_active ?? false}
               isSaved={currentSchema !== null}
@@ -1313,6 +1424,7 @@ function FormTemplateDetail({
               <FormPreview
                 fields={schema.fields}
                 coreRequirements={schema.core_requirements ?? {}}
+                legalBlocks={schema.legal_blocks ?? []}
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
@@ -1749,6 +1861,240 @@ function CoreFieldsSection({
   );
 }
 
+function LegalBlocksSection({
+  blocks,
+  onChange,
+  disabled,
+}: Readonly<{
+  blocks: FormLegalBlock[];
+  onChange: (blocks: FormLegalBlock[]) => void;
+  disabled: boolean;
+}>) {
+  const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
+    onChange(
+      blocks.map((block, i) => {
+        if (i !== index) return block;
+        const next = { ...block, ...patch };
+        if (
+          patch.enabled === undefined &&
+          patch.text !== undefined &&
+          patch.text.trim() !== ""
+        ) {
+          next.enabled = true;
+        }
+        return next;
+      }),
+    );
+  };
+  const addCustomBlock = () => {
+    onChange([
+      ...blocks,
+      {
+        key: `custom_consent_${blocks.length + 1}`,
+        kind: "consent",
+        title: "Weitere Einwilligung",
+        label: "Ich stimme dieser Einwilligung zu.",
+        text: "",
+        required: false,
+        enabled: true,
+        sort_order: blocks.length * 10 + 10,
+        source: "custom",
+      },
+    ]);
+  };
+  const removeBlock = (index: number) => {
+    onChange(blocks.filter((_, i) => i !== index));
+  };
+
+  return (
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            Zustimmungen
+          </p>
+          <h2 className="mt-1 text-base font-semibold text-gray-900">
+            Rechtstexte und Einwilligungen
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+            Diese Blöcke gehören zur Vorlage und erscheinen in jeder Phase, die
+            diese Vorlage nutzt. Die Texte werden mit der Vorlage gespeichert:
+            Spätere Änderungen an den Rechtstexten in den Einstellungen
+            übernimmst du hier manuell.
+          </p>
+        </div>
+      </div>
+
+      {blocks.some((block) => block.enabled) &&
+      !blocks.some(
+        (block) => block.key === "data_processing" && block.enabled,
+      ) ? (
+        <p className="mt-3 rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm leading-6 text-gray-700">
+          Hinweis: Die Datenschutzinformation ist in dieser Vorlage deaktiviert.
+          Stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg
+          erhalten, zum Beispiel über den Elternbrief.
+        </p>
+      ) : null}
+
+      <div className="mt-4 space-y-3">
+        {blocks.map((block, index) => (
+          <div
+            key={`${block.key}-${index}`}
+            className="rounded-xl border border-gray-200 bg-white p-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                <input
+                  type="checkbox"
+                  checked={block.enabled}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    updateBlock(index, { enabled: event.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                />
+                Im Formular anzeigen
+              </label>
+              {block.source === "standard" ? (
+                <p className="max-w-xl text-xs leading-5 text-gray-500">
+                  Kommt aus den Standard-Einstellungen. Der Haken aktiviert oder
+                  deaktiviert diesen Block nur für diese Vorlage; Text und
+                  Pflichtstatus können hier überschrieben werden.
+                </p>
+              ) : (
+                <p className="max-w-xl text-xs leading-5 text-gray-500">
+                  Eigene Zustimmung für diese Vorlage. Sie erscheint als
+                  zusätzliche Checkbox im Anmeldeformular.
+                </p>
+              )}
+              {block.source === "custom" ? (
+                <button
+                  type="button"
+                  onClick={() => removeBlock(index)}
+                  disabled={disabled}
+                  className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-[#CC2626] hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Entfernen
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">Titel</span>
+                <input
+                  type="text"
+                  value={block.title}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    updateBlock(index, { title: event.target.value })
+                  }
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">
+                  Interner Schlüssel
+                </span>
+                <input
+                  type="text"
+                  value={block.key}
+                  disabled={disabled || block.source === "standard"}
+                  onChange={(event) =>
+                    updateBlock(index, {
+                      key: normalizeFieldKey(event.target.value),
+                    })
+                  }
+                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block">
+              <span className="text-xs font-medium text-gray-700">
+                Text neben der Checkbox oder dem Hinweis
+              </span>
+              <textarea
+                value={block.label}
+                disabled={disabled}
+                rows={2}
+                onChange={(event) =>
+                  updateBlock(index, { label: event.target.value })
+                }
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+              />
+            </label>
+
+            <label className="mt-3 block">
+              <span className="text-xs font-medium text-gray-700">
+                Rechtstext / Erklärung
+              </span>
+              <textarea
+                value={block.text}
+                disabled={disabled}
+                rows={4}
+                onChange={(event) =>
+                  updateBlock(index, { text: event.target.value })
+                }
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+              />
+            </label>
+
+            <div className="mt-3 flex flex-wrap gap-3">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={block.required}
+                  disabled={disabled || block.kind === "notice"}
+                  onChange={(event) =>
+                    updateBlock(index, { required: event.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                />
+                Muss bestätigt werden
+              </label>
+              <CustomSelect
+                value={block.kind}
+                disabled={disabled}
+                onChange={(value) => {
+                  const kind = value as FormLegalBlock["kind"];
+                  updateBlock(index, {
+                    kind,
+                    required: kind === "notice" ? false : block.required,
+                  });
+                }}
+                className="h-9 w-auto min-w-56 border-gray-200 bg-white"
+                options={[
+                  { value: "terms", label: "AGB / Teilnahmebedingungen" },
+                  {
+                    value: "privacy_notice",
+                    label: "Datenschutz-Bestätigung",
+                  },
+                  { value: "consent", label: "Einwilligung" },
+                  { value: "notice", label: "Hinweis ohne Checkbox" },
+                ]}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={addCustomBlock}
+          disabled={disabled}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Eigene Zustimmung hinzufügen
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CoreFieldGroup({
   title,
   fields,
@@ -2162,22 +2508,21 @@ function FieldEditorRow({
                       </span>
                     ) : null}
                   </span>
-                  <select
+                  <CustomSelect
                     value={field.type}
-                    onChange={(event) =>
-                      onChange({ type: event.target.value as FormFieldType })
+                    onChange={(value) =>
+                      onChange({ type: value as FormFieldType })
                     }
                     disabled={disabled || isTargetField}
-                    className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-                  >
-                    {(isTargetField ? [field.type] : freeFieldTypes).map(
-                      (value) => (
-                        <option key={value} value={value}>
-                          {fieldTypeLabels[value]}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                    className="mt-1"
+                    options={(isTargetField
+                      ? [field.type]
+                      : freeFieldTypes
+                    ).map((value) => ({
+                      value,
+                      label: fieldTypeLabels[value],
+                    }))}
+                  />
                 </label>
               </div>
 
@@ -2292,7 +2637,7 @@ function FormChoice({
 }
 
 const conditionInputClass =
-  "moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
+  "moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
 
 // Field-source operators offered in the condition editor. "includes" is
 // reserved for the care-offering source and is not listed here.
@@ -2409,29 +2754,28 @@ function ConditionEditor({
 
       {condition ? (
         <div className="mt-3 space-y-2">
-          <label className="block">
+          <label className="block" htmlFor={`condition-${index}-source`}>
             <span className="text-xs font-medium text-gray-700">
               Sichtbar wenn
             </span>
-            <select
+            <CustomSelect
+              id={`condition-${index}-source`}
               value={condition.source}
-              onChange={(event) =>
+              onChange={(value) =>
                 setCondition(
                   defaultConditionForSource(
-                    event.target.value as ConditionSource,
+                    value as ConditionSource,
                     controllers,
                   ),
                 )
               }
               disabled={disabled}
               className={conditionInputClass}
-            >
-              {sources.map((source) => (
-                <option key={source} value={source}>
-                  {conditionSourceLabels[source]}
-                </option>
-              ))}
-            </select>
+              options={sources.map((source) => ({
+                value: source,
+                label: conditionSourceLabels[source],
+              }))}
+            />
           </label>
 
           {condition.source === "field" ? (
@@ -2441,12 +2785,14 @@ function ConditionEditor({
               onPatch={patchCondition}
               onReplace={setCondition}
               disabled={disabled}
+              idPrefix={`condition-${index}-field`}
             />
           ) : condition.source === "grade_level" ? (
             <ConditionGradeControls
               condition={condition}
               onPatch={patchCondition}
               disabled={disabled}
+              idPrefix={`condition-${index}-grade`}
             />
           ) : (
             <ConditionOfferingControls
@@ -2467,12 +2813,14 @@ function ConditionFieldControls({
   onPatch,
   onReplace,
   disabled,
+  idPrefix,
 }: Readonly<{
   condition: VisibilityCondition;
   controllers: FormField[];
   onPatch: (patch: Partial<VisibilityCondition>) => void;
   onReplace: (next: VisibilityCondition) => void;
   disabled: boolean;
+  idPrefix: string;
 }>) {
   const controller = controllers.find((c) => c.key === condition.field);
 
@@ -2500,68 +2848,63 @@ function ConditionFieldControls({
 
   return (
     <>
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-question`}>
         <span className="text-xs font-medium text-gray-700">Frage</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-question`}
           value={condition.field ?? ""}
-          onChange={(event) => changeController(event.target.value)}
+          onChange={changeController}
           disabled={disabled}
           className={conditionInputClass}
-        >
-          {controllers.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.label.trim() || c.key}
-            </option>
-          ))}
-        </select>
+          options={controllers.map((controller) => ({
+            value: controller.key,
+            label: controller.label.trim() || controller.key,
+          }))}
+        />
       </label>
 
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-operator`}>
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-operator`}
           value={condition.operator}
-          onChange={(event) =>
-            changeOperator(event.target.value as ConditionOperator)
-          }
+          onChange={(value) => changeOperator(value as ConditionOperator)}
           disabled={disabled}
           className={conditionInputClass}
-        >
-          {FIELD_CONDITION_OPERATORS.map((op) => (
-            <option key={op} value={op}>
-              {conditionOperatorLabels[op]}
-            </option>
-          ))}
-        </select>
+          options={FIELD_CONDITION_OPERATORS.map((operator) => ({
+            value: operator,
+            label: conditionOperatorLabels[operator],
+          }))}
+        />
       </label>
 
       {condition.operator !== "not_empty" && controller ? (
-        <label className="block">
+        <label className="block" htmlFor={`${idPrefix}-value`}>
           <span className="text-xs font-medium text-gray-700">Wert</span>
           {controller.type === "boolean" ? (
-            <select
+            <CustomSelect
+              id={`${idPrefix}-value`}
               value={condition.value === true ? "true" : "false"}
-              onChange={(event) =>
-                onPatch({ value: event.target.value === "true" })
-              }
+              onChange={(value) => onPatch({ value: value === "true" })}
               disabled={disabled}
               className={conditionInputClass}
-            >
-              <option value="true">Ja</option>
-              <option value="false">Nein</option>
-            </select>
+              options={[
+                { value: "true", label: "Ja" },
+                { value: "false", label: "Nein" },
+              ]}
+            />
           ) : (
-            <select
+            <CustomSelect
+              id={`${idPrefix}-value`}
               value={String(condition.value ?? "")}
-              onChange={(event) => onPatch({ value: event.target.value })}
+              onChange={(value) => onPatch({ value })}
               disabled={disabled}
               className={conditionInputClass}
-            >
-              {(controller.options ?? []).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              options={(controller.options ?? []).map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
           )}
         </label>
       ) : null}
@@ -2573,26 +2916,30 @@ function ConditionGradeControls({
   condition,
   onPatch,
   disabled,
+  idPrefix,
 }: Readonly<{
   condition: VisibilityCondition;
   onPatch: (patch: Partial<VisibilityCondition>) => void;
   disabled: boolean;
+  idPrefix: string;
 }>) {
   return (
     <>
-      <label className="block">
+      <label className="block" htmlFor={`${idPrefix}-operator`}>
         <span className="text-xs font-medium text-gray-700">Vergleich</span>
-        <select
+        <CustomSelect
+          id={`${idPrefix}-operator`}
           value={condition.operator}
-          onChange={(event) =>
-            onPatch({ operator: event.target.value as ConditionOperator })
+          onChange={(value) =>
+            onPatch({ operator: value as ConditionOperator })
           }
           disabled={disabled}
           className={conditionInputClass}
-        >
-          <option value="eq">{conditionOperatorLabels.eq}</option>
-          <option value="neq">{conditionOperatorLabels.neq}</option>
-        </select>
+          options={[
+            { value: "eq", label: conditionOperatorLabels.eq },
+            { value: "neq", label: conditionOperatorLabels.neq },
+          ]}
+        />
       </label>
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Klassenstufe</span>
@@ -2646,6 +2993,7 @@ function ConditionOfferingControls({
 function FormPreview({
   fields,
   coreRequirements,
+  legalBlocks,
   templateName,
   isActive,
   isSaved,
@@ -2656,6 +3004,7 @@ function FormPreview({
 }: Readonly<{
   fields: FormField[];
   coreRequirements: CoreRequirements;
+  legalBlocks: FormLegalBlock[];
   templateName: string;
   isActive: boolean;
   isSaved: boolean;
@@ -2669,6 +3018,7 @@ function FormPreview({
     isActive,
     isSaved,
   });
+  const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
   const guardianFields = [
     "Vorname *",
     "Nachname *",
@@ -2819,6 +3169,59 @@ function FormPreview({
               </div>
             )}
           </section>
+
+          {enabledLegalBlocks.length > 0 ? (
+            <section>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Zustimmungen & Hinweise
+                </h4>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                  {enabledLegalBlocks.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {enabledLegalBlocks.map((block) => (
+                  <div
+                    key={block.key}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <span
+                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                          block.kind === "notice"
+                            ? "border-[#5080D8]/30 bg-[#5080D8]/10"
+                            : "border-gray-300 bg-white"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {block.kind === "notice" ? (
+                          <Info className="h-3 w-3 text-[#5080D8]" />
+                        ) : null}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {block.title.trim() || block.label}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                            {block.kind === "notice"
+                              ? "Hinweis"
+                              : block.required
+                                ? "Pflicht"
+                                : "Optional"}
+                          </span>
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                          {block.label}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <button
             type="button"
@@ -3107,6 +3510,45 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
   });
 }
 
+function mergeStandardLegalBlocks(
+  blocks: PublicLegalBlock[],
+): FormLegalBlock[] {
+  const byKey = new Map(blocks.map((block) => [block.key, block]));
+  return STANDARD_LEGAL_BLOCKS.map((standard) => {
+    const configured = byKey.get(standard.key);
+    if (!configured) return standard;
+    return {
+      ...standard,
+      kind: configured.kind,
+      title: configured.title,
+      label: configured.label,
+      text: configured.text,
+      required: configured.required,
+      enabled: true,
+      sort_order: configured.sort_order ?? standard.sort_order,
+      source: "standard",
+    };
+  });
+}
+
+function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
+  return blocks.map((block, index) => ({
+    key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
+    kind: block.kind,
+    title: block.title.trim(),
+    label: block.label.trim(),
+    text: block.text.trim(),
+    required: block.kind === "notice" ? false : Boolean(block.required),
+    enabled: Boolean(block.enabled),
+    sort_order: index * 10 + 10,
+    source: block.source ?? "custom",
+  }));
+}
+
+function legalBlocksSignature(blocks: FormLegalBlock[]): string {
+  return JSON.stringify(prepareLegalBlocksForSave(blocks));
+}
+
 function coreRequirementsSignature(value: CoreRequirements): string {
   const enabled = Object.entries(value)
     .filter(([, required]) => required)
@@ -3136,10 +3578,12 @@ function getRequiredHint(field: FormField): string {
 
 function getSchemaDraftValidationMessage({
   fields,
+  legalBlocks,
   isCreating,
   name,
 }: Readonly<{
   fields: FormField[];
+  legalBlocks: FormLegalBlock[];
   isCreating: boolean;
   name: string;
 }>): string | null {
@@ -3185,6 +3629,24 @@ function getSchemaDraftValidationMessage({
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
       return `Bitte ergänze für Frage ${position} mindestens eine Auswahloption.`;
+    }
+  }
+
+  const seenLegalKeys = new Set<string>();
+  for (const [index, block] of prepareLegalBlocksForSave(
+    legalBlocks,
+  ).entries()) {
+    const position = index + 1;
+    if (seenLegalKeys.has(block.key)) {
+      return `Bitte ändere Zustimmung ${position}. Zwei Zustimmungen haben denselben internen Schlüssel.`;
+    }
+    seenLegalKeys.add(block.key);
+    if (!block.enabled) continue;
+    if (block.title === "") {
+      return `Bitte gib für Zustimmung ${position} einen Titel ein.`;
+    }
+    if (block.label === "") {
+      return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
     }
   }
 

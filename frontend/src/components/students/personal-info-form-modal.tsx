@@ -51,7 +51,16 @@ export function PersonalInfoFormModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave(editedStudent);
+      await onSave({
+        ...editedStudent,
+        departure_days: normalizeDepartureDays(
+          editedStudent.departure_days ??
+            departureDaysFromLegacy(
+              editedStudent.bus_days,
+              editedStudent.pickup_days,
+            ),
+        ),
+      });
       onClose();
     } catch (err) {
       logger.error("failed to save personal information", {

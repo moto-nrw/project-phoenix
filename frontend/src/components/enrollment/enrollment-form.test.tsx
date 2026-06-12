@@ -15,6 +15,7 @@ const {
   mockFetchPublicCareOfferings,
   mockFetchMyEnrollmentProfile,
   mockSubmitEnrollment,
+  mockIntlLocale,
 } = vi.hoisted(() => ({
   mockFetchPublicActiveSchema: vi.fn(),
   mockFetchPublicCaptchaConfig: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockFetchPublicCareOfferings: vi.fn(),
   mockFetchMyEnrollmentProfile: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
+  mockIntlLocale: { value: "de" },
 }));
 
 vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
@@ -41,6 +43,66 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
     fetchMyEnrollmentProfile: mockFetchMyEnrollmentProfile,
     fetchPublicCareOfferings: mockFetchPublicCareOfferings,
     submitEnrollment: mockSubmitEnrollment,
+  };
+});
+
+vi.mock("next-intl", async () => {
+  const de = (await import("~/i18n/messages/de.json")).default as Record<
+    string,
+    unknown
+  >;
+  const en = (await import("~/i18n/messages/en.json")).default as Record<
+    string,
+    unknown
+  >;
+  const catalogs: Record<string, Record<string, unknown>> = { de, en };
+  const currentCatalog = (): Record<string, unknown> =>
+    catalogs[mockIntlLocale.value] ?? de;
+  const resolve = (catalog: Record<string, unknown>, path: string): unknown =>
+    path.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, catalog);
+  const interpolate = (
+    value: string,
+    values?: Record<string, unknown>,
+  ): string =>
+    values
+      ? Object.entries(values).reduce(
+          (str, [k, v]) => str.replaceAll(`{${k}}`, String(v)),
+          value,
+        )
+      : value;
+  const makeT = (namespace?: string) => {
+    const prefix = namespace ? `${namespace}.` : "";
+    const t = (key: string, values?: Record<string, unknown>) => {
+      const catalog = currentCatalog();
+      const val = resolve(catalog, `${prefix}${key}`);
+      return typeof val === "string"
+        ? interpolate(val, values)
+        : `${prefix}${key}`;
+    };
+    t.raw = (key: string) => {
+      const catalog = currentCatalog();
+      return resolve(catalog, `${prefix}${key}`);
+    };
+    return t;
+  };
+  const cache = new Map<string, ReturnType<typeof makeT>>();
+  return {
+    useTranslations: (namespace?: string) => {
+      const cacheKey = `${mockIntlLocale.value}:${namespace ?? ""}`;
+      const existing = cache.get(cacheKey);
+      if (existing) return existing;
+      const t = makeT(namespace);
+      cache.set(cacheKey, t);
+      return t;
+    },
+    useLocale: () => mockIntlLocale.value,
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
   };
 });
 
@@ -243,7 +305,12 @@ async function waitForLoaded() {
   });
 }
 
-function fillRequiredFields() {
+async function chooseOption(label: string, optionName: string) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByRole("option", { name: optionName }));
+}
+
+async function fillRequiredFields() {
   const firstNameInputs = screen.getAllByLabelText("Vorname *");
   const lastNameInputs = screen.getAllByLabelText("Nachname *");
   fireEvent.change(firstNameInputs[0]!, { target: { value: "Mara" } });
@@ -253,14 +320,10 @@ function fillRequiredFields() {
   });
   fireEvent.change(firstNameInputs[1]!, { target: { value: "Lina" } });
   fireEvent.change(lastNameInputs[1]!, { target: { value: "Muster" } });
-  fireEvent.change(screen.getByLabelText("Tag"), { target: { value: "15" } });
-  fireEvent.change(screen.getByLabelText("Monat"), { target: { value: "4" } });
-  fireEvent.change(screen.getByLabelText("Jahr"), {
-    target: { value: "2018" },
-  });
-  fireEvent.change(screen.getByLabelText("Klassenstufe *"), {
-    target: { value: "2" },
-  });
+  await chooseOption("Tag", "15");
+  await chooseOption("Monat", "April");
+  await chooseOption("Jahr", "2018");
+  await chooseOption("Klassenstufe *", "2. Klasse");
   const agb = screen.queryByText(/AGB|Ganztag Info-Brief/);
   if (agb) {
     fireEvent.click(agb);
@@ -275,6 +338,7 @@ function fillRequiredFields() {
 
 describe("EnrollmentForm", () => {
   beforeEach(() => {
+    mockIntlLocale.value = "de";
     mockFetchPublicActiveSchema.mockReset();
     mockFetchPublicCaptchaConfig.mockReset();
     mockFetchPublicLegalTexts.mockReset();
@@ -308,6 +372,7 @@ describe("EnrollmentForm", () => {
       "test-tenant",
       "5",
     );
+    expect(mockFetchPublicLegalTexts).toHaveBeenCalledWith("test-tenant", "5");
     expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
     expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
     expect(screen.getByText("Allergien")).toBeInTheDocument();
@@ -345,6 +410,17 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows the compulsory attendance notice near care offerings", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.getByText(
+        /Mit der Anmeldung zum Ganztagsangebot ist Ihr Kind laut Ganztagsschulerlass zu den angemeldeten Zeiten schulpflichtig\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("fails closed when the legal texts cannot be loaded", async () => {
     // A real load failure (settings/DB/JSON error) must reject the whole
     // form load so the parent never submits legally relevant consent
@@ -364,6 +440,26 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("localizes the e-mail contact notice CTA in localized public copy", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ localizedCopy: true });
+    await waitForLoaded();
+
+    const emailContactNotice = screen
+      .getByText(/Status-Benachrichtigungen/)
+      .closest("div");
+    expect(emailContactNotice).not.toBeNull();
+    expect(
+      within(emailContactNotice!).getByRole("button", { name: "Show more" }),
+    ).toBeInTheDocument();
+    expect(
+      within(emailContactNotice!).queryByRole("button", {
+        name: "Mehr anzeigen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders only the configured AGB block and submits only its consent", async () => {
@@ -400,7 +496,7 @@ describe("EnrollmentForm", () => {
       screen.queryByText(/Status-Benachrichtigungen/),
     ).not.toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -428,7 +524,7 @@ describe("EnrollmentForm", () => {
       screen.queryByText("Zustimmungen & Hinweise"),
     ).not.toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -441,12 +537,110 @@ describe("EnrollmentForm", () => {
     expect(payload.consent_flags).toEqual({});
   });
 
+  it("requires and submits custom template consent blocks", async () => {
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(
+      legalTexts([
+        {
+          key: "custom_pool",
+          kind: "consent",
+          title: "Schwimmbad",
+          label: "Mein Kind darf am Schwimmbad-Ausflug teilnehmen.",
+          text: "Schwimmbad Details",
+          required: true,
+          source: "custom",
+        },
+      ]),
+    );
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    // The message renders twice by design: once in the error banner and
+    // once inline at the unchecked block.
+    expect(
+      await screen.findAllByText(
+        "Bitte diese erforderliche Bestätigung auswählen.",
+      ),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByText("Mein Kind darf am Schwimmbad-Ausflug teilnehmen."),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.consent_flags).toEqual({ custom_pool: true });
+  });
+
+  it("renders legal blocks from preview schemas without loading tenant legal texts", async () => {
+    mockFetchPublicLegalTexts.mockClear();
+
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: {
+        id: "preview-schema",
+        version: 1,
+        fields: [],
+        legal_blocks: [
+          {
+            key: "custom_photo_trip",
+            kind: "consent",
+            title: "Fotoausflug",
+            label: "Mein Kind darf beim Ausflug fotografiert werden.",
+            text: "Details zum Fotoausflug",
+            required: true,
+            enabled: true,
+            sort_order: 10,
+            source: "custom",
+          },
+          {
+            key: "disabled_consent",
+            kind: "consent",
+            title: "Ausgeblendet",
+            label: "Diese Zustimmung ist deaktiviert.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 20,
+            source: "custom",
+          },
+        ],
+      },
+      skipCaptcha: true,
+    });
+    await waitForLoaded();
+
+    expect(mockFetchPublicLegalTexts).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Mein Kind darf beim Ausflug fotografiert werden."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Diese Zustimmung ist deaktiviert."),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits guardian, child, custom field, offering, and consent payloads", async () => {
     const onSubmitted = vi.fn();
     renderForm({ onSubmitted });
     await waitForLoaded();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.change(screen.getByLabelText("Telefon"), {
       target: { value: "+49 221 1234567" },
     });
@@ -543,15 +737,15 @@ describe("EnrollmentForm", () => {
 
     expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "✓ übernommen" })).toBeDisabled();
-    expect(
-      (screen.getByLabelText("Klassenstufe *") as HTMLSelectElement).value,
-    ).toBe("2");
+    expect(screen.getByLabelText("Klassenstufe *")).toHaveTextContent(
+      "2. Klasse",
+    );
   });
 
   it("requires care offerings and parent-choice days before submit", async () => {
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
@@ -609,7 +803,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
@@ -660,7 +854,7 @@ describe("EnrollmentForm", () => {
       profileFetcher: vi.fn().mockResolvedValue(null),
     });
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByText("Fixe Betreuung"));
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -677,7 +871,7 @@ describe("EnrollmentForm", () => {
   it("submits selected bus weekdays for weekday boolean fields", async () => {
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Mo" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Fr" }));
@@ -739,7 +933,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
@@ -778,7 +972,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    fillRequiredFields();
+    await fillRequiredFields();
 
     // Untouched required pickup is "missing" — submission is blocked and the
     // pickup-specific confirm message (not the bus "pick a day" message) shows.
@@ -837,7 +1031,7 @@ describe("EnrollmentForm", () => {
     expect(checkbox).toBeDisabled();
     expect(screen.getByText("Pflicht")).toBeInTheDocument();
 
-    fillRequiredFields();
+    await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
 
     await waitFor(() => {
@@ -892,7 +1086,7 @@ describe("EnrollmentForm", () => {
     expect(required).toBeChecked();
     expect(required).toBeDisabled();
 
-    fillRequiredFields();
+    await fillRequiredFields();
 
     // Submitting with ONLY the required offering must be rejected: exactly_one
     // counts the choosable offerings, and none is chosen yet. The required

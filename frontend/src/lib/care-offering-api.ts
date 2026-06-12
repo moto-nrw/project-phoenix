@@ -1,4 +1,5 @@
 import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 
 const logger = createLogger({ component: "CareOfferingAPI" });
 
@@ -88,21 +89,12 @@ async function readJSON<T>(response: Response): Promise<T> {
 }
 
 async function readError(response: Response, fallback: string): Promise<Error> {
-  let message = fallback;
-  try {
-    const payload = (await response.json()) as BackendEnvelope<unknown>;
-    message =
-      payload.error ??
-      payload.message ??
-      `${fallback} (HTTP ${response.status})`;
-  } catch {
-    // ignore parse errors
-  }
-  logger.error("care_offering_request_failed", {
-    status: response.status,
-    message,
-  });
-  return new Error(message);
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "care_offering_request_failed",
+  );
 }
 
 export async function listCareOfferings(

@@ -36,6 +36,7 @@ import {
   DataTableStatusBadge,
   type DataTableColumn,
 } from "~/components/ui/data-table";
+import { CustomSelect } from "~/components/ui/custom-select";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -599,20 +600,18 @@ function CareOfferingToolbar({
             htmlFor="care-offerings-phase"
           >
             <span className="font-medium text-gray-700">Anmeldephase</span>
-            <select
+            <CustomSelect
               id="care-offerings-phase"
-              name="phase"
               value={selectedPhaseId}
-              onChange={(event) => onPhaseChange(event.target.value)}
-              className="moto-select moto-content-surface h-9 min-w-60 rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              {phases.map((phase) => (
-                <option key={phase.id} value={phase.id}>
-                  {phase.name} ({KIND_LABELS[phase.kind]})
-                  {!phase.is_active ? " (inaktiv)" : ""}
-                </option>
-              ))}
-            </select>
+              onChange={onPhaseChange}
+              className="h-9 min-w-60"
+              options={phases.map((phase) => ({
+                value: phase.id,
+                label: `${phase.name} (${KIND_LABELS[phase.kind]})${
+                  !phase.is_active ? " (inaktiv)" : ""
+                }`,
+              }))}
+            />
           </label>
           {!focusMode ? (
             <button
@@ -955,53 +954,55 @@ function CareOfferingForm({
             className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           />
         </label>
-        <label className="block">
+        <label className="block" htmlFor="care-offering-form-phase">
           <span className="text-xs font-medium text-gray-700">
             Anmeldephase
           </span>
-          <select
-            name="phase"
+          <CustomSelect
+            id="care-offering-form-phase"
             value={draft.phase_id?.toString() ?? ""}
-            onChange={(event) =>
+            onChange={(value) =>
               update({
-                phase_id: event.target.value ? Number(event.target.value) : 0,
+                phase_id: value ? Number(value) : 0,
               })
             }
-            className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="">Bitte wählen</option>
-            {phases.map((phase) => (
-              <option key={phase.id} value={phase.id}>
-                {phase.name}
-              </option>
-            ))}
-          </select>
+            className="mt-1"
+            options={[
+              { value: "", label: "Bitte wählen" },
+              ...phases.map((phase) => ({
+                value: phase.id,
+                label: phase.name,
+              })),
+            ]}
+          />
         </label>
       </div>
 
       <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
-        <label className="block">
+        <label className="block" htmlFor="care-offering-template">
           <span className="text-xs font-medium text-gray-700">
             Stundenplan-Vorlage
           </span>
-          <select
+          <CustomSelect
+            id="care-offering-template"
             value={draft.activity_group_id?.toString() ?? ""}
-            onChange={(event) =>
+            onChange={(value) =>
               update({
-                activity_group_id: event.target.value
-                  ? Number(event.target.value)
-                  : null,
+                activity_group_id: value ? Number(value) : null,
               })
             }
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="">Keine automatische Stundenplan-Zuordnung</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {templateLabel(template)}
-              </option>
-            ))}
-          </select>
+            className="mt-1 border-gray-200 bg-white"
+            options={[
+              {
+                value: "",
+                label: "Keine automatische Stundenplan-Zuordnung",
+              },
+              ...templates.map((template) => ({
+                value: String(template.id),
+                label: templateLabel(template),
+              })),
+            ]}
+          />
         </label>
         <p className="mt-2 text-xs text-gray-600">
           Genehmigte Anmeldungen werden in diese Vorlage übernommen und an den
@@ -1059,27 +1060,25 @@ function CareOfferingForm({
               className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
-          <label className="block">
+          <label className="block" htmlFor="care-offering-selection-rule">
             <span className="text-xs font-medium text-gray-700">Regel</span>
-            <select
-              name="selection_rule"
+            <CustomSelect
+              id="care-offering-selection-rule"
               value={draft.selection_rule ?? "optional"}
-              onChange={(event) =>
+              onChange={(value) =>
                 update({
-                  selection_rule: event.target.value as CareSelectionRule,
+                  selection_rule: value as CareSelectionRule,
                 })
               }
               disabled={!draft.selection_group?.trim()}
-              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-500"
-            >
-              {(Object.keys(SELECTION_RULE_LABELS) as CareSelectionRule[]).map(
-                (rule) => (
-                  <option key={rule} value={rule}>
-                    {SELECTION_RULE_LABELS[rule]}
-                  </option>
-                ),
-              )}
-            </select>
+              className="mt-1"
+              options={(
+                Object.keys(SELECTION_RULE_LABELS) as CareSelectionRule[]
+              ).map((rule) => ({
+                value: rule,
+                label: SELECTION_RULE_LABELS[rule],
+              }))}
+            />
           </label>
         </div>
       </fieldset>
@@ -1327,19 +1326,18 @@ function CloneOfferingForm({
         </p>
       </header>
 
-      <label className="block">
+      <label className="block" htmlFor="care-offering-clone-target-phase">
         <span className="text-xs font-medium text-gray-700">Zielphase</span>
-        <select
+        <CustomSelect
+          id="care-offering-clone-target-phase"
           value={targetPhaseId}
-          onChange={(event) => setTargetPhaseId(event.target.value)}
-          className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          {phases.map((phase) => (
-            <option key={phase.id} value={phase.id}>
-              {phase.name} ({KIND_LABELS[phase.kind]})
-            </option>
-          ))}
-        </select>
+          onChange={setTargetPhaseId}
+          className="mt-1"
+          options={phases.map((phase) => ({
+            value: phase.id,
+            label: `${phase.name} (${KIND_LABELS[phase.kind]})`,
+          }))}
+        />
       </label>
 
       <div className="flex justify-end gap-2">

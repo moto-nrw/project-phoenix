@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
+import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
 /**
  * Combined proxy for:
@@ -62,6 +63,57 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
+/** Clone the incoming request headers and mark this request as localized, so
+ * request.ts resolves the parent locale instead of forcing German. */
+function localizedHeaders(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  headers.set(LOCALE_SCOPE_HEADER, "1");
+  return headers;
+}
+
+/** Like NextResponse.rewrite, but flags the request as a localized surface. */
+function rewriteLocalized(request: NextRequest, url: URL): NextResponse {
+  return withSecurityHeaders(
+    NextResponse.rewrite(url, {
+      request: { headers: localizedHeaders(request) },
+    }),
+  );
+}
+
+/** Like NextResponse.next, but flags the request as a localized surface. */
+function nextLocalized(request: NextRequest): NextResponse {
+  return withSecurityHeaders(
+    NextResponse.next({ request: { headers: localizedHeaders(request) } }),
+  );
+}
+
+/** Clone the incoming headers and strip the localize signal. x-phoenix-localize
+ * is an internal flag the proxy sets only on parent-facing surfaces; a client
+ * could otherwise forge it to make the German-only staff/operator portals
+ * render in another language. Every non-localized response goes through this so
+ * request.ts never sees a client-supplied value. */
+function sanitizedHeaders(request: NextRequest): Headers {
+  const headers = new Headers(request.headers);
+  headers.delete(LOCALE_SCOPE_HEADER);
+  return headers;
+}
+
+/** Like NextResponse.next, but strips any client-forged localize header. */
+function secureNext(request: NextRequest): NextResponse {
+  return withSecurityHeaders(
+    NextResponse.next({ request: { headers: sanitizedHeaders(request) } }),
+  );
+}
+
+/** Like NextResponse.rewrite, but strips any client-forged localize header. */
+function secureRewrite(request: NextRequest, url: URL): NextResponse {
+  return withSecurityHeaders(
+    NextResponse.rewrite(url, {
+      request: { headers: sanitizedHeaders(request) },
+    }),
+  );
+}
+
 // --- Operator subdomain handling (from development) ---
 
 /** Paths that the operator subdomain serves (without /operator prefix) */
@@ -95,7 +147,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Block tenant auth endpoints on the operator host. Tenant session cookies
@@ -113,14 +165,14 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/monitoring")
   ) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Root → rewrite to /operator (which server-redirects to /operator/suggestions)
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/operator";
-    return withSecurityHeaders(NextResponse.rewrite(url));
+    return secureRewrite(request, url);
   }
 
   // Known operator paths → rewrite to /operator/* internally
@@ -131,12 +183,12 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = `/operator${pathname}`;
-    return withSecurityHeaders(NextResponse.rewrite(url));
+    return secureRewrite(request, url);
   }
 
   // Already prefixed with /operator → pass through (handles direct /operator/* access)
   if (pathname.startsWith("/operator")) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Everything else (e.g. /dashboard, /database/*) → redirect to root
@@ -171,7 +223,7 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
   if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Block tenant + operator auth endpoints on the parents host. Tenant
@@ -191,14 +243,14 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/monitoring")
   ) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Root → /parents (which server-redirects to the dashboard).
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/parents";
-    return withSecurityHeaders(NextResponse.rewrite(url));
+    return rewriteLocalized(request, url);
   }
 
   // Known parents paths → rewrite to /parents/* internally.
@@ -209,13 +261,13 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = `/parents${pathname}`;
-    return withSecurityHeaders(NextResponse.rewrite(url));
+    return rewriteLocalized(request, url);
   }
 
   // Already prefixed with /parents → pass through (handles direct
   // /parents/* access during dev).
   if (pathname.startsWith("/parents")) {
-    return withSecurityHeaders(NextResponse.next());
+    return nextLocalized(request);
   }
 
   // Anything else → redirect to root. Keeps the parents host from
@@ -250,6 +302,20 @@ function extractTenantSlug(host: string): string | null {
   return null;
 }
 
+function isEnrollPath(pathname: string): boolean {
+  return pathname === "/enroll" || pathname.startsWith("/enroll/");
+}
+
+function getBareTenantPrefixedPath(pathname: string): string | null {
+  const match = pathname.match(/^\/([^/]+)(\/.*)?$/);
+  if (!match) return null;
+
+  const slug = match[1];
+  if (!slug || RESERVED_SUBDOMAINS.has(slug)) return null;
+
+  return match[2] ?? "/";
+}
+
 // --- Main proxy ---
 
 export function proxy(request: NextRequest): NextResponse {
@@ -274,14 +340,14 @@ export function proxy(request: NextRequest): NextResponse {
 
   // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // Public documentation must stay host-agnostic. Without this exception,
   // tenant subdomains rewrite /help to /{tenant}/help, where no
   // App Router route exists.
   if (pathname === "/help" || pathname.startsWith("/help/")) {
-    return withSecurityHeaders(NextResponse.next());
+    return secureNext(request);
   }
 
   // 3a. Operator auth guard on non-operator hosts:
@@ -315,26 +381,39 @@ export function proxy(request: NextRequest): NextResponse {
   // No subdomain (bare domain): pass through without rewrite.
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {
-    return withSecurityHeaders(NextResponse.next());
+    const appPath = getBareTenantPrefixedPath(pathname);
+    return appPath && isEnrollPath(appPath)
+      ? nextLocalized(request)
+      : secureNext(request);
   }
+
+  // Public enrollment is the only parent-facing surface on a tenant subdomain,
+  // so it's the only path we localize here. The staff portal stays German.
+  const appPath = pathname.startsWith(`/${tenantSlug}`)
+    ? pathname.slice(tenantSlug.length + 1) || "/"
+    : pathname;
+  const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
+  const isEnroll = isEnrollPath(normalizedAppPath);
 
   // Already has tenant prefix. useTenantRouter().push() adds the slug explicitly,
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).
   if (pathname.startsWith(`/${tenantSlug}/`) || pathname === `/${tenantSlug}`) {
-    return withSecurityHeaders(NextResponse.next());
+    return isEnroll ? nextLocalized(request) : secureNext(request);
   }
 
   if (pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = `/${tenantSlug}`;
-    return withSecurityHeaders(NextResponse.rewrite(url));
+    return secureRewrite(request, url);
   }
 
   // Rewrite: school-a.localhost:3000/dashboard -> internal /school-a/dashboard
   // This lets the [tenant] dynamic segment in the App Router capture the slug.
   const url = request.nextUrl.clone();
   url.pathname = `/${tenantSlug}${pathname}`;
-  return withSecurityHeaders(NextResponse.rewrite(url));
+  return isEnroll
+    ? rewriteLocalized(request, url)
+    : secureRewrite(request, url);
 }
 
 export const config = {

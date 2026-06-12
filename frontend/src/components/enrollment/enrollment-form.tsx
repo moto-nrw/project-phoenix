@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Check, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
+import deMessages from "~/i18n/messages/de.json";
+import { DEFAULT_LOCALE } from "~/i18n/locales";
 import {
   fetchMyEnrollmentProfile,
   fetchPublicCareOfferings,
@@ -31,6 +34,7 @@ import {
 } from "~/lib/enrollment-field-visibility";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -65,16 +69,6 @@ interface ChildDraft {
   custom: Record<string, unknown>;
 }
 
-const DAY_LABELS: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
 import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
@@ -84,6 +78,7 @@ interface Props {
   readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
+  readonly prefetchedData?: EnrollmentFormPrefetchedData;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -102,6 +97,26 @@ interface Props {
    * authenticated submit endpoint will skip captcha verification.
    */
   readonly skipCaptcha?: boolean;
+  /**
+   * Opt into parent/public i18n chrome. Staff/admin previews deliberately keep
+   * the German catalog, even if a parent locale cookie exists on the browser.
+   */
+  readonly localizedCopy?: boolean;
+}
+
+type TranslationValues = Record<string, string | number | Date>;
+type TranslationFn = (key: string, values?: TranslationValues) => string;
+type EnrollmentFormTranslator = TranslationFn & {
+  raw: (key: string) => unknown;
+};
+
+export interface EnrollmentFormPrefetchedData {
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
+  captchaConfig: PublicCaptchaConfig | null;
+  legalTexts: PublicLegalTexts;
+  profile?: MeProfileResponse | null;
 }
 
 /**
@@ -120,24 +135,41 @@ export function EnrollmentForm({
   phaseID,
   gradeLevelMax,
   onSubmitted,
+  prefetchedData,
   previewMode = false,
   previewSchema,
   profileFetcher,
   submitter,
   skipCaptcha,
+  localizedCopy = false,
 }: Props) {
+  const intl = useTranslations("enrollmentForm");
+  const activeLocale = useLocale();
+  const tr = useMemo(
+    () => makeEnrollmentFormTranslator(intl, localizedCopy),
+    [intl, localizedCopy],
+  );
   const { tenantSlug } = useTenant();
-  const [schema, setSchema] = useState<PublicFormSchema | null>(null);
-  const [offerings, setOfferings] = useState<PublicCareOffering[]>([]);
+  const initialRequiredOfferingIDs =
+    prefetchedData?.offerings.filter((o) => o.is_required).map((o) => o.id) ??
+    [];
+  const [schema, setSchema] = useState<PublicFormSchema | null>(
+    prefetchedData?.schema ?? null,
+  );
+  const [offerings, setOfferings] = useState<PublicCareOffering[]>(
+    prefetchedData?.offerings ?? [],
+  );
   const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
-    useState<CareOfferingSelectionMode>("optional");
+    useState<CareOfferingSelectionMode>(
+      prefetchedData?.careOfferingSelectionMode ?? "optional",
+    );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
     () => offerings.filter((o) => o.is_required).map((o) => o.id),
     [offerings],
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(prefetchedData === undefined);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childOfferingErrors, setChildOfferingErrors] = useState<
@@ -162,36 +194,83 @@ export function EnrollmentForm({
   // successful submit nothing is marked invalid so it's a no-op.
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
-  const [guardianFirstName, setGuardianFirstName] = useState("");
-  const [guardianLastName, setGuardianLastName] = useState("");
-  const [guardianEmail, setGuardianEmail] = useState("");
-  const [guardianPhone, setGuardianPhone] = useState("");
-  // Consent states are only used when the tenant's legal block resolver
-  // returns the matching visible block.
-  const [agbConsent, setAgbConsent] = useState(false);
-  const [dataConsent, setDataConsent] = useState(false);
-  const [photoConsent, setPhotoConsent] = useState<boolean | null>(null);
-  const [children, setChildren] = useState<ChildDraft[]>([blankChild()]);
+  const [guardianFirstName, setGuardianFirstName] = useState(
+    prefetchedData?.profile?.guardian.first_name ?? "",
+  );
+  const [guardianLastName, setGuardianLastName] = useState(
+    prefetchedData?.profile?.guardian.last_name ?? "",
+  );
+  const [guardianEmail, setGuardianEmail] = useState(
+    prefetchedData?.profile?.guardian.email ?? "",
+  );
+  const [guardianPhone, setGuardianPhone] = useState(
+    prefetchedData?.profile?.guardian.phone ?? "",
+  );
+  const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [children, setChildren] = useState<ChildDraft[]>([
+    blankChild(initialRequiredOfferingIDs),
+  ]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
   // shared across all children in the submission.
   const [customData, setCustomData] = useState<Record<string, unknown>>({});
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
-    useState<PublicCaptchaConfig | null>(null);
+    useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
   // Per-tenant legal block contract. null until fetched.
-  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(null);
+  const [legalTexts, setLegalTexts] = useState<PublicLegalTexts | null>(
+    prefetchedData?.legalTexts ?? null,
+  );
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
   );
-  const [profile, setProfile] = useState<MeProfileResponse | null>(null);
+  const [profile, setProfile] = useState<MeProfileResponse | null>(
+    prefetchedData?.profile ?? null,
+  );
   const [usedExistingChildIDs, setUsedExistingChildIDs] = useState<Set<string>>(
     new Set(),
   );
 
   useEffect(() => {
     let cancelled = false;
+    if (prefetchedData !== undefined) {
+      setSchema(prefetchedData.schema);
+      setOfferings(prefetchedData.offerings);
+      setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setCaptchaConfig(prefetchedData.captchaConfig);
+      setLegalTexts(prefetchedData.legalTexts);
+      setProfile(prefetchedData.profile ?? null);
+      setChildren((prev) =>
+        seedRequiredOfferings(
+          prev.length > 0 ? prev : [blankChild()],
+          prefetchedData.offerings
+            .filter((o) => o.is_required)
+            .map((o) => o.id),
+        ),
+      );
+      if (prefetchedData.profile) {
+        setGuardianFirstName(
+          (prev) => prev || prefetchedData.profile?.guardian.first_name || "",
+        );
+        setGuardianLastName(
+          (prev) => prev || prefetchedData.profile?.guardian.last_name || "",
+        );
+        setGuardianEmail(
+          (prev) => prev || prefetchedData.profile?.guardian.email || "",
+        );
+        setGuardianPhone(
+          (prev) => prev || prefetchedData.profile?.guardian.phone || "",
+        );
+      }
+      setError(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     async function load() {
       setLoading(true);
       setError(null);
@@ -223,13 +302,17 @@ export function EnrollmentForm({
           skipCaptcha
             ? Promise.resolve(null)
             : fetchPublicCaptchaConfig(tenantSlug).catch(() => null),
-          // Legal texts are tenant-wide (no phase param). NOT best-
+          // Legal texts are phase/template-aware. NOT best-
           // effort: a real load failure rejects the whole load so the
           // form shows an error instead of collecting legally relevant
           // consent without the configured documents. Unconfigured
           // texts return empty strings (no rejection) and just drop the
           // link.
-          fetchPublicLegalTexts(tenantSlug),
+          previewSchema !== undefined
+            ? resolvePreviewLegalTexts(tenantSlug, previewSchema)
+            : phaseID
+              ? fetchPublicLegalTexts(tenantSlug, phaseID)
+              : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
         setSchema(schemaResult);
@@ -264,7 +347,7 @@ export function EnrollmentForm({
       } catch (err) {
         if (cancelled) return;
         const message =
-          err instanceof Error ? err.message : "Unbekannter Fehler";
+          err instanceof Error ? err.message : tr("submitErrorFallback");
         logger.error("enrollment_form_load_failed", { error: message });
         setError(message);
       } finally {
@@ -275,7 +358,15 @@ export function EnrollmentForm({
     return () => {
       cancelled = true;
     };
-  }, [tenantSlug, phaseID, previewSchema, profileFetcher, skipCaptcha]);
+  }, [
+    tenantSlug,
+    phaseID,
+    prefetchedData,
+    previewSchema,
+    profileFetcher,
+    skipCaptcha,
+    tr,
+  ]);
 
   const updateChild = (index: number, patch: Partial<ChildDraft>) => {
     setChildren((prev) =>
@@ -398,14 +489,6 @@ export function EnrollmentForm({
     (f) => !f.applies_to_child && isFieldVisible(f, guardianCtx),
   );
   const legalBlocks = legalTexts?.blocks ?? [];
-  const agbBlock = legalBlocks.find((block) => block.key === "agb");
-  const dataProcessingBlock = legalBlocks.find(
-    (block) => block.key === "data_processing",
-  );
-  const emailContactBlock = legalBlocks.find(
-    (block) => block.key === "email_contact",
-  );
-  const photoBlock = legalBlocks.find((block) => block.key === "photo");
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
@@ -434,13 +517,11 @@ export function EnrollmentForm({
     scrollToError();
 
     if (previewMode) {
-      setError(
-        "Dies ist eine Vorschau. Aus dieser Ansicht wird keine Anmeldung abgeschickt.",
-      );
+      setError(tr("previewError"));
       return;
     }
     if (!phaseID) {
-      setError("Für diese Anmeldung fehlt der Anmeldezeitraum.");
+      setError(tr("missingPhase"));
       return;
     }
 
@@ -449,16 +530,16 @@ export function EnrollmentForm({
     // on the first. Keys match each input's `name` attribute.
     const newFieldErrors: Record<string, string> = {};
     if (!guardianFirstName.trim()) {
-      newFieldErrors.guardian_first_name = "Bitte Vornamen angeben.";
+      newFieldErrors.guardian_first_name = tr("errors.firstName");
     }
     if (!guardianLastName.trim()) {
-      newFieldErrors.guardian_last_name = "Bitte Nachnamen angeben.";
+      newFieldErrors.guardian_last_name = tr("errors.lastName");
     }
     const trimmedEmail = guardianEmail.trim();
     if (!trimmedEmail) {
-      newFieldErrors.guardian_email = "Bitte E-Mail-Adresse angeben.";
+      newFieldErrors.guardian_email = tr("errors.email");
     } else if (!GUARDIAN_EMAIL_PATTERN.test(trimmedEmail)) {
-      newFieldErrors.guardian_email = "Bitte gültige E-Mail-Adresse angeben.";
+      newFieldErrors.guardian_email = tr("errors.validEmail");
     }
     // Phone is optional, but reject an invalid format before submit so the
     // parent fixes their own typo instead of producing a request that can
@@ -467,33 +548,34 @@ export function EnrollmentForm({
     const guardianPhoneRequired =
       schema?.core_requirements?.guardian_phone === true;
     if (guardianPhoneRequired && !trimmedPhone) {
-      newFieldErrors.guardian_phone = "Bitte Telefonnummer angeben.";
+      newFieldErrors.guardian_phone = tr("errors.phone");
     } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
-      newFieldErrors.guardian_phone = "Bitte gültige Telefonnummer angeben.";
+      newFieldErrors.guardian_phone = tr("errors.validPhone");
     }
     // Only visible (passing their show-if condition) non-info guardian fields
     // are enforced — a hidden required field must never block submit.
     for (const field of visibleGuardianFields) {
       if (field.type === "information" || !field.required) continue;
       if (customValueMissing(field, customData[field.key])) {
-        newFieldErrors[`custom_${field.key}`] = requiredMessageForField(field);
+        newFieldErrors[`custom_${field.key}`] = requiredMessageForField(
+          field,
+          tr,
+        );
       }
     }
     for (const [i, c] of children.entries()) {
       const childCtx = childConditionCtx(c);
       if (!c.first_name.trim()) {
-        newFieldErrors[`children_${i}_first_name`] = "Bitte Vornamen angeben.";
+        newFieldErrors[`children_${i}_first_name`] = tr("errors.firstName");
       }
       if (!c.last_name.trim()) {
-        newFieldErrors[`children_${i}_last_name`] = "Bitte Nachnamen angeben.";
+        newFieldErrors[`children_${i}_last_name`] = tr("errors.lastName");
       }
       if (!c.date_of_birth) {
-        newFieldErrors[`children_${i}_date_of_birth`] =
-          "Bitte Geburtsdatum angeben.";
+        newFieldErrors[`children_${i}_date_of_birth`] = tr("errors.dob");
       }
       if (!c.target_grade_level) {
-        newFieldErrors[`children_${i}_target_grade_level`] =
-          "Bitte Klassenstufe angeben.";
+        newFieldErrors[`children_${i}_target_grade_level`] = tr("errors.grade");
       }
       for (const field of schema?.fields.filter((f) => f.applies_to_child) ??
         []) {
@@ -501,20 +583,19 @@ export function EnrollmentForm({
         if (!isFieldVisible(field, childCtx)) continue;
         if (customValueMissing(field, c.custom[field.key])) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
-            requiredMessageForField(field);
+            requiredMessageForField(field, tr);
         }
       }
     }
     // Required legal blocks are collected into the same pass so a missing
     // confirmation is marked together with other missing fields. The backend
-    // derives the same required keys from the public legal block contract.
-    if (agbBlock?.required && !agbConsent) {
-      newFieldErrors.consent_agb =
-        "Bitte den AGB / Teilnahmebedingungen zustimmen.";
-    }
-    if (dataProcessingBlock?.required && !dataConsent) {
-      newFieldErrors.consent_data_processing =
-        "Bitte die Kenntnisnahme der Datenschutzinformation bestätigen.";
+    // derives the same required keys from the public legal block contract; the
+    // messages are localized chrome even though the legal labels/texts stay
+    // school-authored.
+    for (const block of legalBlocks) {
+      if (block.required && !legalConsents[block.key]) {
+        newFieldErrors[`consent_${block.key}`] = tr("errors.consentRequired");
+      }
     }
     // Offering validation runs in the SAME pass as the field checks above
     // so a missing care-offering day and a missing core field (e.g. phone)
@@ -562,14 +643,17 @@ export function EnrollmentForm({
         if (!picked || picked.size === 0) {
           dayErrors[`${i}_${id}`] = true;
           if (!firstDayErrorMessage) {
-            firstDayErrorMessage = `Kind ${i + 1}: Beim Angebot „${offering.name}" muss mindestens ein Tag ausgewählt werden.`;
+            firstDayErrorMessage = tr("errors.dayMissing", {
+              child: i + 1,
+              offering: offering.name,
+            });
           }
         }
       }
-      const groupRuleMessage = offeringGroupRuleError(c, offerings);
+      const groupRuleMessage = offeringGroupRuleError(c, offerings, tr);
       if (groupRuleMessage) {
         groupRuleIndexes.push(i);
-        firstGroupRuleMessage ??= `Kind ${i + 1}: ${groupRuleMessage}`;
+        firstGroupRuleMessage ??= `${tr("structured.child")} ${i + 1}: ${groupRuleMessage}`;
       }
     }
 
@@ -604,20 +688,18 @@ export function EnrollmentForm({
         !hasOfferingIssue &&
         fieldErrorKeys.length > 0 &&
         fieldErrorKeys.every((key) => key.startsWith("consent_"));
-      let banner = "Bitte korrigieren Sie die rot markierten Felder.";
+      let banner = tr("fixMarked");
       if (fieldErrorKeys.length === 1 && !hasOfferingIssue) {
         banner = Object.values(newFieldErrors)[0] ?? banner;
       } else if (onlyConsents) {
-        banner = "Bitte bestätigen Sie alle erforderlichen Zustimmungen.";
+        banner = tr("consentSummary");
       } else if (fieldErrorKeys.length === 0 && missingCareIndexes.length > 0) {
-        banner =
-          "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot aus.";
+        banner = tr("errors.careMissing");
       } else if (
         fieldErrorKeys.length === 0 &&
         exactOneCareIndexes.length > 0
       ) {
-        banner =
-          "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot aus.";
+        banner = tr("errors.careExactlyOne");
       } else if (
         fieldErrorKeys.length === 0 &&
         dayErrorCount > 0 &&
@@ -679,17 +761,9 @@ export function EnrollmentForm({
     setSubmitting(true);
     try {
       const consentFlags: Record<string, unknown> = {};
-      if (agbBlock) {
-        consentFlags.agb = agbConsent;
-      }
-      if (dataProcessingBlock) {
-        consentFlags.data_processing = dataConsent;
-      }
-      if (emailContactBlock) {
-        consentFlags.email_contact = true;
-      }
-      if (photoBlock) {
-        consentFlags.photo = photoConsent === true;
+      for (const block of legalBlocks) {
+        consentFlags[block.key] =
+          block.kind === "notice" ? true : legalConsents[block.key] === true;
       }
 
       const payload: SubmitEnrollmentPayload = {
@@ -713,7 +787,8 @@ export function EnrollmentForm({
         : await submitEnrollment(tenantSlug, payload);
       onSubmitted(result.status_url);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message =
+        err instanceof Error ? err.message : tr("submitErrorFallback");
       const code = (err as { code?: string } | undefined)?.code;
       logger.error("enrollment_submit_failed", { error: message, code });
       if (
@@ -755,7 +830,7 @@ export function EnrollmentForm({
   if (loading) {
     return (
       <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
-        Formular wird geladen…
+        {tr("loading")}
       </div>
     );
   }
@@ -780,13 +855,13 @@ export function EnrollmentForm({
 
       <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
         <SectionHeading
-          kicker="Schritt 1"
-          title="Erziehungsberechtigte Person"
-          description="Geben Sie die Person an, die Rückfragen beantworten kann und den Status-Link erhalten soll."
+          kicker={tr("sections.guardianKicker")}
+          title={tr("sections.guardianTitle")}
+          description={tr("sections.guardianDescription")}
         />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
-            label="Vorname *"
+            label={tr("fields.firstName")}
             name="guardian_first_name"
             autoComplete="given-name"
             value={guardianFirstName}
@@ -795,7 +870,7 @@ export function EnrollmentForm({
             error={fieldErrors.guardian_first_name}
           />
           <Input
-            label="Nachname *"
+            label={tr("fields.lastName")}
             name="guardian_last_name"
             autoComplete="family-name"
             value={guardianLastName}
@@ -804,7 +879,7 @@ export function EnrollmentForm({
             error={fieldErrors.guardian_last_name}
           />
           <Input
-            label="E-Mail *"
+            label={tr("fields.email")}
             name="guardian_email"
             type="email"
             autoComplete="email"
@@ -814,7 +889,11 @@ export function EnrollmentForm({
             error={fieldErrors.guardian_email}
           />
           <Input
-            label={`Telefon${schema?.core_requirements?.guardian_phone ? " *" : ""}`}
+            label={tr(
+              schema?.core_requirements?.guardian_phone
+                ? "fields.phoneRequired"
+                : "fields.phone",
+            )}
             name="guardian_phone"
             type="tel"
             autoComplete="tel"
@@ -830,9 +909,9 @@ export function EnrollmentForm({
       {schema?.fields.some((f) => !f.applies_to_child) && (
         <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
-            kicker="Zusatzfragen"
-            title="Weitere Angaben"
-            description="Die OGS benötigt diese Angaben zusätzlich zu den Basisdaten. Pflichtfragen sind mit einem Stern markiert."
+            kicker={tr("sections.extraKicker")}
+            title={tr("sections.extraTitle")}
+            description={tr("sections.extraDescription")}
           />
           {schema.fields
             .filter(
@@ -850,6 +929,7 @@ export function EnrollmentForm({
                     setCustomData((prev) => ({ ...prev, [f.key]: v }))
                   }
                   error={fieldErrors[`custom_${f.key}`]}
+                  tr={tr}
                 />
               ),
             )}
@@ -859,9 +939,9 @@ export function EnrollmentForm({
       <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <SectionHeading
-            kicker="Schritt 2"
-            title="Kind oder Kinder"
-            description="Erfassen Sie jedes Kind einzeln. Für Geschwister können Sie über die Schaltfläche weitere Kind-Daten hinzufügen."
+            kicker={tr("sections.childrenKicker")}
+            title={tr("sections.childrenTitle")}
+            description={tr("sections.childrenDescription")}
           />
           <button
             type="button"
@@ -869,7 +949,7 @@ export function EnrollmentForm({
             className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Weiteres Kind
+            {tr("actions.addChild")}
           </button>
         </div>
 
@@ -877,6 +957,7 @@ export function EnrollmentForm({
           <ExistingChildrenPanel
             existing={profile.children}
             usedIDs={usedExistingChildIDs}
+            tr={tr}
             onAdopt={(child) => {
               const newSlot: ChildDraft = blankChild(requiredOfferingIDs);
               newSlot.first_name = child.first_name;
@@ -911,7 +992,7 @@ export function EnrollmentForm({
           >
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-                Kind {i + 1}
+                {tr("structured.child")} {i + 1}
               </h3>
               {children.length > 1 && (
                 <button
@@ -919,13 +1000,13 @@ export function EnrollmentForm({
                   onClick={() => removeChild(i)}
                   className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
                 >
-                  Entfernen
+                  {tr("actions.remove")}
                 </button>
               )}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
-                label="Vorname *"
+                label={tr("fields.firstName")}
                 name={`children_${i}_first_name`}
                 autoComplete="given-name"
                 value={child.first_name}
@@ -934,7 +1015,7 @@ export function EnrollmentForm({
                 error={fieldErrors[`children_${i}_first_name`]}
               />
               <Input
-                label="Nachname *"
+                label={tr("fields.lastName")}
                 name={`children_${i}_last_name`}
                 autoComplete="family-name"
                 value={child.last_name}
@@ -944,20 +1025,22 @@ export function EnrollmentForm({
               />
               <div>
                 <span className="block text-sm font-semibold text-gray-700">
-                  Geburtsdatum *
+                  {tr("fields.dateOfBirth")}
                 </span>
                 <DateOfBirthPicker
                   value={child.date_of_birth}
                   onChange={(v) => updateChild(i, { date_of_birth: v })}
                   error={fieldErrors[`children_${i}_date_of_birth`]}
+                  tr={tr}
                 />
               </div>
               <GradeLevelSelect
-                name={`children_${i}_target_grade_level`}
+                id={`children-${i}-target-grade-level`}
                 value={child.target_grade_level}
                 onChange={(v) => updateChild(i, { target_grade_level: v })}
                 max={gradeLevelMax}
                 error={fieldErrors[`children_${i}_target_grade_level`]}
+                tr={tr}
               />
             </div>
 
@@ -972,10 +1055,10 @@ export function EnrollmentForm({
                 {offerings.some((o) => o.is_required) && (
                   <div>
                     <p className="text-sm font-semibold text-gray-700">
-                      Pflichtangebote
+                      {tr("care.requiredTitle")}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-gray-500">
-                      Diese Angebote sind fester Bestandteil der Anmeldung.
+                      {tr("care.requiredDescription")}
                     </p>
                     <div className="mt-2 space-y-2">
                       {offerings
@@ -994,6 +1077,7 @@ export function EnrollmentForm({
                             onToggleDay={(day) =>
                               toggleOfferingDay(i, o.id, day)
                             }
+                            tr={tr}
                           />
                         ))}
                     </div>
@@ -1003,19 +1087,19 @@ export function EnrollmentForm({
                   <div>
                     <p className="text-sm font-semibold text-gray-700">
                       {offerings.some((o) => o.is_required)
-                        ? "Zusätzlich wählen"
-                        : "Betreuungsangebote"}
+                        ? tr("care.additional")
+                        : tr("care.offers")}
                       {careOfferingSelectionMode !== "optional" && (
                         <span className="ml-1 text-[#FF3130]">*</span>
                       )}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-gray-500">
                       {careOfferingSelectionMode === "exactly_one"
-                        ? "Wählen Sie genau ein Angebot aus, das für dieses Kind gewünscht ist."
+                        ? tr("care.exactlyOneHint")
                         : careOfferingSelectionMode === "at_least_one"
-                          ? "Wählen Sie mindestens ein Angebot aus, das für dieses Kind gewünscht ist."
-                          : "Wählen Sie die Angebote aus, die für dieses Kind gewünscht sind."}{" "}
-                      Die OGS prüft freie Plätze nach dem Absenden.
+                          ? tr("care.atLeastOneHint")
+                          : tr("care.optionalHint")}{" "}
+                      {tr("care.reviewHint")}
                     </p>
                     <div
                       aria-invalid={childOfferingErrors[i] ? true : undefined}
@@ -1054,6 +1138,7 @@ export function EnrollmentForm({
                             onToggleDay={(day) =>
                               toggleOfferingDay(i, bucket.offering.id, day)
                             }
+                            tr={tr}
                           />
                         ) : (
                           <div
@@ -1064,9 +1149,9 @@ export function EnrollmentForm({
                               <span className="text-xs font-semibold text-gray-800">
                                 {bucket.group}
                               </span>
-                              {OFFERING_RULE_HINT[bucket.rule] && (
+                              {offeringRuleHint(bucket.rule, tr) && (
                                 <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
-                                  {OFFERING_RULE_HINT[bucket.rule]}
+                                  {offeringRuleHint(bucket.rule, tr)}
                                 </span>
                               )}
                             </div>
@@ -1094,6 +1179,7 @@ export function EnrollmentForm({
                                   onToggleDay={(day) =>
                                     toggleOfferingDay(i, o.id, day)
                                   }
+                                  tr={tr}
                                 />
                               ))}
                             </div>
@@ -1104,8 +1190,8 @@ export function EnrollmentForm({
                     {childOfferingErrors[i] && (
                       <p className="mt-1 text-xs text-[#FF3130]">
                         {careOfferingSelectionMode === "exactly_one"
-                          ? "Bitte wählen Sie genau ein Angebot aus."
-                          : "Bitte wählen Sie mindestens ein Angebot aus."}
+                          ? tr("care.chooseExactlyOne")
+                          : tr("care.chooseAtLeastOne")}
                       </p>
                     )}
                   </div>
@@ -1133,6 +1219,7 @@ export function EnrollmentForm({
                       })
                     }
                     error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                    tr={tr}
                   />
                 ),
               )}
@@ -1143,50 +1230,46 @@ export function EnrollmentForm({
       {legalBlocks.length > 0 && (
         <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
-            kicker="Schritt 3"
-            title="Zustimmungen & Hinweise"
-            description="Bitte lesen Sie die folgenden Punkte sorgfältig. Erforderliche Bestätigungen müssen aktiv ausgewählt werden."
+            kicker={tr("sections.consentKicker")}
+            title={tr("sections.consentTitle")}
+            description={tr("sections.consentDescription")}
           />
-          {agbBlock && (
-            <Consent
-              name="consent_agb"
-              label={agbBlock.label}
-              checked={agbConsent}
-              onChange={setAgbConsent}
-              required={agbBlock.required}
-              error={fieldErrors.consent_agb}
-              legalText={agbBlock.text}
-              onViewLegal={() => setOpenLegalDoc(agbBlock)}
-            />
-          )}
-          {dataProcessingBlock && (
-            <Consent
-              name="consent_data_processing"
-              label={dataProcessingBlock.label}
-              checked={dataConsent}
-              onChange={setDataConsent}
-              required={dataProcessingBlock.required}
-              error={fieldErrors.consent_data_processing}
-              legalText={dataProcessingBlock.text}
-              onViewLegal={() => setOpenLegalDoc(dataProcessingBlock)}
-            />
-          )}
-          {photoBlock && (
-            <Consent
-              name="consent_photo"
-              label={photoBlock.label}
-              checked={photoConsent === true}
-              onChange={(checked) => setPhotoConsent(checked)}
-              required={photoBlock.required}
-              legalText={photoBlock.text}
-              onViewLegal={() => setOpenLegalDoc(photoBlock)}
-            />
-          )}
-          {emailContactBlock && (
-            <EmailContactNotice
-              block={emailContactBlock}
-              onViewLegal={() => setOpenLegalDoc(emailContactBlock)}
-            />
+          {localizedCopy && activeLocale !== DEFAULT_LOCALE ? (
+            <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
+              {tr("legalGermanNotice")}
+            </p>
+          ) : null}
+          {legalBlocks.map((block) =>
+            block.kind === "notice" ? (
+              <EmailContactNotice
+                key={block.key}
+                block={block}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+                showMoreLabel={tr("actions.showMore")}
+              />
+            ) : (
+              <Consent
+                key={block.key}
+                name={`consent_${block.key}`}
+                label={block.label}
+                checked={legalConsents[block.key] === true}
+                onChange={(checked) =>
+                  setLegalConsents((prev) => ({
+                    ...prev,
+                    [block.key]: checked,
+                  }))
+                }
+                required={block.required}
+                error={fieldErrors[`consent_${block.key}`]}
+                legalText={block.text}
+                onViewLegal={
+                  block.text ? () => setOpenLegalDoc(block) : undefined
+                }
+                tr={tr}
+              />
+            ),
           )}
         </section>
       )}
@@ -1231,8 +1314,7 @@ export function EnrollmentForm({
           role="alert"
           className="rounded-md border border-[#FF3130]/30 bg-[#FF3130]/5 p-3 text-sm text-[#CC2626]"
         >
-          Die Anmeldung ist derzeit nicht möglich: Die Bot-Schutz-Konfiguration
-          ist unvollständig. Bitte wenden Sie sich an die OGS-Leitung.
+          {tr("captchaMisconfigured")}
         </div>
       )}
 
@@ -1247,10 +1329,10 @@ export function EnrollmentForm({
         className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
       >
         {previewMode
-          ? "Vorschau, nicht absenden"
+          ? tr("actions.previewSubmit")
           : submitting
-            ? "Wird übermittelt…"
-            : "Anmeldung absenden"}
+            ? tr("actions.submitting")
+            : tr("actions.submit")}
       </button>
     </form>
   );
@@ -1270,6 +1352,62 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   };
 }
 
+const GERMAN_ENROLLMENT_FORM_MESSAGES = deMessages.enrollmentForm as Record<
+  string,
+  unknown
+>;
+
+function makeEnrollmentFormTranslator(
+  intl: ReturnType<typeof useTranslations<"enrollmentForm">>,
+  localizedCopy: boolean,
+): EnrollmentFormTranslator {
+  if (localizedCopy) {
+    return Object.assign(
+      (key: string, values?: TranslationValues) => intl(key, values),
+      { raw: (key: string) => intl.raw(key) as unknown },
+    );
+  }
+  return Object.assign(
+    (key: string, values?: TranslationValues) => {
+      const value = readGermanMessage(key);
+      if (typeof value !== "string") return key;
+      return interpolateMessage(value, values);
+    },
+    { raw: (key: string) => readGermanMessage(key) },
+  );
+}
+
+function readGermanMessage(key: string): unknown {
+  return key.split(".").reduce<unknown>((current, part) => {
+    if (!current || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[part];
+  }, GERMAN_ENROLLMENT_FORM_MESSAGES);
+}
+
+function interpolateMessage(value: string, values?: TranslationValues): string {
+  if (!values) return value;
+  return Object.entries(values).reduce(
+    (current, [key, replacement]) =>
+      current.replaceAll(`{${key}}`, String(replacement)),
+    value,
+  );
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : [];
+}
+
+function asStringMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
 // seedRequiredOfferings adds every mandatory offering id to each existing
 // child slot, leaving the rest of the draft untouched. Used after offerings
 // load to back-fill the initial blank child created before the fetch resolved.
@@ -1285,14 +1423,6 @@ function seedRequiredOfferings(
 }
 
 // ---- Care-offering selection groups + rules -----------------------------
-
-// Short German hint shown next to a group's header. Empty for "optional".
-const OFFERING_RULE_HINT: Record<string, string> = {
-  exactly_one: "Bitte genau eines wählen",
-  at_least_one: "Bitte mindestens eines wählen",
-  at_most_one: "Höchstens eines",
-  optional: "",
-};
 
 type OfferingBucket =
   | { kind: "single"; offering: PublicCareOffering }
@@ -1340,6 +1470,7 @@ function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
 function offeringGroupRuleError(
   child: ChildDraft,
   offerings: PublicCareOffering[],
+  tr: TranslationFn,
 ): string | null {
   const ruleByGroup = new Map<string, string>();
   for (const o of offerings) {
@@ -1355,16 +1486,23 @@ function offeringGroupRuleError(
         child.offering_ids.has(o.id),
     ).length;
     if (rule === "exactly_one" && count !== 1) {
-      return `Bitte bei „${group}“ genau ein Angebot wählen.`;
+      return tr("errors.groupExactlyOne", { group });
     }
     if (rule === "at_least_one" && count < 1) {
-      return `Bitte bei „${group}“ mindestens ein Angebot wählen.`;
+      return tr("errors.groupAtLeastOne", { group });
     }
     if (rule === "at_most_one" && count > 1) {
-      return `Bitte bei „${group}“ höchstens ein Angebot wählen.`;
+      return tr("errors.groupAtMostOne", { group });
     }
   }
   return null;
+}
+
+function offeringRuleHint(rule: string, tr: TranslationFn): string {
+  if (rule === "exactly_one") return tr("care.ruleExactlyOne");
+  if (rule === "at_least_one") return tr("care.ruleAtLeastOne");
+  if (rule === "at_most_one") return tr("care.ruleAtMostOne");
+  return "";
 }
 
 /**
@@ -1405,6 +1543,7 @@ function OfferingCard({
   dayError,
   onToggle,
   onToggleDay,
+  tr,
 }: {
   readonly offering: PublicCareOffering;
   readonly childIndex: number;
@@ -1413,9 +1552,11 @@ function OfferingCard({
   readonly dayError: boolean;
   readonly onToggle: () => void;
   readonly onToggleDay: (day: string) => void;
+  readonly tr: EnrollmentFormTranslator;
 }) {
   const required = offering.is_required;
   const effectiveChecked = required || checked;
+  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   let stateClass = "border-gray-200 bg-white hover:border-gray-300";
   if (dayError) {
     stateClass = "border-[#FF3130] bg-[#FF3130]/5";
@@ -1461,7 +1602,7 @@ function OfferingCard({
           </span>
           {required && (
             <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-              Pflicht
+              {tr("care.requiredBadge")}
             </span>
           )}
         </div>
@@ -1472,11 +1613,11 @@ function OfferingCard({
         )}
         <div className="mt-1 text-xs text-gray-500">
           {offering.days_of_week_mode === "parent_choice"
-            ? "Wählbare Tage: "
-            : "Tage: "}
-          {offering.available_days.map((d) => DAY_LABELS[d] ?? d).join(", ")}
-          {offering.includes_holiday_care && " · inkl. Ferienbetreuung"}
-          {offering.includes_lunch && " · inkl. Mittagessen"}
+            ? tr("care.selectableDays")
+            : tr("care.days")}
+          {offering.available_days.map((d) => weekdayLabels[d] ?? d).join(", ")}
+          {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
+          {offering.includes_lunch && ` · ${tr("care.lunch")}`}
         </div>
         {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1500,7 +1641,7 @@ function OfferingCard({
                   }`}
                   aria-pressed={picked}
                 >
-                  {DAY_LABELS[day] ?? day}
+                  {weekdayLabels[day] ?? day}
                 </button>
               );
             })}
@@ -1508,7 +1649,7 @@ function OfferingCard({
         )}
         {dayError && (
           <p className="mt-1 text-xs text-[#FF3130]">
-            Bitte mindestens einen Tag auswählen.
+            {tr("errors.dayInline")}
           </p>
         )}
       </div>
@@ -1564,44 +1705,43 @@ function Input({
 }
 
 function GradeLevelSelect({
-  name,
+  id,
   value,
   onChange,
   max,
   error,
+  tr,
 }: {
-  readonly name: string;
+  readonly id: string;
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly max: number;
   readonly error?: string;
+  readonly tr: EnrollmentFormTranslator;
 }) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={id}>
       <span className="block text-sm font-semibold text-gray-700">
-        Klassenstufe *
+        {tr("fields.gradeLevel")}
       </span>
-      <select
-        name={name}
+      <CustomSelect
+        id={id}
         value={value}
         required
-        onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        className={`moto-select mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-          error
-            ? "border-[#FF3130] bg-[#FF3130]/5"
-            : "moto-content-surface hover:border-gray-300"
-        }`}
-      >
-        <option value="" disabled>
-          Bitte wählen
-        </option>
-        {Array.from({ length: max }, (_, n) => n + 1).map((g) => (
-          <option key={g} value={g}>
-            {g}. Klasse
-          </option>
-        ))}
-      </select>
+        onChange={onChange}
+        invalid={Boolean(error)}
+        className="mt-1"
+        options={[
+          { value: "", label: tr("fields.choose"), disabled: true },
+          ...Array.from({ length: max }, (_, n) => {
+            const grade = String(n + 1);
+            return {
+              value: grade,
+              label: tr("fields.grade", { grade: n + 1 }),
+            };
+          }),
+        ]}
+      />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
@@ -1702,6 +1842,47 @@ function LegalMarkdown({ text }: { readonly text: string }) {
   );
 }
 
+/**
+ * Resolves the legal blocks an admin preview shows. Template-owned blocks
+ * win; base previews and templates without enabled blocks fall back to the
+ * tenant-wide legal settings — the same resolution the live form uses, so
+ * the preview can never omit blocks the live form will require.
+ */
+async function resolvePreviewLegalTexts(
+  tenantSlug: string,
+  schema: PublicFormSchema | null,
+): Promise<PublicLegalTexts> {
+  const fromTemplate = previewLegalTexts(schema);
+  if (fromTemplate.blocks.length > 0) return fromTemplate;
+  return fetchPublicLegalTexts(tenantSlug);
+}
+
+function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
+  const blocks =
+    schema?.legal_blocks
+      ?.filter((block) => block.enabled)
+      .map((block) => ({
+        key: block.key,
+        kind: block.kind,
+        title: block.title,
+        label: block.label,
+        text: block.text,
+        required: block.required,
+        sort_order: block.sort_order,
+        source: block.source,
+      }))
+      .sort((a, b) => a.sort_order - b.sort_order) ?? [];
+  return {
+    agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
+    email_contact:
+      blocks.find((block) => block.key === "email_contact")?.text ?? "",
+    photo: blocks.find((block) => block.key === "photo")?.text ?? "",
+    terms_enabled: blocks.some((block) => block.key === "agb"),
+    blocks,
+  };
+}
+
 function Consent({
   name,
   label,
@@ -1711,6 +1892,7 @@ function Consent({
   error,
   legalText,
   onViewLegal,
+  tr,
 }: {
   readonly name: string;
   readonly label: string;
@@ -1726,6 +1908,7 @@ function Consent({
    */
   readonly legalText?: string;
   readonly onViewLegal?: () => void;
+  readonly tr: TranslationFn;
 }) {
   const hasLink = Boolean(legalText && legalText.trim() && onViewLegal);
   return (
@@ -1772,7 +1955,7 @@ function Consent({
             }}
             className="mt-0.5 shrink-0 font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
           >
-            Mehr anzeigen
+            {tr("actions.showMore")}
           </button>
         )}
       </label>
@@ -1786,15 +1969,17 @@ function Consent({
  * this carries NO checkbox: the school needs the e-mail address to run
  * the enrollment (Rückfragen, Status-Link), which is contract
  * performance, not a consent the parent could decline and still enrol.
- * When the tenant configured an explanatory text it gains a "Mehr
- * anzeigen" link that opens it in the shared legal modal.
+ * When the tenant configured an explanatory text it gains a localized
+ * "show more" link that opens it in the shared legal modal.
  */
 function EmailContactNotice({
   block,
   onViewLegal,
+  showMoreLabel,
 }: {
   readonly block: PublicLegalBlock;
   readonly onViewLegal?: () => void;
+  readonly showMoreLabel: string;
 }) {
   return (
     <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-600">
@@ -1805,7 +1990,7 @@ function EmailContactNotice({
           onClick={onViewLegal}
           className="font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
         >
-          Mehr anzeigen
+          {showMoreLabel}
         </button>
       )}
     </div>
@@ -1878,35 +2063,36 @@ function contactListValueMissing(value: unknown): boolean {
 
 function requiredMessageForField(
   field: PublicFormSchema["fields"][number],
+  tr: TranslationFn,
 ): string {
   if (field.type === "boolean") {
-    return "Bitte Ja oder Nein auswählen.";
+    return tr("errors.yesNo");
   }
   if (field.type === "phone_list") {
-    return "Bitte mindestens eine Telefonnummer angeben.";
+    return tr("errors.phoneList");
   }
   if (field.type === "contact_list") {
-    return "Bitte mindestens einen vollständigen Kontakt mit E-Mail oder Telefonnummer angeben.";
+    return tr("errors.contactList");
   }
   if (field.type === "weekday_schedule") {
-    return "Bitte mindestens eine Uhrzeit angeben.";
+    return tr("errors.schedule");
   }
   if (field.type === "weekday_boolean") {
     // Pickup accepts an empty selection ("geht alleine nach Hause"), so the
     // required check only asks the parent to confirm the field — not to pick a
     // day. Every other weekday_boolean (Buskind) genuinely needs a day.
     if (field.target === "student.pickup_status") {
-      return "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
+      return tr("errors.pickupConfirm");
     }
-    return "Bitte mindestens einen Wochentag auswählen.";
+    return tr("errors.weekdayRequired");
   }
   if (field.type === "weekday_mode") {
     return "Bitte die Geh- und Abholregelung bestätigen.";
   }
   if (field.type === "select") {
-    return "Bitte eine Option auswählen.";
+    return tr("errors.select");
   }
-  return "Bitte dieses Pflichtfeld ausfüllen.";
+  return tr("errors.required");
 }
 
 interface CustomFieldInputProps {
@@ -1914,6 +2100,7 @@ interface CustomFieldInputProps {
   readonly value: unknown;
   readonly onChange: (v: unknown) => void;
   readonly error?: string;
+  readonly tr: EnrollmentFormTranslator;
 }
 
 function CustomFieldInput({
@@ -1921,6 +2108,7 @@ function CustomFieldInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const labelEl = (
     <>
@@ -1944,8 +2132,8 @@ function CustomFieldInput({
         {labelEl}
         <div className="mt-2 grid grid-cols-2 gap-2">
           {[
-            { label: "Ja", value: "yes", raw: true },
-            { label: "Nein", value: "no", raw: false },
+            { label: tr("structured.yes"), value: "yes", raw: true },
+            { label: tr("structured.no"), value: "no", raw: false },
           ].map((option) => (
             <label
               key={option.value}
@@ -1992,21 +2180,21 @@ function CustomFieldInput({
     return (
       <label className="block">
         {labelEl}
-        <select
-          name={field.key}
+        <CustomSelect
           value={valueStr}
-          onChange={(e) => onChange(e.target.value)}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
-          className={`moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-[#FF3130]" : ""}`}
-        >
-          <option value="">Bitte wählen</option>
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={onChange}
+          name={field.key}
+          required={field.required}
+          invalid={Boolean(error)}
+          className="mt-1"
+          options={[
+            { value: "", label: tr("fields.choose") },
+            ...(field.options ?? []).map((option) => ({
+              value: option.value,
+              label: option.label,
+            })),
+          ]}
+        />
         {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
       </label>
     );
@@ -2018,6 +2206,7 @@ function CustomFieldInput({
         value={value}
         onChange={onChange}
         error={error}
+        tr={tr}
       />
     );
   }
@@ -2028,6 +2217,7 @@ function CustomFieldInput({
         value={value}
         onChange={onChange}
         error={error}
+        tr={tr}
       />
     );
   }
@@ -2038,6 +2228,7 @@ function CustomFieldInput({
         value={value}
         onChange={onChange}
         error={error}
+        tr={tr}
       />
     );
   }
@@ -2048,6 +2239,7 @@ function CustomFieldInput({
         value={value}
         onChange={onChange}
         error={error}
+        tr={tr}
       />
     );
   }
@@ -2058,6 +2250,7 @@ function CustomFieldInput({
         value={value}
         onChange={onChange}
         error={error}
+        tr={tr}
       />
     );
   }
@@ -2099,13 +2292,6 @@ interface PhoneEntry {
   is_primary?: boolean;
 }
 
-const PHONE_TYPE_LABELS: Record<PhoneEntry["phone_type"], string> = {
-  mobile: "Mobil",
-  home: "Privat",
-  work: "Arbeit",
-  other: "Sonstige",
-};
-
 function asPhoneArray(v: unknown): PhoneEntry[] {
   if (!Array.isArray(v)) return [];
   return v.filter((row): row is PhoneEntry => {
@@ -2120,8 +2306,10 @@ function PhoneListInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const phones = asPhoneArray(value);
+  const phoneTypeLabels = asStringMap(tr.raw("phoneTypes"));
   const update = (next: PhoneEntry[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
     update(phones.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
@@ -2141,7 +2329,7 @@ function PhoneListInput({
       )}
       {phones.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
-          Noch keine Nummer eingetragen.
+          {tr("structured.nonePhone")}
         </p>
       )}
       <ul className="space-y-2">
@@ -2151,7 +2339,9 @@ function PhoneListInput({
             className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
           >
             <label className="block">
-              <span className="text-xs font-medium text-gray-700">Nummer</span>
+              <span className="text-xs font-medium text-gray-700">
+                {tr("structured.number")}
+              </span>
               <input
                 type="tel"
                 value={p.phone_number}
@@ -2159,25 +2349,32 @@ function PhoneListInput({
                 className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
-            <label className="block">
-              <span className="text-xs font-medium text-gray-700">Typ</span>
-              <select
+            <label className="block" htmlFor={`phone-type-${idx}`}>
+              <span className="text-xs font-medium text-gray-700">
+                {tr("structured.type")}
+              </span>
+              <CustomSelect
+                id={`phone-type-${idx}`}
                 value={p.phone_type}
-                onChange={(e) =>
+                onChange={(value) =>
                   setRow(idx, {
-                    phone_type: e.target.value as PhoneEntry["phone_type"],
+                    phone_type: value as PhoneEntry["phone_type"],
                   })
                 }
-                className="moto-select mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {(
-                  Object.keys(PHONE_TYPE_LABELS) as PhoneEntry["phone_type"][]
-                ).map((k) => (
-                  <option key={k} value={k}>
-                    {PHONE_TYPE_LABELS[k]}
-                  </option>
-                ))}
-              </select>
+                ariaLabel={tr("structured.type")}
+                className="mt-1 border-gray-200 bg-white"
+                options={(
+                  [
+                    "mobile",
+                    "home",
+                    "work",
+                    "other",
+                  ] as PhoneEntry["phone_type"][]
+                ).map((key) => ({
+                  value: key,
+                  label: phoneTypeLabels[key] ?? key,
+                }))}
+              />
             </label>
             <StructuredToggle
               checked={Boolean(p.is_primary)}
@@ -2189,7 +2386,7 @@ function PhoneListInput({
                   })),
                 )
               }
-              label="Hauptnummer"
+              label={tr("structured.primary")}
               name={`${field.key}-primary`}
               type="radio"
             />
@@ -2197,7 +2394,7 @@ function PhoneListInput({
               type="button"
               onClick={() => update(phones.filter((_, i) => i !== idx))}
               className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
-              aria-label="Nummer entfernen"
+              aria-label={tr("structured.removeNumber")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -2215,27 +2412,21 @@ function PhoneListInput({
         className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Telefonnummer hinzufügen
+        {tr("structured.addPhone")}
       </button>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );
 }
 
-const WEEKDAYS = [
-  { key: "mon", label: "Montag" },
-  { key: "tue", label: "Dienstag" },
-  { key: "wed", label: "Mittwoch" },
-  { key: "thu", label: "Donnerstag" },
-  { key: "fri", label: "Freitag" },
-] as const;
+const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 function asScheduleObject(v: unknown): Record<string, string> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, string> = {};
-  for (const w of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[w.key];
-    if (typeof raw === "string") out[w.key] = raw;
+  for (const weekday of WEEKDAYS) {
+    const raw = (v as Record<string, unknown>)[weekday];
+    if (typeof raw === "string") out[weekday] = raw;
   }
   return out;
 }
@@ -2244,8 +2435,8 @@ function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, boolean> = {};
   for (const w of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[w.key];
-    if (typeof raw === "boolean") out[w.key] = raw;
+    const raw = (v as Record<string, unknown>)[w];
+    if (typeof raw === "boolean") out[w] = raw;
   }
   return out;
 }
@@ -2256,9 +2447,9 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, DepartureModeValue> = {};
   for (const w of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[w.key];
+    const raw = (v as Record<string, unknown>)[w];
     if (raw === "bus" || raw === "pickup" || raw === "alone") {
-      out[w.key] = raw;
+      out[w] = raw;
     }
   }
   return out;
@@ -2278,8 +2469,10 @@ function WeekdayScheduleInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
+  const weekdayLabels = asStringMap(tr.raw("weekdays"));
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -2294,17 +2487,19 @@ function WeekdayScheduleInput({
           {field.help_text}
         </p>
       )}
-      <p className="text-xs text-gray-500">
-        Leere Felder bedeuten: an diesem Tag keine Angabe.
-      </p>
+      <p className="text-xs text-gray-500">{tr("structured.emptySchedule")}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-5">
-        {WEEKDAYS.map((w) => (
-          <label key={w.key} className="block text-xs">
-            <span className="block text-gray-600">{w.label}</span>
+        {WEEKDAYS.map((weekday) => (
+          <label key={weekday} className="block text-xs">
+            <span className="block text-gray-600">
+              {weekdayLabels[weekday] ?? weekday}
+            </span>
             <input
               type="time"
-              value={sched[w.key] ?? ""}
-              onChange={(e) => onChange({ ...sched, [w.key]: e.target.value })}
+              value={sched[weekday] ?? ""}
+              onChange={(e) =>
+                onChange({ ...sched, [weekday]: e.target.value })
+              }
               className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
             />
           </label>
@@ -2320,8 +2515,10 @@ function WeekdayBooleanInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const days = asWeekdayBooleanObject(value);
+  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -2338,15 +2535,15 @@ function WeekdayBooleanInput({
       )}
       <p className="text-xs text-gray-500">
         {field.target === "student.pickup_status"
-          ? "Wählen Sie die Tage aus, an denen Ihr Kind abgeholt wird. An nicht gewählten Tagen geht es alleine nach Hause."
-          : "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt."}
+          ? tr("structured.pickupDaysHelp")
+          : tr("structured.busDaysHelp")}
       </p>
       <div className="mt-2 grid gap-2 sm:grid-cols-5">
         {WEEKDAYS.map((w) => {
-          const checked = Boolean(days[w.key]);
+          const checked = Boolean(days[w]);
           return (
             <label
-              key={w.key}
+              key={w}
               className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ${
                 checked
                   ? "border-gray-900 bg-gray-900 text-white"
@@ -2356,12 +2553,10 @@ function WeekdayBooleanInput({
               <input
                 type="checkbox"
                 checked={checked}
-                onChange={(e) =>
-                  onChange({ ...days, [w.key]: e.target.checked })
-                }
+                onChange={(e) => onChange({ ...days, [w]: e.target.checked })}
                 className="sr-only"
               />
-              {w.label.slice(0, 2)}
+              {weekdayLabels[w] ?? w}
             </label>
           );
         })}
@@ -2376,8 +2571,10 @@ function WeekdayModeInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const modes = asWeekdayModeObject(value);
+  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   const modeFor = (key: string): DepartureModeValue => {
     const m = modes[key];
     return m === "bus" || m === "pickup" ? m : "alone";
@@ -2402,11 +2599,11 @@ function WeekdayModeInput({
       </p>
       <div className="mt-2 space-y-2">
         {WEEKDAYS.map((w) => {
-          const current = modeFor(w.key);
+          const current = modeFor(w);
           return (
-            <div key={w.key} className="flex items-center gap-2">
+            <div key={w} className="flex items-center gap-2">
               <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
-                {w.label}
+                {weekdayLabels[w] ?? w}
               </span>
               <div className="grid flex-1 grid-cols-3 gap-1">
                 {DEPARTURE_MODE_OPTIONS.map((opt) => {
@@ -2418,8 +2615,8 @@ function WeekdayModeInput({
                       aria-pressed={active}
                       onClick={() => {
                         const next = { ...modes };
-                        if (opt.value === "alone") delete next[w.key];
-                        else next[w.key] = opt.value;
+                        if (opt.value === "alone") delete next[w];
+                        else next[w] = opt.value;
                         onChange(next);
                       }}
                       className={`flex h-9 items-center justify-center rounded-md border px-1 text-xs font-medium transition-colors ${
@@ -2478,6 +2675,7 @@ function ContactListInput({
   value,
   onChange,
   error,
+  tr,
 }: CustomFieldInputProps) {
   const contacts = asContactArray(value);
   const update = (next: ContactEntryValue[]) => onChange(next);
@@ -2499,7 +2697,7 @@ function ContactListInput({
       )}
       {contacts.length === 0 && (
         <p className="mt-2 text-sm text-gray-500">
-          Noch kein zusätzlicher Kontakt eingetragen.
+          {tr("structured.noneContact")}
         </p>
       )}
       <ul className="space-y-3">
@@ -2511,7 +2709,7 @@ function ContactListInput({
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">
-                  Vorname
+                  {tr("fields.firstNamePlain")}
                 </span>
                 <input
                   type="text"
@@ -2522,7 +2720,7 @@ function ContactListInput({
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">
-                  Nachname
+                  {tr("fields.lastNamePlain")}
                 </span>
                 <input
                   type="text"
@@ -2533,7 +2731,7 @@ function ContactListInput({
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">
-                  Beziehung (z. B. Oma, Onkel, Nachbarin)
+                  {tr("structured.relationship")}
                 </span>
                 <input
                   type="text"
@@ -2546,7 +2744,7 @@ function ContactListInput({
               </label>
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">
-                  E-Mail (optional)
+                  {tr("structured.optionalEmail")}
                 </span>
                 <input
                   type="email"
@@ -2562,7 +2760,7 @@ function ContactListInput({
                 field={{
                   ...field,
                   key: `${field.key}_${idx}_phones`,
-                  label: "Telefonnummern",
+                  label: tr("structured.phoneNumbers"),
                   type: "phone_list",
                   required: false,
                 }}
@@ -2572,6 +2770,7 @@ function ContactListInput({
                     phone_numbers: Array.isArray(v) ? (v as PhoneEntry[]) : [],
                   })
                 }
+                tr={tr}
               />
             </div>
 
@@ -2580,14 +2779,14 @@ function ContactListInput({
                 <StructuredToggle
                   checked={Boolean(c.can_pickup)}
                   onChange={(checked) => setRow(idx, { can_pickup: checked })}
-                  label="Abholberechtigt"
+                  label={tr("structured.pickup")}
                 />
                 <StructuredToggle
                   checked={Boolean(c.is_emergency_contact)}
                   onChange={(checked) =>
                     setRow(idx, { is_emergency_contact: checked })
                   }
-                  label="Notfallkontakt"
+                  label={tr("structured.emergency")}
                 />
               </div>
               <button
@@ -2596,7 +2795,7 @@ function ContactListInput({
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#FF3130]/20 bg-white px-3 text-sm font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
-                Kontakt entfernen
+                {tr("structured.removeContact")}
               </button>
             </div>
           </li>
@@ -2608,7 +2807,7 @@ function ContactListInput({
         className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Kontakt hinzufügen
+        {tr("structured.addContact")}
       </button>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
@@ -2664,6 +2863,7 @@ interface ExistingChildrenPanelProps {
   readonly existing: MeProfileChild[];
   readonly usedIDs: Set<string>;
   readonly onAdopt: (child: MeProfileChild) => void;
+  readonly tr: EnrollmentFormTranslator;
 }
 
 /**
@@ -2677,14 +2877,15 @@ function ExistingChildrenPanel({
   existing,
   usedIDs,
   onAdopt,
+  tr,
 }: ExistingChildrenPanelProps) {
   return (
     <div className="rounded-lg border border-[#83CD2D]/40 bg-[#83CD2D]/5 p-4">
-      <h3 className="text-sm font-semibold text-gray-900">Bestehende Kinder</h3>
+      <h3 className="text-sm font-semibold text-gray-900">
+        {tr("structured.existingTitle")}
+      </h3>
       <p className="mt-1 text-xs text-gray-600">
-        Diese Kinder sind schon bei der Schule erfasst. Klicken Sie auf
-        „Übernehmen" um sie schnell in die Anmeldung einzutragen. Das
-        Geburtsdatum müssen Sie noch eintragen.
+        {tr("structured.existingText")}
       </p>
       <ul className="mt-3 space-y-2">
         {existing.map((c) => {
@@ -2699,7 +2900,9 @@ function ExistingChildrenPanel({
                   {c.first_name} {c.last_name}
                 </p>
                 <p className="truncate text-xs text-gray-500">
-                  Klasse: {c.school_class || "Nicht gesetzt"}
+                  {tr("structured.class", {
+                    value: c.school_class || tr("structured.notSet"),
+                  })}
                 </p>
               </div>
               <button
@@ -2708,7 +2911,7 @@ function ExistingChildrenPanel({
                 disabled={used}
                 className="shrink-0 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {used ? "✓ übernommen" : "Übernehmen"}
+                {used ? tr("structured.adopted") : tr("structured.adopt")}
               </button>
             </li>
           );
@@ -2721,31 +2924,18 @@ function ExistingChildrenPanel({
 // DateOfBirthPicker uses three dropdowns (Tag / Monat / Jahr).
 // Calendar widgets are awkward for DOB because parents need to jump
 // 5-10 years back; native <input type="date"> auto-validates partial
-// year input and snaps back. Three <select>s let parents pick fast
+// year input and snaps back. Three explicit dropdowns let parents pick fast
 // without touching a keyboard. Wire format stays YYYY-MM-DD.
-const MONTH_LABELS = [
-  "Januar",
-  "Februar",
-  "März",
-  "April",
-  "Mai",
-  "Juni",
-  "Juli",
-  "August",
-  "September",
-  "Oktober",
-  "November",
-  "Dezember",
-];
-
 function DateOfBirthPicker({
   value,
   onChange,
   error,
+  tr,
 }: {
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly error?: string;
+  readonly tr: EnrollmentFormTranslator;
 }) {
   // Internal state so partial selections (only day picked, only month
   // picked, etc.) survive between renders. We sync from `value` when
@@ -2771,6 +2961,7 @@ function DateOfBirthPicker({
   }, [value]);
 
   const currentYear = new Date().getFullYear();
+  const monthLabels = asStringArray(tr.raw("months"));
   const years: number[] = [];
   for (let y = currentYear; y >= currentYear - 25; y--) years.push(y);
 
@@ -2813,57 +3004,48 @@ function DateOfBirthPicker({
     emit(day, month, v);
   };
 
-  const selectClass = `moto-select h-10 rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-    error
-      ? "border-[#FF3130] bg-[#FF3130]/5"
-      : "moto-content-surface hover:border-gray-300"
-  }`;
-
   return (
     <>
       <div className="mt-1 grid grid-cols-3 gap-2">
-        <select
+        <CustomSelect
           value={day}
-          onChange={(e) => handleDay(e.target.value)}
-          className={selectClass}
-          aria-label="Tag"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Tag</option>
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={String(d)}>
-              {d}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleDay}
+          ariaLabel={tr("structured.day")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.day") },
+            ...Array.from({ length: daysInMonth }, (_, i) => {
+              const dayValue = String(i + 1);
+              return { value: dayValue, label: dayValue };
+            }),
+          ]}
+        />
+        <CustomSelect
           value={month}
-          onChange={(e) => handleMonth(e.target.value)}
-          className={selectClass}
-          aria-label="Monat"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Monat</option>
-          {MONTH_LABELS.map((label, idx) => (
-            <option key={label} value={String(idx + 1)}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={handleMonth}
+          ariaLabel={tr("structured.month")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.month") },
+            ...monthLabels.map((label, idx) => ({
+              value: String(idx + 1),
+              label,
+            })),
+          ]}
+        />
+        <CustomSelect
           value={year}
-          onChange={(e) => handleYear(e.target.value)}
-          className={selectClass}
-          aria-label="Jahr"
-          aria-invalid={error ? true : undefined}
-        >
-          <option value="">Jahr</option>
-          {years.map((y) => (
-            <option key={y} value={String(y)}>
-              {y}
-            </option>
-          ))}
-        </select>
+          onChange={handleYear}
+          ariaLabel={tr("structured.year")}
+          invalid={Boolean(error)}
+          options={[
+            { value: "", label: tr("structured.year") },
+            ...years.map((yearValue) => ({
+              value: String(yearValue),
+              label: String(yearValue),
+            })),
+          ]}
+        />
       </div>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </>
@@ -2878,7 +3060,7 @@ function parseDOBParts(
   if (!m) return null;
   return {
     year: m[1] ?? "",
-    month: String(Number(m[2])), // strip leading zero so the <select> matches
+    month: String(Number(m[2])), // strip leading zero so the dropdown matches
     day: String(Number(m[3])),
   };
 }

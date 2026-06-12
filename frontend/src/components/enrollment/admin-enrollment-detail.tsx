@@ -643,6 +643,15 @@ function RequestExtraSection({
     (f) => formatCustomValue(request.custom_data?.[f.key], f) !== null,
   );
   const hasConsents = Object.keys(request.consent_flags ?? {}).length > 0;
+  // Titles from the pinned schema's legal blocks label custom consents
+  // (e.g. "Schwimmbad" instead of "custom_pool"); the static map covers
+  // the standard keys for legacy requests without a pinned schema.
+  const consentTitles = new Map(
+    (request.schema_legal_blocks ?? []).map((block) => [
+      block.key,
+      block.title,
+    ]),
+  );
 
   if (!hasCustom && !hasConsents) return null;
 
@@ -667,7 +676,7 @@ function RequestExtraSection({
                   }}
                 />
                 <span className="text-gray-700">
-                  {CONSENT_LABELS[key] ?? key}:
+                  {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
                 </span>
                 <span className="font-medium text-gray-900">
                   {val === true ? "Ja" : val === false ? "Nein" : String(val)}

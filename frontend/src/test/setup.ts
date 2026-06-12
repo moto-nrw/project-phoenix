@@ -64,6 +64,70 @@ vi.mock("~/lib/logger", () => {
   };
 });
 
+// Mock next-intl globally. EnrollmentForm, the parent shell, and several
+// shared components now call useTranslations/useLocale unconditionally, which
+// throws without a NextIntlClientProvider. The mock resolves keys against the
+// real German catalog so existing assertions (which match the German chrome)
+// keep passing, and useLocale reports the default locale ("de").
+vi.mock("next-intl", async () => {
+  const de = (await import("~/i18n/messages/de.json")).default as Record<
+    string,
+    unknown
+  >;
+  const resolve = (path: string): unknown =>
+    path.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, de);
+  const interpolate = (
+    value: string,
+    values?: Record<string, unknown>,
+  ): string =>
+    values
+      ? Object.entries(values).reduce(
+          (str, [k, v]) => str.replaceAll(`{${k}}`, String(v)),
+          value,
+        )
+      : value;
+  const makeT = (namespace?: string) => {
+    const prefix = namespace ? `${namespace}.` : "";
+    const t = (key: string, values?: Record<string, unknown>) => {
+      const val = resolve(`${prefix}${key}`);
+      return typeof val === "string"
+        ? interpolate(val, values)
+        : `${prefix}${key}`;
+    };
+    t.raw = (key: string) => resolve(`${prefix}${key}`);
+    return t;
+  };
+  // Cache the translator per namespace so useTranslations returns a stable
+  // reference across renders, exactly as next-intl does. Without this, effects
+  // that depend on `t` (e.g. the status-view fetch effect) would re-run every
+  // render and exhaust mockResolvedValueOnce queues.
+  const cache = new Map<string, ReturnType<typeof makeT>>();
+  return {
+    useTranslations: (namespace?: string) => {
+      const cacheKey = namespace ?? "";
+      const existing = cache.get(cacheKey);
+      if (existing) return existing;
+      const t = makeT(namespace);
+      cache.set(cacheKey, t);
+      return t;
+    },
+    useLocale: () => "de",
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
+  };
+});
+
+// Mock the server entrypoint of next-intl (used by the root layout's
+// getLocale()). It needs a request context that doesn't exist under jsdom.
+vi.mock("next-intl/server", () => ({
+  getLocale: () => Promise.resolve("de"),
+}));
+
 // Mock ~/env globally to avoid Zod validation issues in tests
 vi.mock("~/env", () => ({
   env: {

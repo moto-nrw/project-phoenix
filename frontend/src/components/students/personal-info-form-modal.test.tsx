@@ -390,6 +390,36 @@ describe("PersonalInfoFormModal", () => {
         );
       });
     });
+
+    it("sends derived departure_days when only legacy day maps exist", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({
+            bus_days: { mon: true },
+            pickup_days: { wed: true },
+            departure_days: undefined,
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText<HTMLInputElement>("Vorname"), {
+        target: { value: "Maja" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            first_name: "Maja",
+            departure_days: { mon: "bus", wed: "pickup" },
+          }),
+        );
+      });
+    });
   });
 
   describe("Textarea inputs", () => {

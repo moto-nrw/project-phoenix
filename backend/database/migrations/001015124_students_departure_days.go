@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studentsDepartureDaysVersion     = "1.15.121"
+	studentsDepartureDaysVersion     = "1.15.124"
 	studentsDepartureDaysDescription = "Add unified per-weekday departure mode (alone/bus/pickup) to users.students"
 )
 
@@ -33,7 +33,7 @@ func init() {
 }
 
 func studentsDepartureDaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.121: Adding departure_days to users.students...")
+	fmt.Println("Migration 1.15.124: Adding departure_days to users.students...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
@@ -95,7 +95,7 @@ func studentsDepartureDaysUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsDepartureDaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.121: Removing departure_days from users.students...")
+	fmt.Println("Rolling back migration 1.15.124: Removing departure_days from users.students...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students

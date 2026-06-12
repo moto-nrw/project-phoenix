@@ -401,6 +401,10 @@ export function StudentStammdatenTab({
       }
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
+      submitData.departure_days = normalizeDepartureDays(
+        formData.departure_days ??
+          departureDaysFromLegacy(formData.bus_days, formData.pickup_days),
+      );
       if (
         submitData.photo_consent_given === originalDraft.photo_consent_given
       ) {
