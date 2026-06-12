@@ -137,6 +137,9 @@ describe("Parent portal components", () => {
       "href",
       "/parents/children/42",
     );
+    expect(
+      screen.getByText("Betreuung 01.08.2026 bis 31.07.2027"),
+    ).toBeInTheDocument();
 
     cleanup();
     mocks.listMyChildren.mockResolvedValueOnce([]);

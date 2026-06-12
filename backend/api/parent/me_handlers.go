@@ -1,6 +1,9 @@
 package parent
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -8,8 +11,90 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/localization"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
+
+// ParentProfileResponse carries the explicit parents-portal locale choice.
+// PortalLocale is null when the guardian has never picked one, so the frontend
+// keeps the anonymous cookie/Accept-Language locale instead of snapping to the
+// default.
+type ParentProfileResponse struct {
+	PortalLocale *string `json:"portal_locale"`
+}
+
+type UpdateParentProfileRequest struct {
+	PortalLocale string `json:"portal_locale"`
+}
+
+func profileResponse(profile *parentService.Profile) ParentProfileResponse {
+	if profile == nil || !profile.Explicit {
+		return ParentProfileResponse{PortalLocale: nil}
+	}
+	locale := profile.Locale
+	return ParentProfileResponse{PortalLocale: &locale}
+}
+
+func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		return
+	}
+
+	profile, err := rs.ParentService.GetProfile(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, profileResponse(profile), "Profile retrieved")
+}
+
+func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		return
+	}
+
+	// The body is a single short locale code; cap it so a malicious or buggy
+	// client can't stream an unbounded payload into the decoder.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
+	req := UpdateParentProfileRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if req.PortalLocale == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("portal_locale is required")))
+		return
+	}
+	// Reject unknown locales instead of letting the service silently coerce them
+	// to the default — a bad value should fail loudly, not persist as 'de'.
+	if !localization.IsSupported(req.PortalLocale) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unsupported portal_locale %q", req.PortalLocale)))
+		return
+	}
+
+	profile, err := rs.ParentService.UpdatePortalLocale(r.Context(), int64(claims.ID), req.PortalLocale)
+	if err != nil {
+		// An authenticated parent always has a linked guardian_profiles row, so
+		// a missing one is a permanent state conflict (corruption), not a
+		// transient server fault — surface it as 409 rather than 500. The
+		// service already logged the account_id.
+		if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, profileResponse(profile), "Profile updated")
+}
 
 // ChildResponse is the wire shape for one row in the /me/children
 // list. Mirrors models/parent.ChildSummary but stringifies int64 IDs

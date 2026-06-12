@@ -15,6 +15,7 @@ const {
   mockFetchPublicCareOfferings,
   mockFetchMyEnrollmentProfile,
   mockSubmitEnrollment,
+  mockIntlLocale,
 } = vi.hoisted(() => ({
   mockFetchPublicActiveSchema: vi.fn(),
   mockFetchPublicCaptchaConfig: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockFetchPublicCareOfferings: vi.fn(),
   mockFetchMyEnrollmentProfile: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
+  mockIntlLocale: { value: "de" },
 }));
 
 vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
@@ -41,6 +43,66 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
     fetchMyEnrollmentProfile: mockFetchMyEnrollmentProfile,
     fetchPublicCareOfferings: mockFetchPublicCareOfferings,
     submitEnrollment: mockSubmitEnrollment,
+  };
+});
+
+vi.mock("next-intl", async () => {
+  const de = (await import("~/i18n/messages/de.json")).default as Record<
+    string,
+    unknown
+  >;
+  const en = (await import("~/i18n/messages/en.json")).default as Record<
+    string,
+    unknown
+  >;
+  const catalogs: Record<string, Record<string, unknown>> = { de, en };
+  const currentCatalog = (): Record<string, unknown> =>
+    catalogs[mockIntlLocale.value] ?? de;
+  const resolve = (catalog: Record<string, unknown>, path: string): unknown =>
+    path.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, catalog);
+  const interpolate = (
+    value: string,
+    values?: Record<string, unknown>,
+  ): string =>
+    values
+      ? Object.entries(values).reduce(
+          (str, [k, v]) => str.replaceAll(`{${k}}`, String(v)),
+          value,
+        )
+      : value;
+  const makeT = (namespace?: string) => {
+    const prefix = namespace ? `${namespace}.` : "";
+    const t = (key: string, values?: Record<string, unknown>) => {
+      const catalog = currentCatalog();
+      const val = resolve(catalog, `${prefix}${key}`);
+      return typeof val === "string"
+        ? interpolate(val, values)
+        : `${prefix}${key}`;
+    };
+    t.raw = (key: string) => {
+      const catalog = currentCatalog();
+      return resolve(catalog, `${prefix}${key}`);
+    };
+    return t;
+  };
+  const cache = new Map<string, ReturnType<typeof makeT>>();
+  return {
+    useTranslations: (namespace?: string) => {
+      const cacheKey = `${mockIntlLocale.value}:${namespace ?? ""}`;
+      const existing = cache.get(cacheKey);
+      if (existing) return existing;
+      const t = makeT(namespace);
+      cache.set(cacheKey, t);
+      return t;
+    },
+    useLocale: () => mockIntlLocale.value,
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
   };
 });
 
@@ -276,6 +338,7 @@ async function fillRequiredFields() {
 
 describe("EnrollmentForm", () => {
   beforeEach(() => {
+    mockIntlLocale.value = "de";
     mockFetchPublicActiveSchema.mockReset();
     mockFetchPublicCaptchaConfig.mockReset();
     mockFetchPublicLegalTexts.mockReset();
@@ -377,6 +440,26 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("localizes the e-mail contact notice CTA in localized public copy", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ localizedCopy: true });
+    await waitForLoaded();
+
+    const emailContactNotice = screen
+      .getByText(/Status-Benachrichtigungen/)
+      .closest("div");
+    expect(emailContactNotice).not.toBeNull();
+    expect(
+      within(emailContactNotice!).getByRole("button", { name: "Show more" }),
+    ).toBeInTheDocument();
+    expect(
+      within(emailContactNotice!).queryByRole("button", {
+        name: "Mehr anzeigen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders only the configured AGB block and submits only its consent", async () => {

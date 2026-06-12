@@ -24,6 +24,15 @@ interface Testimonial {
   readonly metric: string;
 }
 
+export interface AuthTestimonialPanelCopy {
+  readonly badges: {
+    readonly audience: string;
+    readonly hosting: string;
+  };
+  readonly testimonialButtonLabel: string;
+  readonly testimonials: readonly Testimonial[];
+}
+
 type TestimonialCardState = "previous" | "active" | "next" | "hidden";
 
 const motoTestimonials: Testimonial[] = [
@@ -102,6 +111,24 @@ const parentTestimonials: Testimonial[] = [
   },
 ];
 
+const motoTestimonialPanelCopy: AuthTestimonialPanelCopy = {
+  badges: {
+    audience: "Für den Ganztag gemacht",
+    hosting: "In Deutschland gehostet",
+  },
+  testimonialButtonLabel: "Erfahrungsbericht {number} anzeigen",
+  testimonials: motoTestimonials,
+};
+
+const parentTestimonialPanelCopy: AuthTestimonialPanelCopy = {
+  badges: {
+    audience: "Für den Ganztag gemacht",
+    hosting: "In Deutschland gehostet",
+  },
+  testimonialButtonLabel: "Erfahrungsbericht {number} anzeigen",
+  testimonials: parentTestimonials,
+};
+
 interface AuthShellProps {
   readonly eyebrow: string;
   readonly title: string;
@@ -113,6 +140,7 @@ interface AuthShellProps {
   readonly titleClassName?: string;
   readonly footer?: ReactNode;
   readonly formMaxWidth?: string;
+  readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
 }
 
 export function OperatorBrand() {
@@ -143,6 +171,7 @@ export function AuthShell({
   titleClassName,
   footer,
   formMaxWidth = "max-w-[29rem]",
+  testimonialPanelCopy,
 }: AuthShellProps) {
   return (
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
@@ -175,34 +204,51 @@ export function AuthShell({
         </div>
       </section>
 
-      <AuthTestimonialPanel variant={variant} />
+      <AuthTestimonialPanel
+        variant={variant}
+        testimonialPanelCopy={testimonialPanelCopy}
+      />
     </main>
   );
 }
 
 function AuthTestimonialPanel({
   variant,
+  testimonialPanelCopy,
 }: {
   readonly variant: AuthShellVariant;
+  readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
 }) {
   const items = useMemo(() => {
-    return variant === "parents" ? parentTestimonials : motoTestimonials;
-  }, [variant]);
+    return (
+      testimonialPanelCopy ??
+      (variant === "parents"
+        ? parentTestimonialPanelCopy
+        : motoTestimonialPanelCopy)
+    );
+  }, [testimonialPanelCopy, variant]);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
+    if (items.testimonials.length <= 1) return;
     const interval = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % items.length);
+      setActiveIndex((current) => (current + 1) % items.testimonials.length);
     }, 11000);
 
     return () => window.clearInterval(interval);
-  }, [items.length]);
+  }, [items.testimonials.length]);
+
+  if (items.testimonials.length === 0) {
+    return null;
+  }
 
   const getCardState = (index: number): TestimonialCardState => {
-    const offset = (index - activeIndex + items.length) % items.length;
+    const offset =
+      (index - activeIndex + items.testimonials.length) %
+      items.testimonials.length;
     if (offset === 0) return "active";
     if (offset === 1) return "next";
-    if (offset === items.length - 1) return "previous";
+    if (offset === items.testimonials.length - 1) return "previous";
     return "hidden";
   };
 
@@ -211,17 +257,17 @@ function AuthTestimonialPanel({
       <div className="relative z-10 flex items-center justify-between">
         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur-sm">
           <UsersRound className="h-4 w-4 text-[#83CD2D]" aria-hidden="true" />
-          Für den Ganztag gemacht
+          {items.badges.audience}
         </div>
         <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/85 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur-sm">
           <ShieldCheck className="h-4 w-4 text-[#5080D8]" aria-hidden="true" />
-          In Deutschland gehostet
+          {items.badges.hosting}
         </div>
       </div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col justify-center py-12">
         <div className="relative h-[28rem] [perspective:1200px]">
-          {items.map((testimonial, index) => (
+          {items.testimonials.map((testimonial, index) => (
             <TestimonialCard
               key={`${testimonial.author}-${testimonial.metric}`}
               testimonial={testimonial}
@@ -231,11 +277,14 @@ function AuthTestimonialPanel({
         </div>
 
         <div className="mt-7 flex items-center justify-center gap-2">
-          {items.map((item, index) => (
+          {items.testimonials.map((item, index) => (
             <button
               key={`${item.author}-${item.metric}`}
               type="button"
-              aria-label={`Erfahrungsbericht ${index + 1} anzeigen`}
+              aria-label={items.testimonialButtonLabel.replace(
+                "{number}",
+                String(index + 1),
+              )}
               onClick={() => setActiveIndex(index)}
               className={cn(
                 "h-2.5 rounded-full transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",

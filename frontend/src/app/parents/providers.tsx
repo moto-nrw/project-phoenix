@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 
 /**
  * Parent-scoped providers.
@@ -10,6 +11,12 @@ import { SessionProvider } from "next-auth/react";
  * so it's invisible to tenant + operator subdomains.
  *
  * No ProfileProvider or SupervisionProvider — those are tenant-only.
+ *
+ * ParentLocaleProvider is mounted once here, inside SessionProvider. It derives
+ * its authenticated state from the session itself, so the same instance handles
+ * anonymous pages (login: cookie-only locale) and authenticated ones (syncs +
+ * persists portal_locale) without the auth guard mounting a second, shadowing
+ * provider.
  */
 export function ParentProviders({
   children,
@@ -20,7 +27,7 @@ export function ParentProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
-      {children}
+      <ParentLocaleProvider>{children}</ParentLocaleProvider>
     </SessionProvider>
   );
 }

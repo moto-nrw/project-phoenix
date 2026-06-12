@@ -568,6 +568,10 @@ type GuardianProfileRepository interface {
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error
 
+	// UpdatePortalLocaleByAccountID updates portal_locale for every guardian
+	// profile linked to the given parent account.
+	UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error
+
 	// Delete removes a guardian profile
 	Delete(ctx context.Context, id int64) error
 

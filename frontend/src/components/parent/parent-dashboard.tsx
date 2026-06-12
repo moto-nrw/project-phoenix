@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Newspaper, Users } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
   type ChildStatus,
@@ -14,15 +15,6 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ParentDashboard" });
-
-const enrollmentStatusLabel: Record<EnrollmentChildStatus, string> = {
-  submitted: "Eingereicht",
-  under_review: "In Prüfung",
-  approved: "Freigeschaltet",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-};
 
 const statusTone: Record<
   EnrollmentChildStatus | ChildStatus,
@@ -50,9 +42,13 @@ interface ChildOverviewItem {
   readonly href?: string;
 }
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return "Nicht gesetzt";
-  return new Intl.DateTimeFormat("de-DE", {
+function formatDate(
+  iso: string | undefined,
+  locale: string,
+  empty: string,
+): string {
+  if (!iso) return empty;
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -62,25 +58,33 @@ function formatDate(iso: string | undefined): string {
 function formatServiceRange(
   from: string | undefined,
   until: string | undefined,
+  locale: string,
+  empty: string,
+  connector: string,
 ) {
-  if (!from && !until) return "Zeitraum noch offen";
-  return `${formatDate(from)} bis ${formatDate(until)}`;
+  if (!from && !until) return empty;
+  return `${formatDate(from, locale, empty)} ${connector} ${formatDate(until, locale, empty)}`;
 }
 
 function normalizeChildIdentity(name: string, schoolName: string): string {
   return `${name.trim().toLowerCase()}::${schoolName.trim().toLowerCase()}`;
 }
 
-function getEnrollmentOverviewStatus(status: EnrollmentChildStatus): string {
+function getEnrollmentOverviewStatus(
+  status: EnrollmentChildStatus,
+  t: ReturnType<typeof useTranslations<"parentDashboard">>,
+): string {
   if (status === "submitted" || status === "under_review") {
-    return "Wartet auf Bestätigung oder Rückmeldung";
+    return t("pendingDescription");
   }
-  return enrollmentStatusLabel[status] ?? status;
+  return t(`status.${status}`);
 }
 
 function buildChildOverviewItems(
   children: readonly Child[],
   requests: readonly EnrollmentRequest[],
+  locale: string,
+  t: ReturnType<typeof useTranslations<"parentDashboard">>,
 ): ChildOverviewItem[] {
   const items: ChildOverviewItem[] = children.map((child) => {
     const name = `${child.first_name} ${child.last_name}`;
@@ -89,8 +93,8 @@ function buildChildOverviewItems(
       name,
       schoolName: child.school_name,
       detail: child.enrolled_from
-        ? `${child.school_class ? `${child.school_class} · ` : ""}Betreuung ${formatServiceRange(child.enrolled_from, child.enrolled_until)}`
-        : child.school_class || "Betreuung hinterlegt",
+        ? `${child.school_class ? `${child.school_class} · ` : ""}${t("careRange", { range: formatServiceRange(child.enrolled_from, child.enrolled_until, locale, t("notSet"), t("dateRangeConnector")) })}`
+        : child.school_class || t("careRecorded"),
       status: child.status,
       href: `/parents/children/${child.student_id}`,
     };
@@ -113,9 +117,12 @@ function buildChildOverviewItems(
         detail: `${request.phase_name} · ${formatServiceRange(
           request.service_start_date,
           request.service_end_date,
+          locale,
+          t("rangeOpen"),
+          t("dateRangeConnector"),
         )}`,
         status: child.status,
-        statusLabel: getEnrollmentOverviewStatus(child.status),
+        statusLabel: getEnrollmentOverviewStatus(child.status, t),
       });
     }
   }
@@ -124,6 +131,8 @@ function buildChildOverviewItems(
 }
 
 export function ParentDashboard() {
+  const t = useTranslations("parentDashboard");
+  const locale = useLocale();
   const [requests, setRequests] = useState<EnrollmentRequest[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,21 +149,21 @@ export function ParentDashboard() {
       setRequests(enrollmentList);
       setChildren(childList);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.warn("parent_dashboard_load_failed", { error: message });
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const childOverviewItems = useMemo(
-    () => buildChildOverviewItems(children, requests),
-    [children, requests],
+    () => buildChildOverviewItems(children, requests, locale, t),
+    [children, requests, locale, t],
   );
   if (loading) {
     return <ParentDashboardSkeleton />;
@@ -164,8 +173,7 @@ export function ParentDashboard() {
     return (
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
-          Die Übersicht konnte nicht geladen werden. Bitte aktualisieren Sie die
-          Seite oder versuchen Sie es später erneut.
+          {t("loadError")}
         </div>
       </div>
     );
@@ -177,15 +185,14 @@ export function ParentDashboard() {
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
           <div className="p-5 sm:p-6 lg:p-8">
             <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-              Elternportal
+              {t("eyebrow")}
             </p>
             <div className="mt-2 max-w-3xl">
               <h1 className="text-2xl font-semibold text-balance text-gray-900 sm:text-3xl">
-                Willkommen im Elternportal
+                {t("title")}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 sm:text-base">
-                Hier sehen Sie Ihre Kinder und öffnen die wichtigsten Bereiche
-                rund um Betreuung, Nachrichten und Termine.
+                {t("description")}
               </p>
             </div>
           </div>
@@ -193,10 +200,10 @@ export function ParentDashboard() {
             <div className="relative z-10 space-y-4">
               <div>
                 <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Meine Kinder
+                  {t("childrenEyebrow")}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
-                  Direkt zur Kind-Ansicht wechseln.
+                  {t("childrenDescription")}
                 </p>
               </div>
               <HeroChildrenList items={childOverviewItems} />
@@ -230,12 +237,13 @@ function ParentDashboardSkeleton() {
 function HeroChildrenList({
   items,
 }: Readonly<{ items: readonly ChildOverviewItem[] }>) {
+  const t = useTranslations("parentDashboard");
   const previewItems = items.slice(0, 3);
 
   if (previewItems.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white/75 p-4 text-sm leading-6 text-gray-600 shadow-sm">
-        Sobald ein Kind freigeschaltet ist, erscheint es hier.
+        {t("emptyChildren")}
       </div>
     );
   }
@@ -250,7 +258,7 @@ function HeroChildrenList({
           href="/parents/children"
           className="inline-flex h-9 items-center rounded-lg px-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-white/80 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
-          Alle Kinder anzeigen
+          {t("allChildren")}
         </Link>
       ) : null}
     </div>
@@ -258,6 +266,7 @@ function HeroChildrenList({
 }
 
 function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
+  const t = useTranslations("parentDashboard");
   const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
     <div className="flex min-w-0 items-center gap-3">
@@ -275,7 +284,7 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
           className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold"
           style={{ backgroundColor: tone.bg, color: tone.text }}
         >
-          Offen
+          {t("open")}
         </span>
       ) : (
         <ArrowRight
@@ -305,15 +314,16 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
 }
 
 function StartNewsPanel() {
+  const t = useTranslations("parentDashboard");
   return (
     <section
       id="news"
       className="scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
     >
       <PanelHeader
-        eyebrow="Aktuelles"
-        title="Neuigkeiten"
-        description="Meldungen aus Betreuung und Elternportal erscheinen hier."
+        eyebrow={t("newsEyebrow")}
+        title={t("newsTitle")}
+        description={t("newsDescription")}
       />
 
       <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
@@ -323,11 +333,10 @@ function StartNewsPanel() {
           </span>
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-gray-900">
-              Keine Neuigkeiten vorhanden
+              {t("noNewsTitle")}
             </h3>
             <p className="mt-1 text-sm leading-6 text-gray-600">
-              Sobald es neue Hinweise gibt, sehen Sie diese direkt auf der
-              Startseite.
+              {t("noNewsDescription")}
             </p>
           </div>
         </div>
