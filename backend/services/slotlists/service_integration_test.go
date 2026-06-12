@@ -502,6 +502,35 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 	assert.Nil(t, rowByStudent(longCohort.Rows, tooLate.ID), "17:00 is beyond the configured long-day cutoff")
 }
 
+func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	svc := newTestServiceWithSettings(db, stubSlotListSettings{
+		configModels.KeySlotListShortDayCutoff: "9:00",
+		configModels.KeySlotListLongDayCutoff:  "16:00",
+	})
+
+	shortCohort, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortShortDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Ganztag bis 09:00", shortCohort.ListLabel)
+
+	longCohort, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         listDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourcePlanned,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Ganztag bis 16:00", longCohort.ListLabel)
+}
+
 func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -633,9 +662,10 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 	assert.True(t, lateRow.Unplanned)
 }
 
-// TestBuildList_ExcusedAbsence proves a registered sign-off (instance_students
-// status = absent) is reported as a distinct "Abgemeldet" status with its own
-// counter, kept apart from an unexplained "Fehlt".
+// TestBuildList_ExcusedAbsence proves only an explicit registered sign-off
+// (instance_students status=absent plus substatus) is reported as a distinct
+// "Abgemeldet" status. Lifecycle no-shows (status=absent without substatus)
+// stay in the unexplained "Fehlt" counter.
 func TestBuildList_ExcusedAbsence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -661,17 +691,26 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 
 	expected := testpkg.CreateTestStudent(t, db, "SL-Expected", fmt.Sprintf("EX-%d", suffix), "5a")
 	excused := testpkg.CreateTestStudent(t, db, "SL-Excused", fmt.Sprintf("AB-%d", suffix), "5a")
+	noShow := testpkg.CreateTestStudent(t, db, "SL-NoShow", fmt.Sprintf("NS-%d", suffix), "5a")
 
 	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
 	var isIDs []int64
+	excusedSubstatus := scheduleModels.AttendanceSubstatusExcused
 	for _, sc := range []struct {
 		studentID int64
 		status    string
+		substatus *string
 	}{
-		{expected.ID, scheduleModels.AttendanceStatusExpected},
-		{excused.ID, scheduleModels.AttendanceStatusAbsent},
+		{studentID: expected.ID, status: scheduleModels.AttendanceStatusExpected},
+		{studentID: excused.ID, status: scheduleModels.AttendanceStatusAbsent, substatus: &excusedSubstatus},
+		{studentID: noShow.ID, status: scheduleModels.AttendanceStatusAbsent},
 	} {
-		row := &scheduleModels.InstanceStudent{InstanceID: instance.ID, StudentID: sc.studentID, Status: sc.status}
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instance.ID,
+			StudentID:  sc.studentID,
+			Status:     sc.status,
+			Substatus:  sc.substatus,
+		}
 		row.SetTenantID(1)
 		require.NoError(t, isRepo.Create(ctx, row))
 		isIDs = append(isIDs, row.ID)
@@ -682,6 +721,7 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
 		testpkg.CleanupActivityFixtures(t, db, expected.ID)
 		testpkg.CleanupActivityFixtures(t, db, excused.ID)
+		testpkg.CleanupActivityFixtures(t, db, noShow.ID)
 		testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, activity.ID, room.ID)
 	})
 
@@ -693,8 +733,8 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, result.Counters.Missing, "only the unexplained absence counts as Fehlt")
-	assert.Equal(t, 1, result.Counters.Excused, "the registered sign-off counts as Abgemeldet")
+	assert.Equal(t, 2, result.Counters.Missing, "expected and no-show absences count as Fehlt")
+	assert.Equal(t, 1, result.Counters.Excused, "only the explicit sign-off counts as Abgemeldet")
 
 	excusedRow := rowByStudent(result.Rows, excused.ID)
 	require.NotNil(t, excusedRow)
@@ -705,6 +745,11 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 	require.NotNil(t, missingRow)
 	assert.False(t, missingRow.Excused)
 	assert.Equal(t, "Fehlt", missingRow.StatusLabel)
+
+	noShowRow := rowByStudent(result.Rows, noShow.ID)
+	require.NotNil(t, noShowRow)
+	assert.False(t, noShowRow.Excused)
+	assert.Equal(t, "Fehlt", noShowRow.StatusLabel)
 }
 
 func TestRenderList_PDFSmoke(t *testing.T) {

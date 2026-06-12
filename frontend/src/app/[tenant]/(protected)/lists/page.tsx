@@ -141,7 +141,9 @@ interface InitialListState {
   selectedClasses: string[] | null;
 }
 
-function statusColor(row: SlotListRow): string {
+function statusColor(row: SlotListRow, source: SlotListSource): string {
+  if (source === "planned") return LOCATION_COLORS.OTHER_ROOM;
+  if (source === "actual") return LOCATION_COLORS.GROUP_ROOM;
   if (row.unplanned) return LOCATION_COLORS.SCHOOLYARD;
   if (row.present) return LOCATION_COLORS.GROUP_ROOM;
   // Justified (registered) absence — purple, visibly apart from an
@@ -151,8 +153,11 @@ function statusColor(row: SlotListRow): string {
   return LOCATION_COLORS.OTHER_ROOM;
 }
 
-function StatusBadge({ row }: Readonly<{ row: SlotListRow }>) {
-  const color = statusColor(row);
+function StatusBadge({
+  row,
+  source,
+}: Readonly<{ row: SlotListRow; source: SlotListSource }>) {
+  const color = statusColor(row, source);
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span
@@ -720,11 +725,11 @@ export default function SlotListsPage() {
     cols.push({
       key: "status",
       header: "Status",
-      render: (r) => <StatusBadge row={r} />,
+      render: (r) => <StatusBadge row={r} source={source} />,
       sortValue: (r) => r.status_label,
     });
     return cols;
-  }, [isPickupBased]);
+  }, [isPickupBased, source]);
 
   if (authStatus === "loading") {
     return <Loading fullPage={false} />;

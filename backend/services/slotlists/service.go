@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -137,22 +138,24 @@ func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error)
 	if err != nil {
 		return cfg, fmt.Errorf("resolve short-day pickup cutoff: %w", err)
 	}
-	if short != "" && !validHHMM(short) {
-		return cfg, fmt.Errorf("invalid short-day pickup cutoff %q", short)
-	}
 	if short != "" {
-		cfg.ShortCutoff = short
+		normalized, err := normalizeHHMM(short)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid short-day pickup cutoff %q", short)
+		}
+		cfg.ShortCutoff = normalized
 	}
 
 	long, err := s.settings.ResolveString(ctx, configModel.KeySlotListLongDayCutoff)
 	if err != nil {
 		return cfg, fmt.Errorf("resolve long-day pickup cutoff: %w", err)
 	}
-	if long != "" && !validHHMM(long) {
-		return cfg, fmt.Errorf("invalid long-day pickup cutoff %q", long)
-	}
 	if long != "" {
-		cfg.LongCutoff = long
+		normalized, err := normalizeHHMM(long)
+		if err != nil {
+			return cfg, fmt.Errorf("invalid long-day pickup cutoff %q", long)
+		}
+		cfg.LongCutoff = normalized
 	}
 	if cfg.LongCutoff <= cfg.ShortCutoff {
 		return cfg, fmt.Errorf("long-day pickup cutoff %s must be after short-day pickup cutoff %s", cfg.LongCutoff, cfg.ShortCutoff)
@@ -160,9 +163,12 @@ func (s *service) pickupBuckets(ctx context.Context) (pickupBucketConfig, error)
 	return cfg, nil
 }
 
-func validHHMM(value string) bool {
-	_, err := time.Parse(timeLayout, value)
-	return err == nil
+func normalizeHHMM(value string) (string, error) {
+	parsed, err := time.Parse(timeLayout, strings.TrimSpace(value))
+	if err != nil {
+		return "", err
+	}
+	return parsed.Format(timeLayout), nil
 }
 
 func (s *service) listLabel(ctx context.Context, params Params) (string, error) {
@@ -400,14 +406,15 @@ func int64Set(ids []int64) map[int64]bool {
 
 // mergedEntry is one (slot, student) pair before person/group enrichment.
 type mergedEntry struct {
-	StudentID     int64
-	InstanceID    int64 // 0 for pickup-based cohorts
-	SlotLabel     string
-	RoomName      string // planned room of the slot; "" for pickup cohorts
-	PickupTime    string
-	Planned       bool
-	Present       bool
-	PlannedStatus string // schedule.instance_students.status, "" for pickup cohorts
+	StudentID        int64
+	InstanceID       int64 // 0 for pickup-based cohorts
+	SlotLabel        string
+	RoomName         string // planned room of the slot; "" for pickup cohorts
+	PickupTime       string
+	Planned          bool
+	Present          bool
+	PlannedStatus    string  // schedule.instance_students.status, "" for pickup cohorts
+	PlannedSubstatus *string // schedule.instance_students.substatus, nil for pickup cohorts
 }
 
 // collectSlotEntries derives the cohort from materialized activity instances
@@ -452,13 +459,14 @@ func (s *service) collectSlotEntries(ctx context.Context, params Params, result 
 		for _, row := range planned {
 			seenPlanned[row.StudentID] = struct{}{}
 			entries = append(entries, mergedEntry{
-				StudentID:     row.StudentID,
-				InstanceID:    inst.ID,
-				SlotLabel:     slotLabel,
-				RoomName:      roomName,
-				Planned:       true,
-				Present:       presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent,
-				PlannedStatus: row.Status,
+				StudentID:        row.StudentID,
+				InstanceID:       inst.ID,
+				SlotLabel:        slotLabel,
+				RoomName:         roomName,
+				Planned:          true,
+				Present:          presentSet[row.StudentID] || row.Status == scheduleModel.AttendanceStatusPresent,
+				PlannedStatus:    row.Status,
+				PlannedSubstatus: row.Substatus,
 			})
 		}
 		for studentID, present := range presentSet {
@@ -731,11 +739,17 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 			Planned:     entry.Planned,
 			Present:     entry.Present,
 			Unplanned:   entry.Present && !entry.Planned,
-			Excused:     entry.Planned && !entry.Present && entry.PlannedStatus == scheduleModel.AttendanceStatusAbsent,
+			Excused:     entry.Planned && !entry.Present && signedOffAbsence(entry),
 			StatusLabel: statusLabel(entry, source),
 		})
 	}
 	return rows, nil
+}
+
+func signedOffAbsence(entry mergedEntry) bool {
+	return entry.PlannedStatus == scheduleModel.AttendanceStatusAbsent &&
+		entry.PlannedSubstatus != nil &&
+		*entry.PlannedSubstatus != ""
 }
 
 func statusLabel(entry mergedEntry, source Source) string {
@@ -750,7 +764,7 @@ func statusLabel(entry mergedEntry, source Source) string {
 			return "Ungeplant anwesend"
 		case entry.Present:
 			return "Anwesend"
-		case entry.PlannedStatus == scheduleModel.AttendanceStatusAbsent:
+		case signedOffAbsence(entry):
 			return "Abgemeldet (entschuldigt)"
 		default:
 			return "Fehlt"

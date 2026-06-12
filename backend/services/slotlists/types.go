@@ -202,9 +202,9 @@ type Row struct {
 	Planned     bool   `json:"planned"`
 	Present     bool   `json:"present"`
 	Unplanned   bool   `json:"unplanned"`
-	// Excused is a planned-but-absent child whose absence was registered
-	// (instance_students.status = absent). A justified absence, kept apart
-	// from an unexplained "Fehlt".
+	// Excused is a planned-but-absent child whose absence carries an explicit
+	// instance_students.substatus. Lifecycle no-shows flip to status=absent
+	// without substatus and still count as unexplained "Fehlt".
 	Excused     bool   `json:"excused"`
 	StatusLabel string `json:"status_label"`
 	// GroupTitle is the section heading this row belongs to when GroupBy is
