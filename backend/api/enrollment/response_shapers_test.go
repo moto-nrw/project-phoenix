@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -83,6 +84,17 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentDisabled)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
+}
+
+func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
+	// A stale parent link to a phase whose enrollment window is closed
+	// returns 404 with a stable code so the form explains the
+	// Anmeldefrist instead of "nicht gefunden".
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/x", nil)
+	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentWindowClosed)
 }
 
 func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
@@ -222,4 +234,31 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 	require.Len(t, out.Fields, 2)
 	assert.Equal(t, "z", out.Fields[0].Key, "shaper does not reorder — that's the form's job")
 	assert.Equal(t, "a", out.Fields[1].Key)
+}
+
+func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
+	s := &enrollmentModels.FormSchema{
+		Model:   baseModel.Model{ID: 1234},
+		Version: 2,
+		Fields:  []enrollmentModels.FormField{},
+		LegalBlocks: []enrollmentModels.FormLegalBlock{
+			{
+				Key:       "photo",
+				Kind:      enrollmentModels.LegalBlockKindConsent,
+				Title:     "Fotoeinwilligung",
+				Label:     "Fotos erlauben",
+				Text:      "disabled draft text must not leak",
+				Required:  false,
+				Enabled:   false,
+				SortOrder: 10,
+			},
+		},
+	}
+
+	out := toPublicFormSchemaResponse(s)
+	require.NotNil(t, out)
+	raw, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "legal_blocks")
+	assert.NotContains(t, string(raw), "disabled draft text")
 }

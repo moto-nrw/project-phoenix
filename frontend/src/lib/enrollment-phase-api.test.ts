@@ -127,7 +127,21 @@ describe("createPhase", () => {
     mockFetch(async () =>
       jsonResponse({ error: "validation failed" }, { status: 400 }),
     );
-    await expect(createPhase(validInput)).rejects.toThrow(/validation failed/);
+    await expect(createPhase(validInput)).rejects.toThrow(
+      /Phase konnte nicht erstellt werden/,
+    );
+  });
+
+  it("translates the backend phase name validation error to German", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        { error: "phase validation: phase name is required" },
+        { status: 400 },
+      ),
+    );
+    await expect(createPhase(validInput)).rejects.toThrow(
+      /Bitte gib einen Namen für die Anmeldephase ein/,
+    );
   });
 });
 
@@ -179,12 +193,12 @@ describe("updatePhase", () => {
     );
   });
 
-  it("falls back to backend error text for unmatched validation messages", async () => {
+  it("uses the German fallback for unmatched English validation messages", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "some other backend error" }, { status: 400 }),
     );
     await expect(updatePhase("1", validInput)).rejects.toThrow(
-      /some other backend error/,
+      /Phase konnte nicht gespeichert werden/,
     );
   });
 });
@@ -210,11 +224,13 @@ describe("deletePhase", () => {
   // The "has requests/offerings" delete guard was removed — a phase is
   // always deletable now. A non-204 response surfaces the backend's error
   // text directly (no special code translation).
-  it("surfaces the backend error text on a non-OK response", async () => {
+  it("translates known backend not-found text on a non-OK response", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "phase not found" }, { status: 404 }),
     );
-    await expect(deletePhase("1234")).rejects.toThrow(/phase not found/);
+    await expect(deletePhase("1234")).rejects.toThrow(
+      /Die Anmeldephase wurde nicht gefunden/,
+    );
   });
 
   it("falls back to the German operation fallback when body is malformed", async () => {
@@ -351,7 +367,7 @@ describe("createRollover", () => {
     );
   });
 
-  it("falls back to backend error text for unknown codes", async () => {
+  it("uses the German fallback for unknown English rollover codes", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "rollover.something.else", error: "weird backend error" },
@@ -359,7 +375,7 @@ describe("createRollover", () => {
       ),
     );
     await expect(createRollover("42", validRolloverInput)).rejects.toThrow(
-      /weird backend error/,
+      /Rollover konnte nicht erstellt werden/,
     );
   });
 });

@@ -1,13 +1,7 @@
 import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
-
-const SCHEMA_ERROR_MESSAGES: Record<string, string> = {
-  "enrollment.schema_has_phases":
-    "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
-  "enrollment.schema_has_requests":
-    "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
-};
 
 /** Field types accepted by the backend FormFieldType enum. */
 export type FormFieldType =
@@ -171,6 +165,22 @@ export type CoreRequirementKey = "guardian_phone";
 
 export type CoreRequirements = Partial<Record<CoreRequirementKey, boolean>>;
 
+type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
+
+type LegalBlockSource = "standard" | "custom";
+
+export interface FormLegalBlock {
+  key: string;
+  kind: LegalBlockKind;
+  title: string;
+  label: string;
+  text: string;
+  required: boolean;
+  enabled: boolean;
+  sort_order: number;
+  source?: LegalBlockSource;
+}
+
 export interface FormSchema {
   id: string;
   name: string;
@@ -178,6 +188,7 @@ export interface FormSchema {
   is_active: boolean;
   fields: FormField[];
   core_requirements?: CoreRequirements;
+  legal_blocks?: FormLegalBlock[];
   created_by: string;
   created_at: string;
 }
@@ -215,13 +226,11 @@ export async function listSchemas(): Promise<FormSchema[]> {
     cache: "no-store",
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    logger.error("schema_list_failed", {
-      status: response.status,
-      error: errorText,
-    });
-    throw new Error(
-      `Failed to load form schema list (HTTP ${response.status})`,
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlagen konnten nicht geladen werden",
+      logger,
+      "schema_list_failed",
     );
   }
   const list = await readJSON<FormSchema[]>(response);
@@ -233,12 +242,12 @@ export async function fetchSchemaById(id: string): Promise<FormSchema> {
     cache: "no-store",
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    logger.error("schema_fetch_by_id_failed", {
-      status: response.status,
-      error: errorText,
-    });
-    throw new Error(`Failed to load form schema (HTTP ${response.status})`);
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht geladen werden",
+      logger,
+      "schema_fetch_by_id_failed",
+    );
   }
   return readJSON<FormSchema>(response);
 }
@@ -273,6 +282,48 @@ export interface PublicFormSchema {
   version: number;
   fields: FormField[];
   core_requirements?: CoreRequirements;
+  legal_blocks?: FormLegalBlock[];
+}
+
+export function schemaToPublicFormSchema(schema: FormSchema): PublicFormSchema {
+  return {
+    id: schema.id,
+    version: schema.version,
+    fields: schema.fields,
+    ...(schema.core_requirements === undefined
+      ? {}
+      : { core_requirements: schema.core_requirements }),
+    ...(schema.legal_blocks === undefined
+      ? {}
+      : { legal_blocks: schema.legal_blocks }),
+  };
+}
+
+export interface EnrollmentPreviewBootstrap {
+  schema: FormSchema | null;
+  assigned_phase_count: number;
+  active_assigned_phase_count: number;
+}
+
+export async function fetchEnrollmentPreviewBootstrap(params: {
+  schemaId?: string | null;
+  base?: boolean;
+}): Promise<EnrollmentPreviewBootstrap> {
+  const search = new URLSearchParams();
+  if (params.schemaId) search.set("schemaId", params.schemaId);
+  if (params.base) search.set("base", "1");
+  const response = await fetch(`${SCHEMA_PATH}/preview?${search.toString()}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readEnrollmentError(
+      response,
+      "Formularvorschau konnte nicht geladen werden",
+      logger,
+      "schema_preview_bootstrap_failed",
+    );
+  }
+  return readJSON<EnrollmentPreviewBootstrap>(response);
 }
 
 /**
@@ -304,12 +355,14 @@ export async function fetchPublicCaptchaConfig(
 }
 
 export interface PublicLegalBlock {
-  key: "agb" | "data_processing" | "email_contact" | "photo";
-  kind: "terms" | "privacy_notice" | "notice" | "consent";
+  key: string;
+  kind: LegalBlockKind;
   title: string;
   label: string;
   text: string;
   required: boolean;
+  sort_order?: number;
+  source?: LegalBlockSource;
 }
 
 /**
@@ -338,16 +391,18 @@ export interface PublicLegalTexts {
  */
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
+  phaseId?: string,
 ): Promise<PublicLegalTexts> {
-  const response = await fetch(
-    `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`,
-    { cache: "no-store" },
-  );
+  const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
+  const url = phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path;
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
-    logger.error("public_legal_texts_failed", {
-      status: response.status,
-    });
-    throw new Error(`legal texts request failed: ${response.status}`);
+    throw await readEnrollmentError(
+      response,
+      "Rechtstexte konnten nicht geladen werden",
+      logger,
+      "public_legal_texts_failed",
+    );
   }
   return readJSON<PublicLegalTexts>(response);
 }
@@ -366,13 +421,11 @@ export async function fetchPublicActiveSchema(
     return null;
   }
   if (!response.ok) {
-    const errorText = await response.text();
-    logger.error("public_schema_fetch_failed", {
-      status: response.status,
-      error: errorText,
-    });
-    throw new Error(
-      `Failed to load public form schema (HTTP ${response.status})`,
+    throw await readEnrollmentError(
+      response,
+      "Formular konnte nicht geladen werden",
+      logger,
+      "public_schema_fetch_failed",
     );
   }
   return readJSON<PublicFormSchema>(response);
@@ -387,23 +440,29 @@ export async function createSchema(
   name: string,
   fields: FormField[],
   coreRequirements: CoreRequirements = {},
+  legalBlocks?: FormLegalBlock[],
 ): Promise<FormSchema> {
+  const body =
+    legalBlocks === undefined
+      ? { name, fields, core_requirements: coreRequirements }
+      : {
+          name,
+          fields,
+          core_requirements: coreRequirements,
+          legal_blocks: legalBlocks,
+        };
   const response = await fetch(SCHEMA_PATH, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, fields, core_requirements: coreRequirements }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as BackendEnvelope<unknown>;
-    const message =
-      payload.error ?? payload.message ?? `HTTP ${response.status}`;
-    logger.error("schema_create_failed", {
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht erstellt werden",
+      logger,
+      "schema_create_failed",
+    );
   }
   return readJSON<FormSchema>(response);
 }
@@ -419,27 +478,27 @@ export async function updateSchema(
   id: string,
   fields: FormField[],
   coreRequirements?: CoreRequirements,
+  legalBlocks?: FormLegalBlock[],
 ): Promise<FormSchema> {
-  const body =
-    coreRequirements === undefined
-      ? { fields }
-      : { fields, core_requirements: coreRequirements };
+  const body: {
+    fields: FormField[];
+    core_requirements?: CoreRequirements;
+    legal_blocks?: FormLegalBlock[];
+  } = { fields };
+  if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
+  if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as BackendEnvelope<unknown>;
-    const message =
-      payload.error ?? payload.message ?? `HTTP ${response.status}`;
-    logger.error("schema_update_failed", {
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht gespeichert werden",
+      logger,
+      "schema_update_failed",
+    );
   }
   return readJSON<FormSchema>(response);
 }
@@ -450,20 +509,12 @@ export async function deleteSchema(id: string): Promise<void> {
   });
   if (response.status === 204) return;
   if (!response.ok) {
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as BackendEnvelope<unknown>;
-    const message =
-      (payload.code ? SCHEMA_ERROR_MESSAGES[payload.code] : undefined) ??
-      payload.error ??
-      payload.message ??
-      `HTTP ${response.status}`;
-    logger.error("schema_delete_failed", {
-      status: response.status,
-      message,
-      code: payload.code,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht gelöscht werden",
+      logger,
+      "schema_delete_failed",
+    );
   }
 }
 

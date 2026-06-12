@@ -13,6 +13,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -430,7 +431,7 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
-	assert.ErrorContains(t, err, "resolve required consents")
+	assert.ErrorContains(t, err, "resolve legal blocks")
 	assert.ErrorContains(t, err, "resolve DSGVO legal text")
 }
 
@@ -1033,6 +1034,45 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, state.Attempts,
 		"a different tenant's bucket must start fresh, got %d", state.Attempts)
+}
+
+func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	email := "rollback+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
+	ip := "198.51.100.42"
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.submission_rate_limits").
+			Where("tenant_id = ?", 1).
+			Where("key_value IN (?)", bun.List([]string{email, ip})).
+			Exec(context.Background())
+	})
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = email
+	req.RemoteIP = ip
+	req.Children = nil
+
+	err := tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, submitErr := env.svc.Submit(txCtx, req)
+		return submitErr
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"submission should fail after the rate-limit increment")
+
+	var attempts int
+	err = env.db.NewSelect().
+		TableExpr("enrollment.submission_rate_limits").
+		Column("attempts").
+		Where("tenant_id = ?", 1).
+		Where("key_type = ?", enrollmentModels.SubmissionRateLimitKeyTypeEmail).
+		Where("key_value = ?", email).
+		Scan(context.Background(), &attempts)
+	require.NoError(t, err)
+	assert.Equal(t, 1, attempts, "rate-limit increment must outlive outer submit rollback")
 }
 
 // --- Capacity overflow ---

@@ -3,10 +3,13 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   RESERVED_TARGETS,
   blankField,
+  fetchEnrollmentPreviewBootstrap,
   latestSchemasByName,
+  schemaToPublicFormSchema,
   listSchemas,
   fetchSchemaById,
   fetchPublicActiveSchema,
+  fetchPublicLegalTexts,
   createSchema,
   updateSchema,
   deleteSchema,
@@ -163,6 +166,38 @@ describe("latestSchemasByName", () => {
   });
 });
 
+// --- schemaToPublicFormSchema ----------------------------------------
+
+describe("schemaToPublicFormSchema", () => {
+  it("preserves core requirements and legal blocks for previews", () => {
+    const fullSchema: FormSchema = {
+      ...mkSchema("preview", "Vorschau", 3, "2026-04-01T12:00:00Z"),
+      core_requirements: { guardian_phone: true },
+      legal_blocks: [
+        {
+          key: "custom_photo_trip",
+          kind: "consent",
+          title: "Fotoausflug",
+          label: "Mein Kind darf beim Ausflug fotografiert werden.",
+          text: "Details",
+          required: true,
+          enabled: true,
+          sort_order: 10,
+          source: "custom",
+        },
+      ],
+    };
+
+    expect(schemaToPublicFormSchema(fullSchema)).toEqual({
+      id: "preview",
+      version: 3,
+      fields: fullSchema.fields,
+      core_requirements: { guardian_phone: true },
+      legal_blocks: fullSchema.legal_blocks,
+    });
+  });
+});
+
 // --- listSchemas ------------------------------------------------------
 
 describe("listSchemas", () => {
@@ -183,9 +218,11 @@ describe("listSchemas", () => {
     expect(out).toEqual([]);
   });
 
-  it("throws with the HTTP status on non-OK", async () => {
+  it("throws with the German fallback on non-OK", async () => {
     mockFetch(async () => new Response("server boom", { status: 500 }));
-    await expect(listSchemas()).rejects.toThrow(/HTTP 500/);
+    await expect(listSchemas()).rejects.toThrow(
+      /Formularvorlagen konnten nicht geladen werden/,
+    );
   });
 });
 
@@ -214,9 +251,11 @@ describe("fetchSchemaById", () => {
     expect(seenURL).toContain("..%2Fbad%2Fid");
   });
 
-  it("throws on non-OK", async () => {
+  it("throws with the German fallback on non-OK", async () => {
     mockFetch(async () => new Response("nope", { status: 404 }));
-    await expect(fetchSchemaById("999")).rejects.toThrow(/HTTP 404/);
+    await expect(fetchSchemaById("999")).rejects.toThrow(
+      /Formularvorlage konnte nicht geladen werden/,
+    );
   });
 });
 
@@ -254,11 +293,86 @@ describe("fetchPublicActiveSchema", () => {
     expect(seenURL).toContain("ph%2Fase");
   });
 
-  it("throws on non-OK non-404", async () => {
+  it("throws with the German fallback on non-OK non-404", async () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(fetchPublicActiveSchema("slug", "1")).rejects.toThrow(
-      /HTTP 500/,
+      /Formular konnte nicht geladen werden/,
     );
+  });
+});
+
+// --- fetchEnrollmentPreviewBootstrap ---------------------------------
+
+describe("fetchEnrollmentPreviewBootstrap", () => {
+  it("loads schema preview bootstrap and URL-encodes schema id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: {
+          schema: mkSchema("12", "Ferien", 1, "2026-04-01T12:00:00Z"),
+          assigned_phase_count: 2,
+          active_assigned_phase_count: 1,
+        },
+      });
+    });
+
+    const out = await fetchEnrollmentPreviewBootstrap({ schemaId: "12/3" });
+
+    expect(seenURL).toContain("/api/enrollment/schema/preview?");
+    expect(seenURL).toContain("schemaId=12%2F3");
+    expect(out.schema?.name).toBe("Ferien");
+    expect(out.assigned_phase_count).toBe(2);
+    expect(out.active_assigned_phase_count).toBe(1);
+  });
+
+  it("loads base preview bootstrap", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: {
+          schema: null,
+          assigned_phase_count: 1,
+          active_assigned_phase_count: 0,
+        },
+      });
+    });
+
+    await fetchEnrollmentPreviewBootstrap({ base: true });
+
+    expect(seenURL).toContain("base=1");
+    expect(seenURL).not.toContain("schemaId=");
+  });
+});
+
+// --- fetchPublicLegalTexts -------------------------------------------
+
+describe("fetchPublicLegalTexts", () => {
+  it("URL-encodes tenant slug and phase id when provided", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: { blocks: [] } });
+    });
+
+    await fetchPublicLegalTexts("test tenant", "phase/5");
+
+    expect(seenURL).toBe(
+      "/api/enrollment/legal/test%20tenant?phaseId=phase%2F5",
+    );
+  });
+
+  it("keeps the tenant-only fallback URL when no phase id is provided", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: { blocks: [] } });
+    });
+
+    await fetchPublicLegalTexts("demo");
+
+    expect(seenURL).toBe("/api/enrollment/legal/demo");
   });
 });
 
@@ -282,11 +396,44 @@ describe("createSchema", () => {
     expect(seenBody).toContain(`"fields":[`);
   });
 
-  it("throws with the backend error message on non-OK", async () => {
+  it("POSTs template legal blocks when provided", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        {
+          data: mkSchema("1234", "X", 1, "2026-04-01T12:00:00Z"),
+        },
+        { status: 201 },
+      );
+    });
+
+    await createSchema("X", [], {}, [
+      {
+        key: "custom_pool",
+        kind: "consent",
+        title: "Schwimmbad",
+        label: "Mein Kind darf teilnehmen.",
+        text: "Details",
+        required: true,
+        enabled: true,
+        sort_order: 10,
+        source: "custom",
+      },
+    ]);
+
+    expect(seenBody).toContain(`"legal_blocks":[`);
+    expect(seenBody).toContain(`"key":"custom_pool"`);
+    expect(seenBody).toContain(`"required":true`);
+  });
+
+  it("translates duplicate-name errors on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "duplicate name" }, { status: 400 }),
     );
-    await expect(createSchema("X", [])).rejects.toThrow(/duplicate name/);
+    await expect(createSchema("X", [])).rejects.toThrow(
+      /Dieser Name ist bereits vergeben/,
+    );
   });
 
   it("falls back to HTTP status when body has no error string", async () => {
@@ -314,6 +461,37 @@ describe("updateSchema", () => {
     expect(seenBody).not.toContain(`"name"`); // name comes from server-side source row
   });
 
+  it("PUTs template legal blocks when provided", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        {
+          data: mkSchema("1234", "X", 2, "2026-04-01T12:00:00Z"),
+        },
+        { status: 201 },
+      );
+    });
+
+    await updateSchema("1234", [], {}, [
+      {
+        key: "custom_pool",
+        kind: "consent",
+        title: "Schwimmbad",
+        label: "Mein Kind darf teilnehmen.",
+        text: "Details",
+        required: false,
+        enabled: true,
+        sort_order: 10,
+        source: "custom",
+      },
+    ]);
+
+    expect(seenBody).toContain(`"legal_blocks":[`);
+    expect(seenBody).toContain(`"key":"custom_pool"`);
+    expect(seenBody).not.toContain(`"name"`);
+  });
+
   it("URL-encodes the id", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
@@ -327,11 +505,13 @@ describe("updateSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("throws with the backend error on non-OK", async () => {
+  it("translates schema validation errors on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "invalid schema" }, { status: 400 }),
     );
-    await expect(updateSchema("1234", [])).rejects.toThrow(/invalid schema/);
+    await expect(updateSchema("1234", [])).rejects.toThrow(
+      /Formularvorlage ist ungültig/,
+    );
   });
 });
 
@@ -353,7 +533,7 @@ describe("deleteSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("uses SCHEMA_ERROR_MESSAGES for schema_has_phases", async () => {
+  it("uses German code messages for schema_has_phases", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_phases", error: "raw English msg" },
@@ -365,7 +545,7 @@ describe("deleteSchema", () => {
     );
   });
 
-  it("uses SCHEMA_ERROR_MESSAGES for schema_has_requests", async () => {
+  it("uses German code messages for schema_has_requests", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "enrollment.schema_has_requests", error: "raw English msg" },
@@ -375,14 +555,16 @@ describe("deleteSchema", () => {
     await expect(deleteSchema("1234")).rejects.toThrow(/Anmeldungen verwendet/);
   });
 
-  it("falls back to backend error text for unknown codes", async () => {
+  it("uses the German fallback for unknown English codes", async () => {
     mockFetch(async () =>
       jsonResponse(
         { code: "something.else", error: "weird backend error" },
         { status: 500 },
       ),
     );
-    await expect(deleteSchema("1234")).rejects.toThrow(/weird backend error/);
+    await expect(deleteSchema("1234")).rejects.toThrow(
+      /Formularvorlage konnte nicht gelöscht werden/,
+    );
   });
 
   it("falls back to HTTP status when body has neither code nor error", async () => {

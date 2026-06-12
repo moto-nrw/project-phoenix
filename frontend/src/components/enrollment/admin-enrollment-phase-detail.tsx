@@ -34,10 +34,13 @@ import {
   type DataTableColumn,
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -154,6 +157,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
+  const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
 
   const handleExport = useCallback(
@@ -408,6 +412,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Elternansicht öffnen
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
             </a>
+            {phaseUrl ? (
+              <PublicLinkCopyButton
+                url={phaseUrl}
+                componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
+              />
+            ) : null}
             <Link
               href="/enrollment-phases"
               className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -439,24 +449,25 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Prüfung zu markieren.
             </p>
           </div>
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:w-60">
+          <label
+            className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:w-60"
+            htmlFor="enrollment-status-filter"
+          >
             Status
-            <select
+            <CustomSelect
+              id="enrollment-status-filter"
               value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value as ChildStatus | typeof ALL_STATUS_FILTER,
-                )
+              onChange={(value) =>
+                setStatusFilter(value as ChildStatus | typeof ALL_STATUS_FILTER)
               }
-              className="moto-select moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              <option value={ALL_STATUS_FILTER}>Alle</option>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: ALL_STATUS_FILTER, label: "Alle" },
+                ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                })),
+              ]}
+            />
           </label>
         </div>
       </section>
