@@ -28,7 +28,7 @@
 
 ## How Docker Compose Uses Environment Variables
 
-**Docker Compose auto-loads the root `.env` file** for `${VAR:-default}` substitution in `docker-compose.yml`. This is how all services receive their configuration when running `docker compose up`.
+**Docker Compose auto-loads the root `.env` file** for `${VAR}` substitution in `docker-compose.yml`. This is how all services receive their configuration when running `docker compose up`. Per the No-Fallbacks rule in `CLAUDE.md`, use bare `${VAR}` — never `${VAR:-default}` (only `NODE_ENV` and `LOG_LEVEL` may have defaults).
 
 The flow:
 ```
@@ -68,7 +68,7 @@ When modifying any file, update its counterpart:
 ## Adding a New Backend Env Var Checklist
 
 - [ ] Add to `backend/dev.env.example` (with safe default or placeholder)
-- [ ] Add to `docker-compose.example.yml` server `environment:` block (with `${VAR:-default}`)
+- [ ] Add to `docker-compose.example.yml` server `environment:` block (bare `${VAR}` — no `:-` default)
 - [ ] Add to `.env.example` (with placeholder value)
 - [ ] Add to both `environments/*.sops.env` files via `sops` CLI
 - [ ] If used by `os.Getenv()`: confirm it is in docker-compose `environment:` block (not just dev.env)

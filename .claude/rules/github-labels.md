@@ -8,12 +8,7 @@
 
 **Priority:** `priority: high`, `priority: medium`, `priority: low`
 
-## Optional
-
-**Deploy:** `deploy-staging`
-
 ## Rules
 
 - Every issue needs one Type + one Priority label
 - Use GitHub Assignees for ownership (not labels)
-- Deploy labels are optional, add when PR is ready
