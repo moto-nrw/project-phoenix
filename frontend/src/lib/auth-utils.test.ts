@@ -143,6 +143,10 @@ describe("auth-utils", () => {
       expect(hasPermission(null, "groups:read")).toBe(false);
     });
 
+    it("should allow an empty required permission even without a session", () => {
+      expect(hasPermission(null, "")).toBe(true);
+    });
+
     // The backend authorizer (backend/auth/authorize/permission.go) grants a
     // permission via several wildcard forms. hasPermission must honour the
     // same ones, or a legitimately-permitted user is wrongly treated as

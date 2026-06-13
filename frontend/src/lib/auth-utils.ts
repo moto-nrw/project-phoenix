@@ -46,11 +46,11 @@ export function hasPermission(
   session: Session | null,
   permission: string,
 ): boolean {
-  const permissions = session?.user?.permissions;
-  if (!permissions) return false;
-
   // Empty requirement always matches (mirrors the backend short-circuit).
   if (permission === "") return true;
+
+  const permissions = session?.user?.permissions;
+  if (!permissions) return false;
 
   // Admin wildcard grants everything.
   if (permissions.some((perm) => perm === "admin:*" || perm === "*:*")) {
