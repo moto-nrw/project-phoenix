@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
+	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
@@ -104,6 +105,7 @@ type Factory struct {
 	TimetableData        schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
+	UnregisteredTagScans auditService.UnregisteredTagScanService
 
 	// Email outbox (parent-enrollment PR 5) - shared across features.
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
@@ -753,6 +755,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		privacyConsentService,
 		db,
 	)
+	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
 
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
@@ -1103,8 +1106,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			EducationGroupRepo:     repos.Group,
 			DB:                     db,
 		}),
-		OperatorSuggestions: operatorSuggestionsService,
-		OperatorMFA:         operatorMFAService,
+		OperatorSuggestions:  operatorSuggestionsService,
+		OperatorMFA:          operatorMFAService,
+		UnregisteredTagScans: unregisteredTagScanService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

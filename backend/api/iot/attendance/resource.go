@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -11,19 +12,25 @@ import (
 
 // Resource defines the Attendance API resource
 type Resource struct {
-	UsersService     usersSvc.PersonService
-	ActiveService    activeSvc.Service
-	EducationService educationSvc.Service
-	SettingsService  configSvc.SettingsService
+	UsersService         usersSvc.PersonService
+	ActiveService        activeSvc.Service
+	EducationService     educationSvc.Service
+	SettingsService      configSvc.SettingsService
+	UnregisteredTagScans auditSvc.UnregisteredTagScanService
 }
 
 // NewResource creates a new Attendance resource
-func NewResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, settingsService configSvc.SettingsService) *Resource {
+func NewResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, settingsService configSvc.SettingsService, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *Resource {
+	var scanService auditSvc.UnregisteredTagScanService
+	if len(unregisteredTagScans) > 0 {
+		scanService = unregisteredTagScans[0]
+	}
 	return &Resource{
-		UsersService:     usersService,
-		ActiveService:    activeService,
-		EducationService: educationService,
-		SettingsService:  settingsService,
+		UsersService:         usersService,
+		ActiveService:        activeService,
+		EducationService:     educationService,
+		SettingsService:      settingsService,
+		UnregisteredTagScans: scanService,
 	}
 }
 

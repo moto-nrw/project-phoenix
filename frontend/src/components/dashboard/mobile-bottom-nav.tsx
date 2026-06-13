@@ -123,6 +123,7 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
       "/operator/accounts",
       "/operator/devices",
       "/operator/persons",
+      "/operator/unregistered-tags",
       "/operator/provisioning",
     ],
   },
@@ -189,6 +190,12 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     href: "/operator/persons",
     label: "Personen",
     iconKey: "userSingle",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/unregistered-tags",
+    label: "Unbekannte RFID",
+    iconKey: "security",
     alwaysShow: true,
   },
   {
