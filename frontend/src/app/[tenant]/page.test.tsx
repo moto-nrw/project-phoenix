@@ -442,6 +442,12 @@ describe("HomePage (Login)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("smart-redirect")).toBeInTheDocument();
     });
+    expect(
+      screen.getByText("Sie sind bereits angemeldet."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("moto öffnet Ihre OGS...")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-email")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("input-password")).not.toBeInTheDocument();
   });
 
   it("disables submit button while loading", async () => {
