@@ -4,7 +4,7 @@
 
 ![moto Logo](frontend/public/images/moto_transparent.png)
 
-**A modern RFID-based student attendance and room management system for educational institutions**
+**Digitale Ganztagsbetreuung, die begeistert: NFC-based student attendance and room management for schools**
 
 [![GitHub Stars](https://img.shields.io/github/stars/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
@@ -17,13 +17,13 @@
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
 
 [Features](#-features) •
 [Quick Start](#-quick-start) •
-[Documentation](#-documentation) •
+[Architecture](#-architecture) •
 [Contributing](#-contributing) •
 [License](#-license)
 
@@ -33,363 +33,120 @@
 
 ## 📖 About
 
-Project Phoenix is a comprehensive room and student management system designed for educational institutions in compliance with European data protection regulations. It leverages RFID technology to track student attendance and location in real-time, providing administrators with powerful tools for monitoring room occupancy, managing activities, and generating detailed analytics.
+Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digital platform for all-day childcare (OGS & Hort) at German schools. Children check in and out with NFC wristbands; staff see who is where in real time; paper lists disappear. Built hand in hand with a real OGS, backed by research at the Universität Münster, and designed from day one around German data protection law.
 
-### Why Project Phoenix?
+**Why schools pick it:**
 
-- **Privacy-First Design** — Built from the ground up with GDPR compliance, featuring configurable data retention, audit logging, and right-to-erasure support
-- **Real-Time Visibility** — Know instantly where students are, which rooms are occupied, and how spaces are being utilized
-- **Modern Stack** — Go backend with Next.js 16 frontend, designed for performance and developer experience
-- **Self-Hosted** — Your data stays on your infrastructure, with full control over security and compliance
-
----
+- 🔒 **Privacy first**: GDPR by design, with configurable retention, audit logging, right to erasure, role-scoped access to student data, and hosting in Germany
+- ⚡ **Real-time**: live attendance, room occupancy, and movement updates pushed to supervisors
+- 🏫 **Built for the Ganztag**: supports the workflows of real after-school care, from check-in to pickup rules to parent communication
+- 🏠 **Self-hostable**: your data on your infrastructure, deployed with Docker Compose
 
 ## ✨ Features
 
-### Core Functionality
-- 🏷️ **RFID Student Tracking** — Real-time location tracking using RFID technology
-- 🏫 **Room Management** — Monitor room occupancy and usage patterns
-- 👥 **Group Management** — Organize students into groups and manage activities
-- 👨‍🏫 **Multiple Supervisors** — Assign multiple supervisors to groups and rooms
-- 📊 **Analytics Dashboard** — Comprehensive reporting and utilization statistics
-- 🗓️ **Schedule Management** — Handle class schedules and time-based activities
-- 🎯 **Activity Tracking** — Track student participation in various activities
+- 🏷️ **NFC check-in/out**: kids scan themselves in and out at tablet kiosks
+- 🏫 **Rooms & groups**: occupancy, supervision, combined groups, activities with schedules
+- 👨‍👩‍👧 **Parents portal**: cross-school guardian accounts with multi-language UI (de/en/ru/sq)
+- 📝 **Online enrollment**: public, configurable enrollment forms with phases, care offerings, and consent blocks
+- 🕐 **Staff time tracking**: work sessions, balances, and vacation workflows (ArbZG-aware)
+- ⚙️ **Per-school settings**: tenant admins configure behavior at runtime, no redeploys
+- 📚 **Built-in manual**: German in-app guides with printable PDFs, generated in CI
+- 🏢 **Multi-tenant**: many Träger and schools on one deployment, isolated by PostgreSQL Row-Level Security, each school on its own subdomain with a separate operator portal
 
-### Technical Features
-- 🔐 **JWT Authentication** — Secure authentication with role-based access control
-- ✉️ **Email Workflows** — SMTP-backed invitations with branded templates and rate-limited password reset
-- 🚀 **RESTful API** — Well-documented API with OpenAPI specification
-- 📱 **Responsive UI** — Modern, mobile-friendly interface
-- 🐳 **Docker Support** — Easy deployment with containerization
-- 🔄 **Real-time Updates** — Live tracking of student movements and room occupancy
-- 🌐 **i18n Ready** — Internationalization support built-in
+## 🔌 The Hardware Side
 
----
-
-## 🏢 Multi-Tenancy
-
-Project Phoenix supports multiple after-school care providers (Träger) and their schools (OGS) on a single deployment. Data is fully isolated at the database level via Row-Level Security.
-
-### Tenant Hierarchy
-
-```
-Platform Operator (moto)
- └── Träger (Organization)          e.g. "AWO Köln"
-      ├── OGS Sonnenschule (School)  → sonnenschule.moto-app.de
-      ├── OGS Waldschule (School)    → waldschule.moto-app.de
-      └── ...
-```
-
-| Concept | Model | Role |
-|---------|-------|------|
-| **Organization** (Träger) | `platform.organizations` | Groups schools under one administrative body |
-| **School** (OGS) | `platform.schools` | The tenant boundary — all data is scoped to `tenant_id` (= school ID) |
-| **Operator** | Platform scope | moto team — provisions organizations and schools |
-
-### How It Works
-
-- **Subdomain routing**: Each school gets a subdomain (`{slug}.moto-app.de`). Middleware extracts the slug and resolves the tenant.
-- **JWT scoping**: Login returns tokens with `tenant_id`, `org_id`, and `scope` (tenant / org / platform).
-- **Database isolation**: 58+ tables carry a `tenant_id` FK. PostgreSQL Row-Level Security enforces isolation at the DB level.
-- **Tenant switching**: Staff with access to multiple schools can switch via `/auth/switch-tenant` without re-authenticating.
-- **Operator dashboard**: Runs on a separate subdomain (`operator.moto-app.de`) with session isolation from tenant dashboards.
-
----
+The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React), deployed via [**moto-balenaOS**](https://github.com/moto-nrw/moto-balenaOS). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- **Docker and Docker Compose** — For running PostgreSQL and optional containerized development
-- **Devbox** — Reproducible development environment (installs Go, Node.js, and all CLI tools)
-- **direnv** — Automatic environment activation when entering the project directory
-
-> **Why Devbox?** We use Devbox to ensure every developer has identical tool versions. No more "works on my machine" issues — everyone gets the same Go, Node.js, golangci-lint, etc.
-
-### Install Development Tools
-
-<details>
-<summary><strong>macOS</strong></summary>
+**Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/), and [direnv](https://direnv.net/docs/installation.html). Devbox pins every tool version, so the whole team gets an identical environment.
 
 ```bash
-# Install Devbox
-curl -fsSL https://get.jetify.com/devbox | bash
-
-# Install direnv
-brew install direnv
-
-# Add to ~/.zshrc (or ~/.bashrc)
-eval "$(direnv hook zsh)"
-```
-
-</details>
-
-<details>
-<summary><strong>Windows (WSL) / Linux</strong></summary>
-
-```bash
-# Install Devbox
-curl -fsSL https://get.jetify.com/devbox | bash
-
-# Install direnv (Ubuntu/Debian)
-sudo apt install direnv
-
-# Add to ~/.bashrc (or ~/.zshrc)
-eval "$(direnv hook bash)"
-```
-
-</details>
-
-<details>
-<summary><strong>Optional: Suppress direnv output</strong></summary>
-
-By default, direnv prints all exported environment variables when entering the project. To silence this output, create a direnv config file:
-
-```bash
-mkdir -p ~/.config/direnv
-cat > ~/.config/direnv/direnv.toml << 'EOF'
-[global]
-log_format = "-"
-log_filter = "^$"
-EOF
-```
-
-> **Note:** The `DIRENV_LOG_FORMAT` environment variable no longer works in direnv 2.36.0+ due to a [known regression](https://github.com/direnv/direnv/issues/1418). The TOML config above is the correct solution.
-
-</details>
-
-### One-Command Setup
-
-```bash
-# Clone the repository
 git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
 
-# Allow direnv to activate the environment (one-time)
-direnv allow
+direnv allow              # one-time: activates the devbox environment
+./scripts/setup-dev.sh    # creates configs, SSL certs, and your operator credentials
+docker compose up -d      # starts everything; migrations run automatically
 
-# Run the automated setup script
-./scripts/setup-dev.sh
-
-# Start all services
-docker compose up -d
+# seed demo data (the setup script prints this command with your credentials)
+docker compose run server go run . seed --email <op-email> --password '<pw>' --pin 1234 --url http://server:8080
 ```
 
-When you `cd` into the project, direnv automatically activates Devbox and you'll see:
-```
-phoenix dev ready - go 1.25.5, node 24.x
-```
+Then log in at **http://localhost:3000** (staff account from the seeder output) or **http://operator.localhost:3000** (your operator credentials).
 
-All tools (Go, Node, pnpm, golangci-lint, etc.) are now available.
-
-The application will be available at:
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:8080
-
-### Manual Setup
-
-<details>
-<summary>Click to expand manual setup instructions</summary>
-
-1. **Generate SSL certificates** (required for GDPR-compliant database connections):
-   ```bash
-   cd config/ssl/postgres
-   ./create-certs.sh
-   cd ../../..
-   ```
-
-2. **Configure environment files**:
-   ```bash
-   cp backend/dev.env.example backend/dev.env
-   cp frontend/.env.local.example frontend/.env.local
-   # Edit the files with your settings
-   ```
-
-3. **Start services**:
-   ```bash
-   docker compose up -d
-   ```
-
-4. **Run database migrations**:
-   ```bash
-   docker compose run server ./main migrate
-   ```
-
-</details>
-
----
+Full walkthrough, common commands, and troubleshooting: [docs/getting-started.md](docs/getting-started.md).
 
 ## 🏗️ Architecture
-
-### Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | **Backend** | Go 1.25+, Chi Router, Bun ORM |
-| **Frontend** | Next.js 16, React 19, TypeScript 5 |
-| **Styling** | Tailwind CSS 4 |
-| **Database** | PostgreSQL 17 with SSL encryption |
-| **Auth** | JWT with refresh tokens, NextAuth.js |
-| **Deployment** | Docker Compose, Caddy (production) |
-| **CI/CD** | GitHub Actions |
-
-### Project Structure
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| **Database** | PostgreSQL 17 with 15 domain schemas, SSL, Row-Level Security |
+| **Auth** | JWT with refresh tokens + MFA, NextAuth.js, three isolated portals (staff / operator / parents) |
+| **Deployment** | Docker Compose, SOPS-encrypted environments, GitHub Actions CI/CD |
 
 ```
 project-phoenix/
-├── backend/                   # Go backend API
-│   ├── api/                   # HTTP handlers and routes
-│   ├── auth/                  # Authentication logic
-│   ├── database/              # Migrations and repositories
-│   ├── models/                # Domain models
-│   └── services/              # Business logic
-├── frontend/                  # Next.js frontend
-│   └── src/
-│       ├── app/               # Next.js App Router
-│       ├── components/        # UI components
-│       └── lib/               # Utilities and API clients
-├── deployment/                # Production configurations
-├── docs/                      # Documentation
-└── docker-compose.yml         # Development environment
+├── backend/        # Go API: handlers, services, repositories, models, migrations
+├── frontend/       # Next.js app: staff, operator, and parents portals
+├── environments/   # SOPS-encrypted staging/production configs
+└── docs/           # Documentation
 ```
 
-### Database Schema
-
-The database uses PostgreSQL schemas to organize tables by domain:
-
-| Schema | Purpose |
-|--------|---------|
-| `platform` | Organizations, schools (tenant definitions) |
-| `auth` | Authentication, tokens, permissions, account-tenant mappings |
-| `users` | User profiles, students, teachers, staff |
-| `education` | Groups and educational structures |
-| `facilities` | Rooms and physical locations |
-| `activities` | Student activities and enrollments |
-| `active` | Real-time session tracking |
-| `schedule` | Time and schedule management |
-| `iot` | RFID device management |
-| `audit` | GDPR compliance logging |
-
----
-
-## 📚 Documentation
-
-### Development
-
-| Command | Description |
-|---------|-------------|
-| `go run main.go serve` | Start backend server |
-| `go run main.go migrate` | Run database migrations |
-| `go run main.go gendoc` | Generate API documentation |
-| `pnpm run dev` | Start frontend dev server |
-| `pnpm run check` | Run lint + typecheck |
-
-### API Documentation
-
-```bash
-cd backend
-go run main.go gendoc          # Generate routes.md and OpenAPI spec
-```
-
-This creates:
-- `backend/routes.md` — Complete route documentation
-- `backend/docs/openapi.yaml` — OpenAPI 3.0 specification
-
-### Key API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/auth/login` | Authentication |
-| `GET /api/students` | List students |
-| `GET /api/rooms` | List rooms |
-| `GET /api/active/groups` | Active sessions |
-| `POST /iot/checkin` | RFID check-in |
-
-### Testing
-
-```bash
-# Backend tests
-cd backend && go test ./...
-
-# Frontend checks
-cd frontend && pnpm run check
-```
-
----
+API documentation is generated from the code: `docker compose run server go run . gendoc` produces `backend/routes.md` and an OpenAPI spec.
 
 ## 🛡️ Security & Privacy
 
-This project handles sensitive student data and implements comprehensive security measures:
+This project handles sensitive student data and treats that responsibility as a feature:
 
-- **SSL/TLS Encryption** — All database connections use SSL (`sslmode=require`)
-- **GDPR Compliance** — Configurable data retention, audit logging, right-to-erasure
-- **Role-Based Access** — Teachers only see data for students in their assigned groups
-- **Secure Defaults** — No secrets in code, environment-based configuration
+- **SSL/TLS everywhere**: encrypted database connections, least-privilege DB roles
+- **GDPR compliance**: configurable data retention, append-only audit logs, right to erasure
+- **Tenant isolation**: PostgreSQL Row-Level Security enforced at the database, not just the app
+- **Role-based access**: staff only see the student data their role permits
 
-> **Reporting Vulnerabilities:** Please see [SECURITY.md](SECURITY.md) for our security policy and responsible disclosure process.
-
----
+> **Reporting vulnerabilities:** see [SECURITY.md](SECURITY.md) for our security policy and responsible disclosure process.
 
 ## 🗺️ Roadmap
 
-- [x] RFID student tracking
-- [x] Multi-supervisor support
-- [x] GDPR compliance features (data retention, audit logging)
-- [x] Email invitation workflow
-- [x] Password reset with rate limiting
-- [x] Multi-tenancy (Träger → OGS isolation)
-- [ ] Mobile companion app
-- [ ] Real-time push notifications
-- [ ] Advanced analytics and reporting
-- [ ] Multi-language UI
+- [x] NFC student tracking with real-time updates
+- [x] Multi-tenancy (Träger → school isolation via RLS)
+- [x] Parents portal with multi-language UI
+- [x] Online enrollment
+- [x] Staff time tracking & vacation workflows
+- [ ] Timetable & scheduled activities (in progress)
+- [ ] Träger dashboard with cross-school analytics
+- [ ] Push notifications
 
-See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for a full list of proposed features and known issues.
-
----
+See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for everything in flight.
 
 ## 🤝 Contributing
 
-Contributions are what make the open source community amazing! Any contributions you make are **greatly appreciated**.
+Contributions are welcome!
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request against `development`
+1. Fork the repository and create a feature branch
+2. Make your changes (`pnpm run check` and `go test ./...` must pass)
+3. Open a Pull Request against **`development`** (never `main`)
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, development setup, and the process for submitting pull requests.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and conventions.
 
 > **Note:** By contributing, you agree to our [Contributor License Agreement](CLA.md).
-
----
 
 ## 📄 License
 
 Distributed under a Source-Available License. See [LICENSE](LICENSE) for more information.
 
----
-
 ## 📬 Contact
 
-- **Project Website:** [moto.nrw](https://moto.nrw)
-- **GitHub:** [github.com/moto-nrw/project-phoenix](https://github.com/moto-nrw/project-phoenix)
+- **Website:** [moto-ogs.de](https://moto-ogs.de)
 - **Issues:** [Report a bug or request a feature](https://github.com/moto-nrw/project-phoenix/issues)
-
----
-
-## 🙏 Acknowledgments
-
-- [Chi Router](https://github.com/go-chi/chi) — Lightweight, idiomatic Go HTTP router
-- [Bun ORM](https://bun.uptrace.dev/) — Fast and simple SQL-first ORM for Go
-- [Next.js](https://nextjs.org/) — The React framework for production
-- [Tailwind CSS](https://tailwindcss.com/) — Utility-first CSS framework
-- [Shields.io](https://shields.io/) — Badges for this README
 
 ---
 
 <div align="center">
 
-Made with ❤️ by [moto](https://moto.nrw)
+Made with ❤️ in Münster, Germany by [moto](https://moto-ogs.de)
 
 [⬆ Back to top](#project-phoenix)
 
