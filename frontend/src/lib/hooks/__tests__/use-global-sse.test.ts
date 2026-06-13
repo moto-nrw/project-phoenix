@@ -304,6 +304,46 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeDefined();
     });
 
+    it("invalidates group and per-student caches on bulk_student_checkout event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Whole-session end (#848): one event carries every affected student.
+      onMessage?.({
+        type: "bulk_student_checkout",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"] },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+
+      // Group (active_group_id) drives supervision-visits invalidation.
+      const supervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:supervision-visits-123")
+        );
+      });
+      expect(supervisionCall).toBeDefined();
+
+      // Every student in the batch gets its detail cache invalidated.
+      for (const id of ["42", "77"]) {
+        const detailCall = mutateCalls.find((call) => {
+          const matcher = call[0];
+          return (
+            typeof matcher === "function" &&
+            (matcher as (key: string) => boolean)(`tenant:student-detail-${id}`)
+          );
+        });
+        expect(detailCall).toBeDefined();
+      }
+    });
+
     it("invalidates activity caches on activity_start event", () => {
       renderHook(() => useGlobalSSE());
 

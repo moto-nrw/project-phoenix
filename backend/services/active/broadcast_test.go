@@ -262,6 +262,69 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 		"expected active_supervision_changed after EndActivitySession")
 }
 
+// TestBroadcast_EndActivitySessionBatchesCheckouts verifies the issue #848 fix:
+// ending a session with multiple active visits emits ONE bulk_student_checkout
+// per topic carrying every student ID, instead of one student_checkout per
+// student. This is what keeps a single client's SSE channel buffer from
+// overflowing during a whole-session checkout.
+func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
+	svc, broadcaster := setupServiceWithBroadcaster(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	room := testpkg.CreateTestRoom(t, db, "Broadcast Batch Room")
+	staff := testpkg.CreateTestStaff(t, db, "Broadcast", "BatchEnder")
+	activityGroup := testpkg.CreateTestActivityGroup(t, db, "broadcast-batch-end")
+	session := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, session.ID, "supervisor")
+	studentA := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchA", "2a")
+	studentB := testpkg.CreateTestStudent(t, db, "Broadcast", "BatchB", "2b")
+	visitA := testpkg.CreateTestVisit(t, db, studentA.ID, session.ID, time.Now(), nil)
+	visitB := testpkg.CreateTestVisit(t, db, studentB.ID, session.ID, time.Now(), nil)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		room.ID, staff.ID, activityGroup.ID, session.ID,
+		studentA.ID, studentB.ID, visitA.ID, visitB.ID,
+	)
+
+	broadcaster.mu.Lock()
+	broadcaster.allCalls = nil
+	broadcaster.mu.Unlock()
+
+	err := svc.EndActivitySession(testpkg.TenantContext(1), session.ID)
+	require.NoError(t, err)
+
+	// No per-student student_checkout events on the bulk path — those would be
+	// the 2N burst that overflowed the channel buffer.
+	assert.Empty(t, broadcaster.eventsOfType(realtime.EventStudentCheckOut),
+		"bulk session end must not emit per-student student_checkout events")
+
+	// Exactly one bulk_student_checkout on the active-group topic, carrying both
+	// students. (Edu-group topics get their own events only when students have an
+	// OGS group assigned; the active-group topic always fires.)
+	sessionIDStr := strconv.FormatInt(session.ID, 10)
+	var activeTopicBulk *realtime.Event
+	for _, e := range broadcaster.eventsOfType(realtime.EventBulkStudentCheckOut) {
+		if e.ActiveGroupID == sessionIDStr {
+			evt := e
+			activeTopicBulk = &evt
+		}
+	}
+	require.NotNil(t, activeTopicBulk,
+		"expected a bulk_student_checkout on the active-group topic")
+	require.NotNil(t, activeTopicBulk.Data.StudentIDs,
+		"bulk event must carry student_ids")
+	assert.ElementsMatch(t,
+		[]string{strconv.FormatInt(studentA.ID, 10), strconv.FormatInt(studentB.ID, 10)},
+		*activeTopicBulk.Data.StudentIDs,
+		"active-topic bulk event must list every checked-out student")
+
+	// Dashboard refreshes are constant per batch, not one-per-student: the
+	// checkout batch fires one and broadcastActivityEndEvent fires one, so two
+	// students still yield two — independent of how many were checked out.
+	assert.Len(t, broadcaster.eventsOfType(realtime.EventDashboardCountsChanged), 2,
+		"session end fires a fixed number of dashboard refreshes regardless of student count")
+}
+
 func TestBroadcast_DailyCheckoutSendsDashboardCounts(t *testing.T) {
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
