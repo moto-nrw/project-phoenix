@@ -92,6 +92,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -506,6 +507,71 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		endedSession, err := service.GetActiveGroup(ctx, session1.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, endedSession.EndTime, "Expected first session to be ended")
+	})
+
+	t.Run("force start transfers same activity session from another device", func(t *testing.T) {
+		// ARRANGE: Create a running activity on device 1 with an active student and supervisor
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Force Transfer Activity")
+		device1 := testpkg.CreateTestDevice(t, db, "force-transfer-device-001")
+		device2 := testpkg.CreateTestDevice(t, db, "force-transfer-device-002")
+		room1 := testpkg.CreateTestRoom(t, db, "Force Transfer Room 1")
+		room2 := testpkg.CreateTestRoom(t, db, "Force Transfer Room 2")
+		student := testpkg.CreateTestStudent(t, db, "ForceTransfer", "Student", "3a")
+		oldSupervisor := testpkg.CreateTestStaff(t, db, "Old", "Supervisor")
+		newSupervisor := testpkg.CreateTestStaff(t, db, "New", "Supervisor")
+
+		defer testpkg.CleanupActivityFixtures(t, db,
+			activityGroup.ID,
+			device1.ID,
+			device2.ID,
+			room1.ID,
+			room2.ID,
+			student.ID,
+			oldSupervisor.ID,
+			newSupervisor.ID,
+		)
+
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{oldSupervisor.ID}, &room1.ID)
+		require.NoError(t, err)
+		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+
+		// ACT: Force-start the same activity on device 2
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
+
+		// ASSERT: The old session is ended and the active state moved to the new session
+		require.NoError(t, err)
+		require.NotNil(t, session2)
+		assert.NotEqual(t, session1.ID, session2.ID)
+
+		endedSession, err := service.GetActiveGroup(ctx, session1.ID)
+		require.NoError(t, err)
+		assert.NotNil(t, endedSession.EndTime, "expected old cross-device activity session to be ended")
+
+		activeSessions, err := service.FindActiveGroupsByGroupID(ctx, activityGroup.ID)
+		require.NoError(t, err)
+		require.Len(t, activeSessions, 1, "expected exactly one active session for the activity")
+		assert.Equal(t, session2.ID, activeSessions[0].ID)
+
+		transferredVisit, err := service.GetVisit(ctx, visit.ID)
+		require.NoError(t, err)
+		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
+		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
+
+		oldActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session1.ID)
+		require.NoError(t, err)
+		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
+
+		newActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session2.ID)
+		require.NoError(t, err)
+		require.Len(t, newActiveSupervisors, 2, "expected old and new supervisors on the new session")
+
+		supervisorIDs := map[int64]bool{}
+		for _, supervisor := range newActiveSupervisors {
+			supervisorIDs[supervisor.StaffID] = true
+		}
+		assert.True(t, supervisorIDs[oldSupervisor.ID], "expected old supervisor to transfer")
+		assert.True(t, supervisorIDs[newSupervisor.ID], "expected requested supervisor to remain assigned")
 	})
 
 	t.Run("force start fails with empty supervisor list", func(t *testing.T) {

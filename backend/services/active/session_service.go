@@ -203,13 +203,8 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	txHandler := modelBase.NewTxHandler(s.db)
 
 	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts
-		// This prevents race conditions where two requests both pass conflict check before either creates a session
-		// Using two-argument form ensures locks are scoped per tenant and cannot collide across tenants
-		// The lock is automatically released when the transaction commits or rolls back
-		tenantID := tenant.FromContext(txCtx)
-		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
-			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+			return err
 		}
 
 		// Check for conflicts inside the transaction with the lock held
@@ -229,6 +224,16 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
 	})
+}
+
+func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, activityID int64, operation string) error {
+	// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts.
+	// The two-argument form scopes locks per tenant; PostgreSQL releases it when the tx ends.
+	tenantID := tenant.FromContext(ctx)
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
+		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+	}
+	return nil
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
@@ -411,25 +416,170 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 		return nil, err
 	}
 
-	// Use simple cleanup (fullCleanup=false) to only mark the group as ended
-	// without ending visits, so TransferVisitsFromRecentSessions can move them
-	// to the new session. Using fullCleanup=true would set exit_time on all visits
-	// first, causing the transfer to find nothing and losing all checked-in students.
-	if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
-	}
-
-	finalRoomID, err := s.determineRoomIDForForceStart(ctx, activityID, roomID)
+	var newGroup *active.Group
+	err := s.forceStartActivitySessionTx(ctx, activityID, deviceID, supervisorIDs, roomID, &newGroup)
 	if err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
-	}
-
-	newGroup, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
+		return nil, err
 	}
 
 	return newGroup, nil
+}
+
+func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
+	const operation = "ForceStartActivitySessionWithSupervisors"
+	txHandler := modelBase.NewTxHandler(s.db)
+
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+			return err
+		}
+
+		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
+		// without ending visits, so TransferVisitsFromRecentSessions can move them
+		// to the new session. Using fullCleanup=true would set exit_time on all visits
+		// first, causing the transfer to find nothing and losing all checked-in students.
+		if err := s.endExistingDeviceSessionIfPresent(txCtx, deviceID); err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		conflictingSessionIDs, err := s.endExistingActivitySessionsForForceStart(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		if err := s.transferForceStartedActivityState(txCtx, conflictingSessionIDs, group.ID); err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		*newGroup = group
+		return nil
+	})
+}
+
+func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, activityID int64) ([]int64, error) {
+	existingSessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+
+	endedIDs := make([]int64, 0, len(existingSessions))
+	for _, session := range existingSessions {
+		if session == nil || session.ID <= 0 {
+			continue
+		}
+		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+			return nil, err
+		}
+		endedIDs = append(endedIDs, session.ID)
+	}
+
+	return endedIDs, nil
+}
+
+func (s *service) transferForceStartedActivityState(ctx context.Context, oldGroupIDs []int64, newGroupID int64) error {
+	for _, oldGroupID := range oldGroupIDs {
+		visitsTransferred, err := s.transferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+		if err != nil {
+			return err
+		}
+
+		supervisorsTransferred, err := s.transferActiveSupervisorsBetweenGroups(ctx, oldGroupID, newGroupID)
+		if err != nil {
+			return err
+		}
+
+		if visitsTransferred > 0 || supervisorsTransferred > 0 {
+			s.getLogger().InfoContext(ctx, "transferred state from force-ended activity session",
+				slog.Int64("old_active_group_id", oldGroupID),
+				slog.Int64("new_active_group_id", newGroupID),
+				slog.Int("visits_transferred", visitsTransferred),
+				slog.Int("supervisors_transferred", supervisorsTransferred),
+			)
+		}
+	}
+
+	return nil
+}
+
+func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+	visits, err := s.visitRepo.FindByActiveGroupID(ctx, oldGroupID)
+	if err != nil {
+		return 0, err
+	}
+
+	transferred := 0
+	for _, visit := range visits {
+		if visit == nil || visit.ExitTime != nil {
+			continue
+		}
+		visit.ActiveGroupID = newGroupID
+		if err := s.visitRepo.Update(ctx, visit); err != nil {
+			return transferred, err
+		}
+		transferred++
+	}
+
+	return transferred, nil
+}
+
+func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+	oldSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, oldGroupID, true)
+	if err != nil {
+		return 0, err
+	}
+
+	newSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, newGroupID, true)
+	if err != nil {
+		return 0, err
+	}
+
+	existing := make(map[supervisorIdentity]bool, len(newSupervisors))
+	for _, supervisor := range newSupervisors {
+		if supervisor == nil {
+			continue
+		}
+		existing[supervisorIdentity{staffID: supervisor.StaffID, role: supervisor.Role}] = true
+	}
+
+	transferred := 0
+	for _, supervisor := range oldSupervisors {
+		if supervisor == nil {
+			continue
+		}
+
+		identity := supervisorIdentity{staffID: supervisor.StaffID, role: supervisor.Role}
+		if existing[identity] {
+			if err := s.supervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
+				return transferred, err
+			}
+			continue
+		}
+
+		supervisor.GroupID = newGroupID
+		supervisor.UpdatedAt = time.Now()
+		if _, err := s.supervisorRepo.UpdateColumns(ctx, supervisor, "group_id", "updated_at"); err != nil {
+			return transferred, err
+		}
+		existing[identity] = true
+		transferred++
+	}
+
+	return transferred, nil
+}
+
+type supervisorIdentity struct {
+	staffID int64
+	role    string
 }
 
 // endExistingDeviceSession ends any existing session for the device
