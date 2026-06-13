@@ -4,7 +4,9 @@
 
 ![moto Logo](frontend/public/images/moto_transparent.png)
 
-**Digitale Ganztagsbetreuung, die begeistert: NFC-based student attendance and room management for schools**
+**Digitale Ganztagsbetreuung, die begeistert.**
+
+NFC-based student attendance and room management for schools.
 
 [![GitHub Stars](https://img.shields.io/github/stars/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/stargazers)
 [![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
@@ -21,43 +23,45 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
 
-[Features](#-features) •
-[Quick Start](#-quick-start) •
-[Architecture](#-architecture) •
-[Contributing](#-contributing) •
-[License](#-license)
+[Features](#features) •
+[Quick Start](#quick-start) •
+[Architecture](#architecture) •
+[Contributing](#contributing) •
+[License](#license)
 
 </div>
 
 ---
 
-## 📖 About
+## About
 
-Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digital platform for all-day childcare (OGS & Hort) at German schools. Children check in and out with NFC wristbands; staff see who is where in real time; paper lists disappear. Built hand in hand with a real OGS, backed by research at the Universität Münster, and designed from day one around German data protection law.
+Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digital platform for all-day childcare (OGS & Hort) at German schools. Children check in and out with NFC wristbands, staff see who is where in real time, and paper lists disappear. Built hand in hand with a real OGS, backed by research at the Universität Münster, and designed from day one around German data protection law.
 
 **Why schools pick it:**
 
-- 🔒 **Privacy first**: GDPR by design, with configurable retention, audit logging, right to erasure, role-scoped access to student data, and hosting in Germany
-- ⚡ **Real-time**: live attendance, room occupancy, and movement updates pushed to supervisors
-- 🏫 **Built for the Ganztag**: supports the workflows of real after-school care, from check-in to pickup rules to parent communication
-- 🏠 **Self-hostable**: your data on your infrastructure, deployed with Docker Compose
+- **Privacy first**: GDPR by design, with configurable retention, audit logging, right to erasure, role-scoped access to student data, and hosting in Germany
+- **Real-time**: live attendance, room occupancy, and movement updates pushed to supervisors
+- **Built for the Ganztag**: supports the workflows of real after-school care, from check-in to pickup rules to parent communication
+- **Self-hostable**: your data on your infrastructure, deployed with Docker Compose
 
-## ✨ Features
+## Features
 
-- 🏷️ **NFC check-in/out**: kids scan themselves in and out at tablet kiosks
-- 🏫 **Rooms & groups**: occupancy, supervision, combined groups, activities with schedules
-- 👨‍👩‍👧 **Parents portal**: cross-school guardian accounts with multi-language UI (de/en/ru/sq)
-- 📝 **Online enrollment**: public, configurable enrollment forms with phases, care offerings, and consent blocks
-- 🕐 **Staff time tracking**: work sessions, balances, and vacation workflows (ArbZG-aware)
-- ⚙️ **Per-school settings**: tenant admins configure behavior at runtime, no redeploys
-- 📚 **Built-in manual**: German in-app guides with printable PDFs, generated in CI
-- 🏢 **Multi-tenant**: many Träger and schools on one deployment, isolated by PostgreSQL Row-Level Security, each school on its own subdomain with a separate operator portal
+| | |
+|---|---|
+| **NFC check-in/out** | Kids scan themselves in and out at tablet kiosks |
+| **Rooms & groups** | Occupancy, supervision, combined groups, activities with schedules |
+| **Parents portal** | Cross-school guardian accounts with multi-language UI (de/en/ru/sq) |
+| **Online enrollment** | Public, configurable enrollment forms with phases, care offerings, and consent blocks |
+| **Staff time tracking** | Work sessions, balances, and vacation workflows (ArbZG-aware) |
+| **Per-school settings** | Tenant admins configure behavior at runtime, no redeploys |
+| **Built-in manual** | German in-app guides with printable PDFs, generated in CI |
+| **Multi-tenant** | Many Träger and schools on one deployment, isolated by PostgreSQL Row-Level Security, each school on its own subdomain with a separate operator portal |
 
-## 🔌 The Hardware Side
+## Hardware
 
 The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React), deployed via [**moto-balenaOS**](https://github.com/moto-nrw/moto-balenaOS). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
 
-## 🚀 Quick Start
+## Quick Start
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/), and [direnv](https://direnv.net/docs/installation.html). Devbox pins every tool version, so the whole team gets an identical environment.
 
@@ -77,7 +81,7 @@ Then log in at **http://localhost:3000** (staff account from the seeder output) 
 
 Full walkthrough, common commands, and troubleshooting: [docs/getting-started.md](docs/getting-started.md).
 
-## 🏗️ Architecture
+## Architecture
 
 | Layer | Technology |
 |-------|-----------|
@@ -97,7 +101,7 @@ project-phoenix/
 
 API documentation is generated from the code: `docker compose run server go run . gendoc` produces `backend/routes.md` and an OpenAPI spec.
 
-## 🛡️ Security & Privacy
+## Security & Privacy
 
 This project handles sensitive student data and treats that responsibility as a feature:
 
@@ -108,7 +112,7 @@ This project handles sensitive student data and treats that responsibility as a 
 
 > **Reporting vulnerabilities:** see [SECURITY.md](SECURITY.md) for our security policy and responsible disclosure process.
 
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] NFC student tracking with real-time updates
 - [x] Multi-tenancy (Träger → school isolation via RLS)
@@ -121,9 +125,9 @@ This project handles sensitive student data and treats that responsibility as a 
 
 See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for everything in flight.
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome!
+Contributions are welcome.
 
 1. Fork the repository and create a feature branch
 2. Make your changes (`pnpm run check` and `go test ./...` must pass)
@@ -133,11 +137,11 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and convent
 
 > **Note:** By contributing, you agree to our [Contributor License Agreement](CLA.md).
 
-## 📄 License
+## License
 
 Distributed under a Source-Available License. See [LICENSE](LICENSE) for more information.
 
-## 📬 Contact
+## Contact
 
 - **Website:** [moto-ogs.de](https://moto-ogs.de)
 - **Issues:** [Report a bug or request a feature](https://github.com/moto-nrw/project-phoenix/issues)
