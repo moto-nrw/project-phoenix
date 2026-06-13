@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -109,9 +110,6 @@ func (m *mockPersonService) GetFullProfile(_ context.Context, _ int64) (*userMod
 func (m *mockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (m *mockPersonService) StaffRepository() userModels.StaffRepository     { return m.staffRepo }
-func (m *mockPersonService) TeacherRepository() userModels.TeacherRepository { return nil }
-func (m *mockPersonService) StudentRepository() userModels.StudentRepository { return nil }
 func (m *mockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
@@ -128,6 +126,66 @@ func (m *mockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ 
 	return nil, nil
 }
 func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if m.staffRepo == nil {
+		return nil, nil
+	}
+	return m.staffRepo.FindByPersonID(ctx, personID)
+}
+func (m *mockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *mockPersonService) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	return nil, nil, false, nil
+}
+func (m *mockPersonService) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
+	return nil, usersSvc.TeacherActionNone, nil
+}
+func (m *mockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
 	return nil, nil
 }
 
@@ -231,6 +289,30 @@ func (m *mockWorkSessionService) AutoEndExpiredBreaks(ctx context.Context) (int,
 	return 0, nil
 }
 
+func (m *mockWorkSessionService) GetStaffIDsWithSupervisionToday(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+
+func (m *mockWorkSessionService) GetWorkTimeModelByID(_ context.Context, _ int64) (*configModels.WorkTimeModel, error) {
+	return nil, nil
+}
+
+func (m *mockWorkSessionService) GetCurrentScheduleRows(_ context.Context, _ int64) ([]*configModels.StaffWorkSchedule, error) {
+	return nil, nil
+}
+
+func (m *mockWorkSessionService) AssignScheduleTemplate(_ context.Context, _ *userModels.Staff, _ int64) error {
+	return nil
+}
+
+func (m *mockWorkSessionService) ApplyCustomScheduleRows(_ context.Context, _ *userModels.Staff, _ []*configModels.StaffWorkSchedule, _ timezone.Date) error {
+	return nil
+}
+
+func (m *mockWorkSessionService) SaveCustomScheduleAsTemplate(_ context.Context, _ *userModels.Staff, _ string, _ int, _ timezone.Date, _ []*configModels.WorkTimeModelEntry) error {
+	return nil
+}
+
 // UpdateSessionAsAdmin + CreateSessionAsAdmin are part of the WorkSessionService
 // interface added for Tranche 1b (admin nachtragen / edit). No-op defaults so
 // the MA-side tests still satisfy the interface.
@@ -275,6 +357,10 @@ func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staff
 	}
 	return nil, nil
 }
+func (m *mockStaffAbsenceService) GetTodayAbsenceMap(_ context.Context) (map[int64]string, error) {
+	return nil, nil
+}
+
 func (m *mockStaffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error) {
 	if m.hasAbsenceOnDateFn != nil {
 		return m.hasAbsenceOnDateFn(ctx, staffID, date)

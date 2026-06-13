@@ -13,6 +13,10 @@ type GroupRepository interface {
 	Create(ctx context.Context, group *Group) error
 	FindByID(ctx context.Context, id interface{}) (*Group, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
+
+	// Exists reports whether a group with the given ID exists in the current
+	// tenant (issue #584: moved from api/timetable template validation).
+	Exists(ctx context.Context, id int64) (bool, error)
 	Update(ctx context.Context, group *Group) error
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Group, error)

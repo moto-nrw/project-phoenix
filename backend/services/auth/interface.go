@@ -44,6 +44,10 @@ type AuthService interface {
 	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
 	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
 	GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error)
+	// VerifyAccountTenantMembership reports whether the account has a tenant
+	// mapping for the given school (issue #584 lookup; repository result
+	// returned verbatim).
+	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
 
 	// Role Management
 	CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error)

@@ -462,15 +462,27 @@ export const studentsConfig = defineEntityConfig<Student>({
   service: {
     // mapResponse handled by API route already - no double mapping needed
 
-    mapRequest: (data: Partial<Student>) => ({
-      ...data,
-      // Backend expects these as numbers
-      group_id: data.group_id ? Number.parseInt(data.group_id, 10) : undefined,
-      // bus_days is the single source of truth (#1582). The form captures a
-      // simple Buskind checkbox; convert it to bus_days, preserving any
-      // existing per-day selection when the flag stays on.
-      bus_days: busDaysFromToggle(data.bus ?? false, data.bus_days),
-    }),
+    mapRequest: (data: Partial<Student>) => {
+      const request: Record<string, unknown> = {
+        ...data,
+        // Backend expects these as numbers
+        group_id: data.group_id
+          ? Number.parseInt(data.group_id, 10)
+          : undefined,
+        // bus_days is the single source of truth (#1582). The form captures a
+        // simple Buskind checkbox; convert it to bus_days, preserving any
+        // existing per-day selection when the flag stays on.
+        bus_days: busDaysFromToggle(data.bus ?? false, data.bus_days),
+      };
+
+      // This legacy database editor only mutates the Buskind checkbox. It must
+      // not forward stale departure_days copied from initialData, otherwise the
+      // backend treats the stale unified map as authoritative and ignores the
+      // updated bus_days.
+      delete request.departure_days;
+
+      return request;
+    },
   },
 
   labels: {

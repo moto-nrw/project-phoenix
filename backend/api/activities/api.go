@@ -743,14 +743,14 @@ func parseDurationWithDefault(durationStr string) (time.Duration, error) {
 
 // fetchSupervisorsBySpecialization retrieves supervisors filtered by specialization.
 func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specialization string) ([]SupervisorResponse, error) {
-	teachers, err := rs.UserService.TeacherRepository().FindBySpecialization(ctx, specialization)
+	teachers, err := rs.UserService.GetTeachersBySpecialization(ctx, specialization)
 	if err != nil {
 		return nil, err
 	}
 
 	supervisors := make([]SupervisorResponse, 0, len(teachers))
 	for _, teacher := range teachers {
-		fullTeacher, err := rs.UserService.TeacherRepository().FindWithStaffAndPerson(ctx, teacher.ID)
+		fullTeacher, err := rs.UserService.GetTeacherWithStaffAndPerson(ctx, teacher.ID)
 		if err != nil {
 			slog.Default().ErrorContext(ctx, "Error fetching full teacher data",
 				slog.Int64("teacher_id", teacher.ID),
@@ -778,7 +778,7 @@ func (rs *Resource) fetchSupervisorsBySpecialization(ctx context.Context, specia
 // fetchAllSupervisors retrieves all staff members as potential supervisors.
 func (rs *Resource) fetchAllSupervisors(ctx context.Context) ([]SupervisorResponse, error) {
 	// Use batch query to avoid N+1 (fetches staff with person in single query).
-	staffMembers, err := rs.UserService.StaffRepository().ListAllWithPerson(ctx)
+	staffMembers, err := rs.UserService.ListStaffWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}

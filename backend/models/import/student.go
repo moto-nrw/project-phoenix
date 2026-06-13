@@ -21,9 +21,15 @@ type StudentImportRow struct {
 	// BusDays holds optional per-day "Bus.Mo".."Bus.Fr" columns keyed by the
 	// canonical weekday keys (mon/tue/wed/thu/fri). nil when no per-day column is
 	// present, in which case BusPermission is used. bus_days is the SSOT (#1582).
-	BusDays       map[string]bool `json:"bus_days,omitempty"`
-	EnrolledFrom  string          `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
-	EnrolledUntil string          `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	BusDays map[string]bool `json:"bus_days,omitempty"`
+	// DepartureDays holds the unified per-day "Gehweise.Mo".."Gehweise.Fr"
+	// columns keyed by the canonical weekday keys (mon/tue/wed/thu/fri), each
+	// value one of alone/bus/pickup. nil when no per-day Gehweise column is
+	// present, in which case the legacy Bus/Abholstatus columns are folded into
+	// the departure plan instead. departure_days is the SSOT (#1610).
+	DepartureDays map[string]string `json:"departure_days,omitempty"`
+	EnrolledFrom  string            `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	EnrolledUntil string            `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 
 	// Consent dates — the explicit date each consent was given (e.g. from a
 	// signed paper form). Empty = no consent recorded. A set date asserts the

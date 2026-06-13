@@ -833,3 +833,10 @@ func (s *service) CheckSubstitutionConflicts(ctx context.Context, staffID int64,
 
 	return conflicts, nil
 }
+
+// CreateGroupTransfer persists a group-transfer substitution WITHOUT the
+// FindOverlapping conflict check: group transfers deliberately allow staff to
+// hold multiple groups at once (issue #584: moved verbatim from api/groups).
+func (s *service) CreateGroupTransfer(ctx context.Context, substitution *education.GroupSubstitution) error {
+	return s.substitutionRepo.Create(ctx, substitution)
+}

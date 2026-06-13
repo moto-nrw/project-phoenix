@@ -122,6 +122,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.resolvePersonByRFID(ctx, req.StudentRFID)
 	if err != nil {
 		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			rs.recordUnregisteredTagScan(ctx, req.StudentRFID)
 			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
 				slog.String("rfid", req.StudentRFID),
 			)

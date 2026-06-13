@@ -1324,20 +1324,11 @@ func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int
 	return out, nil
 }
 
-func (s *fakeOpsPersonService) StaffRepository() usersModel.StaffRepository {
-	return fakeOpsStaffByPersonRepo{s: s}
-}
-
-type fakeOpsStaffByPersonRepo struct {
-	usersModel.StaffRepository
-	s *fakeOpsPersonService
-}
-
-func (r fakeOpsStaffByPersonRepo) FindByPersonID(_ context.Context, personID int64) (*usersModel.Staff, error) {
-	if r.s.staffErr != nil {
-		return nil, r.s.staffErr
+func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*usersModel.Staff, error) {
+	if s.staffErr != nil {
+		return nil, s.staffErr
 	}
-	return r.s.staffByPersonID[personID], nil
+	return s.staffByPersonID[personID], nil
 }
 
 type fakeOpsSettings struct {

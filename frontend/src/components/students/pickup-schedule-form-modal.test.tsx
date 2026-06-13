@@ -104,7 +104,7 @@ describe("PickupScheduleFormModal", () => {
       );
 
       expect(
-        screen.getByText("Wöchentlichen Abholplan bearbeiten"),
+        screen.getByText("Wöchentlichen Gehplan bearbeiten"),
       ).toBeInTheDocument();
     });
 
@@ -531,7 +531,7 @@ describe("PickupScheduleFormModal", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Fehler beim Speichern des Abholplans"),
+          screen.getByText("Fehler beim Speichern des Gehplans"),
         ).toBeInTheDocument();
       });
     });

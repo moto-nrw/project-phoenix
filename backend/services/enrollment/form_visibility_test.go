@@ -114,6 +114,33 @@ func TestCustomAnswerSatisfiesRequired_PickupPresence(t *testing.T) {
 		"selected bus day accepted")
 }
 
+// The unified weekday_mode field behaves like pickup for required checks: an
+// all-alone (empty) plan is a valid answer, but a never-touched field fails
+// required, and malformed values are rejected (#1610).
+func TestWeekdayMode_RequiredHandling(t *testing.T) {
+	departure := enrollmentModels.FormField{
+		Key:    "departure",
+		Type:   enrollmentModels.FormFieldWeekdayMode,
+		Target: enrollmentModels.TargetStudentDeparture,
+	}
+
+	// Value-shape check: a well-formed map (even empty) satisfies required.
+	assert.True(t, customValueSatisfiesRequired(departure, map[string]any{}),
+		"empty departure plan accepted (goes alone)")
+	assert.True(t, customValueSatisfiesRequired(departure, map[string]any{"mon": "bus"}),
+		"a set departure day accepted")
+	assert.False(t, customValueSatisfiesRequired(departure, map[string]any{"mon": "taxi"}),
+		"invalid mode rejected")
+
+	// Presence check: missing key fails, explicit empty map passes.
+	assert.False(t, customAnswerSatisfiesRequired(departure, map[string]any{}),
+		"missing departure answer must fail required")
+	assert.True(t, customAnswerSatisfiesRequired(departure, map[string]any{"departure": map[string]any{}}),
+		"explicit empty departure map is a valid answer")
+	assert.True(t, customAnswerSatisfiesRequired(departure, map[string]any{"departure": map[string]any{"wed": "pickup"}}),
+		"selected departure mode accepted")
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {

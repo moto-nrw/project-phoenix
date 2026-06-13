@@ -212,7 +212,15 @@ func scheduleDeferredFlushLocked(iotService iotSvc.Service, id int64, state *las
 // Returns the PIN string, or empty if not configured.
 type PINResolver func(ctx context.Context, tenantID int64) string
 
-func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository, pinResolver PINResolver) func(http.Handler) http.Handler {
+// SchoolLookup is the narrow school read the device authenticators need
+// (issue #584: handlers must not wire repositories; satisfied by
+// services/platform.SchoolService, which returns repository results and
+// errors verbatim).
+type SchoolLookup interface {
+	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
+}
+
+func deviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -227,7 +235,7 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 			// Reject requests for devices belonging to soft-deleted schools.
 			// Devices use long-lived API keys (not 15-min JWTs), so deleted schools
 			// must be blocked immediately rather than waiting for token expiry.
-			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
+			if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
 				if err := render.Render(w, r, errResp); err != nil {
 					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
 				}
@@ -298,8 +306,8 @@ func deviceAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRe
 // The middleware sets device context for downstream handlers.
 // Rejects requests for devices belonging to soft-deleted schools.
 // pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schoolRepo platform.SchoolRepository, pinResolver PINResolver) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService, schoolRepo, pinResolver)
+func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
+	return deviceAuthenticator(iotService, schools, pinResolver)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.
@@ -308,7 +316,7 @@ func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, sc
 // This is used for endpoints that need device authentication but not staff authentication,
 // such as getting the list of available teachers for login selection.
 // Rejects requests for devices belonging to soft-deleted schools.
-func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.SchoolRepository) func(http.Handler) http.Handler {
+func DeviceOnlyAuthenticator(iotService iotSvc.Service, schools SchoolLookup) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -321,7 +329,7 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.Scho
 			}
 
 			// Reject requests for devices belonging to soft-deleted schools.
-			if errResp := rejectDeletedSchool(r.Context(), schoolRepo, device); errResp != nil {
+			if errResp := rejectDeletedSchool(r.Context(), schools, device); errResp != nil {
 				if err := render.Render(w, r, errResp); err != nil {
 					slog.Error("failed to render device auth error", slog.String("error", err.Error()))
 				}
@@ -348,19 +356,21 @@ func DeviceOnlyAuthenticator(iotService iotSvc.Service, schoolRepo platform.Scho
 
 // rejectDeletedSchool checks if the device's school has been soft-deleted.
 // Returns an error renderer if the school is deleted, nil otherwise.
-// Runs before TenantTxMiddleware, so there is no tenant transaction in context;
-// FindByID falls back to the raw *bun.DB connection which is fine because
-// platform.schools is not behind RLS. Fails open only on transient DB errors
-// (connection failures) to avoid breaking all IoT devices during outages.
-// "Not found" errors (school row deleted/missing) are treated as rejection.
-func rejectDeletedSchool(ctx context.Context, schoolRepo platform.SchoolRepository, device *iot.Device) render.Renderer {
-	if schoolRepo == nil || device.TenantID <= 0 {
+// Runs before TenantTxMiddleware, so there is no tenant transaction in
+// context; the underlying repository falls back to the raw *bun.DB connection
+// which is fine because platform.schools is not behind RLS. Fails open only
+// on transient DB errors (connection failures) to avoid breaking all IoT
+// devices during outages. "Not found" errors (school row deleted/missing)
+// are treated as rejection.
+func rejectDeletedSchool(ctx context.Context, schools SchoolLookup, device *iot.Device) render.Renderer {
+	if schools == nil || device.TenantID <= 0 {
 		return nil
 	}
-	school, err := schoolRepo.FindByID(ctx, device.TenantID)
+	school, err := schools.GetSchoolByID(ctx, device.TenantID)
 	if err != nil {
 		// Distinguish "not found" from transient connectivity errors.
-		// FindByID wraps sql.ErrNoRows in a DatabaseError — unwrap and check.
+		// The repository wraps sql.ErrNoRows in a DatabaseError — unwrap and
+		// check.
 		if isNotFoundErr(err) {
 			slog.Warn("device authentication rejected: school not found",
 				slog.String("device_id", device.DeviceID),

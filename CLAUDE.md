@@ -1,15 +1,15 @@
-# CLAUDE.md
+# Project Phoenix — Agent Context
 
 ## Project Overview
 
-**Project Phoenix** - GDPR-compliant RFID student attendance and room management system.
+**Project Phoenix** - GDPR-compliant NFC/RFID student attendance and room management system (internal codename; the public product name is "moto").
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Go 1.23+, Chi router, BUN ORM |
+| Backend | Go 1.25+, Chi router, BUN ORM |
 | Frontend | Next.js 16+, React 19+, Tailwind 4+ |
-| Database | PostgreSQL 17+ (multi-schema, SSL) |
-| Auth | JWT (15min access, 7 days refresh) |
+| Database | PostgreSQL 17+ (15 domain schemas, SSL, RLS) |
+| Auth | JWT via `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY` (currently 15m / 168h), MFA, three isolated portals |
 
 ## Ecosystem
 
@@ -18,9 +18,9 @@ Project Phoenix is part of a three-repo system. All repos live side-by-side (`..
 | Repo | Role | Relationship |
 |------|------|-------------|
 | **PyrePortal** (`../PyrePortal/`) | Raspberry Pi kiosk app (Tauri + React) | Consumes `/api/iot/*` endpoints with device API key + staff PIN auth |
-| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer | Runs PyrePortal + Phoenix backend on Raspberry Pi hardware |
+| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer | Runs the PyrePortal kiosk on Pi 5 hardware (the Phoenix backend itself runs on the server, never on the Pi) |
 
-**If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Error messages are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos.
+**If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Backend error strings are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos. PRs target `development` in all repos except moto-balenaOS (`main`).
 
 ### Presence mode (cross-repo contract)
 
@@ -30,8 +30,7 @@ selection, hide Raumwechsel/WC buttons, and branch the scan-result modal
 based on `checkout.schulhof_enabled` (2-button door kiosk vs 3-button with
 yard state). Missing or unknown values default to `detailed` so old kiosk
 builds continue to work. Backend checkin semantics adapt transparently —
-only the kiosk UI needs to change per mode. See the companion PyrePortal
-issue for the exact UI state machine.
+only the kiosk UI needs to change per mode.
 
 ## Multi-Tenancy
 
@@ -43,13 +42,13 @@ Platform Operator (moto)
       └── School (OGS) = tenant      → platform.schools (school.id = tenant_id)
 ```
 
-**School ID is the tenant boundary.** All 58+ tenant-scoped tables have a `tenant_id` FK to `platform.schools`. Account-to-school mappings live in `auth.account_tenants` (with lifecycle: pending → active → inactive).
+**School ID is the tenant boundary.** All 58+ tenant-scoped tables have a `tenant_id` FK to `platform.schools`. Account-to-school mappings live in `auth.account_tenants` (lifecycle: pending → active → inactive).
 
 ### Scoping Mechanisms
 
 | Layer | How |
 |-------|-----|
-| **JWT** | Claims include `tenant_id`, `org_id`, `scope` ("" = tenant, "org" = organization, "platform" = operator) |
+| **JWT** | Claims include `tenant_id`, `org_id`, `scope` ("" = tenant, "org" = organization, "platform" = operator, "parent" = guardian) |
 | **Context** | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` propagate tenant through request lifecycle |
 | **Database** | `TenantTxMiddleware` sets PostgreSQL `LOCAL ROLE` + RLS config per request; auto-rollback on 5xx |
 | **Models** | `base.TenantModel` (embeds `TenantID int64`) + `TenantScoped` interface on all tenant-aware entities |
@@ -65,11 +64,11 @@ Platform Operator (moto)
 
 ### Three Portals — Strict Session Isolation
 
-Each portal runs as its own NextAuth instance with a host-only cookie + dedicated `basePath`. The cookies are invisible across hosts by design; the proxy redirects cross-host paths back to their canonical subdomain.
+Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicated `basePath`. Operator/parents cookies are host-only; the tenant cookie is domain-scoped on purpose (shared across tenant subdomains so tenant switching works). The proxy redirects cross-host paths back to their canonical subdomain.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
-| Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `next-auth.session-token` (domain-scoped) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
+| Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` scoped to `.{TENANT_DOMAIN}` (localhost: `authjs.session-token`, host-only) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only) | `/api/operator/auth` | `"platform"` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` (host-only) | `/api/parent/auth` | `"parent"` | `POST /parent/auth/login` |
 
@@ -78,8 +77,9 @@ Each portal runs as its own NextAuth instance with a host-only cookie + dedicate
 - Parents login requires guardian role on at least one tenant mapping (`ErrAccountNoGuardianRole` → 403).
 - `auth/jwt/TenantMiddleware` rejects `scope=parent` tokens with 401 (defense-in-depth on top of cookie isolation).
 - `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
+- **MFA exists and alters login flows**: tenant and operator logins can require a challenge step between credentials and session (`services/auth/mfa_service.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`, dedicated challenge/enrollment JWT claims in `backend/auth/jwt/`, trusted devices via `security.mfa_*` settings). Touch login flows only with MFA in mind.
 
-**Embedded enrollment** (PR 11): the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` via the same `EnrollmentForm` component used by `{slug}.TENANT_DOMAIN/enroll/{phaseId}`. The form takes optional `profileFetcher`, `submitter`, and `skipCaptcha` props so the parent path swaps in `/api/parent/enrollments/{slug}/{profile,submit}` (parent JWT, captcha skipped) without any duplication. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over the email-based path so the existing-account skip-invite optimization fires cleanly even if the parent edits the email field on the form.
+**Embedded enrollment**: the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` using the same `EnrollmentForm` component as `{slug}.TENANT_DOMAIN/enroll/{phaseId}`, via injected `profileFetcher`/`submitter`/`skipCaptcha` props. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over email matching.
 
 ### Key Env Vars
 
@@ -90,15 +90,11 @@ Each portal runs as its own NextAuth instance with a host-only cookie + dedicate
 | `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
 | `NEXT_PUBLIC_PARENTS_HOSTNAME` | Parents subdomain (e.g., `parents.localhost:3000`) |
 | `FRONTEND_URL` | Backend-side staff/admin URL (used in admin notification emails) |
-| `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Falls back to `FRONTEND_URL` if unset; production must be `https://`. |
+| `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Required — the server refuses to start without it; must be `https://` in production. |
 
 ### Reserved Slugs
 
-Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, parents, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync.**
-
-### Cross-Repo Impact
-
-Changing tenant resolution, auth headers, or error messages affects PyrePortal's device auth flow. The IoT API (`/api/iot/*`) uses device API keys (not tenant JWTs), but devices are scoped to schools.
+Both backend (`models/platform/organization.go`) and frontend (`lib/reserved-slugs.ts`) maintain matching lists of reserved slugs (www, api, operator, parents, grafana, etc.) that cannot be used as tenant subdomains. **These must stay in sync** — nothing enforces it.
 
 ## Core Architecture
 
@@ -108,130 +104,94 @@ Changing tenant resolution, auth headers, or error messages affects PyrePortal's
 - `services/{domain}/` — Business logic, orchestration, transactions
 - `database/repositories/{domain}/` — Data access only (BUN ORM)
 - `models/{domain}/` — Domain entities, shared across layers
-- Factory pattern for DI: `repositories.NewFactory(db)` → `services.NewFactory(repoFactory, db)`
+- Factory pattern for DI: `repositories.NewFactory(db)` → `services.NewFactory(repos, db, logger)`
+
+Layer discipline, repository generics, model conventions, and the CI ratchet tests that enforce them: see `.claude/rules/backend-conventions.md`.
 
 ## Critical Patterns
 
-### 0. Frontend: Reuse Existing Components and Design Standards (MANDATORY)
+### 0. Frontend: Reuse the UI Kit (MANDATORY)
 
-**ABSOLUTE RULE: Before creating ANY new UI element, color, or component, search the existing codebase first.** Do not reinvent what already exists.
-
-**Brand Colors** — MOTO uses specific brand hex codes, NOT generic Tailwind color classes. Before using any color:
-
-1. **Check `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS`** — the single source of truth for all semantic brand colors (green, blue, red, orange, purple, gray, amber). Read the file and use the exact hex values defined there.
-2. **Check `frontend/src/contexts/ToastContext.tsx`** — established color patterns for success/error/info states.
-3. **Check `frontend/src/styles/globals.css`** — logo gradient and other global color definitions.
-
-**NEVER use generic Tailwind color classes** (`text-green-500`, `bg-blue-500`, etc.) when a MOTO brand color exists for that semantic purpose. Tailwind defaults are different hues. Always use arbitrary value syntax with the brand hex: `text-[#HEX]`, `bg-[#HEX]`.
-
-**Reuse before rebuild:**
-- **ALWAYS search `frontend/src/components/`** for existing components before building new ones.
-- **ALWAYS check `frontend/src/lib/`** for existing helpers, hooks, and utilities before writing new logic.
+Build all new UI from `frontend/src/components/ui/`; brand colors come only from `LOCATION_COLORS` in `frontend/src/lib/location-helper.ts` — never generic Tailwind hues. Full component map, hex table, and design checklist: `.claude/rules/frontend-ui-kit.md`.
 
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
 ```go
 ModelTableExpr(`education.groups AS "group"`)   // CORRECT — quoted
 ModelTableExpr(`education.groups AS group`)     // WRONG — runtime error
-// Nested: ColumnExpr(`"teacher".id AS "teacher__id"`)
 ```
 
-### 2. Docker: Rebuild After Go Changes
-```bash
-docker compose build server && docker compose up -d server
-```
-
-### 3. Frontend: Zero Warnings Policy
+### 2. Frontend: Zero Warnings Policy
 ```bash
 pnpm run check  # MUST PASS before committing
 ```
 
-### 4. Type Mapping: int64 → string
+### 3. Type Mapping: int64 → string
 Backend `int64` IDs become frontend `string`. Use `data.id.toString()` and `snake_case → camelCase` mapping helpers in `lib/{domain}-helpers.ts`.
 
-### 5. PRs Target `development`
+### 4. PRs Target `development`
 ```bash
 gh pr create --base development  # NEVER target main unless explicitly asked
 ```
 
-### 6. Student Location: Use `active.visits`
-- `active.visits` + `active.attendance` — real-time, correct
-- `users.students` boolean flags (`in_house`, `wc`, `school_yard`) — DEPRECATED, broken
+### 5. Student Location: Use `active.visits`
+Real-time student location comes from `active.visits` + `active.attendance`. Scheduled statuses (sick / excused / class trip) live in `active.student_status_days`.
 
-### 7. Next.js 16: Async Params
+### 6. Next.js 16: Async Params
 ```typescript
 const { id } = await context.params;  // MUST await
 ```
 
-### 8. Backend Logging: slog Only
+### 7. Backend Logging: slog Only
 Use injected `*slog.Logger` with key-value pairs. Never logrus/log.Printf. GDPR: no student names at Info level.
 
-### 9. Devbox Environment
+### 8. Devbox Environment
 ```bash
 devbox search <tool>     # Find packages
 devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 ```
 
-### 10. Migrations and RLS: No Bypass Needed
-Migrations connect via `DB_DSN` as the `postgres` **superuser**. PostgreSQL superusers always bypass Row Level Security, even with `FORCE ROW LEVEL SECURITY` enabled. This means:
+### 9. Migrations and RLS: No Bypass Needed
+CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **superuser**; the HTTP server connects as the least-privilege `phoenix_auth` role (`PHOENIX_AUTH_PASSWORD` required). PostgreSQL superusers always bypass Row Level Security, even with `FORCE ROW LEVEL SECURITY` enabled. This means:
 - **Data migrations (UPDATE/INSERT/DELETE) do NOT need to disable RLS** — the superuser connection sees all rows across all tenants automatically
-- **DDL migrations (CREATE TABLE, ALTER, GRANT)** are never affected by RLS regardless of role
 - **Never add `ALTER TABLE ... DISABLE/ENABLE ROW LEVEL SECURITY`** in migration code — it's unnecessary and can cause test failures
-- **Migration version numbers must be unique** — two migrations sharing a version in `MigrationRegistry` causes a map key collision where one silently overwrites the other
+- **Migration version numbers must be unique** — `MigrationRegistry` is a `SafeMigrationMap` that panics at init on a duplicate version, so the binary won't start until the collision is fixed
 
-### 11. Time Modeling: Match the Type to the Business Meaning
-Use the database type AND the Go type that match the business meaning:
-- **Actual instant** (created_at, checked_in_at, started_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
-- **Calendar date** (attendance day, timetable date, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
-- **Clock time without date** (template start/end, pickup time): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
+### 10. Time Modeling: Match the Type to the Business Meaning
+- **Actual instant** (created_at, checked_in_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
+- **Calendar date** (attendance day, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
+- **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
 
-bun converts every `time.Time` parameter to UTC before binding, so a Berlin-midnight "date" stored through `time.Time` lands one day behind between 00:00 and 02:00 Berlin time. `timezone.Date` (backend/internal/timezone) binds as a `YYYY-MM-DD` literal and is immune. `TestDateColumnTypes` in `backend/test/` fails CI for any DATE column whose model field is `time.Time`. Never model a pure wall-clock value like `11:30` as `TIMESTAMPTZ`. Full guide: `.claude/rules/calendar-dates.md`.
+bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land one day behind around Berlin midnight. `TestDateColumnTypes` fails CI for violations. Full guide: `.claude/rules/calendar-dates.md`.
 
 ## Essential Commands
 
-**RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it. The development environment runs through Docker Compose.
+**RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it.
 
 | Task | Command |
 |------|---------|
 | Start all services | `docker compose up -d` |
-| Rebuild + restart backend | `docker compose build server && docker compose up -d server` |
-| Run migrations | `docker compose run server ./main migrate` |
-| Reset + seed DB | `docker compose run server ./main migrate reset && docker compose run server ./main seed` |
+| Rebuild backend (go.mod / Dockerfile changes; air hot-reloads plain Go edits) | `docker compose build server && docker compose up -d server` |
+| Run migrations | `docker compose run server go run . migrate` |
+| Reset DB | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
 | View logs | `docker compose logs -f server` |
 | Quality check (frontend) | `cd frontend && pnpm run check` |
 | Run backend tests | `cd backend && go test ./...` |
-| Generate docs | `docker compose run server ./main gendoc --routes` |
+| Generate docs | `docker compose run server go run . gendoc --routes` |
 
-**Seeder is DEV-ONLY**: `go run main.go seed` creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
+**Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
-### Hermetic Tests (MANDATORY)
-
-**ABSOLUTE RULE: All new backend tests MUST be hermetic and MUST pass the `TestHermeticTestPatterns` CI check.**
-
-- **No hardcoded IDs**: Never use `int64(1)` through `int64(9)` as entity IDs. Use test fixtures (`testpkg.CreateTestStudent`, `testpkg.CreateTestStaff`, etc.) and reference the returned `.ID`.
-- **Mock test files must be exempted**: If a new test file uses sqlmock/mock structs instead of real DB fixtures, add it to the `skipPatterns` in `backend/test/hermetic_verification_test.go`. Otherwise the `no_hardcoded_integer_ids` check will flag mock IDs as violations.
-- **Always run the hermetic check locally before pushing**: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
-- **Each test creates its own data and cleans up**: Use `defer testpkg.Cleanup*` helpers. Never depend on seed data or shared state between tests.
+**Hermetic tests are MANDATORY** for all new backend tests (no hardcoded IDs, fixtures + cleanup, `TestHermeticTestPatterns` CI gate) — see `backend/CLAUDE.md` for the fixture catalog and rules.
 
 ### Test Database (port 5433)
 ```bash
-docker compose --profile test up -d postgres-test  # Start (isolated network)
-docker compose --profile test down                 # Stop (plain `down` won't work)
-APP_ENV=test go run main.go migrate reset          # Setup
+docker compose --profile test up -d postgres-test       # Start (isolated network)
+docker compose --profile test down                       # Stop (plain `down` won't work)
+cd backend && APP_ENV=test go run . migrate reset        # Setup
 ```
 
 ## No Fallbacks, No Defaults — Fail Fast (MANDATORY)
 
-**ABSOLUTE RULE: NEVER use fallback defaults (`??`, `||`, `.default()`, `.optional().default()`) for environment variables or configuration values. Missing config MUST crash immediately.**
-
-Silent fallbacks are unacceptable because they create invisible production bugs. A developer misconfigures one env var, the app boots fine, passes CI, deploys — and then silently runs with `operator.localhost:3000` in production. No error. No log. No alert. The bug surfaces days later as a user report: "login doesn't work." Root cause? A missing env var that three layers of `??` fallbacks quietly papered over.
-
-Fallbacks destroy developer experience:
-- They make `.env.example` a lie — "these values are just defaults anyway"
-- They make `docker compose up` silently broken — the app starts, looks healthy, but half the features route to localhost
-- They make debugging a nightmare — nothing errors, nothing logs, the wrong value just propagates silently through the system
-- They violate the principle of least surprise — a fresh clone with no `.env` should **fail with a clear message**, not boot into a half-working state
-
-### Rules
+**ABSOLUTE RULE: NEVER use fallback defaults (`??`, `||`, `.default()`, `.optional().default()`) for environment variables or configuration values. Missing config MUST crash immediately with a clear error.** Silent fallbacks create invisible production bugs: the app boots, looks healthy, and quietly runs with `operator.localhost:3000` in production.
 
 ```typescript
 // FORBIDDEN — silent fallback
@@ -248,163 +208,39 @@ if (!hostname) throw new Error("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
 NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
 ```
 
-### Where this applies
-- **All `process.env` reads** in proxy, server code, and client code
-- **All Zod schemas** in `env.js` for environment validation
-- **All docker-compose environment blocks** — use `${VAR}` not `${VAR:-default}`
-- **Exception**: Only `NODE_ENV` and `LOG_LEVEL` may have defaults (they have universally safe defaults like `"development"` and `"info"`)
-
-### What to do instead
-- Put the correct value in `.env.example` as documentation
-- Let `env.js` validation crash the build if the var is missing
-- In proxy (`proxy.ts`) where `env.js` can't run, throw explicitly
-- If required in `env.js`: add as `ARG` + `ENV` in `frontend/Dockerfile.prod` and as `build-args` in `.github/workflows/build.yml`
-- `next build` runs env validation inside the Docker container — missing build args break CI
+Applies to: all `process.env` reads (proxy, server, client), all Zod schemas in `env.js`, all docker-compose environment blocks (`${VAR}`, never `${VAR:-default}`). **Exception**: only `NODE_ENV` and `LOG_LEVEL` may have defaults. Document correct values in `.env.example`; if a var is required in `env.js`, it also needs `ARG`+`ENV` in `frontend/Dockerfile.prod` and `build-args` in `.github/workflows/build.yml` (the Docker build runs env validation, so CI catches missing args). This policy is enforced in code (`frontend/src/proxy.ts`, `frontend/src/lib/env-validation.js`), not aspirational.
 
 ## Environment Management (SOPS)
 
-Deployed environments (staging, production) use **SOPS-encrypted env files** tracked in git. No more manual `.env` management via SSH.
-
-### How It Works
+Deployed environments (staging, production) use **SOPS-encrypted env files** tracked in git. No manual `.env` editing via SSH.
 
 ```
 1. Developer edits:  sops environments/staging.sops.env   (decrypts → $EDITOR → re-encrypts)
-2. Commit + push:    git commit environments/staging.sops.env → push to development
-3. CI decrypts:      sops decrypt staging.sops.env > /tmp/staging.env
-4. CI deploys:       SCP .env + docker-compose.yml + deploy-remote.sh → server
-5. Server runs:      deploy-remote.sh (pull → backup DB → migrate → start → healthcheck)
+2. Commit + push:    push to development (staging) / main (production)
+3. CI decrypts:      sops decrypt → SCP .env + compose + deploy-remote.sh to server
+4. Server runs:      deploy-remote.sh (pull → backup DB → migrate → start → healthcheck, rollback on failure)
 ```
-
-### File Layout
 
 | File | Purpose |
 |------|---------|
-| `environments/staging.sops.env` | Encrypted env vars for staging |
-| `environments/production.sops.env` | Encrypted env vars for production |
-| `environments/staging.compose.yml` | Docker Compose for staging (images from GHCR) |
-| `environments/production.compose.yml` | Docker Compose for production |
-| `.sops.yaml` | SOPS config with age public key |
-| `scripts/sops-setup.sh` | One-time setup: generate age key, encrypt files |
-| `scripts/env-check.sh` | CI validation: key sync across all env files |
-| `scripts/deploy-remote.sh` | Runs on server: pull, backup, migrate, rollback |
+| `environments/{staging,production}.sops.env` | Encrypted env vars (keys plaintext, values encrypted — CI validates key sync without decrypting) |
+| `environments/{staging,production}.compose.yml` | Docker Compose for deployed envs (images from GHCR, pinned to commit SHA) |
+| `.sops.yaml` / `scripts/sops-setup.sh` | SOPS config + one-time age key setup |
+| `scripts/env-check.sh` | Key-sync validation across all env files (CI `env-sync-check` job blocks PRs on drift; lefthook pre-commit guards staged `.sops.env` changes) |
+| `scripts/deploy-remote.sh` | Runs on server: pull, backup, migrate, rollback. Exit codes: `0` ok, `1` aborted pre-migration, `10` rollback succeeded, `11` rollback FAILED (critical) |
 
-### Local SOPS Setup
+Key rules:
+1. **Edit only with the SOPS CLI** (`sops environments/staging.sops.env`) — never hand-edit encrypted values. Share the age private key via 1Password/Signal, never Slack/email. CI uses the same key as the `SOPS_AGE_KEY` GitHub secret (plus `STAGING_SSH_*` / `PRODUCTION_SSH_*` deploy secrets; deploy-failure emails go to the `DEPLOY_NOTIFY_EMAILS` repository *variable*).
+2. **Both `.sops.env` files must have identical keys**, and `.env.example` must stay in sync (minus the dev-only vars whitelisted in `env-check.sh`: `COMPOSE_BAKE`, `DB_DEBUG`, `TEST_DB_*`, Docker build flags, host-port overrides) — `env-check.sh` enforces this.
+3. **Shared `.env` on the server** — all services load the same `.env` via `env_file:`; use the compose `environment:` block for per-service overrides (e.g. `PORT: 3000` for frontend vs backend's `PORT=8080`).
+4. Server layout: `~/{staging,production}/` (`.env`, `docker-compose.yml`, `.deploy-state`) + `~/backups/{env}/` (pg_dump retention: 3 staging, 7 production).
+5. Deploy triggers: push to `development` → staging, push to `main` → production.
 
-```bash
-# 1. One-time: generate age key and encrypt files
-./scripts/sops-setup.sh
-
-# Key location (macOS):
-#   ~/Library/Application Support/sops/age/keys.txt
-# Key location (Linux):
-#   ~/.config/sops/age/keys.txt
-#
-# Share the private key with team members via 1Password/Signal — NEVER Slack/email.
-# CI uses the same key as GitHub Secret: SOPS_AGE_KEY
-```
-
-### Common SOPS Commands
-
-```bash
-# Edit encrypted file (opens in $EDITOR, re-encrypts on save)
-sops environments/staging.sops.env
-
-# View decrypted values (stdout only, no file change)
-sops decrypt environments/staging.sops.env
-
-# View a single value
-sops decrypt environments/staging.sops.env | grep AUTH_JWT_REFRESH_EXPIRY
-
-# Verify all env files are in sync
-./scripts/env-check.sh
-```
-
-### Key Rules
-
-1. **Keys are plaintext, values are encrypted** — SOPS encrypts only values, so CI can validate key consistency without decryption
-2. **Both `.sops.env` files must have identical keys** — `env-check.sh` enforces this in CI
-3. **`.env.example` must stay in sync** with `.sops.env` keys (minus whitelisted dev-only/deploy-only vars)
-4. **Shared `.env` on server** — all services (postgres, server, frontend) load the same `.env` via `env_file:`. Use the compose `environment:` block to override per-service (e.g., `PORT: 3000` for frontend to override backend's `PORT=8080`)
-5. **Edit with SOPS CLI** — `sops environments/staging.sops.env` opens decrypted in `$EDITOR`, re-encrypts on save. Never manually edit encrypted values.
-
-### Adding a New Env Var (Deployed Environments)
-
-- [ ] Add to both `environments/*.sops.env` files via `sops` CLI
-- [ ] Add to `.env.example` (for local dev parity)
-- [ ] If frontend-only or needs override: add to `environment:` block in `environments/*.compose.yml`
-- [ ] Run `./scripts/env-check.sh` to verify sync
-
-### Deployment Triggers
-
-| Environment | Trigger | Branch | SOPS File |
-|-------------|---------|--------|-----------|
-| Staging | Push to `development` | `development` | `staging.sops.env` |
-| Production | Push to `main` | `main` | `production.sops.env` |
-
-### Deploy Flow (CI → Server)
-
-CI (`build.yml`) runs on push/merge:
-1. **Decrypt**: `sops decrypt environments/{env}.sops.env > /tmp/{env}.env`
-2. **SCP to server**: `.env.new`, `docker-compose.yml.new`, `deploy-remote.sh`
-3. **`deploy-remote.sh`** runs on the server:
-   - Saves rollback copies (`.env.rollback`, `docker-compose.yml.rollback`)
-   - Swaps in new config, pins Docker images to commit SHA
-   - `docker compose pull` (fails → restore old config, abort)
-   - Stops `server` + `frontend` (postgres stays up for backup)
-   - `pg_dump` backup to `~/backups/{env}/` (fails → restore, abort)
-   - `docker compose run --rm server ./main migrate` (fails → rollback DB + config)
-   - `docker compose up -d --wait` + healthcheck (fails → rollback)
-   - On success: writes `.deploy-state`, prunes old backups
-
-**Exit codes**: `0` = success, `1` = aborted before migration, `10` = rollback succeeded, `11` = rollback failed (CRITICAL)
-
-### Server Directory Structure
-
-```
-~/staging/          ← staging deployment
-  .env              ← decrypted from staging.sops.env (by CI)
-  docker-compose.yml ← from staging.compose.yml (images pinned to SHA)
-  .deploy-state     ← CURRENT_SHA, PREVIOUS_SHA, DEPLOYED_AT, BACKUP_FILE
-~/production/       ← production deployment (same structure)
-~/backups/{env}/    ← pg_dump backups (retention: 3 staging, 7 production)
-```
-
-### GitHub Secrets Required
-
-| Secret | Purpose |
-|--------|---------|
-| `SOPS_AGE_KEY` | Age private key for decrypting `.sops.env` files |
-| `STAGING_SSH_KEY` | SSH deploy key for staging server |
-| `STAGING_SSH_HOST` | Staging server hostname/IP |
-| `STAGING_SSH_KNOWN_HOSTS` | SSH host verification |
-| `PRODUCTION_SSH_KEY` / `PRODUCTION_SSH_HOST` / `PRODUCTION_SSH_KNOWN_HOSTS` | Same for production |
-| `DEPLOY_NOTIFY_*` | Email notification recipients for deploy failures |
-
-### CI Guards
-
-- **`env-sync-check`** job runs on every PR — blocks merge if keys are out of sync or plaintext values detected
-- **Lefthook pre-commit** — runs env key sync + unencrypted secrets guard on staged `.sops.env` changes
-
-### Whitelisted Key Exceptions
-
-| Key | Scope | Reason |
-|-----|-------|--------|
-| `COMPOSE_BAKE`, `COMPOSE_DOCKER_CLI_BUILD`, `DOCKER_BUILDKIT` | dev-only | Docker build optimization, not needed on server |
-| `DB_DEBUG`, `TEST_DB_DSN`, `TEST_DB_PORT` | dev-only | Local testing only |
-| `AUTH_TRUST_HOST`, `TENANT_DOMAIN`, `NEXT_PUBLIC_TENANT_DOMAIN` | deploy-only | Multi-tenancy, not needed for local dev |
-| `PHOENIX_AUTH_PASSWORD` | deploy-only | Server DB role password |
+**Adding or changing an env var? Follow the checklists in `.claude/rules/env-docker-sync.md`** (covers local files, docker-compose, SOPS files, and Dockerfile build args).
 
 ## URL & Route Conventions
 
-**All URL paths must use kebab-case** — both backend API routes and frontend page routes.
-
-```
-/students/{id}/attendance-history   ✅ kebab-case
-/students/{id}/room-history         ✅ kebab-case
-/students/{id}/feedback_history     ❌ snake_case (legacy, migrate when touched)
-```
-
-Existing snake_case routes (`feedback_history`, `mensa_history`) are legacy. When modifying these routes, migrate them to kebab-case.
+**All URL paths must use kebab-case** — both backend API routes and frontend page routes. Existing snake_case routes (`feedback_history`, `mensa_history`) are legacy; migrate them to kebab-case when touched.
 
 ## Git Conventions
 
@@ -414,23 +250,15 @@ Existing snake_case routes (`feedback_history`, `mensa_history`) are legacy. Whe
 
 ## Database Schemas
 
-`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `suggestions` · `meta` · `audit`
+`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `suggestions` · `meta` · `audit`
 
 ## Tenant-Scoped Settings System
 
-Per-school configuration via a registry-driven system. Schools configure settings in the admin UI; the backend resolves values as tenant DB override → registry default. The service does **not** check env vars — consumers that need env var fallback must use `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. See `.claude/rules/settings-system.md` for the correct pattern.
-
-**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure (DB DSN, JWT secret, SMTP host). If a school admin should be able to configure it, it's a setting.
-
-**For architecture, step-by-step guides, and field type reference, see `.claude/rules/settings-system.md`.**
+**RULE: New per-tenant runtime configuration MUST use the settings system, not environment variables.** Env vars are for infrastructure (DB DSN, JWT secret, SMTP host). If a school admin should be able to configure it, it's a setting. Architecture, the `HasTenantOverride()` env-fallback pattern, and step-by-step guides: `.claude/rules/settings-system.md`.
 
 ## In-App Help Guide
 
-The school-facing manual lives under `/help` (three guides: Ersteinrichtung, Die App im Alltag, NFC & Tablets). Schools read it in the browser and receive it as a printable PDF generated in CI. All content is one file: `frontend/src/components/help/guide-data.ts` (`GuideChapter → GuideStep`, German). It is a living asset — it drifts the moment a screen or step changes and nobody touches it.
-
-**RULE: When you add a user-facing feature flow, or substantially change a flow that the guide already documents, update `guide-data.ts` (and any changed screenshot) in the SAME PR.** This does not apply to backend-only, operator/parents-portal-only, or pure-styling changes. When unsure: if a school user would *do something differently* after your change, the guide needs a line.
-
-**For the file map, the data model, the exact when/how, and the PDF-render caveat, see `.claude/rules/help-guide-sync.md`** (paired skill: `help-guide-sync`).
+**RULE: When you add a user-facing feature flow, or substantially change a flow the guide documents, update `frontend/src/components/help/guide-data.ts` (and changed screenshots) in the SAME PR.** Backend-only, operator/parents-only, and pure-styling changes are exempt. File map, data model, and PDF-render caveat: `.claude/rules/help-guide-sync.md`.
 
 ---
 

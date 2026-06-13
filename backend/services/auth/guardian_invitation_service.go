@@ -744,3 +744,28 @@ func (s *guardianInvitationService) persistDeliveryResult(ctx context.Context, m
 		)
 	}
 }
+
+// GetTenantSlugForToken resolves the tenant slug from a guardian invitation
+// token. Best-effort; returns "" on error.
+func (s *guardianInvitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
+	var slug string
+	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
+		if err != nil {
+			return err
+		}
+		if invitation == nil {
+			return nil
+		}
+		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		if err != nil {
+			return err
+		}
+		if school == nil || school.IsDeleted() {
+			return nil
+		}
+		slug = school.Slug
+		return nil
+	})
+	return slug
+}

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	enrollmentLegalBlockTogglesVersion     = "1.15.123"
+	enrollmentLegalBlockTogglesVersion     = "1.15.126"
 	enrollmentLegalBlockTogglesDescription = "Add explicit settings toggles for enrollment legal blocks"
 )
 
@@ -30,7 +30,7 @@ func init() {
 }
 
 func enrollmentLegalBlockTogglesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.123: Backfilling enrollment legal block toggles...")
+	fmt.Println("Migration 1.15.126: Backfilling enrollment legal block toggles...")
 
 	if _, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
@@ -63,7 +63,7 @@ func enrollmentLegalBlockTogglesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func enrollmentLegalBlockTogglesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.123: Removing enrollment legal block toggles...")
+	fmt.Println("Rolling back migration 1.15.126: Removing enrollment legal block toggles...")
 
 	if _, err := db.NewRaw(`
 		DELETE FROM config.setting_values

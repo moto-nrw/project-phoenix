@@ -216,7 +216,7 @@ func countAssignedPreviewPhases(phases []*enrollmentModels.Phase, schema *enroll
 // we fall back to the tenant's currently-active schema; if neither
 // exists, 404 → form falls back to core fields only.
 func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if rs.FormSchemaService == nil || rs.PhaseRepo == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.FormSchemaService == nil || rs.RequestService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
 		return
 	}
@@ -291,7 +291,7 @@ type PublicCaptchaConfigResponse struct {
 // publicCaptchaConfig serves the captcha config for the parent form.
 // Slug-gated, no JWT.
 func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) {
-	if rs.CaptchaService == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.CaptchaService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("captcha config endpoint not wired")))
 		return
 	}

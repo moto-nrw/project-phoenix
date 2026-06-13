@@ -150,37 +150,3 @@ func (rs *Resource) processStaffForListOptimized(
 // =============================================================================
 // UPDATE STAFF HELPERS - Reduce complexity of updateStaff handler (S3776)
 // =============================================================================
-
-// handleTeacherRecordUpdate handles creating or updating a teacher record during staff update
-// Returns the response to send and whether to exit early
-func (rs *Resource) handleTeacherRecordUpdate(
-	ctx context.Context,
-	staff *users.Staff,
-	req *StaffRequest,
-	existingTeacher *users.Teacher,
-) (interface{}, string, bool) {
-	if existingTeacher != nil {
-		existingTeacher.Specialization = req.Specialization
-		existingTeacher.Role = req.Role
-		existingTeacher.Qualifications = req.Qualifications
-
-		if rs.TeacherRepo.Update(ctx, existingTeacher) != nil {
-			return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to update teacher record", true
-		}
-
-		return newTeacherResponse(staff, existingTeacher, false, "", "", "", "", ""), "Teacher updated successfully", false
-	}
-
-	teacher := &users.Teacher{
-		StaffID:        staff.ID,
-		Specialization: req.Specialization,
-		Role:           req.Role,
-		Qualifications: req.Qualifications,
-	}
-
-	if rs.TeacherRepo.Create(ctx, teacher) != nil {
-		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to create teacher record", true
-	}
-
-	return newTeacherResponse(staff, teacher, false, "", "", "", "", ""), "Teacher updated successfully", false
-}

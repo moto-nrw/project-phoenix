@@ -9,35 +9,27 @@ Before your first contribution can be accepted, you must agree to our [Contribut
 ## Getting Started
 
 1. **Fork the repository** and clone it locally
-2. **Set up your development environment** following the instructions in [CLAUDE.md](CLAUDE.md)
+2. **Set up your development environment** following [docs/getting-started.md](docs/getting-started.md)
 3. **Create a branch** for your changes: `git checkout -b feature/your-feature-name`
 
 ## Development Workflow
 
 ### Prerequisites
 
-- Go 1.23+
-- Node.js 20+
 - Docker and Docker Compose
-- PostgreSQL 17+ (or use Docker)
+- [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/) + [direnv](https://direnv.net/docs/installation.html) (pin Go 1.25+, Node 24+, and all CLI tools)
 
 ### Quick Setup
 
 ```bash
-# Clone and setup
 git clone https://github.com/moto-nrw/project-phoenix.git
 cd project-phoenix
-
-# Generate SSL certificates (required)
-cd config/ssl/postgres && ./create-certs.sh && cd ../../..
-
-# Copy environment files
-cp backend/dev.env.example backend/dev.env
-cp frontend/.env.example frontend/.env.local
-
-# Start services
-docker compose up -d
+direnv allow              # activates the devbox environment
+./scripts/setup-dev.sh    # creates config files, SSL certs, and credentials
+docker compose up -d      # starts everything; migrations run automatically
 ```
+
+See [docs/getting-started.md](docs/getting-started.md) for seeding demo data and troubleshooting.
 
 ### Running Quality Checks
 

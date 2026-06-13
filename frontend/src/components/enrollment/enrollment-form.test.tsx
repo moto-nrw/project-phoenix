@@ -15,6 +15,7 @@ const {
   mockFetchPublicCareOfferings,
   mockFetchMyEnrollmentProfile,
   mockSubmitEnrollment,
+  mockIntlLocale,
 } = vi.hoisted(() => ({
   mockFetchPublicActiveSchema: vi.fn(),
   mockFetchPublicCaptchaConfig: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockFetchPublicCareOfferings: vi.fn(),
   mockFetchMyEnrollmentProfile: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
+  mockIntlLocale: { value: "de" },
 }));
 
 vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
@@ -41,6 +43,66 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
     fetchMyEnrollmentProfile: mockFetchMyEnrollmentProfile,
     fetchPublicCareOfferings: mockFetchPublicCareOfferings,
     submitEnrollment: mockSubmitEnrollment,
+  };
+});
+
+vi.mock("next-intl", async () => {
+  const de = (await import("~/i18n/messages/de.json")).default as Record<
+    string,
+    unknown
+  >;
+  const en = (await import("~/i18n/messages/en.json")).default as Record<
+    string,
+    unknown
+  >;
+  const catalogs: Record<string, Record<string, unknown>> = { de, en };
+  const currentCatalog = (): Record<string, unknown> =>
+    catalogs[mockIntlLocale.value] ?? de;
+  const resolve = (catalog: Record<string, unknown>, path: string): unknown =>
+    path.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, catalog);
+  const interpolate = (
+    value: string,
+    values?: Record<string, unknown>,
+  ): string =>
+    values
+      ? Object.entries(values).reduce(
+          (str, [k, v]) => str.replaceAll(`{${k}}`, String(v)),
+          value,
+        )
+      : value;
+  const makeT = (namespace?: string) => {
+    const prefix = namespace ? `${namespace}.` : "";
+    const t = (key: string, values?: Record<string, unknown>) => {
+      const catalog = currentCatalog();
+      const val = resolve(catalog, `${prefix}${key}`);
+      return typeof val === "string"
+        ? interpolate(val, values)
+        : `${prefix}${key}`;
+    };
+    t.raw = (key: string) => {
+      const catalog = currentCatalog();
+      return resolve(catalog, `${prefix}${key}`);
+    };
+    return t;
+  };
+  const cache = new Map<string, ReturnType<typeof makeT>>();
+  return {
+    useTranslations: (namespace?: string) => {
+      const cacheKey = `${mockIntlLocale.value}:${namespace ?? ""}`;
+      const existing = cache.get(cacheKey);
+      if (existing) return existing;
+      const t = makeT(namespace);
+      cache.set(cacheKey, t);
+      return t;
+    },
+    useLocale: () => mockIntlLocale.value,
+    NextIntlClientProvider: ({ children }: { children: React.ReactNode }) =>
+      children,
   };
 });
 
@@ -281,6 +343,7 @@ async function fillRequiredFields() {
 
 describe("EnrollmentForm", () => {
   beforeEach(() => {
+    mockIntlLocale.value = "de";
     mockFetchPublicActiveSchema.mockReset();
     mockFetchPublicCaptchaConfig.mockReset();
     mockFetchPublicLegalTexts.mockReset();
@@ -382,6 +445,28 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("localizes the e-mail contact notice CTA in localized public copy", async () => {
+    mockIntlLocale.value = "en";
+
+    renderForm({ localizedCopy: true });
+    await waitForLoaded();
+
+    const emailContactNotice = screen
+      .getByText(/Status-Benachrichtigungen/)
+      .closest("div");
+    expect(emailContactNotice).not.toBeNull();
+    expect(
+      within(emailContactNotice!).getByRole("button", {
+        name: "Show details for E-Mail-Kontakt",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(emailContactNotice!).queryByRole("button", {
+        name: "Mehr anzeigen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders only the configured AGB block and submits only its consent", async () => {
@@ -893,6 +978,50 @@ describe("EnrollmentForm", () => {
     expect(
       screen.getByText(/an denen Ihr Kind mit dem Bus fährt/),
     ).toBeInTheDocument();
+  });
+
+  it("localizes weekday departure mode labels and validation copy", async () => {
+    mockIntlLocale.value = "en";
+    const withDeparture = schema();
+    withDeparture.fields = [
+      ...withDeparture.fields,
+      {
+        key: "departure",
+        label: "Geh-/Abholregelung",
+        type: "weekday_mode",
+        target: "student.departure",
+        required: true,
+        applies_to_child: true,
+        sort_order: 7,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(withDeparture);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm({ localizedCopy: true });
+
+    expect(await screen.findByText("Geh-/Abholregelung")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Goes alone" })).toHaveLength(
+      5,
+    );
+    expect(screen.getAllByRole("button", { name: "Bus" })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Pickup" })).toHaveLength(5);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit enrollment" }));
+
+    expect(
+      await screen.findAllByText("Please confirm the departure arrangement."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
   it("requires at least one selected weekday for required weekday boolean fields", async () => {

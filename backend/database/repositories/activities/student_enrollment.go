@@ -308,3 +308,22 @@ func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBa
 
 	return enrollments, nil
 }
+
+// CloseOpenByGroupAndPeriod closes the open enrollments of a group for the
+// given calendar period (issue #584: moved verbatim from api/timetable).
+func (r *StudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	update := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.student_enrollments").
+		Set("valid_until = ?", validFrom).
+		Where("tenant_id = ?", tenantID).
+		Where("activity_group_id = ?", groupID).
+		Where("valid_until IS NULL")
+	if calendarPeriodID == nil {
+		update = update.Where("calendar_period_id IS NULL")
+	} else {
+		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
+	}
+	_, err := update.Exec(ctx)
+	return err
+}

@@ -37,7 +37,7 @@ type PublicLegalTextsResponse struct {
 // legal_blocks on that phase's selected form schema override the tenant
 // standard blocks.
 func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil || rs.SchoolRepo == nil || rs.db == nil {
+	if rs.RequestService == nil || rs.SchoolService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("legal texts endpoint not wired")))
 		return
 	}

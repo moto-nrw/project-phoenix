@@ -35,12 +35,12 @@ func (rs *Resource) getStudentParentNotes(w http.ResponseWriter, r *http.Request
 		renderError(w, r, ErrorForbidden(errors.New("full access required")))
 		return
 	}
-	if rs.StudentParentNoteRepo == nil {
+	if rs.StudentService == nil {
 		common.Respond(w, r, http.StatusOK, []ParentNoteResponse{}, "Parent notes retrieved successfully")
 		return
 	}
 
-	notes, err := rs.StudentParentNoteRepo.ListByStudent(r.Context(), student.ID, parentNotesStaffLimit)
+	notes, err := rs.StudentService.ListParentNotes(r.Context(), student.ID, parentNotesStaffLimit)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch parent notes", err))
 		return

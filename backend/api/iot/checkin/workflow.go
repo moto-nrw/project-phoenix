@@ -85,6 +85,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	rs.getLogger().DebugContext(ctx, "looking up RFID tag", slog.String("rfid", rfid))
 	person, err := rs.resolvePersonByRFID(ctx, rfid)
 	if err != nil {
+		rs.recordUnregisteredTagScan(ctx, rfid)
 		rs.getLogger().WarnContext(ctx, "RFID tag not found",
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
@@ -107,6 +108,23 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 		slog.Int64("person_id", person.ID),
 	)
 	return person
+}
+
+func (rs *Resource) recordUnregisteredTagScan(ctx context.Context, rfid string) {
+	if rs.UnregisteredTagScans == nil {
+		return
+	}
+	var deviceID *int64
+	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil && deviceCtx.ID > 0 {
+		id := deviceCtx.ID
+		deviceID = &id
+	}
+	if err := rs.UnregisteredTagScans.Record(ctx, rfid, deviceID); err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to record unregistered RFID scan",
+			slog.String("rfid", rfid),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // resolvePersonByRFID finds a person by RFID without rendering an HTTP response.
@@ -140,8 +158,7 @@ func (rs *Resource) lookupStudentFromPerson(ctx context.Context, personID int64)
 // resolveStudentFromPerson finds a student from a person record without rendering an HTTP response.
 // A missing student returns (nil, nil); repository failures are returned to the caller.
 func (rs *Resource) resolveStudentFromPerson(ctx context.Context, personID int64) (*users.Student, error) {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(ctx, personID)
+	student, err := rs.UsersService.GetStudentByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -154,8 +171,7 @@ func (rs *Resource) resolveStudentFromPerson(ctx context.Context, personID int64
 // resolveStaffFromPerson finds a staff record from a person record without rendering an HTTP response.
 // A missing staff member returns (nil, nil); repository failures are returned to the caller.
 func (rs *Resource) resolveStaffFromPerson(ctx context.Context, personID int64) (*users.Staff, error) {
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByPersonID(ctx, personID)
+	staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -172,8 +188,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 		slog.Int64("person_id", person.ID),
 	)
 
-	staffRepo := rs.UsersService.StaffRepository()
-	staff, err := staffRepo.FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.UsersService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil {
 		rs.getLogger().ErrorContext(r.Context(), "failed to lookup staff for person",
 			slog.Int64("person_id", person.ID),

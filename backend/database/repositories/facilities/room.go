@@ -420,3 +420,22 @@ func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBa
 	}
 	return results, nil
 }
+
+// FindByIDs retrieves rooms by their IDs. Custom method (Rule 2): the
+// generic List(filters) cannot express the empty-slice short-circuit that
+// callers rely on to skip the round trip entirely.
+func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) ([]*facilities.Room, error) {
+	rooms := make([]*facilities.Room, 0, len(ids))
+	if len(ids) == 0 {
+		return rooms, nil
+	}
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rooms).
+		ModelTableExpr(`facilities.rooms AS "room"`).
+		Where(`"room".id IN (?)`, bun.List(ids)).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return rooms, nil
+}

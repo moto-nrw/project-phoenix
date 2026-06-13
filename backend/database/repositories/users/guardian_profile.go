@@ -15,8 +15,7 @@ import (
 
 // Error messages (S1192 - avoid duplicate string literals)
 const (
-	errGuardianProfileNotFound = "guardian profile not found"
-	errRowsAffected            = "failed to get rows affected: %w"
+	errRowsAffected = "failed to get rows affected: %w"
 )
 
 // GuardianProfileRepository implements the users.GuardianProfileRepository interface
@@ -67,7 +66,7 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianProfileNotFound)
+			return nil, users.ErrGuardianProfileNotFound
 		}
 		return nil, fmt.Errorf("failed to find guardian profile: %w", err)
 	}
@@ -87,7 +86,7 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianProfileNotFound)
+			return nil, users.ErrGuardianProfileNotFound
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by email: %w", err)
 	}
@@ -99,15 +98,24 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
+	// A parent account is cross-tenant and can own one guardian_profiles row
+	// per school, so several rows may share account_id. Order deterministically:
+	// rows with an explicit portal_locale first (NULLs last), then by id. This
+	// makes a returning parent's saved portal language win even when a newer
+	// enrollment inserted a fresh row whose portal_locale is still NULL, instead
+	// of the previous nondeterministic row pick. Limit(1) keeps the single-row
+	// Scan intentional.
 	err := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".account_id = ?`, accountID).
+		OrderExpr(`"guardian_profile".portal_locale IS NULL, "guardian_profile".id`).
+		Limit(1).
 		Scan(ctx)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianProfileNotFound)
+			return nil, users.ErrGuardianProfileNotFound
 		}
 		return nil, fmt.Errorf("failed to find guardian profile by account ID: %w", err)
 	}
@@ -295,9 +303,37 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianProfileNotFound)
+		return users.ErrGuardianProfileNotFound
 	}
 
+	return nil
+}
+
+// UpdatePortalLocaleByAccountID updates portal_locale for every profile linked
+// to the parent account. Parent accounts are cross-tenant, so callers run this
+// under an admin transaction.
+func (r *GuardianProfileRepository) UpdatePortalLocaleByAccountID(ctx context.Context, accountID int64, locale string) error {
+	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.GuardianProfile)(nil)).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Set(`portal_locale = ?`, locale).
+		Set(`updated_at = NOW()`).
+		Where(`"guardian_profile".account_id = ?`, accountID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update guardian portal locale: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(errRowsAffected, err)
+	}
+	// Fail loud when the account has no guardian_profiles row. Without this the
+	// UPDATE matches zero rows, silently succeeds, and the caller reports the
+	// preference as saved — but the next read returns NULL again. Surface it so
+	// a "saved" choice that never persisted can't masquerade as success.
+	if rowsAffected == 0 {
+		return users.ErrGuardianProfileNotFound
+	}
 	return nil
 }
 
@@ -319,7 +355,7 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianProfileNotFound)
+		return users.ErrGuardianProfileNotFound
 	}
 
 	return nil
@@ -345,7 +381,7 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianProfileNotFound)
+		return users.ErrGuardianProfileNotFound
 	}
 
 	return nil
@@ -371,7 +407,7 @@ func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID
 	}
 
 	if rowsAffected == 0 {
-		return errors.New(errGuardianProfileNotFound)
+		return users.ErrGuardianProfileNotFound
 	}
 
 	return nil

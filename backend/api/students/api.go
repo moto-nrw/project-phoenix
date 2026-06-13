@@ -18,12 +18,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -31,6 +27,7 @@ import (
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -47,63 +44,51 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService          userService.PersonService
-	GuardianService        userService.GuardianService
-	StudentRepo            users.StudentRepository
-	EducationService       educationService.Service
-	UserContextService     userContextService.UserContextService
-	ActiveService          activeService.Service
-	IoTService             iotSvc.Service
-	PrivacyConsentRepo     users.PrivacyConsentRepository
-	PickupScheduleService  scheduleService.PickupScheduleService
-	ArrivalScheduleService scheduleService.ArrivalScheduleService
-	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
-	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
-	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
-	SchoolRepo             platform.SchoolRepository
-	SettingsService        configService.SettingsService
-	AttendanceRepo         active.AttendanceRepository
-	StudentStatusDayRepo   active.StudentStatusDayRepository
-	StudentParentNoteRepo  users.StudentParentNoteRepository
-	VisitRepo              active.VisitRepository
-	DataAccessLogRepo      auditModels.DataAccessLogRepository
-	Broadcaster            realtime.Broadcaster
-	StudentPhotos          userService.StudentPhotoService
-	ListExportService      listexport.Service
-	Logger                 *slog.Logger
-	Now                    func() time.Time
-	db                     *bun.DB
+	PersonService           userService.PersonService
+	GuardianService         userService.GuardianService
+	EducationService        educationService.Service
+	UserContextService      userContextService.UserContextService
+	ActiveService           activeService.Service
+	IoTService              iotSvc.Service
+	PickupScheduleService   scheduleService.PickupScheduleService
+	ArrivalScheduleService  scheduleService.ArrivalScheduleService
+	InstanceService         scheduleService.InstanceService
+	SchoolService           platformSvc.SchoolService
+	SettingsService         configService.SettingsService
+	StudentService          userService.StudentService
+	StudentStatusDayService activeService.StudentStatusDayService
+	StudentHistoryService   activeService.StudentHistoryService
+	Broadcaster             realtime.Broadcaster
+	StudentPhotos           userService.StudentPhotoService
+	ListExportService       listexport.Service
+	Logger                  *slog.Logger
+	Now                     func() time.Time
+	db                      *bun.DB
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService          userService.PersonService
-	GuardianService        userService.GuardianService
-	StudentRepo            users.StudentRepository
-	EducationService       educationService.Service
-	UserContextService     userContextService.UserContextService
-	ActiveService          activeService.Service
-	IoTService             iotSvc.Service
-	PrivacyConsentRepo     users.PrivacyConsentRepository
-	PickupScheduleService  scheduleService.PickupScheduleService
-	ArrivalScheduleService scheduleService.ArrivalScheduleService
-	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
-	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
-	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
-	SchoolRepo             platform.SchoolRepository
-	SettingsService        configService.SettingsService
-	AttendanceRepo         active.AttendanceRepository
-	StudentStatusDayRepo   active.StudentStatusDayRepository
-	StudentParentNoteRepo  users.StudentParentNoteRepository
-	VisitRepo              active.VisitRepository
-	DataAccessLogRepo      auditModels.DataAccessLogRepository
-	Broadcaster            realtime.Broadcaster
-	StudentPhotos          userService.StudentPhotoService
-	ListExportService      listexport.Service
-	Logger                 *slog.Logger
-	Now                    func() time.Time
-	DB                     *bun.DB
+	PersonService           userService.PersonService
+	GuardianService         userService.GuardianService
+	EducationService        educationService.Service
+	UserContextService      userContextService.UserContextService
+	ActiveService           activeService.Service
+	IoTService              iotSvc.Service
+	PickupScheduleService   scheduleService.PickupScheduleService
+	ArrivalScheduleService  scheduleService.ArrivalScheduleService
+	InstanceService         scheduleService.InstanceService
+	SchoolService           platformSvc.SchoolService
+	SettingsService         configService.SettingsService
+	StudentService          userService.StudentService
+	StudentStatusDayService activeService.StudentStatusDayService
+	StudentHistoryService   activeService.StudentHistoryService
+	Broadcaster             realtime.Broadcaster
+	StudentPhotos           userService.StudentPhotoService
+	ListExportService       listexport.Service
+	Logger                  *slog.Logger
+	Now                     func() time.Time
+	DB                      *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -114,32 +99,26 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 
 	return &Resource{
-		PersonService:          cfg.PersonService,
-		GuardianService:        cfg.GuardianService,
-		StudentRepo:            cfg.StudentRepo,
-		EducationService:       cfg.EducationService,
-		UserContextService:     cfg.UserContextService,
-		ActiveService:          cfg.ActiveService,
-		IoTService:             cfg.IoTService,
-		PrivacyConsentRepo:     cfg.PrivacyConsentRepo,
-		PickupScheduleService:  cfg.PickupScheduleService,
-		ArrivalScheduleService: cfg.ArrivalScheduleService,
-		PickupScheduleRepo:     cfg.PickupScheduleRepo,
-		ArrivalScheduleRepo:    cfg.ArrivalScheduleRepo,
-		InstanceStudentRepo:    cfg.InstanceStudentRepo,
-		SchoolRepo:             cfg.SchoolRepo,
-		SettingsService:        cfg.SettingsService,
-		AttendanceRepo:         cfg.AttendanceRepo,
-		StudentStatusDayRepo:   cfg.StudentStatusDayRepo,
-		StudentParentNoteRepo:  cfg.StudentParentNoteRepo,
-		VisitRepo:              cfg.VisitRepo,
-		DataAccessLogRepo:      cfg.DataAccessLogRepo,
-		Broadcaster:            cfg.Broadcaster,
-		StudentPhotos:          cfg.StudentPhotos,
-		ListExportService:      cfg.ListExportService,
-		Logger:                 cfg.Logger,
-		Now:                    now,
-		db:                     cfg.DB,
+		PersonService:           cfg.PersonService,
+		GuardianService:         cfg.GuardianService,
+		EducationService:        cfg.EducationService,
+		UserContextService:      cfg.UserContextService,
+		ActiveService:           cfg.ActiveService,
+		IoTService:              cfg.IoTService,
+		PickupScheduleService:   cfg.PickupScheduleService,
+		ArrivalScheduleService:  cfg.ArrivalScheduleService,
+		InstanceService:         cfg.InstanceService,
+		SchoolService:           cfg.SchoolService,
+		SettingsService:         cfg.SettingsService,
+		StudentService:          cfg.StudentService,
+		StudentStatusDayService: cfg.StudentStatusDayService,
+		StudentHistoryService:   cfg.StudentHistoryService,
+		Broadcaster:             cfg.Broadcaster,
+		StudentPhotos:           cfg.StudentPhotos,
+		ListExportService:       cfg.ListExportService,
+		Logger:                  cfg.Logger,
+		Now:                     now,
+		db:                      cfg.DB,
 	}
 }
 
@@ -237,7 +216,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolRepo, nil))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolService, nil))
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// RFID tag assignment endpoint
@@ -263,7 +242,7 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 		return nil, false
 	}
 
-	student, err := rs.StudentRepo.FindByID(r.Context(), id)
+	student, err := rs.PersonService.GetStudentByID(r.Context(), id)
 	if err != nil {
 		renderError(w, r, ErrorNotFound(errors.New("student not found")))
 		return nil, false
@@ -517,7 +496,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		// above, so re-applying group_id downstream would be redundant.
 	} else if params.groupID > 0 && params.locationState == "" {
 		// group-only branch keeps existing behavior
-		students, err := rs.StudentRepo.FindByGroupIDs(ctx, []int64{params.groupID})
+		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
 			return nil, 0, err
 		}
@@ -530,12 +509,12 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	queryOptions := params.buildQueryOptions()
 	countOptions := params.buildCountOptions()
 
-	totalCount, err := rs.StudentRepo.CountWithOptions(ctx, countOptions)
+	totalCount, err := rs.StudentService.CountWithOptions(ctx, countOptions)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	students, err := rs.StudentRepo.ListWithOptions(ctx, queryOptions)
+	students, err := rs.StudentService.ListWithOptions(ctx, queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -544,7 +523,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 }
 
 func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
-	studentMap, err := rs.StudentRepo.FindByIDs(ctx, studentIDs)
+	studentMap, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -738,10 +717,27 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	applyBusDays(req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 
 	return student
+}
+
+// applyDeparturePlan sets how a child leaves each weekday from a create/update
+// request. A unified DepartureDays is authoritative when present and is
+// decomposed (full replacement) onto the legacy per-day maps; otherwise the
+// legacy pickup_status/pickup_days/bus/bus_days inputs are applied. Either way
+// the repository folds bus_days + pickup_days into departure_days, the single
+// source of truth, on persist (#1610).
+func applyDeparturePlan(departure *users.DepartureDays, status *string, pickupDays *users.PickupDays, legacyBus *bool, busDays *users.BusDays, student *users.Student) {
+	if departure != nil {
+		dd := departure.Normalize()
+		student.DepartureDays = dd
+		student.BusDays = dd.BusDays()
+		student.PickupDays = dd.PickupDays()
+		return
+	}
+	reconcilePickupFields(student, status, pickupDays)
+	applyBusDays(legacyBus, busDays, student)
 }
 
 // applyBusDays sets the student's bus_days from a create/update request.
@@ -924,7 +920,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 		// Create student with the person ID
 		student.PersonID = person.ID
-		if err := rs.StudentRepo.Create(ctx, student); err != nil {
+		if err := rs.StudentService.Create(ctx, student); err != nil {
 			rs.cleanupPersonAfterStudentFailure(ctx, person.ID)
 			return err
 		}
@@ -1129,8 +1125,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	reconcilePickupFields(student, req.PickupStatus, req.PickupDays)
-	applyBusDays(req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic
@@ -1314,12 +1309,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		consentChanging := req.PhotoConsentGiven != nil &&
 			(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
 		if consentChanging {
-			if err := rs.StudentRepo.LockPhotoFeature(ctx); err != nil {
+			if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
 				return err
 			}
 		}
 
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return errStudentNotFoundUnderLock
@@ -1360,7 +1355,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}
-		if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+		if err := rs.StudentService.Update(ctx, fresh); err != nil {
 			return err
 		}
 
@@ -1393,7 +1388,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get updated student with person data
-	updatedStudent, err := rs.StudentRepo.FindByID(r.Context(), student.ID)
+	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
@@ -1444,7 +1439,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		// FOR UPDATE row-locks against any in-flight upload tx. We either
 		// observe its committed photo_path or it sees our deleted row and
 		// aborts.
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
 		}
@@ -1453,7 +1448,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 			photoToRemove = *fresh.PhotoPath
 		}
 
-		if err := rs.StudentRepo.Delete(ctx, student.ID); err != nil {
+		if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
 			return err
 		}
 

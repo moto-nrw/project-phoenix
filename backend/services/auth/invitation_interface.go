@@ -52,4 +52,9 @@ type InvitationService interface {
 	RevokeInvitation(ctx context.Context, invitationID int64, actorAccountID int64) error
 	InvalidatePendingInvitationsByTenantID(ctx context.Context, tenantID int64) (int, error)
 	CleanupExpiredInvitations(ctx context.Context) (int, error)
+	// GetTenantSlugForToken resolves the tenant slug for an invitation token.
+	// Best-effort: returns "" on any error or for deleted schools, so accept
+	// responses can still succeed without a slug (issue #584: moved verbatim
+	// out of api/auth).
+	GetTenantSlugForToken(ctx context.Context, token string) string
 }

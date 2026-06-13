@@ -299,6 +299,10 @@ type mockInvitationService struct {
 	req authSvc.InvitationRequest
 }
 
+func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
+	return ""
+}
+
 func (m *mockInvitationService) WithTx(tx bun.Tx) interface{} { return m }
 func (m *mockInvitationService) CreateInvitation(_ context.Context, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	m.req = req
@@ -338,6 +342,10 @@ func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int,
 
 type mockAuthService struct {
 	registerFn func(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
+}
+
+func (m *mockAuthService) VerifyAccountTenantMembership(_ context.Context, _, _ int64) (bool, error) {
+	return true, nil
 }
 
 func (m *mockAuthService) WithTx(_ bun.Tx) interface{} { return m }

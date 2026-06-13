@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -26,6 +27,7 @@ type Resource struct {
 	EducationService      educationSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SettingsService       configSvc.SettingsService
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	logger                *slog.Logger
 }
 
@@ -48,7 +50,12 @@ func NewResource(
 	pickupScheduleService scheduleSvc.PickupScheduleService,
 	settingsService configSvc.SettingsService,
 	logger *slog.Logger,
+	unregisteredTagScans ...auditSvc.UnregisteredTagScanService,
 ) *Resource {
+	var scanService auditSvc.UnregisteredTagScanService
+	if len(unregisteredTagScans) > 0 {
+		scanService = unregisteredTagScans[0]
+	}
 	return &Resource{
 		IoTService:            iotService,
 		UsersService:          usersService,
@@ -58,6 +65,7 @@ func NewResource(
 		EducationService:      educationService,
 		PickupScheduleService: pickupScheduleService,
 		SettingsService:       settingsService,
+		UnregisteredTagScans:  scanService,
 		logger:                logger,
 	}
 }

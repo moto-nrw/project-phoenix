@@ -14,10 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -50,15 +46,8 @@ func buildListSetup(t *testing.T) *listSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		ActiveGroupRepo:      activeRepo.NewGroupRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		VisitRepo:            activeRepo.NewVisitRepository(db),
-		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
-		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}

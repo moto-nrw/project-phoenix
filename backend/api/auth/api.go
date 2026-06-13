@@ -25,10 +25,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -53,7 +53,7 @@ type Resource struct {
 	InvitationService          authService.InvitationService
 	GuardianInvitationService  authService.GuardianInvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
-	SchoolRepo                 platform.SchoolRepository
+	SchoolService              platformSvc.SchoolService
 	// SettingsService is optional — when non-nil, resolveTenant enriches its
 	// response with tenant-scoped presence_mode so the frontend can decide
 	// between PresenceBadge and LocationBadge without a second fetch.
@@ -88,11 +88,11 @@ func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitat
 }
 
 // NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolRepo platform.SchoolRepository, db *bun.DB) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService platformSvc.SchoolService, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
 		InvitationService: invitationService,
-		SchoolRepo:        schoolRepo,
+		SchoolService:     schoolService,
 		db:                db,
 	}
 }
@@ -347,7 +347,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	school, err := rs.SchoolRepo.FindBySubdomain(r.Context(), slug)
+	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), slug)
 	if err != nil || school == nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
 		return
@@ -480,7 +480,7 @@ type AccountTenantResponse struct {
 func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	schools, err := rs.SchoolRepo.FindActiveByAccountID(r.Context(), int64(claims.ID))
+	schools, err := rs.SchoolService.ListActiveSchoolsByAccountID(r.Context(), int64(claims.ID))
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -519,7 +519,7 @@ type PublicTenantResponse struct {
 // Uses ListPublic to exclude hidden schools from the public landing page.
 // Hidden schools remain accessible via direct subdomain link.
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
-	schools, err := rs.SchoolRepo.ListPublic(r.Context())
+	schools, err := rs.SchoolService.ListPublicSchools(r.Context())
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return

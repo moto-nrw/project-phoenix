@@ -19,6 +19,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +58,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 	resource.SettingsService = svc.Settings
 
 	router := chi.NewRouter()
@@ -92,7 +94,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 	resource.SettingsService = svc.Settings
 
 	router := chi.NewRouter()
@@ -122,7 +124,7 @@ func TestResolveTenant_StudentPhotosEnabled_NilSettingsServiceFallsBackFalse(t *
 	defer func() { _ = db.Close() }()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 	// Deliberately do NOT set SettingsService — exercises the nil branch.
 
 	router := chi.NewRouter()
@@ -148,7 +150,7 @@ func TestResolveTenant_MissingSlug_400(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

@@ -5,13 +5,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -23,8 +23,7 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	InstanceRepo      schedule.ActivityInstanceRepository
-	InstanceStaffRepo schedule.InstanceStaffRepository
+	TimetableData     scheduleSvc.TimetableDataService
 	Broadcaster       realtime.Broadcaster
 }
 
@@ -50,12 +49,10 @@ func NewResource(
 // ConfigureTimetableMirror wires optional repositories used to mirror
 // PyrePortal/RFID activity sessions into the timetable instance layer.
 func (rs *Resource) ConfigureTimetableMirror(
-	instanceRepo schedule.ActivityInstanceRepository,
-	instanceStaffRepo schedule.InstanceStaffRepository,
+	timetableData scheduleSvc.TimetableDataService,
 	broadcaster realtime.Broadcaster,
 ) {
-	rs.InstanceRepo = instanceRepo
-	rs.InstanceStaffRepo = instanceStaffRepo
+	rs.TimetableData = timetableData
 	rs.Broadcaster = broadcaster
 }
 

@@ -70,7 +70,7 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if rs.instanceStudentRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance PATCH not wired")))
 		return
 	}
@@ -95,7 +95,7 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	current, err := rs.instanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	current, err := rs.timetableData.GetInstanceStudent(ctx, instanceID, studentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
@@ -114,14 +114,14 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := rs.instanceStudentRepo.UpdateAttendanceFields(ctx, current.ID, patch); err != nil {
+	if err := rs.timetableData.UpdateInstanceStudentAttendance(ctx, current.ID, patch); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update attendance failed", err))
 		return
 	}
 
 	// Re-read so the response body reflects the post-write state (including
 	// the bumped updated_at). One extra SELECT is worth the response fidelity.
-	updated, err := rs.instanceStudentRepo.FindByInstanceAndStudent(ctx, instanceID, studentID)
+	updated, err := rs.timetableData.GetInstanceStudent(ctx, instanceID, studentID)
 	if err != nil || updated == nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload updated attendance failed", err))
 		return

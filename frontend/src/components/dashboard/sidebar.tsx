@@ -12,6 +12,7 @@ import {
   useTenantSlugSafe,
 } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
@@ -228,6 +229,13 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
+      {
+        href: "/operator/unregistered-tags",
+        label: "Unbekannte RFID",
+        icon: navigationIcons.security,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
     ],
   },
   {
@@ -298,22 +306,29 @@ const ENROLLMENTS_SUB_PAGES = [
   { href: "/enrollment-form", label: "Anmeldeformulare" },
 ];
 
-const PARENT_PREVIEW_ITEMS: readonly NavItem[] = [
+// `tKey` is the parentNav catalog key; the German `label` is the fallback used
+// only when the preview list is rendered outside an intl context. Mapping on a
+// stable key (not the German label) keeps the translation correct even if the
+// fallback wording changes.
+const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
   {
     href: "#",
     label: "Kalender",
+    tKey: "calendar",
     icon: navigationIcons.calendar,
     comingSoon: true,
   },
   {
     href: "#",
     label: "Nachrichten",
+    tKey: "messages",
     icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
     href: "#",
     label: "Kontaktdaten",
+    tKey: "contactData",
     icon: navigationIcons.profile,
     comingSoon: true,
   },
@@ -352,12 +367,21 @@ interface SidebarProps {
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {
+  const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
+  const parentPreviewItems = useMemo(
+    () =>
+      PARENT_PREVIEW_ITEMS.map((item) => ({
+        ...item,
+        label: tParentNav(item.tKey),
+      })),
+    [tParentNav],
+  );
 
   // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
   // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
@@ -551,7 +575,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       {item.comingSoon ? (
         <div
           className={`group ${getLinkClasses(item.href, true)}`}
-          title="Bald verfügbar"
+          title={tParentNav("comingSoonTooltip")}
         >
           <svg
             className={getIconClasses(item)}
@@ -868,7 +892,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                 />
               </svg>
-              <span>Start</span>
+              <span>{tParentNav("start")}</span>
             </Link>
             <Link
               href="/parents/children"
@@ -887,14 +911,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   d={navigationIcons.group}
                 />
               </svg>
-              <span>Meine Kinder</span>
+              <span>{tParentNav("children")}</span>
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
-                Bald im Elternportal
+                {tParentNav("comingSoon")}
               </p>
               <div className="space-y-1">
-                {PARENT_PREVIEW_ITEMS.map((item) => (
+                {parentPreviewItems.map((item) => (
                   <div
                     key={item.label}
                     className={getLinkClasses(item.href, true)}
@@ -917,7 +941,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate">{item.label}</span>
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        Bald
+                        {tParentNav("soon")}
                       </span>
                     </span>
                   </div>

@@ -120,6 +120,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
+		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return nil, nil, false
 	}
@@ -129,7 +130,7 @@ func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, no
 		return nil, nil, false
 	}
 
-	student, err := rs.UsersService.StudentRepository().FindByPersonID(r.Context(), person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return nil, nil, false
@@ -174,13 +175,13 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
+		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return
 	}
 
 	// Get student from person
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), person.ID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return
@@ -285,6 +286,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
+		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return
 	}
@@ -321,8 +323,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 
 // lookupStudent gets student from person ID with error handling
 func (rs *Resource) lookupStudent(w http.ResponseWriter, r *http.Request, personID int64) *users.Student {
-	studentRepo := rs.UsersService.StudentRepository()
-	student, err := studentRepo.FindByPersonID(r.Context(), personID)
+	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), personID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
 		return nil

@@ -36,7 +36,7 @@ func (s *stubParentAuthService) LoginParentWithAudit(
 // reaches into them, the nil deref will surface as a test failure, which is
 // the desired guardrail.
 func newTestResource(svc authService.AuthService) *parent.Resource {
-	return parent.NewResource(svc, nil, nil, nil, nil, nil, nil)
+	return parent.NewResource(svc, nil, nil, nil, nil, nil)
 }
 
 // postLogin runs a single POST against the login handler via the resource's

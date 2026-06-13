@@ -51,8 +51,8 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	}
 
 	timetableIDs := map[int64]struct{}{}
-	if rs.InstanceStudentRepo != nil {
-		plannedIDs, err := rs.InstanceStudentRepo.FindPlannedStudentIDsByDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
+	if rs.InstanceService != nil {
+		plannedIDs, err := rs.InstanceService.GetPlannedStudentIDsByDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
 		if err != nil {
 			return err
 		}

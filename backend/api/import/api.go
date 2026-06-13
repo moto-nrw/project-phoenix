@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -17,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -41,7 +38,6 @@ const (
 type Resource struct {
 	studentImportService *importService.ImportService[importModels.StudentImportRow]
 	staffImportService   *importService.ImportService[importModels.StaffImportRow]
-	auditRepo            audit.DataImportRepository
 	personService        userSvc.PersonService
 	db                   *bun.DB
 }
@@ -50,14 +46,12 @@ type Resource struct {
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
 	staffImportService *importService.ImportService[importModels.StaffImportRow],
-	auditRepo audit.DataImportRepository,
 	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
 		studentImportService: studentImportService,
 		staffImportService:   staffImportService,
-		auditRepo:            auditRepo,
 		personService:        personService,
 		db:                   db,
 	}
@@ -205,7 +199,7 @@ func getStudentImportHeaders() []string {
 		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
 		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
 		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Abholstatus (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Bus.Mo (optional)", "Bus.Di (optional)", "Bus.Mi (optional)", "Bus.Do (optional)", "Bus.Fr (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
+		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Gehweise.Mo", "Gehweise.Di", "Gehweise.Mi", "Gehweise.Do", "Gehweise.Fr", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
 		"Ankunft.Mo (optional)", "Ankunft.Mo.Notizen (optional)", "Ankunft.Di (optional)", "Ankunft.Di.Notizen (optional)", "Ankunft.Mi (optional)", "Ankunft.Mi.Notizen (optional)", "Ankunft.Do (optional)", "Ankunft.Do.Notizen (optional)", "Ankunft.Fr (optional)", "Ankunft.Fr.Notizen (optional)",
 		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
 	}
@@ -223,8 +217,8 @@ func getStudentImportExamples() [][]any {
 			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
 			// Guardian 2: address, notes, language
 			testAddressMusterstr, "Köln", "50667", "", "de",
-			// Additional info (per-day Bus.Mo–Fr: rides Mo/Mi/Fr)
-			"", "Sehr ruhiges Kind", "", "Wird abgeholt", "Ja", 30, "Ja", "Nein", "Ja", "Nein", "Ja", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
+			// Additional info (per-day Gehweise: Bus Mo/Mi/Fr, abholung Di, alleine Do)
+			"", "Sehr ruhiges Kind", "", "Ja", 30, "bus", "abholung", "bus", "alleine", "bus", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
 			// Arrival schedule (Mon-Fri)
 			"08:00", "", "08:00", "", "08:00", "", "08:00", "", "08:30", "Frühbetreuung",
 			// Pickup schedule (Mon-Fri)
@@ -238,8 +232,8 @@ func getStudentImportExamples() [][]any {
 			"", "", "", "", "", "", "", "", "", "", "", "", "",
 			// Guardian 2: empty profile fields
 			"", "", "", "", "",
-			// Additional info (per-day Bus.Mo–Fr all set: rides every weekday)
-			"Allergie: Nüsse", "", "Kann gut malen", "Geht alleine nach Hause", "Ja", 15, "Ja", "Ja", "Ja", "Ja", "Ja", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
+			// Additional info (per-day Gehweise: rides the bus every weekday)
+			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "bus", "bus", "bus", "bus", "bus", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
 			// Arrival schedule (partial)
 			"07:45", "", "07:45", "", "07:45", "", "", "", "", "",
 			// Pickup schedule (partial)
@@ -291,8 +285,8 @@ func writeHinweiseSheet(f *excelize.File) {
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
 		23: "Schüler-Zusatzinfos",
-		37: "Abholzeiten (Montag bis Freitag)",
-		41: "Allgemeine Hinweise",
+		36: "Gehzeiten (Montag bis Freitag)",
+		40: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -325,10 +319,9 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
-		{"Abholstatus", "Nein", "Text (z.B. Wird abgeholt, Geht alleine)", "Wie das Kind nach Hause kommt"},
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},
-		{"Bus.Mo", "Nein", hintYesNo, "Buskind am Montag. Di, Mi, Do, Fr analog: Bus.Di, Bus.Mi, Bus.Do, Bus.Fr. (Ältere Dateien mit einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert: Ja = Mo–Fr.)"},
+		{"Gehweise.Mo", "Nein", "alleine, bus oder abholung", "Wie das Kind am Montag nach Hause geht. Di, Mi, Do, Fr analog: Gehweise.Di … Gehweise.Fr. Leer = geht alleine. (Ältere Dateien mit 'Abholstatus' und 'Bus.Mo'–'Bus.Fr' bzw. einer einzelnen Spalte 'Bus' werden weiterhin akzeptiert.)"},
 		{"Einschreibung von", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Beginn der Betreuung. Zukünftiges Datum: Kind wird erst dann aktiv."},
 		{"Einschreibung bis", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Ende der Betreuung; darf nicht vor 'Einschreibung von' liegen"},
 		{"AGB akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der AGB-Einwilligung. Leer = keine Einwilligung erfasst. Kein Zukunftsdatum."},
@@ -336,8 +329,8 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"E-Mail-Kontakt akzeptiert am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Einwilligung zur E-Mail-Kontaktaufnahme. Leer = keine Einwilligung."},
 		{"Foto-Einwilligung am", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Datum der Foto-Einwilligung. Leer = keine Einwilligung."},
 		// row 37: section header "Abholzeiten" (injected)
-		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Abholzeit am Montag"},
-		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Abholung am Montag"},
+		{"Abholung.Mo", "Nein", "HH:MM (z.B. 15:30, 16:00)", "Regelmäßige Gehzeit am Montag (wann das Kind geht)"},
+		{"Abholung.Mo.Notizen", "Nein", "Text", "Notiz zur Gehzeit am Montag"},
 		{"", "", "(Di, Mi, Do, Fr analog)", "Gleiche Spalten für alle Wochentage"},
 		// row 33: section header (injected)
 		// row 34: general hints
@@ -547,7 +540,7 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("person not found for account %d", accountID)
 	}
 
-	staff, err := rs.personService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("find staff for person %d: %w", person.ID, err)
 	}
@@ -560,46 +553,7 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 
 // logImportAudit creates an audit record for student import operations (GDPR compliance)
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
-	recordImportAudit(rs.auditRepo, "student", filename, result, userID, dryRun, tenantID)
-}
-
-// recordImportAudit asynchronously writes a GDPR audit record for any import
-// operation. entityType identifies the imported entity (e.g. "student", "staff").
-func recordImportAudit[T any](auditRepo audit.DataImportRepository, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in import audit logging: %v", r)
-				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		auditCtx := context.Background()
-		auditRecord := &audit.DataImport{
-			EntityType:   entityType,
-			Filename:     filename,
-			TotalRows:    result.TotalRows,
-			CreatedCount: result.CreatedCount,
-			UpdatedCount: result.UpdatedCount,
-			SkippedCount: 0, // Not tracked separately
-			ErrorCount:   result.ErrorCount,
-			WarningCount: result.WarningCount,
-			DryRun:       dryRun,
-			ImportedBy:   userID,
-			StartedAt:    result.StartedAt,
-			CompletedAt:  &result.CompletedAt,
-			Metadata:     audit.JSONBMap{},
-		}
-		auditRecord.SetTenantID(tenantID)
-		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
-			if dryRun {
-				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
-			} else {
-				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
-			}
-		}
-	}()
+	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }
 
 // =============================================================================

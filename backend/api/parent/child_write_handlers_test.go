@@ -63,7 +63,7 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		DB:            db,
 		Logger:        slog.Default(),
 	})
-	rs := parent.NewResource(nil, svc, nil, nil, nil, nil, db)
+	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
 	return rs.Router()
 }
 
@@ -243,7 +243,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		DB:            db,
 		Logger:        slog.Default(),
 	})
-	return parent.NewResource(nil, svc, nil, nil, nil, nil, db).Router()
+	return parent.NewResource(nil, svc, nil, nil, nil, db).Router()
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {

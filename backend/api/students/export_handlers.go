@@ -248,7 +248,7 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	if rs.ArrivalScheduleRepo == nil || rs.PickupScheduleRepo == nil {
+	if rs.ArrivalScheduleService == nil || rs.PickupScheduleService == nil {
 		return nil, errors.New("student schedule repositories are not configured")
 	}
 	for _, studentID := range studentIDs {
@@ -258,7 +258,7 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 		}
 	}
 	for weekday := schedule.WeekdayMonday; weekday <= schedule.WeekdayFriday; weekday++ {
-		arrivals, err := rs.ArrivalScheduleRepo.FindByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
+		arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +267,7 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 			weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
 			result[arrival.StudentID] = weekly
 		}
-		pickups, err := rs.PickupScheduleRepo.FindByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
+		pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
 		if err != nil {
 			return nil, err
 		}
@@ -296,11 +296,41 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
 			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
 			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
+			listexport.ColumnDeparture:       departureSummary(student.DepartureDays),
 			listexport.ColumnDailyNotes:      dailyNotes(student),
 			listexport.ColumnCurrentLocation: student.Location,
 		}})
 	}
 	return rows
+}
+
+// departureSummary renders the per-weekday departure plan for the export, e.g.
+// "Mo: Bus, Mi: Abholung". Alone/unset days are omitted; an all-alone plan
+// renders "Geht alleine" (#1610).
+func departureSummary(days users.DepartureDays) string {
+	modeLabels := map[users.DepartureMode]string{
+		users.DepartureBus:    "Bus",
+		users.DeparturePickup: "Abholung",
+	}
+	shortDay := map[string]string{
+		users.PickupDayMonday:    "Mo",
+		users.PickupDayTuesday:   "Di",
+		users.PickupDayWednesday: "Mi",
+		users.PickupDayThursday:  "Do",
+		users.PickupDayFriday:    "Fr",
+	}
+	parts := make([]string, 0, len(users.PickupDayOrder))
+	for _, day := range users.PickupDayOrder {
+		mode := days.ModeFor(day)
+		if mode == users.DepartureAlone {
+			continue
+		}
+		parts = append(parts, shortDay[day]+": "+modeLabels[mode])
+	}
+	if len(parts) == 0 {
+		return "Geht alleine"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func weeklyCell(plan weeklySchedule, weekday int) string {
@@ -363,8 +393,8 @@ func collectResponseIDs(students []StudentResponse) []int64 {
 
 func (rs *Resource) exportSubtitle(r *http.Request, count int) string {
 	name := "Kindersuche"
-	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolRepo != nil {
-		if school, err := rs.SchoolRepo.FindByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
+	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolService != nil {
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
 			name = school.Name
 		}
 	}

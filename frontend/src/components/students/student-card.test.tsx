@@ -440,7 +440,7 @@ describe("PickupTimeRow", () => {
   it("renders the planned pickup time", () => {
     render(<PickupTimeRow pickupTime="15:30" isException={false} now={now} />);
 
-    expect(screen.getByText(/Abholzeit:/)).toBeInTheDocument();
+    expect(screen.getByText(/Gehzeit:/)).toBeInTheDocument();
     expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
   });
 
@@ -497,7 +497,7 @@ describe("PickupTimeRow", () => {
     );
 
     expect(screen.getByText("Ganztägig abwesend")).toBeInTheDocument();
-    expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Gehzeit:/)).not.toBeInTheDocument();
   });
 
   it("renders 'Abwesend' fallback when isException is true but no notes", () => {
@@ -509,7 +509,7 @@ describe("PickupTimeRow", () => {
   it("renders the dash fallback when no pickup time exists", () => {
     render(<PickupTimeRow isException={false} now={now} />);
 
-    expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
   });
 
   it("suppresses overdue urgency once an actual pickup time is recorded", () => {

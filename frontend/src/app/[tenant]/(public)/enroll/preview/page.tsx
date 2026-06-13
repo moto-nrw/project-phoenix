@@ -7,6 +7,7 @@ import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
   PublicEnrollmentBackLink,
   PublicEnrollmentBrand,
+  PublicEnrollmentLocaleSwitcher,
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
   PublicInfoCard,
@@ -106,10 +107,13 @@ export default function EnrollmentPreviewPage() {
     : (schema?.name ?? "Basisformular");
 
   return (
-    <PublicEnrollmentPageShell>
+    <PublicEnrollmentPageShell withInlineSwitcher>
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <PublicEnrollmentBrand tenant={tenant} />
-        <PublicEnrollmentSteps current="form" />
+        <div className="flex items-center gap-3">
+          <PublicEnrollmentSteps current="form" />
+          <PublicEnrollmentLocaleSwitcher />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -151,6 +155,7 @@ export default function EnrollmentPreviewPage() {
           ) : (
             <EnrollmentForm
               gradeLevelMax={4}
+              localizedCopy
               onSubmitted={() => undefined}
               profileFetcher={previewProfileFetcher}
               previewMode
