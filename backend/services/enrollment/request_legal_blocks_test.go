@@ -88,6 +88,45 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, required)
 }
 
+func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
+	texts := LegalTexts{
+		AGB:                 "AGB Text",
+		DSGVO:               "DSGVO Text",
+		EmailContact:        "E-Mail Text",
+		Photo:               "Foto Text",
+		TermsEnabled:        true,
+		DSGVOEnabled:        false,
+		EmailContactEnabled: false,
+		PhotoEnabled:        false,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 1)
+	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
+}
+
+func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
+	texts := LegalTexts{
+		AGB:                 "AGB Text",
+		DSGVO:               "DSGVO Text",
+		EmailContact:        "E-Mail Text",
+		Photo:               "Foto Text",
+		TermsEnabled:        true,
+		DSGVOEnabled:        true,
+		EmailContactEnabled: true,
+		PhotoEnabled:        true,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 4)
+	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
+	assert.Equal(t, enrollmentModels.ConsentKeyDataProcessing, blocks[1].Key)
+	assert.Equal(t, enrollmentModels.ConsentKeyPhoto, blocks[2].Key)
+	assert.Equal(t, enrollmentModels.ConsentKeyEmailContact, blocks[3].Key)
+}
+
 // legalSettingsStub is a minimal RequestSettingsResolver for the internal
 // legal-block tests: every key present in values counts as overridden.
 type legalSettingsStub struct {
@@ -122,6 +161,9 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 	svc := &requestService{settings: &legalSettingsStub{
 		values: map[string]string{
 			configModel.KeyEnrollmentLegalDSGVOText: "DSGVO Text",
+		},
+		bools: map[string]bool{
+			configModel.KeyEnrollmentLegalDSGVOEnabled: true,
 		},
 	}}
 	schema := &enrollmentModels.FormSchema{

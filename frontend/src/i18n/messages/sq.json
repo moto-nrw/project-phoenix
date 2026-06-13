@@ -363,7 +363,9 @@
       "submit": "Dërgo regjistrimin",
       "submitting": "Duke dërguar…",
       "previewSubmit": "Parapamje, mos dërgo",
-      "showMore": "Shfaq më shumë"
+      "showMore": "Shfaq më shumë",
+      "details": "Detaje",
+      "detailsAria": "Shfaq detajet për {title}"
     },
     "consent": {
       "agb": "Pranoj kushtet e shkollës.",

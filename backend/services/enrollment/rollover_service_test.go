@@ -45,10 +45,13 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 	// The shared env submits all four standard consent flags. Configure the
-	// matching legal texts so the resolved block contract declares them —
+	// matching legal texts so the resolved block contract declares them.
 	// Submit persists only consent keys the contract knows, so an
 	// unconfigured tenant would silently drop these flags.
 	settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentLegalEmailContactEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
 	settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "AGB Text"
 	settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "DSGVO Text"
 	settings.stringValues[configModel.KeyEnrollmentLegalEmailContactText] = "E-Mail Text"

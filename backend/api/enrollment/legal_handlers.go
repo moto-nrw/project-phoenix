@@ -22,10 +22,13 @@ type PublicLegalTextsResponse struct {
 	DSGVO        string `json:"dsgvo"`
 	EmailContact string `json:"email_contact"`
 	Photo        string `json:"photo"`
-	// TermsEnabled reflects enrollment.legal_terms_enabled. The AGB block is
-	// rendered only when this is true and the AGB text is non-empty.
-	TermsEnabled bool                           `json:"terms_enabled"`
-	Blocks       []enrollmentService.LegalBlock `json:"blocks"`
+	// Standard blocks render only when their toggle is enabled and their
+	// matching text is non-empty.
+	TermsEnabled        bool                           `json:"terms_enabled"`
+	DSGVOEnabled        bool                           `json:"dsgvo_enabled"`
+	EmailContactEnabled bool                           `json:"email_contact_enabled"`
+	PhotoEnabled        bool                           `json:"photo_enabled"`
+	Blocks              []enrollmentService.LegalBlock `json:"blocks"`
 }
 
 // publicLegalTexts serves the tenant's AGB + Datenschutz Markdown for
@@ -89,6 +92,9 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 			out.EmailContact = texts.EmailContact
 			out.Photo = texts.Photo
 			out.TermsEnabled = texts.TermsEnabled
+			out.DSGVOEnabled = texts.DSGVOEnabled
+			out.EmailContactEnabled = texts.EmailContactEnabled
+			out.PhotoEnabled = texts.PhotoEnabled
 			out.Blocks = texts.Blocks
 			return nil
 		})

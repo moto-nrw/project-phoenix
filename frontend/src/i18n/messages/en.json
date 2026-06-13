@@ -393,7 +393,9 @@
       "submit": "Submit enrollment",
       "submitting": "Submitting…",
       "previewSubmit": "Preview, do not submit",
-      "showMore": "Show more"
+      "showMore": "Show more",
+      "details": "Details",
+      "detailsAria": "Show details for {title}"
     },
     "care": {
       "requiredTitle": "Required offers",

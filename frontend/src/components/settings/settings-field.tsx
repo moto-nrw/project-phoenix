@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Pencil } from "lucide-react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -44,10 +45,51 @@ function toStr(v: unknown): string {
   return JSON.stringify(v);
 }
 
+const REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR =
+  "Dieser Text ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.";
+
+const ENROLLMENT_LEGAL_TEXT_KEYS = new Set([
+  "enrollment.legal_agb_text",
+  "enrollment.legal_dsgvo_text",
+  "enrollment.legal_photo_text",
+  "enrollment.legal_email_contact_text",
+]);
+
+function isEnrollmentLegalTextKey(key: string) {
+  return ENROLLMENT_LEGAL_TEXT_KEYS.has(key);
+}
+
+const ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY: Record<string, string> = {
+  "enrollment.legal_terms_enabled": "enrollment.legal_agb_text",
+  "enrollment.legal_dsgvo_enabled": "enrollment.legal_dsgvo_text",
+  "enrollment.legal_photo_enabled": "enrollment.legal_photo_text",
+  "enrollment.legal_email_contact_enabled":
+    "enrollment.legal_email_contact_text",
+};
+
+const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
+  "enrollment.legal_agb_text": "enrollment.legal_terms_enabled",
+  "enrollment.legal_dsgvo_text": "enrollment.legal_dsgvo_enabled",
+  "enrollment.legal_photo_text": "enrollment.legal_photo_enabled",
+  "enrollment.legal_email_contact_text":
+    "enrollment.legal_email_contact_enabled",
+};
+
 function validateLocally(
   setting: ResolvedSetting,
   value: unknown,
+  categoryItems: ResolvedSetting[],
 ): string | null {
+  const legalToggleKey = ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY[setting.key];
+  if (legalToggleKey) {
+    const toggleSetting = categoryItems.find(
+      (item) => item.key === legalToggleKey,
+    );
+    if (toggleSetting?.value === true && toStr(value).trim() === "") {
+      return REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR;
+    }
+  }
+
   if (setting.type === "number") {
     const num = Number(value);
     if (isNaN(num)) return "Bitte eine Zahl eingeben.";
@@ -63,9 +105,11 @@ function validateLocally(
 
 const AUTO_SAVE_DELAY_MS = 3000;
 const HIGHLIGHT_FLASH_MS = 2200;
+const EMPTY_CATEGORY_ITEMS: ResolvedSetting[] = [];
 
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
+  readonly categoryItems?: ResolvedSetting[];
   readonly highlighted?: boolean;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
@@ -80,6 +124,7 @@ interface SettingsFieldProps {
 
 export function SettingsField({
   setting,
+  categoryItems = EMPTY_CATEGORY_ITEMS,
   highlighted = false,
   onSave,
   onReset,
@@ -92,6 +137,32 @@ export function SettingsField({
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showHighlight, setShowHighlight] = useState(false);
+  const [legalActivationOpen, setLegalActivationOpen] = useState(false);
+  const [legalActivationText, setLegalActivationText] = useState("");
+  const [legalActivationSaving, setLegalActivationSaving] = useState(false);
+  const [legalActivationError, setLegalActivationError] = useState<
+    string | null
+  >(null);
+  const [legalTextEditOpen, setLegalTextEditOpen] = useState(false);
+  const [legalTextEditDraft, setLegalTextEditDraft] = useState("");
+  const [legalTextEditSaving, setLegalTextEditSaving] = useState(false);
+  const [legalTextEditError, setLegalTextEditError] = useState<string | null>(
+    null,
+  );
+  const legalActivationTextKey =
+    ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
+  const legalActivationTextSetting = legalActivationTextKey
+    ? categoryItems.find((item) => item.key === legalActivationTextKey)
+    : undefined;
+  const isEnrollmentLegalTextSetting = isEnrollmentLegalTextKey(setting.key);
+  const legalTextWarning = getEnrollmentLegalTextWarning(
+    setting,
+    categoryItems,
+  );
+  const legalTextStoredStatus = getEnrollmentLegalStoredTextStatus(
+    setting,
+    categoryItems,
+  );
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isResettingRef = useRef(false);
@@ -114,7 +185,11 @@ export function SettingsField({
       if (debounceRef.current) clearTimeout(debounceRef.current);
       // Fire-and-forget save if user switches tab with unsaved changes
       if (isDirtyRef.current) {
-        const localErr = validateLocally(setting, localValueRef.current);
+        const localErr = validateLocally(
+          setting,
+          localValueRef.current,
+          categoryItems,
+        );
         if (!localErr) {
           void onSave(setting.key, localValueRef.current);
         }
@@ -124,25 +199,53 @@ export function SettingsField({
   }, [setting.key]);
 
   const doSave = useCallback(
-    async (value: unknown) => {
-      const localError = validateLocally(setting, value);
+    async (value: unknown): Promise<string | null> => {
+      const localError = validateLocally(setting, value, categoryItems);
       if (localError) {
         setError(localError);
-        toastError(localError);
-        return;
+        return localError;
       }
       const errorMsg = await onSave(setting.key, value);
       if (errorMsg) {
         setError(errorMsg);
         toastError(errorMsg);
+        return errorMsg;
       } else {
         setError(null);
         setIsDirty(false);
         toastSuccess("Einstellung gespeichert");
+        return null;
       }
     },
-    [setting, onSave, toastSuccess, toastError],
+    [setting, categoryItems, onSave, toastSuccess, toastError],
   );
+
+  const handleOpenLegalTextEdit = useCallback(() => {
+    setLegalTextEditDraft(toStr(localValue));
+    setLegalTextEditError(null);
+    setLegalTextEditOpen(true);
+  }, [localValue]);
+
+  const handleLegalTextEditConfirm = useCallback(async () => {
+    const trimmedText = legalTextEditDraft.trim();
+    if (trimmedText === "") {
+      setLegalTextEditError(REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR);
+      return;
+    }
+    setLegalTextEditSaving(true);
+    try {
+      const saveError = await doSave(trimmedText);
+      if (saveError) {
+        setLegalTextEditError(saveError);
+        return;
+      }
+      setLocalValue(trimmedText);
+      setLegalTextEditOpen(false);
+      setLegalTextEditError(null);
+    } finally {
+      setLegalTextEditSaving(false);
+    }
+  }, [doSave, legalTextEditDraft]);
 
   // Immediate save — for booleans and selects.
   // If the setting requires confirmation on enable OR disable (some
@@ -161,6 +264,12 @@ export function SettingsField({
 
   const handleImmediateSave = useCallback(
     async (value: unknown) => {
+      if (legalActivationTextKey && value === true) {
+        setLegalActivationText(toStr(legalActivationTextSetting?.value));
+        setLegalActivationError(null);
+        setLegalActivationOpen(true);
+        return;
+      }
       if (enableConfig && value === true) {
         pendingValueRef.current = value;
         setConfirmOpen(true);
@@ -173,8 +282,41 @@ export function SettingsField({
       }
       await doSave(value);
     },
-    [doSave, enableConfig, disableConfig],
+    [
+      doSave,
+      enableConfig,
+      disableConfig,
+      legalActivationTextKey,
+      legalActivationTextSetting?.value,
+    ],
   );
+
+  const handleLegalActivationConfirm = useCallback(async () => {
+    if (!legalActivationTextKey) return;
+    const trimmedText = legalActivationText.trim();
+    if (trimmedText === "") {
+      setLegalActivationError("Bitte tragen Sie zuerst einen Text ein.");
+      return;
+    }
+    setLegalActivationSaving(true);
+    try {
+      const textError = await onSave(legalActivationTextKey, trimmedText);
+      if (textError) {
+        setLegalActivationError(textError);
+        toastError(textError);
+        return;
+      }
+      const toggleError = await doSave(true);
+      if (toggleError) {
+        setLegalActivationError(toggleError);
+        return;
+      }
+      setLegalActivationOpen(false);
+      setLegalActivationError(null);
+    } finally {
+      setLegalActivationSaving(false);
+    }
+  }, [doSave, legalActivationText, legalActivationTextKey, onSave, toastError]);
 
   const handleConfirm = useCallback(async () => {
     setConfirmOpen(false);
@@ -287,22 +429,37 @@ export function SettingsField({
             Kann auch vom Schul-Admin geändert werden.
           </p>
         )}
+        {legalTextWarning && (
+          <p className="mt-1 text-xs font-medium text-amber-700">
+            {legalTextWarning}
+          </p>
+        )}
+        {legalTextStoredStatus && (
+          <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
+        )}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        {renderField(
-          setting,
-          localValue,
-          handleImmediateSave,
-          handleLocalChange,
-          handleBlur,
-          revealFn,
-        )}
+        {isEnrollmentLegalTextSetting
+          ? renderEnrollmentLegalTextEditor(
+              localValue,
+              setting.writable,
+              handleOpenLegalTextEdit,
+            )
+          : renderField(
+              setting,
+              localValue,
+              handleImmediateSave,
+              handleLocalChange,
+              handleBlur,
+              revealFn,
+            )}
 
         {!setting.is_default &&
           setting.writable &&
-          setting.type !== "boolean" && (
+          setting.type !== "boolean" &&
+          !isEnrollmentLegalTextKey(setting.key) && (
             <button
               type="button"
               onClick={handleReset}
@@ -351,12 +508,161 @@ export function SettingsField({
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
         </ConfirmationModal>
       )}
+
+      <ConfirmationModal
+        isOpen={legalActivationOpen}
+        onClose={() => {
+          if (legalActivationSaving) return;
+          setLegalActivationOpen(false);
+          setLegalActivationError(null);
+        }}
+        onConfirm={() => {
+          void handleLegalActivationConfirm();
+        }}
+        title={legalActivationTitle(setting.label)}
+        confirmText="Aktivieren"
+        cancelText="Abbrechen"
+        isConfirmLoading={legalActivationSaving}
+        isConfirmDisabled={legalActivationText.trim() === ""}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Dieser Block erscheint im Anmeldeformular, sobald er aktiviert ist
+            und ein Text hinterlegt wurde.
+          </p>
+          <label className="block">
+            <span className="text-sm font-medium text-gray-800">
+              Rechtstext
+            </span>
+            <textarea
+              value={legalActivationText}
+              onChange={(event) => {
+                setLegalActivationText(event.target.value);
+                setLegalActivationError(null);
+              }}
+              rows={8}
+              className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+            />
+          </label>
+          {legalActivationError && (
+            <p className="text-xs font-medium text-red-600">
+              {legalActivationError}
+            </p>
+          )}
+        </div>
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        isOpen={legalTextEditOpen}
+        onClose={() => {
+          if (legalTextEditSaving) return;
+          setLegalTextEditOpen(false);
+          setLegalTextEditError(null);
+        }}
+        onConfirm={() => {
+          void handleLegalTextEditConfirm();
+        }}
+        title={`${setting.label} bearbeiten`}
+        confirmText="Speichern"
+        cancelText="Abbrechen"
+        isConfirmLoading={legalTextEditSaving}
+        isConfirmDisabled={legalTextEditDraft.trim() === ""}
+      >
+        <div className="space-y-3">
+          <label className="block">
+            <span className="text-sm font-medium text-gray-800">
+              Rechtstext
+            </span>
+            <textarea
+              value={legalTextEditDraft}
+              onChange={(event) => {
+                setLegalTextEditDraft(event.target.value);
+                setLegalTextEditError(null);
+              }}
+              rows={10}
+              className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+            />
+          </label>
+          {(legalTextEditDraft.trim() === "" || legalTextEditError) && (
+            <p className="text-xs font-medium text-red-600">
+              {legalTextEditError ?? REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR}
+            </p>
+          )}
+        </div>
+      </ConfirmationModal>
     </div>
   );
 }
 
 function settingsFieldId(key: string) {
   return `setting-${key.replaceAll(".", "-")}`;
+}
+
+function legalActivationTitle(label: string) {
+  return `${label
+    .replace(" im Anmeldeformular anzeigen", "")
+    .replace(" anzeigen", "")} aktivieren`;
+}
+
+function getEnrollmentLegalTextWarning(
+  setting: ResolvedSetting,
+  categoryItems: ResolvedSetting[],
+): string | null {
+  if (setting.value !== true) return null;
+  const textKey = ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key];
+  if (!textKey) return null;
+  const textSetting = categoryItems.find((item) => item.key === textKey);
+  if (toStr(textSetting?.value).trim() !== "") return null;
+  return "Wird erst im Anmeldeformular angezeigt, wenn der passende Text eingetragen ist.";
+}
+
+function getEnrollmentLegalStoredTextStatus(
+  setting: ResolvedSetting,
+  categoryItems: ResolvedSetting[],
+): string | null {
+  if (setting.value !== false) return null;
+  const textKey = ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key];
+  if (!textKey) return null;
+  const textSetting = categoryItems.find((item) => item.key === textKey);
+  if (toStr(textSetting?.value).trim() === "") return null;
+  return "Text ist gespeichert, wird aber nicht angezeigt.";
+}
+
+function renderEnrollmentLegalTextEditor(
+  value: unknown,
+  writable: boolean,
+  onEdit: () => void,
+) {
+  const preview = toStr(value).trim();
+  return (
+    <div className="w-full sm:w-96">
+      <div
+        className={`relative min-h-24 overflow-hidden rounded-lg border text-sm leading-6 ${
+          preview
+            ? "border-gray-100 bg-gray-50 text-gray-700"
+            : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={onEdit}
+          disabled={!writable}
+          aria-label="Rechtstext bearbeiten"
+          title="Bearbeiten"
+          className="absolute top-2 right-2 inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+        {preview ? (
+          <p className="max-h-40 overflow-y-auto py-2 pr-12 pl-3 whitespace-pre-wrap">
+            {preview}
+          </p>
+        ) : (
+          <p className="py-2 pr-12 pl-3">Noch kein Text hinterlegt.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function renderField(
