@@ -17,7 +17,7 @@ This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and
 | Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`); importing the other components by their file path is correct and expected.
+Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`, `custom-select`, `listbox-dropdown`); importing the other components by their file path is correct and expected.
 
 ## Study these first — canonical reference screens
 
@@ -37,12 +37,12 @@ Keep this list current: if a reference is deleted or substantially rewritten, re
 
 Don't design from imagination. The app's real screens are captured as images you can open directly with the Read tool:
 
-- **App screenshots** → `frontend/public/help/screens/*.webp` (52 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
+- **App screenshots** → `frontend/public/help/screens/*.webp` (~50 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
   - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities · `feedback.webp` = feedback
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
-- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` → :6006). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
+- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
 
 Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
 
@@ -71,6 +71,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
 | Info / stat card | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
 | Detail-panel fields | `DataField`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
+| Select dropdown (form value) | `CustomSelect`, `ListboxDropdown` (keyboard/ARIA listbox) | `~/components/ui/custom-select`, `~/components/ui/listbox-dropdown` |
 | Date / range picker | `DatePicker`, date-range picker | `~/components/ui/date-picker`, `~/components/ui/date-range-picker` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
@@ -91,7 +92,7 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 `rounded-sm`=4px · `rounded-md`=8px · `rounded-lg`=12px · `rounded-xl`=16px · `rounded-2xl`=24px · `rounded-full`=9999px
 
-- **Card / panel / floating surface wrapper** → `rounded-2xl border border-gray-200 bg-white shadow-sm`. 24px = the design system's `--card-radius`; this is the canonical card (used 13×+ across the app and in `InfoCard`). Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
+- **Card / panel / floating surface wrapper** → the `.moto-content-surface` utility class (defined in `globals.css`: white bg, gray-200 border color, shadow-sm, backdrop blur, print-mode resets) combined with `rounded-2xl border p-4 shadow-sm sm:p-6` — this is what `InfoCard` renders and the dominant card surface across the app. The plain-Tailwind equivalent `rounded-2xl border border-gray-200 bg-white shadow-sm` also appears; prefer `moto-content-surface` for new cards. 24px = the design system's `--card-radius`. Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
 - Inner controls (buttons, inputs, pills) get their radius from the kit component. Don't sprinkle bare `rounded` (= 4px Tailwind default, off the brand scale).
 - Component radius tokens: button & input = `--radius-md` (8px), card = `--radius-2xl` (24px), badge/pill = `--radius-full`.
 
@@ -107,10 +108,11 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 | Orange | `#F78C10` | `SCHOOLYARD` |
 | Magenta | `#D946EF` | `TRANSIT` |
 | Amber | `#EAB308` | `SICK` |
+| Blue (class trip) | `#5080D8` | `CLASS_TRIP` |
 | Purple | `#7C3AED` | `EXCUSED` |
 | Gray (neutral) | `#6B7280` | `UNKNOWN` / `NOT_ARRIVAL` |
 
-Primary action button green: base `#83CD2D`, hover `#74b827`, active `#669f21`.
+Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74b827`, active `#669f21`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 
@@ -128,7 +130,7 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-The kit does **not** yet have a compact / ghost / icon-only button or a generic `DropdownMenu`. When you need one, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+The kit does **not** yet have a compact / ghost / icon-only button, or a generic action-menu `DropdownMenu` (select-style dropdowns exist: `CustomSelect`/`ListboxDropdown`; kebab menus: `OverflowMenu`). When you need one, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 

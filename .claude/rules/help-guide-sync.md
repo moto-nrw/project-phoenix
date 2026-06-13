@@ -23,6 +23,7 @@ Three guides plus a landing page, all rendered from one content file:
 |------|------|
 | `frontend/src/components/help/guide-data.ts` | **The content.** All chapters, steps, callouts, screenshot captions. German text. This is what you edit. |
 | `frontend/src/components/help/guide-components.tsx` | Rendering: `GuideShell`, `HelpHeader`, `EntryPointCard` |
+| `frontend/src/components/help/guide-search.ts` + `help-search.tsx` | Guide search — the index derives from `guide-data.ts`; `help-search-sync.test.ts` guards the sync |
 | `frontend/src/components/help/guide-pdf-button.tsx` | Download button for the rendered PDF |
 | `frontend/src/components/help/help-back-button.tsx` | "Zurück" — `router.back()`, falls back to `/`. Lets kiosk/app users return after opening Hilfe. |
 | `frontend/src/app/help/{page,setup/page,features/page,nfc/page}.tsx` | The four pages; each wires one chapter set into `GuideShell` |
@@ -54,8 +55,11 @@ interface GuideStep {
   image?: string;                // path under /public, e.g. "/help/screens/feedback.webp"
   gallery?: readonly { image; caption }[]; // captioned grid instead of one image (NFC tablet states)
   icon?: LucideIcon;             // shown instead of a number badge on reference pages
+  printCompact?: boolean;        // tighter print spacing + keeps the card on one PDF page
 }
 ```
+
+(The authoritative shape is the interface in `guide-data.ts` — trust it over this copy.)
 
 Notes:
 - `screenshot` is the **caption/intent** and is always present; `image` is the actual file and is optional (a step with no `image` renders no placeholder).

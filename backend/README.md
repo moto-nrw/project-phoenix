@@ -10,7 +10,7 @@ GDPR-compliant RFID student attendance and room management system for educationa
 | Router | chi/v5 |
 | ORM | bun (pgdialect, pgdriver) |
 | Database | PostgreSQL 17+ (multi-schema, SSL) |
-| Auth | JWT via lestrrat-go/jwx/v2, chi/jwtauth |
+| Auth | JWT via lestrrat-go/jwx/v3, chi/jwtauth |
 | Config | Viper + Cobra CLI |
 | Logging | log/slog (stdlib) |
 | Email | go-mail |
@@ -42,8 +42,7 @@ go run main.go migrate              # Run pending migrations
 go run main.go migrate reset        # Drop and recreate all tables
 go run main.go migrate status       # Show migration status
 go run main.go migrate validate     # Validate migration dependencies
-go run main.go seed                 # Seed database with test data
-go run main.go seed --api           # Seed via API calls (smaller demo dataset)
+go run main.go seed --email <op-email> --password '<pw>' --pin 1234   # Seed test data via API (flags + running server required)
 go run main.go cleanup visits       # Delete expired visit records (GDPR)
 go run main.go cleanup preview      # Dry-run cleanup
 go run main.go cleanup stats        # Data retention statistics
