@@ -816,51 +816,62 @@ func (s *service) broadcastToEducationalGroup(ctx context.Context, student *user
 	}
 }
 
-// broadcastStudentCheckoutEvents sends checkout SSE events for each visit.
-// This helper reduces cognitive complexity in session timeout processing.
-//
-// TODO(wp-b11-or-later): batch if hot. Each visit triggers two independent
-// schedule queries inside LoadAttendanceForVisit (FindByActiveGroupID,
-// FindByInstanceAndStudent). A session timeout flushing N students = 2N
-// queries. Not catastrophic at v1 scale, but if schools grow we should add
-// a batched FindByInstanceAndStudentIDs path. Not scoped into WP-B10.
+// broadcastStudentCheckoutEvents sends a batched checkout SSE notification when
+// a whole session ends. All visits in the batch share one active_group_id (the
+// session). Instead of one student_checkout per student — which produced 2N+
+// events on a single client channel and overflowed its 10-slot buffer
+// (issue #848) — this emits one bulk_student_checkout per affected topic:
+// one to the active-group topic carrying every student, and one per distinct
+// educational group carrying that group's students. SSE events are triggers,
+// not payloads (the client refetches via bulk endpoints), so the per-student
+// attendance snapshot the old loop computed — at a cost of 2N schedule queries
+// — is dropped; only the student IDs are carried, to drive the client's
+// per-student detail-cache invalidation.
 func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
-	// Parse session ID once — all visits in this batch share the same
-	// active_group_id, which IS the session. We construct a minimal Visit
-	// per student for the snapshot lookup.
-	var sessionID int64
-	if parsed, perr := strconv.ParseInt(sessionIDStr, 10, 64); perr == nil {
-		sessionID = parsed
+	if len(visitsToNotify) == 0 {
+		return
 	}
 
+	// Collect every student ID for the active-group topic, and bucket them by
+	// educational group for the per-edu-group topics. eduReps keeps one student
+	// per group so broadcastToEducationalGroup can derive the edu:{id} topic.
+	allStudentIDs := make([]string, 0, len(visitsToNotify))
+	eduGroups := make(map[int64][]string)
+	eduReps := make(map[int64]*userModels.Student)
 	for _, visitData := range visitsToNotify {
-		studentIDStr := fmt.Sprintf("%d", visitData.StudentID)
-		studentName := visitData.Name
-
-		data := realtime.EventData{
-			StudentID:   &studentIDStr,
-			StudentName: &studentName,
+		idStr := strconv.FormatInt(visitData.StudentID, 10)
+		allStudentIDs = append(allStudentIDs, idStr)
+		if visitData.Student != nil && visitData.Student.GroupID != nil {
+			gid := *visitData.Student.GroupID
+			eduGroups[gid] = append(eduGroups[gid], idStr)
+			if eduReps[gid] == nil {
+				eduReps[gid] = visitData.Student
+			}
 		}
-		if s.attendanceSyncer != nil && sessionID > 0 {
-			snapshot := s.attendanceSyncer.LoadAttendanceForVisit(ctx, &active.Visit{
-				StudentID:     visitData.StudentID,
-				ActiveGroupID: sessionID,
-			})
-			applyAttendanceSnapshot(&data, snapshot)
-		}
-
-		checkoutEvent := realtime.NewEvent(
-			realtime.EventStudentCheckOut,
-			sessionIDStr,
-			data,
-		)
-
-		s.broadcastWithLogging(ctx, sessionIDStr, studentIDStr, checkoutEvent, "student_checkout")
-		s.broadcastToEducationalGroup(ctx, visitData.Student, checkoutEvent)
 	}
 
-	// Single global broadcast for the entire batch
-	if len(visitsToNotify) > 0 && s.broadcaster != nil {
+	// One event to the active-group topic carrying every checked-out student.
+	activeEvent := realtime.NewEvent(
+		realtime.EventBulkStudentCheckOut,
+		sessionIDStr,
+		realtime.EventData{StudentIDs: &allStudentIDs},
+	)
+	s.broadcastWithLogging(ctx, sessionIDStr, "", activeEvent, "bulk_student_checkout")
+
+	// One event per distinct educational group, carrying only that group's
+	// students so each subscribed client invalidates the right detail caches.
+	for gid, ids := range eduGroups {
+		groupIDs := ids
+		eduEvent := realtime.NewEvent(
+			realtime.EventBulkStudentCheckOut,
+			sessionIDStr,
+			realtime.EventData{StudentIDs: &groupIDs},
+		)
+		s.broadcastToEducationalGroup(ctx, eduReps[gid], eduEvent)
+	}
+
+	// Single global broadcast for the entire batch.
+	if s.broadcaster != nil {
 		_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, "", activeSupervisionReasonStudentMoved)
 	}

@@ -301,6 +301,23 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "bulk_student_checkout": {
+          // Whole-session end (#848): one event per topic carrying every
+          // affected student. Mirror student_checkout — invalidate the
+          // session's group caches plus each student's detail cache — but read
+          // the batched student_ids list instead of a single student_id.
+          if (event.active_group_id) {
+            pendingGroupIds.current.add(event.active_group_id);
+          }
+          if (event.data.student_ids) {
+            for (const id of event.data.student_ids) {
+              pendingStudentIds.current.add(id);
+            }
+          }
+          scheduleFlush();
+          break;
+        }
+
         case "student_updated": {
           hasPendingStudentUpdateEvent.current = true;
           scheduleFlush();

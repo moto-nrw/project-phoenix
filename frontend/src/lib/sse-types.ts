@@ -3,6 +3,10 @@
 type SSEEventType =
   | "student_checkin"
   | "student_checkout"
+  // Batched checkout emitted when a whole session ends (manual end or
+  // scheduler timeout). One event per topic carries all affected student IDs
+  // instead of one student_checkout per student — see backend issue #848.
+  | "bulk_student_checkout"
   | "student_updated"
   | "activity_start"
   | "activity_end"
@@ -28,6 +32,9 @@ interface SSEEventData {
   student_name?: string;
   school_class?: string;
   group_name?: string; // Student's OGS group
+
+  // Affected students on a bulk_student_checkout event (whole-session end).
+  student_ids?: string[];
 
   // Activity session fields (for activity_start/end/update events)
   activity_name?: string;
