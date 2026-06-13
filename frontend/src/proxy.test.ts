@@ -185,6 +185,7 @@ describe("proxy", () => {
       "/accounts",
       "/devices",
       "/persons",
+      "/unregistered-tags",
     ])("rewrites %s to /operator%s", (path) => {
       const res = proxy(
         makeRequest(`http://${OPERATOR_HOSTNAME}${path}`, OPERATOR_HOSTNAME),
@@ -192,6 +193,20 @@ describe("proxy", () => {
 
       const rewrite = res.headers.get("x-middleware-rewrite");
       expect(rewrite).toContain(`/operator${path}`);
+    });
+
+    it("keeps unregistered tag filter query params on clean operator URLs", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${OPERATOR_HOSTNAME}/unregistered-tags?resolved=all&organization_id=7`,
+          OPERATOR_HOSTNAME,
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain(
+        "/operator/unregistered-tags?resolved=all&organization_id=7",
+      );
     });
 
     it("passes through /_next routes", () => {

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 type resolveUnregisteredTagScanRequest struct {
@@ -55,6 +56,11 @@ func (rs *Resource) ResolveUnregisteredTagScan(w http.ResponseWriter, r *http.Re
 	}
 	scan, err := rs.unregisteredTagScans.Resolve(r.Context(), scanID, operatorID, note)
 	if err != nil {
+		var dbErr *modelBase.DatabaseError
+		if errors.As(err, &dbErr) {
+			common.RenderError(w, r, ErrInternal("Failed to resolve unregistered RFID scan"))
+			return
+		}
 		common.RenderError(w, r, ErrInvalidRequest(err))
 		return
 	}
