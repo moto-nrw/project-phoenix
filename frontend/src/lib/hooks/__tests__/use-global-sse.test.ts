@@ -344,6 +344,36 @@ describe("useGlobalSSE", () => {
       }
     });
 
+    it("handles a bulk_student_checkout with no active_group_id and no student_ids without invalidating those caches", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      // Defensive path: a malformed/empty bulk event must not throw and must
+      // not invalidate group or per-student caches (both guard conditions are
+      // false). It still schedules a flush — the dashboard refresh is harmless.
+      onMessage?.({
+        type: "bulk_student_checkout",
+        active_group_id: "",
+        data: {},
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+
+      const touchedSupervisionOrStudent = mutateCalls.some((call) => {
+        const matcher = call[0];
+        if (typeof matcher !== "function") return false;
+        const fn = matcher as (key: string) => boolean;
+        return (
+          fn("tenant:supervision-visits-123") || fn("tenant:student-detail-42")
+        );
+      });
+      expect(touchedSupervisionOrStudent).toBe(false);
+    });
+
     it("invalidates activity caches on activity_start event", () => {
       renderHook(() => useGlobalSSE());
 
