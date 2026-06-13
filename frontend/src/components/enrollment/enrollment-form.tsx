@@ -1827,7 +1827,7 @@ function Consent({
   return (
     <div>
       <label
-        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors ${
           checked
             ? "border-[#83CD2D]/40 bg-[#83CD2D]/10"
             : error
@@ -1835,7 +1835,7 @@ function Consent({
               : "border-gray-200 bg-white hover:border-gray-300"
         }`}
       >
-        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
           <input
             name={name}
             type="checkbox"
@@ -1883,8 +1883,8 @@ function EmailContactNotice({
   readonly onViewLegal?: () => void;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-700">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[#5080D8]/30 bg-white text-[#5080D8]">
+    <div className="flex items-center gap-3 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-700">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[#5080D8]/30 bg-white text-[#5080D8]">
         <Info className="h-3.5 w-3.5" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
@@ -1922,7 +1922,7 @@ function LegalDetailsButton({
         }
         onClick?.();
       }}
-      className="mt-0.5 inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      className="inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
       <span>Details</span>
