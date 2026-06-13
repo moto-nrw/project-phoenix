@@ -15,6 +15,64 @@ export function hasAnyRole(
 }
 
 /**
+ * Match a single permission component (resource or action) against the value a
+ * required permission demands. Mirrors the backend's `matchesPattern`
+ * (backend/auth/authorize/permission.go): exact match, a bare `*`, or a
+ * prefix wildcard like `group*`.
+ */
+function matchesPattern(pattern: string, required: string): boolean {
+  if (pattern === required || pattern === "*") return true;
+  if (pattern.endsWith("*")) {
+    return required.startsWith(pattern.slice(0, -1));
+  }
+  return false;
+}
+
+/**
+ * Check if the user holds a specific permission (e.g. "groups:read").
+ *
+ * This is a faithful port of the backend authorizer
+ * (backend/auth/authorize/permission.go `hasPermission`), so a client-side
+ * capability check can never silently diverge from what the backend will
+ * actually allow. It honours the same wildcards the backend grants:
+ *   - the admin wildcards `admin:*` / `*:*` (grant everything),
+ *   - resource/action wildcards such as `groups:*` or `groups*`.
+ *
+ * Permissions are resolved server-side and carried in the JWT. Use this to
+ * gate client-side work (e.g. polling) on what the backend will allow, rather
+ * than firing requests that are guaranteed to 403.
+ */
+export function hasPermission(
+  session: Session | null,
+  permission: string,
+): boolean {
+  const permissions = session?.user?.permissions;
+  if (!permissions) return false;
+
+  // Empty requirement always matches (mirrors the backend short-circuit).
+  if (permission === "") return true;
+
+  // Admin wildcard grants everything.
+  if (permissions.some((perm) => perm === "admin:*" || perm === "*:*")) {
+    return true;
+  }
+
+  const requiredParts = permission.split(":");
+  if (requiredParts.length !== 2) return false; // invalid format
+  const [requiredResource, requiredAction] = requiredParts as [string, string];
+
+  return permissions.some((perm) => {
+    const parts = perm.split(":");
+    if (parts.length !== 2) return false; // invalid format
+    const [resource, action] = parts as [string, string];
+    return (
+      matchesPattern(resource, requiredResource) &&
+      matchesPattern(action, requiredAction)
+    );
+  });
+}
+
+/**
  * Check if the user is an admin
  */
 export function isAdmin(session: Session | null): boolean {

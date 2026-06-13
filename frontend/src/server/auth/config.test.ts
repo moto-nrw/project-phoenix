@@ -148,6 +148,32 @@ describe("authConfig", () => {
       expect(result?.refreshTokenExpiry).toBeDefined();
     });
 
+    it("should carry permissions from user onto the token", async () => {
+      const user = {
+        id: "123",
+        name: "Test User",
+        email: "test@example.com",
+        token: "access-token",
+        refreshToken: "refresh-token",
+        roles: ["user"],
+        permissions: ["groups:read", "groups:update"],
+        firstName: "Test",
+        isAdmin: false,
+      };
+
+      const result = await authConfig.callbacks?.jwt?.({
+        token: {},
+        user,
+        account: null,
+        profile: undefined,
+        trigger: "signIn",
+        isNewUser: false,
+        session: undefined,
+      });
+
+      expect(result?.permissions).toEqual(["groups:read", "groups:update"]);
+    });
+
     it("should return token unchanged when no user", async () => {
       const token = {
         id: "123",
@@ -534,6 +560,29 @@ describe("authConfig", () => {
       expect(user?.roles).toEqual(["teacher"]);
       expect(user?.firstName).toBe("Test");
       expect(user?.isAdmin).toBe(false);
+    });
+
+    it("should expose permissions from the token on the session", () => {
+      const session = {
+        user: { id: "", email: "", name: "" },
+        expires: "2099-12-31",
+      };
+
+      const token = {
+        id: "123",
+        email: "test@example.com",
+        token: "access-token",
+        refreshToken: "refresh-token",
+        roles: ["user"],
+        permissions: ["groups:read"],
+        firstName: "Test",
+        isAdmin: false,
+      };
+
+      const result = callSessionCallback({ session, token });
+      const user = result?.user as Record<string, unknown> | undefined;
+
+      expect(user?.permissions).toEqual(["groups:read"]);
     });
 
     it("should return minimal session when token has error", () => {

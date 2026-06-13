@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import {
   hasRole,
   hasAnyRole,
+  hasPermission,
   isAdmin,
   isCaregiver,
   isAuthenticated,
@@ -98,6 +99,107 @@ describe("auth-utils", () => {
 
       expect(hasAnyRole(session, ["user", "teacher"])).toBe(true);
       expect(hasAnyRole(session, ["teacher", "moderator"])).toBe(false);
+    });
+  });
+
+  describe("hasPermission", () => {
+    it("should return true when the user holds the permission", () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "test@example.com",
+          roles: ["user"],
+          permissions: ["groups:read", "groups:update"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(hasPermission(session, "groups:read")).toBe(true);
+    });
+
+    it("should return false when the user lacks the permission", () => {
+      const session: Session = {
+        user: {
+          id: "1",
+          email: "test@example.com",
+          roles: ["guest"],
+          permissions: ["users:read", "rooms:read"],
+          token: "token",
+        },
+        expires: "2024-12-31",
+      };
+
+      expect(hasPermission(session, "groups:read")).toBe(false);
+    });
+
+    it("should return false when permissions are absent or session is null", () => {
+      const session = {
+        user: { id: "1", email: "test@example.com", token: "token" },
+        expires: "2024-12-31",
+      } as Session;
+
+      expect(hasPermission(session, "groups:read")).toBe(false);
+      expect(hasPermission(null, "groups:read")).toBe(false);
+    });
+
+    // The backend authorizer (backend/auth/authorize/permission.go) grants a
+    // permission via several wildcard forms. hasPermission must honour the
+    // same ones, or a legitimately-permitted user is wrongly treated as
+    // lacking access on the client.
+    const wildcardSession = (perms: string[]): Session => ({
+      user: {
+        id: "1",
+        email: "test@example.com",
+        permissions: perms,
+        token: "token",
+      },
+      expires: "2024-12-31",
+    });
+
+    it("should grant via the admin wildcards admin:* and *:*", () => {
+      expect(hasPermission(wildcardSession(["admin:*"]), "groups:read")).toBe(
+        true,
+      );
+      expect(hasPermission(wildcardSession(["*:*"]), "groups:read")).toBe(true);
+    });
+
+    // Resource-level wildcards (groups:*, group*) are NOT granted today: the
+    // permission catalog is a fixed set of literal resource:action strings plus
+    // admin:* / *:*, and AssignPermissionToRole takes a permission ID (FK), so
+    // no role can hold a string like groups:*. These cases therefore can't fire
+    // in production right now. We keep covering them on purpose: hasPermission
+    // mirrors the backend authorizer (backend/auth/authorize/permission.go), and
+    // the day a resource wildcard is ever seeded the gate must already honour it
+    // — otherwise a legitimately-permitted user is wrongly locked out (the exact
+    // failure mode of issue #846, just reintroduced).
+    it("should grant via a resource action-wildcard (groups:*)", () => {
+      expect(hasPermission(wildcardSession(["groups:*"]), "groups:read")).toBe(
+        true,
+      );
+    });
+
+    it("should grant via a prefix wildcard on a component (group*)", () => {
+      expect(
+        hasPermission(wildcardSession(["group*:read"]), "groups:read"),
+      ).toBe(true);
+    });
+
+    it("should not grant when a different resource wildcard is held", () => {
+      expect(hasPermission(wildcardSession(["users:*"]), "groups:read")).toBe(
+        false,
+      );
+    });
+
+    it("should reject malformed required permissions and entries", () => {
+      // Required string without a single resource:action split never matches.
+      expect(hasPermission(wildcardSession(["groups:read"]), "groups")).toBe(
+        false,
+      );
+      // A malformed entry in the list is ignored, not matched.
+      expect(hasPermission(wildcardSession(["groups"]), "groups:read")).toBe(
+        false,
+      );
     });
   });
 
