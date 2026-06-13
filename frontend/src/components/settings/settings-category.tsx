@@ -1,6 +1,6 @@
 "use client";
 
-import type { SchemaCategory } from "~/lib/settings-api";
+import type { ResolvedSetting, SchemaCategory } from "~/lib/settings-api";
 import { SettingsField } from "./settings-field";
 
 // Override labels for category keys that don't capitalize cleanly via CSS
@@ -12,6 +12,25 @@ const categoryLabelOverrides: Record<string, string> = {
 
 function displayCategoryLabel(category: SchemaCategory): string {
   return categoryLabelOverrides[category.key] ?? category.label;
+}
+
+const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
+  "enrollment.legal_agb_text": "enrollment.legal_terms_enabled",
+  "enrollment.legal_dsgvo_text": "enrollment.legal_dsgvo_enabled",
+  "enrollment.legal_photo_text": "enrollment.legal_photo_enabled",
+  "enrollment.legal_email_contact_text":
+    "enrollment.legal_email_contact_enabled",
+};
+
+function shouldShowCategoryItem(
+  item: ResolvedSetting,
+  items: ResolvedSetting[],
+): boolean {
+  if (!item.visible) return false;
+  const toggleKey = ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY[item.key];
+  if (!toggleKey) return true;
+  const toggle = items.find((candidate) => candidate.key === toggleKey);
+  return toggle?.value === true;
 }
 
 interface SettingsCategoryProps {
@@ -38,7 +57,9 @@ export function SettingsCategory({
   audience = "admin",
   revealFn,
 }: SettingsCategoryProps) {
-  const visibleItems = category.items.filter((item) => item.visible);
+  const visibleItems = category.items.filter((item) =>
+    shouldShowCategoryItem(item, category.items),
+  );
 
   if (visibleItems.length === 0) {
     return null;
@@ -54,6 +75,7 @@ export function SettingsCategory({
           <SettingsField
             key={setting.key}
             setting={setting}
+            categoryItems={category.items}
             highlighted={setting.key === highlightKey}
             onSave={onSave}
             onReset={onReset}

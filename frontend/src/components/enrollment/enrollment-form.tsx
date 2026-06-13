@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Lock, Plus, Trash2 } from "lucide-react";
+import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTenant } from "~/components/tenant/tenant-provider";
 import {
@@ -1235,6 +1235,7 @@ export function EnrollmentForm({
                 required={block.required}
                 error={fieldErrors[`consent_${block.key}`]}
                 legalText={block.text}
+                legalTitle={block.title}
                 onViewLegal={
                   block.text ? () => setOpenLegalDoc(block) : undefined
                 }
@@ -1786,6 +1787,11 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
       blocks.find((block) => block.key === "email_contact")?.text ?? "",
     photo: blocks.find((block) => block.key === "photo")?.text ?? "",
     terms_enabled: blocks.some((block) => block.key === "agb"),
+    dsgvo_enabled: blocks.some((block) => block.key === "data_processing"),
+    email_contact_enabled: blocks.some(
+      (block) => block.key === "email_contact",
+    ),
+    photo_enabled: blocks.some((block) => block.key === "photo"),
     blocks,
   };
 }
@@ -1798,6 +1804,7 @@ function Consent({
   required = false,
   error,
   legalText,
+  legalTitle,
   onViewLegal,
 }: {
   readonly name: string;
@@ -1813,6 +1820,7 @@ function Consent({
    * configured a document still get a working form.
    */
   readonly legalText?: string;
+  readonly legalTitle?: string;
   readonly onViewLegal?: () => void;
 }) {
   const hasLink = Boolean(legalText && legalText.trim() && onViewLegal);
@@ -1847,21 +1855,11 @@ function Consent({
           {label} {required && <span className="text-[#FF3130]">*</span>}
         </span>
         {hasLink && (
-          <button
-            type="button"
-            // Inside the <label>, a plain click would toggle the
-            // checkbox. Prevent that so "anzeigen" only opens the
-            // document. shrink-0 + the flex-1 label above keep this
-            // pinned to the right edge of the box on every width.
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onViewLegal?.();
-            }}
-            className="mt-0.5 shrink-0 font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
-          >
-            Mehr anzeigen
-          </button>
+          <LegalDetailsButton
+            title={legalTitle ?? label}
+            onClick={onViewLegal}
+            preventLabelToggle
+          />
         )}
       </label>
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
@@ -1885,18 +1883,50 @@ function EmailContactNotice({
   readonly onViewLegal?: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-[#5080D8]/20 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-600">
-      <span>{block.label}</span>{" "}
-      {onViewLegal && (
-        <button
-          type="button"
-          onClick={onViewLegal}
-          className="font-semibold text-[#5080D8] underline underline-offset-2 hover:text-[#3F66AE]"
-        >
-          Mehr anzeigen
-        </button>
-      )}
+    <div className="flex items-start gap-3 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/5 p-3 text-sm leading-6 text-gray-700">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[#5080D8]/30 bg-white text-[#5080D8]">
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            Hinweis
+          </span>
+        </div>
+        <span className="font-medium">{block.label}</span>{" "}
+        {onViewLegal && (
+          <LegalDetailsButton title={block.title} onClick={onViewLegal} />
+        )}
+      </div>
     </div>
+  );
+}
+
+function LegalDetailsButton({
+  title,
+  onClick,
+  preventLabelToggle = false,
+}: {
+  readonly title: string;
+  readonly onClick?: () => void;
+  readonly preventLabelToggle?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Details zu ${title} anzeigen`}
+      onClick={(event) => {
+        if (preventLabelToggle) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        onClick?.();
+      }}
+      className="mt-0.5 inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+      <span>Details</span>
+    </button>
   );
 }
 

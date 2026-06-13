@@ -86,6 +86,19 @@ settings.
 | `gdpr.data_cleanup_time` | time | `"02:00"` | data_cleanup_enabled eq true |
 | `gdpr.data_cleanup_timeout_minutes` | number | `30` (min:5, max:120) | data_cleanup_enabled eq true |
 
+**Enrollment Tab**: WritePermission `config:manage` for legal text settings
+
+| Key | Type | Default | DependsOn |
+|-----|------|---------|-----------|
+| `enrollment.legal_terms_enabled` | boolean | `false` | enrollment.enabled eq true |
+| `enrollment.legal_agb_text` | textarea | `""` | enrollment.enabled eq true |
+| `enrollment.legal_dsgvo_enabled` | boolean | `false` | enrollment.enabled eq true |
+| `enrollment.legal_dsgvo_text` | textarea | `""` | enrollment.enabled eq true |
+| `enrollment.legal_photo_enabled` | boolean | `false` | enrollment.enabled eq true |
+| `enrollment.legal_photo_text` | textarea | `""` | enrollment.enabled eq true |
+| `enrollment.legal_email_contact_enabled` | boolean | `false` | enrollment.enabled eq true |
+| `enrollment.legal_email_contact_text` | textarea | `""` | enrollment.enabled eq true |
+
 **Security / Devices Tabs** — WritePermission: `config:manage` or `config:update`
 
 | Key | Type | Default | Validation |

@@ -167,6 +167,11 @@ function legalTexts(
       blocks.find((block) => block.key === "email_contact")?.text ?? "",
     photo: blocks.find((block) => block.key === "photo")?.text ?? "",
     terms_enabled: blocks.some((block) => block.key === "agb"),
+    dsgvo_enabled: blocks.some((block) => block.key === "data_processing"),
+    email_contact_enabled: blocks.some(
+      (block) => block.key === "email_contact",
+    ),
+    photo_enabled: blocks.some((block) => block.key === "photo"),
     blocks,
   };
 }
@@ -424,6 +429,59 @@ describe("EnrollmentForm", () => {
       SubmitEnrollmentPayload,
     ];
     expect(payload.consent_flags).toEqual({ agb: true });
+  });
+
+  it("opens legal block details in a modal from a neutral details button", async () => {
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(
+      legalTexts([
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB / Teilnahmebedingungen",
+          label:
+            "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+          text: "Ganztag Info-Brief Details",
+          required: true,
+        },
+      ]),
+    );
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Details zu AGB / Teilnahmebedingungen anzeigen",
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "AGB / Teilnahmebedingungen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ganztag Info-Brief Details")).toBeInTheDocument();
+  });
+
+  it("renders email contact as an active notice block without a checkbox", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    const notice = screen.getByText(/Status-Benachrichtigungen/).closest("div");
+    expect(notice).not.toBeNull();
+    expect(
+      within(notice as HTMLElement).getByText("Hinweis"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: /Status-Benachrichtigungen/,
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {

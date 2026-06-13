@@ -407,6 +407,7 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
+	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
 
 	req := validSubmission(env.phaseID)
@@ -440,6 +441,7 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
+	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
 
 	req := validSubmission(env.phaseID)

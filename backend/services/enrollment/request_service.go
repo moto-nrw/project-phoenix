@@ -200,16 +200,18 @@ type RequestService interface {
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
-// enrollment form.
-// TermsEnabled mirrors enrollment.legal_terms_enabled. The public form only
-// renders AGB when this is true and the AGB text is non-empty.
+// enrollment form. Standard blocks render only when their toggle is enabled
+// and the matching text is non-empty.
 type LegalTexts struct {
-	AGB          string
-	DSGVO        string
-	EmailContact string
-	Photo        string
-	TermsEnabled bool
-	Blocks       []LegalBlock
+	AGB                 string
+	DSGVO               string
+	EmailContact        string
+	Photo               string
+	TermsEnabled        bool
+	DSGVOEnabled        bool
+	EmailContactEnabled bool
+	PhotoEnabled        bool
+	Blocks              []LegalBlock
 }
 
 // LegalBlock is one configured legal row shown on the public enrollment
@@ -1113,12 +1115,27 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, err
 	}
+	dsgvoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalDSGVOEnabled, "DSGVO legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	emailContactEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalEmailContactEnabled, "email contact legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	photoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalPhotoEnabled, "photo legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
 	texts := LegalTexts{
-		AGB:          strings.TrimSpace(agb),
-		DSGVO:        strings.TrimSpace(dsgvo),
-		EmailContact: strings.TrimSpace(emailContact),
-		Photo:        strings.TrimSpace(photo),
-		TermsEnabled: termsEnabled,
+		AGB:                 strings.TrimSpace(agb),
+		DSGVO:               strings.TrimSpace(dsgvo),
+		EmailContact:        strings.TrimSpace(emailContact),
+		Photo:               strings.TrimSpace(photo),
+		TermsEnabled:        termsEnabled,
+		DSGVOEnabled:        dsgvoEnabled,
+		EmailContactEnabled: emailContactEnabled,
+		PhotoEnabled:        photoEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
 	return texts, nil
@@ -1180,7 +1197,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.DSGVO != "" {
+	if texts.DSGVOEnabled && texts.DSGVO != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyDataProcessing,
 			Kind:      "privacy_notice",
@@ -1192,7 +1209,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.Photo != "" {
+	if texts.PhotoEnabled && texts.Photo != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyPhoto,
 			Kind:      "consent",
@@ -1204,7 +1221,7 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.EmailContact != "" {
+	if texts.EmailContactEnabled && texts.EmailContact != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyEmailContact,
 			Kind:      "notice",
@@ -1249,19 +1266,23 @@ func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []Le
 // fail closed because this setting decides whether a required legal block is
 // rendered and enforced.
 func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
+	return s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalTermsEnabled, "AGB terms")
+}
+
+func (s *requestService) legalBlockEnabled(ctx context.Context, key string, label string) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	has, err := s.settings.HasTenantOverride(ctx, key)
 	if err != nil {
-		return false, fmt.Errorf("check AGB terms setting override: %w", err)
+		return false, fmt.Errorf("check %s setting override: %w", label, err)
 	}
 	if !has {
 		return false, nil
 	}
-	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	v, err := s.settings.ResolveBool(ctx, key)
 	if err != nil {
-		return false, fmt.Errorf("resolve AGB terms setting: %w", err)
+		return false, fmt.Errorf("resolve %s setting: %w", label, err)
 	}
 	return v, nil
 }
