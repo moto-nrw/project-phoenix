@@ -27,6 +27,7 @@ import {
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
   fetchGuardianDeletePreview,
+  GuardianApiError,
 } from "@/lib/guardian-api";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -429,14 +430,23 @@ export default function StudentGuardianManager({
 
       logger.error("guardian_full_delete_preview_failed", {
         error: err instanceof Error ? err.message : String(err),
+        status: err instanceof GuardianApiError ? err.status : undefined,
         guardian_id: guardianId,
         student_id: studentId,
       });
-      toastError(
-        err instanceof Error
-          ? err.message
-          : "Fehler beim Prüfen der betroffenen Kinder",
-      );
+      // A 403 means the account may not fully delete a guardian — surface that
+      // explicitly rather than the generic "could not check children" message.
+      if (err instanceof GuardianApiError && err.status === 403) {
+        toastError(
+          "Sie haben keine Berechtigung, diese Person vollständig zu löschen.",
+        );
+      } else {
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Fehler beim Prüfen der betroffenen Kinder",
+        );
+      }
       // Preview failed — drop back to the choice rather than letting the user
       // confirm a delete whose blast radius we never showed.
       handleBack();
