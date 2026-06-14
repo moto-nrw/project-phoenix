@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	unregisteredTagScansVersion     = "1.15.125"
+	unregisteredTagScansVersion     = "1.15.127"
 	unregisteredTagScansDescription = "Track unregistered RFID tag scans for operator visibility"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func createUnregisteredTagScansTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.125: Creating audit.unregistered_tag_scans...")
+	fmt.Println("Migration 1.15.127: Creating audit.unregistered_tag_scans...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -76,6 +76,8 @@ func createUnregisteredTagScansTable(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE audit.unregistered_tag_scans ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE audit.unregistered_tag_scans FORCE ROW LEVEL SECURITY;
 
+		DROP POLICY IF EXISTS tenant_isolation_audit_unregistered_tag_scans
+			ON audit.unregistered_tag_scans;
 		CREATE POLICY tenant_isolation_audit_unregistered_tag_scans
 			ON audit.unregistered_tag_scans
 			FOR ALL
@@ -93,7 +95,7 @@ func createUnregisteredTagScansTable(ctx context.Context, db *bun.DB) error {
 }
 
 func dropUnregisteredTagScansTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.125: Dropping audit.unregistered_tag_scans...")
+	fmt.Println("Rolling back migration 1.15.127: Dropping audit.unregistered_tag_scans...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
