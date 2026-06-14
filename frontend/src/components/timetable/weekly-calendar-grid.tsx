@@ -29,6 +29,7 @@ import {
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
+import { timetableSurface } from "./timetable-style";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column (gutter + 1fr) via the day strip; sm+ shows all seven.
@@ -118,7 +119,7 @@ export function WeeklyCalendarGrid({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <div className={`${timetableSurface} overflow-hidden`}>
       {/* Mobile day strip — tap a day to switch (single-day view < sm) */}
       <div className="flex gap-1 border-b border-gray-200 bg-white p-2 sm:hidden">
         {weekDays.map((day, index) => {
@@ -131,7 +132,7 @@ export function WeeklyCalendarGrid({
               type="button"
               onClick={() => setSelectedDayIndex(index)}
               aria-pressed={isSelected}
-              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                 isSelected
                   ? "bg-gray-900 text-white"
                   : "text-gray-600 hover:bg-gray-100"
@@ -278,7 +279,7 @@ export function WeeklyCalendarGrid({
                         height: `${hourHeightPx}px`,
                       }}
                     >
-                      <span className="pointer-events-none hidden rounded-md bg-gray-100/70 px-1.5 py-0.5 text-[11px] font-medium text-gray-500 group-hover:inline group-focus-visible:inline">
+                      <span className="pointer-events-none hidden rounded-lg border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-500 shadow-sm group-hover:inline group-focus-visible:inline">
                         + Termin
                       </span>
                     </button>
@@ -337,7 +338,7 @@ export function WeeklyCalendarGrid({
 
         {emptyState && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+            <div className="moto-content-surface max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
               <h3 className="text-sm font-semibold text-gray-900">
                 {emptyState.title}
               </h3>

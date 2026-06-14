@@ -23,6 +23,7 @@ import { Check, ChevronDown, Plus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { timetablePopoverSurface } from "./timetable-style";
 
 import {
   type CalendarPeriod,
@@ -155,7 +156,7 @@ export function PeriodSwitcherDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         title="Planungszeitraum wechseln"
       >
         <span
@@ -167,7 +168,9 @@ export function PeriodSwitcherDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg sm:right-0 sm:left-auto sm:w-96">
+        <div
+          className={`absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 sm:right-0 sm:left-auto sm:w-96 ${timetablePopoverSurface}`}
+        >
           <div className="border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">
               Planungszeitraum
@@ -204,7 +207,7 @@ export function PeriodSwitcherDropdown({
                       </span>
                       <span className="min-w-0 flex-1 truncate text-right text-gray-700">
                         {a.period?.name ?? (
-                          <span className="text-[#EAB308]">
+                          <span className="text-[#92400E]">
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -235,7 +238,7 @@ export function PeriodSwitcherDropdown({
                           setOpen(false);
                           onSelect(p);
                         }}
-                        className={`group relative min-w-0 flex-1 rounded-md px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 ${
+                        className={`group relative min-w-0 flex-1 rounded-lg px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                           isSelected ? "bg-gray-100" : ""
                         }`}
                       >
@@ -319,7 +322,7 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className="text-xs text-[#EAB308]">
+        <p className="text-xs text-[#92400E]">
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -343,7 +346,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-[11px] text-[#EAB308]">
+          <p className="text-[11px] text-[#92400E]">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

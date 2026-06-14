@@ -24,6 +24,7 @@ import {
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { timetablePopoverSurface, timetableSurface } from "./timetable-style";
 
 export type TimetableView = "week" | "month" | "year" | "series";
 
@@ -103,7 +104,9 @@ export function TimetableToolbar({
   const showOverflow = Boolean(showDensity) || Boolean(onManagePeriods);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6 lg:flex-row lg:items-center lg:py-2.5">
+    <div
+      className={`${timetableSurface} flex flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:py-2.5`}
+    >
       {/* Segmented view tabs — reuses the shared kit Tabs (default/pill variant) */}
       <Tabs
         value={view}
@@ -241,7 +244,7 @@ function ToolbarOverflowMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+          className={`absolute right-0 z-30 mt-2 w-56 ${timetablePopoverSurface}`}
         >
           {showDensitySection && (
             <>

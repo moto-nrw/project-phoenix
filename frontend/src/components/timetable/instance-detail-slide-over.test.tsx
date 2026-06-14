@@ -154,16 +154,13 @@ describe("InstanceDetailSlideOver", () => {
     expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
   });
 
-  it("handles active, cancelled and fallback student states", async () => {
+  it("completes an active instance", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
-    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
-    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
-    const { rerender } = render(
+    render(
       <InstanceDetailSlideOver
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
-        onAttendancePatch={onAttendancePatch}
       />,
     );
 
@@ -173,12 +170,44 @@ describe("InstanceDetailSlideOver", () => {
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("complete"),
     );
+    await waitFor(() =>
+      expect(screen.queryByText("Termin beenden?")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("cancels an active instance", async () => {
+    const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={onLifecycleAction}
+      />,
+    );
+
     fireEvent.click(screen.getByRole("button", { name: /Absagen/ }));
     expect(screen.getByText("Termin absagen?")).toBeInTheDocument();
     fireEvent.click(confirmDialogButton("Absagen"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("cancel"),
     );
+    await waitFor(() =>
+      expect(screen.queryByText("Termin absagen?")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("patches active attendance states", async () => {
+    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+      />,
+    );
+
     fireEvent.click(
       screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
     );
@@ -207,8 +236,13 @@ describe("InstanceDetailSlideOver", () => {
         note: null,
       }),
     );
+  });
 
-    rerender(
+  it("handles cancelled fallback student states", async () => {
+    const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+
+    render(
       <InstanceDetailSlideOver
         instance={instance({
           status: "cancelled",

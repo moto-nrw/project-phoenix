@@ -310,7 +310,7 @@ describe("TimetableEventModal", () => {
     expect(screen.getByText("Max Kind")).toBeInTheDocument();
     expect(screen.getByText("Mila Kind")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Kinder suchen ..."), {
+    fireEvent.change(screen.getByPlaceholderText("Kinder suchen …"), {
       target: { value: "Mila" },
     });
     expect(screen.queryByText("Max Kind")).not.toBeInTheDocument();

@@ -45,6 +45,11 @@ import {
   getGermanWeekdayLong,
   getStatusLabel,
 } from "~/lib/timetable-helpers";
+import {
+  timetableDangerPanel,
+  timetableMutedSurface,
+  timetableNestedSurface,
+} from "./timetable-style";
 import type {
   AttendancePatchBody,
   EnrichedInstance,
@@ -333,12 +338,12 @@ export function InstanceDetailSlideOver({
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
             {instance.conflictWarnings.length > 0 && (
-              <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+              <div className={timetableDangerPanel}>
                 <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                   <TriangleAlert className="h-4 w-4" />
                   {instance.conflictWarnings.length} Konflikt(e)
                 </div>
-                <ul className="mt-1 space-y-0.5 text-xs text-[#991B1B]">
+                <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
                   {instance.conflictWarnings.map((w, i) => (
                     <li key={i}>• {w.message}</li>
                   ))}
@@ -598,7 +603,7 @@ function StudentGroup({
       {students.map((student) => (
         <div
           key={student.studentId}
-          className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 ${attendanceTone(
+          className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
             student.status,
           )}`}
         >
@@ -673,7 +678,9 @@ function StudentGroup({
 
 function EmptyLine({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-500">
+    <div
+      className={`${timetableMutedSurface} border-dashed px-3 py-2 text-xs text-gray-500`}
+    >
       {children}
     </div>
   );
@@ -736,10 +743,10 @@ function PersonLine({
   const labels = meta.filter(Boolean);
   return (
     <div
-      className={`rounded-md border px-3 py-2 ${
+      className={`rounded-xl border px-3 py-2 shadow-sm ${
         danger
           ? "border-[#FF3130]/20 bg-[#FF3130]/10"
-          : "border-gray-200 bg-gray-50"
+          : "border-gray-200 bg-white"
       }`}
     >
       <div className="text-sm font-semibold text-gray-900">{name}</div>
@@ -881,7 +888,9 @@ interface RowProps {
 
 function Row({ icon, label, children }: RowProps) {
   return (
-    <div className="flex items-start gap-3 text-sm">
+    <div
+      className={`${timetableNestedSurface} flex items-start gap-3 p-3 text-sm`}
+    >
       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400">
         {icon}
       </span>

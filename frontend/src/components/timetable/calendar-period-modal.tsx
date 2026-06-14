@@ -28,10 +28,10 @@ import {
   type PeriodType,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
+import { timetableRequiredMark, timetableSelectClass } from "./timetable-style";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
-const FORM_SELECT_CLASS =
-  "moto-select block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500";
+const FORM_SELECT_CLASS = timetableSelectClass;
 
 interface CalendarPeriodModalProps {
   isOpen: boolean;
@@ -243,7 +243,7 @@ export function CalendarPeriodModal({
                   {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
                 </Button>
                 {deleteConfirm && !deleting && (
-                  <p className="text-xs text-[#FF3130]">
+                  <p className="text-xs text-[#CC2626]">
                     Löschen klappt nur, wenn dieser Zeitraum nicht mehr von
                     Regelterminen oder einzelnen Terminen verwendet wird.
                   </p>
@@ -388,7 +388,7 @@ export function CalendarPeriodModal({
 
         <label
           htmlFor="period_active"
-          className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm"
+          className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
         >
           <Checkbox
             id="period_active"
@@ -429,7 +429,7 @@ function Field({ label, htmlFor, required = false, children }: FieldProps) {
     <div className="flex flex-col gap-1">
       <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
         {label}
-        {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
+        {required && <span className={timetableRequiredMark}>*</span>}
       </label>
       {children}
     </div>

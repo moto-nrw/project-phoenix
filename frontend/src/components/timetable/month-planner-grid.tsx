@@ -4,12 +4,12 @@ import { AlertTriangle, CalendarDays } from "lucide-react";
 
 import {
   getActivityColor,
-  getActivityLightTint,
   getGermanWeekdayShort,
   groupInstancesByDate,
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { timetableSurface } from "./timetable-style";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -30,7 +30,7 @@ export function MonthPlannerGrid({
   const currentMonth = monthDate.getMonth();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <div className={`${timetableSurface} overflow-hidden`}>
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.slice(0, 7).map((day) => (
           <div
@@ -61,7 +61,7 @@ export function MonthPlannerGrid({
               key={iso}
               type="button"
               onClick={() => onDayClick(iso)}
-              className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 ${
+              className={`min-h-[112px] border-r border-b border-gray-100 p-2 text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${
                 outsideMonth ? "bg-gray-50/40 text-gray-400" : "bg-white"
               }`}
             >
@@ -95,19 +95,19 @@ export function MonthPlannerGrid({
                     return (
                       <div
                         key={inst.id}
-                        className={`flex min-w-0 items-center gap-1.5 rounded-full border px-1.5 py-1 text-[11px] ${
+                        className={`flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
                           isCancelled
-                            ? "border-dashed border-[#FF3130] bg-gray-50 text-gray-400 line-through"
-                            : "border-gray-200/60 text-gray-700"
+                            ? "border-dashed border-[#FF3130] text-gray-400 line-through"
+                            : "border-gray-200 text-gray-700"
                         }`}
                         style={{
-                          backgroundColor: isCancelled
-                            ? undefined
-                            : getActivityLightTint(inst.activityType),
+                          borderLeftColor: isCancelled
+                            ? "#FF3130"
+                            : getActivityColor(inst.activityType),
                         }}
                       >
                         <span
-                          className="h-2 w-1 shrink-0 rounded-full"
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
                           style={{
                             backgroundColor: isCancelled
                               ? "#FF3130"
@@ -120,7 +120,7 @@ export function MonthPlannerGrid({
                         </span>
                         {inst.isSpontaneous && !isCancelled && (
                           <span
-                            className="shrink-0 rounded-full bg-white/70 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                            className="shrink-0 rounded-full bg-gray-100 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
                             title="Dieser Termin wurde spontan gestartet und war nicht geplant."
                           >
                             Spontan

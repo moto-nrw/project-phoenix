@@ -17,6 +17,13 @@ import type {
   GapInstance,
   EnrichedInstance,
 } from "~/lib/timetable-types";
+import {
+  timetableDangerPanel,
+  timetableNestedSurface,
+  timetableSelectClass,
+  timetableSurfacePadded,
+  timetableWarningPanel,
+} from "./timetable-style";
 
 interface PlanQualityPanelProps {
   instances: EnrichedInstance[];
@@ -112,7 +119,7 @@ export function PlanQualityPanel({
   };
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <section className={timetableSurfacePadded}>
       <div>
         <h2 className="text-sm font-bold text-gray-900">Planstatus</h2>
         <p className="mt-0.5 text-xs text-gray-500">
@@ -154,8 +161,8 @@ export function PlanQualityPanel({
       </div>
 
       {hasError && (
-        <div className="mt-4 rounded-xl border border-[#EAB308]/20 bg-[#EAB308]/10 p-3 text-xs text-[#EAB308]">
-          <div className="flex items-center gap-2 font-bold">
+        <div className={`${timetableWarningPanel} mt-4 text-xs text-[#92400E]`}>
+          <div className="flex items-center gap-2 font-bold text-[#92400E]">
             <TriangleAlert className="h-4 w-4" />
             Prüfung unvollständig
           </div>
@@ -169,7 +176,7 @@ export function PlanQualityPanel({
       {(gaps.length > 0 || conflicts.length > 0) && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {gaps.length > 0 && (
-            <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+            <div className={timetableDangerPanel}>
               <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                 <UserPlus className="h-4 w-4" />
                 Personal-Lücken
@@ -185,7 +192,7 @@ export function PlanQualityPanel({
                   return (
                     <div
                       key={gap.instanceId}
-                      className="rounded-md bg-white p-2 text-xs shadow-sm"
+                      className={`${timetableNestedSurface} p-2 text-xs`}
                     >
                       <button
                         type="button"
@@ -214,7 +221,7 @@ export function PlanQualityPanel({
                       {canSubstitute && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           {absentRows.length === 1 ? (
-                            <span className="text-xs font-semibold text-[#991B1B]">
+                            <span className="text-xs font-semibold text-[#CC2626]">
                               Abwesend:{" "}
                               {staffNameById.get(absentRows[0]!.staffId) ??
                                 `Personal #${absentRows[0]!.staffId}`}
@@ -232,7 +239,7 @@ export function PlanQualityPanel({
                                   [gap.instanceId]: e.target.value,
                                 }))
                               }
-                              className="moto-select block min-w-48 rounded-md border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                              className={`${timetableSelectClass} min-w-48`}
                             >
                               {absentRows.map((item) => (
                                 <option key={item.staffId} value={item.staffId}>
@@ -250,7 +257,7 @@ export function PlanQualityPanel({
                                 [gap.instanceId]: e.target.value,
                               }))
                             }
-                            className="moto-select block min-w-48 rounded-md border-0 bg-white py-2 pl-3 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                            className={`${timetableSelectClass} min-w-48`}
                           >
                             <option value="">Ersatz auswählen …</option>
                             {availableStaff.map((item) => (
@@ -279,8 +286,8 @@ export function PlanQualityPanel({
           )}
 
           {conflicts.length > 0 && (
-            <div className="rounded-xl border border-[#EAB308]/20 bg-[#EAB308]/10 p-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#EAB308]">
+            <div className={timetableWarningPanel}>
+              <div className="flex items-center gap-2 text-xs font-bold text-[#92400E]">
                 <TriangleAlert className="h-4 w-4" />
                 Ausnahmen prüfen
               </div>
@@ -290,7 +297,7 @@ export function PlanQualityPanel({
                     key={`${conflict.kind}-${conflict.instanceId}-${conflict.studentId}`}
                     type="button"
                     onClick={() => onSelectInstance(conflict.instanceId)}
-                    className="block w-full rounded-md bg-white p-2 text-left text-xs shadow-sm hover:bg-[#EAB308]/10"
+                    className={`${timetableNestedSurface} block w-full p-2 text-left text-xs hover:bg-[#EAB308]/5 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
                   >
                     <div className="font-bold text-gray-900">
                       {dateLabel(conflict.date)} • {conflict.activityTitle}
@@ -301,7 +308,7 @@ export function PlanQualityPanel({
                   </button>
                 ))}
                 {conflicts.length > 6 && (
-                  <div className="text-xs font-semibold text-[#EAB308]">
+                  <div className="text-xs font-semibold text-[#92400E]">
                     + {conflicts.length - 6} weitere Konflikte
                   </div>
                 )}
@@ -328,7 +335,7 @@ function Metric({
   const palette = {
     neutral: "border-gray-200 bg-gray-50 text-gray-700",
     success: "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]",
-    warning: "border-[#EAB308]/20 bg-[#EAB308]/10 text-[#EAB308]",
+    warning: "border-[#EAB308]/20 bg-[#EAB308]/10 text-[#92400E]",
     danger: "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]",
   };
   return (

@@ -5,6 +5,7 @@ import { CalendarDays, Plus } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { TemplateCard } from "./template-card";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { timetableSurface, timetableSurfacePadded } from "./timetable-style";
 
 interface TemplateListProps {
   templates: TimetableTemplate[];
@@ -23,7 +24,9 @@ export function TemplateList({
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-16 text-center">
+      <div
+        className={`${timetableSurface} flex flex-col items-center justify-center gap-3 border-dashed px-6 py-16 text-center`}
+      >
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
           <CalendarDays className="h-6 w-6 text-gray-400" aria-hidden />
         </div>
@@ -51,7 +54,7 @@ export function TemplateList({
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+    <div className={timetableSurfacePadded}>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {templates.map((template) => (
           <TemplateCard

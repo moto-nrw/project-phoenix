@@ -20,6 +20,7 @@ import {
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { timetableSurface } from "./timetable-style";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -66,7 +67,9 @@ export function TemplateCard({
   const timeRange = summarizeTimeRange(template);
 
   return (
-    <article className="group moto-content-surface relative flex flex-col overflow-hidden rounded-2xl border transition-shadow hover:shadow-md">
+    <article
+      className={`${timetableSurface} group relative flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
+    >
       <div
         className="absolute top-0 left-0 h-full w-1"
         style={{ backgroundColor: color }}
@@ -92,7 +95,7 @@ export function TemplateCard({
             return (
               <div
                 key={wd}
-                className={`flex h-6 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
+                className={`flex h-6 w-7 items-center justify-center rounded-lg text-[10px] font-semibold ${
                   active
                     ? "bg-gray-900 text-white"
                     : "bg-gray-100 text-gray-400"

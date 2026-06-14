@@ -42,6 +42,10 @@ import {
   type TimetableView,
   type WeekDensity,
 } from "~/components/timetable/timetable-toolbar";
+import {
+  timetableSurface,
+  timetableSurfacePadded,
+} from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { YearPlannerGrid } from "~/components/timetable/year-planner-grid";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
@@ -186,10 +190,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
       >
         {[0, 1, 2].map((item) => (
-          <div
-            key={item}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <div key={item} className={timetableSurfacePadded}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1 space-y-2">
                 <Skeleton className="h-4 w-40" />
@@ -220,7 +221,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         {Array.from({ length: 12 }, (_, month) => (
           <section
             key={month}
-            className="moto-content-surface overflow-hidden rounded-2xl border"
+            className={`${timetableSurface} overflow-hidden`}
           >
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3">
               <div className="space-y-2">
@@ -288,7 +289,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
         aria-busy="true"
         aria-label="Wochenplan wird geladen"
         data-testid="timetable-content-skeleton"
-        className="moto-content-surface overflow-hidden rounded-2xl border"
+        className={`${timetableSurface} overflow-hidden`}
       >
         <div className="hidden h-14 grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b border-gray-200 bg-white sm:grid">
           <div aria-hidden />
@@ -323,7 +324,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
               {(weekSkeletonEvents[day] ?? []).map((event, index) => (
                 <div
                   key={`${day}-${index}`}
-                  className="absolute left-2 rounded-xl bg-gray-200/90 p-2 sm:left-2.5"
+                  className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
                   style={{
                     top: `${event.top}px`,
                     height: `${event.height}px`,
@@ -349,7 +350,7 @@ function TimetableContentSkeleton({ view }: { view: TimetableView }) {
       aria-busy="true"
       aria-label="Monatsplan wird geladen"
       data-testid="timetable-content-skeleton"
-      className="moto-content-surface overflow-hidden rounded-2xl border"
+      className={`${timetableSurface} overflow-hidden`}
     >
       <div className="grid grid-cols-7 border-b border-gray-200 bg-white">
         {Array.from({ length: 7 }, (_, day) => (
@@ -388,9 +389,9 @@ function TimetableToolbarSkeleton() {
       aria-busy="true"
       aria-label="Betreuungsplan-Werkzeugleiste wird geladen"
       data-testid="timetable-toolbar-skeleton"
-      className="flex min-h-16 flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
+      className={`${timetableSurface} flex min-h-16 flex-wrap items-center gap-3 px-4 py-3`}
     >
-      <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+      <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
         {Array.from({ length: 4 }, (_, item) => (
           <Skeleton key={item} className="h-8 w-20 rounded-lg" />
         ))}
@@ -428,7 +429,7 @@ function TimetableDisabledState() {
   return (
     <div className="flex flex-col gap-4" data-testid="timetable-disabled-state">
       <PageHeader title="Betreuungsplan" />
-      <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+      <div className={`${timetableSurface} p-10 text-center`}>
         <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
         <h2 className="mt-4 text-base font-semibold text-gray-900">
           Betreuungsplan ist deaktiviert
