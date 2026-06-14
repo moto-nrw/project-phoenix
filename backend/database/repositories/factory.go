@@ -56,6 +56,8 @@ type Factory struct {
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 	MFAOverride            authModels.MFAOverrideRepository
+	PasskeyCredential      authModels.PasskeyCredentialRepository
+	PasskeySession         authModels.PasskeySessionRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -160,6 +162,8 @@ type Factory struct {
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
 	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
 	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
+	OperatorPasskeyCredential platformModels.OperatorPasskeyCredentialRepository
+	OperatorPasskeySession    platformModels.OperatorPasskeySessionRepository
 
 	// Enrollment domain (parent-enrollment PR 5+)
 	FormSchema           enrollmentModels.FormSchemaRepository
@@ -200,6 +204,8 @@ func NewFactory(db *bun.DB) *Factory {
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
 		MFAOverride:            auth.NewMFAOverrideRepository(db),
+		PasskeyCredential:      auth.NewPasskeyCredentialRepository(db),
+		PasskeySession:         auth.NewPasskeySessionRepository(db),
 
 		// Users repositories
 		Person:              users.NewPersonRepository(db),
@@ -303,6 +309,8 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
 		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
+		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
+		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
 		FormSchema:           enrollment.NewFormSchemaRepository(db),

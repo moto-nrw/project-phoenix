@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { KeyRound } from "lucide-react";
 import { Alert } from "~/components/ui";
 import { refreshToken } from "~/lib/auth-api";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
@@ -27,6 +28,11 @@ import {
   MFAApiError,
   type MFATokenResponse,
 } from "~/lib/mfa-api";
+import {
+  isPasskeySupported,
+  loginWithPasskey,
+  PasskeyApiError,
+} from "~/lib/passkey-api";
 
 import { createLogger } from "~/lib/logger";
 
@@ -75,6 +81,7 @@ function LoginForm() {
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
+  const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
@@ -85,6 +92,10 @@ function LoginForm() {
   const isCleaningSessionRef = useRef(false);
 
   // Check for valid session
+  useEffect(() => {
+    setPasskeySupported(isPasskeySupported());
+  }, []);
+
   useEffect(() => {
     const checkAndRedirect = async () => {
       // If the session has an irrecoverable error (refresh token was rejected
@@ -271,6 +282,33 @@ function LoginForm() {
     }
   };
 
+  const handlePasskeyLogin = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await loginWithPasskey("tenant", { tenantSlug });
+      await seedSessionWithTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+    } catch (err) {
+      if (err instanceof PasskeyApiError && err.status === 401) {
+        setError("Passkey-Anmeldung fehlgeschlagen.");
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Passkey-Anmeldung fehlgeschlagen.",
+        );
+      }
+      logger.error("passkey login failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <>
       <AuthShell
@@ -428,6 +466,17 @@ function LoginForm() {
                   </span>
                 </button>
               </div>
+              {passkeySupported && (
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handlePasskeyLogin}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  <KeyRound className="h-4 w-4" aria-hidden="true" />
+                  <span>Mit Passkey anmelden</span>
+                </button>
+              )}
             </form>
           )}
         </div>

@@ -22,6 +22,7 @@ export function getClientForwardHeaders(
   return {
     "X-Forwarded-For": ip,
     "X-Real-IP": ip,
+    "X-Moto-Frontend-Origin": request.nextUrl.origin,
     "User-Agent": userAgent,
   };
 }
