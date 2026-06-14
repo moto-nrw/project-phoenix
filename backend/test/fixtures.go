@@ -653,6 +653,20 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("tenant_id = ?", tenantID),
 			"users.persons_guardians")
 
+		// Delete from users.students_guardians before users.guardian_profiles.
+		// Since migration 1.15.127 the link → guardian FK is ON DELETE RESTRICT
+		// (was CASCADE), so a guardian that is still linked cannot be deleted.
+		// Clearing the link here keeps teardown order-independent: without it,
+		// deleting guardian_profiles ahead of the student in the id list would
+		// trip the FK and leave an orphan. (The link → student FK is CASCADE, so
+		// deleting the student also clears it, but that only helps when the
+		// student id is processed first.)
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("users.students_guardians").
+			Where("student_id = ? OR guardian_profile_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"users.students_guardians")
+
 		// Delete from users.guardian_profiles
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("users.guardian_profiles").

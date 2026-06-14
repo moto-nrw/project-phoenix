@@ -74,6 +74,28 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 	return profile, nil
 }
 
+// LockByIDForUpdate locks a guardian profile row for the current transaction.
+func (r *GuardianProfileRepository) LockByIDForUpdate(ctx context.Context, id int64) error {
+	var profileID int64
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		ColumnExpr(`"guardian_profile".id`).
+		Where(`"guardian_profile".id = ?`, id).
+		For("UPDATE")
+
+	if where, tenantID, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
+		query.Where(where, tenantID)
+	}
+
+	if err := query.Scan(ctx, &profileID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return users.ErrGuardianProfileNotFound
+		}
+		return fmt.Errorf("failed to lock guardian profile: %w", err)
+	}
+	return nil
+}
+
 // FindByEmail retrieves a guardian profile by their email address
 func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)

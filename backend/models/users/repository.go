@@ -542,6 +542,10 @@ type GuardianProfileRepository interface {
 	// FindByID retrieves a guardian profile by their ID
 	FindByID(ctx context.Context, id int64) (*GuardianProfile, error)
 
+	// LockByIDForUpdate locks a guardian profile row for the current
+	// transaction. Used by full-delete flows to block concurrent link inserts.
+	LockByIDForUpdate(ctx context.Context, id int64) error
+
 	// FindByEmail retrieves a guardian profile by their email address
 	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
 
