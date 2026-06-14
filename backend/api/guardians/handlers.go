@@ -238,6 +238,63 @@ func (req *StudentGuardianLinkRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// GuardianPhoneInput is one phone number for a guardian created in the atomic
+// add-guardians-to-student request. Plain DTO (no per-element Bind): the service
+// layer validates via ValidateNewGuardians.
+type GuardianPhoneInput struct {
+	PhoneNumber string `json:"phone_number"`
+	PhoneType   string `json:"phone_type,omitempty"` // mobile, home, work, other
+	Label       string `json:"label,omitempty"`
+	IsPrimary   bool   `json:"is_primary,omitempty"`
+}
+
+// GuardianWithRelationshipInput is one guardian to attach to an EXISTING student
+// in a single atomic request: either a NEW profile (name/contact + phone
+// numbers) or an EXISTING one (GuardianProfileID, sibling case), plus the
+// relationship flags for THIS student. Mirrors one row of the student detail
+// page's guardian form and the GuardianInput used by the student-create flow.
+type GuardianWithRelationshipInput struct {
+	// GuardianProfileID, when set, links an EXISTING guardian profile instead of
+	// creating a new one (sibling case, #1513). The profile/phone fields below
+	// are then ignored and the existing profile is never mutated — only the
+	// relationship flags apply to the new link.
+	GuardianProfileID *int64 `json:"guardian_profile_id,omitempty"`
+
+	// Profile (used only when GuardianProfileID is nil)
+	FirstName              string `json:"first_name"`
+	LastName               string `json:"last_name"`
+	Email                  string `json:"email,omitempty"`
+	AddressStreet          string `json:"address_street,omitempty"`
+	AddressCity            string `json:"address_city,omitempty"`
+	AddressPostalCode      string `json:"address_postal_code,omitempty"`
+	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
+	LanguagePreference     string `json:"language_preference,omitempty"`
+	Notes                  string `json:"notes,omitempty"`
+
+	// Relationship to the student
+	RelationshipType   string `json:"relationship_type"`
+	IsPrimary          bool   `json:"is_primary,omitempty"`
+	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
+	CanPickup          bool   `json:"can_pickup,omitempty"`
+	PickupNotes        string `json:"pickup_notes,omitempty"`
+	EmergencyPriority  int    `json:"emergency_priority,omitempty"`
+
+	PhoneNumbers []GuardianPhoneInput `json:"phone_numbers,omitempty"`
+}
+
+// CreateStudentGuardiansRequest is the body of POST /students/{studentId}/guardians/batch.
+type CreateStudentGuardiansRequest struct {
+	Guardians []GuardianWithRelationshipInput `json:"guardians"`
+}
+
+// Bind validates the atomic add-guardians request.
+func (req *CreateStudentGuardiansRequest) Bind(_ *http.Request) error {
+	if len(req.Guardians) == 0 {
+		return errors.New("at least one guardian is required")
+	}
+	return nil
+}
+
 // newGuardianResponse converts a guardian profile model to a response
 func newGuardianResponse(profile *users.GuardianProfile) *GuardianResponse {
 	response := &GuardianResponse{
@@ -660,10 +717,24 @@ func applyGuardianUpdates(updateReq *guardianSvc.GuardianCreateRequest, req *Gua
 // this guardian affect?" — the children that would lose the guardian plus a
 // ready-to-show German warning. It backs GET /guardians/{id}/delete-preview.
 type GuardianDeletePreview struct {
-	LinkedCount     int      `json:"linked_count"`
-	AffectedNames   []string `json:"affected_names"`
-	AffectedLinkIDs []int64  `json:"affected_link_ids"`
+	LinkedCount   int      `json:"linked_count"`
+	AffectedNames []string `json:"affected_names"`
+	// AffectedLinkIDs are serialized as strings, not JSON numbers: students_guardians.id
+	// is an int64 and could exceed JavaScript's safe-integer range, where the frontend
+	// would silently round the value before echoing it back as expected_link_ids — making
+	// the confirm look like a stale preview. Strings cross the API boundary losslessly
+	// (repo convention: int64 IDs are strings to the client).
+	AffectedLinkIDs []string `json:"affected_link_ids"`
 	Warning         string   `json:"warning"`
+}
+
+// stringifyLinkIDs renders int64 link IDs as decimal strings for the API boundary.
+func stringifyLinkIDs(ids []int64) []string {
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = strconv.FormatInt(id, 10)
+	}
+	return out
 }
 
 // guardianFullDeleteWarning builds the German warning describing the blast
@@ -723,7 +794,7 @@ func (rs *Resource) guardianDeletePreview(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusOK, &GuardianDeletePreview{
 		LinkedCount:     len(impact.StudentNames),
 		AffectedNames:   impact.StudentNames,
-		AffectedLinkIDs: impact.LinkIDs,
+		AffectedLinkIDs: stringifyLinkIDs(impact.LinkIDs),
 		Warning:         guardianFullDeleteWarning(impact.StudentNames),
 	}, "Guardian delete preview retrieved successfully")
 }
@@ -1068,6 +1139,121 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	}
 
 	common.Respond(w, r, http.StatusCreated, relationship, "Guardian linked to student successfully")
+}
+
+// trimToNil returns a pointer to the trimmed string, or nil when empty, so
+// optional JSON fields map cleanly onto nullable model columns.
+func trimToNil(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// toNewStudentGuardians maps the request DTOs onto the service input used by
+// GuardianService.AddGuardiansToStudent.
+func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
+	out := make([]guardianSvc.NewStudentGuardian, 0, len(inputs))
+	for i := range inputs {
+		in := inputs[i]
+		out = append(out, guardianSvc.NewStudentGuardian{
+			Profile: guardianSvc.GuardianCreateRequest{
+				FirstName:              strings.TrimSpace(in.FirstName),
+				LastName:               strings.TrimSpace(in.LastName),
+				Email:                  trimToNil(in.Email),
+				AddressStreet:          trimToNil(in.AddressStreet),
+				AddressCity:            trimToNil(in.AddressCity),
+				AddressPostalCode:      trimToNil(in.AddressPostalCode),
+				PreferredContactMethod: in.PreferredContactMethod,
+				LanguagePreference:     in.LanguagePreference,
+				Notes:                  trimToNil(in.Notes),
+			},
+			Relationship: guardianSvc.StudentGuardianRelationship{
+				RelationshipType:   in.RelationshipType,
+				IsPrimary:          in.IsPrimary,
+				IsEmergencyContact: in.IsEmergencyContact,
+				CanPickup:          in.CanPickup,
+				PickupNotes:        trimToNil(in.PickupNotes),
+				EmergencyPriority:  in.EmergencyPriority,
+			},
+			PhoneNumbers:      toPhoneCreateRequests(in.PhoneNumbers),
+			ExistingProfileID: in.GuardianProfileID,
+		})
+	}
+	return out
+}
+
+// toPhoneCreateRequests maps phone DTOs onto the service phone-number requests.
+func toPhoneCreateRequests(phones []GuardianPhoneInput) []guardianSvc.PhoneNumberCreateRequest {
+	if len(phones) == 0 {
+		return nil
+	}
+	out := make([]guardianSvc.PhoneNumberCreateRequest, 0, len(phones))
+	for i := range phones {
+		p := phones[i]
+		out = append(out, guardianSvc.PhoneNumberCreateRequest{
+			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
+			PhoneType:   p.PhoneType,
+			Label:       trimToNil(p.Label),
+			IsPrimary:   p.IsPrimary,
+		})
+	}
+	return out
+}
+
+// createStudentGuardians atomically creates (or links) one or more guardians for
+// an EXISTING student in a single tenant transaction. It is the server-side
+// replacement for the frontend's old create→link→add-phones sequence: any
+// failure rolls the whole transaction back, so a partially-created guardian can
+// never be orphaned — and there is no client-side compensating delete to
+// authorize (which a non-admin supervisor could not perform once the guardian
+// had no remaining links). See #819.
+//
+// Auth mirrors the single-link endpoint (linkGuardianToStudent): only
+// supervisors of the student's group, or admins, may attach guardians. That one
+// gate is sufficient and grants no extra reach — the endpoint only ever links to
+// the {studentId} in the path, and creating the profile + linking it + adding
+// its phones are all writes scoped to that student's guardian, exactly what
+// "may I modify this student's guardians?" already authorizes.
+func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Request) {
+	studentID, err := common.ParseIDParam(r, "studentId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		return
+	}
+
+	canModify, err := rs.canModifyStudent(r.Context(), studentID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	req := &CreateStudentGuardiansRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	guardians := toNewStudentGuardians(req.Guardians)
+
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return rs.GuardianService.AddGuardiansToStudent(ctx, studentID, guardians)
+	}); err != nil {
+		// AddGuardiansToStudent validates before any write, so a ValidationError
+		// means nothing was persisted; the explicit tenant tx also rolls back on
+		// any other error. Surface bad input as 400, everything else as 500.
+		var validationErr *guardianSvc.ValidationError
+		if errors.As(err, &validationErr) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(validationErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, nil, "Guardians added successfully")
 }
 
 // updateStudentGuardianRelationship handles updating a student-guardian relationship (SUPERVISOR only)

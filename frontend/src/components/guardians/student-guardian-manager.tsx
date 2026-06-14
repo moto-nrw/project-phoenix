@@ -16,7 +16,7 @@ import { getGuardianFullName } from "@/lib/guardian-helpers";
 import type { RelationshipFormData } from "./guardian-form-modal";
 import {
   fetchStudentGuardians,
-  createGuardian,
+  createStudentGuardians,
   updateGuardian,
   deleteGuardian,
   linkGuardianToStudent,
@@ -114,7 +114,17 @@ export default function StudentGuardianManager({
     });
   }, [loadGuardians]);
 
-  // Handle create guardian(s) - supports multiple guardians at once
+  // Handle create guardian(s) - supports multiple guardians at once.
+  //
+  // The whole batch is created in ONE backend transaction (#819): every guardian
+  // profile, its link to the student, and its phone numbers succeed together or
+  // roll back together server-side. This replaces the old per-guardian
+  // create→link→add-phones sequence with its client-side rollback, which could
+  // orphan a freshly-created profile — a non-admin supervisor cannot delete a
+  // guardian once it has no remaining links, so the compensating delete would
+  // 403 and leave the profile behind. On any failure nothing is persisted and we
+  // rethrow so the form modal shows the (translated) error and keeps the entries
+  // for a retry.
   const handleCreateGuardians = async (
     guardians: Array<{
       id: string;
@@ -127,80 +137,41 @@ export default function StudentGuardianManager({
         isPrimary: boolean;
       }>;
     }>,
-    onEntryCreated?: (entryId: string) => void,
+    _onEntryCreated?: (entryId: string) => void,
   ) => {
-    let successCount = 0;
-    try {
-      // Create all guardians sequentially to ensure proper error handling
-      for (const {
-        id,
-        guardianData,
-        relationshipData,
-        phoneNumbers,
-      } of guardians) {
-        // Create guardian profile
-        const newGuardian = await createGuardian(guardianData);
+    await createStudentGuardians(
+      studentId,
+      guardians.map(({ guardianData, relationshipData, phoneNumbers }) => ({
+        firstName: guardianData.firstName,
+        lastName: guardianData.lastName,
+        email: guardianData.email,
+        addressStreet: guardianData.addressStreet,
+        addressCity: guardianData.addressCity,
+        addressPostalCode: guardianData.addressPostalCode,
+        languagePreference: guardianData.languagePreference,
+        notes: guardianData.notes,
+        relationshipType: relationshipData.relationshipType,
+        isPrimary: relationshipData.isPrimary,
+        isEmergencyContact: relationshipData.isEmergencyContact,
+        canPickup: relationshipData.canPickup,
+        pickupNotes: relationshipData.pickupNotes,
+        emergencyPriority: relationshipData.emergencyPriority,
+        phoneNumbers: phoneNumbers?.map((phone) => ({
+          phoneNumber: phone.phoneNumber,
+          phoneType: phone.phoneType,
+          label: phone.label,
+          isPrimary: phone.isPrimary,
+        })),
+      })),
+    );
 
-        try {
-          // Link to student
-          await linkGuardianToStudent(studentId, {
-            guardianProfileId: newGuardian.id,
-            ...relationshipData,
-          });
-
-          // Add phone numbers if provided
-          if (phoneNumbers && phoneNumbers.length > 0) {
-            for (const phone of phoneNumbers) {
-              await addGuardianPhoneNumber(newGuardian.id, {
-                phoneNumber: phone.phoneNumber,
-                phoneType: phone.phoneType,
-                label: phone.label,
-                isPrimary: phone.isPrimary,
-              });
-            }
-          }
-        } catch (innerError) {
-          // Rollback: delete the just-created guardian to prevent orphaned
-          // records. The student↔guardian FK is ON DELETE RESTRICT (backend
-          // migration 1.15.127), so a guardian that was already linked above
-          // cannot be deleted directly — unlink first (best-effort: the link
-          // may not exist if linkGuardianToStudent itself failed), then delete.
-          try {
-            try {
-              await removeGuardianFromStudent(studentId, newGuardian.id);
-            } catch {
-              // No link to remove (link step failed) — deletion below proceeds.
-            }
-            await deleteGuardian(newGuardian.id);
-          } catch (rollbackError) {
-            logger.error("guardian_rollback_failed", {
-              error:
-                rollbackError instanceof Error
-                  ? rollbackError.message
-                  : String(rollbackError),
-              guardian_id: newGuardian.id,
-            });
-          }
-          throw innerError;
-        }
-
-        // Remove successfully created entry from modal (enables retry without duplicates)
-        onEntryCreated?.(id);
-        successCount++;
-      }
-    } finally {
-      // Only reload and notify parent if at least one guardian was created
-      // This prevents false success signals on complete failure
-      if (successCount > 0) {
-        await loadGuardians();
-        onUpdate?.();
-        toastSuccess(
-          successCount === 1
-            ? "Erziehungsberechtigte/r erfolgreich hinzugefügt"
-            : `${successCount} Erziehungsberechtigte erfolgreich hinzugefügt`,
-        );
-      }
-    }
+    await loadGuardians();
+    onUpdate?.();
+    toastSuccess(
+      guardians.length === 1
+        ? "Erziehungsberechtigte/r erfolgreich hinzugefügt"
+        : `${guardians.length} Erziehungsberechtigte erfolgreich hinzugefügt`,
+    );
   };
 
   // Link an existing guardian chosen from the picker (sibling case). Unlike the

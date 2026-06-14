@@ -11,6 +11,7 @@ import type {
   BackendGuardianPickerResponse,
   BackendGuardianWithRelationship,
   PhoneNumber,
+  PhoneType,
   PhoneNumberCreateRequest,
   PhoneNumberUpdateRequest,
   BackendPhoneNumber,
@@ -459,7 +460,9 @@ export async function fetchGuardianDeletePreview(
   const result = (await response.json()) as ApiResponse<{
     linked_count: number;
     affected_names: string[];
-    affected_link_ids: number[];
+    // The backend sends int64 link IDs as strings (lossless across the JS
+    // safe-integer boundary); tolerate legacy numbers defensively.
+    affected_link_ids: Array<string | number>;
     warning: string;
   }>;
 
@@ -471,7 +474,7 @@ export async function fetchGuardianDeletePreview(
     linkedCount: result.data.linked_count,
     affectedNames: result.data.affected_names ?? [],
     affectedLinkIds: (result.data.affected_link_ids ?? []).map((id) =>
-      id.toString(),
+      String(id),
     ),
     warning: result.data.warning,
   };
@@ -516,6 +519,113 @@ export async function linkGuardianToStudent(
 
   if (result.status === "error") {
     throw new Error(result.error ?? "Failed to link guardian");
+  }
+}
+
+/**
+ * One guardian to create and link to an existing student in a single atomic
+ * request. This flow always creates a NEW profile; the sibling/existing-guardian
+ * case is handled separately by {@link linkGuardianToStudent} via the picker.
+ */
+export interface NewStudentGuardianInput {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  addressStreet?: string;
+  addressCity?: string;
+  addressPostalCode?: string;
+  languagePreference?: string;
+  notes?: string;
+  relationshipType: string;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
+  canPickup: boolean;
+  pickupNotes?: string;
+  emergencyPriority: number;
+  phoneNumbers?: Array<{
+    phoneNumber: string;
+    phoneType: PhoneType;
+    label?: string;
+    isPrimary: boolean;
+  }>;
+}
+
+/**
+ * Atomically create one or more guardians for an existing student.
+ *
+ * The backend creates every guardian profile, links it to the student, and adds
+ * its phone numbers inside ONE transaction (#819). Any failure rolls the whole
+ * batch back server-side, so there are no orphaned profiles and the client needs
+ * no compensating delete (which a non-admin supervisor could not perform once a
+ * guardian had lost its links). Bad input (e.g. a duplicate email) comes back as
+ * a 400 with a German message, translated for display.
+ */
+export async function createStudentGuardians(
+  studentId: string,
+  guardians: NewStudentGuardianInput[],
+): Promise<void> {
+  const body = {
+    guardians: guardians.map((g) => ({
+      first_name: g.firstName,
+      last_name: g.lastName,
+      email: g.email,
+      address_street: g.addressStreet,
+      address_city: g.addressCity,
+      address_postal_code: g.addressPostalCode,
+      language_preference: g.languagePreference,
+      notes: g.notes,
+      relationship_type: g.relationshipType,
+      is_primary: g.isPrimary,
+      is_emergency_contact: g.isEmergencyContact,
+      can_pickup: g.canPickup,
+      pickup_notes: g.pickupNotes,
+      emergency_priority: g.emergencyPriority,
+      phone_numbers: g.phoneNumbers?.map((p) => ({
+        phone_number: p.phoneNumber,
+        phone_type: p.phoneType,
+        label: p.label,
+        is_primary: p.isPrimary,
+      })),
+    })),
+  };
+
+  const response = await fetch(
+    `/api/guardians/students/${studentId}/guardians/batch`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "create_student_guardians",
+      });
+      return { error: "Failed to create guardians" };
+    });
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to create guardians: ${response.statusText}`);
+    throw new Error(errorMessage);
+  }
+
+  // 201 Created with no meaningful body — the caller reloads the guardian list.
+  if (response.status === 204) {
+    return;
+  }
+
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to create guardians"),
+    );
   }
 }
 

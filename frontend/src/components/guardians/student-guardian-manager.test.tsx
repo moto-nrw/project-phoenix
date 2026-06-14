@@ -12,6 +12,7 @@ import type { GuardianWithRelationship } from "@/lib/guardian-helpers";
 // Mock all guardian API functions with proper typing
 const mockFetchStudentGuardians = vi.fn();
 const mockCreateGuardian = vi.fn();
+const mockCreateStudentGuardians = vi.fn();
 const mockUpdateGuardian = vi.fn();
 const mockLinkGuardianToStudent = vi.fn();
 const mockUpdateStudentGuardianRelationship = vi.fn();
@@ -41,6 +42,8 @@ const { mockGuardianApiError } = vi.hoisted(() => ({
 vi.mock("@/lib/guardian-api", () => ({
   fetchStudentGuardians: () => mockFetchStudentGuardians(),
   createGuardian: (data: unknown) => mockCreateGuardian(data),
+  createStudentGuardians: (studentId: string, guardians: unknown) =>
+    mockCreateStudentGuardians(studentId, guardians),
   updateGuardian: (id: string, data: unknown) => mockUpdateGuardian(id, data),
   linkGuardianToStudent: (studentId: string, data: unknown) =>
     mockLinkGuardianToStudent(studentId, data),
@@ -366,6 +369,11 @@ describe("StudentGuardianManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchStudentGuardians.mockResolvedValue(mockGuardians);
+    mockCreateStudentGuardians.mockResolvedValue(undefined);
+    // Deterministic default: phone adds (used by the edit flow) resolve to a row
+    // with an id. clearAllMocks() clears call records but NOT implementations, so
+    // setting this here avoids depending on another test's leaked mockResolvedValue.
+    mockAddGuardianPhoneNumber.mockResolvedValue({ id: "new-phone-1" });
     mockPermissions = [];
   });
 
@@ -495,11 +503,11 @@ describe("StudentGuardianManager", () => {
       expect(screen.getByText("Create Guardian")).toBeInTheDocument();
     });
 
-    it("creates guardian with phone numbers and shows success toast", async () => {
-      mockCreateGuardian.mockResolvedValue({ id: "new-guardian-1" });
-      mockLinkGuardianToStudent.mockResolvedValue(undefined);
-      mockAddGuardianPhoneNumber.mockResolvedValue({ id: "new-phone-1" });
-
+    it("creates guardian with phone numbers atomically and shows success toast", async () => {
+      // The create flow now goes through ONE atomic backend call
+      // (createStudentGuardians) instead of separate create→link→add-phones
+      // calls — the whole batch succeeds or rolls back server-side (#819), so
+      // there is no client-side rollback to orphan a profile.
       render(<StudentGuardianManager studentId="student-123" />);
 
       await waitFor(() => {
@@ -512,26 +520,26 @@ describe("StudentGuardianManager", () => {
       fireEvent.click(screen.getByTestId("submit-form"));
 
       await waitFor(() => {
-        expect(mockCreateGuardian).toHaveBeenCalledWith({
-          firstName: "Test",
-          lastName: "Guardian",
-        });
+        expect(mockCreateStudentGuardians).toHaveBeenCalledWith("student-123", [
+          expect.objectContaining({
+            firstName: "Test",
+            lastName: "Guardian",
+            relationshipType: "parent",
+            phoneNumbers: [
+              expect.objectContaining({
+                phoneNumber: "+49 123 456",
+                phoneType: "mobile",
+                isPrimary: true,
+              }),
+            ],
+          }),
+        ]);
       });
 
-      expect(mockLinkGuardianToStudent).toHaveBeenCalledWith("student-123", {
-        guardianProfileId: "new-guardian-1",
-        relationshipType: "parent",
-      });
-
-      expect(mockAddGuardianPhoneNumber).toHaveBeenCalledWith(
-        "new-guardian-1",
-        {
-          phoneNumber: "+49 123 456",
-          phoneType: "mobile",
-          isPrimary: true,
-          label: undefined,
-        },
-      );
+      // No per-step orchestration any more.
+      expect(mockCreateGuardian).not.toHaveBeenCalled();
+      expect(mockLinkGuardianToStudent).not.toHaveBeenCalled();
+      expect(mockAddGuardianPhoneNumber).not.toHaveBeenCalled();
 
       await waitFor(() => {
         expect(mockToastSuccess).toHaveBeenCalledWith(
@@ -542,9 +550,6 @@ describe("StudentGuardianManager", () => {
 
     it("calls onUpdate callback after successful creation", async () => {
       const mockOnUpdate = vi.fn();
-      mockCreateGuardian.mockResolvedValue({ id: "new-guardian-1" });
-      mockLinkGuardianToStudent.mockResolvedValue(undefined);
-      mockAddGuardianPhoneNumber.mockResolvedValue({ id: "new-phone-1" });
 
       render(
         <StudentGuardianManager

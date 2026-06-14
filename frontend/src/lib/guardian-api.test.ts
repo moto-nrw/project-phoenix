@@ -7,6 +7,7 @@ import {
   createGuardian,
   updateGuardian,
   deleteGuardian,
+  createStudentGuardians,
   fetchGuardianDeletePreview,
   linkGuardianToStudent,
   updateStudentGuardianRelationship,
@@ -705,6 +706,92 @@ describe("guardian-api functions", () => {
         status: 403,
         message: "nur Administratoren",
       });
+    });
+  });
+
+  describe("createStudentGuardians", () => {
+    it("posts the batch as snake_case to the /batch endpoint", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ status: "success" }),
+      });
+
+      await expect(
+        createStudentGuardians("123", [
+          {
+            firstName: "Atomic",
+            lastName: "Guardian",
+            email: "a@b.de",
+            relationshipType: "parent",
+            isPrimary: true,
+            isEmergencyContact: false,
+            canPickup: true,
+            emergencyPriority: 1,
+            phoneNumbers: [
+              {
+                phoneNumber: "+49 1",
+                phoneType: "mobile",
+                isPrimary: true,
+              },
+            ],
+          },
+        ]),
+      ).resolves.toBeUndefined();
+
+      const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/guardians/students/123/guardians/batch");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body as string)).toEqual({
+        guardians: [
+          expect.objectContaining({
+            first_name: "Atomic",
+            last_name: "Guardian",
+            email: "a@b.de",
+            relationship_type: "parent",
+            is_primary: true,
+            can_pickup: true,
+            emergency_priority: 1,
+            phone_numbers: [
+              expect.objectContaining({
+                phone_number: "+49 1",
+                phone_type: "mobile",
+                is_primary: true,
+              }),
+            ],
+          }),
+        ],
+      });
+    });
+
+    it("translates a duplicate-email 400 into the German guidance message", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        json: () =>
+          Promise.resolve({
+            error:
+              'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
+          }),
+      });
+
+      await expect(
+        createStudentGuardians("123", [
+          {
+            firstName: "A",
+            lastName: "B",
+            relationshipType: "parent",
+            isPrimary: false,
+            isEmergencyContact: false,
+            canPickup: false,
+            emergencyPriority: 1,
+          },
+        ]),
+      ).rejects.toThrow(
+        "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
+      );
     });
   });
 
