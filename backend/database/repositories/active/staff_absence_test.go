@@ -2,7 +2,6 @@ package active_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,8 +27,8 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		tomorrow := today.AddDate(0, 0, 1)
+		today := timezone.TodayDate()
+		tomorrow := today.AddDays(1)
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeSick,
@@ -47,8 +46,8 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates absence with vacation type", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		nextWeek := today.AddDate(0, 0, 7)
+		today := timezone.TodayDate()
+		nextWeek := today.AddDays(7)
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeVacation,
@@ -67,7 +66,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("creates half-day absence", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeTraining,
@@ -93,7 +92,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid absence type should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: "invalid_type",
@@ -107,7 +106,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeSick,
@@ -123,7 +122,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with missing staff ID should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     0, // Invalid
 			AbsenceType: active.AbsenceTypeSick,
@@ -139,8 +138,8 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with date_start after date_end should fail", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		yesterday := today.AddDate(0, 0, -1)
+		today := timezone.TodayDate()
+		yesterday := today.AddDays(-1)
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeSick,
@@ -170,7 +169,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("lists all staff absences", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeSick,
@@ -189,7 +188,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with query options", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: active.AbsenceTypeSick,
@@ -222,9 +221,9 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("finds absences in date range", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		tomorrow := today.AddDate(0, 0, 1)
-		nextWeek := today.AddDate(0, 0, 7)
+		today := timezone.TodayDate()
+		tomorrow := today.AddDays(1)
+		nextWeek := today.AddDays(7)
 
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -253,16 +252,16 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	})
 
 	t.Run("returns empty for date range with no absences", func(t *testing.T) {
-		futureDate := timezone.DateOfUTC(time.Now().AddDate(1, 0, 0))
+		futureDate := timezone.TodayDate().AddDays(365)
 		absences, err := repo.GetByStaffAndDateRange(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
 		assert.Empty(t, absences)
 	})
 
 	t.Run("finds overlapping absences", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		yesterday := today.AddDate(0, 0, -1)
-		tomorrow := today.AddDate(0, 0, 1)
+		today := timezone.TodayDate()
+		yesterday := today.AddDays(-1)
+		tomorrow := today.AddDays(1)
 
 		// Create absence spanning yesterday to tomorrow
 		absence := &active.StaffAbsence{
@@ -295,8 +294,8 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	t.Run("finds absence for specific date", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		tomorrow := today.AddDate(0, 0, 1)
+		today := timezone.TodayDate()
+		tomorrow := today.AddDays(1)
 
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -317,14 +316,14 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("returns nil when no absence for date", func(t *testing.T) {
-		futureDate := timezone.DateOfUTC(time.Now().AddDate(1, 0, 0))
+		futureDate := timezone.TodayDate().AddDays(365)
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, futureDate)
 		require.NoError(t, err)
 		assert.Nil(t, found)
 	})
 
 	t.Run("ignores requested and canceled absences", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 		for _, status := range []string{
 			active.AbsenceStatusRequested,
 			active.AbsenceStatusCanceled,
@@ -366,7 +365,7 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 	}()
 
 	t.Run("returns absence map for today", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 
 		absence1 := &active.StaffAbsence{
 			StaffID:     staff1.ID,
@@ -402,7 +401,7 @@ func TestStaffAbsenceRepository_GetTodayAbsenceMap(t *testing.T) {
 	})
 
 	t.Run("prioritizes sick over vacation", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
+		today := timezone.TodayDate()
 
 		// Create two overlapping absences for same staff
 		absence1 := &active.StaffAbsence{
@@ -454,9 +453,9 @@ func TestStaffAbsenceRepository_GetByDateRange(t *testing.T) {
 	}()
 
 	t.Run("finds all absences in date range", func(t *testing.T) {
-		today := timezone.DateOfUTC(time.Now())
-		tomorrow := today.AddDate(0, 0, 1)
-		nextWeek := today.AddDate(0, 0, 7)
+		today := timezone.TodayDate()
+		tomorrow := today.AddDays(1)
+		nextWeek := today.AddDays(7)
 
 		absence1 := &active.StaffAbsence{
 			StaffID:     staff1.ID,
@@ -504,7 +503,7 @@ func TestStaffAbsenceRepository_GetByDateRange(t *testing.T) {
 	})
 
 	t.Run("returns empty for date range with no absences", func(t *testing.T) {
-		futureDate := timezone.DateOfUTC(time.Now().AddDate(2, 0, 0))
+		futureDate := timezone.TodayDate().AddDays(730)
 		absences, err := repo.GetByDateRange(ctx, futureDate, futureDate)
 		require.NoError(t, err)
 		assert.Empty(t, absences)

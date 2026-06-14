@@ -11,6 +11,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// ErrGuardianProfileNotFound is returned by repositories when no guardian
+// profile matches the lookup. Exposed as a sentinel so callers can tell a
+// genuine "row missing" apart from an underlying DB failure via errors.Is.
+// The message text is kept stable because other packages match on it.
+var ErrGuardianProfileNotFound = errors.New("guardian profile not found")
+
 // GuardianProfile represents a guardian's personal information
 // Guardians can exist with or without portal accounts
 type GuardianProfile struct {
@@ -37,6 +43,14 @@ type GuardianProfile struct {
 	// Preferences
 	PreferredContactMethod string `bun:"preferred_contact_method,default:'phone'" json:"preferred_contact_method"`
 	LanguagePreference     string `bun:"language_preference,default:'de'" json:"language_preference"`
+
+	// PortalLocale is the parents-portal UI language the guardian explicitly
+	// chose. nil = never chosen, which lets the portal honour an anonymous
+	// (cookie/Accept-Language) choice on first login instead of forcing the
+	// default locale. Deliberately separate from LanguagePreference (the
+	// contact/spoken language for the school, written 'de' on creation
+	// everywhere), so NULL stays meaningful.
+	PortalLocale *string `bun:"portal_locale" json:"portal_locale,omitempty"`
 
 	// Additional Info
 	Notes *string `bun:"notes" json:"notes,omitempty"` // Staff/admin notes

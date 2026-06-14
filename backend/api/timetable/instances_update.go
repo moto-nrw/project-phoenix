@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -48,7 +47,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil || rs.instanceStaffRepo == nil || rs.instanceStudentRepo == nil {
+	if rs.instanceService == nil || rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -78,7 +77,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, err := rs.instanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
-		Date:            timezone.DateOfUTC(date),
+		Date:            date,
 		StartTime:       startTime,
 		EndTime:         endTime,
 		Title:           req.Title,

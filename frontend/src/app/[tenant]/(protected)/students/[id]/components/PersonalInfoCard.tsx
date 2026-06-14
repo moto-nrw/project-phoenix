@@ -2,6 +2,11 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
+import type { BusDays, DepartureDays, PickupDays } from "~/lib/student-helpers";
+import {
+  formatDepartureDays,
+  departureDaysFromLegacy,
+} from "~/lib/student-helpers";
 
 interface ExtendedStudent {
   name: string;
@@ -9,6 +14,9 @@ interface ExtendedStudent {
   group_name?: string;
   birthday?: string;
   buskind?: boolean;
+  bus_days?: BusDays;
+  pickup_days?: PickupDays;
+  departure_days?: DepartureDays;
   pickup_status?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -89,10 +97,12 @@ function PersonalInfoDisplay({
             : "Nicht angegeben"
         }
       />
-      <InfoItem label="Buskind" value={student.buskind ? "Ja" : "Nein"} />
       <InfoItem
-        label="Abholstatus"
-        value={student.pickup_status ?? "Nicht gesetzt"}
+        label="Geh- und Abholregelung"
+        value={formatDepartureDays(
+          student.departure_days ??
+            departureDaysFromLegacy(student.bus_days, student.pickup_days),
+        )}
       />
 
       {/* Sickness status - only for full access */}

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -25,6 +26,30 @@ func NewGroupTeacherRepository(db *bun.DB) education.GroupTeacherRepository {
 		Repository: repo,
 		db:         db,
 	}
+}
+
+// DeleteByTeacherID removes all group assignments for a teacher. Used by
+// staff offboarding, where the teacher row is only soft-deleted and the old
+// ON DELETE CASCADE therefore no longer cleans up assignments.
+func (r *GroupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherID int64) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*education.GroupTeacher)(nil)).
+		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
+		Where(`"group_teacher".teacher_id = ?`, teacherID)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete by teacher id",
+			Err: err,
+		}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
 }
 
 // FindByGroup retrieves all group-teacher relationships for a group
@@ -173,4 +198,37 @@ func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *m
 	}
 
 	return groupTeachers, nil
+}
+
+// ListGroupTeacherBlockers returns the teacher's group assignments as
+// caregiver-capability blocker rows, including the full teacher set per
+// group (for sole-teacher detection). Custom raw-SQL method
+// (backend-conventions Rule 2): correlated ARRAY_AGG subquery into the
+// users blocker read model.
+func (r *GroupTeacherRepository) ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error) {
+	var results []userModels.BlockerGroup
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT gt.id,
+		       gt.group_id,
+		       COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gt.teacher_id,
+		       COALESCE((
+		           SELECT ARRAY_AGG(gt_all.teacher_id ORDER BY gt_all.id)
+		           FROM education.group_teacher AS gt_all
+		           WHERE gt_all.tenant_id = gt.tenant_id
+		             AND gt_all.group_id = gt.group_id
+		       ), '{}'::bigint[]) AS teacher_ids
+		FROM education.group_teacher AS gt
+		LEFT JOIN education.groups AS g ON g.id = gt.group_id AND g.tenant_id = gt.tenant_id
+		WHERE gt.tenant_id = ?
+		  AND gt.teacher_id = ?
+		ORDER BY g.name ASC
+	`, tenantID, teacherID).Scan(ctx, &results)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list group teacher blockers",
+			Err: err,
+		}
+	}
+	return results, nil
 }

@@ -160,7 +160,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		if reused {
 			suffix = "  (existing account — password unchanged)"
 		}
-		fmt.Printf("  ✓ %s %s\n      email:    %s\n      password: %s%s\n",
+		fmt.Printf("  ✓ %s %s\n      email:    %s\n      login credential: %s%s\n",
 			c.FirstName, c.LastName, c.Email, password, suffix)
 	}
 

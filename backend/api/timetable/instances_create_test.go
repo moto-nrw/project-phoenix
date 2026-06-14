@@ -24,9 +24,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -61,13 +59,9 @@ func buildCreateSetup(t *testing.T) *createSetup {
 
 	mock := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
-		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
-		InstanceService:      mock,
-		DB:                   db,
+		TimetableData:   testTimetableData(db),
+		InstanceService: mock,
+		DB:              db,
 	})
 
 	return &createSetup{res: res, mock: mock, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -116,7 +110,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
 
-	tomorrow := time.Now().AddDate(0, 0, 1)
+	tomorrow := timezone.TodayDate().AddDays(1)
 
 	// The mock returns a real-looking instance row; the handler still calls
 	// enrichInstance against the real DB so room_name + counts are exercised.
@@ -132,7 +126,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	s.mock.createRes = persisted
 
 	body := map[string]any{
-		"date":       tomorrow.Format("2006-01-02"),
+		"date":       tomorrow.String(),
 		"start_time": "14:00",
 		"end_time":   "15:00",
 		"title":      "Spontane Bastelstunde",
@@ -219,7 +213,7 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Create-Bound-%d", time.Now().UnixNano()))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", template.ID) })
 	templateID := template.ID
-	tomorrow := time.Now().AddDate(0, 0, 1)
+	tomorrow := timezone.TodayDate().AddDays(1)
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &templateID,
 		StartHHMM:       "10:00",
@@ -230,7 +224,7 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	s.mock.createRes = persisted
 
 	body := map[string]any{
-		"date":              tomorrow.Format("2006-01-02"),
+		"date":              tomorrow.String(),
 		"start_time":        "10:00",
 		"end_time":          "11:00",
 		"title":             "Template-bound extra slot",
@@ -276,13 +270,9 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: repoFactory.ActivityInstance,
-		InstanceStaffRepo:    repoFactory.InstanceStaff,
-		InstanceStudentRepo:  repoFactory.InstanceStudent,
-		RoomRepo:             repoFactory.Room,
-		ActivityGroupRepo:    repoFactory.ActivityGroup,
-		InstanceService:      serviceFactory.Instance,
-		DB:                   db,
+		TimetableData:   testTimetableData(db),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
 	})
 	router := createRouter(ctx, res)
 

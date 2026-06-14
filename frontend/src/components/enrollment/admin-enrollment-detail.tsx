@@ -643,6 +643,15 @@ function RequestExtraSection({
     (f) => formatCustomValue(request.custom_data?.[f.key], f) !== null,
   );
   const hasConsents = Object.keys(request.consent_flags ?? {}).length > 0;
+  // Titles from the pinned schema's legal blocks label custom consents
+  // (e.g. "Schwimmbad" instead of "custom_pool"); the static map covers
+  // the standard keys for legacy requests without a pinned schema.
+  const consentTitles = new Map(
+    (request.schema_legal_blocks ?? []).map((block) => [
+      block.key,
+      block.title,
+    ]),
+  );
 
   if (!hasCustom && !hasConsents) return null;
 
@@ -667,7 +676,7 @@ function RequestExtraSection({
                   }}
                 />
                 <span className="text-gray-700">
-                  {CONSENT_LABELS[key] ?? key}:
+                  {consentTitles.get(key) ?? CONSENT_LABELS[key] ?? key}:
                 </span>
                 <span className="font-medium text-gray-900">
                   {val === true ? "Ja" : val === false ? "Nein" : String(val)}
@@ -794,21 +803,108 @@ function ChildExtraFields({
   );
 }
 
-function formatCustomValue(
+const WEEKDAYS = [
+  ["mon", "Mo"],
+  ["tue", "Di"],
+  ["wed", "Mi"],
+  ["thu", "Do"],
+  ["fri", "Fr"],
+] as const;
+
+function formatStringValue(
+  v: string,
+  field?: AdminRequestSchemaField,
+): React.ReactNode | null {
+  const trimmed = v.trim();
+  if (trimmed === "") return null;
+  if (field?.type === "select" && field.options) {
+    const opt = field.options.find((o) => o.value === trimmed);
+    if (opt) return opt.label;
+  }
+  return trimmed;
+}
+
+function formatWeekdayObject(
+  o: Record<string, unknown>,
+  field?: AdminRequestSchemaField,
+): React.ReactNode | null {
+  // weekday_mode (Geh- und Abholregelung, #1610): values are per-day mode
+  // strings ({mon: "bus", wed: "pickup"}). Render "Mo: fährt Bus, Mi: wird
+  // abgeholt", mirroring the backend formatWeekdayMode. Must run before the
+  // weekday_schedule fallback, which would otherwise print the raw mode string.
+  const isWeekdayMode =
+    field?.type === "weekday_mode" ||
+    WEEKDAYS.some(
+      ([key]) => o[key] === "bus" || o[key] === "pickup" || o[key] === "alone",
+    );
+  if (isWeekdayMode) {
+    const modeLabels: Record<string, string> = {
+      alone: "geht alleine",
+      bus: "fährt Bus",
+      pickup: "wird abgeholt",
+    };
+    const parts = WEEKDAYS.filter(
+      ([key]) => o[key] === "bus" || o[key] === "pickup",
+    ).map(([key, label]) => `${label}: ${modeLabels[o[key] as string]}`);
+    if (parts.length > 0) return parts.join(", ");
+    if (field?.type === "weekday_mode") return "Geht immer alleine";
+    return null;
+  }
+
+  // weekday_boolean (Abholregelung, Buskind): values are per-day booleans
+  // ({mon: true, tue: false}). List only the selected days as "Mo, Mi, Fr",
+  // mirroring the backend export renderer (formatWeekdayBoolean in
+  // export_format.go). Detected by value type so it works without `field`;
+  // the field metadata also flags it, which covers an explicit empty {} map
+  // that carries no boolean values to sniff.
+  const isWeekdayBoolean =
+    field?.type === "weekday_boolean" ||
+    WEEKDAYS.some(([key]) => typeof o[key] === "boolean");
+  if (isWeekdayBoolean) {
+    const days = WEEKDAYS.filter(([key]) => o[key] === true).map(
+      ([, label]) => label,
+    );
+    if (days.length > 0) return days.join(", ");
+    // No days selected. For the reserved student.pickup_status target an
+    // empty map is itself a valid submitted answer ("Geht alleine nach
+    // Hause", see PickupDays.LegacyPickupStatus in the backend). Render that
+    // label so the admin can tell an explicit "goes alone every day" answer
+    // apart from an absent field — dropping the row would conflate the two.
+    // Other weekday_boolean targets (e.g. Buskind) keep dropping the empty
+    // row: no bus days means the child is simply not a bus kid.
+    if (field?.target === "student.pickup_status") {
+      return "Geht alleine nach Hause";
+    }
+    return null;
+  }
+
+  // weekday_schedule: values are per-day time strings ({mon: "07:30"}).
+  const cells = WEEKDAYS.map(([key, label]) => ({
+    label,
+    value: o[key],
+  })).filter(
+    (c) => typeof c.value === "string" && (c.value as string).trim() !== "",
+  );
+  if (cells.length === 0) return null;
+  return (
+    <span>
+      {cells.map((c) => (
+        <span key={c.label} className="mr-3 inline-block">
+          <span className="text-gray-500">{c.label}:</span>{" "}
+          <span className="font-medium">{c.value as string}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function formatCustomValue(
   v: unknown,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
   if (v === null || v === undefined) return null;
   if (typeof v === "boolean") return v ? "Ja" : "Nein";
-  if (typeof v === "string") {
-    const trimmed = v.trim();
-    if (trimmed === "") return null;
-    if (field?.type === "select" && field.options) {
-      const opt = field.options.find((o) => o.value === trimmed);
-      if (opt) return opt.label;
-    }
-    return trimmed;
-  }
+  if (typeof v === "string") return formatStringValue(v, field);
   if (typeof v === "number") return String(v);
 
   if (Array.isArray(v)) {
@@ -824,30 +920,7 @@ function formatCustomValue(
     );
   }
   if (typeof v === "object") {
-    const o = v as Record<string, unknown>;
-    const weekdays = [
-      ["mon", "Mo"],
-      ["tue", "Di"],
-      ["wed", "Mi"],
-      ["thu", "Do"],
-      ["fri", "Fr"],
-    ] as const;
-    const cells = weekdays
-      .map(([key, label]) => ({ label, value: o[key] }))
-      .filter(
-        (c) => typeof c.value === "string" && (c.value as string).trim() !== "",
-      );
-    if (cells.length === 0) return null;
-    return (
-      <span>
-        {cells.map((c) => (
-          <span key={c.label} className="mr-3 inline-block">
-            <span className="text-gray-500">{c.label}:</span>{" "}
-            <span className="font-medium">{c.value as string}</span>
-          </span>
-        ))}
-      </span>
-    );
+    return formatWeekdayObject(v as Record<string, unknown>, field);
   }
   return String(v);
 }

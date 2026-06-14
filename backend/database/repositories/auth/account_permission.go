@@ -265,6 +265,30 @@ func (r *AccountPermissionRepository) DeleteByPermissionID(ctx context.Context, 
 	return nil
 }
 
+// DeleteByAccountID deletes all tenant-scoped direct permission grants for an
+// account. Used by staff offboarding so a re-invited account does not regain
+// old elevated permissions. Returns the number of deleted rows.
+func (r *AccountPermissionRepository) DeleteByAccountID(ctx context.Context, accountID int64) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.AccountPermission)(nil)).
+		ModelTableExpr(accountPermissionTableAlias).
+		Where(`"account_permission".account_id = ?`, accountID)
+
+	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete by account ID",
+			Err: err,
+		}
+	}
+
+	return result.RowsAffected()
+}
+
 // / Create overrides the base Create method for schema consistency
 func (r *AccountPermissionRepository) Create(ctx context.Context, accountPermission *auth.AccountPermission) error {
 	if accountPermission == nil {

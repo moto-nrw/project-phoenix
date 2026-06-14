@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -11,13 +12,13 @@ import (
 type Attendance struct {
 	base.Model `bun:"schema:active,table:attendance"`
 	base.TenantModel
-	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
-	Date         time.Time  `bun:"date,notnull" json:"date"`
-	CheckInTime  time.Time  `bun:"check_in_time,notnull" json:"check_in_time"`
-	CheckOutTime *time.Time `bun:"check_out_time" json:"check_out_time,omitempty"`
-	CheckedInBy  int64      `bun:"checked_in_by,notnull" json:"checked_in_by"`
-	CheckedOutBy *int64     `bun:"checked_out_by" json:"checked_out_by,omitempty"`
-	DeviceID     int64      `bun:"device_id,notnull" json:"device_id"`
+	StudentID    int64         `bun:"student_id,notnull" json:"student_id"`
+	Date         timezone.Date `bun:"date,notnull,type:date" json:"date"`
+	CheckInTime  time.Time     `bun:"check_in_time,notnull" json:"check_in_time"`
+	CheckOutTime *time.Time    `bun:"check_out_time" json:"check_out_time,omitempty"`
+	CheckedInBy  int64         `bun:"checked_in_by,notnull" json:"checked_in_by"`
+	CheckedOutBy *int64        `bun:"checked_out_by" json:"checked_out_by,omitempty"`
+	DeviceID     int64         `bun:"device_id,notnull" json:"device_id"`
 	// YardSince is set when the student transitions to "Schulhof" in binary
 	// mode and cleared on a school checkout. Schema and read paths
 	// (deriveAttendanceStatus, ResolveBinaryLocation, performCheckOut) are
@@ -102,12 +103,17 @@ type AttendanceRepository interface {
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
 
+	// HasOpenAttendanceOn reports whether any attendance row on the given
+	// calendar date is still open (check_out_time IS NULL). Used by the
+	// operator presence-mode switch guard.
+	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
+
 	// FindByStudentAndDate finds all attendance records for a student on a specific date
-	FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*Attendance, error)
+	FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*Attendance, error)
 
 	// FindByStudentAndDateRange finds all attendance records for a student between two
 	// dates (inclusive), ordered by date descending then check_in_time descending.
-	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*Attendance, error)
+	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*Attendance, error)
 
 	// FindLatestByStudent finds the most recent attendance record for a student
 	FindLatestByStudent(ctx context.Context, studentID int64) (*Attendance, error)
@@ -125,11 +131,21 @@ type AttendanceRepository interface {
 	GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
 
 	// FindForDate finds all attendance records for a specific date
-	FindForDate(ctx context.Context, date time.Time) ([]*Attendance, error)
+	FindForDate(ctx context.Context, date timezone.Date) ([]*Attendance, error)
 
 	// ListOpenStudentIDsForDate returns unique student IDs with an open
 	// attendance row for the given date.
-	ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error)
+	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
+
+	// FindStaleOpen returns attendance rows dated before the given day that
+	// still lack a check-out time. Feeds the nightly stale-attendance
+	// cleanup and its preview.
+	FindStaleOpen(ctx context.Context, before timezone.Date) ([]*Attendance, error)
+
+	// UpdateColumns is the generic partial-update helper promoted from the
+	// embedded base repository: updates only the named columns by primary
+	// key and returns the number of rows affected.
+	UpdateColumns(ctx context.Context, attendance *Attendance, columns ...string) (int64, error)
 
 	// CountByStaffID counts attendance records where the staff member checked in or checked out students
 	CountByStaffID(ctx context.Context, staffID int64) (int, error)

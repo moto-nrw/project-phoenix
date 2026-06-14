@@ -593,7 +593,8 @@ describe("PersonalInfoReadOnly", () => {
     sick_since: undefined,
     current_location: "Nicht anwesend",
     location_since: undefined,
-    bus: false,
+    bus: true,
+    bus_days: { mon: true, fri: true },
   };
 
   it("renders section title", () => {
@@ -635,30 +636,36 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Nicht angegeben")).toBeInTheDocument();
   });
 
-  it("renders buskind status", () => {
+  it("renders bus days as the unified departure plan", () => {
+    // mockStudent has bus_days {mon, fri}; these fold into "Fährt Bus".
     render(<PersonalInfoReadOnly student={mockStudent} />);
-    expect(screen.getByText("Ja")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mo: Fährt Bus, Fr: Fährt Bus"),
+    ).toBeInTheDocument();
   });
 
-  it("renders 'Nein' when not buskind", () => {
-    const studentNotBuskind = { ...mockStudent, buskind: false };
-    render(<PersonalInfoReadOnly student={studentNotBuskind} />);
-    expect(screen.getByText("Nein")).toBeInTheDocument();
+  it("renders 'Geht immer alleine' when no bus/pickup days are set", () => {
+    const goesAlone = {
+      ...mockStudent,
+      buskind: false,
+      bus: false,
+      bus_days: {},
+      pickup_days: {},
+    };
+    render(<PersonalInfoReadOnly student={goesAlone} />);
+    expect(screen.getByText("Geht immer alleine")).toBeInTheDocument();
   });
 
-  it("renders the pickup weekdays when the child is picked up", () => {
+  it("renders pickup weekdays as 'Wird abgeholt' in the departure plan", () => {
     const pickedUp = {
       ...mockStudent,
+      bus_days: {},
       pickup_days: { mon: true, wed: true },
     };
     render(<PersonalInfoReadOnly student={pickedUp} />);
-    expect(screen.getByText("Wird abgeholt: Mo, Mi")).toBeInTheDocument();
-  });
-
-  it("renders 'Geht alleine nach Hause' when no pickup days are set", () => {
-    const goesAlone = { ...mockStudent, pickup_days: {} };
-    render(<PersonalInfoReadOnly student={goesAlone} />);
-    expect(screen.getByText("Geht alleine nach Hause")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mo: Wird abgeholt, Mi: Wird abgeholt"),
+    ).toBeInTheDocument();
   });
 
   it("renders health info when present", () => {

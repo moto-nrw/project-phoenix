@@ -3,10 +3,12 @@ package importpkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	"github.com/uptrace/bun"
 )
 
 // importerUserIDKey is a context key for the importing user's ID
@@ -28,17 +30,77 @@ func ImporterIDFromContext(ctx context.Context) int64 {
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
-	db        *bun.DB
 	batchSize int
+	auditRepo audit.DataImportRepository
 }
 
 // NewImportService creates a new import service
-func NewImportService[T any](config importModels.ImportConfig[T], db *bun.DB) *ImportService[T] {
+func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
 	return &ImportService[T]{
 		config:    config,
-		db:        db,
 		batchSize: 100, // Default batch size
 	}
+}
+
+// SetAuditRepository wires the GDPR import-audit repository (issue #584:
+// audit writes moved out of api/import). Optional at construction time, but
+// production wiring must set it — RecordAudit logs an error and drops the
+// audit record when unset.
+func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
+	s.auditRepo = repo
+}
+
+// RecordAudit asynchronously writes a GDPR audit record for an import
+// operation (moved verbatim from api/import). entityType identifies the
+// imported entity (e.g. "student", "staff"). The write runs detached on
+// context.Background() with panic recovery, exactly as before.
+func (s *ImportService[T]) RecordAudit(entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) {
+	if s.auditRepo == nil {
+		// GDPR Article 30 requires these records — a missing repo is a wiring
+		// bug, never a valid configuration. Log loudly instead of silently
+		// dropping the record.
+		slog.Default().Error("import audit repository not wired, dropping GDPR import audit record",
+			slog.String("entity_type", entityType),
+			slog.String("filename", filename),
+			slog.Int64("tenant_id", tenantID),
+		)
+		return
+	}
+	auditRepo := s.auditRepo
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in import audit logging: %v", r)
+				slog.Default().Error("goroutine panic recovered", slog.String("error", err.Error()))
+				sentry.CurrentHub().Recover(r)
+				sentry.Flush(2 * time.Second)
+			}
+		}()
+		auditCtx := context.Background()
+		auditRecord := &audit.DataImport{
+			EntityType:   entityType,
+			Filename:     filename,
+			TotalRows:    result.TotalRows,
+			CreatedCount: result.CreatedCount,
+			UpdatedCount: result.UpdatedCount,
+			SkippedCount: 0, // Not tracked separately
+			ErrorCount:   result.ErrorCount,
+			WarningCount: result.WarningCount,
+			DryRun:       dryRun,
+			ImportedBy:   userID,
+			StartedAt:    result.StartedAt,
+			CompletedAt:  &result.CompletedAt,
+			Metadata:     audit.JSONBMap{},
+		}
+		auditRecord.SetTenantID(tenantID)
+		if err := auditRepo.Create(auditCtx, auditRecord); err != nil {
+			if dryRun {
+				slog.Default().Warn("Failed to create audit log for import", slog.String("error", err.Error()))
+			} else {
+				slog.Default().Error("Failed to create audit log for import", slog.String("error", err.Error()))
+			}
+		}
+	}()
 }
 
 // Import executes the import operation

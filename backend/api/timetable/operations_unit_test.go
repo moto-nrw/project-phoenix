@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -120,6 +121,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
 				assert.Equal(t, int64(120), accountID)
@@ -181,10 +183,9 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 		},
 	}
 	res := NewResource(Dependencies{
-		InstanceService:      instanceSvc,
-		OperationsService:    service,
-		ActivityGroupRepo:    groupRepo,
-		ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{},
+		InstanceService:   instanceSvc,
+		OperationsService: service,
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{}}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
@@ -231,10 +232,9 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 		},
 	}
 	res := NewResource(Dependencies{
-		InstanceService:      instanceSvc,
-		OperationsService:    service,
-		ActivityGroupRepo:    groupRepo,
-		ActivityCategoryRepo: categoryRepo,
+		InstanceService:   instanceSvc,
+		OperationsService: service,
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: categoryRepo}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
@@ -287,6 +287,7 @@ func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
 
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	res := NewResource(Dependencies{
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -313,7 +314,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
-		ActiveGroupRepo:   &fakeOperationActiveGroupRepo{hasRoomConflict: true},
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{hasRoomConflict: true}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -336,6 +337,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -360,6 +362,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -384,6 +387,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 
 func TestOperationsCapabilities(t *testing.T) {
 	res := NewResource(Dependencies{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -399,6 +403,7 @@ func TestOperationsCapabilities(t *testing.T) {
 
 func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 	res := NewResource(Dependencies{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: false,
 			boolValue:   false,
@@ -414,6 +419,7 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 
 func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
 	res := NewResource(Dependencies{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -587,7 +593,7 @@ type fakeOperationsService struct {
 
 	lastAccountID      int64
 	lastIsAdmin        bool
-	lastDate           time.Time
+	lastDate           timezone.Date
 	lastPlannedOptions scheduleSvc.PlannedNowOptions
 	lastInstanceID     int64
 	lastActiveGroupID  int64
@@ -688,7 +694,7 @@ func (r *fakeOperationActiveGroupRepo) CheckRoomConflict(_ context.Context, _ in
 	return r.hasRoomConflict, nil, nil
 }
 
-func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date time.Time, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
+func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, isAdmin bool, date timezone.Date, _ time.Time, opts scheduleSvc.PlannedNowOptions) ([]scheduleSvc.OperationPlannedInstance, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
 	s.lastDate = date

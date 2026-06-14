@@ -52,8 +52,6 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Active,
 		svc.Users,
 		svc.UserContext,
-		repoFactory.Student,
-		repoFactory.GroupSubstitution,
 		db,
 	)
 
@@ -1294,9 +1292,8 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	// Create active substitution for today (grants access)
-	today := timezone.TodayUTC()
-	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-	substitution := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, endOfDay)
+	today := timezone.TodayDate()
+	substitution := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, staff.ID, today, today)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, substitution.ID)
 
 	// Staff should have access via substitution
@@ -1336,9 +1333,8 @@ func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create a transfer (substitution with nil regularStaffID = transfer)
-	today := timezone.TodayUTC()
-	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, endOfDay)
+	today := timezone.TodayDate()
+	transfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, today)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, transfer.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/groups/%d/transfer/%d", group.ID, transfer.ID), nil,
@@ -1468,9 +1464,8 @@ func TestTransferGroup_DuplicateTransfer(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, tc.db, targetStaff.ID)
 
 	// Create existing transfer to target
-	today := timezone.TodayUTC()
-	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-	existingTransfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, endOfDay)
+	today := timezone.TodayDate()
+	existingTransfer := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, targetStaff.ID, today, today)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, existingTransfer.ID)
 
 	// Try to transfer again to same target

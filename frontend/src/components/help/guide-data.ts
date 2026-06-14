@@ -295,20 +295,20 @@ export const setupChapters: readonly GuideChapter[] = [
       },
       {
         id: "betreuungszeiten-pflegen",
-        title: "Ankunfts- und Abholzeiten pflegen",
+        title: "Ankunfts- und Gehzeiten pflegen",
         summary:
-          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Abholzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
+          "Für importierte Kinder oder zum späteren Ändern: die wöchentlich wiederkehrenden Ankunfts- und Gehzeiten auf der Schülerdetailseite eintragen und einzelne Abweichungen ergänzen. Beim einzelnen Anlegen ist das bereits im Formular möglich.",
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
           "Das Kind in der Liste auswählen.",
           "Im rechten Detailbereich den Tab `Betreuungszeiten` öffnen.",
           "Im Bereich `Ankunftsplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Zeiten pro Wochentag im Format `HH:MM` eintragen.",
-          "Im Bereich `Abholplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Abholzeiten, Abholer sowie Hinweise eintragen.",
+          "Im Bereich `Gehplan & Notizen` auf `Bearbeiten` klicken und die regelmäßigen Gehzeiten, Abholer sowie Hinweise eintragen.",
           "Einzelne Abweichungen später über das Stift-Symbol am jeweiligen Wochentag pflegen.",
           "Speichern.",
         ],
         screenshot:
-          "Betreuungszeiten mit Ankunftsplan, Abholplan und Tag bearbeiten.",
+          "Betreuungszeiten mit Ankunftsplan, Gehplan und Tag bearbeiten.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
     ],
@@ -386,7 +386,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
-          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Beim Krankmelden lässt sich optional ein Grund angeben, der neben dem Status erscheint.",
+          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
           "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
@@ -399,7 +399,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden und Entschuldigen, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -444,7 +444,8 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Meine Gruppen` aufklappen.",
           "Die gewünschte Gruppe wählen.",
           "Anwesenheit der Gruppe ansehen und Kinder bearbeiten.",
-          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen.",
+          "Im Gruppenstatus die Krank- und Entschuldigt-Zahlen der Gruppe prüfen; Klassenfahrt zählt als bekannte Entschuldigung und wird am Kind als eigener Status angezeigt.",
+          "In der Schülerdatenbank bei Gruppierung nach Klasse oder Gruppe über das Drei-Punkte-Menü `Klassenfahrt planen` für mehrere Kinder gleichzeitig setzen.",
         ],
         screenshot:
           "Seitenleiste mit aufgeklappten eigenen Gruppen und Anwesenheitszahl.",
@@ -515,16 +516,40 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Mitarbeiter",
         icon: ClipboardList,
         summary:
-          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum oder im Homeoffice.",
+          "Zeigt den Status des Teams: wer anwesend ist, in welchem Raum, im Homeoffice oder abwesend.",
         steps: [
           "`Mitarbeiter` öffnen.",
           "Nach Name suchen.",
-          "Nach Status filtern, zum Beispiel `Anwesend` oder `Homeoffice`.",
-          "Eine Person öffnen, um Details zu sehen.",
+          "Nach Status filtern, zum Beispiel `Anwesend`, `Abwesend`, `Im Raum`, `Homeoffice` oder `Krank/Urlaub`.",
+          "Bei Karten mit Raumangabe die aktuelle Aufsicht direkt in der Liste prüfen.",
+          "Als Admin eine Person öffnen, um das Mitarbeiterprofil zu sehen.",
         ],
         screenshot:
           "Mitarbeiterliste mit Status-Badges und aktiven Aufsichten.",
         image: "/help/screens/mitarbeiter.webp",
+      },
+      {
+        id: "mitarbeiter-admin-profil",
+        title: "Mitarbeiterprofil für Admins",
+        icon: Eye,
+        summary:
+          "Bündelt Auswertung, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten einer Person.",
+        steps: [
+          "`Mitarbeiter` öffnen und eine Person auswählen. Die Detailansicht ist nur für Admins erreichbar.",
+          "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
+          "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren.",
+          "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
+          "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen.",
+          "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
+        ],
+        callout: {
+          title: "Änderungen bleiben nachvollziehbar",
+          body: "Zeitkorrekturen und nachgetragene Einträge werden mit Begründung gespeichert. Zeilen mit Änderungshistorie lassen sich aufklappen, damit die Leitung spätere Korrekturen prüfen kann.",
+          tone: "orange",
+        },
+        screenshot:
+          "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
+        printCompact: true,
       },
       {
         id: "vertretungen",
@@ -579,17 +604,48 @@ export const appChapters: readonly GuideChapter[] = [
         id: "zeiterfassung",
         title: "Zeiterfassung",
         icon: Clock3,
-        summary: "Erfasst Arbeitszeit, Pausen und Abwesenheiten.",
+        summary:
+          "Erfasst Arbeitszeit, Pausen, Arbeitsort und einfache Abwesenheiten.",
         steps: [
           "`Zeiterfassung` öffnen.",
-          "`In der OGS` oder `Homeoffice` wählen.",
+          "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
-          "Pausen starten und beenden.",
-          "Für Krankheit oder Urlaub `Abwesenheit melden` mit `Art der Abwesenheit` und Zeitraum.",
+          "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
+          "Bei langen Arbeitstagen die Pausenhinweise beachten.",
+          "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",
         ],
+        callout: {
+          title: "Arbeitsort bewusst wählen",
+          body: "Die App setzt keinen Arbeitsort voraus. Vor dem Einstempeln muss bewusst `In der OGS` oder `Homeoffice` gewählt werden, damit die Zeiterfassung später eindeutig bleibt.",
+          tone: "orange",
+        },
         screenshot:
           "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
         image: "/help/screens/zeiterfassung.webp",
+      },
+      {
+        id: "zeiterfassung-urlaub-historie",
+        title: "Urlaub, Historie und Korrekturen",
+        icon: CalendarRange,
+        summary:
+          "Zeigt Resturlaub, Anträge, Wochen- oder Monatsansichten und nachvollziehbare Korrekturen.",
+        steps: [
+          "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
+          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
+          "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
+          "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",
+          "Tageszeilen prüfen: Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
+          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren oder fehlende Arbeitstage nachtragen. Bei jeder Arbeitszeit-Korrektur einen Grund angeben.",
+          "Geänderte Tage aufklappen, um die Änderungshistorie zu sehen. Für Auswertungen den Export im Tabellenkopf nutzen.",
+        ],
+        callout: {
+          title: "Urlaub und Krankheit unterscheiden",
+          body: "Urlaub läuft über den Antragsbereich und kann genehmigt oder abgelehnt werden. Krank, Fortbildung und sonstige Abwesenheiten werden über `Abwesend` in der Stempeluhr gemeldet.",
+          tone: "blue",
+        },
+        screenshot:
+          "Zeiterfassung mit Urlaubskarte, Wochen- oder Monatsansicht, Änderungshistorie und Export.",
+        printCompact: true,
       },
     ],
   },
@@ -625,7 +681,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
-          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` pflegst du nur die Texte, die eure Einrichtung tatsächlich nutzt. Leere Rechtstexte werden im Elternformular nicht angezeigt. Wenn ihr mit einem Ganztag Info-Brief, AGB oder Teilnahmebedingungen arbeitet, `AGB / Teilnahmebedingungen abfragen` einschalten und den Text dort hinterlegen; dann müssen Eltern genau diesen Block bestätigen.",
+          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
         ],
         callout: {
           title: "So hängt alles zusammen",
@@ -726,13 +782,14 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Buskind` und `Abholregelung` wählen Eltern die passenden Wochentage aus.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Geh- und Abholregelung` wählen Eltern pro Wochentag, ob das Kind alleine geht, mit dem Bus fährt oder abgeholt wird.",
+          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],
         callout: {
           title: "Formular und Phase gehören zusammen",
-          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular.",
+          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Eltern öffnen längere Rechtstexte im Formular über `Details`. Wenn du die `Datenschutzinformation` in einer Vorlage deaktivierst, stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, etwa über den Elternbrief.",
           tone: "blue",
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",

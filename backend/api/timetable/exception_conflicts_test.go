@@ -14,8 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -54,13 +52,8 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(db),
-		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
-		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(db),
-		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo:  scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		DB:                    db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &conflictsSetup{
@@ -109,28 +102,26 @@ func decodeConflicts(t *testing.T, w *httptest.ResponseRecorder) ConflictsRespon
 }
 
 // nextMonday returns a Berlin-local Monday >= tomorrow, as both a YYYY-MM-DD
-// string and a UTC midnight time.Time. Test fixtures that exercise weekday
-// rules need a concrete weekday, and Monday is ISO 1 — the simplest to reason
-// about. The base date is deterministic across the week so the test never
-// crosses a Saturday/Sunday boundary where arrival_schedules don't apply.
-func nextMonday() (string, time.Time) {
-	t := time.Now().AddDate(0, 0, 1)
-	for t.Weekday() != time.Monday {
-		t = t.AddDate(0, 0, 1)
+// string and a timezone.Date. Test fixtures that exercise weekday rules need
+// a concrete weekday, and Monday is ISO 1 — the simplest to reason about.
+// The base date is deterministic across the week so the test never crosses a
+// Saturday/Sunday boundary where arrival_schedules don't apply.
+func nextMonday() (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(1)
+	for d.Weekday() != time.Monday {
+		d = d.AddDays(1)
 	}
-	d := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-	return d.Format("2006-01-02"), d
+	return d.String(), d
 }
 
 // nextTuesday mirrors nextMonday for tests that exercise a different weekday
 // relative to the materialised instance and the arrival schedule.
-func nextTuesday() (string, time.Time) {
-	t := time.Now().AddDate(0, 0, 1)
-	for t.Weekday() != time.Tuesday {
-		t = t.AddDate(0, 0, 1)
+func nextTuesday() (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(1)
+	for d.Weekday() != time.Tuesday {
+		d = d.AddDays(1)
 	}
-	d := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
-	return d.Format("2006-01-02"), d
+	return d.String(), d
 }
 
 // createTestActivityException is a local fixture — no helper exists in
@@ -141,7 +132,7 @@ func createTestActivityException(
 	t *testing.T,
 	db *bun.DB,
 	activityGroupID int64,
-	date time.Time,
+	date timezone.Date,
 	excType string,
 	startHHMM, endHHMM string,
 	reason string,
@@ -149,7 +140,7 @@ func createTestActivityException(
 	t.Helper()
 	row := &schedule.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   timezone.DateOfUTC(date),
+		ExceptionDate:   date,
 		ExceptionType:   excType,
 	}
 	row.SetTenantID(1)
@@ -532,7 +523,7 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 	roomID := altRoom.ID
 	row := &schedule.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   timezone.DateOfUTC(date),
+		ExceptionDate:   date,
 		ExceptionType:   schedule.ActivityExceptionModified,
 		RoomID:          &roomID,
 	}
@@ -910,7 +901,7 @@ func TestExceptionConflicts_ValidationErrors(t *testing.T) {
 
 	t.Run("date > date_to → 400", func(t *testing.T) {
 		_, date := nextMonday()
-		after := date.AddDate(0, 0, 3)
+		after := date.AddDays(3)
 		w := doConflicts(t, router, fmt.Sprintf(
 			"/exception-conflicts?date=%s&date_to=%s",
 			after.Format("2006-01-02"),
@@ -921,7 +912,7 @@ func TestExceptionConflicts_ValidationErrors(t *testing.T) {
 
 	t.Run("range > 14 days → 400", func(t *testing.T) {
 		_, date := nextMonday()
-		tooFar := date.AddDate(0, 0, 20)
+		tooFar := date.AddDays(20)
 		w := doConflicts(t, router, fmt.Sprintf(
 			"/exception-conflicts?date=%s&date_to=%s",
 			date.Format("2006-01-02"),

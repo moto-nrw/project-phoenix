@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -19,7 +18,6 @@ import (
 // checkoutContext holds all context needed for a checkout operation
 type checkoutContext struct {
 	StudentID        int64
-	CurrentVisit     *active.Visit
 	AttendanceStatus *activeService.AttendanceStatus
 }
 
@@ -43,11 +41,8 @@ func parseStudentIDFromRequest(r *http.Request) (int64, error) {
 	return strconv.ParseInt(studentIDStr, 10, 64)
 }
 
-// getCheckoutContext retrieves the current visit and attendance status for a student
+// getCheckoutContext retrieves the attendance status for a student
 func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*checkoutContext, error) {
-	// Get current visit (may be nil if student not in a room)
-	currentVisit, _ := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-
 	// Get attendance status (required)
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
@@ -61,7 +56,6 @@ func (rs *Resource) getCheckoutContext(ctx context.Context, studentID int64) (*c
 
 	return &checkoutContext{
 		StudentID:        studentID,
-		CurrentVisit:     currentVisit,
 		AttendanceStatus: attendanceStatus,
 	}, nil
 }
@@ -81,7 +75,7 @@ func (rs *Resource) authorizeStudentCheckout(
 	}
 
 	// Get staff record - any staff member can checkout any student
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		return nil, ErrStaffNotFound
 	}
@@ -95,16 +89,15 @@ func (rs *Resource) executeStudentCheckout(
 	staff *users.Staff,
 	checkoutCtx *checkoutContext,
 ) (*checkoutResult, error) {
-	// Embed staff in context for EndVisit recording
+	// Embed staff in context for visit-end recording
 	actionCtx := context.WithValue(ctx, device.CtxStaff, staff)
 
-	// End active visit if exists
-	rs.endActiveVisit(actionCtx, checkoutCtx.CurrentVisit)
-
-	// Toggle attendance to checked out
-	result, err := rs.ActiveService.ToggleStudentAttendance(
-		ctx, checkoutCtx.StudentID, staff.ID, 0, true,
-	)
+	// Action-explicit, race-safe checkout (issue #895). The service closes
+	// the attendance row AND ends any open visit in the same request
+	// transaction; any failure propagates so the handler responds 500 and
+	// TenantTxMiddleware rolls the whole request back — never a checked-out
+	// attendance row alongside an orphaned open visit.
+	result, err := rs.ActiveService.CheckOutStudent(actionCtx, checkoutCtx.StudentID, staff.ID, true)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCheckoutFailed, err)
 	}
@@ -116,20 +109,6 @@ func (rs *Resource) executeStudentCheckout(
 		Result:            result,
 		UpdatedAttendance: updatedAttendance,
 	}, nil
-}
-
-// endActiveVisit ends the current visit if one exists (fire-and-forget)
-func (rs *Resource) endActiveVisit(ctx context.Context, currentVisit *active.Visit) {
-	if currentVisit == nil {
-		return
-	}
-
-	if err := rs.ActiveService.EndVisit(ctx, currentVisit.ID); err != nil {
-		rs.getLogger().WarnContext(ctx, "failed to end visit during checkout",
-			slog.Int64("visit_id", currentVisit.ID),
-			slog.String("error", err.Error()),
-		)
-	}
 }
 
 // getUpdatedAttendanceStatus fetches the updated attendance status (optional)

@@ -93,6 +93,19 @@ describe("PersonalInfoCard", () => {
     expect(screen.getByTestId("info-item-Gruppe")).toBeInTheDocument();
   });
 
+  it("falls back to pickup_days when departure_days is absent", () => {
+    render(
+      <PersonalInfoCard
+        student={{ ...baseStudent, pickup_days: { wed: true } }}
+        isEditing={false}
+        hasFullAccess={true}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Mi: Wird abgeholt")).toBeInTheDocument();
+  });
+
   it("shows sick badge when student is sick with full access", () => {
     const sickStudent = {
       ...baseStudent,

@@ -33,18 +33,13 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 }
 
 // FindByStudentAndDate finds all attendance records for a student on a specific date
-func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date time.Time) ([]*active.Attendance, error) {
+func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
-
-	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
-	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
-	// Berlin calendar date, which round-trips correctly through DATE columns.
-	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, dateOnly).
+		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, date).
 		Order(`check_in_time ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
@@ -64,23 +59,15 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 
 // FindByStudentAndDateRange finds all attendance records for a student between two
 // dates (inclusive), ordered by date descending then check_in_time descending.
-//
-// Uses DateOfUTC (not DateOf) when binding to the PostgreSQL DATE column: the
-// PG session runs in UTC, so a Berlin-midnight timestamptz gets cast to the
-// previous UTC day, silently excluding today's row. DateOfUTC yields UTC
-// midnight of the Berlin calendar date, which round-trips correctly.
-func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*active.Attendance, error) {
+func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
-
-	startOnly := timezone.DateOfUTC(startDate)
-	endOnly := timezone.DateOfUTC(endDate)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, studentID).
-		Where(`"attendance".date >= ?`, startOnly).
-		Where(`"attendance".date <= ?`, endOnly).
+		Where(`"attendance".date >= ?`, startDate).
+		Where(`"attendance".date <= ?`, endDate).
 		OrderExpr(`"attendance".date DESC`).
 		OrderExpr(`"attendance".check_in_time DESC`)
 
@@ -128,10 +115,7 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, studentID int64) (*active.Attendance, error) {
 	attendance := new(active.Attendance)
 
-	// Use TodayUTC: the PG session runs in UTC, so Berlin-midnight gets cast to
-	// the previous UTC day. TodayUTC yields UTC midnight of the Berlin calendar
-	// date, which round-trips correctly through DATE columns.
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
@@ -210,7 +194,7 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 // flipped the action. Action-explicit handlers now call this method directly
 // and skip the toggle entirely.
 func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*active.Attendance, error) {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
 	// sql.ErrNoRows when zero rows match, so we treat that as the
@@ -292,9 +276,7 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		uniqueIDs = append(uniqueIDs, id)
 	}
 
-	// Use TodayUTC: PG session runs in UTC, so Berlin-midnight gets cast to the
-	// previous UTC day. TodayUTC round-trips correctly through DATE columns.
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	var attendances []*active.Attendance
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendances).
@@ -326,18 +308,13 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 }
 
 // FindForDate finds all attendance records for a specific date
-func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) ([]*active.Attendance, error) {
+func (r *AttendanceRepository) FindForDate(ctx context.Context, date timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
-
-	// Use DateOfUTC: the PG session runs in UTC, so Berlin-midnight timestamptz
-	// gets cast to the previous UTC day. DateOfUTC yields UTC midnight of the
-	// Berlin calendar date, which round-trips correctly through DATE columns.
-	dateOnly := timezone.DateOfUTC(date)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&attendance).
 		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".date = ?`, dateOnly).
+		Where(`"attendance".date = ?`, date).
 		// Use OrderExpr to avoid Bun re-quoting the alias and direction together
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time ASC`)
@@ -359,14 +336,13 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date time.Time) 
 
 // ListOpenStudentIDsForDate returns unique student IDs with open attendance
 // rows on the given date.
-func (r *AttendanceRepository) ListOpenStudentIDsForDate(ctx context.Context, date time.Time) ([]int64, error) {
-	dateOnly := timezone.DateOfUTC(date)
+func (r *AttendanceRepository) ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error) {
 	var ids []int64
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`active.attendance AS "attendance"`).
 		ColumnExpr(`DISTINCT "attendance".student_id`).
-		Where(`"attendance".date = ?`, dateOnly).
+		Where(`"attendance".date = ?`, date).
 		Where(`"attendance".check_out_time IS NULL`).
 		OrderExpr(`"attendance".student_id ASC`)
 
@@ -403,4 +379,53 @@ func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64
 	}
 
 	return count, nil
+}
+
+// FindStaleOpen returns attendance rows dated before the given day that still
+// lack a check-out time. Feeds the nightly stale-attendance cleanup and its
+// preview (services/active/cleanup_service.go).
+func (r *AttendanceRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*active.Attendance, error) {
+	var records []*active.Attendance
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&records).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".date < ?`, before).
+		Where(`"attendance".check_out_time IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find stale open attendance",
+			Err: err,
+		}
+	}
+
+	return records, nil
+}
+
+// HasOpenAttendanceOn reports whether any attendance row on the given
+// calendar date is still open (check_out_time IS NULL). The date binds as a
+// DATE literal (timezone.Date) so the Berlin calendar day is matched exactly,
+// independent of the UTC session date (see the operator presence-mode guard).
+//
+// Requires a tenant tx in ctx; RLS is the only tenant scope — there is no
+// tenant_id WHERE clause, so calling without a tenant tx falls back to the
+// bare *bun.DB and would read attendance across all tenants.
+func (r *AttendanceRepository) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date = ?
+			  AND check_out_time IS NULL
+		)
+	`, date).Scan(ctx, &exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
 }

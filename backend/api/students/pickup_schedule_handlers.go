@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -295,7 +296,7 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	}
 
 	// Get staff from person ID
-	staff, err := rs.PersonService.StaffRepository().FindByPersonID(r.Context(), person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID)
 	if err != nil || staff == nil {
 		return 0, errors.New("user is not a staff member")
 	}
@@ -448,7 +449,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -495,7 +496,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	exceptionDate, _ := time.Parse(dateFormatISO, req.ExceptionDate)
+	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
 	exception := &schedule.StudentPickupException{
 		StudentID:     student.ID,
 		ExceptionDate: exceptionDate,
@@ -572,7 +573,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
 		NoteDate:  noteDate,
@@ -614,7 +615,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	noteDate, _ := time.Parse(dateFormatISO, req.NoteDate)
+	noteDate, _ := timezone.ParseDate(req.NoteDate)
 	note := &schedule.StudentPickupNote{
 		StudentID: student.ID,
 		NoteDate:  noteDate,
@@ -726,9 +727,9 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Determine the date to query
-	date := time.Now()
+	date := timezone.TodayDate()
 	if req.Date != nil && *req.Date != "" {
-		parsedDate, _ := time.Parse(dateFormatISO, *req.Date) // Already validated in Bind
+		parsedDate, _ := timezone.ParseDate(*req.Date) // Already validated in Bind
 		date = parsedDate
 	}
 
@@ -839,7 +840,7 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 	}
 
 	// Get all students in these groups
-	students, err := rs.StudentRepo.FindByGroupIDs(r.Context(), groupIDs)
+	students, err := rs.PersonService.GetStudentsByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		return nil, err
 	}

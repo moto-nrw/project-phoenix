@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteCareOffering: vi.fn(),
   deletePhase: vi.fn(),
   deleteSchema: vi.fn(),
+  fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
@@ -92,6 +93,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
     ...actual,
     createSchema: mocks.createSchema,
     deleteSchema: mocks.deleteSchema,
+    fetchPublicLegalTexts: mocks.fetchPublicLegalTexts,
     listSchemas: mocks.listSchemas,
     updateSchema: mocks.updateSchema,
   };
@@ -200,13 +202,17 @@ function textareaByName(name: string): HTMLTextAreaElement {
   ) as HTMLTextAreaElement;
 }
 
-function selectByName(name: string): HTMLSelectElement {
-  return document.querySelector(`select[name="${name}"]`) as HTMLSelectElement;
-}
-
 async function waitForInputByName(name: string): Promise<HTMLInputElement> {
   await waitFor(() => expect(inputByName(name)).toBeInTheDocument());
   return inputByName(name);
+}
+
+async function chooseOption(
+  label: string | RegExp,
+  optionName: string | RegExp,
+) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByRole("option", { name: optionName }));
 }
 
 beforeEach(() => {
@@ -217,6 +223,21 @@ beforeEach(() => {
   mocks.deleteCareOffering.mockReset();
   mocks.deletePhase.mockReset();
   mocks.deleteSchema.mockReset();
+  mocks.fetchPublicLegalTexts.mockReset();
+  // Without this mock the editor's loadAll() fires a real fetch
+  // (ECONNREFUSED in CI). Empty blocks = no tenant legal texts
+  // configured, so the standard blocks stay disabled by default.
+  mocks.fetchPublicLegalTexts.mockResolvedValue({
+    agb: "",
+    dsgvo: "",
+    email_contact: "",
+    photo: "",
+    terms_enabled: false,
+    dsgvo_enabled: false,
+    email_contact_enabled: false,
+    photo_enabled: false,
+    blocks: [],
+  });
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
@@ -374,9 +395,7 @@ describe("CareOfferingsEditor", () => {
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
     await waitForInputByName("name");
-    fireEvent.change(screen.getByLabelText("Stundenplan-Vorlage"), {
-      target: { value: "8" },
-    });
+    await chooseOption("Stundenplan-Vorlage", /Lernzeit/);
 
     expect(
       screen.getByText(
@@ -429,13 +448,11 @@ describe("PhasesEditor", () => {
     fireEvent.change(inputByName("name"), {
       target: { value: "Sommerferien" },
     });
-    fireEvent.change(selectByName("kind"), { target: { value: "holiday" } });
+    await chooseOption("Typ", "Ferienbetreuung");
     fireEvent.click(
       document.querySelector("#schema-source-reuse") as HTMLInputElement,
     );
-    fireEvent.change(screen.getByLabelText("Formular auswählen"), {
-      target: { value: "schema-1" },
-    });
+    await chooseOption("Formular auswählen", "Regelformular");
     fireEvent.click(screen.getByText("Begründung für Eltern sichtbar"));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
@@ -479,7 +496,52 @@ describe("PhasesEditor", () => {
     );
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
+
+  it("shows a German validation error when the phase name is blank", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte gib einen Namen für die Anmeldephase ein.",
+    );
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "Bitte gib einen Namen für die Anmeldephase ein.",
+    );
+    expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
 });
+
+// The editor always sends the template's legal blocks on save (PR #1632).
+// With no tenant legal texts configured (see the fetchPublicLegalTexts
+// default above), the four standard blocks are passed through disabled.
+const defaultLegalBlocksForSave = [
+  expect.objectContaining({ key: "agb", enabled: false, source: "standard" }),
+  expect.objectContaining({
+    key: "data_processing",
+    enabled: false,
+    source: "standard",
+  }),
+  expect.objectContaining({
+    key: "photo",
+    enabled: false,
+    source: "standard",
+  }),
+  expect.objectContaining({
+    key: "email_contact",
+    enabled: false,
+    source: "standard",
+  }),
+];
 
 describe("EnrollmentFormEditor", () => {
   it("creates, previews, updates, and deletes schemas", async () => {
@@ -510,9 +572,7 @@ describe("EnrollmentFormEditor", () => {
     fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
       target: { value: "Lieblingsessen" },
     });
-    fireEvent.change(screen.getByLabelText("Typ"), {
-      target: { value: "select" },
-    });
+    await chooseOption("Typ", "Auswahl");
     fireEvent.change(screen.getByLabelText("Auswahloptionen"), {
       target: { value: "Pasta\nReis" },
     });
@@ -537,6 +597,7 @@ describe("EnrollmentFormEditor", () => {
           }),
         ]),
         {},
+        defaultLegalBlocksForSave,
       );
     });
 
@@ -561,6 +622,7 @@ describe("EnrollmentFormEditor", () => {
         "schema-1",
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
         {},
+        defaultLegalBlocksForSave,
       );
     });
 
@@ -576,6 +638,413 @@ describe("EnrollmentFormEditor", () => {
     await waitFor(() => {
       expect(mocks.deleteSchema).toHaveBeenCalledWith("schema-1");
     });
+  });
+
+  it("activates a standard legal block when an admin enters legal text", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Rechtstextformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    const legalTextAreas = await screen.findAllByLabelText(
+      "Rechtstext / Erklärung",
+    );
+    fireEvent.change(legalTextAreas[0] as HTMLTextAreaElement, {
+      target: { value: "AGB Text aus der Vorlage" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ key: string; enabled: boolean; text: string }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          enabled: true,
+          text: "AGB Text aus der Vorlage",
+        }),
+      ]),
+    );
+  });
+
+  it("shows standard legal blocks as inherited summaries until an admin edits an override", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+
+    expect(
+      screen.getAllByText("Aus Einstellungen übernommen").length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByLabelText("Rechtstext / Erklärung"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+
+    expect(screen.getByLabelText("Rechtstext / Erklärung")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Einstellungen wieder verwenden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps disabled inherited legal text available when editing a standard block", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.fetchPublicLegalTexts.mockResolvedValue({
+      agb: "",
+      dsgvo: "",
+      email_contact: "",
+      photo: "Foto-Rechtstext aus den Einstellungen",
+      terms_enabled: false,
+      dsgvo_enabled: false,
+      email_contact_enabled: false,
+      photo_enabled: false,
+      blocks: [],
+    });
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    expect(
+      screen.getAllByText("Ist für diese Vorlage ausgeblendet.").length,
+    ).toBeGreaterThan(0);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Fotoeinwilligung abweichend bearbeiten",
+      }),
+    );
+
+    expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue(
+      "Foto-Rechtstext aus den Einstellungen",
+    );
+  });
+
+  it("uses compact right-side controls for inherited standard legal blocks", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+
+    expect(
+      screen.queryByText("In dieser Vorlage anzeigen"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Abweichend bearbeiten")).not.toBeInTheDocument();
+
+    const displaySwitches = screen.getAllByRole("switch", {
+      name: /in dieser Vorlage anzeigen/i,
+    });
+    const editButtons = screen.getAllByRole("button", {
+      name: /abweichend bearbeiten/i,
+    });
+
+    expect(displaySwitches[0]?.tagName).toBe("BUTTON");
+    expect(displaySwitches[0]).toHaveClass("h-5", "w-9");
+    fireEvent.click(displaySwitches[0]!);
+    expect(displaySwitches[0]!.querySelector("span")).toHaveClass(
+      "translate-x-[18px]",
+    );
+    expect(editButtons[0]).toHaveTextContent("");
+    expect(editButtons[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
+  });
+
+  it("restores missing standard legal blocks when editing an older schema", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        legal_blocks: [
+          {
+            key: "data_processing",
+            kind: "privacy_notice",
+            title: "Datenschutzinformation",
+            label: "Ich habe die Datenschutzinformation gelesen.",
+            text: "",
+            required: true,
+            enabled: false,
+            sort_order: 20,
+            source: "standard",
+          },
+          {
+            key: "photo",
+            kind: "consent",
+            title: "Fotoeinwilligung",
+            label: "Fotos dürfen verwendet werden.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 30,
+            source: "standard",
+          },
+          {
+            key: "email_contact",
+            kind: "notice",
+            title: "Kontakt per E-Mail",
+            label: "Wir kontaktieren Sie per E-Mail.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 40,
+            source: "standard",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(screen.getByText("AGB / Teilnahmebedingungen")).toBeInTheDocument();
+    expect(screen.getAllByText("Aus Einstellungen übernommen")).toHaveLength(4);
+  });
+
+  it("keeps legal block keys hidden and generates unique keys for new custom consents", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        legal_blocks: [
+          {
+            key: "agb",
+            kind: "terms",
+            title: "AGB / Teilnahmebedingungen",
+            label: "Ich akzeptiere die AGB.",
+            text: "",
+            required: true,
+            enabled: false,
+            sort_order: 10,
+            source: "standard",
+          },
+          {
+            key: "data_processing",
+            kind: "privacy_notice",
+            title: "Datenschutzinformation",
+            label: "Ich habe die Datenschutzinformation gelesen.",
+            text: "",
+            required: true,
+            enabled: false,
+            sort_order: 20,
+            source: "standard",
+          },
+          {
+            key: "photo",
+            kind: "consent",
+            title: "Fotoeinwilligung",
+            label: "Fotos dürfen verwendet werden.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 30,
+            source: "standard",
+          },
+          {
+            key: "email_contact",
+            kind: "notice",
+            title: "Kontakt per E-Mail",
+            label: "Wir kontaktieren Sie per E-Mail.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 40,
+            source: "standard",
+          },
+          {
+            key: "custom_consent_6",
+            kind: "consent",
+            title: "Schwimmbad",
+            label: "Mein Kind darf ins Schwimmbad gehen.",
+            text: "",
+            required: false,
+            enabled: true,
+            sort_order: 50,
+            source: "custom",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Regelformular" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(
+      screen.queryByLabelText("Interner Schlüssel"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.updateSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ key: string; source: string }>,
+    ];
+    expect(
+      legalBlocks
+        .filter((block) => block.source === "custom")
+        .map((block) => block.key),
+    ).toEqual(["custom_consent_6", "custom_consent_7"]);
+  });
+
+  it("renders legal block toggles with the shared styled checkbox treatment", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+
+    const displayToggles = screen.getAllByRole("checkbox", {
+      name: "Im Formular anzeigen",
+    });
+    const requiredToggles = screen.getAllByRole("checkbox", {
+      name: "Muss bestätigt werden",
+    });
+
+    expect(displayToggles[0]?.tagName).toBe("BUTTON");
+    expect(requiredToggles[0]?.tagName).toBe("BUTTON");
+    expect(displayToggles[0]).not.toHaveAttribute("type", "checkbox");
+    expect(requiredToggles[0]).not.toHaveAttribute("type", "checkbox");
+  });
+
+  it("shows a simple checkbox-or-notice mode instead of legal block kind names", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Mit Checkbox" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: "Nur Hinweis" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Einwilligung" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Datenschutz-Bestätigung" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "AGB / Teilnahmebedingungen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows enabled legal blocks in the compact form preview", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        legal_blocks: [
+          {
+            key: "custom_photo_trip",
+            kind: "consent",
+            title: "Fotoausflug",
+            label: "Mein Kind darf beim Ausflug fotografiert werden.",
+            text: "Details",
+            required: true,
+            enabled: true,
+            sort_order: 10,
+            source: "custom",
+          },
+          {
+            key: "disabled_consent",
+            kind: "consent",
+            title: "Ausgeblendet",
+            label: "Diese Zustimmung ist deaktiviert.",
+            text: "",
+            required: false,
+            enabled: false,
+            sort_order: 20,
+            source: "custom",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Prüfen" }));
+
+    expect(screen.getByText("Zustimmungen & Hinweise")).toBeInTheDocument();
+    expect(screen.getByText("Fotoausflug")).toBeInTheDocument();
+    expect(screen.getAllByText("Pflicht").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Ausgeblendet")).not.toBeInTheDocument();
   });
 
   it("handles load and save errors", async () => {

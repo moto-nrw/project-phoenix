@@ -18,7 +18,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -34,13 +33,13 @@ import (
 // rejected at 400 — the frontend has no use case for a longer horizon today.
 const maxWeekRangeDays = 14
 
-// isoWeekday returns 1..7 (Mon..Sun) for the Berlin-local weekday of t.
-func isoWeekday(t time.Time) int {
-	return int((int(t.In(timezone.Berlin).Weekday())+6)%7 + 1)
+// isoWeekday returns 1..7 (Mon..Sun) for the weekday of d.
+func isoWeekday(d timezone.Date) int {
+	return int((int(d.Weekday())+6)%7 + 1)
 }
 
-// dateKey formats a time as YYYY-MM-DD for use as a map key.
-func dateKey(t time.Time) string { return t.Format(dateLayout) }
+// dateKey formats a calendar date as YYYY-MM-DD for use as a map key.
+func dateKey(d timezone.Date) string { return d.String() }
 
 // getStudentDay handles GET /api/timetable/student/{id}/day.
 func (rs *Resource) getStudentDay(w http.ResponseWriter, r *http.Request) {
@@ -135,8 +134,8 @@ func (rs *Resource) getStudentWeek(w http.ResponseWriter, r *http.Request) {
 
 	resp := StudentWeekResponse{
 		StudentID: student.ID,
-		From:      from.Format(dateLayout),
-		To:        to.Format(dateLayout),
+		From:      from.String(),
+		To:        to.String(),
 		Days:      days,
 	}
 
@@ -167,12 +166,12 @@ func parseStudentIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request, studentID int64) (*usersModel.Student, bool) {
 	ctx := r.Context()
 
-	if rs.studentRepo == nil {
+	if rs.timetableData == nil || rs.personService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("student repo not wired")))
 		return nil, false
 	}
 
-	student, err := rs.studentRepo.FindByID(ctx, studentID)
+	student, err := rs.personService.GetStudentByID(ctx, studentID)
 	if err != nil {
 		if isNotFoundDBError(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
@@ -218,7 +217,7 @@ type weekPreload struct {
 // preloadWeek issues one DB query per category for the full [from, to] range
 // and returns data indexed by date. Replaces the previous N+1 pattern where
 // each day re-queried the same tables.
-func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to time.Time) (*weekPreload, error) {
+func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to timezone.Date) (*weekPreload, error) {
 	out := &weekPreload{
 		enrolledByDate:       map[string][]*scheduleModel.ScheduledInstanceRow{},
 		instancesByDate:      map[string][]*scheduleModel.ActivityInstance{},
@@ -229,14 +228,11 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		pickupExcByDate:      map[string]*scheduleModel.StudentPickupException{},
 	}
 
-	fromUTC := timezone.DateOfUTC(from)
-	toUTC := timezone.DateOfUTC(to)
-
-	if rs.instanceStudentRepo == nil {
-		return nil, errors.New("instanceStudentRepo not wired")
+	if rs.timetableData == nil {
+		return nil, errors.New("timetable data service not wired")
 	}
-	enrolledRows, err := rs.instanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(
-		ctx, studentID, fromUTC, toUTC,
+	enrolledRows, err := rs.timetableData.GetStudentInstancesWithAttendance(
+		ctx, studentID, from, to,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("load enrolled instances: %w", err)
@@ -246,10 +242,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		out.enrolledByDate[k] = append(out.enrolledByDate[k], row)
 	}
 
-	if rs.activityInstanceRepo == nil {
-		return nil, errors.New("activityInstanceRepo not wired")
-	}
-	allInstances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(ctx, fromUTC, toUTC)
+	allInstances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load all tenant instances: %w", err)
 	}
@@ -275,8 +268,8 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		}
 	}
 
-	if len(activeGroupIDs) > 0 && rs.visitRepo != nil {
-		visits, err := rs.visitRepo.FindByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
+	if len(activeGroupIDs) > 0 {
+		visits, err := rs.timetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load student visits: %w", err)
 		}
@@ -290,44 +283,36 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 
 	// Arrival/pickup weekly schedules: one query each returns up to 5 rows
 	// total per student (one per weekday). Cheaper than per-weekday queries.
-	if rs.arrivalScheduleRepo != nil {
-		schedules, err := rs.arrivalScheduleRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.arrivalSchedByWeekly[s.Weekday] = s
-		}
+	arrivalSchedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival schedules: %w", err)
 	}
-	if rs.pickupScheduleRepo != nil {
-		schedules, err := rs.pickupScheduleRepo.FindByStudentID(ctx, studentID)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup schedules: %w", err)
-		}
-		for _, s := range schedules {
-			out.pickupSchedByWeekly[s.Weekday] = s
-		}
+	for _, s := range arrivalSchedules {
+		out.arrivalSchedByWeekly[s.Weekday] = s
+	}
+	pickupSchedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup schedules: %w", err)
+	}
+	for _, s := range pickupSchedules {
+		out.pickupSchedByWeekly[s.Weekday] = s
 	}
 
 	// Arrival/pickup exceptions: range-scoped (avoid loading unbounded
 	// history).
-	if rs.arrivalExceptionRepo != nil {
-		excs, err := rs.arrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, fromUTC, toUTC)
-		if err != nil {
-			return nil, fmt.Errorf("load arrival exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	arrivalExcs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load arrival exceptions: %w", err)
 	}
-	if rs.pickupExceptionRepo != nil {
-		excs, err := rs.pickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, fromUTC, toUTC)
-		if err != nil {
-			return nil, fmt.Errorf("load pickup exceptions: %w", err)
-		}
-		for _, e := range excs {
-			out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
-		}
+	for _, e := range arrivalExcs {
+		out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
+	}
+	pickupExcs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup exceptions: %w", err)
+	}
+	for _, e := range pickupExcs {
+		out.pickupExcByDate[dateKey(e.ExceptionDate)] = e
 	}
 
 	return out, nil
@@ -339,7 +324,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 //
 // Query count (constant in range length): 1 enrolled + 1 all-instances +
 // 1 visits (if any active groups) + 2 schedules + 2 exceptions = max 7.
-func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from, to time.Time) ([]StudentDayResponse, error) {
+func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from, to timezone.Date) ([]StudentDayResponse, error) {
 	pre, err := rs.preloadWeek(ctx, studentID, from, to)
 	if err != nil {
 		return nil, err
@@ -347,7 +332,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 	dayCount := inclusiveDayCount(from, to)
 	days := make([]StudentDayResponse, 0, dayCount)
-	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+	for d := from; !d.After(to); d = d.AddDays(1) {
 		day := buildStudentDayFromPreload(pre, studentID, d)
 		days = append(days, day)
 	}
@@ -356,7 +341,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date time.Time) StudentDayResponse {
+func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date timezone.Date) StudentDayResponse {
 	k := dateKey(date)
 
 	enrolledRows := pre.enrolledByDate[k]
@@ -419,7 +404,7 @@ func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date time.Tim
 
 	return StudentDayResponse{
 		StudentID: studentID,
-		Date:      date.Format(dateLayout),
+		Date:      date.String(),
 		Weekday:   isoWeekday(date),
 		Arrival:   arrival,
 		Instances: instances,
@@ -430,7 +415,7 @@ func buildStudentDayFromPreload(pre *weekPreload, studentID int64, date time.Tim
 // resolveArrivalSlotFromPreload implements the exception-over-schedule rule
 // against already-loaded data. An exception on the date wins even when its
 // time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *weekPreload, date time.Time) SlotResponse {
+func resolveArrivalSlotFromPreload(pre *weekPreload, date timezone.Date) SlotResponse {
 	if exc, ok := pre.arrivalExcByDate[dateKey(date)]; ok && exc != nil {
 		return mapArrivalExceptionSlot(exc)
 	}
@@ -444,7 +429,7 @@ func resolveArrivalSlotFromPreload(pre *weekPreload, date time.Time) SlotRespons
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *weekPreload, date time.Time) SlotResponse {
+func resolvePickupSlotFromPreload(pre *weekPreload, date timezone.Date) SlotResponse {
 	if exc, ok := pre.pickupExcByDate[dateKey(date)]; ok && exc != nil {
 		return mapPickupExceptionSlot(exc)
 	}

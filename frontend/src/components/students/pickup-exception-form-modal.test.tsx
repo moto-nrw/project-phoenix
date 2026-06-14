@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PickupExceptionFormModal } from "./pickup-exception-form-modal";
 import type { PickupException } from "@/lib/pickup-schedule-helpers";
+import { toISODate } from "~/lib/date-helpers";
 
 // Mock FormModal
 vi.mock("~/components/ui/form-modal", () => ({
@@ -231,7 +232,7 @@ describe("PickupExceptionFormModal", () => {
 
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      const expectedDate = tomorrow.toISOString().split("T")[0];
+      const expectedDate = toISODate(tomorrow);
 
       const dateInput = screen.getByLabelText<HTMLInputElement>("Datum");
       expect(dateInput.value).toBe(expectedDate);

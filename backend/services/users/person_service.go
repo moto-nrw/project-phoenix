@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -61,14 +61,13 @@ const (
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
 	// Repository dependencies
-	PersonRepo          userModels.PersonRepository
-	RFIDRepo            userModels.RFIDCardRepository
-	AccountRepo         auth.AccountRepository
-	PersonGuardianRepo  userModels.PersonGuardianRepository
-	StudentRepo         userModels.StudentRepository
-	StaffRepo           userModels.StaffRepository
-	TeacherRepo         userModels.TeacherRepository
-	GroupSupervisorRepo active.GroupSupervisorRepository
+	PersonRepo         userModels.PersonRepository
+	RFIDRepo           userModels.RFIDCardRepository
+	AccountRepo        auth.AccountRepository
+	PersonGuardianRepo userModels.PersonGuardianRepository
+	StudentRepo        userModels.StudentRepository
+	StaffRepo          userModels.StaffRepository
+	TeacherRepo        userModels.TeacherRepository
 
 	// Infrastructure
 	DB              *bun.DB
@@ -78,33 +77,31 @@ type PersonServiceDependencies struct {
 
 // personService implements the PersonService interface
 type personService struct {
-	personRepo          userModels.PersonRepository
-	rfidRepo            userModels.RFIDCardRepository
-	accountRepo         auth.AccountRepository
-	personGuardianRepo  userModels.PersonGuardianRepository
-	studentRepo         userModels.StudentRepository
-	staffRepo           userModels.StaffRepository
-	teacherRepo         userModels.TeacherRepository
-	groupSupervisorRepo active.GroupSupervisorRepository
-	db                  *bun.DB
-	settings            configSvc.SettingsService
-	logger              *slog.Logger
+	personRepo         userModels.PersonRepository
+	rfidRepo           userModels.RFIDCardRepository
+	accountRepo        auth.AccountRepository
+	personGuardianRepo userModels.PersonGuardianRepository
+	studentRepo        userModels.StudentRepository
+	staffRepo          userModels.StaffRepository
+	teacherRepo        userModels.TeacherRepository
+	db                 *bun.DB
+	settings           configSvc.SettingsService
+	logger             *slog.Logger
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{
-		personRepo:          deps.PersonRepo,
-		rfidRepo:            deps.RFIDRepo,
-		accountRepo:         deps.AccountRepo,
-		personGuardianRepo:  deps.PersonGuardianRepo,
-		studentRepo:         deps.StudentRepo,
-		staffRepo:           deps.StaffRepo,
-		teacherRepo:         deps.TeacherRepo,
-		groupSupervisorRepo: deps.GroupSupervisorRepo,
-		db:                  deps.DB,
-		settings:            deps.SettingsService,
-		logger:              deps.Logger,
+		personRepo:         deps.PersonRepo,
+		rfidRepo:           deps.RFIDRepo,
+		accountRepo:        deps.AccountRepo,
+		personGuardianRepo: deps.PersonGuardianRepo,
+		studentRepo:        deps.StudentRepo,
+		staffRepo:          deps.StaffRepo,
+		teacherRepo:        deps.TeacherRepo,
+		db:                 deps.DB,
+		settings:           deps.SettingsService,
+		logger:             deps.Logger,
 	}
 }
 
@@ -265,41 +262,6 @@ func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, e
 	}
 	if card == nil {
 		return &UsersError{Op: opUpdatePerson, Err: ErrRFIDCardNotFound}
-	}
-
-	return nil
-}
-
-// DeleteStaff removes a staff member after checking for active supervisions.
-// Also removes the teacher record if the staff member is a teacher.
-// Pre-check is best-effort; the real protection is the DB constraint (ON DELETE RESTRICT).
-func (s *personService) DeleteStaff(ctx context.Context, staffID int64) error {
-	const op = "delete staff"
-
-	// Pre-check: active supervisions would block deletion via FK RESTRICT
-	if s.groupSupervisorRepo != nil {
-		supervisors, err := s.groupSupervisorRepo.FindActiveByStaffID(ctx, staffID)
-		if err != nil {
-			slog.Warn("staff_delete_precheck_failed",
-				"staff_id", staffID,
-				"error", err.Error(),
-			)
-		} else if len(supervisors) > 0 {
-			return &UsersError{Op: op, Err: ErrStaffInUse}
-		}
-	}
-
-	// Delete teacher record first if staff is also a teacher
-	teacher, err := s.teacherRepo.FindByStaffID(ctx, staffID)
-	if err == nil && teacher != nil {
-		if delErr := s.teacherRepo.Delete(ctx, teacher.ID); delErr != nil {
-			return &UsersError{Op: op, Err: fmt.Errorf("failed to delete teacher record: %w", delErr)}
-		}
-	}
-
-	// Delete staff member
-	if err := s.staffRepo.Delete(ctx, staffID); err != nil {
-		return &UsersError{Op: op, Err: err}
 	}
 
 	return nil
@@ -517,17 +479,94 @@ func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID 
 	return persons, nil
 }
 
-// StudentRepository returns the student repository
-func (s *personService) StudentRepository() userModels.StudentRepository { return s.studentRepo }
+// Entity lookups (issue #584). CONTRACT: repository results and errors are
+// returned VERBATIM — no wrapping, no sentinel mapping — because IoT device
+// flows branch on sql.ErrNoRows and PyrePortal substring-matches the rendered
+// error bodies. See the interface doc comment.
 
-// StaffRepository returns the staff repository
-func (s *personService) StaffRepository() userModels.StaffRepository {
-	return s.staffRepo
+// GetStaffByID retrieves a staff member by ID.
+func (s *personService) GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindByID(ctx, id)
 }
 
-// TeacherRepository returns the teacher repository
-func (s *personService) TeacherRepository() userModels.TeacherRepository {
-	return s.teacherRepo
+// GetStaffByPersonID retrieves the staff record belonging to a person.
+func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindByPersonID(ctx, personID)
+}
+
+// GetStaffWithPerson retrieves a staff member with person data preloaded.
+func (s *personService) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
+	return s.staffRepo.FindWithPerson(ctx, id)
+}
+
+// GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
+func (s *personService) GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
+	return s.staffRepo.FindWithPersonByIDs(ctx, ids)
+}
+
+// ListStaffWithPerson retrieves all staff with person data preloaded.
+func (s *personService) ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
+	return s.staffRepo.ListAllWithPerson(ctx)
+}
+
+// ListStaffByRoles retrieves staff holding any of the given roles.
+func (s *personService) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return s.staffRepo.ListStaffByRoles(ctx, roles)
+}
+
+// GetTeacherByStaffID retrieves the teacher record for a staff member.
+func (s *personService) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	return s.teacherRepo.FindByStaffID(ctx, staffID)
+}
+
+// GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
+func (s *personService) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+}
+
+// GetTeachersBySpecialization retrieves teachers by specialization.
+func (s *personService) GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error) {
+	return s.teacherRepo.FindBySpecialization(ctx, specialization)
+}
+
+// GetTeacherWithStaffAndPerson retrieves a teacher with staff and person preloaded.
+func (s *personService) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
+}
+
+// ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
+func (s *personService) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+}
+
+// GetStudentByID retrieves a student by ID.
+func (s *personService) GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error) {
+	return s.studentRepo.FindByID(ctx, id)
+}
+
+// GetStudentByPersonID retrieves the student record belonging to a person.
+func (s *personService) GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+	return s.studentRepo.FindByPersonID(ctx, personID)
+}
+
+// GetStudentsByIDs retrieves multiple students by ID.
+func (s *personService) GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	return s.studentRepo.FindByIDs(ctx, ids)
+}
+
+// GetStudentsByGroupID retrieves the students of a group.
+func (s *personService) GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+	return s.studentRepo.FindByGroupID(ctx, groupID)
+}
+
+// GetStudentsByGroupIDs retrieves the students of multiple groups.
+func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	return s.studentRepo.FindByGroupIDs(ctx, groupIDs)
+}
+
+// CountStudentsByGroupIDs counts students per group in a single query.
+func (s *personService) CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	return s.studentRepo.CountByGroupIDs(ctx, groupIDs)
 }
 
 // ListAvailableRFIDCards returns RFID cards that are not assigned to any person
@@ -799,4 +838,114 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	}
 
 	return results, nil
+}
+
+// ---------------------------------------------------------------------------
+// Staff write operations (issue #584: moved verbatim out of api/staff)
+// ---------------------------------------------------------------------------
+
+// CreateStaffWithTeacher creates a staff record and, when requested, a teacher
+// record in one tenant transaction. A failed teacher creation is deliberately
+// non-fatal: the staff row still persists (historical api/staff behaviour).
+func (s *personService) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	staff := &userModels.Staff{
+		PersonID:   input.PersonID,
+		StaffNotes: input.StaffNotes,
+	}
+
+	var teacher *userModels.Teacher
+	teacherCreationFailed := false
+
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.staffRepo.Create(ctx, staff); err != nil {
+			return err
+		}
+
+		if input.IsTeacher {
+			teacher = &userModels.Teacher{
+				StaffID:        staff.ID,
+				Specialization: strings.TrimSpace(input.Specialization),
+				Role:           input.Role,
+				Qualifications: input.Qualifications,
+			}
+			if s.teacherRepo.Create(ctx, teacher) != nil {
+				// Still return the staff member even if teacher creation fails
+				teacher = nil
+				teacherCreationFailed = true
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return nil, nil, false, err
+	}
+
+	return staff, teacher, teacherCreationFailed, nil
+}
+
+// UpdateStaffWithTeacher persists the (already mutated) staff row, reloads it
+// with person data, and applies the requested teacher-record change.
+// Teacher-record failures are non-fatal; the staff update always persists.
+func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error) {
+	var teacher *userModels.Teacher
+	action := TeacherActionNone
+
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.staffRepo.Update(ctx, staff); err != nil {
+			return err
+		}
+
+		// Reload staff with person data; fall back to loading the person alone.
+		if reloaded, err := s.staffRepo.FindWithPerson(ctx, staff.ID); err == nil {
+			*staff = *reloaded
+		} else if staff.Person == nil && staff.PersonID > 0 {
+			if person, err := s.personRepo.FindByID(ctx, staff.PersonID); err == nil {
+				staff.Person = person
+			}
+		}
+
+		// Existing teacher record, if any (lookup errors intentionally ignored).
+		existingTeacher, _ := s.teacherRepo.FindByStaffID(ctx, staff.ID)
+
+		if !isTeacher {
+			if existingTeacher != nil {
+				teacher = existingTeacher
+				action = TeacherActionExisting
+			}
+			return nil
+		}
+
+		if existingTeacher != nil {
+			existingTeacher.Specialization = specialization
+			existingTeacher.Role = role
+			existingTeacher.Qualifications = qualifications
+			if s.teacherRepo.Update(ctx, existingTeacher) != nil {
+				action = TeacherActionUpdateFailed
+				return nil
+			}
+			teacher = existingTeacher
+			action = TeacherActionUpdated
+			return nil
+		}
+
+		newTeacher := &userModels.Teacher{
+			StaffID:        staff.ID,
+			Specialization: specialization,
+			Role:           role,
+			Qualifications: qualifications,
+		}
+		if s.teacherRepo.Create(ctx, newTeacher) != nil {
+			action = TeacherActionCreateFailed
+			return nil
+		}
+		teacher = newTeacher
+		action = TeacherActionCreated
+		return nil
+	}); err != nil {
+		return nil, TeacherActionNone, err
+	}
+
+	return teacher, action, nil
 }

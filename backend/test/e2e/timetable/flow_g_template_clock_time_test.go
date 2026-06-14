@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	s := newScenario(t)
 	defer s.teardown()
 
-	target := nextWeekday(time.Now().UTC(), 1, 7) // Monday, at least 7 days out.
+	target := nextWeekday(timezone.TodayDate(), 1, 7) // Monday, at least 7 days out.
 	period := s.createActivePeriod(fmt.Sprintf("E2E-Flow-G-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowG-Room")
@@ -26,7 +27,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 	})
 	s.registerCleanup("activities.categories", category.ID)
 
-	fromS := target.Format("2006-01-02")
+	fromS := target.String()
 	createReq := map[string]any{
 		"name":               "Mensa Clock Regression",
 		"type":               "care",

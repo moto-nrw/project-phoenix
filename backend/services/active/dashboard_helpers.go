@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
@@ -55,7 +54,7 @@ type locationMetrics struct {
 }
 
 // fetchDashboardBaseData retrieves all raw data needed for dashboard analytics
-func (s *service) fetchDashboardBaseData(ctx context.Context, today time.Time) (*dashboardBaseData, error) {
+func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Date) (*dashboardBaseData, error) {
 	data := &dashboardBaseData{
 		studentsWithActiveVisits: make(map[int64]bool),
 		studentsWithAttendance:   make(map[int64]bool),
@@ -177,20 +176,23 @@ func (s *service) buildRoomLookupMaps(allRooms []*facilityModels.Room) *dashboar
 	return data
 }
 
-// loadStudentsWithGroups batch loads students for the given IDs
+// loadStudentsWithGroups batch loads students for the given IDs. Consumers
+// only build lookup maps from the result, so the order is irrelevant.
 func (s *service) loadStudentsWithGroups(ctx context.Context, studentIDs []int64) ([]*userModels.Student, error) {
 	if len(studentIDs) == 0 {
 		return nil, nil
 	}
 
-	var studentsWithGroups []*userModels.Student
-	err := base.GetDB(ctx, s.db).NewSelect().
-		Model(&studentsWithGroups).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.List(studentIDs)).
-		Scan(ctx)
+	studentsByID, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 
-	return studentsWithGroups, err
+	studentsWithGroups := make([]*userModels.Student, 0, len(studentsByID))
+	for _, student := range studentsByID {
+		studentsWithGroups = append(studentsWithGroups, student)
+	}
+	return studentsWithGroups, nil
 }
 
 // buildEducationGroupMaps creates group-related lookup structures

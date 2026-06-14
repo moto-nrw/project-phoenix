@@ -18,11 +18,14 @@ import (
 	"testing"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -55,11 +58,9 @@ func buildSubSetup(t *testing.T) *subSetup {
 	substitu := testpkg.CreateTestStaff(t, db, "Sub", fmt.Sprintf("%d", suffix+1))
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		StaffRepo:            usersRepo.NewStaffRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		DB:            db,
 		// Broadcaster intentionally nil: tests do not exercise SSE.
 	})
 
@@ -123,12 +124,11 @@ func decodeSub(t *testing.T, w *httptest.ResponseRecorder) SubstituteResponse {
 	return out
 }
 
-// futureSubDate returns a YYYY-MM-DD in the future plus a UTC date.Time
-// anchored at midnight for fixture rows.
-func futureSubDate(offsetDays int) (string, time.Time) {
-	d := time.Now().AddDate(0, 0, offsetDays)
-	return d.Format("2006-01-02"),
-		time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+// futureSubDate returns a YYYY-MM-DD in the future plus the matching
+// timezone.Date for fixture rows.
+func futureSubDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
 }
 
 // readInstanceStaff pulls the row directly from the DB for atomicity
@@ -498,7 +498,7 @@ func TestSubstitute_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 		StaffID:   s.absent,
 		GroupID:   ag.ID,
 		Role:      "supervisor",
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 	}
 	require.NoError(t, supervisorRepo.Create(s.ctx, absentSup))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", absentSup.ID) })

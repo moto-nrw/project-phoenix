@@ -46,7 +46,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 
 	// Create import resource
-	resource := importAPI.NewResource(svc.Import, svc.StaffImport, repos.DataImport, svc.Users, db)
+	resource := importAPI.NewResource(svc.Import, svc.StaffImport, svc.Users, db)
 
 	return &testContext{
 		db:       db,
@@ -421,12 +421,83 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 		Where(`"person".last_name = ?`, "Phase1Regression").
 		Scan(context.Background())
 	require.NoError(t, err, "imported student should exist in the database")
-	require.NotNil(t, student.Bus, "Bus must be persisted, not left nil")
-	assert.True(t, *student.Bus, "Bus permission from CSV (Ja) must persist as true")
 	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
 	require.NoError(t, err, "imported student should be readable through the repository")
 	for _, day := range users.BusDayOrder {
 		assert.True(t, hydrated.BusDays[day], "Bus permission from CSV (Ja) must enable %s", day)
+	}
+}
+
+// TestImportStudents_PersistsDepartureFromGehweise verifies the unified per-day
+// Gehweise columns (#1610) are parsed and persisted as departure_days, with the
+// legacy bus_days/pickup_days mirrors derived from them.
+func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "DepTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	csvContent := "Vorname,Nachname,Klasse,Gehweise.Mo,Gehweise.Mi\nDeparture,GehweiseImport,1a,bus,abholung"
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "dep.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "import should succeed: %s", rr.Body.String())
+
+	var student users.Student
+	require.NoError(t, tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Departure").
+		Where(`"person".last_name = ?`, "GehweiseImport").
+		Scan(context.Background()))
+	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(users.PickupDayMonday))
+	assert.Equal(t, users.DeparturePickup, hydrated.DepartureDays.ModeFor(users.PickupDayWednesday))
+	assert.True(t, hydrated.BusDays[users.BusDayMonday], "derived bus_days mirror")
+	assert.True(t, hydrated.PickupDays[users.PickupDayWednesday], "derived pickup_days mirror")
+}
+
+// TestImportStudents_LegacyTemplateStillImports verifies an OLD template (with
+// the legacy "Bus" + "Abholstatus" columns and no Gehweise) is still processed
+// into departure_days (#1610) — the documented backward-compatible path.
+func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
+	tc := setupTestContext(t)
+	defer func() { _ = tc.db.Close() }()
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "LegacyTest")
+
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStudentsHandler())
+
+	// Bus=Ja with "Geht alleine" pickup folds to bus on every weekday.
+	csvContent := "Vorname,Nachname,Klasse,Bus,Abholstatus\nLegacy,GehweiseFallback,1a,Ja,Geht alleine nach Hause"
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "legacy.csv", csvContent,
+		testutil.WithClaims(testutil.AdminTestClaims(int(account.ID))),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, "legacy import should succeed: %s", rr.Body.String())
+
+	var student users.Student
+	require.NoError(t, tc.db.NewSelect().
+		Model(&student).
+		ModelTableExpr(`users.students AS "student"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Where(`"person".first_name = ?`, "Legacy").
+		Where(`"person".last_name = ?`, "GehweiseFallback").
+		Scan(context.Background()))
+	hydrated, err := tc.repos.Student.FindByID(testpkg.TenantContext(1), student.ID)
+	require.NoError(t, err)
+	for _, day := range users.PickupDayOrder {
+		assert.Equal(t, users.DepartureBus, hydrated.DepartureDays.ModeFor(day),
+			"legacy Bus=Ja must fold to bus on %s", day)
 	}
 }
 

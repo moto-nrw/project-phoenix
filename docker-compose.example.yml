@@ -15,6 +15,7 @@ services:
       - go_mod_cache:/go/pkg/mod
     environment:
       TZ: ${TZ}
+      APP_ENV: ${APP_ENV}
       LOG_LEVEL: ${LOG_LEVEL}
       LOG_TEXTLOGGING: ${LOG_TEXTLOGGING}
       PORT: ${PORT}
@@ -103,6 +104,8 @@ services:
       NEXT_PUBLIC_PARENTS_HOSTNAME: ${NEXT_PUBLIC_PARENTS_HOSTNAME}
       NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT}
+      # Bind Next.js standalone to IPv4 so Docker healthchecks can reach it inside Alpine.
+      HOSTNAME: 0.0.0.0
     depends_on:
       - server
     volumes:
@@ -118,7 +121,7 @@ services:
       - ./frontend/postcss.config.js:/app/postcss.config.js
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

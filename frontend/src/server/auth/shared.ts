@@ -29,6 +29,7 @@ export interface JwtPayload {
   last_name?: string;
   email?: string;
   roles?: string[];
+  permissions?: string[];
   is_admin?: boolean;
   tenant_id?: number;
   org_id?: number;
@@ -46,6 +47,7 @@ declare module "next-auth" {
       token?: string;
       refreshToken?: string;
       roles?: string[];
+      permissions?: string[];
       firstName?: string;
       isAdmin?: boolean;
       tenantId?: number;
@@ -59,6 +61,7 @@ declare module "next-auth" {
     token?: string;
     refreshToken?: string;
     roles?: string[];
+    permissions?: string[];
     firstName?: string;
     isAdmin?: boolean;
     tenantId?: number;
@@ -71,6 +74,7 @@ declare module "next-auth" {
     token?: string;
     refreshToken?: string;
     roles?: string[];
+    permissions?: string[];
     firstName?: string;
     isAdmin?: boolean;
     tenantId?: number;
@@ -152,6 +156,7 @@ function syncTokenFromPayload(
   token.tenantId = payload.tenant_id;
   token.orgId = payload.org_id;
   token.roles = payload.roles ?? [];
+  token.permissions = payload.permissions ?? [];
   token.isAdmin = payload.is_admin ?? false;
   token.scope = payload.scope;
   token.name = buildDisplayName(payload, (token.email as string) ?? "");
@@ -173,6 +178,10 @@ export function buildAuthUser(
 ): User {
   const roles =
     payload.roles && Array.isArray(payload.roles) ? payload.roles : [];
+  const permissions =
+    payload.permissions && Array.isArray(payload.permissions)
+      ? payload.permissions
+      : [];
 
   return {
     id: String(payload.id),
@@ -181,6 +190,7 @@ export function buildAuthUser(
     token: token,
     refreshToken: refreshToken,
     roles: scope === "platform" ? ["operator"] : roles,
+    permissions: permissions,
     firstName: payload.first_name,
     isAdmin: payload.is_admin ?? false,
     tenantId: payload.tenant_id,
@@ -556,6 +566,7 @@ export const sharedJwtCallback: NonNullable<
     token.token = user.token ?? "";
     token.refreshToken = user.refreshToken ?? "";
     token.roles = user.roles;
+    token.permissions = user.permissions;
     token.firstName = user.firstName;
     token.isAdmin = user.isAdmin;
     token.tenantId = user.tenantId;
@@ -780,6 +791,7 @@ export const sharedSessionCallback: NonNullable<
         token: "",
         refreshToken: "",
         roles: [],
+        permissions: [],
         firstName: (token.firstName as string) || "",
         isAdmin: false,
         scope: token.scope as string | undefined,
@@ -797,6 +809,7 @@ export const sharedSessionCallback: NonNullable<
       token: token.token as string,
       refreshToken: token.refreshToken as string,
       roles: token.roles as string[],
+      permissions: token.permissions as string[],
       firstName: token.firstName as string,
       isAdmin: (token.isAdmin as boolean) ?? false,
       tenantId: token.tenantId as number | undefined,

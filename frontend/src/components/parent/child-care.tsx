@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { HeartPulse, Loader2, MessageCircle, Send, X } from "lucide-react";
 import {
   type ChildFeatures,
@@ -13,6 +14,7 @@ import {
   submitSickNote,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -21,32 +23,27 @@ const MAX_NOTE_LEN = 2000;
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
-function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = `${now.getMonth() + 1}`.padStart(2, "0");
-  const d = `${now.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function enumerateDates(fromISO: string, toISO: string): string[] {
-  const from = new Date(`${fromISO}T00:00:00Z`);
-  const to = new Date(`${toISO}T00:00:00Z`);
+  if (!DATE_ONLY_RE.test(fromISO) || !DATE_ONLY_RE.test(toISO)) return [];
+  const from = parseISODate(fromISO);
+  const to = parseISODate(toISO);
   if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return [];
   if (to.getTime() < from.getTime()) return [];
   const out: string[] = [];
   const cursor = new Date(from);
   while (cursor.getTime() <= to.getTime() && out.length < MAX_SICK_DAYS) {
-    out.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
+    out.push(toISODate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
   }
   return out;
 }
 
-function formatGermanDate(iso: string): string {
+function formatLocaleDate(iso: string, locale: string): string {
   try {
     const d = iso.length === 10 ? new Date(`${iso}T00:00:00Z`) : new Date(iso);
-    return new Intl.DateTimeFormat("de-DE", {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -57,9 +54,9 @@ function formatGermanDate(iso: string): string {
   }
 }
 
-function formatGermanDateTime(iso: string): string {
+function formatLocaleDateTime(iso: string, locale: string): string {
   try {
-    return new Intl.DateTimeFormat("de-DE", {
+    return new Intl.DateTimeFormat(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -169,6 +166,7 @@ function ModalShell({
   onClose: () => void;
   children: React.ReactNode;
 }>) {
+  const t = useTranslations("parentChildCare");
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
@@ -190,7 +188,7 @@ function ModalShell({
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            aria-label="Schließen"
+            aria-label={t("close")}
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -210,6 +208,7 @@ export function SickNoteModal({
   onClose: () => void;
   onSubmit: (dates: string[], reason: string) => Promise<void>;
 }>) {
+  const t = useTranslations("parentChildCare");
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
@@ -221,7 +220,7 @@ export function SickNoteModal({
 
   const handleSubmit = async () => {
     if (dates.length === 0) {
-      setError("Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).");
+      setError(t("sick.invalidDate"));
       return;
     }
     setSubmitting(true);
@@ -230,11 +229,7 @@ export function SickNoteModal({
       await onSubmit(dates, reason);
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Die Krankmeldung konnte nicht gespeichert werden.",
-      );
+      setError(err instanceof Error ? err.message : t("sick.saveError"));
     } finally {
       setSubmitting(false);
     }
@@ -242,20 +237,17 @@ export function SickNoteModal({
 
   return (
     <ModalShell
-      title="Krank melden"
+      title={t("sick.title")}
       accent="bg-[#D6373E]/10 text-[#D6373E]"
       icon={<HeartPulse className="h-5 w-5" aria-hidden="true" />}
       onClose={onClose}
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          Melden Sie Ihr Kind für einen oder mehrere Tage krank. Die Betreuung
-          sieht die Meldung sofort.
-        </p>
+        <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Von
+              {t("sick.from")}
             </span>
             <input
               type="date"
@@ -270,7 +262,7 @@ export function SickNoteModal({
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Bis
+              {t("sick.to")}
             </span>
             <input
               type="date"
@@ -282,20 +274,18 @@ export function SickNoteModal({
           </label>
         </div>
         <p className="text-xs text-gray-500">
-          {dates.length === 1
-            ? "1 Tag wird gemeldet."
-            : `${dates.length} Tage werden gemeldet.`}
+          {t("sick.daysCount", { count: dates.length })}
         </p>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Grund (optional)
+            {t("sick.reasonLabel")}
           </span>
           <textarea
             value={reason}
             maxLength={MAX_NOTE_LEN}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="z. B. Fieber, beim Arzt"
+            placeholder={t("sick.reasonPlaceholder")}
             className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#D6373E] focus-visible:ring-2 focus-visible:ring-[#D6373E]/30 focus-visible:outline-none"
           />
         </label>
@@ -310,7 +300,7 @@ export function SickNoteModal({
             onClick={onClose}
             className="inline-flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
           >
-            Abbrechen
+            {t("cancel")}
           </button>
           <button
             type="button"
@@ -321,7 +311,7 @@ export function SickNoteModal({
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            Krankmeldung senden
+            {t("sick.submit")}
           </button>
         </div>
       </div>
@@ -340,6 +330,8 @@ export function NotesModal({
   onClose: () => void;
   onSubmit: (body: string) => Promise<ParentNote[]>;
 }>) {
+  const t = useTranslations("parentChildCare");
+  const locale = useLocale();
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,7 +340,7 @@ export function NotesModal({
   const handleSubmit = async () => {
     const trimmed = body.trim();
     if (trimmed.length === 0) {
-      setError("Bitte eine Nachricht eingeben.");
+      setError(t("notes.empty"));
       return;
     }
     setSubmitting(true);
@@ -358,11 +350,7 @@ export function NotesModal({
       setList(updated);
       setBody("");
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Die Nachricht konnte nicht gesendet werden.",
-      );
+      setError(err instanceof Error ? err.message : t("notes.sendError"));
     } finally {
       setSubmitting(false);
     }
@@ -370,7 +358,7 @@ export function NotesModal({
 
   return (
     <ModalShell
-      title="Nachricht an das Team"
+      title={t("notes.title")}
       accent="bg-[#F78C10]/10 text-[#F78C10]"
       icon={<MessageCircle className="h-5 w-5" aria-hidden="true" />}
       onClose={onClose}
@@ -378,14 +366,14 @@ export function NotesModal({
       <div className="space-y-4">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Neue Nachricht
+            {t("notes.newLabel")}
           </span>
           <textarea
             value={body}
             maxLength={MAX_NOTE_LEN}
             onChange={(e) => setBody(e.target.value)}
             rows={3}
-            placeholder="Kurze Mitteilung an die Betreuung …"
+            placeholder={t("notes.placeholder")}
             className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#F78C10] focus-visible:ring-2 focus-visible:ring-[#F78C10]/30 focus-visible:outline-none"
           />
           <span className="mt-1 block text-right text-xs text-gray-400">
@@ -409,13 +397,13 @@ export function NotesModal({
             ) : (
               <Send className="h-4 w-4" aria-hidden="true" />
             )}
-            Senden
+            {t("notes.send")}
           </button>
         </div>
         {list.length > 0 && (
           <div className="border-t border-gray-100 pt-4">
             <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Zuletzt gesendet
+              {t("notes.lastSent")}
             </p>
             <ul className="space-y-2">
               {list.map((note) => (
@@ -427,7 +415,7 @@ export function NotesModal({
                     {note.body}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
-                    {formatGermanDateTime(note.created_at)}
+                    {formatLocaleDateTime(note.created_at, locale)}
                   </p>
                 </li>
               ))}
@@ -444,25 +432,30 @@ export function NotesModal({
 export function SickStatusSummary({
   sickDays,
 }: Readonly<{ sickDays: StatusDay[] }>) {
+  const t = useTranslations("parentChildCare");
+  const locale = useLocale();
   if (sickDays.length === 0) {
-    return <span className="text-sm text-gray-600">Keine Krankmeldung</span>;
+    return <span className="text-sm text-gray-600">{t("summary.none")}</span>;
   }
   const sorted = [...sickDays].sort((a, b) => a.date.localeCompare(b.date));
   const first = sorted.at(0)!;
   const last = sorted.at(-1)!;
   const label =
     sorted.length === 1
-      ? `Krank am ${formatGermanDate(first.date)}`
-      : `Krank ${formatGermanDate(first.date)} – ${formatGermanDate(last.date)}`;
+      ? t("summary.oneDay", { date: formatLocaleDate(first.date, locale) })
+      : t("summary.range", {
+          from: formatLocaleDate(first.date, locale),
+          to: formatLocaleDate(last.date, locale),
+        });
   return <span className="text-sm font-semibold text-[#D6373E]">{label}</span>;
 }
 
 export function ParentNotesList({ notes }: Readonly<{ notes: ParentNote[] }>) {
+  const t = useTranslations("parentChildCare");
+  const locale = useLocale();
   if (notes.length === 0) {
     return (
-      <p className="text-sm leading-6 text-gray-600">
-        Noch keine Nachrichten gesendet.
-      </p>
+      <p className="text-sm leading-6 text-gray-600">{t("notes.listEmpty")}</p>
     );
   }
   return (
@@ -476,7 +469,7 @@ export function ParentNotesList({ notes }: Readonly<{ notes: ParentNote[] }>) {
             {note.body}
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            {formatGermanDateTime(note.created_at)}
+            {formatLocaleDateTime(note.created_at, locale)}
           </p>
         </li>
       ))}

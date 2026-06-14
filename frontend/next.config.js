@@ -4,11 +4,15 @@
  */
 import "./src/env.js";
 import { withSentryConfig } from "@sentry/nextjs";
+import createNextIntlPlugin from "next-intl/plugin";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  output: "standalone",
+};
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-export default withSentryConfig(config, {
+export default withSentryConfig(withNextIntl(config), {
   silent: true,
 
   sourcemaps: {

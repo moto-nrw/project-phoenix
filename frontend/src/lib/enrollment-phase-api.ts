@@ -1,4 +1,5 @@
 import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 
 const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
@@ -68,23 +69,6 @@ interface BackendEnvelope<T> {
 
 const BASE = "/api/enrollment/phases";
 
-// Backend → German UI message map. Keep in sync with the ErrCodeRollover*
-// constants in backend/api/enrollment/rollover_handlers.go. Falls back to
-// the backend's raw `error` text when the code isn't known so we never
-// hide information from the admin.
-const ROLLOVER_ERROR_MESSAGES: Record<string, string> = {
-  "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
-  "rollover.invalid_request":
-    "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",
-  "rollover.review_invalid": "Die Aktion ist in diesem Zustand nicht erlaubt.",
-  "rollover.review_not_found":
-    "Dieser Eintrag in der Prüfliste existiert nicht mehr.",
-  "rollover.duplicate_name":
-    "Es existiert bereits eine Phase mit diesem Namen. Bitte einen anderen Namen wählen.",
-  "rollover.source_already_rolled":
-    "Aus dieser Phase wurde bereits eine Anschlussphase erstellt. Bitte zuerst die bestehende Anschlussphase löschen, bevor du eine neue anlegst.",
-};
-
 async function readJSON<T>(response: Response): Promise<T> {
   const raw = (await response.json()) as BackendEnvelope<T>;
   if (
@@ -98,63 +82,13 @@ async function readJSON<T>(response: Response): Promise<T> {
   return raw as unknown as T;
 }
 
-// Substring-keyed map for raw validation errors returned by the
-// phase model's Validate() method (backend/models/enrollment/phase.go).
-// These come back without a code, so we match on the English text.
-const PHASE_VALIDATION_MESSAGES: Array<[string, string]> = [
-  [
-    "service_end_date must be on or after service_start_date",
-    "Das Ende des Betreuungszeitraums muss am gleichen Tag oder nach dem Beginn liegen.",
-  ],
-  [
-    "enrollment_close_at must be after enrollment_open_at",
-    "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
-  ],
-];
-
-function translatePhaseError(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  for (const [needle, german] of PHASE_VALIDATION_MESSAGES) {
-    if (raw.includes(needle)) return german;
-  }
-  return undefined;
-}
-
 async function readError(response: Response, fallback: string): Promise<Error> {
-  let message = fallback;
-  let code: string | undefined;
-  try {
-    const payload = (await response.json()) as BackendEnvelope<unknown>;
-    code = payload.code;
-    const localized = code ? ROLLOVER_ERROR_MESSAGES[code] : undefined;
-    const validationLocalized = translatePhaseError(payload.error);
-    message =
-      localized ??
-      validationLocalized ??
-      payload.error ??
-      payload.message ??
-      `${fallback} (HTTP ${response.status})`;
-  } catch {
-    /* ignore */
-  }
-  // 4xx are expected user-input failures; only 5xx is a real error.
-  if (response.status >= 500) {
-    logger.error("phase_request_failed", {
-      status: response.status,
-      message,
-      code,
-    });
-  } else {
-    logger.warn("phase_request_rejected", {
-      status: response.status,
-      message,
-      code,
-    });
-  }
-  const err = new Error(message) as Error & { status?: number; code?: string };
-  err.status = response.status;
-  err.code = code;
-  return err;
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "phase_request_failed",
+  );
 }
 
 export async function listPhases(): Promise<Phase[]> {

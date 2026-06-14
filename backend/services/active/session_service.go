@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -69,16 +70,18 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		StaffID:   staffID,
 		GroupID:   groupID,
 		Role:      "Supervisor",
-		StartDate: startDate,
+		StartDate: timezone.DateFromTime(startDate),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
-	if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+	s.runBestEffortDB(ctx, "assign_supervisor", func() error {
+		return s.supervisorRepo.Create(ctx, supervisor)
+	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 			slog.Int64("staff_id", staffID),
 			slog.Int64("group_id", groupID),
 			slog.String("error", err.Error()),
 		)
-	}
+	})
 
 	// NFC auto-check-in: ensure staff member has a work session for today.
 	// This path runs from the IoT supervisor flow (kiosk-driven activity
@@ -90,19 +93,24 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 	// matching NFC stamp), so log it at INFO so a dispute can be traced
 	// later.
 	if s.workSessionService != nil {
-		session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
-		switch {
-		case err != nil:
+		s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
+			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+			if err != nil {
+				return err
+			}
+			if session == nil {
+				s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
+					slog.Int64("staff_id", staffID),
+					slog.Int64("group_id", groupID),
+				)
+			}
+			return nil
+		}, func(err error) {
 			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
 				slog.Int64("staff_id", staffID),
 				slog.String("error", err.Error()),
 			)
-		case session == nil:
-			s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
-				slog.Int64("staff_id", staffID),
-				slog.Int64("group_id", groupID),
-			)
-		}
+		})
 	}
 }
 
@@ -203,13 +211,8 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	txHandler := modelBase.NewTxHandler(s.db)
 
 	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts
-		// This prevents race conditions where two requests both pass conflict check before either creates a session
-		// Using two-argument form ensures locks are scoped per tenant and cannot collide across tenants
-		// The lock is automatically released when the transaction commits or rolls back
-		tenantID := tenant.FromContext(txCtx)
-		if _, err := tx.ExecContext(txCtx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
-			return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+			return err
 		}
 
 		// Check for conflicts inside the transaction with the lock held
@@ -229,6 +232,16 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
 	})
+}
+
+func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, activityID int64, operation string) error {
+	// Acquire advisory lock on (tenant_id, activity_id) to serialize concurrent session starts.
+	// The two-argument form scopes locks per tenant; PostgreSQL releases it when the tx ends.
+	tenantID := tenant.FromContext(ctx)
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(?, ?)", tenantID, activityID); err != nil {
+		return &ActiveError{Op: operation, Err: fmt.Errorf("failed to acquire activity lock: %w", err)}
+	}
+	return nil
 }
 
 // createSessionWithMultipleSupervisors creates a new session with multiple supervisors and transfers visits
@@ -275,16 +288,18 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			StaffID:   staffID,
 			GroupID:   groupID,
 			Role:      "supervisor",
-			StartDate: startDate,
+			StartDate: timezone.DateFromTime(startDate),
 		}
 		supervisor.SetTenantID(tenant.FromContext(ctx))
-		if err := s.supervisorRepo.Create(ctx, supervisor); err != nil {
+		s.runBestEffortDB(ctx, "assign_supervisor", func() error {
+			return s.supervisorRepo.Create(ctx, supervisor)
+		}, func(err error) {
 			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 				slog.Int64("staff_id", staffID),
 				slog.Int64("group_id", groupID),
 				slog.String("error", err.Error()),
 			)
-		}
+		})
 
 		// NFC auto-check-in (kiosk-driven multi-supervisor flow). Same
 		// asymmetric-audit caveat as the single-supervisor path: if the
@@ -292,43 +307,64 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		// (nil, nil) and we log it so a dispute over the supervisor row
 		// without a matching NFC stamp can be traced later.
 		if s.workSessionService != nil {
-			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
-			switch {
-			case err != nil:
+			s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
+				session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+				if err != nil {
+					return err
+				}
+				if session == nil {
+					s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
+						slog.Int64("staff_id", staffID),
+						slog.Int64("group_id", groupID),
+					)
+				}
+				return nil
+			}, func(err error) {
 				s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
 					slog.Int64("staff_id", staffID),
 					slog.Int64("group_id", groupID),
 					slog.String("error", err.Error()),
 				)
-			case session == nil:
-				s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
-					slog.Int64("staff_id", staffID),
-					slog.Int64("group_id", groupID),
-				)
-			}
+			})
 		}
 	}
 }
 
 // ForceStartActivitySession starts an activity session with override capability
 func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySession", Err: err}
-	}
+	const operation = "ForceStartActivitySession"
+	txHandler := modelBase.NewTxHandler(s.db)
 
-	finalRoomID := s.determineRoomIDWithoutConflictCheck(ctx, activityID, roomID)
+	var newGroup *active.Group
+	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+			return err
+		}
 
-	newGroup, err := s.createSessionWithSupervisorForceStart(ctx, activityID, deviceID, staffID, finalRoomID)
+		deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(txCtx, deviceID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		finalRoomID := s.determineRoomIDWithoutConflictCheck(txCtx, activityID, roomID)
+
+		group, err := s.createSessionWithSupervisorForceStart(txCtx, activityID, deviceID, staffID, finalRoomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		if err := s.completeForceEndedTimetableMirrors(txCtx, appendActiveGroupID(nil, deviceEndedSessionID)); err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		newGroup = group
+		return nil
+	})
 	if err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySession", Err: err}
+		return nil, err
 	}
 
 	return newGroup, nil
-}
-
-// endExistingDeviceSessionIfPresent ends any existing session for the device using simple cleanup
-func (s *service) endExistingDeviceSessionIfPresent(ctx context.Context, deviceID int64) error {
-	return s.endExistingDeviceSession(ctx, deviceID, false)
 }
 
 // determineRoomIDWithoutConflictCheck determines room ID without checking conflicts (for force start)
@@ -389,10 +425,49 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 // updateDeviceLocation updates the device's room_id to track its last-used location.
 // This is fire-and-forget: a failure here should not block session creation.
 func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int64) {
-	if err := s.deviceRepo.UpdateRoomID(ctx, deviceID, roomID); err != nil {
+	s.runBestEffortDB(ctx, "update_device_location", func() error {
+		return s.deviceRepo.UpdateRoomID(ctx, deviceID, roomID)
+	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "failed to update device location",
 			slog.Int64("device_id", deviceID),
 			slog.Int64("room_id", roomID),
+			slog.String("error", err.Error()),
+		)
+	})
+}
+
+func (s *service) runBestEffortDB(ctx context.Context, label string, fn func() error, logFailure func(error)) {
+	tx, ok := modelBase.TxFromContext(ctx)
+	if !ok || tx == nil {
+		if err := fn(); err != nil {
+			logFailure(err)
+		}
+		return
+	}
+
+	savepointName := "sp_active_" + label
+	if _, err := (*tx).ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
+		s.getLogger().WarnContext(ctx, "failed to create savepoint for best-effort operation",
+			slog.String("operation", label),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	if err := fn(); err != nil {
+		logFailure(err)
+		if _, rollbackErr := (*tx).ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
+			s.getLogger().WarnContext(ctx, "failed to rollback savepoint for best-effort operation",
+				slog.String("operation", label),
+				slog.String("error", rollbackErr.Error()),
+			)
+		}
+		return
+	}
+
+	if _, err := (*tx).ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
+		s.getLogger().WarnContext(ctx, "failed to release savepoint for best-effort operation",
+			slog.String("operation", label),
 			slog.String("error", err.Error()),
 		)
 	}
@@ -411,25 +486,219 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 		return nil, err
 	}
 
-	// Use simple cleanup (fullCleanup=false) to only mark the group as ended
-	// without ending visits, so TransferVisitsFromRecentSessions can move them
-	// to the new session. Using fullCleanup=true would set exit_time on all visits
-	// first, causing the transfer to find nothing and losing all checked-in students.
-	if err := s.endExistingDeviceSessionIfPresent(ctx, deviceID); err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
-	}
-
-	finalRoomID, err := s.determineRoomIDForForceStart(ctx, activityID, roomID)
+	var newGroup *active.Group
+	err := s.forceStartActivitySessionTx(ctx, activityID, deviceID, supervisorIDs, roomID, &newGroup)
 	if err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
-	}
-
-	newGroup, err := s.createSessionWithMultipleSupervisors(ctx, activityID, deviceID, supervisorIDs, finalRoomID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ForceStartActivitySessionWithSupervisors", Err: err}
+		return nil, err
 	}
 
 	return newGroup, nil
+}
+
+func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
+	const operation = "ForceStartActivitySessionWithSupervisors"
+	txHandler := modelBase.NewTxHandler(s.db)
+
+	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
+			return err
+		}
+
+		// Use simple cleanup (fullCleanup=false) to only mark the group as ended
+		// without ending visits, so TransferVisitsFromRecentSessions can move them
+		// to the new session. Using fullCleanup=true would set exit_time on all visits
+		// first, causing the transfer to find nothing and losing all checked-in students.
+		deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(txCtx, deviceID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		conflictingSessionIDs, err := s.endExistingActivitySessionsForForceStart(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		endedSessionIDs := appendActiveGroupID(nil, deviceEndedSessionID)
+		endedSessionIDs = appendActiveGroupIDs(endedSessionIDs, conflictingSessionIDs...)
+
+		finalRoomID, err := s.determineRoomIDForForceStart(txCtx, activityID, roomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		group, err := s.createSessionWithMultipleSupervisors(txCtx, activityID, deviceID, supervisorIDs, finalRoomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		if err := s.transferForceStartedActivityState(txCtx, conflictingSessionIDs, group.ID, group.StartTime); err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		if err := s.completeForceEndedTimetableMirrors(txCtx, endedSessionIDs); err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		*newGroup = group
+		return nil
+	})
+}
+
+func appendActiveGroupID(ids []int64, id int64) []int64 {
+	if id <= 0 {
+		return ids
+	}
+	for _, existing := range ids {
+		if existing == id {
+			return ids
+		}
+	}
+	return append(ids, id)
+}
+
+func appendActiveGroupIDs(ids []int64, more ...int64) []int64 {
+	for _, id := range more {
+		ids = appendActiveGroupID(ids, id)
+	}
+	return ids
+}
+
+func (s *service) completeForceEndedTimetableMirrors(ctx context.Context, endedSessionIDs []int64) error {
+	if s.timetableBridgeCompleter == nil || len(endedSessionIDs) == 0 {
+		return nil
+	}
+	completed, err := s.timetableBridgeCompleter.CompleteActiveByActiveGroupIDs(ctx, endedSessionIDs, time.Now())
+	if err != nil {
+		return fmt.Errorf("complete force-ended timetable mirrors: %w", err)
+	}
+	if completed > 0 {
+		s.getLogger().InfoContext(ctx, "completed timetable mirrors for force-ended activity sessions",
+			slog.Int64("count", completed),
+		)
+	}
+	return nil
+}
+
+func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, activityID int64) ([]int64, error) {
+	existingSessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return nil, err
+	}
+
+	endedIDs := make([]int64, 0, len(existingSessions))
+	for _, session := range existingSessions {
+		if session == nil || session.ID <= 0 {
+			continue
+		}
+		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+			return nil, err
+		}
+		endedIDs = append(endedIDs, session.ID)
+	}
+
+	return endedIDs, nil
+}
+
+func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, deviceID int64) (int64, error) {
+	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		return 0, err
+	}
+
+	if existingSession == nil {
+		return 0, nil
+	}
+
+	if err := s.groupRepo.EndSession(ctx, existingSession.ID); err != nil {
+		return 0, err
+	}
+
+	return existingSession.ID, nil
+}
+
+func (s *service) transferForceStartedActivityState(ctx context.Context, oldGroupIDs []int64, newGroupID int64, newGroupStartTime time.Time) error {
+	for _, oldGroupID := range oldGroupIDs {
+		visitsTransferred, err := s.transferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+		if err != nil {
+			return err
+		}
+
+		supervisorsTransferred, err := s.transferActiveSupervisorsBetweenGroups(ctx, oldGroupID, newGroupID, newGroupStartTime)
+		if err != nil {
+			return err
+		}
+
+		if visitsTransferred > 0 || supervisorsTransferred > 0 {
+			s.getLogger().InfoContext(ctx, "transferred state from force-ended activity session",
+				slog.Int64("old_active_group_id", oldGroupID),
+				slog.Int64("new_active_group_id", newGroupID),
+				slog.Int("visits_transferred", visitsTransferred),
+				slog.Int("supervisors_transferred", supervisorsTransferred),
+			)
+		}
+	}
+
+	return nil
+}
+
+func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+	return s.visitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+}
+
+func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64, newGroupStartTime time.Time) (int, error) {
+	oldSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, oldGroupID, true)
+	if err != nil {
+		return 0, err
+	}
+
+	newSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, newGroupID, true)
+	if err != nil {
+		return 0, err
+	}
+
+	existingStaffIDs := make(map[int64]bool, len(newSupervisors))
+	for _, supervisor := range newSupervisors {
+		if supervisor == nil {
+			continue
+		}
+		existingStaffIDs[supervisor.StaffID] = true
+	}
+
+	transferred := 0
+	for _, supervisor := range oldSupervisors {
+		if supervisor == nil {
+			continue
+		}
+
+		if err := s.supervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
+			return transferred, err
+		}
+
+		if existingStaffIDs[supervisor.StaffID] {
+			continue
+		}
+
+		transferredSupervisor := &active.GroupSupervisor{
+			StaffID:   supervisor.StaffID,
+			GroupID:   newGroupID,
+			Role:      normalizeTransferredSupervisorRole(supervisor.Role),
+			StartDate: timezone.DateFromTime(newGroupStartTime),
+		}
+		transferredSupervisor.SetTenantID(tenant.FromContext(ctx))
+		if err := s.supervisorRepo.Create(ctx, transferredSupervisor); err != nil {
+			return transferred, err
+		}
+		existingStaffIDs[supervisor.StaffID] = true
+		transferred++
+	}
+
+	return transferred, nil
+}
+
+func normalizeTransferredSupervisorRole(role string) string {
+	if strings.EqualFold(role, "supervisor") {
+		return "supervisor"
+	}
+	return role
 }
 
 // endExistingDeviceSession ends any existing session for the device
@@ -566,9 +835,9 @@ func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGro
 
 // endAllCurrentSupervisors ends all current supervisors by setting end_date
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*active.GroupSupervisor) error {
-	now := time.Now()
+	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
-		supervisor.EndDate = &now
+		supervisor.EndDate = &today
 		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
 		}
@@ -614,7 +883,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.G
 	}
 
 	supervisor.EndDate = nil
-	supervisor.StartDate = now
+	supervisor.StartDate = timezone.DateFromTime(now)
 	return s.supervisorRepo.Update(ctx, supervisor)
 }
 
@@ -624,7 +893,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		StaffID:   supervisorID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",
-		StartDate: now,
+		StartDate: timezone.DateFromTime(now),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.supervisorRepo.Create(ctx, supervisor)
@@ -1172,21 +1441,10 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 // cleanupOrphanedSupervisors closes supervisor records from previous days
 // that the per-group loop wouldn't find (e.g., groups already ended but supervisors left open)
 func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailySessionCleanupResult) {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
-	var staleRecords []struct {
-		ID        int64     `bun:"id"`
-		StartDate time.Time `bun:"start_date"`
-	}
-
-	err := s.db.NewSelect().
-		Table("active.group_supervisors").
-		Column("id", "start_date").
-		Where("start_date < ?", today).
-		Where("end_date IS NULL").
-		Scan(ctx, &staleRecords)
-
+	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to find orphaned supervisors: %v", err)
 		result.Errors = append(result.Errors, errMsg)
@@ -1196,19 +1454,11 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 
 	for _, record := range staleRecords {
 		// end_date is a DATE column, so set it to the start_date itself
-		endDate := time.Date(
-			record.StartDate.Year(), record.StartDate.Month(), record.StartDate.Day(),
-			0, 0, 0, 0, record.StartDate.Location(),
-		)
+		endDate := record.StartDate
 
-		_, err := s.db.NewUpdate().
-			Table("active.group_supervisors").
-			Set("end_date = ?", endDate).
-			Set("updated_at = ?", time.Now()).
-			Where("id = ?", record.ID).
-			Exec(ctx)
-
-		if err != nil {
+		record.EndDate = &endDate
+		record.UpdatedAt = time.Now()
+		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false

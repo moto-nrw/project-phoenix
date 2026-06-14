@@ -10,6 +10,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -302,32 +303,15 @@ func (r *GroupRepository) ListWithOptions(ctx context.Context, options *modelBas
 	return groups, nil
 }
 
-// CountWithOptions counts groups matching the query options (without pagination)
-func (r *GroupRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*education.Group)(nil)).
-		ModelTableExpr(`education.groups AS "group"`).
-		Column("group.id")
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply only filters (not pagination) for counting
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("group")
-			query = options.Filter.ApplyToQuery(query)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count with options",
-			Err: err,
-		}
-	}
-
-	return count, nil
+// Exists reports whether a group with the given ID exists in the current
+// tenant (issue #584: moved verbatim from api/timetable template validation).
+// Custom method (Rule 2): the generic shape has no EXISTS projection — going
+// through List/Count would fetch or aggregate rows just to learn a boolean.
+func (r *GroupRepository) Exists(ctx context.Context, id int64) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	return base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`education.groups AS "group"`).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".id = ?`, id).
+		Exists(ctx)
 }

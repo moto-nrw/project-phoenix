@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -82,25 +81,20 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Past dates are rejected. The gap view is a planning tool — closed days
-	// are historical record, not a gap to fill. Comparison uses Berlin-local
-	// "today" so a 23:00 UTC request still considers the local date correctly.
-	todayBerlin := timezone.DateOfUTC(time.Now())
-	fromBerlin := timezone.DateOfUTC(from)
-	if fromBerlin.Before(todayBerlin) {
+	// are historical record, not a gap to fill. Comparison uses the Berlin
+	// calendar "today" so a 23:00 UTC request still considers the local date
+	// correctly.
+	if from.Before(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
 		return
 	}
 
-	if rs.activityInstanceRepo == nil || rs.instanceStaffRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	// Range query is UTC-midnight aligned via DateOfUTC so the DB DATE columns
-	// match without timezone drift.
-	instances, err := rs.activityInstanceRepo.FindByTenantAndDateRange(
-		ctx, timezone.DateOfUTC(from), timezone.DateOfUTC(to),
-	)
+	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instances failed", err))
 		return
@@ -120,7 +114,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Single GROUP-BY query for non-absent counts across all candidates.
-	nonAbsentCounts, err := rs.instanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, candidateIDs)
+	nonAbsentCounts, err := rs.timetableData.CountNonAbsentInstanceStaffByInstanceIDs(ctx, candidateIDs)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("count non-absent staff failed", err))
 		return
@@ -142,7 +136,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		// Load the full instance_staff list to compute absent count. Not
 		// every gap has absent rows; the count is 0 when no staff was ever
 		// assigned.
-		rows, err := rs.instanceStaffRepo.FindByInstanceID(ctx, inst.ID)
+		rows, err := rs.timetableData.GetInstanceStaff(ctx, inst.ID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 			return
@@ -155,7 +149,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		}
 		gaps = append(gaps, GapInstance{
 			InstanceID: inst.ID,
-			Date:       inst.Date.Format(dateLayout),
+			Date:       inst.Date.String(),
 			Title:      inst.Title,
 			StartTime:  inst.StartTime.Format("15:04"),
 			EndTime:    inst.EndTime.Format("15:04"),
@@ -178,8 +172,8 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	})
 
 	resp := GapsResponse{
-		From: from.Format(dateLayout),
-		To:   to.Format(dateLayout),
+		From: from.String(),
+		To:   to.String(),
 		Gaps: gaps,
 	}
 

@@ -13,11 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -40,26 +37,7 @@ type Resource struct {
 	instanceService        scheduleSvc.InstanceService
 	operationsService      scheduleSvc.TimetableOperationsService
 	personService          userSvc.PersonService
-	instanceStudentRepo    schedule.InstanceStudentRepository
-	activityInstanceRepo   schedule.ActivityInstanceRepository
-	activityExceptionRepo  schedule.ActivityExceptionRepository
-	activityScheduleRepo   activities.ScheduleRepository
-	instanceStaffRepo      schedule.InstanceStaffRepository
-	activeGroupRepo        active.GroupRepository
-	supervisorRepo         active.GroupSupervisorRepository
-	arrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
-	arrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
-	pickupScheduleRepo     schedule.StudentPickupScheduleRepository
-	pickupExceptionRepo    schedule.StudentPickupExceptionRepository
-	visitRepo              active.VisitRepository
-	studentRepo            users.StudentRepository
-	staffRepo              users.StaffRepository
-	roomRepo               facilities.RoomRepository
-	activityCategoryRepo   activities.CategoryRepository
-	activityGroupRepo      activities.GroupRepository
-	activitySupervisorRepo activities.SupervisorPlannedRepository
-	studentEnrollmentRepo  activities.StudentEnrollmentRepository
-	timeframeRepo          schedule.TimeframeRepository
+	timetableData          scheduleSvc.TimetableDataService
 	userContextService     usercontextSvc.UserContextService
 	settingsService        configSvc.SettingsService
 	broadcaster            realtime.Broadcaster
@@ -77,26 +55,7 @@ type Dependencies struct {
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
 	PersonService          userSvc.PersonService
-	InstanceStudentRepo    schedule.InstanceStudentRepository
-	ActivityInstanceRepo   schedule.ActivityInstanceRepository
-	ActivityExceptionRepo  schedule.ActivityExceptionRepository
-	ActivityScheduleRepo   activities.ScheduleRepository
-	InstanceStaffRepo      schedule.InstanceStaffRepository
-	ActiveGroupRepo        active.GroupRepository
-	SupervisorRepo         active.GroupSupervisorRepository
-	ArrivalScheduleRepo    schedule.StudentArrivalScheduleRepository
-	ArrivalExceptionRepo   schedule.StudentArrivalExceptionRepository
-	PickupScheduleRepo     schedule.StudentPickupScheduleRepository
-	PickupExceptionRepo    schedule.StudentPickupExceptionRepository
-	VisitRepo              active.VisitRepository
-	StudentRepo            users.StudentRepository
-	StaffRepo              users.StaffRepository
-	RoomRepo               facilities.RoomRepository
-	ActivityCategoryRepo   activities.CategoryRepository
-	ActivityGroupRepo      activities.GroupRepository
-	ActivitySupervisorRepo activities.SupervisorPlannedRepository
-	StudentEnrollmentRepo  activities.StudentEnrollmentRepository
-	TimeframeRepo          schedule.TimeframeRepository
+	TimetableData          scheduleSvc.TimetableDataService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster
@@ -114,26 +73,7 @@ func NewResource(deps Dependencies) *Resource {
 		instanceService:        deps.InstanceService,
 		operationsService:      deps.OperationsService,
 		personService:          deps.PersonService,
-		instanceStudentRepo:    deps.InstanceStudentRepo,
-		activityInstanceRepo:   deps.ActivityInstanceRepo,
-		activityExceptionRepo:  deps.ActivityExceptionRepo,
-		activityScheduleRepo:   deps.ActivityScheduleRepo,
-		instanceStaffRepo:      deps.InstanceStaffRepo,
-		activeGroupRepo:        deps.ActiveGroupRepo,
-		supervisorRepo:         deps.SupervisorRepo,
-		arrivalScheduleRepo:    deps.ArrivalScheduleRepo,
-		arrivalExceptionRepo:   deps.ArrivalExceptionRepo,
-		pickupScheduleRepo:     deps.PickupScheduleRepo,
-		pickupExceptionRepo:    deps.PickupExceptionRepo,
-		visitRepo:              deps.VisitRepo,
-		studentRepo:            deps.StudentRepo,
-		staffRepo:              deps.StaffRepo,
-		roomRepo:               deps.RoomRepo,
-		activityCategoryRepo:   deps.ActivityCategoryRepo,
-		activityGroupRepo:      deps.ActivityGroupRepo,
-		activitySupervisorRepo: deps.ActivitySupervisorRepo,
-		studentEnrollmentRepo:  deps.StudentEnrollmentRepo,
-		timeframeRepo:          deps.TimeframeRepo,
+		timetableData:          deps.TimetableData,
 		userContextService:     deps.UserContextService,
 		settingsService:        deps.SettingsService,
 		broadcaster:            deps.Broadcaster,
@@ -331,41 +271,41 @@ func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
 		ID:              p.ID,
 		Name:            p.Name,
 		PeriodType:      p.PeriodType,
-		StartDate:       p.StartDate.Format(dateLayout),
-		EndDate:         p.EndDate.Format(dateLayout),
+		StartDate:       p.StartDate.String(),
+		EndDate:         p.EndDate.String(),
 		WeekCycleLength: p.WeekCycleLength,
 		IsActive:        p.IsActive,
 		CreatedAt:       p.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       p.UpdatedAt.Format(time.RFC3339),
 	}
 	if p.WeekCycleAnchor != nil {
-		anchor := p.WeekCycleAnchor.Format(dateLayout)
+		anchor := p.WeekCycleAnchor.String()
 		resp.WeekCycleAnchor = &anchor
 	}
 	return resp
 }
 
 // parseDates extracts start_date, end_date, and optional week_cycle_anchor from a request.
-// Returns parsed times and true on success, or renders an error and returns false.
-func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate time.Time, anchor *time.Time, ok bool) {
+// Returns parsed calendar dates and true on success, or renders an error and returns false.
+func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest) (startDate, endDate timezone.Date, anchor *timezone.Date, ok bool) {
 	var err error
-	startDate, err = time.Parse(dateLayout, req.StartDate)
+	startDate, err = timezone.ParseDate(req.StartDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_date format, expected YYYY-MM-DD")))
-		return time.Time{}, time.Time{}, nil, false
+		return timezone.Date{}, timezone.Date{}, nil, false
 	}
 
-	endDate, err = time.Parse(dateLayout, req.EndDate)
+	endDate, err = timezone.ParseDate(req.EndDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_date format, expected YYYY-MM-DD")))
-		return time.Time{}, time.Time{}, nil, false
+		return timezone.Date{}, timezone.Date{}, nil, false
 	}
 
 	if req.WeekCycleAnchor != nil {
-		a, err := time.Parse(dateLayout, *req.WeekCycleAnchor)
+		a, err := timezone.ParseDate(*req.WeekCycleAnchor)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid week_cycle_anchor format, expected YYYY-MM-DD")))
-			return time.Time{}, time.Time{}, nil, false
+			return timezone.Date{}, timezone.Date{}, nil, false
 		}
 		anchor = &a
 	}
@@ -375,7 +315,7 @@ func parseDates(w http.ResponseWriter, r *http.Request, req *CalendarPeriodReque
 
 // validatePeriodRules checks business rules after dates have been parsed.
 // Returns true on success, or renders an error and returns false.
-func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate time.Time, anchor *time.Time) bool {
+func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPeriodRequest, startDate, endDate timezone.Date, anchor *timezone.Date) bool {
 	if !endDate.After(startDate) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_date must be after start_date")))
 		return false

@@ -17,7 +17,7 @@ defaults:
 jobs:
   backend-quality:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -28,11 +28,6 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
-
-      - name: Install Go quality tools
-        run: |
-          go install golang.org/x/tools/cmd/deadcode@latest
-          go install github.com/google/go-licenses@latest
 
       - name: Check Go formatting
         working-directory: backend
@@ -64,8 +59,11 @@ jobs:
         run: |
           echo "🔍 Running dead code detection..."
 
-          # Run deadcode and capture output
-          DEADCODE_OUTPUT=$(deadcode -test ./... 2>&1 || true)
+          # Run deadcode (a go.mod tool directive, locked via go.sum) and
+          # capture output. On a cold module cache the go toolchain prints
+          # "go: downloading ..." progress to stderr — strip it, or it gets
+          # mistaken for findings.
+          DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
 
           # Define exclusion patterns (false positives or planned-but-unwired code)
           # cmd/root.go:Execute is the Cobra CLI entry point called by main()
@@ -132,7 +130,7 @@ jobs:
           DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
 
           # go-licenses check exits non-zero if disallowed licenses are found
-          go-licenses check ./... --disallowed_types=restricted,reciprocal 2>&1 || {
+          go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal 2>&1 || {
             echo ""
             echo "❌ Disallowed licenses found in Go dependencies."
             echo "Source-available project cannot use restricted or reciprocal licenses."
@@ -244,4 +242,3 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
-

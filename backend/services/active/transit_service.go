@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
@@ -16,7 +17,7 @@ const (
 // ListStudentsInTransit returns students who are checked in today but do not
 // currently have an open room visit.
 func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
-	openAttendanceIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, time.Now())
+	openAttendanceIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsInTransit", Err: ErrDatabaseOperation}
 	}

@@ -327,6 +327,10 @@ type mockGroupRepo struct {
 	err    error
 }
 
+func (m *mockGroupRepo) Exists(_ context.Context, _ int64) (bool, error) {
+	return false, nil
+}
+
 func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { return nil }
 func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
 	return nil, nil
@@ -404,6 +408,10 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 type mockRoomRepo struct {
 	rooms []*facilities.Room
 	err   error
+}
+
+func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return nil, nil
 }
 
 func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { return nil }
@@ -501,4 +509,13 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 // Helper function
 func int64Ptr(i int64) *int64 {
 	return &i
+}
+
+// Stubs for the issue #585 refactor interface additions — unused here.
+func (m *mockRoomRepo) FindWithOccupancy(context.Context, int64) (*facilities.RoomOccupancyRow, error) {
+	return nil, nil
+}
+
+func (m *mockRoomRepo) ListWithOccupancy(context.Context, *base.QueryOptions) ([]facilities.RoomOccupancyRow, error) {
+	return nil, nil
 }

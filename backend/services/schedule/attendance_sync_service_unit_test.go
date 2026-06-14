@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -73,15 +74,15 @@ func (f *fakeInstanceRepo) List(context.Context, *modelsBase.QueryOptions) ([]*s
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, time.Time, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, time.Time) ([]*scheduleModel.ActivityInstance, error) {
+func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	panic("unused")
 }
 
@@ -139,11 +140,11 @@ func (f *fakeInstanceStudentRepo) FindExpectedByInstanceIDs(context.Context, []i
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+func (f *fakeInstanceStudentRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.InstanceStudent, error) {
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, time.Time) ([]int64, error) {
+func (f *fakeInstanceStudentRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezone.Date) ([]int64, error) {
 	panic("unused")
 }
 
@@ -159,7 +160,7 @@ func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, strin
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, time.Time, time.Time) ([]*scheduleModel.ScheduledInstanceRow, error) {
+func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
 	panic("unused")
 }
 
@@ -465,4 +466,38 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 		assert.Nil(t, svc.MirrorCheckInForVisit(context.Background(), validVisit()))
 		assert.Nil(t, svc.LoadAttendanceForVisit(context.Background(), validVisit()))
 	})
+}
+
+// Stubs for the issue #585 cleanup refactor interface additions — unused by
+// the attendance-sync tests.
+func (f *fakeInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) CountWithOptions(context.Context, *modelsBase.QueryOptions) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+	return nil
+}
+
+func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]scheduleModel.StudentInstanceRef, error) {
+	return nil, nil
+}
+
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
+	return 0, nil
 }

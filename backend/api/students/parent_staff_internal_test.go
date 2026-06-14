@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"testing"
 
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -40,11 +43,11 @@ func TestNormalizeSickReason(t *testing.T) {
 func newStaffNotesResource(db *bun.DB) *Resource {
 	rf := repositories.NewFactory(db)
 	return NewResource(ResourceConfig{
-		StudentRepo:           rf.Student,
-		StudentStatusDayRepo:  rf.StudentStatusDay,
-		StudentParentNoteRepo: rf.StudentParentNote,
-		Logger:                slog.Default(),
-		DB:                    db,
+		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
+		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent, rf.StudentParentNote),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayService(rf.StudentStatusDay),
+		Logger:                  slog.Default(),
+		DB:                      db,
 	})
 }
 
@@ -135,9 +138,14 @@ func TestGetStudentParentNotes_ReturnsNewestNotes(t *testing.T) {
 func TestGetStudentParentNotes_NilRepoReturnsEmpty(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
-	// Resource intentionally built WITHOUT the parent-note repo.
+	// Resource intentionally built WITHOUT the student service (the
+	// parent-note lookup dependency); the person lookup still works.
 	rf := repositories.NewFactory(db)
-	rs := NewResource(ResourceConfig{StudentRepo: rf.Student, Logger: slog.Default(), DB: db})
+	rs := NewResource(ResourceConfig{
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
+		Logger:        slog.Default(),
+		DB:            db,
+	})
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Get("/{id}/parent-notes", rs.getStudentParentNotes)

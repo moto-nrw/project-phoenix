@@ -88,7 +88,7 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	}
 
 	// Verify the student exists before any further processing
-	student, studentErr := rs.PersonService.StudentRepository().FindByID(ctx, studentID)
+	student, studentErr := rs.PersonService.GetStudentByID(ctx, studentID)
 	if studentErr != nil || student == nil {
 		return nil, &checkinError{http.StatusNotFound, "Student not found"}
 	}
@@ -143,7 +143,7 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, stude
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
 	}
 
-	staff, staffErr := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, staffErr := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if staffErr != nil || staff == nil {
 		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
 	}
@@ -171,14 +171,28 @@ func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int
 			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
 		}
 	}
-	if currentVisit != nil {
-		return &checkinError{http.StatusConflict, "Student already has an active visit in another room"}
-	}
 
 	// Check attendance status
 	attendanceStatus, statusErr := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
 	if statusErr != nil {
 		return &checkinError{http.StatusInternalServerError, "Failed to get attendance status"}
+	}
+
+	if currentVisit != nil {
+		// Present states ("checked_in" and its yard sub-state) keep the
+		// genuine conflict: the student really is in another room.
+		if attendanceStatus.Status == "checked_in" || attendanceStatus.Status == "on_yard" {
+			return &checkinError{http.StatusConflict, "Student already has an active visit in another room"}
+		}
+
+		// Orphaned visit (issue #895): attendance says the student left, but
+		// a visit row is still open — the deadlock state left behind by a
+		// partial checkout. Heal it and proceed with the check-in; a failure
+		// returns 500 so TenantTxMiddleware rolls the request back.
+		if endErr := rs.ActiveService.EndVisit(ctx, currentVisit.ID); endErr != nil && !errors.Is(endErr, activeService.ErrVisitAlreadyEnded) {
+			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+		}
+		return nil
 	}
 
 	if attendanceStatus.Status == "checked_in" {

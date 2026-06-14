@@ -130,6 +130,12 @@ function resolveBadgeStyle(
   if (student.sick && atHome) {
     return { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK };
   }
+  if (student.class_trip && atHome) {
+    return {
+      label: LOCATION_STATUSES.CLASS_TRIP,
+      color: LOCATION_COLORS.CLASS_TRIP,
+    };
+  }
   if (student.excused && atHome) {
     return { label: LOCATION_STATUSES.EXCUSED, color: LOCATION_COLORS.EXCUSED };
   }
@@ -166,8 +172,13 @@ export function PresenceBadge({
   // "Additional" sick/excused overlays — only when the student is present
   // (not already shown as Krank/Entschuldigt via the replace path above).
   const showSickOverlay = student.sick && state !== "abwesend";
+  const showClassTripOverlay =
+    student.class_trip && state !== "abwesend" && !showSickOverlay;
   const showExcusedOverlay =
-    student.excused && state !== "abwesend" && !showSickOverlay;
+    student.excused &&
+    state !== "abwesend" &&
+    !showSickOverlay &&
+    !showClassTripOverlay;
 
   // "seit XX:XX" label: prefer sick/excused timestamp when replace mode
   // triggered, else fall back to generic location_since. Mirrors LocationBadge
@@ -175,9 +186,11 @@ export function PresenceBadge({
   const replaceTimeSource =
     student.sick && state === "abwesend"
       ? (student.sick_since ?? student.location_since)
-      : student.excused && state === "abwesend"
-        ? (student.excused_since ?? student.location_since)
-        : null;
+      : student.class_trip && state === "abwesend"
+        ? (student.class_trip_since ?? student.location_since)
+        : student.excused && state === "abwesend"
+          ? (student.excused_since ?? student.location_since)
+          : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime = showLocationSince && formattedTime !== null;
@@ -221,6 +234,13 @@ export function PresenceBadge({
           overlayLabel: LOCATION_STATUSES.SICK,
           overlayColor: LOCATION_COLORS.SICK,
           dataAttr: "data-sick-indicator",
+          sizeConfig,
+        })}
+      {showClassTripOverlay &&
+        renderOverlayBadge({
+          overlayLabel: LOCATION_STATUSES.CLASS_TRIP,
+          overlayColor: LOCATION_COLORS.CLASS_TRIP,
+          dataAttr: "data-class-trip-indicator",
           sizeConfig,
         })}
       {showExcusedOverlay &&

@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -78,7 +78,7 @@ func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.Qu
 }
 
 // GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
-func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to time.Time) ([]*active.StaffAbsence, error) {
+func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
@@ -104,7 +104,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, sta
 }
 
 // GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
-func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*active.StaffAbsence, error) {
+func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.StaffAbsence, error) {
 	absence := new(active.StaffAbsence)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(absence).
@@ -215,7 +215,7 @@ func (r *StaffAbsenceRepository) ListByStaffAndStatuses(ctx context.Context, sta
 }
 
 // GetByDateRange returns all absences overlapping the given date range
-func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to time.Time) ([]*active.StaffAbsence, error) {
+func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to timezone.Date) ([]*active.StaffAbsence, error) {
 	var absences []*active.StaffAbsence
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&absences).
@@ -237,4 +237,30 @@ func (r *StaffAbsenceRepository) GetByDateRange(ctx context.Context, from, to ti
 	}
 
 	return absences, nil
+}
+
+// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
+// ('requested') or not yet over (date_end >= from). Past decided absences stay
+// as history. Used by staff offboarding so offboarded staff no longer appear
+// in absence request lists and date maps. Returns the number of deleted rows.
+func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*active.StaffAbsence)(nil)).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".staff_id = ?`, staffID).
+		Where(`("staff_absence".status = ? OR "staff_absence".date_end >= ?)`, active.AbsenceStatusRequested, from)
+
+	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
+		query = query.Where(where, val)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "delete non-historical absences by staff id",
+			Err: err,
+		}
+	}
+
+	return result.RowsAffected()
 }

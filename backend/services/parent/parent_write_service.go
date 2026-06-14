@@ -23,9 +23,6 @@ import (
 // the staff card then has to render. Generous for a "kurze Nachricht".
 const maxParentNoteLen = 2000
 
-// dateKeyLayout keys a status-day by its calendar date for set membership.
-const dateKeyLayout = "2006-01-02"
-
 // Sentinel errors the HTTP layer maps to stable status codes. They are
 // part of the package contract — handlers switch on them via errors.Is.
 var (
@@ -83,7 +80,7 @@ type parentChild struct {
 }
 
 // SubmitSickNote reports the child sick for the given dates.
-func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []time.Time, reason string) ([]*activeModels.StudentStatusDay, error) {
+func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error) {
 	if len(dates) == 0 {
 		return nil, ErrNoDates
 	}
@@ -102,7 +99,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 
 	var notePtr *string
 	if trimmed := strings.TrimSpace(reason); trimmed != "" {
@@ -115,19 +112,14 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		notePtr = &trimmed
 	}
 
-	normalized := make([]time.Time, 0, len(dates))
-	for _, d := range dates {
-		normalized = append(normalized, timezone.DateOfUTC(d))
-	}
-
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// A sick day and an excused day are mutually exclusive — clear any
-		// excused entries the parent's sick note now overrides.
-		if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, activeModels.StudentStatusDayExcused, normalized, now, activeModels.StudentStatusSourceParent); err != nil {
-			return err
+		for _, status := range activeModels.StudentStatusDayStatusesExcept(activeModels.StudentStatusDaySick) {
+			if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, status, dates, now, activeModels.StudentStatusSourceParent); err != nil {
+				return err
+			}
 		}
-		for _, d := range normalized {
+		for _, d := range dates {
 			if err := s.statusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{
 				StudentID:  studentID,
 				Date:       d,
@@ -140,7 +132,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		if containsDate(normalized, today) {
+		if containsDate(dates, today) {
 			fresh, err := s.studentRepo.FindByIDForUpdate(txCtx, studentID)
 			if err != nil {
 				return err
@@ -151,7 +143,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, minDate(normalized), maxDate(normalized))
+		rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, minDate(dates), maxDate(dates))
 		if err != nil {
 			return err
 		}
@@ -160,16 +152,16 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		// + Wed) it can also return an unrelated active row in between (a
 		// Tuesday excused day) which must not be surfaced to the parent as a
 		// sick day.
-		dateSet := make(map[string]struct{}, len(normalized))
-		for _, d := range normalized {
-			dateSet[d.Format(dateKeyLayout)] = struct{}{}
+		dateSet := make(map[timezone.Date]struct{}, len(dates))
+		for _, d := range dates {
+			dateSet[d] = struct{}{}
 		}
-		filtered := make([]*activeModels.StudentStatusDay, 0, len(normalized))
+		filtered := make([]*activeModels.StudentStatusDay, 0, len(dates))
 		for _, r := range rows {
 			if r.Status != activeModels.StudentStatusDaySick {
 				continue
 			}
-			if _, ok := dateSet[timezone.DateOfUTC(r.Date).Format(dateKeyLayout)]; !ok {
+			if _, ok := dateSet[r.Date]; !ok {
 				continue
 			}
 			filtered = append(filtered, r)
@@ -190,7 +182,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
-		slog.Int("days", len(normalized)),
+		slog.Int("days", len(dates)),
 		slog.Bool("has_reason", notePtr != nil),
 	)
 	return result, nil
@@ -228,7 +220,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 }
 
 // ListSickDays returns the child's active sick days in [from, to].
-func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to time.Time) ([]*activeModels.StudentStatusDay, error) {
+func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -362,17 +354,16 @@ func applyLiveSickToday(student *usersModels.Student, now time.Time) {
 	student.ExcusedSince = nil
 }
 
-func containsDate(dates []time.Time, needle time.Time) bool {
-	needle = timezone.DateOfUTC(needle)
+func containsDate(dates []timezone.Date, needle timezone.Date) bool {
 	for _, d := range dates {
-		if timezone.DateOfUTC(d).Equal(needle) {
+		if d == needle {
 			return true
 		}
 	}
 	return false
 }
 
-func minDate(dates []time.Time) time.Time {
+func minDate(dates []timezone.Date) timezone.Date {
 	min := dates[0]
 	for _, d := range dates[1:] {
 		if d.Before(min) {
@@ -382,7 +373,7 @@ func minDate(dates []time.Time) time.Time {
 	return min
 }
 
-func maxDate(dates []time.Time) time.Time {
+func maxDate(dates []timezone.Date) timezone.Date {
 	max := dates[0]
 	for _, d := range dates[1:] {
 		if d.After(max) {

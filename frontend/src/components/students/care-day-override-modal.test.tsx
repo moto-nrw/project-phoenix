@@ -40,6 +40,7 @@ const baseArrivalDay: ArrivalDayData = {
   weekday: 1,
   isToday: true,
   showSick: false,
+  showClassTrip: false,
   showExcused: false,
   exception: undefined,
   baseSchedule: {
@@ -75,6 +76,7 @@ const basePickupDay: PickupDayData = {
   weekday: 1,
   isToday: true,
   showSick: false,
+  showClassTrip: false,
   showExcused: false,
   exception: undefined,
   baseSchedule: {

@@ -3,10 +3,12 @@ package active
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -150,13 +152,14 @@ func (rs *Resource) createSupervisor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create supervisor
+	// Create supervisor. The wire carries RFC3339 instants; only their
+	// Berlin calendar days matter for the DATE columns.
 	supervisor := &active.GroupSupervisor{
 		StaffID:   req.StaffID,
 		GroupID:   req.ActiveGroupID,
 		Role:      "Supervisor", // Default role
-		StartDate: req.StartTime,
-		EndDate:   req.EndTime,
+		StartDate: timezone.DateFromTime(req.StartTime),
+		EndDate:   supervisorEndDate(req.EndTime),
 	}
 
 	// Create supervisor
@@ -205,8 +208,8 @@ func (rs *Resource) updateSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Update fields
 	existing.StaffID = req.StaffID
 	existing.GroupID = req.ActiveGroupID
-	existing.StartDate = req.StartTime
-	existing.EndDate = req.EndTime
+	existing.StartDate = timezone.DateFromTime(req.StartTime)
+	existing.EndDate = supervisorEndDate(req.EndTime)
 
 	// Update supervisor
 	if err := rs.ActiveService.UpdateGroupSupervisor(r.Context(), existing); err != nil {
@@ -327,4 +330,15 @@ func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Requ
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "All active groups retrieved successfully")
+}
+
+// supervisorEndDate converts an optional wire instant into the optional
+// end-date calendar day. nil stays nil — an open-ended supervision must
+// never gain a zero-Date sentinel.
+func supervisorEndDate(endTime *time.Time) *timezone.Date {
+	if endTime == nil {
+		return nil
+	}
+	d := timezone.DateFromTime(*endTime)
+	return &d
 }

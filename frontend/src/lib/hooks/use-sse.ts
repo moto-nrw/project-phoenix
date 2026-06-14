@@ -146,6 +146,7 @@ export function useSSE(
         const eventTypes = [
           "student_checkin",
           "student_checkout",
+          "bulk_student_checkout",
           "student_updated",
           "activity_start",
           "activity_end",

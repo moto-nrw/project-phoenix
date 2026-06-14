@@ -7,6 +7,7 @@
  * /api/timetable/instances endpoint.
  */
 
+import { toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
@@ -154,17 +155,7 @@ export function chunkDateRange(
   return chunks;
 }
 
-/**
- * Formats a Date as YYYY-MM-DD using local-time fields. Avoids
- * `toISOString().slice(0,10)` which round-trips through UTC and rolls back
- * a day for late-evening Berlin times in winter.
- */
-export function toISODate(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+export { toISODate };
 
 /**
  * Returns the ISO 8601 week number (1–53) of the given Date. Used for the

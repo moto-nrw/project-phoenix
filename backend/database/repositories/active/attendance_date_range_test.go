@@ -14,16 +14,14 @@ import (
 )
 
 // createAttendanceForDate inserts an attendance record for a specific calendar
-// date (Berlin TZ). Uses DateOfUTC so the stored DATE matches what the repo
-// query expects.
-func createAttendanceForDate(t *testing.T, ctx context.Context, repo active.AttendanceRepository, studentID, staffID, deviceID int64, date time.Time) *active.Attendance {
+// date (Berlin TZ).
+func createAttendanceForDate(t *testing.T, ctx context.Context, repo active.AttendanceRepository, studentID, staffID, deviceID int64, date timezone.Date) *active.Attendance {
 	t.Helper()
-	dateOnly := timezone.DateOfUTC(date)
-	checkIn := date.Add(8 * time.Hour)
-	checkOut := date.Add(15 * time.Hour)
+	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	checkOut := date.BerlinMidnight().Add(15 * time.Hour)
 	a := &active.Attendance{
 		StudentID:    studentID,
-		Date:         dateOnly,
+		Date:         date,
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  staffID,
@@ -44,11 +42,10 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	data := createAttendanceTestData(t, db)
 	defer cleanupAttendanceTestData(t, db, data)
 
-	berlin, _ := time.LoadLocation("Europe/Berlin")
-	today := timezone.Today()
-	yesterday := today.AddDate(0, 0, -1)
-	twoDaysAgo := today.AddDate(0, 0, -2)
-	threeDaysAgo := today.AddDate(0, 0, -3)
+	today := timezone.TodayDate()
+	yesterday := today.AddDays(-1)
+	twoDaysAgo := today.AddDays(-2)
+	threeDaysAgo := today.AddDays(-3)
 
 	// Create records for 4 days
 	a1 := createAttendanceForDate(t, ctx, repo, data.Student1.ID, data.Staff1.ID, data.Device1.ID, threeDaysAgo)
@@ -66,19 +63,14 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", a5.ID)
 
 	t.Run("returns_all_records_in_range", func(t *testing.T) {
-		start := threeDaysAgo
-		end := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, berlin)
-
-		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, start, end)
+		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, threeDaysAgo, today)
 		require.NoError(t, err)
 		assert.Len(t, results, 4)
 	})
 
 	t.Run("includes_today_correctly", func(t *testing.T) {
-		// This specifically tests the DateOfUTC fix — today's record must be
-		// included when end is today's end-of-day.
-		end := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, berlin)
-		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, today, end)
+		// Today's record must be included when the range ends today.
+		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, today, today)
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		assert.Equal(t, data.Student1.ID, results[0].StudentID)
@@ -86,30 +78,27 @@ func TestAttendanceRepository_FindByStudentAndDateRange(t *testing.T) {
 
 	t.Run("narrows_range_correctly", func(t *testing.T) {
 		// Only yesterday and twoDaysAgo
-		end := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 23, 59, 59, 0, berlin)
-		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, twoDaysAgo, end)
+		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, twoDaysAgo, yesterday)
 		require.NoError(t, err)
 		assert.Len(t, results, 2)
 	})
 
 	t.Run("returns_empty_for_no_matches", func(t *testing.T) {
-		futureStart := today.AddDate(0, 0, 10)
-		futureEnd := today.AddDate(0, 0, 15)
+		futureStart := today.AddDays(10)
+		futureEnd := today.AddDays(15)
 		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, futureStart, futureEnd)
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
 
 	t.Run("isolates_by_student_id", func(t *testing.T) {
-		end := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, berlin)
-		results, err := repo.FindByStudentAndDateRange(ctx, data.Student2.ID, threeDaysAgo, end)
+		results, err := repo.FindByStudentAndDateRange(ctx, data.Student2.ID, threeDaysAgo, today)
 		require.NoError(t, err)
 		assert.Len(t, results, 1, "should only return Student2's record")
 	})
 
 	t.Run("ordered_by_date_desc", func(t *testing.T) {
-		end := time.Date(today.Year(), today.Month(), today.Day(), 23, 59, 59, 0, berlin)
-		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, threeDaysAgo, end)
+		results, err := repo.FindByStudentAndDateRange(ctx, data.Student1.ID, threeDaysAgo, today)
 		require.NoError(t, err)
 		require.Len(t, results, 4)
 		// First result should be the most recent date

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,8 @@ import (
 // deterministic and need no DB or sleeps.
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+func ptrDate(d timezone.Date) *timezone.Date { return &d }
 
 func TestSessionInactivityDuration(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
@@ -50,10 +53,10 @@ func TestEndVisitRecord(t *testing.T) {
 
 func TestEndSupervisionRecord(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	gs := &activeModels.GroupSupervisor{StartDate: now.Add(-1 * time.Hour)}
+	gs := &activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now)}
 	EndSupervisionRecord(gs, now)
 	if assert.NotNil(t, gs.EndDate) {
-		assert.Equal(t, now, *gs.EndDate)
+		assert.Equal(t, timezone.DateFromTime(now), *gs.EndDate)
 	}
 }
 
@@ -71,9 +74,9 @@ func TestIsSupervisorActive(t *testing.T) {
 
 	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: nil}, now),
 		"nil end date is open-ended and active")
-	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrTime(now.Add(time.Hour))}, now),
+	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrDate(timezone.DateFromTime(now).AddDays(1))}, now),
 		"future end date is still active")
-	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrTime(now.Add(-time.Hour))}, now),
+	assert.False(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: ptrDate(timezone.DateFromTime(now).AddDays(-1))}, now),
 		"past end date is not active")
 }
 

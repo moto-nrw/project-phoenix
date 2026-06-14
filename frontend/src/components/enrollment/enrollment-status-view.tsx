@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
@@ -21,18 +22,6 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
-
-const STATUS_LABELS: Record<StatusChild["status"], string> = {
-  submitted: "Eingegangen",
-  under_review: "In Prüfung",
-  approved: "Bestätigt",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-  pending_renewal: "Bestätigung erforderlich",
-  auto_renewed: "Vorgemerkt",
-  pending_admin_review: "In Prüfung",
-};
 
 const STATUS_STYLES: Record<
   StatusChild["status"],
@@ -61,6 +50,8 @@ interface Props {
 }
 
 export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
+  const t = useTranslations("enrollmentStatus");
+  const locale = useLocale();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -91,13 +82,13 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       setEditLastName(result.guardian_last_name);
       setEditPhone(result.guardian_phone ?? "");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.error("status_load_failed", { error: message });
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     void load();
@@ -121,11 +112,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         guardian_last_name: editLastName.trim(),
         guardian_phone: editPhone.trim() || undefined,
       });
-      setInfo("Änderungen gespeichert.");
+      setInfo(t("editSaved"));
       setEditing(false);
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.error("status_edit_failed", { error: message });
       setError(message);
     } finally {
@@ -142,12 +133,12 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       const confirmed = await confirmRenewal(token);
       setInfo(
         confirmed === 1
-          ? "Anmeldung bestätigt. Die Schulleitung prüft die Anmeldung."
-          : `${confirmed} Anmeldungen bestätigt. Die Schulleitung prüft sie nun.`,
+          ? t("renewalConfirmedOne")
+          : t("renewalConfirmedMany", { count: confirmed }),
       );
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.error("status_confirm_renewal_failed", { error: message });
       setError(message);
     } finally {
@@ -158,22 +149,18 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const handleWithdraw = async (childID?: string) => {
     if (!status) return;
     const confirmMessage = childID
-      ? "Möchtest du diese Anmeldung wirklich zurückziehen?"
-      : "Möchtest du die gesamte Anmeldung zurückziehen?";
+      ? t("confirmWithdrawChild")
+      : t("confirmWithdrawAll");
     if (!window.confirm(confirmMessage)) return;
     setWithdrawingChild(childID ?? "__all__");
     setError(null);
     setInfo(null);
     try {
       await withdrawStatus(token, childID);
-      setInfo(
-        childID
-          ? "Anmeldung für dieses Kind zurückgezogen."
-          : "Anmeldung zurückgezogen.",
-      );
+      setInfo(childID ? t("withdrawnChild") : t("withdrawnAll"));
       await load();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+      const message = err instanceof Error ? err.message : t("unknownError");
       logger.error("status_withdraw_failed", { error: message });
       setError(message);
     } finally {
@@ -184,7 +171,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   if (loading) {
     return (
       <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
-        Status wird geladen…
+        {t("loading")}
       </div>
     );
   }
@@ -193,12 +180,9 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     return (
       <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-center shadow-sm sm:p-6">
         <h1 className="text-xl font-semibold text-[#CC2626]">
-          Status-Link ungültig
+          {t("invalidTitle")}
         </h1>
-        <p className="mt-2 text-sm text-[#CC2626]">
-          Der Link ist abgelaufen oder ungültig. Bitte prüfen Sie die URL aus
-          Ihrer Bestätigungs-E-Mail oder wenden Sie sich an die OGS.
-        </p>
+        <p className="mt-2 text-sm text-[#CC2626]">{t("invalidDescription")}</p>
       </div>
     );
   }
@@ -206,13 +190,13 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   if (!status) {
     return (
       <div className="moto-content-surface rounded-xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-sm text-[#CC2626] shadow-sm sm:p-6">
-        {error ?? "Status konnte nicht geladen werden."}
+        {error ?? t("loadFallback")}
       </div>
     );
   }
 
   const submittedDate = new Date(status.submitted_at).toLocaleDateString(
-    "de-DE",
+    locale,
     { day: "2-digit", month: "long", year: "numeric" },
   );
 
@@ -249,45 +233,35 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               )}
             </div>
             <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-              {justSubmitted ? "Anmeldung eingegangen" : "Status"}
+              {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
             </p>
             <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
-              {justSubmitted
-                ? "Danke. Ihre Anmeldung wurde übermittelt."
-                : "Status Ihrer Anmeldung"}
+              {justSubmitted ? t("submittedTitle") : t("statusTitle")}
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
               {justSubmitted
-                ? "Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf dieser Seite. Speichern Sie den Link am besten direkt oder bewahren Sie die Bestätigungs-E-Mail auf."
-                : `Ihre Anmeldung ist am ${submittedDate} eingegangen. Hier sehen Sie den aktuellen Stand, Ihre Kontaktdaten und die angemeldeten Kinder.`}
+                ? t("submittedDescription")
+                : t("statusDescription", { date: submittedDate })}
             </p>
           </div>
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
             <h2 className="text-lg font-semibold text-gray-900">
-              {justSubmitted ? "Was jetzt passiert" : "Aktueller Stand"}
+              {justSubmitted ? t("nextTitle") : t("currentTitle")}
             </h2>
             <ol className="mt-5 space-y-4 text-sm text-gray-600">
               <li className="flex gap-3">
                 <StepNumber>1</StepNumber>
                 <span>
-                  {justSubmitted
-                    ? "Die OGS sieht Ihre Anmeldung in der Verwaltung."
-                    : "Die Anmeldung liegt der OGS vor."}
+                  {justSubmitted ? t("stepOneSubmitted") : t("stepOneStatus")}
                 </span>
               </li>
               <li className="flex gap-3">
                 <StepNumber>2</StepNumber>
-                <span>
-                  Bei Rückfragen meldet sich die OGS über die angegebene
-                  E-Mail-Adresse.
-                </span>
+                <span>{t("stepTwo")}</span>
               </li>
               <li className="flex gap-3">
                 <StepNumber>3</StepNumber>
-                <span>
-                  Sobald eine Entscheidung vorliegt, sehen Sie diese im Bereich
-                  „Kinder“ und erhalten eine E-Mail.
-                </span>
+                <span>{t("stepThree")}</span>
               </li>
             </ol>
           </aside>
@@ -297,17 +271,17 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       <section className="grid gap-3 sm:grid-cols-3">
         <StatusSummaryCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
-          label="Eingegangen"
+          label={t("receivedLabel")}
           value={submittedDate}
         />
         <StatusSummaryCard
           icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
-          label="Kinder"
+          label={t("childrenLabel")}
           value={String(status.children.length)}
         />
         <StatusSummaryCard
           icon={<Mail className="h-5 w-5" aria-hidden="true" />}
-          label="Kontakt"
+          label={t("contactLabel")}
           value={status.guardian_email}
         />
       </section>
@@ -326,12 +300,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       {showOptInBanner && (
         <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
-            Bestätigung erforderlich
+            {t("renewalRequiredTitle")}
           </h2>
           <p className="mt-2 text-sm text-gray-700">
-            Wir haben Ihre Anmeldung für den nächsten Zeitraum vorbereitet.
-            Damit Ihr Kind dabei sein kann, bestätigen Sie bitte aktiv die
-            Anmeldung. Ohne Bestätigung läuft die Anmeldung zur Frist ab.
+            {t("renewalRequiredText")}
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
@@ -340,7 +312,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               disabled={confirmingRenewal}
               className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              {confirmingRenewal ? "Wird bestätigt…" : "Anmeldung bestätigen"}
+              {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
             </button>
             <button
               type="button"
@@ -349,8 +321,8 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
               {withdrawingChild === "__all__"
-                ? "Wird abgelehnt…"
-                : "Anmeldung ablehnen"}
+                ? t("declining")
+                : t("declineEnrollment")}
             </button>
           </div>
         </section>
@@ -358,13 +330,9 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       {showOptOutBanner && (
         <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
-            Anmeldung wurde verlängert
+            {t("autoRenewedTitle")}
           </h2>
-          <p className="mt-2 text-sm text-gray-700">
-            Ihre Anmeldung für den nächsten Zeitraum wurde automatisch
-            übernommen. Sie müssen nichts weiter tun. Falls Sie nicht teilnehmen
-            möchten, melden Sie sich bitte bis zur Frist ab.
-          </p>
+          <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
           <div className="mt-4">
             <button
               type="button"
@@ -372,7 +340,9 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               disabled={withdrawingChild === "__all__"}
               className="h-10 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
             >
-              {withdrawingChild === "__all__" ? "Wird abgemeldet…" : "Abmelden"}
+              {withdrawingChild === "__all__"
+                ? t("unsubscribing")
+                : t("unsubscribe")}
             </button>
           </div>
         </section>
@@ -382,9 +352,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Anmeldungen
+              {t("enrollmentsEyebrow")}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">Kinder</h2>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              {t("childrenLabel")}
+            </h2>
           </div>
         </div>
         <ul className="space-y-3">
@@ -412,15 +384,18 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                       )}
                     </div>
                   </div>
-                  <StatusPill status={c.status} />
+                  <StatusPill
+                    status={c.status}
+                    label={t(`status.${c.status}`)}
+                  />
                 </div>
                 <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-gray-500">
                     {c.status === "approved"
-                      ? "Diese Anmeldung wurde bereits bestätigt."
+                      ? t("childApprovedText")
                       : canWithdraw
-                        ? "Noch keine endgültige Entscheidung getroffen."
-                        : "Diese Anmeldung kann nicht mehr online geändert werden."}
+                        ? t("childPendingText")
+                        : t("childLockedText")}
                   </p>
                   {canWithdraw && (
                     <button
@@ -430,8 +405,8 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                       className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
                     >
                       {withdrawingChild === c.id
-                        ? "Wird zurückgezogen…"
-                        : "Dieses Kind zurückziehen"}
+                        ? t("withdrawing")
+                        : t("withdrawChild")}
                     </button>
                   )}
                 </div>
@@ -445,10 +420,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Kontakt
+              {t("contactLabel")}
             </p>
             <h2 className="mt-1 text-xl font-semibold text-gray-900">
-              Erziehungsberechtigte
+              {t("guardianTitle")}
             </h2>
           </div>
           {allEditable && !editing && (
@@ -458,7 +433,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
-              Bearbeiten
+              {t("edit")}
             </button>
           )}
         </div>
@@ -466,7 +441,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
           <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Name
+                {t("nameLabel")}
               </dt>
               <dd className="mt-1 font-semibold text-gray-900">
                 {status.guardian_first_name} {status.guardian_last_name}
@@ -474,7 +449,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                E-Mail
+                {t("emailLabel")}
               </dt>
               <dd className="mt-1 font-semibold break-all text-gray-900">
                 {status.guardian_email}
@@ -482,10 +457,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Telefon
+                {t("phoneLabel")}
               </dt>
               <dd className="mt-1 font-semibold text-gray-900">
-                {status.guardian_phone ?? "Nicht angegeben"}
+                {status.guardian_phone ?? t("notProvided")}
               </dd>
             </div>
           </dl>
@@ -494,7 +469,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-semibold text-gray-700">
-                  Vorname
+                  {t("firstNameLabel")}
                 </span>
                 <input
                   type="text"
@@ -506,7 +481,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               </label>
               <label className="block">
                 <span className="text-sm font-semibold text-gray-700">
-                  Nachname
+                  {t("lastNameLabel")}
                 </span>
                 <input
                   type="text"
@@ -519,7 +494,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             </div>
             <label className="block">
               <span className="text-sm font-semibold text-gray-700">
-                Telefon, optional
+                {t("phoneOptionalLabel")}
               </span>
               <input
                 type="tel"
@@ -528,17 +503,14 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
               />
             </label>
-            <p className="text-sm text-gray-500">
-              Die E-Mail-Adresse kann hier nicht geändert werden. Bitte wenden
-              Sie sich dafür direkt an die OGS.
-            </p>
+            <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
                 type="submit"
                 disabled={savingEdit}
                 className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
               >
-                {savingEdit ? "Speichert…" : "Speichern"}
+                {savingEdit ? t("saving") : t("save")}
               </button>
               <button
                 type="button"
@@ -551,16 +523,13 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 disabled={savingEdit}
                 className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
               >
-                Abbrechen
+                {t("cancel")}
               </button>
             </div>
           </form>
         )}
         {!allEditable && !editing && (
-          <p className="text-sm text-gray-500">
-            Änderungen sind nur möglich, solange noch keine Entscheidung
-            getroffen wurde. Für Änderungen wende dich bitte an die OGS.
-          </p>
+          <p className="text-sm text-gray-500">{t("editLocked")}</p>
         )}
       </section>
 
@@ -573,18 +542,15 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               </span>
               <div>
                 <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Anmeldung verwalten
+                  {t("manageEyebrow")}
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-gray-900">
                   {hasMultipleChildren
-                    ? "Gesamte Anmeldung zurückziehen"
-                    : "Anmeldung zurückziehen"}
+                    ? t("withdrawAllTitle")
+                    : t("withdrawTitle")}
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  Sie können die Anmeldung zurückziehen, solange noch keine
-                  Entscheidung getroffen wurde. Bereits bestätigte Kinder
-                  bleiben unverändert. Wenden Sie sich dafür bitte direkt an die
-                  OGS.
+                  {t("withdrawText")}
                 </p>
               </div>
             </div>
@@ -595,10 +561,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
               className="h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
             >
               {withdrawingChild === "__all__"
-                ? "Wird zurückgezogen…"
+                ? t("withdrawing")
                 : hasMultipleChildren
-                  ? "Gesamte Anmeldung zurückziehen"
-                  : "Anmeldung zurückziehen"}
+                  ? t("withdrawAllTitle")
+                  : t("withdrawTitle")}
             </button>
           </div>
         </section>
@@ -615,7 +581,13 @@ function StepNumber({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-function StatusPill({ status }: { readonly status: StatusChild["status"] }) {
+function StatusPill({
+  status,
+  label,
+}: {
+  readonly status: StatusChild["status"];
+  readonly label: string;
+}) {
   const styles = STATUS_STYLES[status];
   return (
     <span
@@ -629,7 +601,7 @@ function StatusPill({ status }: { readonly status: StatusChild["status"] }) {
         className="h-2 w-2 rounded-full"
         style={{ backgroundColor: styles.dot }}
       />
-      {STATUS_LABELS[status]}
+      {label}
     </span>
   );
 }

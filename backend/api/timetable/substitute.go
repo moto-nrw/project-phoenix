@@ -112,20 +112,18 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// rewrite history. Matches the /gaps policy. Post-hoc correction (if ever
 	// required) belongs behind a distinct endpoint or an explicit flag, not
 	// this fast-path.
-	todayBerlin := timezone.DateOfUTC(time.Now())
-	if timezone.DateOfUTC(date).Before(todayBerlin) {
+	if date.Before(timezone.TodayDate()) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
 		return
 	}
 
-	if rs.instanceStaffRepo == nil || rs.activityInstanceRepo == nil ||
-		rs.supervisorRepo == nil || rs.staffRepo == nil {
+	if rs.timetableData == nil || rs.personService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
 	// --- 404 checks: both staff must exist in this tenant -----------------
-	absentStaff, err := rs.staffRepo.FindByID(ctx, req.AbsentStaffID)
+	absentStaff, err := rs.personService.GetStaffByID(ctx, req.AbsentStaffID)
 	if err != nil {
 		if isNotFoundDBError(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
@@ -138,7 +136,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 		return
 	}
-	subStaff, err := rs.staffRepo.FindByID(ctx, req.SubstituteStaffID)
+	subStaff, err := rs.personService.GetStaffByID(ctx, req.SubstituteStaffID)
 	if err != nil {
 		if isNotFoundDBError(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
@@ -153,8 +151,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Load absent staff's same-day assignments -------------------------
-	dateUTC := timezone.DateOfUTC(date)
-	origRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, req.AbsentStaffID, dateUTC)
+	origRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
 		return
@@ -185,7 +182,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	plan := make([]plannedOp, 0, len(origRows))
 
 	for _, orig := range origRows {
-		instance, err := rs.activityInstanceRepo.FindByID(ctx, orig.InstanceID)
+		instance, err := rs.timetableData.GetActivityInstance(ctx, orig.InstanceID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load target instance failed", err))
 			return
@@ -200,7 +197,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		// All rows of this instance — needed to detect existing substitutes
 		// and co-supervisor cases.
-		allRows, err := rs.instanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+		allRows, err := rs.timetableData.GetInstanceStaff(ctx, instance.ID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 			return
@@ -247,7 +244,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// preserved — the person was independently planned, not a
 			// Vertretung, and reports should preserve that distinction.
 			op.origRow.IsAbsent = true
-			if err := rs.instanceStaffRepo.Update(ctx, op.origRow); err != nil {
+			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
 			}
@@ -255,7 +252,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// create a new supervisor — the substitute (co-supervisor) is
 			// already an active supervisor.
 			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.supervisorRepo.EndByActiveGroupAndStaffID(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
 					return
 				}
@@ -264,7 +261,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		case substituteActionSubstituted:
 			op.origRow.IsAbsent = true
-			if err := rs.instanceStaffRepo.Update(ctx, op.origRow); err != nil {
+			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
 			}
@@ -276,12 +273,12 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 				IsSubstitute: true,
 				IsAbsent:     false,
 			}
-			if err := rs.instanceStaffRepo.Create(ctx, newRow); err != nil {
+			if err := rs.timetableData.CreateInstanceStaff(ctx, newRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute staff row failed", err))
 				return
 			}
 			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.supervisorRepo.EndByActiveGroupAndStaffID(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
 					return
 				}
@@ -289,10 +286,10 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 					StaffID:   req.SubstituteStaffID,
 					GroupID:   *op.instance.ActiveGroupID,
 					Role:      "supervisor",
-					StartDate: now,
+					StartDate: timezone.DateFromTime(now),
 				}
 				newSup.SetTenantID(tenant.FromContext(ctx))
-				if err := rs.supervisorRepo.Create(ctx, newSup); err != nil {
+				if err := rs.timetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute supervisor failed", err))
 					return
 				}
@@ -313,7 +310,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// target. Only relevant for instances actually substituted or co-cover.
 	// Dry-run: no DB writes, just a second Find + comparison.
 	// ======================================================================
-	warnings, err := rs.buildSubstituteTimeConflicts(ctx, plan, req.SubstituteStaffID, dateUTC)
+	warnings, err := rs.buildSubstituteTimeConflicts(ctx, plan, req.SubstituteStaffID, date)
 	if err != nil {
 		// A warning lookup failure is not a showstopper. Log and continue
 		// with an empty warning list — the mutations above are correct
@@ -401,12 +398,12 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	ctx context.Context,
 	plan []plannedOp,
 	subID int64,
-	dateUTC time.Time,
+	date timezone.Date,
 ) ([]scheduleSvc.SubstituteTimeConflict, error) {
 	if len(plan) == 0 {
 		return nil, nil
 	}
-	subRows, err := rs.instanceStaffRepo.FindByStaffAndDate(ctx, subID, dateUTC)
+	subRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, subID, date)
 	if err != nil {
 		return nil, err
 	}
@@ -431,7 +428,7 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	}
 	foreigns := make([]scheduleSvc.SubstituteConflictInstance, 0, len(foreignIDs))
 	for _, fid := range foreignIDs {
-		inst, err := rs.activityInstanceRepo.FindByID(ctx, fid)
+		inst, err := rs.timetableData.GetActivityInstance(ctx, fid)
 		if err != nil {
 			return nil, err
 		}

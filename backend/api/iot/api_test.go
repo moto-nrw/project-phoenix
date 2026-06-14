@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	iotModel "github.com/moto-nrw/project-phoenix/models/iot"
@@ -321,7 +323,7 @@ func TestGetSchoolName_Success(t *testing.T) {
 			return &platform.School{Name: "OGS Musterstadt"}, nil
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -366,7 +368,7 @@ func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 			return nil, errors.New("sql: no rows in result set")
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -390,7 +392,7 @@ func TestGetSchoolName_DatabaseError(t *testing.T) {
 			return nil, errors.New("connection refused")
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -409,7 +411,7 @@ func TestGetSchoolName_EmptySchoolName(t *testing.T) {
 			return &platform.School{Name: ""}, nil
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -438,7 +440,7 @@ func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
 			return &platform.School{Name: "Test School"}, nil
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -458,7 +460,7 @@ func TestGetSchoolName_ResponseStructure(t *testing.T) {
 			return &platform.School{Name: "Grundschule am Park"}, nil
 		},
 	}
-	rs := &Resource{SchoolRepo: repo}
+	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}

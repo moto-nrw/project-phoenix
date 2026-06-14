@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -14,10 +15,18 @@ import (
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type mockPhaseService struct {
@@ -101,8 +110,8 @@ func makePhaseModel(id int64, name string) *enrollmentModels.Phase {
 		Model:            baseModel.Model{ID: id, CreatedAt: time.Now(), UpdatedAt: time.Now()},
 		Name:             name,
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -143,6 +152,72 @@ func TestListPhasesHandler_ServiceErrorReturns500(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	now := time.Now().UnixNano()
+	ctx := context.Background()
+	org := &platformModels.Organization{
+		Model:  baseModel.Model{ID: now},
+		Name:   "Public Phase Tenant Scope Org",
+		Slug:   fmt.Sprintf("public-phase-tenant-scope-org-%d", now),
+		Active: true,
+	}
+	require.NoError(t, platformRepo.NewOrganizationRepository(db).Create(ctx, org))
+
+	targetSchool := &platformModels.School{
+		Model:          baseModel.Model{ID: now + 100},
+		OrganizationID: org.ID,
+		Name:           "Target Public Phase School",
+		Slug:           fmt.Sprintf("target-public-phase-school-%d", now),
+		Subdomain:      fmt.Sprintf("target-public-phase-school-%d", now),
+		Active:         true,
+	}
+	otherSchool := &platformModels.School{
+		Model:          baseModel.Model{ID: now + 200},
+		OrganizationID: org.ID,
+		Name:           "Other Public Phase School",
+		Slug:           fmt.Sprintf("other-public-phase-school-%d", now),
+		Subdomain:      fmt.Sprintf("other-public-phase-school-%d", now),
+		Active:         true,
+	}
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	require.NoError(t, schoolRepo.Create(ctx, targetSchool))
+	require.NoError(t, schoolRepo.Create(ctx, otherSchool))
+	t.Cleanup(func() {
+		_, _ = db.NewRaw(`DELETE FROM enrollment.phases WHERE tenant_id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM platform.schools WHERE id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
+		_, _ = db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, org.ID).Exec(context.Background())
+	})
+
+	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	targetPhase := makePhaseModel(now+300, "Target Tenant Phase")
+	otherPhase := makePhaseModel(now+400, "Other Tenant Phase")
+	require.NoError(t, tenant.WithTenantTx(ctx, db, targetSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
+		return phaseRepo.Create(txCtx, targetPhase)
+	}))
+	require.NoError(t, tenant.WithTenantTx(ctx, db, otherSchool.ID, func(txCtx context.Context, _ bun.Tx) error {
+		return phaseRepo.Create(txCtx, otherPhase)
+	}))
+
+	rs := &Resource{
+		SchoolService: platformSvc.NewSchoolService(schoolRepo),
+		PhaseService: enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+			Repo: phaseRepo,
+		}),
+		db: db,
+	}
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/enrollment/phases/public/{tenantSlug}", rs.listPublicPhases)
+
+	w := executePhaseJSON(t, router, http.MethodGet, fmt.Sprintf("/enrollment/phases/public/%s", targetSchool.Slug), nil)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"name":"Target Tenant Phase"`)
+	assert.NotContains(t, w.Body.String(), `"name":"Other Tenant Phase"`)
 }
 
 // --- getPhase ---------------------------------------------------------

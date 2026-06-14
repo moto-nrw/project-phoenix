@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -29,12 +30,12 @@ type mockArrivalScheduleService struct {
 	calledWithIDs                          []int64
 }
 
-func (m *mockPickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, _ time.Time) (map[int64]*scheduleService.EffectivePickupTime, error) {
+func (m *mockPickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
 	m.calledWithIDs = studentIDs
 	return m.bulkResult, m.bulkErr
 }
 
-func (m *mockArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, _ time.Time) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+func (m *mockArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
 	m.calledWithIDs = studentIDs
 	return m.bulkResult, m.bulkErr
 }

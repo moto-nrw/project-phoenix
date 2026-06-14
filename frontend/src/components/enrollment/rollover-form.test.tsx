@@ -21,6 +21,14 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
 import { RolloverForm } from "./rollover-form";
 import type { Phase, RolloverResult } from "~/lib/enrollment-phase-api";
 
+async function chooseOption(
+  label: string | RegExp,
+  optionName: string | RegExp,
+) {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(await screen.findByRole("option", { name: optionName }));
+}
+
 // ============================================================================
 // Test data
 // ============================================================================
@@ -97,10 +105,9 @@ describe("RolloverForm", () => {
     expect(endInput.value).toBe("2028-07-31");
 
     // mode defaults to opt_out (safer default — parent doesn't need to act)
-    const modeSelect = document.getElementById(
-      "rollover-mode",
-    ) as HTMLSelectElement;
-    expect(modeSelect.value).toBe("opt_out");
+    expect(screen.getByRole("combobox", { name: "Modus" })).toHaveTextContent(
+      "Opt-Out: Eltern müssen abmelden",
+    );
 
     // bumps_grade defaults to true (yearly cadence)
     const bumpsCheckbox = screen.getByLabelText(
@@ -149,7 +156,7 @@ describe("RolloverForm", () => {
     });
   });
 
-  it("toggles opt-in hint when the mode changes", () => {
+  it("toggles opt-in hint when the mode changes", async () => {
     render(
       <RolloverForm
         source={makeSourcePhase()}
@@ -165,12 +172,7 @@ describe("RolloverForm", () => {
       ),
     ).toBeInTheDocument();
 
-    fireEvent.change(
-      document.getElementById("rollover-mode") as HTMLSelectElement,
-      {
-        target: { value: "opt_in" },
-      },
-    );
+    await chooseOption("Modus", "Opt-In: Eltern müssen aktiv bestätigen");
 
     // The opt_in description ends with "wird die Anmeldung zurückgezogen" —
     // matching the unique tail keeps us off the dropdown <option> text.

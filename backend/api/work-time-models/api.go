@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -18,21 +17,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource bundles the dependencies needed by the work-time-model HTTP handlers.
 type Resource struct {
-	Repo   config.WorkTimeModelRepository
-	db     *bun.DB
-	logger *slog.Logger
+	Service configSvc.WorkTimeModelService
+	db      *bun.DB
+	logger  *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(repo config.WorkTimeModelRepository, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Repo: repo, db: db, logger: logger}
+func NewResource(service configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/work-time-models.
@@ -91,7 +92,7 @@ type ModelResponse struct {
 }
 
 func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
-	models, err := rs.Repo.List(r.Context())
+	models, err := rs.Service.ListModels(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -109,7 +110,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	m, err := rs.Repo.FindByID(r.Context(), id)
+	m, err := rs.Service.GetModel(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("model not found")))
 		return
@@ -128,11 +129,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.Repo.Create(r.Context(), model, entries); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	saved, err := rs.Repo.FindByID(r.Context(), model.ID)
+	saved, err := rs.Service.CreateModel(r.Context(), model, entries)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -157,15 +154,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	model.ID = id
-	if err := rs.Repo.Update(r.Context(), model, entries); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if err := rs.Repo.RefreshAssignedStaffSchedules(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	saved, err := rs.Repo.FindByID(r.Context(), id)
+	saved, err := rs.Service.UpdateModel(r.Context(), model, entries)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -179,7 +168,7 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.Repo.Delete(r.Context(), id); err != nil {
+	if err := rs.Service.DeleteModel(r.Context(), id); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("model not found or in use")))
 		return
 	}
@@ -196,7 +185,7 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 	if req.RotationAnchorDate == "" {
 		return nil, nil, errors.New("rotation_anchor_date is required")
 	}
-	anchor, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+	anchor, err := timezone.ParseDate(req.RotationAnchorDate)
 	if err != nil {
 		return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
 	}
@@ -249,7 +238,7 @@ func toResponse(m *config.WorkTimeModel) ModelResponse {
 		ID:                 m.ID,
 		Name:               m.Name,
 		RotationLength:     m.RotationLength,
-		RotationAnchorDate: m.RotationAnchorDate.Format("2006-01-02"),
+		RotationAnchorDate: m.RotationAnchorDate.String(),
 		Entries:            entries,
 		WeeklyTotals:       totals,
 	}

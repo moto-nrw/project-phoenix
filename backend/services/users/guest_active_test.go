@@ -4,18 +4,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestGuestIsActive(t *testing.T) {
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	pastDate := now.Add(-30 * 24 * time.Hour)
-	futureDate := now.Add(30 * 24 * time.Hour)
+	pastDate := timezone.DateFromTime(now).AddDays(-30)
+	futureDate := timezone.DateFromTime(now).AddDays(30)
 
 	tests := []struct {
 		name      string
-		startDate *time.Time
-		endDate   *time.Time
+		startDate *timezone.Date
+		endDate   *timezone.Date
 		expected  bool
 	}{
 		{

@@ -29,8 +29,8 @@ func futureBirthdayGermanShortForTests() string {
 }
 
 func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
-	today := timezone.TodayUTC()
-	tomorrow := today.AddDate(0, 0, 1)
+	today := timezone.TodayDate()
+	tomorrow := today.AddDays(1)
 
 	assert.False(t, enrollmentStartsInFuture(nil))
 	assert.False(t, enrollmentStartsInFuture(&today), "today must be active, not pending")

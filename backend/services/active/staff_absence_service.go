@@ -11,9 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// dateFormatISO is the standard date format for parsing and formatting
-const dateFormatISO = "2006-01-02"
-
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
 	AbsenceType string `json:"absence_type"`
@@ -71,8 +68,12 @@ type StaffAbsenceService interface {
 	CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
 	UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
-	GetAbsencesForRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsenceResponse, error)
-	HasAbsenceOnDate(ctx context.Context, staffID int64, date time.Time) (bool, *activeModels.StaffAbsence, error)
+	GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error)
+	HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
+
+	// GetTodayAbsenceMap returns staff ID -> absence type for today (issue
+	// #584 lookup; repository result returned verbatim).
+	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
 	// Vacation workflow (Tranche 4)
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
@@ -82,6 +83,11 @@ type StaffAbsenceService interface {
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
+}
+
+// GetTodayAbsenceMap returns staff ID -> absence type for today.
+func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
+	return s.absenceRepo.GetTodayAbsenceMap(ctx)
 }
 
 // staffAbsenceService implements StaffAbsenceService
@@ -142,14 +148,14 @@ func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, 
 }
 
 // parseDateRange parses start and end date strings in ISO format.
-func parseDateRange(startStr, endStr string) (time.Time, time.Time, error) {
-	dateStart, err := time.Parse(dateFormatISO, startStr)
+func parseDateRange(startStr, endStr string) (timezone.Date, timezone.Date, error) {
+	dateStart, err := timezone.ParseDate(startStr)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
+		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
 	}
-	dateEnd, err := time.Parse(dateFormatISO, endStr)
+	dateEnd, err := timezone.ParseDate(endStr)
 	if err != nil {
-		return time.Time{}, time.Time{}, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
+		return timezone.Date{}, timezone.Date{}, fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 	}
 	return dateStart, dateEnd, nil
 }
@@ -158,7 +164,7 @@ func parseDateRange(startStr, endStr string) (time.Time, time.Time, error) {
 func (s *staffAbsenceService) mergeOverlappingAbsences(
 	ctx context.Context,
 	existing []*activeModels.StaffAbsence,
-	dateStart, dateEnd time.Time,
+	dateStart, dateEnd timezone.Date,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
 	// Check if all overlapping absences have the same type
@@ -194,15 +200,15 @@ func validateSameAbsenceType(existing []*activeModels.StaffAbsence, absenceType 
 		if e.AbsenceType != absenceType {
 			return fmt.Errorf("absence overlaps with existing %s absence from %s to %s",
 				e.AbsenceType,
-				e.DateStart.Format(dateFormatISO),
-				e.DateEnd.Format(dateFormatISO))
+				e.DateStart,
+				e.DateEnd)
 		}
 	}
 	return nil
 }
 
 // calculateMergedDateRange expands the date range to cover all overlapping absences.
-func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, dateEnd time.Time) (time.Time, time.Time) {
+func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, dateEnd timezone.Date) (timezone.Date, timezone.Date) {
 	mergedStart := dateStart
 	mergedEnd := dateEnd
 	for _, e := range existing {
@@ -228,14 +234,14 @@ func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absen
 }
 
 // warnIfWorkSessionsExist logs a warning if work sessions exist in the date range.
-func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staffID int64, dateStart, dateEnd time.Time) {
+func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staffID int64, dateStart, dateEnd timezone.Date) {
 	sessions, err := s.workSessionRepo.GetHistoryByStaffID(ctx, staffID, dateStart, dateEnd)
 	if err == nil && len(sessions) > 0 {
 		slog.Default().WarnContext(ctx, "work sessions exist in absence range",
 			slog.Int("session_count", len(sessions)),
 			slog.Int64("staff_id", staffID),
-			slog.String("date_start", dateStart.Format(dateFormatISO)),
-			slog.String("date_end", dateEnd.Format(dateFormatISO)))
+			slog.String("date_start", dateStart.String()),
+			slog.String("date_end", dateEnd.String()))
 	}
 }
 
@@ -243,7 +249,7 @@ func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staff
 func (s *staffAbsenceService) createNewAbsence(
 	ctx context.Context,
 	staffID int64,
-	dateStart, dateEnd time.Time,
+	dateStart, dateEnd timezone.Date,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
 	now := time.Now()
@@ -315,14 +321,14 @@ func applyAbsenceUpdates(absence *activeModels.StaffAbsence, req UpdateAbsenceRe
 		absence.AbsenceType = *req.AbsenceType
 	}
 	if req.DateStart != nil {
-		dateStart, err := time.Parse(dateFormatISO, *req.DateStart)
+		dateStart, err := timezone.ParseDate(*req.DateStart)
 		if err != nil {
 			return fmt.Errorf("invalid date_start format, expected YYYY-MM-DD")
 		}
 		absence.DateStart = dateStart
 	}
 	if req.DateEnd != nil {
-		dateEnd, err := time.Parse(dateFormatISO, *req.DateEnd)
+		dateEnd, err := timezone.ParseDate(*req.DateEnd)
 		if err != nil {
 			return fmt.Errorf("invalid date_end format, expected YYYY-MM-DD")
 		}
@@ -338,7 +344,7 @@ func applyAbsenceUpdates(absence *activeModels.StaffAbsence, req UpdateAbsenceRe
 }
 
 // checkOverlapExcludingSelf checks for overlapping absences, excluding the given absence ID.
-func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd time.Time) error {
+func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd timezone.Date) error {
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
 	if err != nil {
 		return fmt.Errorf("failed to check existing absences: %w", err)
@@ -346,8 +352,8 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 	for _, e := range existing {
 		if e.ID != absenceID && blocksAbsenceRange(e.Status) {
 			return fmt.Errorf("updated dates overlap with existing absence from %s to %s",
-				e.DateStart.Format(dateFormatISO),
-				e.DateEnd.Format(dateFormatISO))
+				e.DateStart,
+				e.DateEnd)
 		}
 	}
 	return nil
@@ -376,7 +382,7 @@ func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, 
 }
 
 // GetAbsencesForRange returns absences for a staff member in a date range
-func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to time.Time) ([]*StaffAbsenceResponse, error) {
+func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error) {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absences: %w", err)
@@ -391,7 +397,7 @@ func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID i
 }
 
 // HasAbsenceOnDate checks if a staff member has an absence on a specific date
-func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date time.Time) (bool, *activeModels.StaffAbsence, error) {
+func (s *staffAbsenceService) HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error) {
 	absence, err := s.absenceRepo.GetByStaffAndDate(ctx, staffID, date)
 	if err != nil {
 		return false, nil, fmt.Errorf("failed to check absence: %w", err)
@@ -450,7 +456,7 @@ func effectiveBoundaryHalfDays(a *activeModels.StaffAbsence) (bool, bool) {
 	return a.StartHalfDay, a.EndHalfDay
 }
 
-func isWorkingDay(d time.Time) bool {
+func isWorkingDay(d timezone.Date) bool {
 	w := d.Weekday()
 	return w != time.Saturday && w != time.Sunday
 }
@@ -461,19 +467,19 @@ func isWorkingDay(d time.Time) bool {
 // minus 0.5 for each boundary half-day. Personio-style: first day half
 // and last day half are independent flags. Feiertage are NOT excluded
 // yet. That lives in Tranche 3 (Issue #1231).
-func countWorkingDays(from, to time.Time, startHalf, endHalf bool) float64 {
+func countWorkingDays(from, to timezone.Date, startHalf, endHalf bool) float64 {
 	if to.Before(from) {
 		return 0
 	}
 	count := 0
-	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+	for d := from; !d.After(to); d = d.AddDays(1) {
 		if isWorkingDay(d) {
 			count++
 		}
 	}
 	result := float64(count)
 	// Single-day range: only one boundary exists, so a single half flag halves it.
-	if from.Equal(to) {
+	if from == to {
 		if isWorkingDay(from) && (startHalf || endHalf) {
 			result -= 0.5
 		}
@@ -640,8 +646,8 @@ func (s *staffAbsenceService) createAudit(ctx context.Context, absenceID int64, 
 	return s.auditRepo.Create(ctx, audit)
 }
 
-func isBeforeLocalToday(date time.Time, now time.Time) bool {
-	return date.Before(timezone.DateOf(now))
+func isBeforeLocalToday(date timezone.Date, now time.Time) bool {
+	return date.Before(timezone.DateFromTime(now))
 }
 
 func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error) {
@@ -656,8 +662,8 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 		carryover = quota.CarryoverDays
 	}
 
-	yearStart := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
-	yearEnd := time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC)
+	yearStart := timezone.NewDate(year, time.January, 1)
+	yearEnd := timezone.NewDate(year, time.December, 31)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
@@ -691,11 +697,11 @@ func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staff
 	}, nil
 }
 
-func dateWithinRange(d, from, to time.Time) bool {
+func dateWithinRange(d, from, to timezone.Date) bool {
 	return !d.Before(from) && !d.After(to)
 }
 
-func vacationDaysInYear(a *activeModels.StaffAbsence, yearStart, yearEnd time.Time) float64 {
+func vacationDaysInYear(a *activeModels.StaffAbsence, yearStart, yearEnd timezone.Date) float64 {
 	from := a.DateStart
 	if from.Before(yearStart) {
 		from = yearStart
@@ -709,17 +715,13 @@ func vacationDaysInYear(a *activeModels.StaffAbsence, yearStart, yearEnd time.Ti
 	}
 
 	startHalf, endHalf := effectiveBoundaryHalfDays(a)
-	if !sameDate(from, a.DateStart) {
+	if from != a.DateStart {
 		startHalf = false
 	}
-	if !sameDate(to, a.DateEnd) {
+	if to != a.DateEnd {
 		endHalf = false
 	}
 	return countWorkingDays(from, to, startHalf, endHalf)
-}
-
-func sameDate(a, b time.Time) bool {
-	return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
 }
 
 func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {

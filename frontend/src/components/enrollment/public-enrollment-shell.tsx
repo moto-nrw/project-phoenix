@@ -3,14 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Check, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
+import { LanguageSwitcher } from "~/components/parent/language-switcher";
 
 export function PublicEnrollmentBrand({
   tenant,
 }: {
   readonly tenant: TenantInfo | null;
 }) {
-  const schoolName = tenant?.name ?? "Ihre OGS";
+  const t = useTranslations("enrollmentPublic");
+  const schoolName = tenant?.name ?? t("fallbackSchool");
   const logoUrl = getTenantLogoUrl(tenant);
   const initials = schoolName
     .split(/\s+/)
@@ -39,7 +42,7 @@ export function PublicEnrollmentBrand({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Online-Anmeldung
+          {t("brandEyebrow")}
         </p>
         <p className="truncate text-lg font-semibold text-gray-900">
           {schoolName}
@@ -77,17 +80,18 @@ export function PublicEnrollmentSteps({
 }: {
   readonly current: "phase" | "form" | "done";
 }) {
+  const t = useTranslations("enrollmentPublic");
   const steps = [
-    { id: "phase", label: "Auswahl" },
-    { id: "form", label: "Formular" },
-    { id: "done", label: "Bestätigung" },
+    { id: "phase", label: t("steps.phase") },
+    { id: "form", label: t("steps.form") },
+    { id: "done", label: t("steps.done") },
   ] as const;
   const currentIndex = steps.findIndex((step) => step.id === current);
 
   return (
     <ol
       className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-gray-500 sm:gap-2"
-      aria-label="Fortschritt der Anmeldung"
+      aria-label={t("steps.aria")}
     >
       {steps.map((step, index) => {
         const done = index < currentIndex || current === "done";
@@ -131,6 +135,13 @@ export function PublicEnrollmentSteps({
   );
 }
 
+/** Compact language switcher matching the parent portal header. Lives in the
+ * enrollment page header row (next to the step indicator) on branded pages, or
+ * standalone top-right on pages without a header (see PublicEnrollmentPageShell). */
+export function PublicEnrollmentLocaleSwitcher() {
+  return <LanguageSwitcher compact />;
+}
+
 export function PublicEnrollmentBackLink({
   href,
   children,
@@ -151,12 +162,23 @@ export function PublicEnrollmentBackLink({
 
 export function PublicEnrollmentPageShell({
   children,
+  withInlineSwitcher = false,
 }: {
   readonly children: React.ReactNode;
+  /** When the page renders its own header (brand row), it embeds the locale
+   * switcher there and sets this to true so the shell doesn't render a second
+   * one. Pages without a header (e.g. the submitted confirmation) leave it
+   * false and get a compact switcher in a standalone top-right corner. */
+  readonly withInlineSwitcher?: boolean;
 }) {
   return (
     <main className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen overflow-x-hidden">
       <div className="relative mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        {!withInlineSwitcher && (
+          <div className="mb-4 flex justify-end">
+            <PublicEnrollmentLocaleSwitcher />
+          </div>
+        )}
         {children}
       </div>
     </main>

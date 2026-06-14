@@ -14,8 +14,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -42,12 +42,12 @@ type templateSetup struct {
 type mockMaterializationService struct {
 	result *scheduleSvc.MaterializationResult
 	err    error
-	from   time.Time
-	to     time.Time
+	from   timezone.Date
+	to     timezone.Date
 	source scheduleSvc.MaterializationSource
 }
 
-func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to time.Time, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
 	m.from = from
 	m.to = to
 	m.source = source
@@ -57,8 +57,8 @@ func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, fro
 	return m.result, nil
 }
 
-func (m *mockMaterializationService) ResolveWindow(baseDate time.Time, weeksAhead int) (time.Time, time.Time) {
-	return baseDate, baseDate.AddDate(0, 0, weeksAhead*7-1)
+func (m *mockMaterializationService) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
+	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
 func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
@@ -76,13 +76,8 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	studentB := testpkg.CreateTestStudent(t, db, "Tpl", fmt.Sprintf("StudentB-%d", suffix), "3a")
 
 	res := NewResource(Dependencies{
-		ActivityGroupRepo:      activitiesRepo.NewGroupRepository(db),
-		ActivityScheduleRepo:   activitiesRepo.NewScheduleRepository(db),
-		StudentEnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(db),
-		ActivitySupervisorRepo: activitiesRepo.NewSupervisorPlannedRepository(db),
-		TimeframeRepo:          scheduleRepo.NewTimeframeRepository(db),
-		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), db, nil),
-		RoomRepo:               facilitiesRepo.NewRoomRepository(db),
+		TimetableData:          testTimetableData(db),
+		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), nil),
 		MaterializationService: mat,
 		DB:                     db,
 	})
@@ -506,15 +501,15 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBEnrollment.SetTenantID(1)
-	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, periodBEnrollment))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
 		StudentID:       studentC.ID,
 		ActivityGroupID: created.TemplateID,
-		ValidFrom:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
 	globalEnrollment.SetTenantID(1)
-	require.NoError(t, s.res.studentEnrollmentRepo.Create(s.ctx, globalEnrollment))
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
@@ -523,15 +518,15 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		CalendarPeriodID: &periodB.ID,
 	}
 	periodBSupervisor.SetTenantID(1)
-	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, periodBSupervisor))
+	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:   staffC.ID,
 		GroupID:   created.TemplateID,
-		ValidFrom: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
 	globalSupervisor.SetTenantID(1)
-	require.NoError(t, s.res.activitySupervisorRepo.Create(s.ctx, globalSupervisor))
+	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
 	updateBody["calendar_period_id"] = periodA.ID
@@ -606,8 +601,8 @@ func createTemplateTestPeriod(t *testing.T, db *bun.DB, name string) *scheduleMo
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeCustom,
-		StartDate:       time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(2026, 1, 1),
+		EndDate:         timezone.NewDate(2026, 12, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -625,7 +620,7 @@ func TestTemplatePeopleHelpersDeduplicateAndNoopWithoutTenant(t *testing.T) {
 	defer s.cleanupFn()
 
 	require.Equal(t, []int64{50, 60}, uniquePositiveIDs([]int64{50, 0, 60, 50, -1}))
-	validFrom := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	validFrom := timezone.NewDate(2026, time.January, 1)
 	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil, validFrom))
 	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil, validFrom))
 }

@@ -10,9 +10,11 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"net/mail"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -114,7 +116,7 @@ type SubmitRequest struct {
 type SubmitChild struct {
 	FirstName        string
 	LastName         string
-	DateOfBirth      time.Time
+	DateOfBirth      timezone.Date
 	TargetGradeLevel *int16
 	CustomData       map[string]any
 	OfferingIDs      []int64
@@ -178,31 +180,52 @@ type RequestService interface {
 	// than fall back to an incomplete legal state, because these texts sit
 	// behind legally relevant blocks.
 	LegalTexts(ctx context.Context) (LegalTexts, error)
+
+	// LegalTextsForPhase returns the legal block contract for the selected
+	// phase. When the phase's template carries at least one ENABLED legal
+	// block those blocks win; otherwise it falls back to the tenant-wide
+	// legal settings. Runs the same public phase gate as
+	// LoadOpenPublicPhase, so stale or closed phases surface the sentinel
+	// errors instead of an incomplete legal contract.
+	LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
+
+	// LoadOpenPublicPhase is the shared public phase gate: every public
+	// form-load endpoint (schema, offerings, legal texts, bootstrap) calls
+	// this so a direct or stale parent link cannot load detail data for a
+	// phase the picker would hide. Returns ErrEnrollmentDisabled when the
+	// tenant toggle is off or the phase is inactive, ErrInvalidSubmission
+	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
+	// phase's enrollment window. Caller must be inside a tenant-tx.
+	LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
-// enrollment form.
-// TermsEnabled mirrors enrollment.legal_terms_enabled. The public form only
-// renders AGB when this is true and the AGB text is non-empty.
+// enrollment form. Standard blocks render only when their toggle is enabled
+// and the matching text is non-empty.
 type LegalTexts struct {
-	AGB          string
-	DSGVO        string
-	EmailContact string
-	Photo        string
-	TermsEnabled bool
-	Blocks       []LegalBlock
+	AGB                 string
+	DSGVO               string
+	EmailContact        string
+	Photo               string
+	TermsEnabled        bool
+	DSGVOEnabled        bool
+	EmailContactEnabled bool
+	PhotoEnabled        bool
+	Blocks              []LegalBlock
 }
 
 // LegalBlock is one configured legal row shown on the public enrollment
 // form. Required checkbox blocks must be accepted; notice blocks only display
 // information.
 type LegalBlock struct {
-	Key      string `json:"key"`
-	Kind     string `json:"kind"`
-	Title    string `json:"title"`
-	Label    string `json:"label"`
-	Text     string `json:"text"`
-	Required bool   `json:"required"`
+	Key       string `json:"key"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Label     string `json:"label"`
+	Text      string `json:"text"`
+	Required  bool   `json:"required"`
+	SortOrder int    `json:"sort_order,omitempty"`
+	Source    string `json:"source,omitempty"`
 }
 
 // RequestSettingsResolver is the narrow contract the service needs from
@@ -308,10 +331,6 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.enforceRateLimit(ctx, req); err != nil {
 		return nil, err
 	}
-	if err := s.validateSubmission(ctx, req); err != nil {
-		return nil, err
-	}
-
 	phase, err := s.loadPhaseForSubmission(ctx, req.PhaseID)
 	if err != nil {
 		return nil, err
@@ -372,6 +391,17 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: load schema: %w", err)
 	}
+	legalBlocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve legal blocks: %w", err)
+	}
+	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
+		return nil, err
+	}
+	// consent_flags is legally meaningful data: persist only keys the
+	// resolved legal-block contract declares so a stale or manipulated
+	// client cannot smuggle arbitrary consent entries into the request.
+	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, legalBlocks)
 
 	// Single required-field gate: enforces required core + custom fields
 	// server-side (defense-in-depth; the client checks the same), while
@@ -538,7 +568,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	}, nil
 }
 
-func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest) error {
+func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, legalBlocks []LegalBlock) error {
 	if !s.isEnrollmentEnabled(ctx) {
 		return ErrEnrollmentDisabled
 	}
@@ -574,11 +604,7 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 			return ErrInvalidGuardianPhone
 		}
 	}
-	requiredConsents, err := s.resolveRequiredConsents(ctx)
-	if err != nil {
-		return fmt.Errorf("resolve required consents: %w", err)
-	}
-	for _, key := range requiredConsents {
+	for _, key := range requiredConsentKeys(legalBlocks) {
 		accepted, ok := req.ConsentFlags[key].(bool)
 		if !ok || !accepted {
 			return fmt.Errorf("%w: consent %s is required", ErrInvalidSubmission, key)
@@ -792,8 +818,10 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 	// Same hidden-answer sanitizing as Submit: an edit must not be able to
 	// (re)introduce a value for a guardian field the parent couldn't see.
 	// Children aren't edited here, so only the guardian scope is filtered.
+	var schema *enrollmentModels.FormSchema
 	if req.SchemaID != nil {
-		if schema, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+		if loaded, schemaErr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID); schemaErr == nil {
+			schema = loaded
 			byKey := buildFieldsByKey(schema)
 			req.CustomData = sanitizeVisibleAnswers(
 				schema, false, req.CustomData,
@@ -804,19 +832,17 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 
 	tenantID := req.GetTenantID()
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
-	return tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		_, err := tx.NewUpdate().
-			Model(req).
-			ModelTableExpr(`enrollment.requests AS "request"`).
-			Set("guardian_first_name = ?", req.GuardianFirstName).
-			Set("guardian_last_name = ?", req.GuardianLastName).
-			Set("guardian_phone = ?", req.GuardianPhone).
-			Set("consent_flags = ?", req.ConsentFlags).
-			Set("custom_data = ?", req.CustomData).
-			Set("updated_at = NOW()").
-			Where(`"request".id = ?`, req.ID).
-			Exec(txCtx)
-		return err
+	return tenant.WithTenantTx(tenantCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Same consent-key allowlist as Submit. Resolved inside the tenant
+		// tx because the settings fallback needs the per-tenant override.
+		if patch.ConsentFlags != nil {
+			blocks, blockErr := s.resolveSubmissionLegalBlocks(txCtx, schema)
+			if blockErr != nil {
+				return fmt.Errorf("edit: resolve legal blocks: %w", blockErr)
+			}
+			req.ConsentFlags = filterConsentFlags(req.ConsentFlags, blocks)
+		}
+		return s.requestRepo.UpdateGuardianData(txCtx, req)
 	})
 }
 
@@ -852,15 +878,7 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 			anyWithdrawn = true
 		}
 		if childID == 0 && anyWithdrawn {
-			now := time.Now()
-			_, err := tx.NewUpdate().
-				Model((*enrollmentModels.Request)(nil)).
-				ModelTableExpr(`enrollment.requests AS "request"`).
-				Set("withdrawn_at = ?", now).
-				Set("updated_at = NOW()").
-				Where(`"request".id = ?`, req.ID).
-				Exec(txCtx)
-			return err
+			return s.requestRepo.MarkWithdrawn(txCtx, req.ID, time.Now())
 		}
 		return nil
 	})
@@ -1097,59 +1115,149 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, err
 	}
+	dsgvoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalDSGVOEnabled, "DSGVO legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	emailContactEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalEmailContactEnabled, "email contact legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	photoEnabled, err := s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalPhotoEnabled, "photo legal block")
+	if err != nil {
+		return LegalTexts{}, err
+	}
 	texts := LegalTexts{
-		AGB:          strings.TrimSpace(agb),
-		DSGVO:        strings.TrimSpace(dsgvo),
-		EmailContact: strings.TrimSpace(emailContact),
-		Photo:        strings.TrimSpace(photo),
-		TermsEnabled: termsEnabled,
+		AGB:                 strings.TrimSpace(agb),
+		DSGVO:               strings.TrimSpace(dsgvo),
+		EmailContact:        strings.TrimSpace(emailContact),
+		Photo:               strings.TrimSpace(photo),
+		TermsEnabled:        termsEnabled,
+		DSGVOEnabled:        dsgvoEnabled,
+		EmailContactEnabled: emailContactEnabled,
+		PhotoEnabled:        photoEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
 	return texts, nil
+}
+
+func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
+	phase, err := s.LoadOpenPublicPhase(ctx, phaseID, time.Now())
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	texts, err := s.LegalTexts(ctx)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	schema, err := s.resolveSubmissionSchema(ctx, phase)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	// Template blocks replace the settings-derived blocks only when at
+	// least one of them is enabled. A template whose blocks are all
+	// disabled (saved before the Rechtstexte were configured, or via the
+	// API) must not erase the tenant's consent contract — that would let
+	// parents submit without the expected DSGVO acknowledgment.
+	if schema != nil && len(schema.LegalBlocks) > 0 {
+		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
+			texts.Blocks = blocks
+		}
+	}
+	return texts, nil
+}
+
+// LoadOpenPublicPhase implements the shared public phase gate documented
+// on the RequestService interface.
+func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
+	if !s.isEnrollmentEnabled(ctx) {
+		return nil, ErrEnrollmentDisabled
+	}
+	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
+	if !IsEnrollmentWindowOpen(phase, now) {
+		return nil, ErrEnrollmentWindowClosed
+	}
+	return phase, nil
 }
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	blocks := make([]LegalBlock, 0, 4)
 	if texts.TermsEnabled && texts.AGB != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyAGB,
-			Kind:     "terms",
-			Title:    "AGB / Teilnahmebedingungen",
-			Label:    "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-			Text:     texts.AGB,
-			Required: true,
+			Key:       enrollmentModels.ConsentKeyAGB,
+			Kind:      "terms",
+			Title:     "AGB / Teilnahmebedingungen",
+			Label:     "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
+			Text:      texts.AGB,
+			Required:  true,
+			SortOrder: 10,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.DSGVO != "" {
+	if texts.DSGVOEnabled && texts.DSGVO != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyDataProcessing,
-			Kind:     "privacy_notice",
-			Title:    "Datenschutzinformation",
-			Label:    "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
-			Text:     texts.DSGVO,
-			Required: true,
+			Key:       enrollmentModels.ConsentKeyDataProcessing,
+			Kind:      "privacy_notice",
+			Title:     "Datenschutzinformation",
+			Label:     "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
+			Text:      texts.DSGVO,
+			Required:  true,
+			SortOrder: 20,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.Photo != "" {
+	if texts.PhotoEnabled && texts.Photo != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyPhoto,
-			Kind:     "consent",
-			Title:    "Fotoeinwilligung",
-			Label:    "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
-			Text:     texts.Photo,
-			Required: false,
+			Key:       enrollmentModels.ConsentKeyPhoto,
+			Kind:      "consent",
+			Title:     "Fotoeinwilligung",
+			Label:     "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
+			Text:      texts.Photo,
+			Required:  false,
+			SortOrder: 30,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
-	if texts.EmailContact != "" {
+	if texts.EmailContactEnabled && texts.EmailContact != "" {
 		blocks = append(blocks, LegalBlock{
-			Key:      enrollmentModels.ConsentKeyEmailContact,
-			Kind:     "notice",
-			Title:    "E-Mail-Kontakt",
-			Label:    "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
-			Text:     texts.EmailContact,
-			Required: false,
+			Key:       enrollmentModels.ConsentKeyEmailContact,
+			Kind:      "notice",
+			Title:     "E-Mail-Kontakt",
+			Label:     "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
+			Text:      texts.EmailContact,
+			Required:  false,
+			SortOrder: 40,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
 		})
 	}
+	return blocks
+}
+
+func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []LegalBlock {
+	blocks := make([]LegalBlock, 0, len(configured))
+	for _, block := range configured {
+		if !block.Enabled {
+			continue
+		}
+		blocks = append(blocks, LegalBlock{
+			Key:       block.Key,
+			Kind:      block.Kind,
+			Title:     block.Title,
+			Label:     block.Label,
+			Text:      block.Text,
+			Required:  block.Required,
+			SortOrder: block.SortOrder,
+			Source:    block.Source,
+		})
+	}
+	// The editor writes blocks in display order, but API-written templates
+	// may store them out of order — enforce sort_order at render time.
+	sort.SliceStable(blocks, func(i, j int) bool {
+		return blocks[i].SortOrder < blocks[j].SortOrder
+	})
 	return blocks
 }
 
@@ -1158,38 +1266,88 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 // fail closed because this setting decides whether a required legal block is
 // rendered and enforced.
 func (s *requestService) legalTermsEnabled(ctx context.Context) (bool, error) {
+	return s.legalBlockEnabled(ctx, configModel.KeyEnrollmentLegalTermsEnabled, "AGB terms")
+}
+
+func (s *requestService) legalBlockEnabled(ctx context.Context, key string, label string) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	has, err := s.settings.HasTenantOverride(ctx, key)
 	if err != nil {
-		return false, fmt.Errorf("check AGB terms setting override: %w", err)
+		return false, fmt.Errorf("check %s setting override: %w", label, err)
 	}
 	if !has {
 		return false, nil
 	}
-	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	v, err := s.settings.ResolveBool(ctx, key)
 	if err != nil {
-		return false, fmt.Errorf("resolve AGB terms setting: %w", err)
+		return false, fmt.Errorf("resolve %s setting: %w", label, err)
 	}
 	return v, nil
 }
 
-// resolveRequiredConsents returns the visible legal blocks the parent must
-// accept for this tenant. It uses the same derived block list as the public
-// endpoint so a hidden/empty block never blocks submit server-side.
-func (s *requestService) resolveRequiredConsents(ctx context.Context) ([]string, error) {
+// resolveSubmissionLegalBlocks returns the legal blocks a submission is
+// validated and persisted against: the template's enabled blocks when the
+// pinned schema declares at least one, otherwise the tenant-wide settings
+// blocks. Zero enabled template blocks fall back to settings (same rule as
+// LegalTextsForPhase) so an all-disabled snapshot can never erase the
+// tenant's consent contract.
+func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
+	if schema != nil && len(schema.LegalBlocks) > 0 {
+		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
+			return blocks, nil
+		}
+	}
 	texts, err := s.LegalTexts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	required := make([]string, 0, len(texts.Blocks))
-	for _, block := range texts.Blocks {
+	return texts.Blocks, nil
+}
+
+// requiredConsentKeys extracts the keys the parent must accept from the
+// resolved block list, so a hidden/empty block never blocks submit
+// server-side.
+func requiredConsentKeys(blocks []LegalBlock) []string {
+	required := make([]string, 0, len(blocks))
+	for _, block := range blocks {
 		if block.Required {
 			required = append(required, block.Key)
 		}
 	}
-	return required, nil
+	return required
+}
+
+// resolveRequiredConsents returns the consent keys the parent must accept
+// for this schema/tenant. Kept as the single entry point combining block
+// resolution + required filtering.
+func (s *requestService) resolveRequiredConsents(ctx context.Context, schema *enrollmentModels.FormSchema) ([]string, error) {
+	blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
+	if err != nil {
+		return nil, err
+	}
+	return requiredConsentKeys(blocks), nil
+}
+
+// filterConsentFlags drops every consent key the resolved legal-block
+// contract doesn't declare. The flags are legally meaningful data, so
+// arbitrary client-sent keys must not be persisted.
+func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]any {
+	if len(flags) == 0 {
+		return flags
+	}
+	allowed := make(map[string]bool, len(blocks))
+	for _, block := range blocks {
+		allowed[block.Key] = true
+	}
+	out := make(map[string]any, len(flags))
+	for key, value := range flags {
+		if allowed[key] {
+			out[key] = value
+		}
+	}
+	return out
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current
@@ -1356,6 +1514,35 @@ func (s *requestService) applyCapacityOverflow(
 // tests that don't care about rate limiting). Tenant-scoped: each
 // school owns its own counters.
 func (s *requestService) enforceRateLimit(ctx context.Context, req SubmitRequest) error {
+	if s.rateLimitRepo == nil || req.TenantID <= 0 {
+		return nil
+	}
+
+	if s.db != nil {
+		rateCtx := modelBase.ContextWithoutTx(ctx)
+		var limitErr error
+		err := tenant.WithTenantTx(rateCtx, s.db, req.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			limitErr = s.enforceRateLimitBuckets(txCtx, req)
+			if errors.Is(limitErr, ErrRateLimited) {
+				return nil
+			}
+			return limitErr
+		})
+		if err != nil {
+			s.logger.Warn("enrollment submit: rate-limit transaction failed; allowing through",
+				slog.String("error", err.Error()),
+				slog.Int64("tenant_id", req.TenantID))
+		}
+		if errors.Is(limitErr, ErrRateLimited) {
+			return limitErr
+		}
+		return nil
+	}
+
+	return s.enforceRateLimitBuckets(ctx, req)
+}
+
+func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
 	if s.rateLimitRepo == nil || req.TenantID <= 0 {
 		return nil
 	}

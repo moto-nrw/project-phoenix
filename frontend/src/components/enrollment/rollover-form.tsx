@@ -9,34 +9,35 @@ import {
   type RolloverMode,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { CustomSelect } from "~/components/ui/custom-select";
 
 const logger = createLogger({ component: "RolloverForm" });
 
 // Pre-fill helper: the new phase defaults to one year after the
 // source phase's service window. Admin can override every field.
 function prefillFromSource(source: Phase): RolloverInput {
-  const start = new Date(source.service_start_date);
-  const end = new Date(source.service_end_date);
+  const start = parseISODate(source.service_start_date);
+  const end = parseISODate(source.service_end_date);
   const oneYear = (d: Date) => {
     const next = new Date(d);
-    next.setUTCFullYear(d.getUTCFullYear() + 1);
+    next.setFullYear(d.getFullYear() + 1);
     return next;
   };
-  const toDate = (d: Date) => d.toISOString().slice(0, 10);
 
   const nextStart = oneYear(start);
   const nextEnd = oneYear(end);
 
   // Deadline default: two weeks before the new service start.
   const deadline = new Date(nextStart);
-  deadline.setUTCDate(deadline.getUTCDate() - 14);
+  deadline.setDate(deadline.getDate() - 14);
 
   return {
     name: `${source.name} (Folgejahr)`,
     kind: source.kind,
-    service_start_date: toDate(nextStart),
-    service_end_date: toDate(nextEnd),
+    service_start_date: toISODate(nextStart),
+    service_end_date: toISODate(nextEnd),
     enrollment_open_at: null,
     enrollment_close_at: null,
     form_schema_id: source.form_schema_id ?? null,
@@ -166,20 +167,19 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             </p>
           )}
         </label>
-        <label className="block">
+        <label className="block" htmlFor="rollover-kind">
           <span className="block text-xs font-semibold text-gray-700">Typ</span>
-          <select
+          <CustomSelect
             id="rollover-kind"
             value={draft.kind}
-            onChange={(e) =>
-              update("kind", e.target.value as RolloverInput["kind"])
-            }
-            className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="school_year">Schuljahr</option>
-            <option value="holiday">Ferienbetreuung</option>
-            <option value="custom">Sonstiges</option>
-          </select>
+            onChange={(value) => update("kind", value as RolloverInput["kind"])}
+            className="mt-1"
+            options={[
+              { value: "school_year", label: "Schuljahr" },
+              { value: "holiday", label: "Ferienbetreuung" },
+              { value: "custom", label: "Sonstiges" },
+            ]}
+          />
         </label>
       </div>
 
@@ -226,19 +226,25 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             <span className="block text-xs font-semibold text-gray-700">
               Modus
             </span>
-            <select
+            <CustomSelect
               id="rollover-mode"
               value={draft.rollover_mode}
-              onChange={(e) =>
-                update("rollover_mode", e.target.value as RolloverMode)
+              onChange={(value) =>
+                update("rollover_mode", value as RolloverMode)
               }
-              className="moto-select moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              <option value="opt_out">Opt-Out: Eltern müssen abmelden</option>
-              <option value="opt_in">
-                Opt-In: Eltern müssen aktiv bestätigen
-              </option>
-            </select>
+              className="mt-1"
+              ariaLabel="Modus"
+              options={[
+                {
+                  value: "opt_out",
+                  label: "Opt-Out: Eltern müssen abmelden",
+                },
+                {
+                  value: "opt_in",
+                  label: "Opt-In: Eltern müssen aktiv bestätigen",
+                },
+              ]}
+            />
             <p className="mt-1 text-xs text-gray-500">
               {draft.rollover_mode === "opt_out"
                 ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."

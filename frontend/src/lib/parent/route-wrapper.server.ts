@@ -102,6 +102,14 @@ export function parentApiDelete<T>(
   return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
 }
 
+export function parentApiPut<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  return parentServerFetch<T>(endpoint, token, { method: "PUT", body });
+}
+
 type NoBodyHandler<T> = (
   request: NextRequest,
   token: string,
@@ -206,4 +214,10 @@ export function createParentPostHandler<T, B = unknown>(
 
 export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
+}
+
+export function createParentPutHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createParentWithBodyHandler(handler);
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -38,7 +39,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -82,7 +83,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -112,7 +113,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -141,7 +142,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	defer cleanupTimeTrackingRows(t, db, freshSessionID, freshAbsenceID)
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -171,7 +172,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -194,7 +195,8 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 	insertSession(t, db, staff.ID, daysAgo(800))
 
-	svc := activeSvc.NewTimeTrackingCleanupService(db, nil, nil, nil)
+	repos := repoFactory.NewFactory(db)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, nil, nil, nil)
 	_, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "audit repo not configured")
@@ -214,7 +216,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
 	repos := repoFactory.NewFactory(db)
-	svc := activeSvc.NewTimeTrackingCleanupService(db, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -245,7 +247,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, crea
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &activeModels.WorkSession{
 		StaffID:      staffID,
-		Date:         businessDate,
+		Date:         timezone.DateFromTime(businessDate),
 		Status:       activeModels.WorkSessionStatusPresent,
 		Source:       activeModels.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
@@ -306,8 +308,7 @@ func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt ti
 
 func insertAbsence(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
-	day := createdAt.Truncate(24 * time.Hour)
-	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, day, day)
+	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, createdAt, createdAt)
 }
 
 func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
@@ -315,8 +316,8 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, cre
 	a := &activeModels.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: activeModels.AbsenceTypeSick,
-		DateStart:   dateStart.Truncate(24 * time.Hour),
-		DateEnd:     dateEnd.Truncate(24 * time.Hour),
+		DateStart:   timezone.DateFromTime(dateStart),
+		DateEnd:     timezone.DateFromTime(dateEnd),
 		Status:      activeModels.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}

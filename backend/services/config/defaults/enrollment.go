@@ -406,12 +406,9 @@ func registerEnrollmentPublicForm() {
 	// service reads phase.CareOverflowMode at submit time.
 }
 
-// registerEnrollmentLegalTexts wires the per-tenant AGB and Datenschutz
-// (DSGVO) documents shown behind the required consent checkboxes on the
-// public enrollment form. Stored as Markdown; the parent's browser
-// renders them in a modal when the consent label is clicked. Empty
-// default → no clickable link, the form falls back to a plain label so
-// nothing breaks for tenants that haven't filled the text in yet.
+// registerEnrollmentLegalTexts wires the per-tenant legal blocks shown on
+// the public enrollment form. Each block has its own show toggle and its
+// own Markdown text.
 //
 // WritePermission is config:manage (not config:update): these are
 // legally binding documents with GDPR implications, so they sit at the
@@ -423,15 +420,10 @@ func registerEnrollmentLegalTexts() {
 		Value:     true,
 	}
 
-	// Master toggle for the AGB / Teilnahmebedingungen block. Default off:
-	// there is no general legal duty to use AGB, and forcing a mandatory
-	// "AGB akzeptieren" checkbox on a Träger that has no standard terms is
-	// misleading. Schools that actually incorporate terms switch this on
-	// and fill in the AGB text below.
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,
-		Label:           "AGB / Teilnahmebedingungen abfragen",
-		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht. Solange deaktiviert oder ohne Text, wird keine AGB-Zustimmung angezeigt oder verlangt.",
+		Label:           "AGB / Teilnahmebedingungen im Anmeldeformular anzeigen",
+		Description:     "Blendet im Anmeldeformular eine verpflichtende Zustimmung zu den AGB, Teilnahmebedingungen oder dem Ganztag Info-Brief ein. Nur aktivieren, wenn Ihr Träger tatsächlich Vertragsbedingungen einbezieht.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -445,7 +437,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Nur sichtbar und erforderlich, wenn „AGB / Teilnahmebedingungen abfragen“ aktiviert ist und hier ein Text steht.",
+		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -453,11 +445,21 @@ func registerEnrollmentLegalTexts() {
 		Tab:             "enrollment",
 		Category:        "rechtstexte",
 		SortOrder:       80,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyEnrollmentLegalTermsEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalDSGVOEnabled,
+		Label:           "Datenschutzinformation im Anmeldeformular anzeigen",
+		Description:     "Blendet im Anmeldeformular eine verpflichtende Kenntnisnahme der Datenschutzinformation ein.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       81,
+		DependsOn:       dependsOnEnabled,
 	})
 
 	config.Register(config.Definition{
@@ -468,21 +470,7 @@ func registerEnrollmentLegalTexts() {
 		// parents to ACKNOWLEDGE (Kenntnisnahme) this information, it does
 		// not collect a DSGVO "Einwilligung". Keep this description aligned
 		// with the acknowledgement label rendered on the public form.
-		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Leer lassen, wenn kein separater Datenschutz-Block im Formular angezeigt werden soll.",
-		Type:            config.FieldTextarea,
-		Default:         "",
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "enrollment",
-		Category:        "rechtstexte",
-		SortOrder:       81,
-		DependsOn:       dependsOnEnabled,
-	})
-
-	config.Register(config.Definition{
-		Key:             config.KeyEnrollmentLegalEmailContactText,
-		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
-		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt (Rückfragen, Status-Benachrichtigungen). Markdown wird unterstützt. Wird im Formular als Hinweis angezeigt — keine separate Zustimmung, da der E-Mail-Kontakt zur Durchführung der Anmeldung erforderlich ist. Leer lassen, um den Hinweis auszublenden.",
+		Description:     "Datenschutzinformation gemäß Art. 13 DSGVO, die Eltern bei der Anmeldung zur Kenntnis nehmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -494,16 +482,58 @@ func registerEnrollmentLegalTexts() {
 	})
 
 	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalPhotoEnabled,
+		Label:           "Fotoeinwilligung im Anmeldeformular anzeigen",
+		Description:     "Blendet im Anmeldeformular eine freiwillige Fotoeinwilligung ein.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       83,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalPhotoText,
 		Label:           "Hinweis zur Fotoeinwilligung (Anmeldeformular)",
-		Description:     "Erläuterung zur (optionalen, jederzeit widerrufbaren) Fotoeinwilligung (wo und wie Fotos verwendet werden). Markdown wird unterstützt. Wird im Formular über einen Link angezeigt. Leer lassen, um nur den Hinweistext ohne Link zu zeigen.",
+		Description:     "Erläuterung zur optionalen und jederzeit widerrufbaren Fotoeinwilligung, zum Beispiel wo und wie Fotos verwendet werden. Markdown wird unterstützt. Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "enrollment",
 		Category:        "rechtstexte",
-		SortOrder:       83,
+		SortOrder:       84,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalEmailContactEnabled,
+		Label:           "E-Mail-Kontakt im Anmeldeformular anzeigen",
+		Description:     "Blendet im Anmeldeformular einen Hinweis zur Nutzung der E-Mail-Adresse ein.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       85,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalEmailContactText,
+		Label:           "Hinweis zum E-Mail-Kontakt (Anmeldeformular)",
+		Description:     "Erläuterung, wozu die Schule die E-Mail-Adresse nutzt, zum Beispiel Rückfragen und Status-Benachrichtigungen. Markdown wird unterstützt. Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       86,
 		DependsOn:       dependsOnEnabled,
 	})
 }

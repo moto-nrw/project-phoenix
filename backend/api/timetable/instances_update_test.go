@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,7 +40,7 @@ func TestUpdateInstance_Success(t *testing.T) {
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, s.res)
 
-	targetDate := time.Now().AddDate(0, 0, 2)
+	targetDate := timezone.TodayDate().AddDays(2)
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, targetDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "09:00",
 		EndHHMM:       "10:00",
@@ -50,7 +51,7 @@ func TestUpdateInstance_Success(t *testing.T) {
 	s.mock.updateRes = persisted
 
 	body := map[string]any{
-		"date":       targetDate.Format("2006-01-02"),
+		"date":       targetDate.String(),
 		"start_time": "09:00",
 		"end_time":   "10:00",
 		"title":      "Updated Basteln",
@@ -172,7 +173,7 @@ func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {
 		"room_id":    s.roomID,
 	}
 	s.mock.updateRes = &scheduleModel.ActivityInstance{
-		Date:          time.Date(2026, 5, 6, 0, 0, 0, 0, time.UTC),
+		Date:          timezone.NewDate(2026, 5, 6),
 		StartTime:     time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC),
 		EndTime:       time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC),
 		Title:         "Valid",

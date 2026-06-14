@@ -320,21 +320,29 @@ describe("PersonalInfoFormModal", () => {
   });
 
   describe("Select inputs", () => {
-    it("displays buskind select with correct value", () => {
+    it("shows bus days as 'Bus' in the unified departure picker (#1610)", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
           onClose={mockOnClose}
-          student={createMockStudent({ buskind: true })}
+          student={createMockStudent({
+            buskind: true,
+            bus_days: { mon: true },
+          })}
           onSave={mockOnSave}
         />,
       );
 
-      const select = screen.getByLabelText<HTMLSelectElement>("Buskind");
-      expect(select.value).toBe("true");
+      // bus_days fold into "Bus" on Monday; Friday defaults to "Alleine".
+      expect(
+        screen.getByRole("button", { name: "Montag: Bus", pressed: true }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Freitag: Alleine", pressed: true }),
+      ).toBeInTheDocument();
     });
 
-    it("displays the selected pickup weekdays", () => {
+    it("shows pickup days as 'Abholung' in the departure picker", () => {
       render(
         <PersonalInfoFormModal
           isOpen={true}
@@ -348,14 +356,18 @@ describe("PersonalInfoFormModal", () => {
       );
 
       expect(
-        screen.getByRole("checkbox", { name: "Montag wird abgeholt" }),
-      ).toBeChecked();
+        screen.getByRole("button", { name: "Montag: Abholung", pressed: true }),
+      ).toBeInTheDocument();
       expect(
-        screen.getByRole("checkbox", { name: "Mittwoch wird abgeholt" }),
-      ).toBeChecked();
+        screen.getByRole("button", {
+          name: "Mittwoch: Abholung",
+          pressed: true,
+        }),
+      ).toBeInTheDocument();
     });
 
-    it("changes buskind when selected", () => {
+    it("sets a bus day and saves the derived bus_days", async () => {
+      mockOnSave.mockResolvedValue(undefined);
       render(
         <PersonalInfoFormModal
           isOpen={true}
@@ -365,10 +377,48 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      const select = screen.getByLabelText<HTMLSelectElement>("Buskind");
-      fireEvent.change(select, { target: { value: "true" } });
+      fireEvent.click(screen.getByRole("button", { name: "Montag: Bus" }));
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-      expect(select.value).toBe("true");
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            departure_days: { mon: "bus" },
+            bus_days: { mon: true },
+            buskind: true,
+          }),
+        );
+      });
+    });
+
+    it("sends derived departure_days when only legacy day maps exist", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent({
+            bus_days: { mon: true },
+            pickup_days: { wed: true },
+            departure_days: undefined,
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText<HTMLInputElement>("Vorname"), {
+        target: { value: "Maja" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            first_name: "Maja",
+            departure_days: { mon: "bus", wed: "pickup" },
+          }),
+        );
+      });
     });
   });
 

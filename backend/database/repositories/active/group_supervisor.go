@@ -4,11 +4,12 @@ package active
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
@@ -67,6 +68,32 @@ func (r *GroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*activ
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find all active supervisions",
+			Err: err,
+		}
+	}
+
+	return supervisions, nil
+}
+
+// FindStaleOpen returns supervisor rows started before the given day that
+// still lack an end_date. Feeds the nightly stale-supervisor cleanup and its
+// preview (services/active/cleanup_service.go, session_service.go).
+func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*active.GroupSupervisor, error) {
+	var supervisions []*active.GroupSupervisor
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&supervisions).
+		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
+		Where(`"group_supervisor".start_date < ?`, before).
+		Where(`"group_supervisor".end_date IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find stale open supervisions",
 			Err: err,
 		}
 	}
@@ -153,7 +180,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.GroupSupervisor)(nil)).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Set("end_date = ?", time.Now()).
+		Set("end_date = ?", timezone.TodayDate()).
 		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
 	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
@@ -491,4 +518,29 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 	}
 
 	return staffIDs, nil
+}
+
+// ListActiveSupervisionBlockers returns the staff member's still-open group
+// supervisions as caregiver-capability blocker rows. Custom raw-SQL method
+// (backend-conventions Rule 2): cross-schema join into the users blocker
+// read model with text-cast dates for the UI.
+func (r *GroupSupervisorRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSupervision, error) {
+	var results []userModels.BlockerSupervision
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT gs.id, COALESCE(g.name, 'Unbekannte Gruppe') AS group_name,
+		       gs.start_date::text AS start_date
+		FROM active.group_supervisors AS gs
+		LEFT JOIN education.groups AS g ON g.id = gs.group_id AND g.tenant_id = gs.tenant_id
+		WHERE gs.tenant_id = ?
+		  AND gs.staff_id = ?
+		  AND (gs.end_date IS NULL OR gs.end_date > NOW())
+		ORDER BY gs.start_date DESC
+	`, tenantID, staffID).Scan(ctx, &results)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list active supervision blockers",
+			Err: err,
+		}
+	}
+	return results, nil
 }

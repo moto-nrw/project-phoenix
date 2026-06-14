@@ -93,11 +93,13 @@ describe("listCareOfferings", () => {
     expect(await listCareOfferings()).toEqual([]);
   });
 
-  it("throws with backend error message on non-OK", async () => {
+  it("uses the German fallback for unknown English backend errors", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "permission denied" }, { status: 403 }),
     );
-    await expect(listCareOfferings()).rejects.toThrow(/permission denied/);
+    await expect(listCareOfferings()).rejects.toThrow(
+      /Betreuungsangebote konnten nicht geladen werden/,
+    );
   });
 
   it("appends HTTP status when body has no error", async () => {
@@ -123,10 +125,13 @@ describe("createCareOffering", () => {
 
   it("throws on non-OK", async () => {
     mockFetch(async () =>
-      jsonResponse({ error: "validation failed" }, { status: 400 }),
+      jsonResponse(
+        { error: "validation failed: care offering name is required" },
+        { status: 400 },
+      ),
     );
     await expect(createCareOffering(validInput)).rejects.toThrow(
-      /validation failed/,
+      /Bitte gib einen Namen für das Betreuungsangebot ein/,
     );
   });
 });
@@ -155,12 +160,12 @@ describe("updateCareOffering", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("throws on non-OK", async () => {
+  it("uses the German fallback for unknown English save errors", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "service unavailable" }, { status: 500 }),
     );
     await expect(updateCareOffering("1234", validInput)).rejects.toThrow(
-      /service unavailable/,
+      /Betreuungsangebot konnte nicht gespeichert werden/,
     );
   });
 });
@@ -183,12 +188,12 @@ describe("deleteCareOffering", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
-  it("throws with backend error on non-OK non-204", async () => {
+  it("uses the German fallback for unknown English delete errors", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "still referenced" }, { status: 409 }),
     );
     await expect(deleteCareOffering("1234")).rejects.toThrow(
-      /still referenced/,
+      /Betreuungsangebot konnte nicht gelöscht werden/,
     );
   });
 });
@@ -220,12 +225,12 @@ describe("cloneCareOffering", () => {
     expect(seenURL).toContain("a%2Fb/clone");
   });
 
-  it("throws on non-OK", async () => {
+  it("uses the German fallback for unknown English clone errors", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "source not found" }, { status: 404 }),
     );
     await expect(
       cloneCareOffering("1234", { target_phase_id: 5 }),
-    ).rejects.toThrow(/source not found/);
+    ).rejects.toThrow(/Klonen fehlgeschlagen/);
   });
 });

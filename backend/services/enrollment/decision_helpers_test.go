@@ -97,6 +97,31 @@ func TestDecodeBusDays_RejectsUnknownWeekday(t *testing.T) {
 	assert.Contains(t, err.Error(), "sat")
 }
 
+func TestDecodeDepartureDays_MapsModes(t *testing.T) {
+	out, err := decodeDepartureDays(map[string]any{
+		"mon": "bus",
+		"wed": "pickup",
+		"thu": "alone", // normalized away
+	})
+	require.NoError(t, err)
+	assert.Equal(t, users.DepartureBus, out.ModeFor("mon"))
+	assert.Equal(t, users.DeparturePickup, out.ModeFor("wed"))
+	assert.Equal(t, users.DepartureAlone, out.ModeFor("thu"))
+	assert.Equal(t, users.DepartureAlone, out.ModeFor("fri"))
+}
+
+func TestDecodeDepartureDays_RejectsUnknownMode(t *testing.T) {
+	_, err := decodeDepartureDays(map[string]any{"mon": "taxi"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "taxi")
+}
+
+func TestDecodeDepartureDays_RejectsUnknownWeekday(t *testing.T) {
+	_, err := decodeDepartureDays(map[string]any{"sat": "bus"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sat")
+}
+
 func TestDecodePickupDays_NormalizesWeekdayMap(t *testing.T) {
 	out, err := decodePickupDays(map[string]any{"mon": true, "wed": false, "fri": true})
 	require.NoError(t, err)

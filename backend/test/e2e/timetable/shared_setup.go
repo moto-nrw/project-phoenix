@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -136,24 +137,7 @@ func (s *scenario) mountRouter() chi.Router {
 		MaterializationService: s.factory.Materialization,
 		InstanceService:        s.factory.Instance,
 		PersonService:          s.factory.Users,
-		InstanceStudentRepo:    s.repos.InstanceStudent,
-		ActivityInstanceRepo:   s.repos.ActivityInstance,
-		ActivityExceptionRepo:  s.repos.ActivityException,
-		ActivityScheduleRepo:   s.repos.ActivitySchedule,
-		InstanceStaffRepo:      s.repos.InstanceStaff,
-		SupervisorRepo:         s.repos.GroupSupervisor,
-		ArrivalScheduleRepo:    s.repos.StudentArrivalSchedule,
-		ArrivalExceptionRepo:   s.repos.StudentArrivalException,
-		PickupScheduleRepo:     s.repos.StudentPickupSchedule,
-		PickupExceptionRepo:    s.repos.StudentPickupException,
-		VisitRepo:              s.repos.ActiveVisit,
-		StudentRepo:            s.repos.Student,
-		StaffRepo:              s.repos.Staff,
-		RoomRepo:               s.repos.Room,
-		ActivityGroupRepo:      s.repos.ActivityGroup,
-		ActivitySupervisorRepo: s.repos.ActivitySupervisor,
-		StudentEnrollmentRepo:  s.repos.StudentEnrollment,
-		TimeframeRepo:          s.repos.Timeframe,
+		TimetableData:          s.factory.TimetableData,
 		UserContextService:     s.factory.UserContext,
 		SettingsService:        s.factory.Settings,
 		Broadcaster:            s.factory.RealtimeHub,
@@ -249,13 +233,13 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 
 // createActivePeriod creates an active calendar period spanning 1 year before
 // and 1 year after `anchor`.
-func (s *scenario) createActivePeriod(name string, anchor time.Time) *scheduleModels.CalendarPeriod {
+func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *scheduleModels.CalendarPeriod {
 	s.t.Helper()
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       time.Date(anchor.Year()-1, 8, 1, 0, 0, 0, 0, time.UTC),
-		EndDate:         time.Date(anchor.Year()+1, 7, 31, 0, 0, 0, 0, time.UTC),
+		StartDate:       timezone.NewDate(anchor.Year-1, 8, 1),
+		EndDate:         timezone.NewDate(anchor.Year+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -305,8 +289,8 @@ type templateSpec struct {
 	staffIDs   []int64
 	studentIDs []int64
 	periodID   *int64
-	validFrom  time.Time
-	validUntil *time.Time
+	validFrom  timezone.Date
+	validUntil *timezone.Date
 }
 
 // templateFixture is the full bundle of rows behind one activity template.
@@ -319,7 +303,7 @@ type templateFixture struct {
 	roomID       int64
 	staffIDs     []int64
 	studentIDs   []int64
-	validFromUTC time.Time
+	validFromUTC timezone.Date
 }
 
 // buildTemplate inserts a full template bundle so materialize() will pick it up.
@@ -371,7 +355,7 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 
 	validFrom := spec.validFrom
 	if validFrom.IsZero() {
-		validFrom = time.Now().AddDate(0, -1, 0)
+		validFrom = timezone.TodayDate().AddDays(-30)
 	}
 
 	var enrollmentIDs []int64
@@ -440,9 +424,8 @@ func (q *queryCounter) get() int64 { return q.count.Load() }
 
 // nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)
 // at least `minDaysAhead` days from `from`.
-func nextWeekday(from time.Time, isoWeekday, minDaysAhead int) time.Time {
-	d := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC).
-		AddDate(0, 0, minDaysAhead)
+func nextWeekday(from timezone.Date, isoWeekday, minDaysAhead int) timezone.Date {
+	d := from.AddDays(minDaysAhead)
 	for {
 		w := int(d.Weekday())
 		if w == 0 {
@@ -451,7 +434,7 @@ func nextWeekday(from time.Time, isoWeekday, minDaysAhead int) time.Time {
 		if w == isoWeekday {
 			return d
 		}
-		d = d.AddDate(0, 0, 1)
+		d = d.AddDays(1)
 	}
 }
 

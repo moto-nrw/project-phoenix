@@ -6,6 +6,7 @@ import type {
   UpdateStudentRequest,
 } from "./student-helpers";
 import {
+  busDaysFromToggle,
   busDaysHaveAny,
   formatBusDays,
   getSchoolYear,
@@ -38,7 +39,9 @@ const sampleBackendStudent = buildBackendStudent({
   school_class: "3a",
   current_location: "Anwesend - Raum 101",
   location_since: "2024-01-15T10:00:00Z",
+  // bus is derived from bus_days, the single source of truth (#1582).
   bus: true,
+  bus_days: { mon: true, tue: true, wed: true, thu: true, fri: true },
   sick: false,
   guardian_name: "Hans Mustermann",
   guardian_contact: "+49 123 456789",
@@ -104,6 +107,47 @@ describe("bus day helpers", () => {
     );
     expect(formatBusDays({ tue: false })).toBe("Keine Bus-Tage");
     expect(formatBusDays(null)).toBe("Keine Bus-Tage");
+  });
+
+  describe("busDaysFromToggle", () => {
+    it("clears all days when toggled off", () => {
+      expect(busDaysFromToggle(false)).toEqual({});
+      // Off wins even if a previous selection exists.
+      expect(busDaysFromToggle(false, { mon: true, fri: true })).toEqual({});
+    });
+
+    it("defaults to all weekdays when toggled on with no existing days", () => {
+      expect(busDaysFromToggle(true)).toEqual({
+        mon: true,
+        tue: true,
+        wed: true,
+        thu: true,
+        fri: true,
+      });
+      expect(busDaysFromToggle(true, {})).toEqual({
+        mon: true,
+        tue: true,
+        wed: true,
+        thu: true,
+        fri: true,
+      });
+    });
+
+    it("preserves an existing per-day selection when toggled on", () => {
+      // The Ja/Nein toggle must not flatten Mo/Fr into all weekdays.
+      expect(busDaysFromToggle(true, { mon: true, fri: true })).toEqual({
+        mon: true,
+        fri: true,
+      });
+    });
+
+    it("normalizes unknown keys out of the preserved selection", () => {
+      const result = busDaysFromToggle(true, {
+        mon: true,
+        sat: true,
+      } as Parameters<typeof busDaysFromToggle>[1] & { sat: boolean });
+      expect(result).toEqual({ mon: true });
+    });
   });
 });
 
@@ -237,15 +281,17 @@ describe("mapStudentResponse", () => {
     expect(result.group_id).toBeUndefined();
   });
 
-  it("defaults bus and sick to false when undefined", () => {
+  it("defaults bus to false (no bus_days) and sick to false when undefined", () => {
     const student: BackendStudent = {
       ...sampleBackendStudent,
       bus: undefined,
+      bus_days: undefined,
       sick: undefined,
     };
 
     const result = mapStudentResponse(student);
 
+    // bus is derived from bus_days (#1582): no bus days => false.
     expect(result.bus).toBe(false);
     expect(result.sick).toBe(false);
   });
@@ -391,6 +437,7 @@ describe("prepareStudentForBackend", () => {
       school_class: "3a",
       current_location: "Anwesend - Raum 101",
       bus: true,
+      bus_days: { mon: true, fri: true },
       group_id: "5",
       tag_id: "RFID-12345",
       guardian_email: "test@example.com",
@@ -403,7 +450,10 @@ describe("prepareStudentForBackend", () => {
     expect(result.first_name).toBe("Max");
     expect(result.last_name).toBe("Mustermann"); // second_name → last_name
     expect(result.school_class).toBe("3a");
-    expect(result.bus).toBe(true);
+    // bus_days is the single source of truth (#1582); the legacy bus flag is
+    // no longer sent.
+    expect(result.bus).toBeUndefined();
+    expect(result.bus_days).toEqual({ mon: true, fri: true });
     expect(result.group_id).toBe(5); // string → number
     expect(result.tag_id).toBe("RFID-12345");
     expect(result.guardian_email).toBe("test@example.com");
@@ -432,10 +482,12 @@ describe("prepareStudentForBackend", () => {
     expect(result.birthday).toBeUndefined();
   });
 
-  it("omits bus when undefined so partial updates do not clobber the flag", () => {
+  it("omits bus_days when undefined so partial updates do not clobber it", () => {
     const result = prepareStudentForBackend({ id: "1" });
 
+    // bus is never sent anymore; bus_days is omitted when not provided (#1582).
     expect(result.bus).toBeUndefined();
+    expect(result.bus_days).toBeUndefined();
   });
 
   it("handles missing id for creation", () => {
@@ -534,6 +586,7 @@ describe("mapUpdateRequestToBackend", () => {
       supervisor_notes: "Good",
       pickup_status: "parent",
       bus: true,
+      bus_days: { tue: true },
       sick: false,
     };
 
@@ -553,7 +606,9 @@ describe("mapUpdateRequestToBackend", () => {
     expect(result.health_info).toBe("None");
     expect(result.supervisor_notes).toBe("Good");
     expect(result.pickup_status).toBe("parent");
-    expect(result.bus).toBe(true);
+    // bus_days is the single source of truth (#1582); bus is no longer mapped.
+    expect(result.bus).toBeUndefined();
+    expect(result.bus_days).toEqual({ tue: true });
     expect(result.sick).toBe(false);
   });
 

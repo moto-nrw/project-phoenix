@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +40,7 @@ type update struct {
 	to        userModels.StudentStatus
 }
 
-func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context, _ time.Time) ([]*userModels.Student, error) {
+func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context, _ timezone.Date) ([]*userModels.Student, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pendingCalls++
@@ -49,7 +50,7 @@ func (f *fakeStudentLifecycleRepo) FindPendingDueForActivation(_ context.Context
 	return f.pendingDue, nil
 }
 
-func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Context, _ time.Time) ([]*userModels.Student, error) {
+func (f *fakeStudentLifecycleRepo) FindActiveDueForDeactivation(_ context.Context, _ timezone.Date) ([]*userModels.Student, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.activeCalls++

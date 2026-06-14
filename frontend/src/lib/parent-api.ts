@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "~/lib/logger";
+import type { AppLocale } from "~/i18n/locales";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -65,6 +66,12 @@ export interface EnrollmentRequest {
   readonly children: EnrollmentRequestChild[];
 }
 
+export interface ParentProfile {
+  // null = the guardian has never picked a parents-portal language, so the
+  // client keeps the anonymous cookie/Accept-Language locale.
+  readonly portal_locale: AppLocale | null;
+}
+
 type StudentStatusKind = "sick" | "excused";
 
 // One reported sick/excused day. Mirrors api/parent.StatusDayResponse.
@@ -110,6 +117,18 @@ interface ApiEnvelope<T> {
   readonly data?: T;
 }
 
+/**
+ * Unwraps the backend's `{ status, data }` envelope. Some routes return the
+ * payload directly, so a response without a `data` key is passed through as-is.
+ * Shared by every GET/PUT helper here so envelope handling lives in one place.
+ */
+function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
+  if (json && typeof json === "object" && "data" in json) {
+    return json.data as T;
+  }
+  return json as unknown as T;
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
     method: "GET",
@@ -137,11 +156,7 @@ async function getJson<T>(url: string): Promise<T> {
   }
 
   const json = (await response.json()) as ApiEnvelope<T>;
-  // Backend wraps in { status, data }; some routes return data directly.
-  if (json && typeof json === "object" && "data" in json) {
-    return json.data as T;
-  }
-  return json as unknown as T;
+  return unwrapEnvelope(json);
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -193,6 +208,25 @@ export async function listMyChildren(): Promise<Child[]> {
  */
 export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
   return getJson<EnrollmentRequest[]>("/api/parent/me/enrollments");
+}
+
+export async function fetchParentProfile(): Promise<ParentProfile> {
+  return getJson<ParentProfile>("/api/parent/me/profile");
+}
+
+export async function updateParentPortalLocale(
+  locale: AppLocale,
+): Promise<ParentProfile> {
+  const response = await fetch("/api/parent/me/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ portal_locale: locale }),
+  });
+  if (!response.ok) {
+    throw new Error(`Profile update failed (${response.status})`);
+  }
+  const json = (await response.json()) as ApiEnvelope<ParentProfile>;
+  return unwrapEnvelope(json);
 }
 
 /**

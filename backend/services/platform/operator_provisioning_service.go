@@ -98,23 +98,9 @@ type OperatorProvisioningService interface {
 type OperatorPersonInfo = platform.OperatorPersonInfo
 
 // OperatorDeviceInfo holds device information with school/org context for operator views.
-type OperatorDeviceInfo struct {
-	ID               int64      `bun:"id" json:"id"`
-	DeviceID         string     `bun:"device_id" json:"device_id"`
-	DeviceType       string     `bun:"device_type" json:"device_type"`
-	Name             *string    `bun:"name" json:"name,omitempty"`
-	Status           string     `bun:"status" json:"status"`
-	APIKey           *string    `bun:"api_key" json:"api_key,omitempty"`
-	MaskedAPIKey     string     `bun:"-" json:"masked_api_key"`
-	LastSeen         *time.Time `bun:"last_seen" json:"last_seen,omitempty"`
-	IsOnline         bool       `bun:"-" json:"is_online"`
-	SchoolID         int64      `bun:"school_id" json:"school_id"`
-	SchoolName       string     `bun:"school_name" json:"school_name"`
-	OrganizationID   int64      `bun:"organization_id" json:"organization_id"`
-	OrganizationName string     `bun:"organization_name" json:"organization_name"`
-	CreatedAt        time.Time  `bun:"created_at" json:"created_at"`
-	UpdatedAt        time.Time  `bun:"updated_at" json:"updated_at"`
-}
+// OperatorDeviceInfo is the device listing row; an alias of the repository
+// read model so derived presentation fields stay attached.
+type OperatorDeviceInfo = platform.OperatorDeviceRow
 
 // maskAPIKey returns the first 10 characters followed by ellipsis.
 func maskAPIKey(key *string) string {
@@ -149,6 +135,7 @@ type operatorProvisioningService struct {
 	accountTenantRepo   authModels.AccountTenantRepository
 	personRepo          userModels.PersonRepository
 	staffRepo           userModels.StaffRepository
+	accountRepo         authModels.AccountRepository
 	teacherRepo         userModels.TeacherRepository
 	groupSupervisorRepo activeModels.GroupSupervisorRepository
 	invitationService   authSvc.InvitationService
@@ -169,6 +156,7 @@ type OperatorProvisioningServiceConfig struct {
 	AccountTenantRepo   authModels.AccountTenantRepository
 	PersonRepo          userModels.PersonRepository
 	StaffRepo           userModels.StaffRepository
+	AccountRepo         authModels.AccountRepository
 	TeacherRepo         userModels.TeacherRepository
 	GroupSupervisorRepo activeModels.GroupSupervisorRepository
 	InvitationService   authSvc.InvitationService
@@ -193,6 +181,7 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		accountTenantRepo:   cfg.AccountTenantRepo,
 		personRepo:          cfg.PersonRepo,
 		staffRepo:           cfg.StaffRepo,
+		accountRepo:         cfg.AccountRepo,
 		teacherRepo:         cfg.TeacherRepo,
 		groupSupervisorRepo: cfg.GroupSupervisorRepo,
 		invitationService:   cfg.InvitationService,
@@ -684,52 +673,12 @@ func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]au
 	return result, nil
 }
 
-const operatorDeviceQuery = `
-SELECT
-	"d".id,
-	"d".device_id,
-	"d".device_type,
-	"d".name,
-	"d".status,
-	"d".api_key,
-	"d".last_seen,
-	"d".created_at,
-	"d".updated_at,
-	"s".id AS school_id,
-	"s".name AS school_name,
-	"o".id AS organization_id,
-	"o".name AS organization_name
-FROM iot.devices AS "d"
-INNER JOIN platform.schools AS "s" ON "s".id = "d".tenant_id
-INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
-`
-
-// queryDevices runs the shared device query with an optional WHERE clause.
-// All callers pass static WHERE strings with parameterized args — no user input is concatenated.
-//
-// Devices belonging to a soft-deleted school or organization are filtered out
-// unconditionally so global listings (operator dashboard) never surface entries
-// for tenants that are in the Papierkorb. Detail endpoints (ListSchoolDevices,
-// ListOrganizationDevices) still reject deleted targets via their explicit
-// IsDeleted pre-check before reaching this query; the SQL filter is the
-// safety net for the global ListAllDevices path.
-func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, whereClause string, args ...interface{}) ([]OperatorDeviceInfo, error) {
-	var db bun.IDB = s.txHandler.DB
-	if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
-		db = tx
-	}
-	q := operatorDeviceQuery + ` WHERE "s".deleted_at IS NULL AND "o".deleted_at IS NULL`
-	if whereClause != "" {
-		q += " AND " + whereClause
-	}
-	q += ` ORDER BY "o".name, "s".name, "d".device_id`
-
-	var result []OperatorDeviceInfo
-	if err := db.NewRaw(q, args...).Scan(adminCtx, &result); err != nil {
+// queryDevices runs the shared device listing through the summaries
+// repository and computes the derived presentation fields.
+func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, filter platform.OperatorDeviceFilter) ([]OperatorDeviceInfo, error) {
+	result, err := s.summariesRepo.ListDeviceRows(adminCtx, filter)
+	if err != nil {
 		return nil, err
-	}
-	if result == nil {
-		result = []OperatorDeviceInfo{}
 	}
 	return enrichDeviceInfo(result), nil
 }
@@ -738,7 +687,7 @@ func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]Ope
 	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		var queryErr error
-		result, queryErr = s.queryDevices(adminCtx, "")
+		result, queryErr = s.queryDevices(adminCtx, platform.OperatorDeviceFilter{})
 		return queryErr
 	})
 	return result, err
@@ -761,7 +710,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 		var queryErr error
-		result, queryErr = s.queryDevices(adminCtx, `"d".tenant_id = ?`, schoolID)
+		result, queryErr = s.queryDevices(adminCtx, platform.OperatorDeviceFilter{SchoolID: &schoolID})
 		return queryErr
 	})
 	return result, err
@@ -781,7 +730,7 @@ func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Contex
 			return &OrganizationDeletedError{OrganizationID: organizationID}
 		}
 		var queryErr error
-		result, queryErr = s.queryDevices(adminCtx, `"o".id = ?`, organizationID)
+		result, queryErr = s.queryDevices(adminCtx, platform.OperatorDeviceFilter{OrganizationID: &organizationID})
 		return queryErr
 	})
 	return result, err
@@ -843,15 +792,15 @@ func isAPIKeyConstraintViolation(err error) bool {
 }
 
 // queryDeviceSingle wraps queryDevices and returns a single result with zero-row guard.
-func (s *operatorProvisioningService) queryDeviceSingle(adminCtx context.Context, op, whereClause string, args ...interface{}) (*OperatorDeviceInfo, error) {
-	devices, err := s.queryDevices(adminCtx, whereClause, args...)
+func (s *operatorProvisioningService) queryDeviceSingle(adminCtx context.Context, op string, deviceRowID int64) (*OperatorDeviceInfo, error) {
+	devices, err := s.queryDevices(adminCtx, platform.OperatorDeviceFilter{DeviceRowID: &deviceRowID})
 	if err != nil {
 		return nil, fmt.Errorf("%s: re-query failed: %w", op, err)
 	}
 	if len(devices) == 0 {
 		s.getLogger().Error("device not found after successful write",
 			slog.String("op", op),
-			slog.String("where", whereClause),
+			slog.Int64("device_row_id", deviceRowID),
 		)
 		return nil, fmt.Errorf("%s: device not found after write (inconsistent state)", op)
 	}
@@ -942,7 +891,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 		})
 
 		var queryErr error
-		result, queryErr = s.queryDeviceSingle(adminCtx, "CreateDevice", `"d".id = ?`, device.ID)
+		result, queryErr = s.queryDeviceSingle(adminCtx, "CreateDevice", device.ID)
 		return queryErr
 	})
 	if err != nil {
@@ -1030,7 +979,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		})
 
 		var queryErr error
-		result, queryErr = s.queryDeviceSingle(adminCtx, "SetDeviceAPIKey", `"d".id = ?`, id)
+		result, queryErr = s.queryDeviceSingle(adminCtx, "SetDeviceAPIKey", id)
 		return queryErr
 	})
 	if err != nil {
@@ -1114,20 +1063,10 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 	}
 
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		var db bun.IDB = s.txHandler.DB
-		if tx, ok := modelBase.TxFromContext(adminCtx); ok && tx != nil {
-			db = tx
-		}
-
-		// Find person (cross-tenant, raw query bypasses tenant filter).
-		// WhereAllWithDeleted is not needed here — BUN auto-excludes soft-deleted rows.
-		var person userModels.Person
-		err := db.NewSelect().
-			ModelTableExpr(`users.persons AS "person"`).
-			ColumnExpr(`"person".*`).
-			Where(`"person".id = ?`, personID).
-			Where(`"person".deleted_at IS NULL`).
-			Scan(adminCtx, &person)
+		// Find person. Cross-tenant by design: the admin context carries no
+		// tenant ID, so the repository's tenant filter is a no-op, and BUN's
+		// soft-delete handling auto-excludes deleted rows.
+		person, err := s.personRepo.FindByID(adminCtx, personID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return &PersonNotFoundError{PersonID: personID}
@@ -1136,13 +1075,8 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		}
 
 		// If person is staff, check for active supervisions
-		var staff userModels.Staff
-		staffErr := db.NewSelect().
-			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".*`).
-			Where(`"staff".person_id = ?`, personID).
-			Scan(adminCtx, &staff)
-		if staffErr == nil {
+		staff, staffErr := s.staffRepo.FindByPersonID(adminCtx, personID)
+		if staffErr == nil && staff != nil {
 			// Staff exists — check active supervisions
 			if s.groupSupervisorRepo != nil {
 				supervisors, supErr := s.groupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
@@ -1160,12 +1094,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 
 		// Unlink RFID card
 		if person.TagID != nil {
-			_, err = db.NewUpdate().
-				ModelTableExpr(`users.persons AS "person"`).
-				Set(`tag_id = NULL`).
-				Where(`"person".id = ?`, personID).
-				Exec(adminCtx)
-			if err != nil {
+			if err := s.personRepo.UnlinkFromRFIDCard(adminCtx, personID); err != nil {
 				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
 			}
 		}
@@ -1185,37 +1114,18 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 
 			// Anonymize email
 			anonymizedEmail := fmt.Sprintf("deleted-%d@anonymized.local", personID)
-			_, err = db.NewUpdate().
-				ModelTableExpr(`auth.accounts AS "account"`).
-				Set(`email = ?`, anonymizedEmail).
-				Set(`username = NULL`).
-				Where(`"account".id = ?`, accountID).
-				Exec(adminCtx)
-			if err != nil {
+			if err := s.accountRepo.AnonymizeForDeletion(adminCtx, accountID, anonymizedEmail); err != nil {
 				return fmt.Errorf("SoftDeletePerson: anonymize account: %w", err)
 			}
 
 			// Unlink account from person
-			_, err = db.NewUpdate().
-				ModelTableExpr(`users.persons AS "person"`).
-				Set(`account_id = NULL`).
-				Where(`"person".id = ?`, personID).
-				Exec(adminCtx)
-			if err != nil {
+			if err := s.personRepo.UnlinkFromAccount(adminCtx, personID); err != nil {
 				return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
 			}
 		}
 
 		// Anonymize PII and soft delete
-		_, err = db.NewUpdate().
-			ModelTableExpr(`users.persons AS "person"`).
-			Set(`first_name = ?`, "Gelöscht").
-			Set(`last_name = ?`, "Benutzer").
-			Set(`birthday = NULL`).
-			Set(`deleted_at = NOW()`).
-			Where(`"person".id = ?`, personID).
-			Exec(adminCtx)
-		if err != nil {
+		if err := s.personRepo.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
 			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
 		}
 

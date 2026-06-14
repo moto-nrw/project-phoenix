@@ -5,6 +5,8 @@ import {
   listMyEnrollments,
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
+  fetchParentProfile,
+  updateParentPortalLocale,
   submitSickNote,
   listSickDays,
   listChildNotes,
@@ -280,6 +282,49 @@ describe("submitParentEnrollment", () => {
     await expect(
       submitParentEnrollment("school", validPayload),
     ).rejects.toThrow(/Anmeldung konnte nicht übermittelt werden/);
+  });
+});
+
+describe("fetchParentProfile", () => {
+  it("unwraps the { data } envelope and returns the portal_locale", async () => {
+    mockFetch(async () => jsonResponse({ data: { portal_locale: "en" } }));
+    const profile = await fetchParentProfile();
+    expect(profile.portal_locale).toBe("en");
+  });
+
+  it("returns portal_locale null when the parent never chose a language", async () => {
+    mockFetch(async () => jsonResponse({ data: { portal_locale: null } }));
+    const profile = await fetchParentProfile();
+    expect(profile.portal_locale).toBeNull();
+  });
+});
+
+describe("updateParentPortalLocale", () => {
+  it("PUTs the locale as JSON and returns the updated profile", async () => {
+    let capturedUrl: RequestInfo | URL = "";
+    let capturedInit: RequestInit = {};
+    mockFetch(async (url, init) => {
+      capturedUrl = url;
+      capturedInit = init ?? {};
+      return jsonResponse({ data: { portal_locale: "ru" } });
+    });
+
+    const profile = await updateParentPortalLocale("ru");
+
+    expect(profile.portal_locale).toBe("ru");
+    expect(capturedUrl).toBe("/api/parent/me/profile");
+    expect(capturedInit.method).toBe("PUT");
+    expect(
+      (capturedInit.headers as Record<string, string>)["Content-Type"],
+    ).toBe("application/json");
+    expect(capturedInit.body).toBe(JSON.stringify({ portal_locale: "ru" }));
+  });
+
+  it("throws when the backend rejects the update", async () => {
+    mockFetch(async () => jsonResponse({}, { status: 400 }));
+    await expect(updateParentPortalLocale("en")).rejects.toThrow(
+      /Profile update failed \(400\)/,
+    );
   });
 });
 

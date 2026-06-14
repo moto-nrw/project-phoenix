@@ -109,3 +109,26 @@ func (v *Visit) GetDuration() time.Duration {
 	}
 	return v.ExitTime.Sub(v.EntryTime)
 }
+
+// VisitWithStudentDisplay is the read model behind the active-group visit
+// list: one open visit joined with the student's display data. Produced by
+// VisitRepository.FindActiveWithStudentDisplayByGroup.
+type VisitWithStudentDisplay struct {
+	VisitID       int64      `bun:"visit_id"`
+	StudentID     int64      `bun:"student_id"`
+	ActiveGroupID int64      `bun:"active_group_id"`
+	EntryTime     time.Time  `bun:"entry_time"`
+	ExitTime      *time.Time `bun:"exit_time"`
+	FirstName     string     `bun:"first_name"`
+	LastName      string     `bun:"last_name"`
+	SchoolClass   string     `bun:"school_class"`
+	GroupID       *int64     `bun:"group_id"` // student's education group_id (nullable)
+	OGSGroupName  string     `bun:"ogs_group_name"`
+	Sick          *bool      `bun:"sick"`
+	SickSince     *time.Time `bun:"sick_since"`
+	Excused       *bool      `bun:"excused"`
+	ExcusedSince  *time.Time `bun:"excused_since"`
+	PhotoPath     *string    `bun:"photo_path"`
+	CreatedAt     time.Time  `bun:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at"`
+}

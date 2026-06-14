@@ -15,9 +15,21 @@ type StudentImportRow struct {
 	SupervisorNotes string `json:"supervisor_notes,omitempty"`
 	HealthInfo      string `json:"health_info,omitempty"`
 	PickupStatus    string `json:"pickup_status,omitempty"` // "Geht alleine nach Hause" or "Wird abgeholt"
-	BusPermission   bool   `json:"bus_permission"`
-	EnrolledFrom    string `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
-	EnrolledUntil   string `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	// BusPermission is the legacy single "Bus" column (Ja/Nein). When true and no
+	// per-day columns are present it maps to all weekdays (Mo–Fr).
+	BusPermission bool `json:"bus_permission"`
+	// BusDays holds optional per-day "Bus.Mo".."Bus.Fr" columns keyed by the
+	// canonical weekday keys (mon/tue/wed/thu/fri). nil when no per-day column is
+	// present, in which case BusPermission is used. bus_days is the SSOT (#1582).
+	BusDays map[string]bool `json:"bus_days,omitempty"`
+	// DepartureDays holds the unified per-day "Gehweise.Mo".."Gehweise.Fr"
+	// columns keyed by the canonical weekday keys (mon/tue/wed/thu/fri), each
+	// value one of alone/bus/pickup. nil when no per-day Gehweise column is
+	// present, in which case the legacy Bus/Abholstatus columns are folded into
+	// the departure plan instead. departure_days is the SSOT (#1610).
+	DepartureDays map[string]string `json:"departure_days,omitempty"`
+	EnrolledFrom  string            `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	EnrolledUntil string            `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 
 	// Consent dates — the explicit date each consent was given (e.g. from a
 	// signed paper form). Empty = no consent recorded. A set date asserts the

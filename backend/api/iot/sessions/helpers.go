@@ -121,8 +121,7 @@ func (rs *Resource) buildSupervisorInfos(ctx context.Context, supervisors []*act
 	}
 
 	// Batch fetch all staff with person data in a single query
-	staffRepo := rs.UsersService.StaffRepository()
-	staffMap, err := staffRepo.FindWithPersonByIDs(ctx, staffIDs)
+	staffMap, err := rs.UsersService.GetStaffWithPersonByIDs(ctx, staffIDs)
 	if err != nil {
 		slog.Default().WarnContext(ctx, "batch staff lookup failed, falling back to empty list",
 			slog.String("error", err.Error()),
@@ -171,10 +170,10 @@ func countActiveStudents(visits []*active.Visit) int {
 }
 
 func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *active.Group, supervisorIDs []int64) {
-	if activeGroup == nil || rs.InstanceRepo == nil || rs.InstanceStaffRepo == nil {
+	if activeGroup == nil || rs.TimetableData == nil {
 		return
 	}
-	if existing, err := rs.InstanceRepo.FindByActiveGroupID(ctx, activeGroup.ID); err == nil && existing != nil {
+	if existing, err := rs.TimetableData.GetInstanceByActiveGroupID(ctx, activeGroup.ID); err == nil && existing != nil {
 		return
 	} else if err != nil {
 		slog.Default().WarnContext(ctx, "failed to check mirrored timetable instance",
@@ -197,7 +196,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 
 	startedBy := firstPositiveID(supervisorIDs)
 	inst := &scheduleModel.ActivityInstance{
-		Date:            timezone.DateOfUTC(startedAt),
+		Date:            timezone.DateFromTime(startedAt),
 		ActivityGroupID: activeGroup.GroupID,
 		Title:           rs.timetableTitleForActivity(ctx, activeGroup.GroupID),
 		StartTime:       clockFromMinutes(startMinutes),
@@ -211,7 +210,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 		StartedAt:       &startedAt,
 	}
 	inst.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.InstanceRepo.Create(ctx, inst); err != nil {
+	if err := rs.TimetableData.CreateActivityInstance(ctx, inst); err != nil {
 		slog.Default().WarnContext(ctx, "failed to mirror IoT session to timetable",
 			slog.Int64("active_group_id", activeGroup.ID),
 			slog.String("error", err.Error()),
@@ -225,7 +224,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 			StaffID:    staffID,
 		}
 		row.SetTenantID(tenant.FromContext(ctx))
-		if err := rs.InstanceStaffRepo.Create(ctx, row); err != nil {
+		if err := rs.TimetableData.CreateInstanceStaff(ctx, row); err != nil {
 			slog.Default().WarnContext(ctx, "failed to mirror IoT session staff to timetable",
 				slog.Int64("instance_id", inst.ID),
 				slog.Int64("staff_id", staffID),
@@ -237,10 +236,10 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 }
 
 func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activeGroupID int64) {
-	if activeGroupID <= 0 || rs.InstanceRepo == nil {
+	if activeGroupID <= 0 || rs.TimetableData == nil {
 		return
 	}
-	inst, err := rs.InstanceRepo.FindByActiveGroupID(ctx, activeGroupID)
+	inst, err := rs.TimetableData.GetInstanceByActiveGroupID(ctx, activeGroupID)
 	if err != nil || inst == nil {
 		if err != nil {
 			slog.Default().WarnContext(ctx, "failed to find mirrored timetable instance for completion",
@@ -253,7 +252,7 @@ func (rs *Resource) completeMirroredTimetableInstance(ctx context.Context, activ
 	now := time.Now()
 	inst.Status = scheduleModel.InstanceStatusCompleted
 	inst.CompletedAt = &now
-	if err := rs.InstanceRepo.MarkCompleted(ctx, inst.ID, now); err != nil {
+	if err := rs.TimetableData.MarkInstanceCompleted(ctx, inst.ID, now); err != nil {
 		slog.Default().WarnContext(ctx, "failed to complete mirrored timetable instance",
 			slog.Int64("instance_id", inst.ID),
 			slog.String("error", err.Error()),

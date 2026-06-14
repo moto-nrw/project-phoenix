@@ -1,3 +1,4 @@
+import { toISODate as formatDateISO } from "./date-helpers";
 import type {
   ArrivalException,
   ArrivalNote,
@@ -64,12 +65,7 @@ function getWeekdayFromDate(date: Date): number | null {
   return jsDay;
 }
 
-export function formatDateISO(date: Date): string {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const day = date.getDate().toString().padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+export { formatDateISO };
 
 export interface ArrivalScheduleFormEntry {
   weekday: number;
@@ -95,6 +91,7 @@ export interface ArrivalDayData {
   weekday: number;
   isToday: boolean;
   showSick: boolean;
+  showClassTrip: boolean;
   showExcused: boolean;
   exception: ArrivalException | undefined;
   baseSchedule: ArrivalSchedule | undefined;
@@ -124,6 +121,7 @@ export function getDayData(
       weekday: 0,
       isToday: isSameDay(date, today),
       showSick: false,
+      showClassTrip: false,
       showExcused: false,
       exception: undefined,
       baseSchedule: undefined,
@@ -141,9 +139,10 @@ export function getDayData(
   const showSick = statusForDate
     ? statusForDate === "sick"
     : isToday && isSickToday;
+  const showClassTrip = statusForDate === "class_trip";
   const showExcused = statusForDate
     ? statusForDate === "excused"
-    : isToday && !showSick && isExcusedToday;
+    : isToday && !showSick && !showClassTrip && isExcusedToday;
 
   let effectiveTime: string | undefined;
   let isAbsent = false;
@@ -154,6 +153,10 @@ export function getDayData(
     effectiveTime = undefined;
     isAbsent = true;
     effectiveReason = "Krank";
+  } else if (showClassTrip) {
+    effectiveTime = undefined;
+    isAbsent = true;
+    effectiveReason = "Klassenfahrt";
   } else if (showExcused) {
     effectiveTime = undefined;
     isAbsent = true;
@@ -176,6 +179,7 @@ export function getDayData(
     weekday,
     isToday,
     showSick,
+    showClassTrip,
     showExcused,
     exception,
     baseSchedule,

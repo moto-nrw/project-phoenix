@@ -89,6 +89,7 @@ type StatusFilter =
   | "unterwegs"
   | "schulhof"
   | "krank"
+  | "klassenfahrt"
   | "entschuldigt";
 type BooleanFilter = "all" | "yes" | "no";
 type PickupStatusKind = "self" | "pickedUp" | "other" | "none" | "redacted";
@@ -108,6 +109,7 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "anwesend", label: "Anwesend" },
   { value: "abwesend", label: "Abwesend" },
   { value: "krank", label: "Krank" },
+  { value: "klassenfahrt", label: "Klassenfahrt" },
   { value: "entschuldigt", label: "Entschuldigt" },
   { value: "unterwegs", label: "Unterwegs" },
   { value: "schulhof", label: "Schulhof" },
@@ -133,7 +135,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "status", label: "Nach Status" },
   { value: "room", label: "Nach Raum" },
   { value: "arrival", label: "Nach Ankunftszeit" },
-  { value: "pickup", label: "Nach Abholzeit" },
+  { value: "pickup", label: "Nach Gehzeit" },
   { value: "pickup-status", label: "Nach Abholregelung" },
 ];
 
@@ -218,6 +220,7 @@ const STATUS_FILTER_LABELS: Record<
   unterwegs: "Unterwegs",
   schulhof: "Schulhof",
   krank: "Krank",
+  klassenfahrt: "Klassenfahrt",
   entschuldigt: "Entschuldigt",
 };
 
@@ -423,6 +426,7 @@ function compareByName(a: Student, b: Student) {
 
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
+  if (student.class_trip) return "Klassenfahrt";
   if (student.excused) return "Entschuldigt";
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
@@ -450,7 +454,7 @@ function roomLabelForStudent(student: Student): string {
 
 function pickupLabelForStudent(student: Student): string {
   if (student.has_full_access === false) return "Nicht einsehbar";
-  return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Abholzeit";
+  return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Gehzeit";
 }
 
 function pickupStatusKind(student: Student): PickupStatusKind {
@@ -538,7 +542,7 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
       }
       if (groupMode === "pickup" || groupMode === "arrival") {
         const rank = (label: string) =>
-          label === "Keine Abholzeit" || label === "Keine Ankunftszeit"
+          label === "Keine Gehzeit" || label === "Keine Ankunftszeit"
             ? "99"
             : label === "Nicht einsehbar"
               ? "zz"
@@ -569,6 +573,7 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     actualTime: a.actual_pickup_time,
     now,
     sick: a.sick,
+    classTrip: a.class_trip,
     excused: a.excused,
   });
   const statusB = getStudentTimeStatus({
@@ -576,6 +581,7 @@ function compareByPickupTime(a: Student, b: Student, now: Date) {
     actualTime: b.actual_pickup_time,
     now,
     sick: b.sick,
+    classTrip: b.class_trip,
     excused: b.excused,
   });
   const rankA = getTimeStatusSortRank(statusA);
@@ -1309,12 +1315,12 @@ function SearchPageContent() {
       },
       {
         id: "pickupTime",
-        label: "Abholzeit",
+        label: "Gehzeit",
         type: "dropdown",
         value: pickupTimeFilter,
         onChange: (value) => updatePickupTimeFilter(value as string),
         options: [
-          { value: "all", label: "Alle Abholzeiten" },
+          { value: "all", label: "Alle Gehzeiten" },
           ...Array.from(
             new Set(
               (studentsData?.students ?? [])
@@ -1324,7 +1330,7 @@ function SearchPageContent() {
           )
             .sort((a, b) => a.localeCompare(b))
             .map((time) => ({ value: time, label: `${time} Uhr` })),
-          { value: "none", label: "Keine Abholzeit" },
+          { value: "none", label: "Keine Gehzeit" },
         ],
       },
       {
@@ -1366,6 +1372,7 @@ function SearchPageContent() {
           { value: "anwesend", label: "Anwesend" },
           { value: "abwesend", label: "Abwesend" },
           { value: "krank", label: "Krank" },
+          { value: "klassenfahrt", label: "Klassenfahrt" },
           { value: "entschuldigt", label: "Entschuldigt" },
           { value: "unterwegs", label: "Unterwegs" },
           { value: "schulhof", label: "Schulhof" },
@@ -1526,6 +1533,7 @@ function SearchPageContent() {
         unterwegs: "Unterwegs",
         schulhof: "Schulhof",
         krank: "Krank",
+        klassenfahrt: "Klassenfahrt",
         entschuldigt: "Entschuldigt",
       };
       filters.push({
@@ -1581,8 +1589,8 @@ function SearchPageContent() {
         id: "pickupTime",
         label:
           pickupTimeFilter === "none"
-            ? "Keine Abholzeit"
-            : `Abholzeit ${pickupTimeFilter} Uhr`,
+            ? "Keine Gehzeit"
+            : `Gehzeit ${pickupTimeFilter} Uhr`,
         onRemove: () => updatePickupTimeFilter("all"),
       });
     }
@@ -1782,6 +1790,7 @@ function SearchPageContent() {
         actualTime: a.actual_arrival_time,
         now,
         sick: a.sick,
+        classTrip: a.class_trip,
         excused: a.excused,
       });
       const statusB = getStudentTimeStatus({
@@ -1789,6 +1798,7 @@ function SearchPageContent() {
         actualTime: b.actual_arrival_time,
         now,
         sick: b.sick,
+        classTrip: b.class_trip,
         excused: b.excused,
       });
       const rankA = getTimeStatusSortRank(statusA);
@@ -2049,6 +2059,7 @@ function SearchPageContent() {
                       (() => {
                         const absence = getStudentAbsence({
                           sick: student.sick,
+                          classTrip: student.class_trip,
                           excused: student.excused,
                         });
                         if (absence && !student.actual_pickup_time) {

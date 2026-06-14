@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -48,10 +49,14 @@ type mockInstanceService struct {
 	updateErr     error
 	lastStartID   int64
 	lastStartedBy int64
-	lastFrom      time.Time
-	lastTo        time.Time
+	lastFrom      timezone.Date
+	lastTo        timezone.Date
 	lastCreate    *scheduleSvc.CreateInstanceInput
 	lastUpdate    *scheduleSvc.UpdateInstanceInput
+}
+
+func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
+	return nil, nil
 }
 
 func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
@@ -81,7 +86,7 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to time.Time) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	if m.replanErr != nil {
@@ -135,6 +140,7 @@ func (m *instMockStaffRepo) ListAllWithPerson(_ context.Context) ([]*userModels.
 	return nil, nil
 }
 func (m *instMockStaffRepo) UpdateNotes(_ context.Context, _ int64, _ string) error { return nil }
+func (m *instMockStaffRepo) ClearWorkTimeModel(_ context.Context, _ int64) error    { return nil }
 func (m *instMockStaffRepo) FindWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
 	return nil, nil
 }
@@ -195,9 +201,6 @@ func (m *instMockPersonService) GetFullProfile(_ context.Context, _ int64) (*use
 func (m *instMockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (m *instMockPersonService) StaffRepository() userModels.StaffRepository     { return m.staffRepo }
-func (m *instMockPersonService) TeacherRepository() userModels.TeacherRepository { return nil }
-func (m *instMockPersonService) StudentRepository() userModels.StudentRepository { return nil }
 func (m *instMockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
@@ -214,6 +217,66 @@ func (m *instMockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context
 	return nil, nil
 }
 func (m *instMockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if m.staffRepo == nil {
+		return nil, nil
+	}
+	return m.staffRepo.FindByPersonID(ctx, personID)
+}
+func (m *instMockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	return nil, nil, false, nil
+}
+func (m *instMockPersonService) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
+	return nil, usersSvc.TeacherActionNone, nil
+}
+func (m *instMockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
 	return nil, nil
 }
 
@@ -674,7 +737,7 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: nil, // returns nil from StaffRepository()
+		staffRepo: nil, // GetStaffByPersonID resolves no staff
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -839,8 +902,8 @@ func TestReplanWeek_NilService(t *testing.T) {
 func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 5,
 			Materialization: &scheduleSvc.MaterializationResult{
 				InstancesCreated:          8,
@@ -872,8 +935,8 @@ func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 func TestReplanWeek_ValidBody(t *testing.T) {
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 2,
 			Materialization:  &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 		},
@@ -897,8 +960,8 @@ func TestReplanWeek_NilMaterialization(t *testing.T) {
 	// counts — defensive branch in the handler.
 	mock := &mockInstanceService{
 		replanRes: &scheduleSvc.ReplanWeekResult{
-			From:             time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC),
-			To:               time.Date(2026, 5, 3, 0, 0, 0, 0, time.UTC),
+			From:             timezone.NewDate(2026, 4, 27),
+			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 1,
 			Materialization:  nil,
 		},

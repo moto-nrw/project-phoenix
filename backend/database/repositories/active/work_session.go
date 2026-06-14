@@ -17,7 +17,6 @@ import (
 const (
 	tableActiveWorkSessions              = "active.work_sessions"
 	tableExprActiveWorkSessionsAsSession = `active.work_sessions AS "work_session"`
-	dateFormatISO                        = "2006-01-02"
 )
 
 // WorkSessionRepository implements active.WorkSessionRepository interface
@@ -50,13 +49,13 @@ func (r *WorkSessionRepository) Create(ctx context.Context, session *active.Work
 }
 
 // GetByStaffAndDate returns the work session for a staff member on a given date
-func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date time.Time) (*active.WorkSession, error) {
+func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date.Format(dateFormatISO))
+		Where(`"work_session".date = ?`, date)
 
 	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
 		query = query.Where(where, val)
@@ -76,7 +75,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
-	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
+	today := timezone.TodayDate()
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
@@ -101,14 +100,14 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 }
 
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
-func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to time.Time) ([]*active.WorkSession, error) {
+func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date >= ?`, from.Format(dateFormatISO)).
-		Where(`"work_session".date <= ?`, to.Format(dateFormatISO)).
+		Where(`"work_session".date >= ?`, from).
+		Where(`"work_session".date <= ?`, to).
 		OrderExpr(`"work_session".date ASC`)
 
 	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
@@ -127,12 +126,12 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 }
 
 // GetOpenSessions returns all sessions without check-out before a given date
-func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate time.Time) ([]*active.WorkSession, error) {
+func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
-		Where(`"work_session".date < ?`, beforeDate.Format(dateFormatISO)).
+		Where(`"work_session".date < ?`, beforeDate).
 		Where(`"work_session".check_out_time IS NULL`)
 
 	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
@@ -152,7 +151,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 
 // GetTodayPresenceMap returns a map of staff IDs to their work status for today
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	today := timezone.TodayUTC() // Use TodayUTC for consistency with session creation in service
+	today := timezone.TodayDate()
 
 	var results []struct {
 		StaffID      int64      `bun:"staff_id"`

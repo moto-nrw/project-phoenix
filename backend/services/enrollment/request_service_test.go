@@ -13,9 +13,12 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
 )
 
@@ -181,8 +184,8 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	phase := &enrollmentModels.Phase{
 		Name:             "request-test-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		IsActive:         true,
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
@@ -252,7 +255,7 @@ func validSubmission(phaseID int64) enrollmentService.SubmitRequest {
 			{
 				FirstName:        "Lina",
 				LastName:         "Beispiel",
-				DateOfBirth:      time.Date(2018, 4, 15, 0, 0, 0, 0, time.UTC),
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(1),
 			},
 		},
@@ -404,6 +407,7 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
+	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
 
 	req := validSubmission(env.phaseID)
@@ -428,7 +432,7 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidSubmission))
-	assert.ErrorContains(t, err, "resolve required consents")
+	assert.ErrorContains(t, err, "resolve legal blocks")
 	assert.ErrorContains(t, err, "resolve DSGVO legal text")
 }
 
@@ -437,6 +441,7 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
 
+	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
 
 	req := validSubmission(env.phaseID)
@@ -857,7 +862,7 @@ func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
 		LastName:         "Beispiel",
-		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
 		TargetGradeLevel: testpkg.Int16Ptr(2),
 	})
 	result, err := env.svc.Submit(ctx, req)
@@ -1033,6 +1038,45 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 		"a different tenant's bucket must start fresh, got %d", state.Attempts)
 }
 
+func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	email := "rollback+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
+	ip := "198.51.100.42"
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.submission_rate_limits").
+			Where("tenant_id = ?", 1).
+			Where("key_value IN (?)", bun.List([]string{email, ip})).
+			Exec(context.Background())
+	})
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = email
+	req.RemoteIP = ip
+	req.Children = nil
+
+	err := tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, submitErr := env.svc.Submit(txCtx, req)
+		return submitErr
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"submission should fail after the rate-limit increment")
+
+	var attempts int
+	err = env.db.NewSelect().
+		TableExpr("enrollment.submission_rate_limits").
+		Column("attempts").
+		Where("tenant_id = ?", 1).
+		Where("key_type = ?", enrollmentModels.SubmissionRateLimitKeyTypeEmail).
+		Where("key_value = ?", email).
+		Scan(context.Background(), &attempts)
+	require.NoError(t, err)
+	assert.Equal(t, 1, attempts, "rate-limit increment must outlive outer submit rollback")
+}
+
 // --- Capacity overflow ---
 
 func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity int) *enrollmentModels.CareOffering {
@@ -1168,7 +1212,7 @@ func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 	req.Children = append(req.Children, enrollmentService.SubmitChild{
 		FirstName:        "Tom",
 		LastName:         "Beispiel",
-		DateOfBirth:      time.Date(2019, 8, 1, 0, 0, 0, 0, time.UTC),
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
 		TargetGradeLevel: testpkg.Int16Ptr(2),
 		OfferingIDs:      []int64{offering.ID},
 	})

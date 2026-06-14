@@ -72,14 +72,27 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	if student.Bus != nil {
-		response.Bus = *student.Bus
+	// departure_days is the single source of truth (#1610); bus_days, pickup_days
+	// and the derived bus flag are emitted for clients not yet migrated.
+	departure := student.DepartureDays.Normalize()
+	response.DepartureDays = departure
+	response.BusDays = departure.BusDays()
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = departure.PickupDays()
+	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+}
+
+func responsePickupStatus(student *users.Student, derived string) string {
+	if student.PickupStatus == nil {
+		return derived
 	}
-	response.BusDays = student.BusDays.Normalize()
-	response.PickupDays = student.PickupDays.Normalize()
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
+	stored := strings.TrimSpace(*student.PickupStatus)
+	if stored == "" ||
+		stored == users.PickupStatusPickedUp ||
+		stored == users.PickupStatusGoesAlone {
+		return derived
 	}
+	return *student.PickupStatus
 }
 
 // populateSensitiveStudentFields sets fields visible only to supervisors/admins
@@ -208,14 +221,13 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	if student.Bus != nil {
-		response.Bus = *student.Bus
-	}
-	response.BusDays = student.BusDays.Normalize()
-	response.PickupDays = student.PickupDays.Normalize()
-	if student.PickupStatus != nil {
-		response.PickupStatus = *student.PickupStatus
-	}
+	// departure_days is the single source of truth (#1610); the rest are derived.
+	departure := student.DepartureDays.Normalize()
+	response.DepartureDays = departure
+	response.BusDays = departure.BusDays()
+	response.Bus = response.BusDays.HasAny()
+	response.PickupDays = departure.PickupDays()
+	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student
@@ -420,7 +432,7 @@ func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []Stude
 		return
 	}
 
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, now)
+	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
 		return
@@ -449,7 +461,7 @@ func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []Stud
 		return
 	}
 
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, now)
+	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
 		return

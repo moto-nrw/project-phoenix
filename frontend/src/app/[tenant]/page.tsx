@@ -187,6 +187,10 @@ function LoginForm() {
   }, [searchParams]);
 
   const isCheckingAuth = checkingAuth || status === "loading";
+  const isSmartRedirecting =
+    awaitingRedirect &&
+    status === "authenticated" &&
+    Boolean(session?.user?.token);
   const isSubmitting = isLoading || awaitingRedirect;
 
   // seedSessionWithTokens hands an already-minted access/refresh pair to
@@ -301,7 +305,21 @@ function LoginForm() {
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
         >
-          {mfaStep ? (
+          {isSmartRedirecting ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-900">
+                    Sie sind bereits angemeldet.
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    moto öffnet Ihre OGS...
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : mfaStep ? (
             <MFAChallengeForm
               scope="tenant"
               challengeToken={mfaStep.challengeToken}

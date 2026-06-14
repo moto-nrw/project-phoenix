@@ -14,10 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -50,15 +46,8 @@ func buildListSetup(t *testing.T) *listSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		ActiveGroupRepo:      activeRepo.NewGroupRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		VisitRepo:            activeRepo.NewVisitRepository(db),
-		RoomRepo:             facilitiesRepo.NewRoomRepository(db),
-		ActivityGroupRepo:    activitiesRepo.NewGroupRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &listSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -99,9 +88,9 @@ func decodeList(t *testing.T, w *httptest.ResponseRecorder) weeklyInstancesRespo
 	return out
 }
 
-func listFutureDate(offsetDays int) (string, time.Time) {
-	d := time.Now().AddDate(0, 0, offsetDays)
-	return d.Format("2006-01-02"), time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+func listFutureDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
 }
 
 func TestListInstances_Empty(t *testing.T) {
@@ -259,10 +248,10 @@ func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
-	fromDate := timezone.TodayUTC()
-	from := fromDate.Format("2006-01-02")
-	toDate := fromDate.AddDate(0, 0, 7)
-	to := toDate.Format("2006-01-02")
+	fromDate := timezone.TodayDate()
+	from := fromDate.String()
+	toDate := fromDate.AddDays(7)
+	to := toDate.String()
 
 	suffix := time.Now().UnixNano()
 	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("Conflict-Category-%d", suffix))
@@ -390,7 +379,7 @@ func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
 	from, fromDate := listFutureDate(1)
 	to, _ := listFutureDate(7)
 
-	day2 := fromDate.AddDate(0, 0, 1)
+	day2 := fromDate.AddDays(1)
 
 	// Insert in non-chronological order to exercise the repo's ORDER BY.
 	inst3 := testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{

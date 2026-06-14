@@ -24,6 +24,7 @@ const (
 	ColumnWeeklyFriday    ColumnID = "weekly_friday"
 	ColumnPlannedArrival  ColumnID = "planned_arrival"
 	ColumnPlannedPickup   ColumnID = "planned_pickup"
+	ColumnDeparture       ColumnID = "departure"
 	ColumnDailyNotes      ColumnID = "daily_notes"
 	ColumnCurrentLocation ColumnID = "current_location"
 	ColumnRoomName        ColumnID = "room_name"

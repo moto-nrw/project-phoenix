@@ -15,12 +15,13 @@ import (
 	"testing"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -62,14 +63,8 @@ func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 
 	// Wire the full resource with real repos for the B11 path.
 	res := NewResource(Dependencies{
-		InstanceStudentRepo:  scheduleRepo.NewInstanceStudentRepository(db),
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		ArrivalScheduleRepo:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo: scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
-		PickupExceptionRepo:  scheduleRepo.NewStudentPickupExceptionRepository(db),
-		VisitRepo:            activeRepo.NewVisitRepository(db),
-		StudentRepo:          usersRepo.NewStudentRepository(db),
+		TimetableData: testTimetableData(db),
+		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: usersRepo.NewStudentRepository(db)}),
 		// UserContextService + SettingsService intentionally nil:
 		// admin-perm path short-circuits CanReadStudent; the 403 test relies on
 		// the fallthrough returning false when userCtx is nil.
@@ -135,7 +130,7 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 	s := buildStudentDaySetup(t)
 
 	// Create a planned instance on Wed 2026-04-22.
-	inst := testpkg.CreateTestActivityInstance(t, s.db, time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID, testpkg.ActivityInstanceOpts{
+	inst := testpkg.CreateTestActivityInstance(t, s.db, timezone.NewDate(2026, 4, 22), s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &s.activityID,
 		StartHHMM:       "14:00",
 		EndHHMM:         "15:00",
@@ -195,7 +190,7 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 
 	arrSched := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
 	arrExc := testpkg.CreateTestArrivalException(t, s.db, s.studentID,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.staffID, "10:30", "Wandertag")
+		timezone.NewDate(2026, 4, 22), s.staffID, "10:30", "Wandertag")
 	t.Cleanup(func() {
 		testpkg.CleanupScheduleFixturesB11(t, s.db,
 			[]int64{arrSched.ID}, []int64{arrExc.ID}, nil, nil, nil, nil)
@@ -221,7 +216,7 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
 	// the day. Source must still be "exception", ExpectedTime must be nil.
 	exc := testpkg.CreateTestPickupException(t, s.db, s.studentID,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.staffID, "", "Krank")
+		timezone.NewDate(2026, 4, 22), s.staffID, "", "Krank")
 	t.Cleanup(func() {
 		testpkg.CleanupScheduleFixturesB11(t, s.db,
 			nil, nil, nil, []int64{exc.ID}, nil, nil)
@@ -272,7 +267,7 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID,
+		timezone.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,
@@ -318,7 +313,7 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 
 	agID := ag.ID
 	inst := testpkg.CreateTestActivityInstance(t, s.db,
-		time.Date(2026, 4, 22, 0, 0, 0, 0, time.UTC), s.roomID,
+		timezone.NewDate(2026, 4, 22), s.roomID,
 		testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &s.activityID,
 			ActiveGroupID:   &agID,

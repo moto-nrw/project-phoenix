@@ -72,7 +72,6 @@ func (s personServiceWithTeacherRepo) GetByIDs(context.Context, []int64) (map[in
 func (s personServiceWithTeacherRepo) Create(context.Context, *userModels.Person) error { return nil }
 func (s personServiceWithTeacherRepo) Update(context.Context, *userModels.Person) error { return nil }
 func (s personServiceWithTeacherRepo) Delete(context.Context, interface{}) error        { return nil }
-func (s personServiceWithTeacherRepo) DeleteStaff(context.Context, int64) error         { return nil }
 func (s personServiceWithTeacherRepo) List(context.Context, *modelBase.QueryOptions) ([]*userModels.Person, error) {
 	return nil, nil
 }
@@ -97,11 +96,6 @@ func (s personServiceWithTeacherRepo) GetFullProfile(context.Context, int64) (*u
 func (s personServiceWithTeacherRepo) FindByGuardianID(context.Context, int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (s personServiceWithTeacherRepo) StudentRepository() userModels.StudentRepository { return nil }
-func (s personServiceWithTeacherRepo) StaffRepository() userModels.StaffRepository     { return nil }
-func (s personServiceWithTeacherRepo) TeacherRepository() userModels.TeacherRepository {
-	return s.teacherRepo
-}
 func (s personServiceWithTeacherRepo) ListAvailableRFIDCards(context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
@@ -118,6 +112,78 @@ func (s personServiceWithTeacherRepo) GetStudentsWithGroupsByTeacher(context.Con
 	return nil, nil
 }
 func (s personServiceWithTeacherRepo) GetAllStudentsWithGroups(context.Context) ([]usersSvc.StudentWithGroup, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffByID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffByPersonID(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffWithPerson(context.Context, int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) ListStaffWithPerson(context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindByStaffID(ctx, staffID)
+}
+func (s personServiceWithTeacherRepo) GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindByStaffIDs(ctx, staffIDs)
+}
+func (s personServiceWithTeacherRepo) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
+}
+func (s personServiceWithTeacherRepo) GetStudentByID(context.Context, int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentByPersonID(context.Context, int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByIDs(context.Context, []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByGroupID(context.Context, int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (s personServiceWithTeacherRepo) GetTeachersBySpecialization(ctx context.Context, spec string) ([]*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindBySpecialization(ctx, spec)
+}
+func (s personServiceWithTeacherRepo) GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error) {
+	if s.teacherRepo == nil {
+		return nil, nil
+	}
+	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
+}
+func (s personServiceWithTeacherRepo) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	return nil, nil, false, nil
+}
+func (s personServiceWithTeacherRepo) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
+	return nil, usersSvc.TeacherActionNone, nil
+}
+func (s personServiceWithTeacherRepo) CountStudentsByGroupIDs(context.Context, []int64) (map[int64]int, error) {
 	return nil, nil
 }
 
@@ -184,3 +250,12 @@ func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 
 var _ userModels.TeacherRepository = teacherRepositoryStub{}
 var _ usersSvc.PersonService = personServiceWithTeacherRepo{}
+
+// Stubs for the issue #585 refactor interface additions — unused here.
+func (s teacherRepositoryStub) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+func (s teacherRepositoryStub) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}

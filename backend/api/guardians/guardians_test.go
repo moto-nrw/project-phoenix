@@ -17,7 +17,6 @@ import (
 
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,7 +35,6 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create repository factory for student repository
-	repoFactory := repositories.NewFactory(db)
 
 	resource := guardiansAPI.NewResource(
 		svc.Guardian,
@@ -44,7 +42,6 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Users,
 		svc.Education,
 		svc.UserContext,
-		repoFactory.Student,
 		db,
 	)
 

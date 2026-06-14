@@ -102,6 +102,99 @@ func ParseBool(val string) bool {
 	return normalized == "ja" || normalized == "yes" || normalized == "true" || normalized == "1"
 }
 
+// busDayColumns maps the optional per-day "Bus.Xx" import headers (German
+// weekday abbreviations, lowercased by the column mapper) to the canonical
+// bus_days weekday keys.
+var busDayColumns = []struct{ col, key string }{
+	{"bus.mo", "mon"},
+	{"bus.di", "tue"},
+	{"bus.mi", "wed"},
+	{"bus.do", "thu"},
+	{"bus.fr", "fri"},
+}
+
+// departureDayColumns maps the per-day "Gehweise.Xx" import headers (German
+// weekday abbreviations, lowercased by the column mapper) to the canonical
+// departure_days weekday keys. This is the current unified column: each cell
+// holds one of alleine / bus / abholung.
+var departureDayColumns = []struct{ col, key string }{
+	{"gehweise.mo", "mon"},
+	{"gehweise.di", "tue"},
+	{"gehweise.mi", "wed"},
+	{"gehweise.do", "thu"},
+	{"gehweise.fr", "fri"},
+}
+
+// departureModeAliases maps the accepted German cell values (and the canonical
+// English keys) to the stored departure mode. Empty / unknown cells are skipped
+// by the caller so a blank day falls back to the legacy columns.
+var departureModeAliases = map[string]string{
+	"alleine":       "alone",
+	"geht alleine":  "alone",
+	"alone":         "alone",
+	"bus":           "bus",
+	"fährt bus":     "bus",
+	"faehrt bus":    "bus",
+	"abholung":      "pickup",
+	"wird abgeholt": "pickup",
+	"abgeholt":      "pickup",
+	"pickup":        "pickup",
+}
+
+// parseDepartureDayColumns reads the optional per-day Gehweise columns
+// (Gehweise.Mo..Gehweise.Fr). It returns nil unless at least one per-day cell
+// holds a recognized value, in which case the caller treats it as the unified
+// source of truth and ignores the legacy Bus/Abholstatus columns. As with the
+// bus columns, the generated template always emits the headers, so keying off
+// header presence alone would wrongly blank out the legacy fallback for a row
+// the user left empty. departure_days is the single source of truth (#1610).
+func parseDepartureDayColumns(mapper *ColumnMapper) (map[string]string, error) {
+	var days map[string]string
+	for _, d := range departureDayColumns {
+		raw := mapper.GetCol(d.col)
+		if raw == "" {
+			continue
+		}
+		normalized := strings.ToLower(strings.TrimSpace(raw))
+		mode, ok := departureModeAliases[normalized]
+		if !ok {
+			return nil, fmt.Errorf("%s enthält ungültigen Wert %q (erlaubt: alleine, bus, abholung)", d.col, raw)
+		}
+		if days == nil {
+			days = make(map[string]string, len(departureDayColumns))
+		}
+		days[d.key] = mode
+	}
+	return days, nil
+}
+
+// parseBusDayColumns reads optional per-day Buskind columns (Bus.Mo..Bus.Fr).
+// It returns nil unless at least one per-day cell holds an explicit value, in
+// which case the caller falls back to the legacy single "Bus" column. This
+// matters because the generated template always emits the Bus.Mo..Bus.Fr
+// headers: keying off header presence alone would make a row with "Bus=Ja" and
+// blank per-day cells import as no bus days, contradicting the documented
+// "legacy Bus=Ja → all weekdays" behavior. We therefore only let the per-day
+// columns override the legacy flag when the user actually filled a cell.
+// bus_days is the single source of truth (#1582).
+func parseBusDayColumns(mapper *ColumnMapper) map[string]bool {
+	var days map[string]bool
+	for _, d := range busDayColumns {
+		// GetCol returns "" for both an absent header and a present-but-blank
+		// cell, so this skips both and only an explicit value counts as an
+		// override.
+		raw := mapper.GetCol(d.col)
+		if raw == "" {
+			continue
+		}
+		if days == nil {
+			days = make(map[string]bool, len(busDayColumns))
+		}
+		days[d.key] = ParseBool(raw)
+	}
+	return days
+}
+
 // MapStudentRow maps column values to StudentImportRow using the shared mapping logic
 func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) {
 	row := importModels.StudentImportRow{
@@ -120,6 +213,12 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 	row.ExtraInfo = mapper.GetCol("zusatzinfo")
 	row.PickupStatus = mapper.GetCol("abholstatus")
 	row.BusPermission = ParseBool(mapper.GetCol("bus"))
+	row.BusDays = parseBusDayColumns(mapper)
+	departureDays, err := parseDepartureDayColumns(mapper)
+	if err != nil {
+		return row, err
+	}
+	row.DepartureDays = departureDays
 	row.EnrolledFrom = mapper.GetCol("einschreibung von")
 	row.EnrolledUntil = mapper.GetCol("einschreibung bis")
 

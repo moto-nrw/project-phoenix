@@ -9,12 +9,14 @@ package parent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -48,20 +50,24 @@ type Service interface {
 	// having to dig out the email-link status URL.
 	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
 
+	GetProfile(ctx context.Context, accountID int64) (*Profile, error)
+
+	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error)
+
 	// SubmitSickNote reports the parent's child sick for one or more
 	// dates. Authorization: the account must be a guardian of the
 	// student. The write mirrors the staff sick-note path — it clears any
 	// opposing "excused" days, upserts a sick status-day per date with
 	// source=parent, and flips the live sick flag when today is included.
 	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []time.Time, reason string) ([]*activeModels.StudentStatusDay, error)
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error)
 
 	// ListSickDays returns the child's currently-active sick days in the
 	// given date range (excused days are filtered out — parents only
 	// manage sick notes). Authorization only; not gated by the setting so
 	// previously-reported days stay visible if a school later disables the
 	// feature.
-	ListSickDays(ctx context.Context, accountID, studentID int64, from, to time.Time) ([]*activeModels.StudentStatusDay, error)
+	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
 
 	// AddParentNote appends a free-text note the parent left for the
 	// team and returns the newest ParentNoteDisplayLimit notes. Gated by
@@ -104,11 +110,21 @@ type ChildFeatureFlags struct {
 	RelatedAccountsRemoveEnabled bool
 }
 
+// Profile carries the parent's explicit parents-portal locale choice.
+// Explicit is false when the guardian has never picked a language in the
+// portal (portal_locale IS NULL); the frontend then keeps the anonymous
+// cookie/Accept-Language locale rather than snapping to the default.
+type Profile struct {
+	Locale   string
+	Explicit bool
+}
+
 // ServiceConfig is the dependency-injection bundle.
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
 	// Per-child write features (sick notes + parent notes).
 	StatusDayRepo activeModels.StudentStatusDayRepository
@@ -131,6 +147,7 @@ type service struct {
 	childRepo             parentModels.ChildRepository
 	enrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	guardianProfileRepo   usersModels.GuardianProfileRepository
 
 	statusDayRepo activeModels.StudentStatusDayRepository
 	studentRepo   usersModels.StudentRepository
@@ -156,6 +173,7 @@ func NewService(cfg ServiceConfig) Service {
 		childRepo:             cfg.ChildRepo,
 		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
 		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
+		guardianProfileRepo:   cfg.GuardianProfileRepo,
 		statusDayRepo:         cfg.StatusDayRepo,
 		studentRepo:           cfg.StudentRepo,
 		noteRepo:              cfg.NoteRepo,
@@ -167,6 +185,84 @@ func NewService(cfg ServiceConfig) Service {
 		db:                    cfg.DB,
 		logger:                logger,
 	}
+}
+
+func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("parent: account_id must be positive")
+	}
+	if s.guardianProfileRepo == nil {
+		return nil, fmt.Errorf("parent: guardian profile repo not wired")
+	}
+	profile := &Profile{Locale: localization.DefaultLocale(), Explicit: false}
+	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		row, err := s.guardianProfileRepo.FindByAccountID(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		// portal_locale IS NULL → the guardian has never chosen a portal
+		// language. Leave Explicit=false so the caller keeps the anonymous
+		// locale instead of forcing the default.
+		if row != nil && row.PortalLocale != nil && *row.PortalLocale != "" {
+			profile.Locale = localization.NormalizeLocale(*row.PortalLocale)
+			profile.Explicit = true
+		}
+		return nil
+	})
+	if err != nil {
+		// No guardian_profiles row for an authenticated parent is a
+		// data-integrity fault, not a normal state: the guardian role and the
+		// profile link are written in the same transaction (auth
+		// guardianInvitationService.linkProfileToAccount / enrollment
+		// decisionService.ensureGuardianRoleForTenant), and these endpoints sit
+		// behind ParentMiddleware, which login only reaches once the account
+		// has that role. Log it so the corruption is observable, then degrade
+		// to the anonymous locale rather than failing a read just to render a
+		// language. Any other error is a real fault and must surface unmasked.
+		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+			s.logger.Warn("parent: guardian profile missing for authenticated account",
+				slog.Int64("account_id", accountID),
+			)
+			return &Profile{Locale: localization.DefaultLocale(), Explicit: false}, nil
+		}
+		return nil, fmt.Errorf("parent: get profile: %w", err)
+	}
+	return profile, nil
+}
+
+func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("parent: account_id must be positive")
+	}
+	if s.guardianProfileRepo == nil {
+		return nil, fmt.Errorf("parent: guardian profile repo not wired")
+	}
+	// Reject unknown locales rather than letting NormalizeLocale silently coerce
+	// them to the default — persisting a bad value as 'de' is exactly the kind
+	// of invisible fallback this codebase forbids. The handler validates too,
+	// but the service is independently reachable, so it must not trust callers.
+	if !localization.IsSupported(locale) {
+		return nil, fmt.Errorf("parent: unsupported locale %q", locale)
+	}
+	normalized := localization.NormalizeLocale(locale)
+	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return s.guardianProfileRepo.UpdatePortalLocaleByAccountID(adminCtx, accountID, normalized)
+	})
+	if err != nil {
+		// Same invariant as GetProfile: an authenticated parent always has a
+		// linked guardian_profiles row, so zero rows updated is data corruption,
+		// not an expected empty state. Log it and keep the sentinel wrapped so
+		// the handler can map it to 409 (a permanent state conflict) instead of
+		// a generic 500. Never swallow it into a fake success — a "saved"
+		// preference that never hit the DB must not masquerade as persisted.
+		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+			s.logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
+				slog.Int64("account_id", accountID),
+			)
+		}
+		return nil, fmt.Errorf("parent: update portal locale: %w", err)
+	}
+	return &Profile{Locale: normalized, Explicit: true}, nil
 }
 
 func (s *service) ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {

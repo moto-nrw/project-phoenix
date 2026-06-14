@@ -3,12 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand/v2"
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -22,14 +22,14 @@ import (
 //
 // Per staff:
 //   - PUT /api/staff/{id}/schedule (admin auth) sets Mo-Fr at 480 min Soll
-//   - For each weekday in the trailing 14-day window the staff logs in
+//   - For each weekday in the trailing 90-day window the staff logs in
 //     and walks the live clocking flow (POST check-in, POST check-out)
 //     followed by PUT /api/time-tracking/{id} to backdate date + times to
 //     the historical day. The audit trail therefore records the seeding
 //     just like any other admin correction would.
-//   - One staff member receives a 3-day vacation block via
-//     POST /api/time-tracking/absences. About a quarter of the staff get
-//     a single sick day the same way.
+//   - One staff member receives an approved future 3-day vacation block via
+//     the normal vacation request/approval flow. About a quarter of the staff
+//     get a single historical sick day via POST /api/time-tracking/absences.
 type seedTimeTrackingHistoryStep struct{}
 
 func (seedTimeTrackingHistoryStep) Name() string { return "Seeding time-tracking history" }
@@ -63,9 +63,13 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	vacationApproverAuth, err := loginVacationApprover(rt, staffOrder)
+	if err != nil {
+		return err
+	}
 
 	rng := rand.New(rand.NewPCG(0xC0FFEE, 0xBEEF))
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate().UTCMidnight()
 	loc := timezone.Berlin
 
 	sessionCount := 0
@@ -77,15 +81,9 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			return fmt.Errorf("login as %s: %w", cred.Email, err)
 		}
 
-		vacationDays := map[string]struct{}{}
 		if idx == 0 {
-			start := mostRecentWeekday(today.AddDate(0, 0, -timeTrackingDaysBack+2), time.Tuesday)
-			for offset := 0; offset < 3; offset++ {
-				vacationDays[toDateKey(start.AddDate(0, 0, offset))] = struct{}{}
-			}
-			if err := postAbsence(rt, start, start.AddDate(0, 0, 2),
-				activeModels.AbsenceTypeVacation, "Urlaub",
-			); err != nil {
+			start := nextWeekday(today.AddDate(0, 0, 1), time.Tuesday)
+			if err := requestAndApproveVacation(rt, vacationApproverAuth, start, start.AddDate(0, 0, 2), "Urlaub"); err != nil {
 				return fmt.Errorf("seed vacation for staff %d: %w", staffID, err)
 			}
 			absenceCount++
@@ -94,13 +92,11 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		var sickDay *time.Time
 		if rng.Float64() < 0.25 {
 			day := mostRecentWeekday(today.AddDate(0, 0, -rng.IntN(timeTrackingDaysBack)), time.Wednesday)
-			if _, blocked := vacationDays[toDateKey(day)]; !blocked {
-				sickDay = &day
-				if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung"); err != nil {
-					return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
-				}
-				absenceCount++
+			sickDay = &day
+			if err := postAbsence(rt, day, day, activeModels.AbsenceTypeSick, "Krankmeldung"); err != nil {
+				return fmt.Errorf("seed sick day for staff %d: %w", staffID, err)
 			}
+			absenceCount++
 		}
 
 		// Walk oldest → today so the live "today's open session" slot is
@@ -108,9 +104,6 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		for offset := timeTrackingDaysBack - 1; offset >= 0; offset-- {
 			day := today.AddDate(0, 0, -offset)
 			if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
-				continue
-			}
-			if _, vac := vacationDays[toDateKey(day)]; vac {
 				continue
 			}
 			if sickDay != nil && day.Equal(*sickDay) {
@@ -185,6 +178,22 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 	return count, nil
 }
 
+func loginVacationApprover(rt *Runtime, staff []StaffCredentials) (phoenixapi.AuthRef, error) {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+
+	for _, cred := range staff {
+		if cred.Position != "OGS-Büro" {
+			continue
+		}
+		if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
+			return phoenixapi.AuthRef{}, fmt.Errorf("login vacation approver %s: %w", cred.Email, err)
+		}
+		return rt.Client.auth, nil
+	}
+	return phoenixapi.AuthRef{}, fmt.Errorf("no OGS-Büro staff credential available for vacation approval")
+}
+
 // seedSessionViaAPI walks the live clocking flow for one historical day:
 // open + close a fresh session today, then PUT to backdate it. Returns
 // whether a session was created (false when the staff already had an
@@ -242,7 +251,43 @@ func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note st
 	return nil
 }
 
+func requestAndApproveVacation(rt *Runtime, approverAuth phoenixapi.AuthRef, dateStart, dateEnd time.Time, note string) error {
+	staffAuth := rt.Client.auth
+	defer rt.Client.BindAuth(staffAuth)
+
+	requestBody := map[string]any{
+		"date_start": dateStart.Format("2006-01-02"),
+		"date_end":   dateEnd.Format("2006-01-02"),
+		"note":       note,
+	}
+	resp, err := rt.Client.Post("/api/time-tracking/vacation/request", requestBody)
+	if err != nil {
+		return fmt.Errorf("post vacation request: %w", err)
+	}
+	absenceID, err := extractAbsenceID(resp)
+	if err != nil {
+		return fmt.Errorf("parse vacation request response: %w", err)
+	}
+
+	rt.Client.BindAuth(approverAuth)
+	approveBody := map[string]any{
+		"decision_note": "Demo-Urlaub automatisch genehmigt",
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/staff/absences/%d/approve", absenceID), approveBody); err != nil {
+		return fmt.Errorf("approve vacation request: %w", err)
+	}
+	return nil
+}
+
 func extractSessionID(resp []byte) (int64, error) {
+	return extractWrappedID(resp, "session")
+}
+
+func extractAbsenceID(resp []byte) (int64, error) {
+	return extractWrappedID(resp, "absence")
+}
+
+func extractWrappedID(resp []byte, entity string) (int64, error) {
 	var payload struct {
 		Data struct {
 			ID int64 `json:"id"`
@@ -252,7 +297,7 @@ func extractSessionID(resp []byte) (int64, error) {
 		return 0, err
 	}
 	if payload.Data.ID == 0 {
-		return 0, errors.New("response did not include a session id")
+		return 0, fmt.Errorf("response did not include a %s id", entity)
 	}
 	return payload.Data.ID, nil
 }
@@ -263,6 +308,14 @@ func mostRecentWeekday(from time.Time, target time.Weekday) time.Time {
 		delta += 7
 	}
 	return from.AddDate(0, 0, -delta)
+}
+
+func nextWeekday(from time.Time, target time.Weekday) time.Time {
+	delta := int(target - from.Weekday())
+	if delta < 0 {
+		delta += 7
+	}
+	return from.AddDate(0, 0, delta)
 }
 
 func toDateKey(t time.Time) string {

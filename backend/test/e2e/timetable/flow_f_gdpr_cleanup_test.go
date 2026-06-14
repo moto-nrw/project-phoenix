@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -41,12 +42,12 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	})
 
 	// Old instance: 60 days ago. Should be deleted.
-	oldDate := time.Now().AddDate(0, 0, -60)
+	oldDate := timezone.TodayDate().AddDays(-60)
 	// Fresh instance: 5 days ago. Should survive.
-	freshDate := time.Now().AddDate(0, 0, -5)
+	freshDate := timezone.TodayDate().AddDays(-5)
 
 	// Old exception on a separate past date (template scope; no student audit).
-	oldExceptionDate := time.Now().AddDate(0, 0, -70)
+	oldExceptionDate := timezone.TodayDate().AddDays(-70)
 
 	oldInstance := testpkg.CreateTestActivityInstance(t, s.db, oldDate, room.ID,
 		testpkg.ActivityInstanceOpts{Title: "FlowF-Old", IsSpontaneous: true})
@@ -77,7 +78,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// Old exception (template-scoped cleanup).
 	oldExc := &scheduleModel.ActivityException{
 		ActivityGroupID: 0, // doesn't reference a real template; tenant-scope + date drive the delete
-		ExceptionDate:   oldExceptionDate.UTC().Truncate(24 * time.Hour),
+		ExceptionDate:   oldExceptionDate,
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 	}
 	oldExc.SetTenantID(primaryTenantID)

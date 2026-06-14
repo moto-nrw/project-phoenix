@@ -31,7 +31,21 @@ type guardianTestEnv struct {
 	cleanup func()
 }
 
-func setupGuardianInvitationTest(t *testing.T) *guardianTestEnv {
+// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer for tests that
+// exercise the production (outbox) email path instead of the legacy
+// dispatcher path. The legacy path spawns a goroutine whose delivery
+// callback writes email_sent_at back to the invitation row, racing any
+// assertion on those columns.
+type stubOutboxEnqueuer struct {
+	requests []authService.OutboxEnqueueRequest
+}
+
+func (s *stubOutboxEnqueuer) Enqueue(_ context.Context, req authService.OutboxEnqueueRequest) error {
+	s.requests = append(s.requests, req)
+	return nil
+}
+
+func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.GuardianInvitationServiceConfig)) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, 1)
@@ -40,7 +54,7 @@ func setupGuardianInvitationTest(t *testing.T) *guardianTestEnv {
 	mailer := email.NewMockMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
+	cfg := authService.GuardianInvitationServiceConfig{
 		InvitationRepo:      repoFactory.GuardianInvitation,
 		AccountRepo:         repoFactory.Account,
 		AccountTenantRepo:   repoFactory.AccountTenant,
@@ -58,7 +72,11 @@ func setupGuardianInvitationTest(t *testing.T) *guardianTestEnv {
 		FallbackExpiry:      48 * time.Hour,
 		DB:                  db,
 		Logger:              slog.Default(),
-	})
+	}
+	for _, m := range mutate {
+		m(&cfg)
+	}
+	service := authService.NewGuardianInvitationService(cfg)
 
 	cleanup := func() {
 		_ = db.Close()
@@ -468,7 +486,13 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
-	env := setupGuardianInvitationTest(t)
+	// Wire the outbox path (what production uses since PR 5). The legacy
+	// dispatcher path would asynchronously re-populate email_sent_at after
+	// delivery, racing the nil assertions below.
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
+		cfg.OutboxEnqueuer = outbox
+	})
 	defer env.cleanup()
 
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "resend-test")

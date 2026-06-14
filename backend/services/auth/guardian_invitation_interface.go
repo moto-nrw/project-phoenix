@@ -56,6 +56,11 @@ type GuardianInvitationService interface {
 	ListPendingApprovals(ctx context.Context) ([]*authModels.GuardianInvitation, error)
 	ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error)
 	RevokeAccess(ctx context.Context, req RevokeAccessRequest) error
+
+	// GetTenantSlugForToken resolves the tenant slug for a guardian
+	// invitation token. Best-effort: returns "" on any error or for deleted
+	// schools (issue #584: moved verbatim out of api/auth).
+	GetTenantSlugForToken(ctx context.Context, token string) string
 }
 
 // GuardianSettingsResolver is the narrow contract the guardian invitation

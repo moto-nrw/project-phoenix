@@ -51,22 +51,16 @@ type Resource struct {
 	ActiveService      activeService.Service
 	UserService        userService.PersonService
 	UserContextService userContextService.UserContextService
-	StudentRepo        users.StudentRepository
-	StaffRepo          users.StaffRepository
-	SubstitutionRepo   education.GroupSubstitutionRepository
 	db                 *bun.DB
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, studentRepo users.StudentRepository, substitutionRepo education.GroupSubstitutionRepository, db *bun.DB) *Resource {
+func NewResource(educationService educationSvc.Service, activeService activeService.Service, userService userService.PersonService, userContextService userContextService.UserContextService, db *bun.DB) *Resource {
 	return &Resource{
 		EducationService:   educationService,
 		ActiveService:      activeService,
 		UserService:        userService,
 		UserContextService: userContextService,
-		StudentRepo:        studentRepo,
-		StaffRepo:          userService.StaffRepository(),
-		SubstitutionRepo:   substitutionRepo,
 		db:                 db,
 	}
 }
@@ -261,7 +255,7 @@ func (rs *Resource) parseAndGetGroup(w http.ResponseWriter, r *http.Request) (*e
 
 // getStudentCount returns the number of students in a group.
 func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
-	students, err := rs.StudentRepo.FindByGroupID(ctx, groupID)
+	students, err := rs.UserService.GetStudentsByGroupID(ctx, groupID)
 	if err != nil {
 		return 0
 	}
@@ -515,7 +509,7 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch load student counts (1 query instead of N)
-	studentCounts, err := rs.StudentRepo.CountByGroupIDs(r.Context(), groupIDs)
+	studentCounts, err := rs.UserService.CountStudentsByGroupIDs(r.Context(), groupIDs)
 	if err != nil {
 		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
 		studentCounts = make(map[int64]int)
@@ -724,7 +718,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	canAccessFullDetails := rs.userHasGroupAccess(r, id)
 
 	// Get students for this group
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	students, err := rs.UserService.GetStudentsByGroupID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -816,7 +810,7 @@ func (rs *Resource) getGroupStudentsRoomStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	students, err := rs.StudentRepo.FindByGroupID(r.Context(), id)
+	students, err := rs.UserService.GetStudentsByGroupID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get group students", err))
 		return
@@ -882,9 +876,9 @@ func (rs *Resource) getGroupSubstitutions(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get active substitutions for this group
-	date := time.Now()
+	date := timezone.TodayDate()
 	if dateStr := r.URL.Query().Get("date"); dateStr != "" {
-		parsedDate, err := time.Parse("2006-01-02", dateStr)
+		parsedDate, err := timezone.ParseDate(dateStr)
 		if err == nil {
 			date = parsedDate
 		}
@@ -975,7 +969,7 @@ func (rs *Resource) resolveTargetStaff(w http.ResponseWriter, r *http.Request, t
 		return nil, nil, false
 	}
 
-	targetStaff, err := rs.StaffRepo.FindByPersonID(r.Context(), targetPerson.ID)
+	targetStaff, err := rs.UserService.GetStaffByPersonID(r.Context(), targetPerson.ID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message
 		common.RenderError(w, r, ErrorInvalidRequest(errors.New("Der ausgewählte Betreuer ist kein Mitarbeiter")))
@@ -995,7 +989,7 @@ func (rs *Resource) translateTransferRequestError(err error) string {
 
 // checkDuplicateTransfer verifies target doesn't already have access to this group
 func (rs *Resource) checkDuplicateTransfer(w http.ResponseWriter, r *http.Request, groupID int64, targetStaffID int64, targetPerson *users.Person) bool {
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	existingTransfers, err := rs.EducationService.GetActiveGroupSubstitutions(r.Context(), groupID, today)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
@@ -1048,8 +1042,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	today := timezone.TodayUTC()
-	endOfDay := today.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	today := timezone.TodayDate()
 
 	// Create substitution (without regular_staff_id = additional access, not replacement)
 	substitution := &education.GroupSubstitution{
@@ -1057,7 +1050,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		RegularStaffID:    nil, // NULL = additional access, not replacement
 		SubstituteStaffID: targetStaff.ID,
 		StartDate:         today,
-		EndDate:           endOfDay,
+		EndDate:           today, // single-day transfer; access ends with the calendar day
 		Reason:            "Gruppenübergabe",
 	}
 
@@ -1071,7 +1064,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 	// For group transfers, we WANT users to have multiple groups, so skip FindOverlapping check
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.SubstitutionRepo.Create(ctx, substitution)
+		return rs.EducationService.CreateGroupTransfer(ctx, substitution)
 	}); err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -1081,7 +1074,7 @@ func (rs *Resource) transferGroup(w http.ResponseWriter, r *http.Request) {
 		"substitution_id": substitution.ID,
 		"group_id":        groupID,
 		"target_staff_id": targetStaff.ID,
-		"valid_until":     endOfDay.Format(time.RFC3339),
+		"valid_until":     today.EndOfDay().Format(time.RFC3339),
 	}, "Group access transferred successfully")
 }
 
@@ -1120,7 +1113,7 @@ func (rs *Resource) cancelSpecificTransfer(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Verify that the substitution exists and belongs to this group
-	substitution, err := rs.SubstitutionRepo.FindByID(r.Context(), substitutionID)
+	substitution, err := rs.EducationService.GetSubstitution(r.Context(), substitutionID)
 	if err != nil {
 		//nolint:staticcheck // ST1005: German user-facing message, capitalization is correct
 		common.RenderError(w, r, ErrorNotFound(errors.New("Übertragung nicht gefunden")))

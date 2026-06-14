@@ -1,140 +1,45 @@
-# CLAUDE.md
+# Backend — Agent Context
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Context
-
-Backend service for Project Phoenix - a RFID-based student attendance and room management system. Built with Go 1.21+ using Chi router, Bun ORM, and PostgreSQL with multi-schema architecture.
+Go backend for Project Phoenix (Chi router, BUN ORM, PostgreSQL multi-schema). Read the root `CLAUDE.md` first — it owns the stack versions, multi-tenancy model, commands table, and cross-repo contracts. This file covers backend-specific knowledge only.
 
 ## Development Commands
 
+Day-to-day run/build/migrate commands are Docker-Compose-first — see the root `CLAUDE.md` Essential Commands table. Backend-specific:
+
 ```bash
-# Environment Setup
-cp dev.env.example dev.env      # Create local config (edit AUTH_JWT_SECRET)
-# Note: DB_DSN now auto-configured based on APP_ENV (see database/database_config.go)
-
-# Server Operations (Development Database)
-go run main.go serve            # Start server (uses dev DB on :5432)
-go run main.go migrate          # Run migrations (development DB)
-go run main.go migrate status   # Show migration status
-go run main.go migrate validate # Validate migration dependencies
-go run main.go migrate reset    # WARNING: Reset database and run all migrations
-
-# Server Operations (Test Database)
-APP_ENV=test go run main.go migrate reset  # Reset test database (uses :5433)
-APP_ENV=test go run main.go seed           # Seed test database
-go test ./...                              # Run tests (APP_ENV=test is auto-set by SetupTestDB)
-
-# Development Data
-go run main.go seed             # Populate database with test data
-go run main.go seed --reset     # Clear ALL test data and repopulate
-
-# Data Cleanup (GDPR Compliance)
-go run main.go cleanup visits   # Delete expired visit records based on privacy consent
-go run main.go cleanup preview  # Preview what would be deleted (dry run)
-go run main.go cleanup stats    # Show data retention statistics
-
-# Documentation
-go run main.go gendoc           # Generate routes.md and OpenAPI spec
-
 # Testing
-go test ./...                   # Run all tests
-go test -v ./api/auth           # Run specific package with verbose output
-go test -race ./...             # Run tests with race detection
-go test ./api/auth -run TestLogin  # Run specific test
+go test ./...                       # All tests (APP_ENV=test auto-set by SetupTestDB)
+go test ./services/active/... -v    # Specific package
+go test -race ./...                 # Race detection
+go test ./api/auth -run TestLogin   # Specific test
 
-# Code Quality (Run before committing!)
-golangci-lint run --timeout 10m # Run linter
-golangci-lint run --fix         # Auto-fix linting issues
-go fmt ./...                    # Format code
-goimports -w .  # Organize imports
-go mod tidy                     # Clean up dependencies
+# Code Quality (run before committing!)
+golangci-lint run --timeout 10m
+go fmt ./... && goimports -w . && go mod tidy
+
+# CLI (run inside the container via `docker compose run server go run . <cmd>`)
+go run . migrate status|validate|reset
+go run . seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
+go run . cleanup preview|stats      # visit-retention dry-run / statistics
+go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
+go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two
+go run . cleanup tokens|invitations|rate-limits|attendance|sessions|supervisors
+go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 ```
 
 ## Database Configuration
 
-The database DSN is automatically selected based on `APP_ENV`:
+DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:
 
-```go
-// Precedence order in database/database_config.go:
-// 1. Explicit DB_DSN env var (production/Docker override)
-// 2. APP_ENV-based smart defaults:
-//    - test:        localhost:5433 (test DB, no SSL)
-//    - development: localhost:5432 (dev DB, sslmode=require)
-//    - production:  Requires explicit DB_DSN
-// 3. Legacy TEST_DB_DSN (backwards compatibility)
-// 4. Fallback to development default
-```
+1. `DB_DSN` — used by CLI commands (migrate, cleanup), which connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
+2. `TEST_DB_DSN` — only honored when `APP_ENV=test` (test DB on port 5433)
+3. Missing config exits with an error
 
-**Usage**:
-- **Local development**: No configuration needed (defaults to dev DB)
-- **Test database**: `APP_ENV=test go run main.go migrate reset`
-- **Production**: `DB_DSN="postgres://..." go run main.go serve`
+The HTTP server (`serve`) connects as the least-privilege **`phoenix_auth`** role instead (NOINHERIT; can `SET ROLE` to `phoenix_tenant`/`phoenix_admin` per request). `PHOENIX_AUTH_PASSWORD` is mandatory — the server refuses to start without it. This split is what makes RLS enforcement real: request queries run under the tenant role, never as superuser.
 
-## Docker Development
+## Architecture
 
-```bash
-# SSL Setup (Required - GDPR compliance)
-cd ../config/ssl/postgres && ./create-certs.sh && cd ../../../backend
-
-# Development with Docker
-docker compose up -d postgres   # Start only database
-docker compose run server ./main migrate  # Run migrations
-docker compose up               # Start all services
-docker compose logs -f server   # View server logs
-```
-
-## 🏛️ Layered Architecture (Claude Should Help Maintain)
-
-### The Core Flow
-
-**Handler → Service → Repository → Database**
-
-This is the foundational pattern. Each layer has a distinct responsibility, and dependencies flow in one direction only.
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  api/{domain}/                    ← HANDLERS (HTTP adapters)   │
-│       ↓                                                         │
-│  services/{domain}/               ← SERVICES (business logic)  │
-│       ↓                                                         │
-│  database/repositories/{domain}/  ← REPOSITORIES (data access) │
-│       ↓                                                         │
-│  models/{domain}/                 ← MODELS (shared entities)   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Domains in this codebase:** `auth`, `users`, `education`, `facilities`, `activities`, `active`, `schedule`, `iot`, `feedback`, `config`
-
-## Email & Invitation Services
-
-- **Configuration**: SMTP delivery uses `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASSWORD`, `EMAIL_FROM_NAME`, `EMAIL_FROM_ADDRESS`, `FRONTEND_URL`, `INVITATION_TOKEN_EXPIRY_HOURS` (default 48h) and `PASSWORD_RESET_TOKEN_EXPIRY_MINUTES` (default 30m). `services.NewFactory` clamps expiry values and enforces HTTPS-only `FRONTEND_URL` when `APP_ENV=production`.
-- **Mailer Injection**: The factory wires `email.Mailer`, `email.Email` defaults, `frontendURL`, and derived expiry durations into both `AuthService` and `InvitationService`. Missing SMTP config automatically falls back to `email.NewMockMailer()` which logs redacted payloads instead of sending.
-- **Templates**: HTML layouts live in `backend/templates/email/`. Shared chrome is in `styles.html`, `header.html`, and `footer.html`. Feature templates provide the following bindings: `invitation.html` → `LogoURL`, `InvitationURL`, `ExpiryHours`, `FirstName`, `LastName`, `RoleName`; `password-reset.html` → `LogoURL`, `ResetURL`, `ExpiryMinutes`.
-
-## Password Reset Enhancements
-
-- **Helpers**: `services/auth/password_helpers.go` centralises password hashing (`HashPassword`) and strength validation (`ValidatePasswordStrength` requires 8+ chars, upper/lower/digit/special). Reuse these helpers instead of duplicating regex logic.
-- **Email Flow**: `AuthService.InitiatePasswordReset` now issues 30-minute tokens (configurable), normalises `{FRONTEND_URL}/reset-password?token=...`, and dispatches `password-reset.html` asynchronously. SMTP failures are logged but never block API responses.
-- **Rate Limiting**: Per-email throttling allows three reset requests per hour. The repository (`database/repositories/auth/password_reset_rate_limit.go`) performs atomic upserts and returns the retry deadline so handlers can set `Retry-After`. Stale windows (>24h) are purged by `CleanupExpiredRateLimits` and exposed via CLI/scheduler.
-
-## Invitation Service Overview
-
-- **Service API**: `services/auth/invitation_service.go` implements creation, validation, acceptance, resend, revoke, listing, and cleanup. Account creation and role assignment run inside `TxHandler.RunInTx` to guarantee atomic Person/Account writes.
-- **Token Lifecycle**: Tokens are UUID v4 with 48h default expiry (configurable). Creating a new invitation automatically marks previous pending invites for the same email as used. Acceptance enforces password strength and email uniqueness before persisting.
-- **Email Delivery**: Invitation emails are fire-and-forget; they queue an async send with moto branding, role context, and `{FRONTEND_URL}/invite?token=...` links. Logging captures success/failure without leaking tokens.
-
-## Cleanup & Scheduler Extensions
-
-- **CLI**: `go run main.go cleanup invitations` removes expired or consumed invites. `go run main.go cleanup rate-limits` prunes stale password reset rate limit rows. These complement existing `cleanup tokens` and `cleanup visits` commands.
-- **Scheduler**: `Scheduler.RunCleanupJobs` now chains four jobs: auth tokens, password reset tokens, invitation tokens, and rate limits. Ensure `NewScheduler` receives both `AuthService` and `InvitationService` so nightly runs can call `CleanupExpiredInvitations` and `CleanupExpiredRateLimits`.
-
-### Authentication & Authorization
-- JWT tokens: Access (15m) + Refresh (24hr)
-- Role-based permissions via middleware
-- Permission constants in `auth/authorize/permissions/`
-- Authorization policies in `auth/authorize/policies/`
-- Token cleanup on login prevents accumulation (single session by default)
+**Handler → Service → Repository → Database** — the root `CLAUDE.md` states the rule; `.claude/rules/backend-conventions.md` is the enforcement-level reference (layer discipline, `Repository[T]` generics, model conventions, and the CI ratchet tests `TestHandlerLayerRatchet` + `TestServiceRepositoryRatchet` that fail PRs on violations).
 
 ## Critical BUN ORM Patterns
 
@@ -169,444 +74,111 @@ err := r.db.NewSelect().
     Scan(ctx)
 ```
 
-### Repository Pattern with Transactions
-```go
-// Pass transaction via context
-ctx = base.ContextWithTx(ctx, &tx)
+### Transactions and Filters
+Transactions propagate via context (`base.ContextWithTx` / `base.TxFromContext`); repositories pick them up through `base.GetDB(ctx, db)`. For query filters and the generic repository API (`Repository[T]`, `base.Filter` with `Equal`/`ILike`/`In`/pagination), see `.claude/rules/backend-conventions.md` Rule 2 — don't invent per-field finder methods.
 
-// Repository checks for transaction
-if tx, ok := base.TxFromContext(ctx); ok {
-    // Use transaction
-}
-```
+### Soft Delete
+`users.Person`, `users.Staff`, and `users.Teacher` carry `deleted_at` with bun's `soft_delete` tag: normal queries auto-filter soft-deleted rows. Staff deletion runs an offboarding service (not a bare delete). Keep this in mind when counting rows or writing raw SQL against these tables.
 
-### QueryOptions for Filtering
-```go
-options := base.NewQueryOptions()
-filter := base.NewFilter()
-filter.Equal("status", "active")
-filter.ILike("name", "%pattern%")
-filter.In("id", []int64{1, 2, 3})
-options.Filter = filter
-options.WithPagination(1, 50)
-```
+## Calendar Dates: timezone.Date (MANDATORY)
 
-## Database Schema Organization
+Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
-PostgreSQL schemas separate domain concerns:
-- `auth`: Authentication, tokens, permissions, roles
-- `users`: Persons, staff, students, teachers, guardians
-- `education`: Groups, substitutions, assignments
-- `facilities`: Rooms and locations
-- `activities`: Student activities and enrollments
-- `active`: Real-time visit and group tracking
-- `schedule`: Timeframes, dateframes, recurrence
-- `iot`: RFID devices
-- `feedback`: User feedback entries
-- `config`: Tenant-scoped settings (see below)
+## Tenant-Scoped Settings
 
-## Tenant-Scoped Settings System
-
-Registry-driven per-school configuration. Definitions are declared at init time in `services/config/defaults/*.go`, validated at startup, and served to the frontend as an auto-generated schema.
-
-**Key packages:**
-- `models/config/` — Key constants (`keys.go`) and `Definition` struct (`registry.go`)
-- `services/config/` — `SettingsService` (resolve/set/reset), `SchemaBuilder`, defaults registration
-- `database/repositories/config/` — `SettingValueRepository` + `SettingAuditRepository`
-- `api/config/` — HTTP handlers (GET /schema, PUT/DELETE /values/{key})
-
-**Critical pattern** — The service resolves as DB override → registry default only. It does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back manually:
-
-```go
-if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyMyNewSetting); err != nil {
-    slog.Warn("settings check failed", "key", configModel.KeyMyNewSetting, "error", err.Error())
-} else if has {
-    if val, err := settingsService.ResolveString(ctx, configModel.KeyMyNewSetting); err == nil && val != "" {
-        value = val
-    }
-}
-```
-
-**Where settings are consumed:**
-- **Scheduler** (`services/scheduler/scheduler.go`) — `resolveStringSetting`, `resolveBoolSetting`, `resolveIntSetting` helpers wrap the HasTenantOverride pattern. Iterates all active schools via `forEachTenantSettings()`.
-- **IoT Checkin** (`api/iot/checkin/helpers.go`) — `getStudentDailyCheckoutTime()` resolves per-tenant checkout time with env var fallback.
-- **Device Auth** (`api/iot/api.go`) — Resolves `security.ogs_device_pin` for PIN validation.
-
-**ResolveString vs ResolveStringForTenant:**
-
-| Method | When to use |
-|--------|-------------|
-| `ResolveString(ctx, key)` | Inside tenant middleware (ctx has tenant from JWT) |
-| `ResolveStringForTenant(ctx, tenantID, key)` | Outside tenant middleware (device auth, scheduler per-tenant loops) — wraps in its own `tenant.WithTenantTx` |
-
-**Full guide:** `.claude/rules/settings-system.md` — step-by-step for adding, editing, and deleting settings, all 11 registered settings, field types, permissions, frontend behavior, and DB schema.
+Per-school config resolves tenant DB override → registry default; the service does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. Use `Resolve*(ctx, key)` inside tenant middleware, `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler loops). Everything else — registry, field types, permissions, add/edit/delete workflows: `.claude/rules/settings-system.md`.
 
 ## Domain Knowledge
 
 ### RFID/IoT Integration
-- Two-layer auth: Device API key + Staff PIN
-- PINs stored in `auth.accounts` (Argon2id hashed)
-- Check-in/out tracked in `active.visits`
+- Two-layer auth: Device API key (`Authorization: Bearer`) + Staff PIN (`X-Staff-PIN`); devices authenticate without tenant JWTs but are scoped to one school (hence `Resolve*ForTenant` in device auth)
+- The `X-Staff-PIN` header is checked against the per-tenant `security.ogs_device_pin` setting via constant-time compare; per-account staff PINs (separate identity flows) are Argon2id-hashed
+- Check-in/out tracked in `active.visits`; scheduled statuses (sick/excused/class trip) in `active.student_status_days`
+- **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see root `CLAUDE.md` Ecosystem)
 
 ### GDPR/Privacy Patterns
-- Teachers see FULL data for students in their assigned groups
-- Other staff see ONLY names + responsible person (no birthdays, addresses)
-- Admin accounts for GDPR tasks only (not day-to-day ops)
-- Data retention: 1-31 days per student (default 30, NULL = 30)
-- Automated cleanup runs daily at 2:00 AM; manual: `go run main.go cleanup --dry-run`
-- All deletions logged in `audit.data_deletions` table
-- Key files: `models/users/privacy_consent.go`, `services/active/cleanup_service.go`, `auth/authorize/`
-
-```go
-// Student-specific retention
-type Student struct {
-    DataRetentionDays *int `bun:"data_retention_days"`  // NULL = 30 days
-}
-```
+- Student data visibility is permission-scoped: group supervisors see full data; the `gdpr.student_data_scope` setting controls read scope, with separate `has_full_access` (read) vs `has_write_access` (write) semantics
+- Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
+- Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see Development Commands for the exact CLI shapes — they differ per domain)
+- All deletions logged in `audit.data_deletions`
+- **Logging: no student names at Info level or above** (IDs only; names at Debug)
 
 ## Migration System
 
-```go
-// database/migrations/{number}_{name}.go
-var Dependencies = []string{
-    "001000001_auth_accounts",  // Required migrations
-}
-
-var Migration = `
-CREATE TABLE IF NOT EXISTS schema.table_name (...);
-`
-
-var Rollback = `DROP TABLE IF EXISTS schema.table_name CASCADE;`
-```
-
-## Testing Strategy
-
-### Running Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run specific package
-go test ./services/active/... -v
-
-# Run specific test
-go test ./services/active/... -run TestSessionConflict -v
-
-# Run with race detection
-go test -race ./...
-```
-
-### Shared Test Database Helper
-
-Use `testpkg.SetupTestDB(t)` from `test/helpers.go` - it automatically:
-1. Finds project root by walking up to `go.mod`
-2. Loads `.env` from project root
-3. Configures and connects to test database
-4. Skips test if no database is configured
+One file per migration, named with the **zero-padded numeric version prefix** — `001015124_my_feature.go` for version `1.15.124` (the collision scanner in `00_migrations.go` only recognizes `000`/`001`-prefixed filenames; never use the dotted version in the filename):
 
 ```go
-import testpkg "github.com/moto-nrw/project-phoenix/test"
+const (
+    myFeatureVersion     = "1.15.124"
+    myFeatureDescription = "What this migration does"
+)
 
-func TestSomething(t *testing.T) {
-    db := testpkg.SetupTestDB(t)  // Auto-loads .env, connects to test DB
-    defer db.Close()
-    // ... test code
+func init() {
+    MigrationRegistry.Register(&Migration{
+        Version:     myFeatureVersion,
+        Description: myFeatureDescription,
+        DependsOn:   []string{"1.15.119"},
+    })
+    Migrations.MustRegister(upFunc, downFunc)
 }
 ```
 
-**Available helpers in `test/helpers.go`:**
-- `FindProjectRoot()` - Walks up directory tree to find `go.mod`
-- `LoadTestEnv(t)` - Loads `.env` from project root
-- `SetupTestDB(t)` - Complete test DB setup (recommended)
+`MigrationRegistry` is a `SafeMigrationMap` — duplicate versions **panic at init**, so the binary won't start on a collision. `go run main.go migrate validate` checks the dependency graph in-memory. RLS never needs disabling in migrations (superuser connection — see root `CLAUDE.md` Critical Pattern 9).
 
-### Hermetic Testing Pattern
+## Testing — Hermetic Pattern (MANDATORY)
 
-Tests use real database fixtures instead of mocks. Each test creates its own data and cleans up after itself.
+All backend tests use real database fixtures, never hardcoded IDs. The CI gate `TestHermeticTestPatterns` (`backend/test/hermetic_verification_test.go`) fails on `int64(1)`-style IDs; mock-based test files must be added to its `skipPatterns` allowlist.
 
-**Shared fixtures in `test/fixtures.go`:**
 ```go
 import testpkg "github.com/moto-nrw/project-phoenix/test"
 
 func TestExample(t *testing.T) {
-    db := testpkg.SetupTestDB(t)
+    db := testpkg.SetupTestDB(t)   // finds project root, loads .env, connects to test DB, fails with setup instructions if absent
     defer db.Close()
 
-    // ARRANGE: Create real database records
+    // ARRANGE: real fixtures — reference returned IDs, never literals
     student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
     staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
-    device := testpkg.CreateTestDevice(t, db, "device-001")
-    activity := testpkg.CreateTestActivityGroup(t, db, "Activity Name")
-    room := testpkg.CreateTestRoom(t, db, "Room Name")
+    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, ...)
 
-    // Cleanup handles all fixture types automatically
-    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID, activity.ID, room.ID)
-
-    // ACT: Call the code under test
+    // ACT + ASSERT
     result, err := service.DoSomething(ctx, student.ID)
-
-    // ASSERT: Verify results
     require.NoError(t, err)
-    assert.NotNil(t, result)
 }
 ```
 
-**⚠️ Never use hardcoded IDs** like `int64(1)` - they cause "sql: no rows in result set" errors.
+- The fixture catalog lives in `test/fixtures.go` (`CreateTest*` + `Cleanup*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
+- Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
+- Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
+- Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.
 
-**Additional Auth Fixtures** (for policy/authorization tests):
-- `CreateTestAccount(t, db, "email")` - Auth account
-- `CreateTestPersonWithAccount(t, db, "first", "last")` - Person + Account
-- `CreateTestStudentWithAccount(t, db, "first", "last", "class")` - Student with auth
-- `CreateTestTeacherWithAccount(t, db, "first", "last")` - Full teacher chain with auth
-- `CreateTestGroupSupervisor(t, db, staffID, groupID, "role")` - Active supervision
+## Logging: slog Only (MANDATORY)
 
-### Test File Structure
-
-Tests using real database go in `package {name}_test` (external test package):
-```go
-package active_test  // External package - tests public API only
-
-import testpkg "github.com/moto-nrw/project-phoenix/test"
-
-func TestFeature(t *testing.T) {
-    db := testpkg.SetupTestDB(t)
-    defer db.Close()
-    // ...
-}
-```
-
-Pure model tests (no database) stay in `package active` (internal).
-
-## Common Linting Fixes
+All backend code uses `log/slog` via injected loggers — never logrus or `log.Printf`. `sloglint` enforces key-value style (`no-mixed-args`, `key-naming-case: snake`, `args-on-sep-lines`). Use the `backend-structured-logging` skill for detailed patterns.
 
 ```go
-// 1. Check errors (errcheck)
-if _, err := w.Write(data); err != nil {
-    log.Printf("write failed: %v", err)
-}
-
-// 2. Context keys (staticcheck)
-type contextKey string
-const userContextKey = contextKey("user")
-
-// 3. Remove unused assignments
-// 4. Implement or remove empty branches
+s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_case keys
 ```
 
-## API Error Response Pattern
-
-```go
-type ErrorResponse struct {
-    Status  string `json:"status"`   // "error"
-    Message string `json:"message"`  // Human-readable message
-    Code    string `json:"code,omitempty"`  // Machine-readable code
-}
-```
-
-## Environment Variables
-
-Key variables in `dev.env`:
-- `DB_DSN`: PostgreSQL connection (use `sslmode=require`)
-- `AUTH_JWT_SECRET`: JWT signing key
-- `DB_DEBUG=true`: Log SQL queries
-- `ENABLE_CORS=true`: For frontend development
-- `LOG_LEVEL=debug`: Logging verbosity
-
-Automated Cleanup Scheduler:
-- `CLEANUP_SCHEDULER_ENABLED=true`: Enable automated daily cleanup
-- `CLEANUP_SCHEDULER_TIME=02:00`: Time to run cleanup (24-hour format)
-- `CLEANUP_SCHEDULER_TIMEOUT_MINUTES=30`: Maximum cleanup duration
-
-## Seed Data
-
-Creates test data for development:
-- 24 rooms across different buildings
-- 25 groups (10 grade classes, 15 activities)
-- 150 persons (30 staff/teachers, 120 students)
-- Guardians, RFID cards, and relationships
-
-## SSL Security
-
-GDPR-compliant database connections:
-- Certificates in `../config/ssl/postgres/certs/`
-- Development: `sslmode=require`
-- Production: `sslmode=verify-full`
-- Run `create-certs.sh` before first use
-
-## RFID Integration
-
-- Device authentication endpoints
-- Real-time visit tracking
-- Room occupancy monitoring
-- Student check-in/check-out flows
+- Loggers flow through the factory: `services.NewFactory(repos, db, logger)`; services scope with `logger.With("service", "active")`
+- Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
+- **GDPR: student names never at Info level** — IDs only; names at Debug
+- Known exceptions (intentional `log.Printf`): `auth/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
 
 ## Real-Time Updates (SSE)
 
-Project Phoenix uses Server-Sent Events (SSE) for real-time notifications to supervisors about student movements and activity changes.
+- **Hub**: `backend/realtime/` (dependency-neutral package, `*slog.Logger` with nil-safe `getLogger()`). Single instance wired in `services.Factory`, injected into the active service (broadcasting) and the SSE API resource (connections).
+- **Endpoint**: `/api/sse/events` — JWT-authenticated, auto-subscribes the client to the active groups they supervise, 30s heartbeat.
+- **Broadcasting**: services fire events after data changes via `realtime.NewEvent(...)` + `BroadcastToGroup` — fire-and-forget, broadcast errors are logged and never block the operation. Per-client buffers are small and lossy (events drop when a client's channel is full), which is why clients refetch instead of trusting delivery. Broadcast points live in `services/active/` (visits, sessions, attendance).
+- **Event types**: authoritative list in `realtime/events.go` (student check-in/out, activity lifecycle, instance lifecycle, dashboard counts, supervision/arrival-schedule/settings changes). Frontend types mirror it in `frontend/src/lib/sse-types.ts` — keep both in sync.
+- Events are notification triggers, not payloads — clients refetch via bulk endpoints.
 
-### Architecture
+## Email
 
-**Hub Location**: `backend/realtime/` package (dependency-neutral to avoid circular imports)
+SMTP config via `EMAIL_SMTP_*`, `EMAIL_FROM_*`, `FRONTEND_URL`/`PARENTS_URL` (link bases). With SMTP unset, the factory falls back to `email.NewMockMailer()` which logs metadata (to/subject/template) instead of sending — local dev needs no SMTP. HTML templates live in `backend/templates/email/` (shared chrome: `styles.html`, `header.html`, `footer.html`; feature templates for invitations, password reset, MFA codes, enrollment notifications, operator flows). Email sends are async fire-and-forget; failures are logged, never block API responses. Password hashing/strength helpers: `services/auth/password_helpers.go` — reuse, don't duplicate.
 
-**Hub Lifecycle**:
-1. Instantiated in `services.Factory.RealtimeHub` (single shared instance)
-2. Injected into Active Service for broadcasting events
-3. Injected into SSE API Resource for managing client connections
+**Password-reset rate limit is a cross-layer contract**: 3 requests/hour per email; the backend's `429` + `Retry-After` header drives the live countdown in the frontend's password-reset modal (localStorage-persisted). Changing the window or header silently breaks that UX.
 
-**HTTP Endpoint**: `/api/sse/events` with JWT authentication
-- Validates JWT token on connection
-- Auto-discovers supervised groups via `GetStaffActiveSupervisions()`
-- Subscribes client to active groups they supervise
-- Sends heartbeat every 30 seconds to keep connection alive
+## Environment Variables
 
-### Event Broadcasting
-
-Services broadcast events after data changes using fire-and-forget pattern:
-
-```go
-// In services/active/active_service.go
-if s.broadcaster != nil {
-    event := realtime.NewEvent(
-        realtime.EventStudentCheckIn,
-        activeGroupID,
-        realtime.EventData{
-            StudentID:   &studentIDStr,
-            StudentName: &studentName,
-        },
-    )
-    _ = s.broadcaster.BroadcastToGroup(activeGroupID, event)
-}
-```
-
-**Broadcast Points**:
-- `CreateVisit` → `student_checkin` event
-- `EndVisit` → `student_checkout` event
-- `StartActivitySession` / `StartActivitySessionWithSupervisors` → `activity_start` event
-- `EndActivitySession` → `activity_end` event
-- `ProcessDueScheduledCheckouts` → `student_checkout` events
-
-**Error Handling**: Broadcast errors are logged but never block service operations (fire-and-forget)
-
-### Logging Requirements
-
-All SSE operations use `logging.Logger` with defensive nil checks:
-
-```go
-if logging.Logger != nil {
-    logging.Logger.WithFields(map[string]interface{}{
-        "user_id":           client.UserID,
-        "active_group_id":   activeGroupID,
-        "event_type":        string(event.Type),
-        "recipient_count":   len(clients),
-    }).Info("SSE event broadcast")
-}
-```
-
-**Log Fields**:
-- Client connect/disconnect: `user_id`, `subscribed_groups`, `total_clients`
-- Event broadcasts: `active_group_id`, `event_type`, `recipient_count`, `successful`
-- Channel full warnings: `user_id`, `active_group_id`, `event_type`
-
-### Performance
-
-- **Memory**: ~10KB per connection (100 connections = ~1MB overhead)
-- **Latency**: <1ms per broadcast (non-blocking channel sends)
-- **Buffer**: 10 events per client (older events skipped if channel full)
-
----
-
-## Backend Logging: Use slog Only (MANDATORY)
-
-**ABSOLUTE RULE: All backend Go code MUST use `log/slog` for logging. Never use `logrus`, `log.Printf`, or any other logging library.**
-
-The project completed a full migration from logrus to Go's stdlib `log/slog`. The `sloglint` linter enforces conventions at build time. Use the `backend-structured-logging` skill for detailed usage instructions.
-
-### How Logging Works
-
-1. `applog.New()` bootstraps a `*slog.Logger` at startup (`cmd/serve.go`)
-2. The logger is injected through the factory pattern: `services.NewFactory(repos, db, logger)`
-3. Services receive scoped loggers: `logger.With("service", "active")`
-4. Handlers receive loggers via their resource constructors
-
-### Rules
-
-**DO: Use injected logger**
-```go
-func NewService(repo SomeRepo, logger *slog.Logger) *Service {
-    return &Service{repo: repo, logger: logger}
-}
-
-func (s *Service) DoWork(ctx context.Context) error {
-    s.logger.Info("processing request", "item_id", id)
-    return nil
-}
-```
-
-**DO: Use key-value pairs (not positional strings)**
-```go
-// CORRECT
-slog.Info("user authenticated", "account_id", accountID, "method", "jwt")
-
-// WRONG
-slog.Info("user authenticated", accountID, "jwt")
-```
-
-**DO: Use snake_case for log keys**
-```go
-slog.Info("visit recorded", "student_id", sid, "group_id", gid)
-```
-
-**NEVER: Import logrus or use bare log.Printf**
-```go
-// FORBIDDEN
-logrus.Info("something")
-log.Printf("something")
-```
-
-**GDPR: Student names MUST NOT appear at Info level or above.**
-```go
-// CORRECT - use IDs at Info level
-s.logger.Info("student checked in", "student_id", studentID)
-
-// CORRECT - names only at Debug level
-s.logger.Debug("student details", "student_id", studentID, "name", name)
-```
-
-**Known Exceptions** (intentionally use `log.Printf`):
-- `auth/jwt/tokenauth.go` — startup config logging
-- `cmd/`, `seed/`, `simulator/` — routed through slog default at WARN level
-
-**Nil-Safe Logger Pattern:**
-```go
-func (s *MyStruct) getLogger() *slog.Logger {
-    if s.logger != nil {
-        return s.logger
-    }
-    return slog.Default()
-}
-```
-
-**Enforcement**: `sloglint` in `.golangci.yml` — `no-mixed-arguments`, `key-naming-case: snake`, `args-on-sep-lines`
-
----
-
-## Cryptographic Security Guidelines
-
-### Banned Algorithms (NEVER use)
-- **Hash**: MD2, MD4, MD5, SHA-0, SHA-1
-- **Symmetric**: RC2, RC4, Blowfish, DES, 3DES, AES-CBC, AES-ECB
-- **Signature**: RSA with PKCS#1 v1.5 padding
-- **Key Exchange**: Static RSA, Anonymous Diffie-Hellman, DHE with weak primes
-
-**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE
-
----
-
-## Certificate Best Practices
-
-When encountering X.509 certificate data (PEM strings, `.pem`/`.crt`/`.cer` files, or crypto library calls), perform these checks:
-
-1. **Expiration**: Flag certificates expired before today as CRITICAL
-2. **Key Strength**: RSA < 2048 bits or EC < P-256 curves are weak — flag as High-Priority
-3. **Signature Algorithm**: MD5 or SHA-1 signatures are insecure — flag as High-Priority
-4. **Self-Signed**: Issuer == Subject — flag as Informational (dev/testing only)
+Local dev config lives in `dev.env` (template: `dev.env.example`); Docker maps vars via the compose `environment:` block. **Gotcha**: code using `os.Getenv()` directly (migrations, scheduler, CORS) sees only the compose block, not `dev.env` — see `.claude/rules/env-docker-sync.md`. Useful dev flags: `DB_DEBUG=true` (SQL logging), `LOG_LEVEL=debug`. Per-tenant runtime behavior belongs in the settings system, not env vars.

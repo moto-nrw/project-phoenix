@@ -16,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -117,46 +118,51 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 
 	// Resolve tenant and run submit inside the tenant's tx. RLS on
 	// enrollment.* tables narrows writes to the resolved tenant.
+	//
+	// Every failure inside the closure MUST be returned from it: the
+	// service's inner TxHandler.RunInTx reuses this outer transaction and
+	// cannot roll back by itself, so swallowing the error here would
+	// commit partial writes while the client receives an error response.
+	// submitErr remembers which failures belong to the submit flow so the
+	// post-tx mapping can distinguish them from tenant-resolve failures.
 	var (
 		result    *enrollmentService.SubmitResult
 		submitErr error
 	)
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
-		if err != nil || school == nil || school.IsDeleted() {
-			return errors.New("tenant not found")
-		}
+	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
+	if resolveErr == nil {
+		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(tenantCtx context.Context, _ bun.Tx) error {
+			// Captcha gate runs before the DB write.
+			if err := rs.CaptchaService.Verify(tenantCtx, wireReq.CaptchaToken, remoteIP); err != nil {
+				submitErr = fmt.Errorf("captcha: %w", err)
+				return submitErr
+			}
 
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
+			serviceReq, parseErr := buildServiceRequest(wireReq, schoolID, remoteIP)
+			if parseErr != nil {
+				submitErr = parseErr
+				return submitErr
+			}
 
-		// Captcha gate runs before the DB write.
-		if err := rs.CaptchaService.Verify(tenantCtx, wireReq.CaptchaToken, remoteIP); err != nil {
-			submitErr = fmt.Errorf("captcha: %w", err)
+			// Hand off to the service; it joins the tenant transaction we
+			// opened, so returning its error rolls the whole submit back.
+			res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
+			if err != nil {
+				submitErr = err
+				return submitErr
+			}
+			result = res
 			return nil
-		}
-
-		serviceReq, parseErr := buildServiceRequest(wireReq, school.ID, remoteIP)
-		if parseErr != nil {
-			submitErr = parseErr
-			return nil
-		}
-
-		// Hand off to the service; it manages its own inner tx via
-		// TxHandler.RunInTx, picking up the tenant context we set.
-		res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
-		if err != nil {
-			submitErr = err
-			return nil
-		}
-		result = res
-		return nil
-	})
-	if resolveErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
-		return
+		})
 	}
+	// submitErr wins over resolveErr: when the closure failed, resolveErr
+	// carries the same error and the submit-specific mapping applies.
 	if submitErr != nil {
 		mapSubmitError(w, r, submitErr)
+		return
+	}
+	if resolveErr != nil {
+		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
 		return
 	}
 
@@ -182,7 +188,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		CustomData:        wireReq.CustomData,
 	}
 	for i, c := range wireReq.Children {
-		dob, err := time.Parse("2006-01-02", c.DateOfBirth)
+		dob, err := timezone.ParseDate(c.DateOfBirth)
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}

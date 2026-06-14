@@ -282,7 +282,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, planned.ID, notPlanned.ID, walkIn.ID, sick.ID, exceptionAbsent.ID, staff.ID, device.ID)
 
-	today := timezone.DateOfUTC(fixedNow)
+	today := timezone.DateFromTime(fixedNow)
 	pickupSchedule := testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
 	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 
@@ -589,6 +589,50 @@ func TestCreateStudent(t *testing.T) {
 		assert.True(t, resp.Data.BusDays[usersModel.BusDayMonday])
 		assert.True(t, resp.Data.BusDays[usersModel.BusDayWednesday])
 		assert.False(t, resp.Data.BusDays[usersModel.BusDayTuesday])
+	})
+
+	t.Run("success_creates_student_with_departure_days", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		body := map[string]interface{}{
+			"first_name":   "Departure",
+			"last_name":    "Create",
+			"school_class": "2b",
+			"departure_days": map[string]string{
+				"mon": "bus",
+				"wed": "pickup",
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusCreated, rr.Code, "Body: %s", rr.Body.String())
+
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		// Unified field round-trips, and the legacy mirrors are derived.
+		assert.Equal(t, usersModel.DepartureBus, resp.Data.DepartureDays.ModeFor("mon"))
+		assert.Equal(t, usersModel.DeparturePickup, resp.Data.DepartureDays.ModeFor("wed"))
+		assert.True(t, resp.Data.BusDays[usersModel.BusDayMonday])
+		assert.True(t, resp.Data.Bus)
+		assert.True(t, resp.Data.PickupDays[usersModel.PickupDayWednesday])
+		assert.Equal(t, usersModel.PickupStatusPickedUp, resp.Data.PickupStatus)
+	})
+
+	t.Run("bad_request_invalid_departure_mode", func(t *testing.T) {
+		body := map[string]interface{}{
+			"first_name":     "Invalid",
+			"last_name":      "Departure",
+			"school_class":   "2c",
+			"departure_days": map[string]string{"mon": "taxi"},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		testutil.AssertBadRequest(t, rr)
+		assert.Contains(t, rr.Body.String(), "taxi")
 	})
 
 	t.Run("bad_request_missing_first_name", func(t *testing.T) {
@@ -1107,7 +1151,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.students AS "student"`).
-			Set(`bus = ?`, true).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
 			Exec(testpkg.TenantContext(1))
@@ -1122,7 +1165,7 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayWednesday])
@@ -1149,13 +1192,45 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		require.Equal(t, http.StatusOK, rr.Code)
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
-		require.NotNil(t, fresh.Bus)
-		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayTuesday])
 		assert.True(t, fresh.BusDays[usersModel.BusDayThursday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayMonday])
+	})
+
+	t.Run("departure_days_update_replaces_plan_and_derives_mirrors", func(t *testing.T) {
+		requireStudentsBusDaysColumn(t, tc)
+
+		student := testpkg.CreateTestStudent(t, tc.db, "Departure", "Update", "DEP1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		// Seed an existing bus plan, then replace it via the unified field.
+		seed := map[string]interface{}{"bus_days": map[string]bool{"mon": true}}
+		seedReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), seed)
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		require.Equal(t, http.StatusOK, executeWithAuth(router, seedReq, testutil.AdminTestClaims(1), []string{"admin:*"}).Code)
+
+		body := map[string]interface{}{
+			"departure_days": map[string]string{"tue": "pickup", "thu": "bus"},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		// Unified replacement fully overrides the prior Monday bus day.
+		assert.Equal(t, usersModel.DeparturePickup, fresh.DepartureDays.ModeFor("tue"))
+		assert.Equal(t, usersModel.DepartureBus, fresh.DepartureDays.ModeFor("thu"))
+		assert.Equal(t, usersModel.DepartureAlone, fresh.DepartureDays.ModeFor("mon"))
+		// Derived legacy mirrors reflect the new plan.
+		assert.True(t, fresh.PickupDays[usersModel.PickupDayTuesday])
+		assert.True(t, fresh.BusDays[usersModel.BusDayThursday])
+		assert.False(t, fresh.BusDays[usersModel.BusDayMonday])
+		require.NotNil(t, fresh.PickupStatus)
+		assert.Equal(t, usersModel.PickupStatusPickedUp, *fresh.PickupStatus)
 	})
 
 	t.Run("invalid_bus_days_update_is_rejected_without_changing_state", func(t *testing.T) {
@@ -1169,7 +1244,6 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		}
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.students AS "student"`).
-			Set(`bus = ?`, true).
 			Set(`bus_days = ?`, existing).
 			Where(`"student".id = ?`, student.ID).
 			Exec(testpkg.TenantContext(1))
@@ -1188,10 +1262,9 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "sat")
 
-		fresh, err := tc.resource.StudentRepo.FindByID(testpkg.TenantContext(1), student.ID)
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
 		require.NoError(t, err)
-		require.NotNil(t, fresh.Bus)
-		assert.True(t, *fresh.Bus)
+		assert.True(t, fresh.BusDays.HasAny())
 		assert.True(t, fresh.BusDays[usersModel.BusDayMonday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayTuesday])
 		assert.False(t, fresh.BusDays[usersModel.BusDayWednesday])

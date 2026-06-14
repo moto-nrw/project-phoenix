@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestActivationSummary(t *testing.T) {
 	if got := activationSummary(immediate); got != "Sofort" {
 		t.Errorf("immediate = %q, want Sofort", got)
 	}
-	on := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	on := timezone.NewDate(2026, 8, 1)
 	dated := &enrollmentModels.RequestChild{ActivationMode: enrollmentModels.ChildActivationScheduled, ActivateOn: &on}
 	if got := activationSummary(dated); got != "Geplant (01.08.2026)" {
 		t.Errorf("dated = %q, want 'Geplant (01.08.2026)'", got)
@@ -133,6 +134,35 @@ func TestFormatCustomValue_WeekdayBoolean_GermanWeekOrder(t *testing.T) {
 	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayBoolean}
 	raw := map[string]any{"fri": true, "mon": true, "wed": false}
 	assert.Equal(t, "Mo, Fr", formatCustomValue(field, raw))
+}
+
+func TestFormatCustomValue_WeekdayMode_GermanLabels(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	raw := map[string]any{"mon": "bus", "wed": "pickup", "thu": "alone"}
+	// Week order, alone/unset days skipped.
+	assert.Equal(t, "Mo: fährt Bus, Mi: wird abgeholt", formatCustomValue(field, raw))
+}
+
+func TestFormatCustomValue_WeekdayMode_AllAloneIsExplicit(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	raw := map[string]any{
+		"mon": "alone",
+		"tue": "alone",
+		"wed": "alone",
+		"thu": "alone",
+		"fri": "alone",
+	}
+	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, raw))
+}
+
+func TestFormatCustomValue_WeekdayMode_EmptyMapIsExplicitAllAlone(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	assert.Equal(t, "Geht immer alleine", formatCustomValue(field, map[string]any{}))
+}
+
+func TestFormatCustomValue_WeekdayMode_NilStaysMissing(t *testing.T) {
+	field := enrollmentModels.FormField{Type: enrollmentModels.FormFieldWeekdayMode}
+	assert.Empty(t, formatCustomValue(field, nil))
 }
 
 func TestFormatPhoneList_FallsBackOnGarbage(t *testing.T) {

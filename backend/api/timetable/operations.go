@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -17,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -57,9 +55,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
-	date := timezone.TodayUTC()
+	date := timezone.TodayDate()
 	if raw := r.URL.Query().Get("date"); raw != "" {
-		parsed, err := time.Parse(dateLayout, raw)
+		parsed, err := timezone.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
@@ -151,7 +149,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.operationsService == nil {
+	if rs.instanceService == nil || rs.operationsService == nil || rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return
 	}
@@ -171,16 +169,14 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
 		return
 	}
-	if rs.activeGroupRepo != nil {
-		hasRoomConflict, _, err := rs.activeGroupRepo.CheckRoomConflict(r.Context(), req.RoomID, 0)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
-			return
-		}
-		if hasRoomConflict {
-			common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
-			return
-		}
+	hasRoomConflict, _, err := rs.timetableData.CheckRoomConflict(r.Context(), req.RoomID, 0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+		return
+	}
+	if hasRoomConflict {
+		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+		return
 	}
 
 	currentStaffID := rs.resolveStartedByStaffID(r.Context())
@@ -232,7 +228,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 }
 
 type spontaneousActivityWindow struct {
-	date      time.Time
+	date      timezone.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -250,13 +246,13 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 	if requestedID != nil {
 		return requestedID, nil
 	}
-	if rs.activityGroupRepo == nil || rs.activityCategoryRepo == nil {
+	if rs.timetableData == nil {
 		return nil, errors.New("activity repositories are not wired")
 	}
 	if err := rs.lockSpontaneousActivityName(ctx, title); err != nil {
 		return nil, err
 	}
-	if existing, err := rs.activityGroupRepo.FindByName(ctx, title); err == nil && existing != nil {
+	if existing, err := rs.timetableData.GetActivityGroupByName(ctx, title); err == nil && existing != nil {
 		return &existing.ID, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -276,7 +272,7 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 		IsTemplate:      false,
 	}
 	group.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.activityGroupRepo.Create(ctx, group); err != nil {
+	if err := rs.timetableData.CreateActivityGroup(ctx, group); err != nil {
 		return nil, err
 	}
 	return &group.ID, nil
@@ -287,7 +283,7 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 	if err := rs.lockSpontaneousActivityCategory(ctx); err != nil {
 		return nil, err
 	}
-	if existing, err := rs.activityCategoryRepo.FindByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
+	if existing, err := rs.timetableData.GetActivityCategoryByName(ctx, spontaneousCategoryName); err == nil && existing != nil {
 		return existing, nil
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -299,7 +295,7 @@ func (rs *Resource) ensureSpontaneousActivityCategory(ctx context.Context) (*act
 		Color:       "#83CD2D",
 	}
 	category.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.activityCategoryRepo.Create(ctx, category); err != nil {
+	if err := rs.timetableData.CreateActivityCategory(ctx, category); err != nil {
 		return nil, err
 	}
 	return category, nil
@@ -311,7 +307,7 @@ func serverSpontaneousActivityWindow(now time.Time) spontaneousActivityWindow {
 	startMinutes := min(currentMinutes, 23*60+30)
 	endMinutes := min(startMinutes+60, 23*60+59)
 	return spontaneousActivityWindow{
-		date:      timezone.DateOfUTC(now),
+		date:      timezone.DateFromTime(now),
 		startTime: clockTimeFromMinutes(startMinutes),
 		endTime:   clockTimeFromMinutes(endMinutes),
 	}
@@ -322,54 +318,15 @@ func clockTimeFromMinutes(minutes int) time.Time {
 }
 
 func (rs *Resource) lockSpontaneousStartRoom(ctx context.Context, roomID int64) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
-		if rs.db == nil {
-			return nil
-		}
-		return errors.New("tenant transaction is required")
-	}
-	key := fmt.Sprintf("timetable:spontaneous-start-room:%d:%d", tenantID, roomID)
-	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
-	return err
+	return rs.timetableData.LockSpontaneousStartRoom(ctx, roomID)
 }
 
 func (rs *Resource) lockSpontaneousActivityName(ctx context.Context, name string) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
-		if rs.db == nil {
-			return nil
-		}
-		return errors.New("tenant transaction is required")
-	}
-	key := fmt.Sprintf("timetable:spontaneous-activity-name:%d:%s", tenantID, strings.ToLower(strings.TrimSpace(name)))
-	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
-	return err
+	return rs.timetableData.LockSpontaneousActivityName(ctx, name)
 }
 
 func (rs *Resource) lockSpontaneousActivityCategory(ctx context.Context) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	tx, ok := modelBase.TxFromContext(ctx)
-	if !ok || tx == nil {
-		if rs.db == nil {
-			return nil
-		}
-		return errors.New("tenant transaction is required")
-	}
-	key := fmt.Sprintf("timetable:spontaneous-activity-category:%d", tenantID)
-	_, err := (*tx).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
-	return err
+	return rs.timetableData.LockSpontaneousActivityCategory(ctx)
 }
 
 func (rs *Resource) operationsCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -410,6 +367,10 @@ func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
 	instanceID, studentID, ok := parseOperationInstanceStudentIDs(w, r)
 	if !ok {
 		return
@@ -424,6 +385,10 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 }
 
 func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.operationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
 	instanceID, studentID, ok := parseOperationInstanceStudentIDs(w, r)
 	if !ok {
 		return

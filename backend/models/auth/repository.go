@@ -22,6 +22,9 @@ type AccountRepository interface {
 	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	// AnonymizeForDeletion overwrites the email with an anonymized
+	// placeholder and clears the username (GDPR person deletion).
+	AnonymizeForDeletion(ctx context.Context, accountID int64, anonymizedEmail string) error
 	// IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
 	// mfa_locked_until = now() + lockoutDuration when the post-increment
 	// value reaches threshold. The CAS-style UPDATE means N concurrent
@@ -160,6 +163,7 @@ type AccountPermissionRepository interface {
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
+	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
 }
 
@@ -350,6 +354,7 @@ type OrgAccountInfo struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
+	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)

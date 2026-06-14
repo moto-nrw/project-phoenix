@@ -41,7 +41,7 @@ type createInstanceRequest struct {
 
 type parsedCreateInstanceRequest struct {
 	req       *createInstanceRequest
-	date      time.Time
+	date      timezone.Date
 	startTime time.Time
 	endTime   time.Time
 }
@@ -123,8 +123,7 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 
 // createInstance handles POST /api/timetable/instances.
 func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.activityInstanceRepo == nil ||
-		rs.instanceStaffRepo == nil || rs.instanceStudentRepo == nil {
+	if rs.instanceService == nil || rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -144,7 +143,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
-		Date:             timezone.DateOfUTC(parsed.date),
+		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,
 		Title:            req.Title,

@@ -30,9 +30,6 @@ type PersonService interface {
 	// Delete removes a person
 	Delete(ctx context.Context, id interface{}) error
 
-	// DeleteStaff removes a staff member after checking for active supervisions
-	DeleteStaff(ctx context.Context, staffID int64) error
-
 	// List retrieves persons matching the provided query options
 	List(ctx context.Context, options *base.QueryOptions) ([]*userModels.Person, error)
 
@@ -63,14 +60,77 @@ type PersonService interface {
 	// FindByGuardianID finds all persons with a guardian relationship to the specified account
 	FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error)
 
-	// StudentRepository returns the student repository
-	StudentRepository() userModels.StudentRepository
+	// Entity lookups (issue #584). These replaced the now-deleted repository
+	// getters (StudentRepository/StaffRepository/TeacherRepository). CONTRACT: each method returns the
+	// repository result and error VERBATIM — no wrapping, no sentinel mapping —
+	// because callers (IoT device flows, PyrePortal contract) branch on
+	// sql.ErrNoRows and render err.Error() into response bodies. Introducing
+	// typed errors is follow-up work; see backend-conventions rule 8 deviation
+	// note in the #584 PR description.
 
-	// StaffRepository returns the staff repository
-	StaffRepository() userModels.StaffRepository
+	// GetStaffByID retrieves a staff member by ID.
+	GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error)
 
-	// TeacherRepository returns the teacher repository
-	TeacherRepository() userModels.TeacherRepository
+	// GetStaffByPersonID retrieves the staff record belonging to a person.
+	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+
+	// GetStaffWithPerson retrieves a staff member with person data preloaded.
+	GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error)
+
+	// GetStaffWithPersonByIDs retrieves multiple staff with person data preloaded.
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
+
+	// ListStaffWithPerson retrieves all staff with person data preloaded.
+	ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+
+	// ListStaffByRoles retrieves staff holding any of the given roles, with
+	// person data, account ID, and email.
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
+
+	// GetTeacherByStaffID retrieves the teacher record for a staff member.
+	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
+
+	// GetTeachersByStaffIDs retrieves teacher records for multiple staff members.
+	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
+
+	// GetTeachersBySpecialization retrieves teachers by specialization.
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
+
+	// GetTeacherWithStaffAndPerson retrieves a teacher with staff and person preloaded.
+	GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error)
+
+	// ListTeachersWithStaffAndPerson retrieves all teachers with staff and person preloaded.
+	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
+
+	// GetStudentByID retrieves a student by ID.
+	GetStudentByID(ctx context.Context, id int64) (*userModels.Student, error)
+
+	// GetStudentByPersonID retrieves the student record belonging to a person.
+	GetStudentByPersonID(ctx context.Context, personID int64) (*userModels.Student, error)
+
+	// GetStudentsByIDs retrieves multiple students by ID.
+	GetStudentsByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
+
+	// GetStudentsByGroupID retrieves the students of a group.
+	GetStudentsByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error)
+
+	// GetStudentsByGroupIDs retrieves the students of multiple groups.
+	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+
+	// CountStudentsByGroupIDs counts students per group in a single query.
+	CountStudentsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
+
+	// CreateStaffWithTeacher creates a staff record and, when requested, a
+	// teacher record in one tenant transaction. A failed teacher creation is
+	// deliberately non-fatal (teacherCreationFailed=true, teacher=nil): the
+	// staff row still persists, mirroring the historical api/staff behaviour.
+	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
+
+	// UpdateStaffWithTeacher persists the (already mutated) staff row,
+	// reloads it with person data, and applies the requested teacher-record
+	// change. Teacher-record failures are non-fatal and reported through the
+	// returned TeacherAction; the staff update always persists.
+	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
 
 	// ListAvailableRFIDCards returns RFID cards that are not assigned to any person
 	ListAvailableRFIDCards(ctx context.Context) ([]*userModels.RFIDCard, error)
@@ -87,6 +147,43 @@ type PersonService interface {
 
 	// GetAllStudentsWithGroups retrieves all students with their group info
 	GetAllStudentsWithGroups(ctx context.Context) ([]StudentWithGroup, error)
+}
+
+// CreateStaffInput carries the payload for CreateStaffWithTeacher.
+type CreateStaffInput struct {
+	PersonID       int64
+	StaffNotes     string
+	IsTeacher      bool
+	Specialization string
+	Role           string
+	Qualifications string
+}
+
+// TeacherAction describes the teacher-record outcome of UpdateStaffWithTeacher.
+type TeacherAction int
+
+const (
+	// TeacherActionNone — not a teacher request and no existing teacher record.
+	TeacherActionNone TeacherAction = iota
+	// TeacherActionExisting — not a teacher request, existing record untouched.
+	TeacherActionExisting
+	// TeacherActionUpdated — existing teacher record updated.
+	TeacherActionUpdated
+	// TeacherActionUpdateFailed — teacher update failed; staff update persisted.
+	TeacherActionUpdateFailed
+	// TeacherActionCreated — new teacher record created.
+	TeacherActionCreated
+	// TeacherActionCreateFailed — teacher creation failed; staff update persisted.
+	TeacherActionCreateFailed
+)
+
+// StaffOffboardingService fully offboards a staff member within a tenant:
+// soft-deletes the staff/teacher rows, cleans up planned assignments, and
+// revokes the linked account's access for the tenant.
+type StaffOffboardingService interface {
+	// OffboardStaff offboards the staff member. deletedBy is the acting
+	// account's username for the audit trail ("system" if empty).
+	OffboardStaff(ctx context.Context, staffID int64, deletedBy string) error
 }
 
 // CaregiverCapabilityService manages the operational caregiver capability of an

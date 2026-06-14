@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -141,7 +142,7 @@ func (r *RequestChildRepository) LinkCreatedStudent(ctx context.Context, request
 // UpdateActivationPlan records the approval-time lifecycle decision on
 // the child row. Submission rows start with the schema default; approval is
 // the first point where the tenant setting and phase dates are authoritative.
-func (r *RequestChildRepository) UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *time.Time) error {
+func (r *RequestChildRepository) UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error {
 	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*enrollment.RequestChild)(nil)).
 		ModelTableExpr(requestChildTableExpr).

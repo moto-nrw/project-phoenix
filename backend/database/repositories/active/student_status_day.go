@@ -36,7 +36,9 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 			entry.SetTenantID(tid)
 		}
 	}
-	entry.Date = timezone.DateOfUTC(entry.Date)
+	if entry.Date.IsZero() {
+		return fmt.Errorf("student status day date is required")
+	}
 
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(entry).
@@ -64,15 +66,14 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 	return nil
 }
 
-func (r *StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date time.Time, clearedAt time.Time, source string) error {
-	dateOnly := timezone.DateOfUTC(date)
+func (r *StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.StudentStatusDay)(nil)).
 		ModelTableExpr("active.student_status_days").
 		Set("cleared_at = ?", clearedAt).
 		Set("source = ?", source).
 		Where("student_id = ?", studentID).
-		Where("date = ?", dateOnly).
+		Where("date = ?", date).
 		Where("status = ?", status).
 		Where("cleared_at IS NULL")
 
@@ -105,23 +106,19 @@ func (r *StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int
 	return nil
 }
 
-func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []time.Time, clearedAt time.Time, source string) error {
+func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error {
 	if len(dates) == 0 {
 		return nil
 	}
 
-	dateOnly := make([]time.Time, 0, len(dates))
-	seen := make(map[time.Time]struct{}, len(dates))
+	dateOnly := make([]timezone.Date, 0, len(dates))
+	seen := make(map[timezone.Date]struct{}, len(dates))
 	for _, date := range dates {
-		normalized := timezone.DateOfUTC(date)
-		if _, ok := seen[normalized]; ok {
+		if _, ok := seen[date]; ok {
 			continue
 		}
-		seen[normalized] = struct{}{}
-		dateOnly = append(dateOnly, normalized)
-	}
-	if len(dateOnly) == 0 {
-		return nil
+		seen[date] = struct{}{}
+		dateOnly = append(dateOnly, date)
 	}
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
@@ -165,7 +162,7 @@ func (r *StudentStatusDayRepository) FindActiveByID(ctx context.Context, id int6
 	return entry, nil
 }
 
-func (r *StudentStatusDayRepository) FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*active.StudentStatusDay, error) {
+func (r *StudentStatusDayRepository) FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*active.StudentStatusDay, error) {
 	entries, err := r.findByStudentAndDateRange(ctx, studentID, startDate, endDate, true)
 	if err != nil {
 		return nil, err
@@ -173,18 +170,17 @@ func (r *StudentStatusDayRepository) FindActiveByStudentAndDateRange(ctx context
 	return entries, nil
 }
 
-func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date time.Time) ([]*active.StudentStatusDay, error) {
+func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*active.StudentStatusDay, error) {
 	if len(studentIDs) == 0 {
 		return []*active.StudentStatusDay{}, nil
 	}
 
-	dateOnly := timezone.DateOfUTC(date)
 	var entries []*active.StudentStatusDay
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
 		Where(`"student_status_day".student_id IN (?)`, bun.List(studentIDs)).
-		Where(`"student_status_day".date = ?`, dateOnly).
+		Where(`"student_status_day".date = ?`, date).
 		Where(`"student_status_day".cleared_at IS NULL`).
 		OrderExpr(`"student_status_day".student_id ASC`).
 		OrderExpr(`"student_status_day".reported_at DESC`)
@@ -199,21 +195,19 @@ func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.C
 	return entries, nil
 }
 
-func (r *StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time) ([]*active.StudentStatusDay, error) {
+func (r *StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*active.StudentStatusDay, error) {
 	return r.findByStudentAndDateRange(ctx, studentID, startDate, endDate, false)
 }
 
-func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate time.Time, activeOnly bool) ([]*active.StudentStatusDay, error) {
+func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date, activeOnly bool) ([]*active.StudentStatusDay, error) {
 	var entries []*active.StudentStatusDay
-	startOnly := timezone.DateOfUTC(startDate)
-	endOnly := timezone.DateOfUTC(endDate)
 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&entries).
 		ModelTableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
 		Where(`"student_status_day".student_id = ?`, studentID).
-		Where(`"student_status_day".date >= ?`, startOnly).
-		Where(`"student_status_day".date <= ?`, endOnly).
+		Where(`"student_status_day".date >= ?`, startDate).
+		Where(`"student_status_day".date <= ?`, endDate).
 		OrderExpr(`"student_status_day".date DESC`).
 		OrderExpr(`"student_status_day".reported_at DESC`)
 
@@ -229,4 +223,90 @@ func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Conte
 		return nil, &modelBase.DatabaseError{Op: "find student status days by date range", Err: err}
 	}
 	return entries, nil
+}
+
+// ArchiveAndClearStatusFlag archives the given legacy student status flag
+// into active.student_status_days for the given date (upsert) and then
+// clears the flag + its timestamp on users.students for every flagged
+// student. Returns the number of students cleared.
+//
+// Custom raw-SQL method (backend-conventions Rule 2/11 exception): the
+// INSERT...SELECT upsert spans users.students → active.student_status_days
+// and is not expressible through the generic shape. Column names are
+// interpolated but MUST be trusted constants from the scheduler's fixed
+// flag set ("sick"/"sick_since", "excused"/"excused_since") — never user
+// input. Tenant scoping comes from the caller's per-tenant RLS transaction.
+func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
+	ctx context.Context,
+	flagColumn, sinceColumn, status string,
+	date timezone.Date,
+	reportedFallback time.Time,
+	source string,
+) (int64, error) {
+	db := base.GetDB(ctx, r.db)
+
+	upsertQuery := fmt.Sprintf(`
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, cleared_at, source)
+		SELECT tenant_id, id, ?, ?, COALESCE(%s, ?), ?, ?
+		FROM users.students
+		WHERE %s = TRUE
+		ON CONFLICT (tenant_id, student_id, date, status) DO UPDATE
+		SET reported_at = EXCLUDED.reported_at,
+		    cleared_at = EXCLUDED.cleared_at,
+		    source = EXCLUDED.source;
+	`, sinceColumn, flagColumn)
+	if _, err := db.NewRaw(upsertQuery, date, status, reportedFallback, reportedFallback, source).Exec(ctx); err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "archive status flag",
+			Err: err,
+		}
+	}
+
+	clearQuery := fmt.Sprintf(
+		`UPDATE users.students SET %s = FALSE, %s = NULL WHERE %s = TRUE`,
+		flagColumn, sinceColumn, flagColumn,
+	)
+	res, err := db.NewRaw(clearQuery).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "clear status flag",
+			Err: err,
+		}
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "clear status flag rows affected",
+			Err: err,
+		}
+	}
+	return affected, nil
+}
+
+// CountActiveClassTripStudents counts distinct students with an uncleared
+// class-trip status entry for the date, excluding students currently flagged
+// sick or excused. Custom method (backend-conventions Rule 2): join on
+// users.students with COALESCE flag predicates for the dashboard analytics.
+func (r *StudentStatusDayRepository) CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error) {
+	var count int
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`active.student_status_days AS "student_status_day"`).
+		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
+		Where(`"student_status_day".date = ?`, date).
+		Where(`"student_status_day".status = ?`, active.StudentStatusDayClassTrip).
+		Where(`"student_status_day".cleared_at IS NULL`).
+		Where(`COALESCE("student".sick, FALSE) = FALSE`).
+		Where(`COALESCE("student".excused, FALSE) = FALSE`).
+		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`)
+	if where, val, ok := base.TenantWhere(ctx, "student_status_day"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx, &count); err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "count active class trip students",
+			Err: err,
+		}
+	}
+	return count, nil
 }

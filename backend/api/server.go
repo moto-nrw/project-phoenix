@@ -74,6 +74,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.Feedback != nil {
 			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)
 		}
+		if api.Services.UnregisteredTagScans != nil {
+			srv.scheduler.SetUnregisteredTagScanCleaner(api.Services.UnregisteredTagScans)
+		}
 		if api.Services.Materialization != nil {
 			srv.scheduler.SetMaterializer(api.Services.Materialization)
 		}
@@ -92,6 +95,12 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		// repo and a broadcaster — either missing disables the tick.
 		if api.repos != nil && api.Services.RealtimeHub != nil {
 			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
+		}
+		// Daily session-end bridge: closes schedule-side rows for ended
+		// active.groups via repositories (issue #585 layering).
+		if api.repos != nil {
+			srv.scheduler.SetTimetableBridgeRepos(api.repos.InstanceStudent, api.repos.ActivityInstance)
+			srv.scheduler.SetStudentStatusDayRepo(api.repos.StudentStatusDay)
 		}
 		// Parent-enrollment PR 2: activate-students tick.
 		if api.repos != nil && api.repos.Student != nil {

@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -51,49 +51,36 @@ func scheduleValidationErrorf(format string, args ...any) error {
 
 // Resource defines the staff API resource
 type Resource struct {
-	PersonService       usersSvc.PersonService
-	StaffRepo           users.StaffRepository
-	TeacherRepo         users.TeacherRepository
-	EducationService    educationSvc.Service
-	AuthService         authSvc.AuthService
-	GroupSupervisorRepo active.GroupSupervisorRepository
-	WorkSessionService  activeSvc.WorkSessionService
-	StaffAbsenceService activeSvc.StaffAbsenceService
-	AbsenceRepo         active.StaffAbsenceRepository
-	ScheduleRepo        config.StaffWorkScheduleRepository
-	WorkTimeModelRepo   config.WorkTimeModelRepository
-	db                  *bun.DB
-	logger              *slog.Logger
+	PersonService           usersSvc.PersonService
+	StaffOffboardingService usersSvc.StaffOffboardingService
+	EducationService        educationSvc.Service
+	AuthService             authSvc.AuthService
+	WorkSessionService      activeSvc.WorkSessionService
+	StaffAbsenceService     activeSvc.StaffAbsenceService
+	db                      *bun.DB
+	logger                  *slog.Logger
 }
 
 // NewResource creates a new staff resource
 func NewResource(
 	personService usersSvc.PersonService,
+	staffOffboardingService usersSvc.StaffOffboardingService,
 	educationService educationSvc.Service,
 	authService authSvc.AuthService,
-	groupSupervisorRepo active.GroupSupervisorRepository,
 	workSessionService activeSvc.WorkSessionService,
 	staffAbsenceService activeSvc.StaffAbsenceService,
-	absenceRepo active.StaffAbsenceRepository,
-	scheduleRepo config.StaffWorkScheduleRepository,
-	workTimeModelRepo config.WorkTimeModelRepository,
 	db *bun.DB,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
-		PersonService:       personService,
-		StaffRepo:           personService.StaffRepository(),
-		TeacherRepo:         personService.TeacherRepository(),
-		EducationService:    educationService,
-		AuthService:         authService,
-		GroupSupervisorRepo: groupSupervisorRepo,
-		WorkSessionService:  workSessionService,
-		StaffAbsenceService: staffAbsenceService,
-		AbsenceRepo:         absenceRepo,
-		ScheduleRepo:        scheduleRepo,
-		WorkTimeModelRepo:   workTimeModelRepo,
-		db:                  db,
-		logger:              logger,
+		PersonService:           personService,
+		StaffOffboardingService: staffOffboardingService,
+		EducationService:        educationService,
+		AuthService:             authService,
+		WorkSessionService:      workSessionService,
+		StaffAbsenceService:     staffAbsenceService,
+		db:                      db,
+		logger:                  logger,
 	}
 }
 
@@ -310,7 +297,7 @@ func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*u
 		return nil, false
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return nil, false
@@ -406,10 +393,10 @@ func (rs *Resource) loadWorkStatusMap(ctx context.Context) map[int64]string {
 
 // loadAbsenceMap loads absence status map (non-critical, returns empty map on error)
 func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
-	if rs.AbsenceRepo == nil {
+	if rs.StaffAbsenceService == nil {
 		return make(map[int64]string)
 	}
-	am, err := rs.AbsenceRepo.GetTodayAbsenceMap(ctx)
+	am, err := rs.StaffAbsenceService.GetTodayAbsenceMap(ctx)
 	if err != nil {
 		rs.getLogger().Warn("failed to fetch absence map", slog.String("error", err.Error()))
 		return make(map[int64]string)
@@ -502,7 +489,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get all staff members with person data in a single query (avoids N+1)
-	staffMembers, err := rs.StaffRepo.ListAllWithPerson(ctx)
+	staffMembers, err := rs.PersonService.ListStaffWithPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -515,14 +502,14 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Batch-load all teachers in a single query (avoids N+1)
-	teacherMap, err := rs.TeacherRepo.FindByStaffIDs(ctx, staffIDs)
+	teacherMap, err := rs.PersonService.GetTeachersByStaffIDs(ctx, staffIDs)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
 	// Batch-load staff who had supervision activity today (for "Anwesend" status)
-	presentStaffIDs, err := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(ctx)
+	presentStaffIDs, err := rs.WorkSessionService.GetStaffIDsWithSupervisionToday(ctx)
 	if err != nil {
 		// Log warning but continue - presence status is non-critical
 		rs.getLogger().Warn("failed to fetch present staff IDs", slog.String("error", err.Error()))
@@ -563,7 +550,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get staff member with person data using FindWithPerson method
-	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
@@ -605,7 +592,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Resolve presence/work-status/absence to keep detail consistent with the list view.
 	// These maps cover all staff today; we just look up our single ID.
 	wasPresentToday := false
-	if presentIDs, presentErr := rs.GroupSupervisorRepo.GetStaffIDsWithSupervisionToday(r.Context()); presentErr == nil {
+	if presentIDs, presentErr := rs.WorkSessionService.GetStaffIDsWithSupervisionToday(r.Context()); presentErr == nil {
 		wasPresentToday = slices.Contains(presentIDs, staff.ID)
 	} else {
 		rs.getLogger().Warn("failed to fetch present staff IDs",
@@ -619,7 +606,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	isTeacher := false
 	var teacher *users.Teacher
 
-	teacher, err = rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, err = rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
@@ -665,52 +652,28 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create staff
-	staff := &users.Staff{
-		PersonID:   req.PersonID,
-		StaffNotes: req.StaffNotes,
-	}
-
 	// Create staff record (and optionally teacher) in tenant transaction
-	isTeacher := req.IsTeacher
-	var teacher *users.Teacher
-	var teacherCreationFailed bool
-
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.StaffRepo.Create(ctx, staff); err != nil {
-			return err
-		}
-
-		// If request indicates this is a teacher, create teacher record as well
-		if isTeacher {
-			teacher = &users.Teacher{
-				StaffID:        staff.ID,
-				Specialization: strings.TrimSpace(req.Specialization),
-				Role:           req.Role,
-				Qualifications: req.Qualifications,
-			}
-
-			if rs.TeacherRepo.Create(ctx, teacher) != nil {
-				// Still return staff member even if teacher creation fails
-				isTeacher = false
-				teacherCreationFailed = true
-			}
-		}
-
-		// Grant groups:read permission if they have an account
-		if person.AccountID != nil {
-			if isTeacher {
-				rs.grantDefaultPermissions(ctx, *person.AccountID, "teacher")
-			} else if !teacherCreationFailed {
-				rs.grantDefaultPermissions(ctx, *person.AccountID, "staff")
-			}
-		}
-
-		return nil
-	}); err != nil {
+	staff, teacher, teacherCreationFailed, err := rs.PersonService.CreateStaffWithTeacher(r.Context(), usersSvc.CreateStaffInput{
+		PersonID:       req.PersonID,
+		StaffNotes:     req.StaffNotes,
+		IsTeacher:      req.IsTeacher,
+		Specialization: req.Specialization,
+		Role:           req.Role,
+		Qualifications: req.Qualifications,
+	})
+	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
+	}
+	isTeacher := teacher != nil
+
+	// Grant groups:read permission if they have an account
+	if person.AccountID != nil {
+		if isTeacher {
+			rs.grantDefaultPermissions(r.Context(), *person.AccountID, "teacher")
+		} else if !teacherCreationFailed {
+			rs.grantDefaultPermissions(r.Context(), *person.AccountID, "staff")
+		}
 	}
 
 	// Set person data for response
@@ -747,7 +710,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
@@ -764,29 +727,29 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	var response interface{}
-	var message string
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.StaffRepo.Update(ctx, staff); err != nil {
-			return err
-		}
-
-		// Reload staff with person data
-		rs.reloadStaffWithPerson(ctx, staff, id)
-
-		// Get existing teacher record if any
-		teacher, _ := rs.TeacherRepo.FindByStaffID(ctx, staff.ID)
-
-		// Handle teacher record based on request
-		response, message = rs.buildUpdateStaffResponse(ctx, staff, req, teacher)
-		return nil
-	}); err != nil {
+	teacher, action, err := rs.PersonService.UpdateStaffWithTeacher(r.Context(), staff, req.IsTeacher, req.Specialization, req.Role, req.Qualifications)
+	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
 	}
 
+	response, message := updateStaffResponseFor(staff, teacher, action)
 	common.Respond(w, r, http.StatusOK, response, message)
+}
+
+// updateStaffResponseFor maps the teacher-record outcome of the update to the
+// endpoint's historical response/message contract.
+func updateStaffResponseFor(staff *users.Staff, teacher *users.Teacher, action usersSvc.TeacherAction) (interface{}, string) {
+	switch action {
+	case usersSvc.TeacherActionUpdated, usersSvc.TeacherActionCreated, usersSvc.TeacherActionExisting:
+		return newTeacherResponse(staff, teacher, false, "", "", "", "", ""), "Teacher updated successfully"
+	case usersSvc.TeacherActionUpdateFailed:
+		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to update teacher record"
+	case usersSvc.TeacherActionCreateFailed:
+		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully, but failed to create teacher record"
+	default:
+		return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
+	}
 }
 
 // updateStaffPerson validates and updates the person ID for a staff member
@@ -800,55 +763,22 @@ func (rs *Resource) updateStaffPerson(ctx context.Context, staff *users.Staff, p
 	return nil
 }
 
-// reloadStaffWithPerson attempts to reload staff with person data
-func (rs *Resource) reloadStaffWithPerson(ctx context.Context, staff *users.Staff, id int64) {
-	reloaded, err := rs.StaffRepo.FindWithPerson(ctx, id)
-	if err == nil {
-		*staff = *reloaded
-		return
-	}
-	// Fallback: load person separately
-	if staff.Person == nil && staff.PersonID > 0 {
-		if person, err := rs.PersonService.Get(ctx, staff.PersonID); err == nil {
-			staff.Person = person
-		}
-	}
-}
-
-// buildUpdateStaffResponse builds the appropriate response for staff update
-func (rs *Resource) buildUpdateStaffResponse(
-	ctx context.Context,
-	staff *users.Staff,
-	req *StaffRequest,
-	existingTeacher *users.Teacher,
-) (interface{}, string) {
-	// Handle teacher record creation/update
-	if req.IsTeacher {
-		response, message, _ := rs.handleTeacherRecordUpdate(ctx, staff, req, existingTeacher)
-		return response, message
-	}
-
-	// Return existing teacher response if they have a teacher record
-	if existingTeacher != nil {
-		return newTeacherResponse(staff, existingTeacher, false, "", "", "", "", ""), "Teacher updated successfully"
-	}
-
-	return newStaffResponse(staff, false, false, "", "", "", "", ""), "Staff member updated successfully"
-}
-
-// deleteStaff handles deleting a staff member
+// deleteStaff handles offboarding a staff member: soft-deletes the staff and
+// teacher rows and revokes the linked account's access for this tenant.
 func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseInt64IDWithError(w, r, "id", common.MsgInvalidStaffID)
 	if !ok {
 		return
 	}
 
+	deletedBy := jwt.ClaimsFromCtx(r.Context()).Username
+
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.PersonService.DeleteStaff(ctx, id)
+		return rs.StaffOffboardingService.OffboardStaff(ctx, id, deletedBy)
 	}); err != nil {
 		if errors.Is(err, usersSvc.ErrStaffInUse) {
-			common.RenderError(w, r, common.ErrorConflict(err))
+			common.RenderError(w, r, common.ErrorConflictMessage(usersSvc.ErrStaffInUse.Error()))
 			return
 		}
 		if common.IsConstraintViolation(err) {
@@ -870,7 +800,7 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.FindWithPerson(r.Context(), id)
+	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
 	if err != nil || staff == nil {
 		http.NotFound(w, r)
 		return
@@ -907,7 +837,7 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this staff member is a teacher
-	teacher, err := rs.TeacherRepo.FindByStaffID(r.Context(), staff.ID)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err != nil || teacher == nil {
 		// If not a teacher, return empty groups list
 		common.Respond(w, r, http.StatusOK, []GroupResponse{}, "Staff member is not a teacher and has no assigned groups")
@@ -946,7 +876,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get all teachers with staff and person data in a single query (avoids N+1)
-	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
+	teachers, err := rs.PersonService.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -1026,8 +956,8 @@ func buildSubstitutionInfoList(subs []*education.GroupSubstitution) []Substituti
 			ID:         sub.ID,
 			GroupID:    sub.GroupID,
 			IsTransfer: sub.Duration() == 1,
-			StartDate:  sub.StartDate.Format(common.DateFormatISO),
-			EndDate:    sub.EndDate.Format(common.DateFormatISO),
+			StartDate:  sub.StartDate.String(),
+			EndDate:    sub.EndDate.String(),
 		}
 		if sub.Group != nil {
 			info.GroupName = sub.Group.Name
@@ -1091,9 +1021,9 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	searchTerm := r.URL.Query().Get("search")
 	ctx := r.Context()
 
-	date := time.Now()
+	date := timezone.TodayDate()
 	if dateStr != "" {
-		if parsedDate, err := time.Parse(common.DateFormatISO, dateStr); err == nil {
+		if parsedDate, err := timezone.ParseDate(dateStr); err == nil {
 			date = parsedDate
 		}
 	}
@@ -1105,7 +1035,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 	}
 
 	// Keep the richer teacher payload, but only for canonical caregivers.
-	teachers, err := rs.TeacherRepo.ListAllWithStaffAndPerson(ctx)
+	teachers, err := rs.PersonService.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -1119,7 +1049,7 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 }
 
 // buildSubstitutionMap creates a map of staff IDs to their active substitutions
-func (rs *Resource) buildSubstitutionMap(ctx context.Context, date time.Time) map[int64][]*education.GroupSubstitution {
+func (rs *Resource) buildSubstitutionMap(ctx context.Context, date timezone.Date) map[int64][]*education.GroupSubstitution {
 	result := make(map[int64][]*education.GroupSubstitution)
 	if rs.EducationService == nil {
 		return result
@@ -1204,7 +1134,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	// Ensure the account belongs to a staff member (admins without person records are allowed)
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
 	if err == nil && person != nil {
-		if _, err := rs.StaffRepo.FindByPersonID(r.Context(), person.ID); err != nil {
+		if _, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID); err != nil {
 			common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings")))
 			return
 		}
@@ -1311,7 +1241,7 @@ func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) re
 		return nil // No person = likely admin, allow
 	}
 
-	if _, err := rs.StaffRepo.FindByPersonID(ctx, person.ID); err != nil {
+	if _, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID); err != nil {
 		return ErrorForbidden(errors.New("only staff members can manage PIN settings"))
 	}
 	return nil
@@ -1417,7 +1347,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staffByRoles, err := rs.StaffRepo.ListStaffByRoles(ctx, roles)
+	staffByRoles, err := rs.PersonService.ListStaffByRoles(ctx, roles)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return
@@ -1571,7 +1501,7 @@ func (rs *Resource) getSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
@@ -1602,7 +1532,7 @@ func (rs *Resource) canReadSchedule(ctx context.Context, staffID int64) bool {
 	if err != nil {
 		return false
 	}
-	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return false
 	}
@@ -1617,7 +1547,7 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	staff, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	staff, err := rs.PersonService.GetStaffByID(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
@@ -1644,7 +1574,7 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("model_id is required for mode=template")))
 			return
 		}
-		if err := rs.assignTemplateToStaff(r.Context(), staff, *req.ModelID); err != nil {
+		if err := rs.WorkSessionService.AssignScheduleTemplate(r.Context(), staff, *req.ModelID); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
@@ -1662,7 +1592,7 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	refreshed, err := rs.StaffRepo.FindByID(r.Context(), staffID)
+	refreshed, err := rs.PersonService.GetStaffByID(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -1678,7 +1608,7 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
 	if staff.WorkTimeModelID != nil && *staff.WorkTimeModelID > 0 {
-		model, err := rs.WorkTimeModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
+		model, err := rs.WorkSessionService.GetWorkTimeModelByID(ctx, *staff.WorkTimeModelID)
 		if err != nil {
 			return nil, fmt.Errorf("load assigned model: %w", err)
 		}
@@ -1687,7 +1617,7 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 			anchor = *staff.RotationAnchorDate
 		}
 
-		rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+		rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
 		if err != nil {
 			return nil, fmt.Errorf("load assigned schedule snapshot: %w", err)
 		}
@@ -1705,29 +1635,29 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 				ID:                 model.ID,
 				Name:               model.Name,
 				RotationLength:     model.RotationLength,
-				RotationAnchorDate: model.RotationAnchorDate.Format("2006-01-02"),
+				RotationAnchorDate: model.RotationAnchorDate.String(),
 			},
 			RotationLength:     rotation,
-			RotationAnchorDate: anchor.Format("2006-01-02"),
+			RotationAnchorDate: anchor.String(),
 			Entries:            entries,
 			WeeklyTotals:       totals,
 		}, nil
 	}
 
-	rows, err := rs.ScheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
+	rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load custom schedule: %w", err)
 	}
 
 	entries, totals, rotation := scheduleRowsToResponseParts(rows)
-	var earliest *time.Time
+	var earliest *timezone.Date
 	for _, row := range rows {
 		if earliest == nil || row.ValidFrom.Before(*earliest) {
 			vf := row.ValidFrom
 			earliest = &vf
 		}
 	}
-	anchor := time.Time{}
+	anchor := timezone.Date{}
 	if staff.RotationAnchorDate != nil {
 		anchor = *staff.RotationAnchorDate
 	} else if earliest != nil {
@@ -1736,34 +1666,23 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 	resp := &ScheduleResponse{
 		Mode:               "custom",
 		RotationLength:     rotation,
-		RotationAnchorDate: anchor.Format("2006-01-02"),
+		RotationAnchorDate: anchorString(anchor),
 		Entries:            entries,
 		WeeklyTotals:       totals,
 	}
 	if earliest != nil {
-		resp.ValidFrom = earliest.Format("2006-01-02")
+		resp.ValidFrom = earliest.String()
 	}
 	return resp, nil
 }
 
-func (rs *Resource) assignTemplateToStaff(ctx context.Context, staff *users.Staff, modelID int64) error {
-	model, err := rs.WorkTimeModelRepo.FindByID(ctx, modelID)
-	if err != nil {
-		return fmt.Errorf("template not found: %w", err)
+// anchorString renders a rotation anchor; the zero Date (no anchor and no
+// schedule rows, only possible with rotation_length 1) renders empty.
+func anchorString(anchor timezone.Date) string {
+	if anchor.IsZero() {
+		return ""
 	}
-
-	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
-	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
-		return fmt.Errorf("write assigned schedule snapshot: %w", err)
-	}
-
-	staff.WorkTimeModelID = &model.ID
-	anchor := model.RotationAnchorDate
-	staff.RotationAnchorDate = &anchor
-	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
-		return fmt.Errorf("bind template to staff: %w", err)
-	}
-	return nil
+	return anchor.String()
 }
 
 func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff, req scheduleUpdateRequest) error {
@@ -1775,9 +1694,9 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 		return scheduleValidationErrorf("rotation_length must be between 1 and %d", config.WorkTimeModelMaxRotation)
 	}
 
-	anchor := time.Time{}
+	anchor := timezone.Date{}
 	if req.RotationAnchorDate != "" {
-		parsed, err := time.Parse("2006-01-02", req.RotationAnchorDate)
+		parsed, err := timezone.ParseDate(req.RotationAnchorDate)
 		if err != nil {
 			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
 		}
@@ -1790,25 +1709,13 @@ func (rs *Resource) applyCustomSchedule(ctx context.Context, staff *users.Staff,
 	}
 
 	if req.SaveAsTemplateName != "" {
-		if err := rs.saveCustomAsTemplate(ctx, staff, req.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+		if err := rs.WorkSessionService.SaveCustomScheduleAsTemplate(ctx, staff, req.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
 			return fmt.Errorf("save as template: %w", err)
 		}
 		return nil
 	}
 
-	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
-		return fmt.Errorf("write custom schedule: %w", err)
-	}
-
-	staff.WorkTimeModelID = nil
-	if !anchor.IsZero() {
-		staff.RotationAnchorDate = &anchor
-	}
-	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
-		return fmt.Errorf("unbind template: %w", err)
-	}
-
-	return nil
+	return rs.WorkSessionService.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
 }
 
 func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*config.StaffWorkSchedule, []*config.WorkTimeModelEntry, error) {
@@ -1835,31 +1742,6 @@ func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*c
 		})
 	}
 	return entries, templateEntries, nil
-}
-
-func (rs *Resource) saveCustomAsTemplate(ctx context.Context, staff *users.Staff, name string, rotation int, anchor time.Time, entries []*config.WorkTimeModelEntry) error {
-	if anchor.IsZero() {
-		anchor = time.Now().Truncate(24 * time.Hour)
-	}
-	model := &config.WorkTimeModel{
-		Name:               name,
-		RotationLength:     rotation,
-		RotationAnchorDate: anchor,
-	}
-	if err := rs.WorkTimeModelRepo.Create(ctx, model, entries); err != nil {
-		return err
-	}
-	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := rs.ScheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
-		return fmt.Errorf("write saved template schedule snapshot: %w", err)
-	}
-
-	staff.WorkTimeModelID = &model.ID
-	staff.RotationAnchorDate = &anchor
-	if err := rs.StaffRepo.Update(ctx, staff); err != nil {
-		return fmt.Errorf("bind freshly created template: %w", err)
-	}
-	return nil
 }
 
 func scheduleRowsToResponseParts(rows []*config.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int) {
@@ -1906,22 +1788,6 @@ func modelEntriesToResponseParts(modelEntries []*config.WorkTimeModelEntry, rota
 	return entries, totals
 }
 
-func modelEntriesToScheduleRows(modelEntries []*config.WorkTimeModelEntry, rotation int) []*config.StaffWorkSchedule {
-	rows := make([]*config.StaffWorkSchedule, 0, len(modelEntries))
-	for _, e := range modelEntries {
-		if e.TargetMinutes <= 0 {
-			continue
-		}
-		rows = append(rows, &config.StaffWorkSchedule{
-			WeekIndex:      e.WeekIndex,
-			RotationLength: rotation,
-			DayOfWeek:      e.DayOfWeek,
-			TargetMinutes:  e.TargetMinutes,
-		})
-	}
-	return rows
-}
-
 func validateScheduleEntryRequest(e ScheduleEntryRequest, rotation int, seenSlots map[string]struct{}) error {
 	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
 		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
@@ -1949,7 +1815,7 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify staff exists
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -1962,13 +1828,13 @@ func (rs *Resource) getStaffHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -1994,7 +1860,7 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -2005,12 +1871,12 @@ func (rs *Resource) exportStaffSessions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
 		return
 	}
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -2201,7 +2067,7 @@ func (rs *Resource) resolveEditorStaffID(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("person not found for account: %w", err)
 	}
-	staff, err := rs.StaffRepo.FindByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		return 0, fmt.Errorf("staff not found for editor account: %w", err)
 	}
@@ -2318,7 +2184,7 @@ func (rs *Resource) getStaffSessionEdits(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -2355,7 +2221,7 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := rs.StaffRepo.FindByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -2367,13 +2233,13 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from, err := time.Parse(common.DateFormatISO, fromStr)
+	from, err := timezone.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := time.Parse(common.DateFormatISO, toStr)
+	to, err := timezone.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return

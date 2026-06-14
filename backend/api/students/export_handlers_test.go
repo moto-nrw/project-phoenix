@@ -96,6 +96,20 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 	}
 }
 
+func TestApplyExportFiltersClassTripStatus(t *testing.T) {
+	students := []StudentResponse{
+		{ID: 101, ClassTrip: true},
+		{ID: 102, Excused: true},
+		{ID: 103, Sick: true},
+		{ID: 104, Location: "Zuhause"},
+	}
+
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"})
+
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(101), got[0].ID)
+}
+
 func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *testing.T) {
 	now := time.Now()
 	responses := []StudentResponse{
@@ -230,12 +244,14 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 		Bus:          "yes",
 		PhotoConsent: "no",
 		PickupStatus: "self",
+		Status:       "klassenfahrt",
 		DayStatus:    DayPlanningStatusNotComingToday,
 	})
 
 	assert.Contains(t, labels, "Buskind")
 	assert.Contains(t, labels, "Keine Fotoerlaubnis")
 	assert.Contains(t, labels, "Abholregelung: Geht alleine nach Hause")
+	assert.Contains(t, labels, "Momentaufnahme: Klassenfahrt")
 	assert.Contains(t, labels, "Tagesplanung: Kommt heute nicht")
 }
 
@@ -283,6 +299,34 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := weeklyCell(tt.plan, schedule.WeekdayMonday); got != tt.want {
 				t.Fatalf("weeklyCell() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDepartureSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		days users.DepartureDays
+		want string
+	}{
+		{
+			name: "mixed modes in week order, alone days skipped",
+			days: users.DepartureDays{
+				users.PickupDayMonday:    users.DepartureBus,
+				users.PickupDayWednesday: users.DeparturePickup,
+				users.PickupDayThursday:  users.DepartureAlone,
+			},
+			want: "Mo: Bus, Mi: Abholung",
+		},
+		{name: "empty plan", days: users.DepartureDays{}, want: "Geht alleine"},
+		{name: "nil plan", days: nil, want: "Geht alleine"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := departureSummary(tt.days); got != tt.want {
+				t.Fatalf("departureSummary() = %q, want %q", got, tt.want)
 			}
 		})
 	}

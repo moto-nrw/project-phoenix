@@ -2,15 +2,14 @@ package test
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"golang.org/x/crypto/argon2"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -50,6 +49,59 @@ func cleanupDelete(tb testing.TB, query *bun.DeleteQuery, table string) {
 	if err != nil {
 		tb.Logf("cleanup %s: %v", table, err)
 	}
+}
+
+func withCleanupTenant(query *bun.DeleteQuery, tenantID int64) *bun.DeleteQuery {
+	if tenantID <= 0 {
+		return query
+	}
+	return query.Where("tenant_id = ?", tenantID)
+}
+
+func deleteStaffCaregiverBindings(
+	tb testing.TB,
+	db *bun.DB,
+	staffID int64,
+	teacherID int64,
+	tenantID int64,
+) {
+	tb.Helper()
+
+	if staffID <= 0 {
+		return
+	}
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("active.group_supervisors").
+		Where("staff_id = ?", staffID), tenantID),
+		"active.group_supervisors")
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("activities.supervisors").
+		Where("staff_id = ?", staffID), tenantID),
+		"activities.supervisors")
+
+	cleanupDelete(tb, withCleanupTenant(db.NewDelete().
+		TableExpr("education.group_substitution").
+		Where("regular_staff_id = ? OR substitute_staff_id = ?", staffID, staffID), tenantID),
+		"education.group_substitution")
+
+	groupTeacherDelete := db.NewDelete().TableExpr("education.group_teacher")
+	if teacherID > 0 {
+		groupTeacherDelete = groupTeacherDelete.Where("teacher_id = ?", teacherID)
+	} else if tenantID > 0 {
+		groupTeacherDelete = groupTeacherDelete.Where(
+			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ? AND tenant_id = ?)",
+			staffID,
+			tenantID,
+		)
+	} else {
+		groupTeacherDelete = groupTeacherDelete.Where(
+			"teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ?)",
+			staffID,
+		)
+	}
+	cleanupDelete(tb, withCleanupTenant(groupTeacherDelete, tenantID), "education.group_teacher")
 }
 
 // Fixture helpers for hermetic testing. Each helper creates a real database record
@@ -316,9 +368,7 @@ func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceI
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use TodayUTC() so the DATE column gets UTC midnight of the Berlin calendar
-	// date, matching how performCheckIn stores attendance records in production.
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 
 	attendance := &active.Attendance{
 		StudentID:    studentID,
@@ -387,19 +437,19 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// Education domain cleanup (FK-dependent order)
 		// ========================================
 
-		// Delete from education.group_substitution (depends on group and staff)
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("education.group_substitution").
-			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"education.group_substitution")
-
 		// Delete from education.group_teacher (depends on group and teacher)
 		cleanupDelete(tb, db.NewDelete().
 			TableExpr("education.group_teacher").
 			Where("group_id = ? OR teacher_id = ?", id, id).
 			Where("tenant_id = ?", tenantID),
 			"education.group_teacher")
+
+		// Delete from education.group_substitution (depends on group and staff)
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("education.group_substitution").
+			Where("group_id = ? OR regular_staff_id = ? OR substitute_staff_id = ?", id, id, id).
+			Where("tenant_id = ?", tenantID),
+			"education.group_substitution")
 
 		// Delete from users.teachers (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
@@ -433,6 +483,16 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("tenant_id = ?", tenantID),
 			"active.visits (cascade)")
 
+		// Delete from active.group_supervisors before active.groups or users.staff
+		// can cascade into it. Match only FK columns: matching the row's own
+		// PK against a generic entity ID can delete unrelated supervisor rows
+		// when auto-increment IDs collide across domains.
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("active.group_supervisors").
+			Where("staff_id = ? OR group_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"active.group_supervisors")
+
 		// Delete from active.groups by direct ID or by reference.
 		// room_id reference is required so facilities.rooms can be deleted
 		// without tripping fk_active_groups_room_tenant.
@@ -445,6 +505,14 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		// ========================================
 		// Activities domain cleanup
 		// ========================================
+
+		// Delete from activities.supervisors before activities.groups or
+		// users.staff can cascade into it.
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr("activities.supervisors").
+			Where("staff_id = ? OR group_id = ?", id, id).
+			Where("tenant_id = ?", tenantID),
+			"activities.supervisors")
 
 		// Delete from activities.student_enrollments (depends on activities.groups)
 		cleanupDelete(tb, db.NewDelete().
@@ -561,17 +629,6 @@ func CleanupActivityFixturesForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 			Where("id != ?", 1).
 			Where("tenant_id = ?", tenantID),
 			tableUsersPersons)
-
-		// ========================================
-		// Active domain cleanup (continued)
-		// ========================================
-
-		// Delete from active.group_supervisors
-		cleanupDelete(tb, db.NewDelete().
-			TableExpr("active.group_supervisors").
-			Where("id = ? OR staff_id = ? OR group_id = ?", id, id, id).
-			Where("tenant_id = ?", tenantID),
-			"active.group_supervisors")
 
 		// NOTE: Auth domain cleanup intentionally omitted here.
 		// Use CleanupAuthFixtures(accountIDs...) for auth cleanup.
@@ -845,7 +902,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
-		StartDate: time.Now(),
+		StartDate: timezone.TodayDate(),
 	}
 	supervisor.SetTenantID(1)
 
@@ -902,13 +959,16 @@ func CleanupStaffFixtures(tb testing.TB, db *bun.DB, staffIDs ...int64) {
 		// Use TableExpr and ColumnExpr to generate valid SQL
 		var staff struct {
 			PersonID int64 `bun:"person_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&staff).
 			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
+			ColumnExpr("person_id", "tenant_id").
 			Where(whereIDEquals, staffID).
 			Scan(ctx)
+
+		deleteStaffCaregiverBindings(tb, db, staffID, 0, staff.TenantID)
 
 		// Delete teacher if exists (depends on staff)
 		cleanupDelete(tb, db.NewDelete().
@@ -949,23 +1009,25 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 		// Get the teacher to find the staff ID
 		// Use TableExpr and ColumnExpr to generate valid SQL
 		var teacher struct {
-			StaffID int64 `bun:"staff_id"`
+			StaffID  int64 `bun:"staff_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&teacher).
 			TableExpr(tableUsersTeachers).
-			ColumnExpr("staff_id").
+			ColumnExpr("staff_id", "tenant_id").
 			Where(whereIDEquals, teacherID).
 			Scan(ctx)
 
 		// Get the staff to find the person ID and account ID
 		var staff struct {
 			PersonID int64 `bun:"person_id"`
+			TenantID int64 `bun:"tenant_id"`
 		}
 		_ = db.NewSelect().
 			Model(&staff).
 			TableExpr(tableUsersStaff).
-			ColumnExpr("person_id").
+			ColumnExpr("person_id", "tenant_id").
 			Where(whereIDEquals, teacher.StaffID).
 			Scan(ctx)
 
@@ -979,6 +1041,12 @@ func CleanupTeacherFixtures(tb testing.TB, db *bun.DB, teacherIDs ...int64) {
 			ColumnExpr("account_id").
 			Where(whereIDEquals, staff.PersonID).
 			Scan(ctx)
+
+		tenantID := teacher.TenantID
+		if tenantID == 0 {
+			tenantID = staff.TenantID
+		}
+		deleteStaffCaregiverBindings(tb, db, teacher.StaffID, teacherID, tenantID)
 
 		// Delete teacher
 		cleanupDelete(tb, db.NewDelete().
@@ -1089,40 +1157,37 @@ func CreateTestAccountWithPassword(tb testing.TB, db *bun.DB, email, password st
 	return account
 }
 
-// hashPassword hashes a password using Argon2id (matches auth/userpass)
-func hashPassword(password string) (string, error) {
-	// Import the userpass package inline to hash the password
-	// This uses the same algorithm as the auth service
-	params := &argon2Params{
-		memory:      64 * 1024,
-		iterations:  1,
-		parallelism: 2,
-		saltLength:  16,
-		keyLength:   32,
-	}
+var (
+	hashCacheMu sync.Mutex
+	hashCache   = map[string]string{}
+)
 
-	salt := make([]byte, params.saltLength)
-	if _, err := rand.Read(salt); err != nil {
+// hashPassword returns an Argon2id hash for the password, memoizing per
+// password string. Fixtures reuse a handful of passwords across thousands
+// of tests, and each uncached hash costs real CPU and memory. Reused salts
+// are fine for test data; verification decodes params and salt from the
+// hash itself. The mutex is held across the hash on purpose so concurrent
+// requests for the same password compute it once.
+func hashPassword(password string) (string, error) {
+	hashCacheMu.Lock()
+	defer hashCacheMu.Unlock()
+	if h, ok := hashCache[password]; ok {
+		return h, nil
+	}
+	h, err := hashPasswordUncached(password)
+	if err != nil {
 		return "", err
 	}
-
-	hash := argon2.IDKey([]byte(password), salt, params.iterations, params.memory, params.parallelism, params.keyLength)
-
-	// Encode as $argon2id$v=19$m=65536,t=1,p=2$<salt>$<hash>
-	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
-
-	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, params.memory, params.iterations, params.parallelism, b64Salt, b64Hash), nil
+	hashCache[password] = h
+	return h, nil
 }
 
-// argon2Params holds parameters for Argon2id hashing
-type argon2Params struct {
-	memory      uint32
-	iterations  uint32
-	parallelism uint8
-	saltLength  uint32
-	keyLength   uint32
+// hashPasswordUncached hashes a password with the same algorithm as the
+// auth service, using the cheap test-only params: these are throwaway test
+// credentials, and the params travel inside the encoded hash, so
+// verification still works.
+func hashPasswordUncached(password string) (string, error) {
+	return userpass.HashPassword(password, cheapArgon2Params)
 }
 
 // CreateTestPersonWithAccount creates a person linked to an account.
@@ -1494,7 +1559,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate time.Time) *education.GroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *education.GroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2253,7 +2318,7 @@ func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 
 	entry := &feedback.Entry{
 		Value:     feedback.ValuePositive,
-		Day:       now,
+		Day:       timezone.DateFromTime(now),
 		Time:      now,
 		StudentID: studentID,
 	}
@@ -2570,7 +2635,7 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 
 // CreateTestArrivalException inserts a date-specific arrival exception.
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
-func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
+func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, arrivalHHMM, reason string) *schedule.StudentArrivalException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2578,7 +2643,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &schedule.StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2623,7 +2688,7 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 
 // CreateTestPickupException inserts a date-specific pickup exception.
 // Pass pickupHHMM="" for absence (PickupTime=NULL).
-func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date time.Time, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
+func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, staffID int64, pickupHHMM, reason string) *schedule.StudentPickupException {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2631,7 +2696,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &schedule.StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.DateOfUTC(date),
+		ExceptionDate: date,
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2666,7 +2731,7 @@ type ActivityInstanceOpts struct {
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
 // Activity group / active group / status default to a planned template-backed
 // instance; override via opts for lifecycle-edge tests.
-func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
+func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, roomID int64, opts ActivityInstanceOpts) *schedule.ActivityInstance {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2690,7 +2755,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date time.Time, roomI
 	}
 
 	row := &schedule.ActivityInstance{
-		Date:            timezone.DateOfUTC(date),
+		Date:            date,
 		ActivityGroupID: opts.ActivityGroupID,
 		ActiveGroupID:   opts.ActiveGroupID,
 		Title:           title,

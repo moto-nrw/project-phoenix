@@ -9,23 +9,29 @@ import (
 )
 
 func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDayResponse {
-	label := "Krank"
-	if entry.Status == active.StudentStatusDayExcused {
-		label = "Entschuldigt"
-	}
-
 	return StudentStatusDayResponse{
 		ID:         entry.ID,
 		StudentID:  entry.StudentID,
-		Date:       entry.Date.Format(dateFormatYYYYMMDD),
+		Date:       entry.Date.String(),
 		Status:     entry.Status,
-		Label:      label,
+		Label:      studentStatusDayLabel(entry.Status),
 		ReportedAt: entry.ReportedAt,
 		ClearedAt:  entry.ClearedAt,
 		Source:     entry.Source,
 		Note:       entry.Note,
 		CreatedAt:  entry.CreatedAt,
 		UpdatedAt:  entry.UpdatedAt,
+	}
+}
+
+func studentStatusDayLabel(status string) string {
+	switch status {
+	case active.StudentStatusDaySick:
+		return "Krank"
+	case active.StudentStatusDayClassTrip:
+		return "Klassenfahrt"
+	default:
+		return "Entschuldigt"
 	}
 }
 
@@ -53,7 +59,7 @@ func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows
 }
 
 func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []StudentResponse, now time.Time) {
-	if rs.StudentStatusDayRepo == nil || len(responses) == 0 {
+	if rs.StudentStatusDayService == nil || len(responses) == 0 {
 		return
 	}
 
@@ -61,7 +67,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	for _, response := range responses {
 		studentIDs = append(studentIDs, response.ID)
 	}
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateOfUTC(now))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateFromTime(now))
 	if err != nil {
 		if rs.Logger != nil {
 			rs.Logger.Warn("failed to apply student status days to responses", "error", err.Error())
@@ -72,11 +78,11 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 }
 
 func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, response *StudentResponse, now time.Time) {
-	if response == nil || rs.StudentStatusDayRepo == nil {
+	if response == nil || rs.StudentStatusDayService == nil {
 		return
 	}
-	date := timezone.DateOfUTC(now)
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(ctx, response.ID, date, date)
+	date := timezone.DateFromTime(now)
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(ctx, response.ID, date, date)
 	if err != nil {
 		if rs.Logger != nil {
 			rs.Logger.Warn(
@@ -96,12 +102,17 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 	}
 
 	var sickRow *active.StudentStatusDay
+	var classTripRow *active.StudentStatusDay
 	var excusedRow *active.StudentStatusDay
 	for _, row := range statusRows {
 		switch row.Status {
 		case active.StudentStatusDaySick:
 			if sickRow == nil || row.ReportedAt.After(sickRow.ReportedAt) {
 				sickRow = row
+			}
+		case active.StudentStatusDayClassTrip:
+			if classTripRow == nil || row.ReportedAt.After(classTripRow.ReportedAt) {
+				classTripRow = row
 			}
 		case active.StudentStatusDayExcused:
 			if excusedRow == nil || row.ReportedAt.After(excusedRow.ReportedAt) {
@@ -113,6 +124,18 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 	if sickRow != nil {
 		response.Sick = true
 		response.SickSince = statusDayTimePtr(sickRow.ReportedAt)
+		response.ClassTrip = false
+		response.ClassTripSince = nil
+		response.Excused = false
+		response.ExcusedSince = nil
+		return
+	}
+
+	if classTripRow != nil {
+		response.ClassTrip = true
+		response.ClassTripSince = statusDayTimePtr(classTripRow.ReportedAt)
+		response.Sick = false
+		response.SickSince = nil
 		response.Excused = false
 		response.ExcusedSince = nil
 		return

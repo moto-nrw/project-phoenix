@@ -7,12 +7,16 @@
     "import",
     "promise"
   ],
+  "jsPlugins": [
+    "./scripts/oxlint-plugin-date-safety.mjs"
+  ],
   "categories": {
     "correctness": "error",
     "perf": "error",
     "suspicious": "warn"
   },
   "rules": {
+    "date-safety/no-utc-date-extraction": "error",
     "react/react-in-jsx-scope": "off",
     "no-unsafe-type-assertion": "off",
     "import/no-unassigned-import": "off",

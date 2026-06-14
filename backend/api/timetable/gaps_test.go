@@ -14,9 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -47,11 +45,8 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo: scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaffRepo:    scheduleRepo.NewInstanceStaffRepository(db),
-		SupervisorRepo:       activeRepo.NewGroupSupervisorRepository(db),
-		StaffRepo:            usersRepo.NewStaffRepository(db),
-		DB:                   db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &gapsSetup{res: res, db: db, ctx: ctx, roomID: room.ID, cleanupFn: cleanup}
@@ -94,9 +89,9 @@ func decodeGaps(t *testing.T, w *httptest.ResponseRecorder) GapsResponse {
 
 // futureDate produces a Berlin-local YYYY-MM-DD always in the future so the
 // "past dates rejected" check does not flake. offsetDays=0 returns today.
-func futureDate(offsetDays int) (string, time.Time) {
-	d := time.Now().AddDate(0, 0, offsetDays)
-	return d.Format("2006-01-02"), time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, time.UTC)
+func futureDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
 }
 
 func TestGaps_Empty(t *testing.T) {

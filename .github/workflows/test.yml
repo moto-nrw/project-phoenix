@@ -27,7 +27,7 @@ defaults:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
       checks: write
@@ -44,15 +44,13 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-        with:
-          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
@@ -61,17 +59,64 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Install gotestsum
-        run: go install gotest.tools/gotestsum@latest
+      - name: Restore migrated DB snapshot
+        id: db-snapshot
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: backend/.db-snapshot
+          # pg17: bump manually when the postgres service image major version
+          # changes. No restore-keys on purpose — a stale snapshot must never
+          # be restored; a miss only costs the ~25s migrate path below.
+          key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
+
+      - name: Restore database from snapshot
+        if: steps.db-snapshot.outputs.cache-hit == 'true'
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+        run: |
+          # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
+          # them exactly as migration 001014001_create_tenant_roles.go does,
+          # BEFORE restoring the dump — it contains GRANTs and RLS policies
+          # referencing these roles. If a future migration adds a role, update
+          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
+          # never silently, because new migrations also change the cache key.
+          # Everything runs inside the postgres:17 service container: the
+          # local socket is trust-auth and the runner's psql is v16, which
+          # refuses a v17 server.
+          docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d phoenix_test <<EOF
+          CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '${PHOENIX_AUTH_PASSWORD}';
+          CREATE ROLE phoenix_tenant NOLOGIN;
+          CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
+          GRANT phoenix_tenant TO phoenix_auth;
+          GRANT phoenix_admin TO phoenix_auth;
+          ALTER ROLE phoenix_auth SET search_path TO public, platform;
+          EOF
+          docker exec -i "$PG_CONTAINER" psql -q -v ON_ERROR_STOP=1 -U postgres -d phoenix_test \
+            < backend/.db-snapshot/dump.sql
 
       - name: Run database migrations
+        if: steps.db-snapshot.outputs.cache-hit != 'true'
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
         run: go run main.go migrate
 
-      - name: Run Go tests
+      - name: Dump migrated database for snapshot cache
+        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          # pg_dump must come from the service container (runner ships v16,
+          # which refuses newer servers). The dump includes bun_migrations, so
+          # a restored DB needs no migrate pass. Roles are NOT in the dump —
+          # the restore step recreates them.
+          mkdir -p backend/.db-snapshot
+          docker exec -i "$PG_CONTAINER" pg_dump -U postgres phoenix_test \
+            > backend/.db-snapshot/dump.sql
+
+      - name: Run Go tests with coverage
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -82,73 +127,16 @@ jobs:
           AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
           FRONTEND_URL: http://localhost:3000
           PARENTS_URL: http://parents.localhost:3000
+        # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
+        # gotestsum reruns overwrite the coverage profile (upstream issue;
+        # fix PR unmerged), and flaky tests should fail loudly, not retry.
+        # gotestsum is a go.mod tool directive, so its whole dependency
+        # graph is locked by go.sum (sonar githubactions:S8545).
         run: |
-          gotestsum \
+          go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
-            --rerun-fails \
-            --rerun-fails-max-failures=5 \
-            --rerun-fails-report rerun-fails.json \
-            --packages="./..."
-
-      - name: Collect Go coverage
-        working-directory: backend
-        env:
-          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-          AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
-          FRONTEND_URL: http://localhost:3000
-          PARENTS_URL: http://parents.localhost:3000
-        run: ../.github/scripts/collect-go-coverage.sh coverage.out
-
-      - name: Drop flaky retries from junit.xml
-        working-directory: backend
-        if: always()
-        run: |
-          if [ ! -f junit.xml ]; then
-            echo "junit.xml not found, skipping dedupe"
-            exit 0
-          fi
-          python3 - <<'PYEOF'
-          import sys
-          import xml.etree.ElementTree as ET
-
-          # gotestsum --rerun-fails records every attempt of a retried test as a
-          # separate <testcase> with the same (classname, name). The first (failed)
-          # entry stays in junit.xml even after a passing rerun, so the JUnit
-          # reporter check goes red despite gotestsum exiting 0. This step keeps
-          # only the latest non-failed entry per test, matching the job's exit
-          # code semantics.
-          tree = ET.parse("junit.xml")
-          root = tree.getroot()
-          seen = {}
-          removed = 0
-          for ts in root.iter("testsuite"):
-              for tc in list(ts.findall("testcase")):
-                  key = (tc.get("classname"), tc.get("name"))
-                  cur_failed = tc.find("failure") is not None or tc.find("error") is not None
-                  prev = seen.get(key)
-                  if prev is None:
-                      seen[key] = (ts, tc)
-                      continue
-                  prev_ts, prev_tc = prev
-                  prev_failed = prev_tc.find("failure") is not None or prev_tc.find("error") is not None
-                  if prev_failed and not cur_failed:
-                      prev_ts.remove(prev_tc)
-                      seen[key] = (ts, tc)
-                  else:
-                      ts.remove(tc)
-                  removed += 1
-
-          # Refresh testsuite-level counters so they match the surviving testcases.
-          for ts in root.iter("testsuite"):
-              cases = ts.findall("testcase")
-              ts.set("tests", str(len(cases)))
-              ts.set("failures", str(sum(1 for tc in cases if tc.find("failure") is not None)))
-              ts.set("errors", str(sum(1 for tc in cases if tc.find("error") is not None)))
-
-          tree.write("junit.xml", xml_declaration=True, encoding="utf-8")
-          print(f"Removed {removed} duplicate <testcase> entries from junit.xml", file=sys.stderr)
-          PYEOF
+            -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Fix Go coverage paths for SonarCloud
         if: ${{ always() && hashFiles('backend/coverage.out') != '' }}

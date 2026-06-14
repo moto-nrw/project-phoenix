@@ -9,6 +9,7 @@ import (
 
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -291,12 +292,12 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := factory.Users.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := repositories.NewFactory(db).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID) })
 
-	teacher, err := factory.Users.TeacherRepository().FindByStaffID(ctx, staff.ID)
+	teacher, err := repositories.NewFactory(db).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "users.teachers", teacher.ID) })
@@ -564,8 +565,8 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		group.ID,
 		nil,
 		teacher.Staff.ID,
-		time.Now().Add(-24*time.Hour),
-		time.Now().Add(24*time.Hour),
+		timezone.TodayDate().AddDays(-1),
+		timezone.TodayDate().AddDays(1),
 	)
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, db, "education.group_substitution", substitution.ID)

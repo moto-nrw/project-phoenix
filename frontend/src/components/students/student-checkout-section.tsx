@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   Home,
   LogIn,
@@ -7,6 +8,8 @@ import {
   Heart,
   CalendarX,
   CalendarCheck,
+  Bus,
+  MoreVertical,
 } from "lucide-react";
 
 // Type for the action the user can perform
@@ -186,6 +189,100 @@ export function StudentExcusedReportSection({
         </p>
       </div>
     </button>
+  );
+}
+
+interface StudentStatusActionsMenuProps {
+  readonly isClassTrip: boolean;
+  readonly classTripSince?: string;
+  readonly onPlanClassTrip: () => void;
+  readonly isLoading: boolean;
+}
+
+export function StudentStatusActionsMenu({
+  isClassTrip,
+  classTripSince,
+  onPlanClassTrip,
+  isLoading,
+}: StudentStatusActionsMenuProps) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const classTripSinceDisplay = classTripSince
+    ? new Date(classTripSince).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={isLoading}
+        aria-label="Weitere Statusaktionen"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="moto-content-surface flex h-full min-h-[116px] w-14 items-center justify-center rounded-3xl border text-gray-500 backdrop-blur-md transition-all hover:bg-gray-50 hover:text-gray-700 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
+      >
+        {isLoading ? (
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        ) : (
+          <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+        )}
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="moto-content-surface absolute top-full right-0 z-50 mt-2 w-64 overflow-hidden rounded-lg border py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onPlanClassTrip();
+            }}
+            className="flex w-full items-start gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+          >
+            <Bus
+              className={`mt-0.5 h-4 w-4 shrink-0 ${
+                isClassTrip ? "text-[#83CD2D]" : "text-[#5080D8]"
+              }`}
+              aria-hidden
+            />
+            <span>
+              <span className="block font-medium">
+                {isClassTrip
+                  ? "Klassenfahrt bearbeiten"
+                  : "Klassenfahrt planen"}
+              </span>
+              <span className="block text-xs text-gray-500">
+                {isClassTrip && classTripSinceDisplay
+                  ? `Seit ${classTripSinceDisplay}`
+                  : "Zeitraum für seltene Abwesenheit setzen"}
+              </span>
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

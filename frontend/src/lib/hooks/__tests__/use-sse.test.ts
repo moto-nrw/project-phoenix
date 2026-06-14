@@ -45,6 +45,16 @@ class MockEventSource {
     this.readyState = this.CLOSED;
   }
 
+  // Test helper: is a named-event listener registered? Mirrors real
+  // EventSource semantics — a `event: <type>` frame is only delivered when a
+  // listener for that exact type was added; otherwise it is dropped (it does
+  // NOT fall back to onmessage). Lets tests assert that use-sse subscribed to a
+  // given backend event type (issue #848: bulk_student_checkout was emitted but
+  // never listened for, so the client silently ignored it).
+  hasListener(type: string): boolean {
+    return (this.eventListeners.get(type)?.length ?? 0) > 0;
+  }
+
   // Test helper methods
   triggerOpen(): void {
     this.readyState = this.OPEN;
@@ -213,6 +223,38 @@ describe("useSSE Hook", () => {
       };
 
       mockEventSource?.triggerMessage(testEvent, "student_checkin");
+
+      await waitFor(
+        () => {
+          expect(onMessage).toHaveBeenCalledWith(testEvent);
+        },
+        { timeout: 500 },
+      );
+    });
+
+    it("subscribes to bulk_student_checkout named events (issue #848)", async () => {
+      const onMessage = vi.fn();
+      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+
+      await waitForEventSource();
+      mockEventSource?.triggerOpen();
+
+      // The backend writes `event: bulk_student_checkout` named frames. Browser
+      // EventSource delivers named events ONLY to a matching addEventListener —
+      // never to onmessage. If use-sse forgets to register this type the client
+      // silently drops the whole-session-end batch (the original #848 gap).
+      expect(
+        requireLatestEventSource().hasListener("bulk_student_checkout"),
+      ).toBe(true);
+
+      const testEvent: SSEEvent = {
+        type: "bulk_student_checkout",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"] },
+        timestamp: new Date().toISOString(),
+      };
+
+      mockEventSource?.triggerMessage(testEvent, "bulk_student_checkout");
 
       await waitFor(
         () => {

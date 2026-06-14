@@ -19,6 +19,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
+const maxStudentStatusDayRangeDays = 31
+
 var errStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
 
 func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +32,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		renderError(w, r, ErrorForbidden(errors.New("full access required")))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		common.Respond(w, r, http.StatusOK, []StudentStatusDayResponse{}, "Student status days retrieved successfully")
 		return
 	}
@@ -41,7 +43,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -61,7 +63,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
@@ -80,10 +82,10 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
 		}
@@ -91,16 +93,12 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 			return errStudentStatusDayReassigned
 		}
 
-		oppositeStatus := active.StudentStatusDayExcused
-		if req.Status == active.StudentStatusDayExcused {
-			oppositeStatus = active.StudentStatusDaySick
-		}
-		if err := rs.StudentStatusDayRepo.MarkClearedForDates(ctx, fresh.ID, oppositeStatus, dates, now, active.StudentStatusSourceManual); err != nil {
+		if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
 			return err
 		}
 		notePtr := normalizeSickReason(&req.Reason)
 		for _, date := range dates {
-			if err := rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
+			if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 				StudentID:  fresh.ID,
 				Date:       date,
 				Status:     req.Status,
@@ -113,7 +111,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		}
 		if containsDate(dates, today) {
 			applyLiveStatusForToday(fresh, req.Status, now)
-			if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
 			}
 		}
@@ -133,13 +131,101 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusCreated, newStudentStatusDayResponses(rows), "Student status days created successfully")
+}
+
+func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.Request) {
+	req := &BulkCreateStudentStatusDaysRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, ErrorInvalidRequest(err))
+		return
+	}
+	if rs.StudentStatusDayService == nil {
+		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		return
+	}
+
+	from, err := timezone.ParseDate(req.From)
+	if err != nil {
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return
+	}
+	to, err := timezone.ParseDate(req.To)
+	if err != nil {
+		renderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return
+	}
+	if to.Before(from) {
+		renderError(w, r, ErrorInvalidRequest(errors.New("to must be after from")))
+		return
+	}
+	if to.After(from.AddDays(maxStudentStatusDayRangeDays - 1)) {
+		renderError(w, r, ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
+		return
+	}
+	dates := datesBetweenInclusive(from, to)
+
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	now := time.Now()
+	today := timezone.TodayDate()
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		for _, studentID := range req.StudentIDs {
+			fresh, err := rs.StudentService.GetByIDForUpdate(ctx, studentID)
+			if err != nil {
+				return err
+			}
+			if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+				return errStudentStatusDayReassigned
+			}
+			if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
+				return err
+			}
+			notePtr := normalizeSickReason(&req.Reason)
+			for _, date := range dates {
+				if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
+					StudentID:  fresh.ID,
+					Date:       date,
+					Status:     req.Status,
+					ReportedAt: now,
+					Source:     active.StudentStatusSourcePlanned,
+					Note:       notePtr,
+				}); err != nil {
+					return err
+				}
+			}
+			if containsDate(dates, today) {
+				applyLiveStatusForToday(fresh, req.Status, now)
+				if err := rs.StudentService.Update(ctx, fresh); err != nil {
+					return err
+				}
+			}
+			studentID := fresh.ID
+			capturedTenantID := tenantID
+			tenant.RegisterAfterCommit(ctx, func() {
+				rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			})
+		}
+		return nil
+	}); err != nil {
+		if errors.Is(err, errStudentStatusDayReassigned) {
+			renderError(w, r, ErrorForbidden(err))
+			return
+		}
+		renderError(w, r, common.ErrorInternalServerWrap("failed to bulk create student status days", err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusCreated, map[string]any{
+		"student_count": len(req.StudentIDs),
+		"date_count":    len(dates),
+	}, "Student status days created successfully")
 }
 
 func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +239,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid status day id")))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
@@ -166,10 +252,10 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	now := time.Now()
-	today := timezone.DateOfUTC(now)
+	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		row, err := rs.StudentStatusDayRepo.FindActiveByID(ctx, statusDayID)
+		row, err := rs.StudentStatusDayService.GetActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err
 		}
@@ -177,7 +263,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 			return sql.ErrNoRows
 		}
 
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
 		}
@@ -185,12 +271,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 			return errStudentStatusDayReassigned
 		}
 
-		if err := rs.StudentStatusDayRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
+		if err := rs.StudentStatusDayService.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}
-		if timezone.DateOfUTC(row.Date).Equal(today) {
+		if row.Date == today {
 			clearLiveStatusForToday(fresh, row.Status)
-			if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
 			}
 		}
@@ -217,43 +303,58 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, map[string]bool{"deleted": true}, "Student status day deleted successfully")
 }
 
-func parseStatusDayRange(r *http.Request) (time.Time, time.Time, error) {
-	now := time.Now()
+func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
+	today := timezone.TodayDate()
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
-	if fromRaw == "" {
-		fromRaw = timezone.DateOfUTC(now).Format(dateFormatYYYYMMDD)
-	}
-	if toRaw == "" {
-		toRaw = timezone.DateOfUTC(now.AddDate(0, 2, 0)).Format(dateFormatYYYYMMDD)
-	}
 
-	from, err := time.Parse(dateFormatYYYYMMDD, fromRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid from date format, expected YYYY-MM-DD")
+	from := today
+	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
+	to := timezone.NewDate(today.Year, today.Month+2, today.Day)
+	var err error
+	if fromRaw != "" {
+		if from, err = timezone.ParseDate(fromRaw); err != nil {
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid from date format, expected YYYY-MM-DD")
+		}
 	}
-	to, err := time.Parse(dateFormatYYYYMMDD, toRaw)
-	if err != nil {
-		return time.Time{}, time.Time{}, errors.New("invalid to date format, expected YYYY-MM-DD")
+	if toRaw != "" {
+		if to, err = timezone.ParseDate(toRaw); err != nil {
+			return timezone.Date{}, timezone.Date{}, errors.New("invalid to date format, expected YYYY-MM-DD")
+		}
 	}
-	from = timezone.DateOfUTC(from)
-	to = timezone.DateOfUTC(to)
 	if to.Before(from) {
-		return time.Time{}, time.Time{}, errors.New("to must be after from")
+		return timezone.Date{}, timezone.Date{}, errors.New("to must be after from")
 	}
 	return from, to, nil
 }
 
-func parseStatusDayDates(rawDates []string) ([]time.Time, error) {
-	dates := make([]time.Time, 0, len(rawDates))
+func parseStatusDayDates(rawDates []string) ([]timezone.Date, error) {
+	dates := make([]timezone.Date, 0, len(rawDates))
 	for _, rawDate := range rawDates {
-		date, err := time.Parse(dateFormatYYYYMMDD, rawDate)
+		date, err := timezone.ParseDate(rawDate)
 		if err != nil {
 			return nil, errors.New("invalid date format, expected YYYY-MM-DD")
 		}
-		dates = append(dates, timezone.DateOfUTC(date))
+		dates = append(dates, date)
 	}
 	return dates, nil
+}
+
+func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
+	dates := make([]timezone.Date, 0, from.DaysUntil(to)+1)
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		dates = append(dates, date)
+	}
+	return dates
+}
+
+func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
+	for _, otherStatus := range active.StudentStatusDayStatusesExcept(status) {
+		if err := rs.StudentStatusDayService.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func applyLiveStatusForToday(student *users.Student, status string, now time.Time) {
@@ -270,6 +371,11 @@ func applyLiveStatusForToday(student *users.Student, status string, now time.Tim
 		student.ExcusedSince = &now
 		student.Sick = &falseVal
 		student.SickSince = nil
+	case active.StudentStatusDayClassTrip:
+		student.Sick = &falseVal
+		student.SickSince = nil
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
 	}
 }
 
@@ -282,20 +388,24 @@ func clearLiveStatusForToday(student *users.Student, status string) {
 	case active.StudentStatusDayExcused:
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
+	case active.StudentStatusDayClassTrip:
+		student.Sick = &falseVal
+		student.SickSince = nil
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
 	}
 }
 
-func containsDate(dates []time.Time, needle time.Time) bool {
-	needle = timezone.DateOfUTC(needle)
+func containsDate(dates []timezone.Date, needle timezone.Date) bool {
 	for _, date := range dates {
-		if timezone.DateOfUTC(date).Equal(needle) {
+		if date == needle {
 			return true
 		}
 	}
 	return false
 }
 
-func minDate(dates []time.Time) time.Time {
+func minDate(dates []timezone.Date) timezone.Date {
 	min := dates[0]
 	for _, date := range dates[1:] {
 		if date.Before(min) {
@@ -305,7 +415,7 @@ func minDate(dates []time.Time) time.Time {
 	return min
 }
 
-func maxDate(dates []time.Time) time.Time {
+func maxDate(dates []timezone.Date) timezone.Date {
 	max := dates[0]
 	for _, date := range dates[1:] {
 		if date.After(max) {

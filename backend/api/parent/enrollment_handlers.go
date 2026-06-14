@@ -8,13 +8,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -92,7 +92,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, error) {
 	var out int64
 	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, findErr := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, findErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if findErr != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
@@ -225,7 +225,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit not configured")))
 		return
 	}
-	if rs.AccountTenantRepo == nil {
+	if rs.AuthService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: account tenant repo missing")))
 		return
 	}
@@ -264,7 +264,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		forbidden bool
 	)
 	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
-		school, err := rs.SchoolRepo.FindBySlug(adminCtx, slug)
+		school, err := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if err != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
@@ -273,7 +273,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		// does NOT prove they belong at this school. Without this
 		// guard, any authenticated parent could stamp
 		// guardian_account_id on requests for arbitrary tenants.
-		mapped, mapErr := rs.AccountTenantRepo.ExistsByAccountAndTenant(adminCtx, accountID, school.ID)
+		mapped, mapErr := rs.AuthService.VerifyAccountTenantMembership(adminCtx, accountID, school.ID)
 		if mapErr != nil {
 			return fmt.Errorf("verify tenant membership: %w", mapErr)
 		}
@@ -336,7 +336,7 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		RemoteIP:          remoteIP,
 	}
 	for i, c := range wireReq.Children {
-		dob, err := time.Parse("2006-01-02", c.DateOfBirth)
+		dob, err := timezone.ParseDate(c.DateOfBirth)
 		if err != nil {
 			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
 		}

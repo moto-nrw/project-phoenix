@@ -40,8 +40,7 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create repo factory to get GroupSupervisor repository
-	repoFactory := repositories.NewFactory(db)
-	resource := staffAPI.NewResource(svc.Users, svc.Education, svc.Auth, repoFactory.GroupSupervisor, svc.WorkSession, svc.StaffAbsence, repoFactory.StaffAbsence, repoFactory.StaffWorkSchedule, repoFactory.WorkTimeModel, db, slog.Default())
+	resource := staffAPI.NewResource(svc.Users, svc.StaffOffboarding, svc.Education, svc.Auth, svc.WorkSession, svc.StaffAbsence, db, slog.Default())
 
 	return &testContext{
 		db:       db,
@@ -327,7 +326,7 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 
 	tenantID := int64(testutil.DefaultTestClaims().TenantID)
 	tenantCtx := testpkg.TenantContext(tenantID)
-	today := timezone.TodayUTC()
+	today := timezone.TodayDate()
 	session := &active.WorkSession{
 		StaffID:     staff.ID,
 		Date:        today,
@@ -587,7 +586,12 @@ func TestDeleteStaff_Success(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, ctx.db, "DeleteStaff", "Test")
-	// Note: No defer cleanup needed since we're deleting it
+	t.Cleanup(func() {
+		// Offboarding soft-deletes; remove the row for real.
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM audit.data_deletions WHERE staff_id = ?`, staff.ID)
+		_, _ = ctx.db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	})
 
 	router := chi.NewRouter()
 	router.Delete("/staff/{id}", ctx.resource.DeleteStaffHandler())
@@ -600,6 +604,16 @@ func TestDeleteStaff_Success(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// The staff row must be soft-deleted (kept for history), not hard-deleted.
+	var deletedAt *time.Time
+	err := ctx.db.NewSelect().
+		TableExpr(`users.staff`).
+		ColumnExpr(`deleted_at`).
+		Where(`id = ?`, staff.ID).
+		Scan(context.Background(), &deletedAt)
+	require.NoError(t, err)
+	assert.NotNil(t, deletedAt, "delete must soft-delete the staff row")
 }
 
 func TestDeleteStaff_NotFound(t *testing.T) {
@@ -1464,7 +1478,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
-	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,
@@ -1496,20 +1510,20 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
-	activeRows, err := ctx.resource.ScheduleRepo.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
+	activeRows, err := repositories.NewFactory(ctx.db).StaffWorkSchedule.GetCurrentByStaffID(testpkg.TenantContext(1), staff.ID)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
 	assert.Equal(t, configModels.DayTuesday, activeRows[0].DayOfWeek)
 	assert.Equal(t, 360, activeRows[0].TargetMinutes)
 
-	reloadedStaff, err := ctx.resource.StaffRepo.FindByID(testpkg.TenantContext(1), staff.ID)
+	reloadedStaff, err := repositories.NewFactory(ctx.db).Staff.FindByID(testpkg.TenantContext(1), staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, reloadedStaff.WorkTimeModelID)
 	t.Cleanup(func() {
-		_ = ctx.resource.WorkTimeModelRepo.Delete(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+		_ = repositories.NewFactory(ctx.db).WorkTimeModel.Delete(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
 	})
 
-	model, err := ctx.resource.WorkTimeModelRepo.FindByID(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
+	model, err := repositories.NewFactory(ctx.db).WorkTimeModel.FindByID(testpkg.TenantContext(1), *reloadedStaff.WorkTimeModelID)
 	require.NoError(t, err)
 	require.Len(t, model.Entries, 1)
 	assert.Equal(t, configModels.DayTuesday, model.Entries[0].DayOfWeek)
@@ -1524,7 +1538,7 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
 	defer cleanupStaffScheduleRows(t, ctx.db, staff.ID)
 
-	require.NoError(t, ctx.resource.ScheduleRepo.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
+	require.NoError(t, repositories.NewFactory(ctx.db).StaffWorkSchedule.ReplaceSchedule(testpkg.TenantContext(1), staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,

@@ -1,0 +1,128 @@
+import { render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@testing-library/jest-dom/vitest";
+
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  useSession: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push, refresh: vi.fn() }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  signIn: mocks.signIn,
+  signOut: mocks.signOut,
+  useSession: mocks.useSession,
+}));
+
+vi.mock("next-intl", async () => {
+  const en = (await import("~/i18n/messages/en.json")).default as Record<
+    string,
+    unknown
+  >;
+
+  const resolve = (path: string): unknown =>
+    path.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") {
+        return (acc as Record<string, unknown>)[part];
+      }
+      return undefined;
+    }, en);
+
+  const interpolate = (
+    value: string,
+    values?: Record<string, unknown>,
+  ): string =>
+    values
+      ? Object.entries(values).reduce(
+          (str, [key, next]) => str.replaceAll(`{${key}}`, String(next)),
+          value,
+        )
+      : value;
+
+  const makeT = (namespace?: string) => {
+    const prefix = namespace ? `${namespace}.` : "";
+    return (key: string, values?: Record<string, unknown>) => {
+      const value = resolve(`${prefix}${key}`);
+      return typeof value === "string"
+        ? interpolate(value, values)
+        : `${prefix}${key}`;
+    };
+  };
+
+  const cache = new Map<string, ReturnType<typeof makeT>>();
+
+  return {
+    useLocale: () => "en",
+    useTranslations: (namespace?: string) => {
+      const key = namespace ?? "";
+      const existing = cache.get(key);
+      if (existing) return existing;
+      const t = makeT(namespace);
+      cache.set(key, t);
+      return t;
+    },
+  };
+});
+
+import ParentLoginPage from "./page";
+
+describe("ParentLoginPage i18n", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.useSession.mockReturnValue({
+      status: "unauthenticated",
+      data: null,
+    });
+  });
+
+  it("renders a pre-login language switcher and localized parent auth chrome", () => {
+    render(<ParentLoginPage />);
+
+    expect(screen.getByRole("button", { name: "Language" })).toBeVisible();
+    expect(screen.getByText("Language")).toBeInTheDocument();
+    expect(screen.getByText("English")).toBeInTheDocument();
+
+    expect(screen.getByText("Made for after-school care")).toBeInTheDocument();
+    expect(screen.getByText("Hosted in Germany")).toBeInTheDocument();
+    expect(
+      screen.getByText(/I can find the most important OGS information/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Parent")).toHaveLength(4);
+    expect(screen.getByText("Everything in one place")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Show testimonial 1" }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText("Für den Ganztag gemacht"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("In Deutschland gehostet"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("main")).queryByText("Elternteil"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the auth shell and language switcher stable while the session loads", () => {
+    mocks.useSession.mockReturnValue({
+      status: "loading",
+      data: null,
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(screen.getByRole("button", { name: "Language" })).toBeVisible();
+    expect(screen.getByText("Welcome to the parent portal")).toBeVisible();
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+
+    expect(screen.getByLabelText("Email address")).toBeDisabled();
+    expect(screen.getByLabelText("Password")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+  });
+});

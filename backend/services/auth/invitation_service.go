@@ -617,6 +617,9 @@ func (s *invitationService) assignRole(ctx context.Context, accountID, roleID, t
 
 // createAccountTenant maps an account to a tenant so the user can log into this school.
 // Must be called within a RunInTx block (tx stored in context for base.GetDB).
+// EnsureActive (not Create) so accepting a re-invitation after staff
+// offboarding reactivates the deactivated mapping, matching the guardian
+// invitation flow.
 func (s *invitationService) createAccountTenant(ctx context.Context, accountID, tenantID int64) error {
 	now := time.Now()
 	mapping := &authModels.AccountTenant{
@@ -625,7 +628,7 @@ func (s *invitationService) createAccountTenant(ctx context.Context, accountID, 
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
 		return &AuthError{Op: "create account-tenant mapping", Err: err}
 	}
 	return nil
@@ -1010,4 +1013,29 @@ func isNotFoundError(err error) bool {
 	}
 
 	return false
+}
+
+// GetTenantSlugForToken resolves the tenant slug from an invitation token.
+// Best-effort: returns "" on any error so the accept response still succeeds.
+func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
+	var slug string
+	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
+		if err != nil {
+			return err
+		}
+		if invitation == nil {
+			return nil
+		}
+		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		if err != nil {
+			return err
+		}
+		if school == nil || school.IsDeleted() {
+			return nil
+		}
+		slug = school.Slug
+		return nil
+	})
+	return slug
 }

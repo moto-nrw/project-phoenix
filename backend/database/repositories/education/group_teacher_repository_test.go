@@ -89,6 +89,40 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 	})
 }
 
+func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GroupTeacher
+	ctx := testpkg.TenantContext(1)
+
+	groupA := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherA")
+	groupB := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherB")
+	teacher := testpkg.CreateTestTeacher(t, db, "GTDelByTeacher", "Offboarded")
+	otherTeacher := testpkg.CreateTestTeacher(t, db, "GTDelByTeacher", "Stays")
+
+	gtA := testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
+	gtB := testpkg.CreateTestGroupTeacher(t, db, groupB.ID, teacher.ID)
+	gtOther := testpkg.CreateTestGroupTeacher(t, db, groupA.ID, otherTeacher.ID)
+
+	defer cleanupGroupRecords(t, db, groupA.ID, groupB.ID)
+	defer cleanupTeacherChain(t, db, teacher.ID)
+	defer cleanupTeacherChain(t, db, otherTeacher.ID)
+	defer cleanupGroupTeacherRecords(t, db, gtA.ID, gtB.ID, gtOther.ID)
+
+	affected, err := repo.DeleteByTeacherID(ctx, teacher.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), affected)
+
+	remaining, err := repo.FindByTeacher(ctx, teacher.ID)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+
+	otherRemaining, err := repo.FindByTeacher(ctx, otherTeacher.ID)
+	require.NoError(t, err)
+	assert.Len(t, otherRemaining, 1)
+}
+
 func TestGroupTeacherRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

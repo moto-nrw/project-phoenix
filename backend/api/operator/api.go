@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -27,6 +27,7 @@ type Resource struct {
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
 	invitationsResource     *InvitationsResource
+	unregisteredTagScans    auditSvc.UnregisteredTagScanService
 	tokenAuth               *jwt.TokenAuth
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
@@ -42,6 +43,7 @@ type ResourceConfig struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	SuggestionsService         platformSvc.OperatorSuggestionsService
 	AnnouncementsService       platformSvc.AnnouncementService
+	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits
 	// a tenant_settings_changed SSE event after every successful Set/Reset so
@@ -50,15 +52,15 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolRepo platformModels.SchoolRepository
+	SchoolService platformSvc.SchoolService
+	ActiveService activeSvc.Service
 	// TenantMFAService is the tenant-side MFA service (auth package).
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
 	// which is the operator's own MFA service (operator login flow).
-	TenantMFAService        authSvc.MFAService
-	AccountTenantRepository authModels.AccountTenantRepository
-	TokenAuth               *jwt.TokenAuth
-	DB                      *bun.DB
+	TenantMFAService authSvc.MFAService
+	TokenAuth        *jwt.TokenAuth
+	DB               *bun.DB
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for operator auth endpoints.
@@ -111,15 +113,15 @@ func NewResource(cfg ResourceConfig) *Resource {
 		announcementsResource: NewAnnouncementsResource(cfg.AnnouncementsService),
 		profileResource:       NewProfileResource(cfg.AuthService),
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
+		unregisteredTagScans:  cfg.UnregisteredTagScanService,
 		tokenAuth:             tokenAuth,
 	}
 	if cfg.SettingsService != nil {
-		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolRepo)
+		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
 	resource.provisioningResource.TenantMFAService = cfg.TenantMFAService
-	resource.provisioningResource.AccountTenantRepository = cfg.AccountTenantRepository
 	return resource
 }
 
@@ -256,6 +258,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/persons", func(r chi.Router) {
 			r.Delete("/{id}", rs.provisioningResource.SoftDeletePerson)
 		})
+
+		if rs.unregisteredTagScans != nil {
+			r.Route("/unregistered-tag-scans", func(r chi.Router) {
+				r.Get("/", rs.ListUnregisteredTagScans)
+				r.Post("/{id}/resolve", rs.ResolveUnregisteredTagScan)
+			})
+		}
 
 		// Account-wide MFA override surface ("mailbox lockout emergency
 		// switch"). Deliberately decoupled from /schools/{id}/accounts/{}

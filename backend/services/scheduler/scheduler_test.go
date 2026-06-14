@@ -11,9 +11,11 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
@@ -964,6 +966,18 @@ type mockActiveService struct {
 	cleanupAbandonedResult   int
 	cleanupAbandonedErr      error
 	cleanupAbandonedDuration time.Duration
+}
+
+func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+	return nil, nil
+}
+
+func (m *mockActiveService) GetActiveGroupVisitsWithDisplay(_ context.Context, _ int64) ([]*active.VisitWithStudentDisplay, error) {
+	return nil, nil
+}
+
+func (m *mockActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
+	return false, nil
 }
 
 func (m *mockActiveService) EndDailySessions(_ context.Context) (*activeService.DailySessionCleanupResult, error) {
@@ -2679,15 +2693,15 @@ type fakeMaterializer struct {
 	mu               sync.Mutex
 	materializeCalls int
 	resolveCalls     int
-	lastFrom         time.Time
-	lastTo           time.Time
+	lastFrom         timezone.Date
+	lastTo           timezone.Date
 	lastWeeksAhead   int
 	lastSource       scheduleSvc.MaterializationSource
 	returnErr        error
 	returnResult     *scheduleSvc.MaterializationResult
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time.Time, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
@@ -2703,14 +2717,14 @@ func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to time
 	return &scheduleSvc.MaterializationResult{From: from, To: to}, nil
 }
 
-func (f *fakeMaterializer) ResolveWindow(baseDate time.Time, weeksAhead int) (time.Time, time.Time) {
+func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int) (timezone.Date, timezone.Date) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.resolveCalls++
 	f.lastWeeksAhead = weeksAhead
-	// Return a deterministic window so the caller has valid times to log.
-	from := baseDate.AddDate(0, 0, 7)
-	to := from.AddDate(0, 0, weeksAhead*7-1)
+	// Return a deterministic window so the caller has valid dates to log.
+	from := baseDate.AddDays(7)
+	to := from.AddDays(weeksAhead*7 - 1)
 	return from, to
 }
 

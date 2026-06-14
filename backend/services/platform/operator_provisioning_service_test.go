@@ -299,6 +299,10 @@ type mockInvitationService struct {
 	req authSvc.InvitationRequest
 }
 
+func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ string) string {
+	return ""
+}
+
 func (m *mockInvitationService) WithTx(tx bun.Tx) interface{} { return m }
 func (m *mockInvitationService) CreateInvitation(_ context.Context, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	m.req = req
@@ -338,6 +342,10 @@ func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int,
 
 type mockAuthService struct {
 	registerFn func(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
+}
+
+func (m *mockAuthService) VerifyAccountTenantMembership(_ context.Context, _, _ int64) (bool, error) {
+	return true, nil
 }
 
 func (m *mockAuthService) WithTx(_ bun.Tx) interface{} { return m }
@@ -576,6 +584,7 @@ func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff,
 	return nil, nil
 }
 func (m *mockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
+func (m *mockStaffRepo) ClearWorkTimeModel(context.Context, int64) error  { return nil }
 func (m *mockStaffRepo) FindWithPerson(context.Context, int64) (*userModels.Staff, error) {
 	return nil, nil
 }
@@ -3796,4 +3805,20 @@ func TestOperatorProvisioningService_LoadActiveSchool_RejectsDeletedSchool(t *te
 	require.Error(t, err)
 	var deletedErr *platformSvc.SchoolAlreadyDeletedError
 	require.ErrorAs(t, err, &deletedErr)
+}
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (m *mockPersonRepo) AnonymizeAndSoftDelete(context.Context, int64) error { return nil }
+
+// Stub for the issue #585 refactor interface addition — unused here.
+func (m *mockSummariesRepo) ListDeviceRows(context.Context, platformModels.OperatorDeviceFilter) ([]platformModels.OperatorDeviceRow, error) {
+	return nil, nil
+}
+
+func (m *mockTeacherRepo) ListActiveCaregivers(context.Context) ([]*userModels.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+func (m *mockTeacherRepo) FindActiveCaregiverByAccountID(context.Context, int64) (*userModels.ActiveCaregiver, error) {
+	return nil, nil
 }

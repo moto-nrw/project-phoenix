@@ -2,9 +2,12 @@ package activities
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CategoryRepository defines operations for managing activity categories
@@ -24,6 +27,25 @@ type GroupRepository interface {
 
 	// FindByName finds a non-archived activity group by its name.
 	FindByName(ctx context.Context, name string) (*Group, error)
+
+	// ListTemplateRows returns the template list read model (template +
+	// schedule + aggregate people counts), optionally filtered to one
+	// template. Issue #584: the aggregation query moved verbatim out of
+	// api/timetable; its multi-schema joins cannot be expressed through the
+	// generic repository shape.
+	ListTemplateRows(ctx context.Context, templateID *int64) ([]TemplateListRow, error)
+
+	// ListTemplateRowsForPeriod is the calendar-period-filtered variant used
+	// by the template list endpoint (people aggregates and schedules filter
+	// on the period when given).
+	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
+
+	// UpdateTemplateFields patches the editable template fields of a
+	// non-archived template row.
+	UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (rowsAffected int64, err error)
+
+	// ArchiveTemplate soft-deletes a non-archived template (sets archived_at).
+	ArchiveTemplate(ctx context.Context, id int64) (rowsAffected int64, err error)
 
 	// FindByCategory finds all groups in a specific category
 	FindByCategory(ctx context.Context, categoryID int64) ([]*Group, error)
@@ -81,6 +103,9 @@ type ScheduleRepository interface {
 	// FindByTimeframeID finds all schedules for a specific timeframe
 	FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*Schedule, error)
 
+	// DeleteByGroupID removes all schedules of an activity group.
+	DeleteByGroupID(ctx context.Context, groupID int64) error
+
 	// FindTemplateStartTimesByGroupIDs returns (activity_group_id, weekday,
 	// timeframe.start_time) tuples for the given group IDs. Joins
 	// activities.schedules to schedule.timeframes and filters out rows
@@ -93,6 +118,15 @@ type ScheduleRepository interface {
 // SupervisorPlannedRepository defines operations for managing activity supervisors
 type SupervisorPlannedRepository interface {
 	base.Repository[*SupervisorPlanned]
+
+	// ListPlannedSupervisionBlockers returns planned activity supervisions
+	// as caregiver-capability blocker rows.
+	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerActivity, error)
+
+	// CloseOpenByGroupAndPeriod closes the open planned supervisions of a
+	// group for the given calendar period (NULL period matches rows without
+	// one) by setting valid_until.
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error
 
 	// FindByStaffID finds all supervisions for a specific staff member
 	FindByStaffID(ctx context.Context, staffID int64) ([]*SupervisorPlanned, error)
@@ -108,11 +142,20 @@ type SupervisorPlannedRepository interface {
 
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
+
+	// DeleteByStaffID removes all planned supervisions for a staff member
+	// (staff offboarding cleanup).
+	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
 type StudentEnrollmentRepository interface {
 	base.Repository[*StudentEnrollment]
+
+	// CloseOpenByGroupAndPeriod closes the open enrollments of a group for
+	// the given calendar period (NULL period matches rows without one) by
+	// setting valid_until.
+	CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error
 
 	// FindByStudentID finds all enrollments for a specific student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentEnrollment, error)
@@ -124,8 +167,37 @@ type StudentEnrollmentRepository interface {
 	CountByGroupID(ctx context.Context, groupID int64) (int, error)
 
 	// FindByValidFromRange finds enrollments within a valid_from date range
-	FindByValidFromRange(ctx context.Context, start, end time.Time) ([]*StudentEnrollment, error)
+	FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*StudentEnrollment, error)
 
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
+}
+
+// TemplateListRow is one row of the template list read model produced by
+// GroupRepository.ListTemplateRows: template fields joined with one schedule
+// row and the aggregated people counts. Issue #584: moved verbatim from
+// api/timetable.
+type TemplateListRow struct {
+	TemplateID         int64          `bun:"template_id"`
+	Name               string         `bun:"name"`
+	Type               string         `bun:"type"`
+	CategoryID         int64          `bun:"category_id"`
+	CategoryName       string         `bun:"category_name"`
+	RoomID             sql.NullInt64  `bun:"room_id"`
+	RoomName           sql.NullString `bun:"room_name"`
+	EducationGroupID   sql.NullInt64  `bun:"education_group_id"`
+	EducationGroupName sql.NullString `bun:"education_group_name"`
+	IsOpen             bool           `bun:"is_open"`
+	MaxParticipants    int            `bun:"max_participants"`
+	EnrollmentCount    int            `bun:"enrollment_count"`
+	SupervisorCount    int            `bun:"supervisor_count"`
+	StudentIDs         []int64        `bun:"student_ids,array"`
+	StaffIDs           []int64        `bun:"staff_ids,array"`
+	PrimaryStaffID     sql.NullInt64  `bun:"primary_staff_id"`
+	ScheduleID         int64          `bun:"schedule_id"`
+	Weekday            int            `bun:"weekday"`
+	StartTime          sql.NullString `bun:"start_time"`
+	EndTime            sql.NullString `bun:"end_time"`
+	WeekPattern        int            `bun:"week_pattern"`
+	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
 }

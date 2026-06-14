@@ -85,12 +85,14 @@ services:
       API_URL: http://server:8080
       # Override PORT from shared .env (8080 is for the backend; Next.js must listen on 3000)
       PORT: 3000
+      # Bind Next.js standalone to IPv4 so Docker healthchecks can reach it inside Alpine.
+      HOSTNAME: 0.0.0.0
     logging:
       driver: journald
       options:
         tag: prod-frontend
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3

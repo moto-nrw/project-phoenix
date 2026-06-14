@@ -127,8 +127,11 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		clamped = true
 	}
 
-	// 5. Load attendance rows
-	attendanceRows, err := rs.AttendanceRepo.FindByStudentAndDateRange(ctx, student.ID, start, end)
+	// 5. Load attendance rows (DATE-keyed queries take the Berlin calendar
+	// days of the requested instant range)
+	startDay := timezone.DateFromTime(start)
+	endDay := timezone.DateFromTime(end)
+	attendanceRows, err := rs.StudentHistoryService.GetAttendanceByStudentAndDateRange(ctx, student.ID, startDay, endDay)
 	if err != nil {
 		logger.Error("attendance history query failed",
 			slog.Int64("student_id", student.ID),
@@ -139,8 +142,8 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	statusRows := []*active.StudentStatusDay{}
-	if rs.StudentStatusDayRepo != nil {
-		statusRows, err = rs.StudentStatusDayRepo.FindByStudentAndDateRange(ctx, student.ID, start, end)
+	if rs.StudentStatusDayService != nil {
+		statusRows, err = rs.StudentStatusDayService.GetByStudentAndDateRange(ctx, student.ID, startDay, endDay)
 		if err != nil {
 			logger.Error("student status history query failed",
 				slog.Int64("student_id", student.ID),
@@ -160,7 +163,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		if roomCutoff.After(visitStart) {
 			visitStart = roomCutoff
 		}
-		visits, visitErr := rs.VisitRepo.FindByStudentAndTimeRange(ctx, student.ID, visitStart, end)
+		visits, visitErr := rs.StudentHistoryService.GetVisitsByStudentAndTimeRange(ctx, student.ID, visitStart, end)
 		if visitErr != nil {
 			logger.Warn("visit history query failed, falling back to attendance-only",
 				slog.Int64("student_id", student.ID),
@@ -261,7 +264,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 	dayMap := make(map[string]*attendanceHistoryDay, len(rows))
 
 	for _, row := range rows {
-		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
+		dateKey := row.Date.String()
 
 		existing, seen := dayMap[dateKey]
 		if !seen {
@@ -300,7 +303,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 	}
 
 	for _, row := range statusRows {
-		dateKey := timezone.DateOf(row.Date).Format("2006-01-02")
+		dateKey := row.Date.String()
 		day, seen := dayMap[dateKey]
 		if !seen {
 			day = &attendanceHistoryDay{
@@ -380,7 +383,7 @@ func studentStatusLabel(status string) string {
 // Returns an error if the audit trail cannot be written — callers must not
 // expose the requested data without a successful audit record.
 func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64, start, end time.Time, logger *slog.Logger) error {
-	if rs.DataAccessLogRepo == nil {
+	if rs.StudentHistoryService == nil {
 		logger.Error("audit log repo not configured, refusing to serve attendance history",
 			slog.Int64("student_id", studentID),
 		)
@@ -405,7 +408,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 		AccessedAt:     time.Now(),
 	}
 
-	if err := rs.DataAccessLogRepo.Create(r.Context(), entry); err != nil {
+	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve attendance history",
 			slog.Int64("student_id", studentID),
 			slog.String("resource_type", auditModels.ResourceTypeAttendanceHistory),

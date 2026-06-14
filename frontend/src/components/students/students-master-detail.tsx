@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarClock, MoreVertical } from "lucide-react";
+import { AlertCircle, Bus, CalendarClock, MoreVertical } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -24,6 +24,7 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentGuardiansTab } from "./student-guardians-tab";
@@ -83,6 +84,10 @@ export function StudentsMasterDetail({
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkClass, setBulkClass] = useState<string | null>(null);
+  const [classTripTarget, setClassTripTarget] = useState<{
+    label: string;
+    students: Student[];
+  } | null>(null);
   // Photo feature gate. When off, the detail header falls back to the
   // legacy light-blue initials chip (string avatar form) instead of the
   // shared <Avatar> — matches what the header looked like before the
@@ -117,11 +122,27 @@ export function StudentsMasterDetail({
       const variant = missing.length > 0 ? "warning" : "neutral";
       const countSuffix =
         missing.length > 0 ? `· ${missing.length} offen` : undefined;
+      const canEditArrival =
+        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL;
+      const canPlanClassTrip =
+        (grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL) ||
+        (grouping === "group" && group.id !== UNKNOWN_GROUP_LABEL);
       const bulkAction =
-        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL ? (
-          <ClassActionsMenu
-            schoolClass={group.id}
-            onEditArrival={() => setBulkClass(group.id)}
+        canEditArrival || canPlanClassTrip ? (
+          <GroupActionsMenu
+            label={group.id}
+            onEditArrival={
+              canEditArrival ? () => setBulkClass(group.id) : undefined
+            }
+            onPlanClassTrip={
+              canPlanClassTrip
+                ? () =>
+                    setClassTripTarget({
+                      label: group.id,
+                      students: group.items,
+                    })
+                : undefined
+            }
           />
         ) : null;
       return { variant, countSuffix, bulkAction };
@@ -159,6 +180,7 @@ export function StudentsMasterDetail({
   }, [students]);
 
   const handleBulkClose = useCallback(() => setBulkClass(null), []);
+  const handleClassTripClose = useCallback(() => setClassTripTarget(null), []);
   const handleBulkSuccess = useCallback(() => {
     onArrivalDataChanged();
   }, [onArrivalDataChanged]);
@@ -283,6 +305,15 @@ export function StudentsMasterDetail({
           onSuccess={handleBulkSuccess}
         />
       ) : null}
+      {classTripTarget ? (
+        <ClassTripBulkStatusModal
+          isOpen={true}
+          onClose={handleClassTripClose}
+          targetLabel={classTripTarget.label}
+          students={classTripTarget.students}
+          onSuccess={handleBulkSuccess}
+        />
+      ) : null}
     </>
   );
 }
@@ -354,15 +385,17 @@ function buildTabs({
   ];
 }
 
-interface ClassActionsMenuProps {
-  schoolClass: string;
-  onEditArrival: () => void;
+interface GroupActionsMenuProps {
+  label: string;
+  onEditArrival?: () => void;
+  onPlanClassTrip?: () => void;
 }
 
-function ClassActionsMenu({
-  schoolClass,
+function GroupActionsMenu({
+  label,
   onEditArrival,
-}: ClassActionsMenuProps) {
+  onPlanClassTrip,
+}: GroupActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -385,7 +418,7 @@ function ClassActionsMenu({
           event.stopPropagation();
           setOpen((prev) => !prev);
         }}
-        aria-label={`Aktionen für Klasse ${schoolClass}`}
+        aria-label={`Aktionen für ${label}`}
         aria-haspopup="menu"
         aria-expanded={open}
         className="moto-content-surface flex h-7 w-7 items-center justify-center rounded-md border text-gray-500 hover:bg-gray-50 hover:text-gray-700"
@@ -397,19 +430,36 @@ function ClassActionsMenu({
           role="menu"
           className="moto-content-surface absolute top-full right-0 z-50 mt-1 w-56 overflow-hidden rounded-lg border py-1 shadow-lg"
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={(event) => {
-              event.stopPropagation();
-              setOpen(false);
-              onEditArrival();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <CalendarClock className="h-4 w-4 text-gray-500" aria-hidden />
-            Ankunftszeit bearbeiten
-          </button>
+          {onEditArrival ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+                onEditArrival();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <CalendarClock className="h-4 w-4 text-gray-500" aria-hidden />
+              Ankunftszeit bearbeiten
+            </button>
+          ) : null}
+          {onPlanClassTrip ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+                onPlanClassTrip();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Bus className="h-4 w-4 text-gray-500" aria-hidden />
+              Klassenfahrt planen
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>

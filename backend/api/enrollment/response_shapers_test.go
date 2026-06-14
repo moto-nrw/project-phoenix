@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -84,6 +86,17 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDisabled)
 }
 
+func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
+	// A stale parent link to a phase whose enrollment window is closed
+	// returns 404 with a stable code so the form explains the
+	// Anmeldefrist instead of "nicht gefunden".
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/x", nil)
+	renderPublicEnrollmentError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentWindowClosed)
+}
+
 func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
 	// Any other error → bare 404 (no stable code). The catalog endpoint
 	// intentionally hides the difference between "phase not found" and
@@ -113,8 +126,8 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 		},
 		Name:                      "Schuljahr 2026/27",
 		Kind:                      enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate:          time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:            time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate:          timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:            timezone.NewDate(2027, 7, 31),
 		EnrollmentOpenAt:          &openAt,
 		EnrollmentCloseAt:         &closeAt,
 		FormSchemaID:              &schemaID,
@@ -163,8 +176,8 @@ func TestToPhaseResponse_NilOptionalPointersStayNil(t *testing.T) {
 		Model:            baseModel.Model{ID: 1234},
 		Name:             "Fresh Phase",
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
-		ServiceEndDate:   time.Date(2027, 7, 31, 0, 0, 0, 0, time.UTC),
+		ServiceStartDate: timezone.NewDate(2026, 9, 1),
+		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
 	out := toPhaseResponse(p)
@@ -221,4 +234,31 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 	require.Len(t, out.Fields, 2)
 	assert.Equal(t, "z", out.Fields[0].Key, "shaper does not reorder — that's the form's job")
 	assert.Equal(t, "a", out.Fields[1].Key)
+}
+
+func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
+	s := &enrollmentModels.FormSchema{
+		Model:   baseModel.Model{ID: 1234},
+		Version: 2,
+		Fields:  []enrollmentModels.FormField{},
+		LegalBlocks: []enrollmentModels.FormLegalBlock{
+			{
+				Key:       "photo",
+				Kind:      enrollmentModels.LegalBlockKindConsent,
+				Title:     "Fotoeinwilligung",
+				Label:     "Fotos erlauben",
+				Text:      "disabled draft text must not leak",
+				Required:  false,
+				Enabled:   false,
+				SortOrder: 10,
+			},
+		},
+	}
+
+	out := toPublicFormSchemaResponse(s)
+	require.NotNil(t, out)
+	raw, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "legal_blocks")
+	assert.NotContains(t, string(raw), "disabled draft text")
 }
