@@ -46,7 +46,7 @@ func (e *TimetableAttendanceValidationError) Error() string {
 type OperationPersonService interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*usersModel.Person, error)
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Person, error)
-	StaffRepository() usersModel.StaffRepository
+	GetStaffByPersonID(ctx context.Context, personID int64) (*usersModel.Staff, error)
 }
 
 type OperationActiveService interface {
@@ -612,7 +612,7 @@ func (s *timetableOperationsService) rosterWarnings(
 			}
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:                  "template_class_mismatch",
-				Message:               "Kind passt nicht zur Klassengruppe der Stundenplan-Vorlage.",
+				Message:               "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
 				ExpectedGroupID:       &expectedGroupID,
 				ExpectedGroupName:     expectedGroupName,
 				CurrentEducationGroup: st.GroupID,
@@ -668,7 +668,7 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 	if person == nil {
 		return 0, false, nil
 	}
-	staff, err := s.deps.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, err := s.deps.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
 		if isNoRows(err) {
 			return 0, false, nil

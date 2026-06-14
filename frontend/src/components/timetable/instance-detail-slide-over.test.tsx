@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstanceDetailSlideOver } from "./instance-detail-slide-over";
@@ -52,6 +58,11 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     ],
     ...overrides,
   };
+}
+
+function confirmDialogButton(name: string) {
+  const dialogs = screen.getAllByRole("dialog");
+  return within(dialogs[dialogs.length - 1]!).getByRole("button", { name });
 }
 
 describe("InstanceDetailSlideOver", () => {
@@ -140,30 +151,63 @@ describe("InstanceDetailSlideOver", () => {
       />,
     );
 
-    expect(screen.getByText("Spontan")).toBeInTheDocument();
+    expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
   });
 
-  it("handles active, cancelled and fallback student states", async () => {
+  it("completes an active instance", async () => {
     const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
-    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
-    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
-    const { rerender } = render(
+    render(
       <InstanceDetailSlideOver
         instance={instance({ status: "active", isLive: true })}
         onClose={vi.fn()}
         onLifecycleAction={onLifecycleAction}
-        onAttendancePatch={onAttendancePatch}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Beenden/ }));
+    expect(screen.getByText("Termin beenden?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Beenden"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("complete"),
     );
+    await waitFor(() =>
+      expect(screen.queryByText("Termin beenden?")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("cancels an active instance", async () => {
+    const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={onLifecycleAction}
+      />,
+    );
+
     fireEvent.click(screen.getByRole("button", { name: /Absagen/ }));
+    expect(screen.getByText("Termin absagen?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Absagen"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("cancel"),
     );
+    await waitFor(() =>
+      expect(screen.queryByText("Termin absagen?")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("patches active attendance states", async () => {
+    const onAttendancePatch = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+      />,
+    );
+
     fireEvent.click(
       screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
     );
@@ -192,8 +236,13 @@ describe("InstanceDetailSlideOver", () => {
         note: null,
       }),
     );
+  });
 
-    rerender(
+  it("handles cancelled fallback student states", async () => {
+    const onLifecycleAction = vi.fn().mockResolvedValue(undefined);
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+
+    render(
       <InstanceDetailSlideOver
         instance={instance({
           status: "cancelled",
@@ -210,10 +259,8 @@ describe("InstanceDetailSlideOver", () => {
 
     expect(screen.getByText("Fallback Kind")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(
-      screen.getByRole("button", { name: /Löschen bestätigen/ }),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Löschen bestätigen/ }));
+    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    fireEvent.click(confirmDialogButton("Löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42" }),
@@ -298,13 +345,11 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(
-      screen.getByRole("button", { name: /Löschen bestätigen/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Löschen abbrechen/ }));
+    fireEvent.click(confirmDialogButton("Abbrechen"));
     expect(
-      screen.queryByRole("button", { name: /Löschen bestätigen/ }),
+      screen.queryByText("Abgesagten Termin löschen?"),
     ).not.toBeInTheDocument();
     expect(onDeleteCancelled).not.toHaveBeenCalled();
   });

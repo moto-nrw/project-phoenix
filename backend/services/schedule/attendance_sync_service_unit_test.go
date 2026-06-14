@@ -494,7 +494,7 @@ func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context,
 	return nil, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
 	return 0, nil
 }
 

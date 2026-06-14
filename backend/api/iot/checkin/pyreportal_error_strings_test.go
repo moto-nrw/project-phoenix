@@ -69,7 +69,7 @@ var pyreportalCheckinErrorStrings = []string{
 
 	// Duplicate active visit (POST /checkin) — 409 Conflict path added in
 	// migration 1.15.47. PyrePortal substring-matches the code to surface
-	// "Schüler*in ist bereits angemeldet" instead of the generic conflict
+	// "Kinder*in ist bereits angemeldet" instead of the generic conflict
 	// fallback. The English message phrasing is the canonical
 	// active-service error from services/active/errors.go and is
 	// surfaced both as the response Message and as the typed Error()

@@ -7,10 +7,15 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { RotateCw, Check } from "lucide-react";
 import { useSWRConfig } from "swr";
+import { useTranslations } from "next-intl";
 
 type ButtonState = "idle" | "spinning" | "success";
 
 export function RefreshButton() {
+  // parentNav is provided in every shell (full catalog in the parents portal,
+  // German-only mirror via ShellNavIntlProvider in the staff/operator shells),
+  // so the German label is unchanged there and only the parent portal localizes.
+  const t = useTranslations("parentNav");
   const [state, setState] = useState<ButtonState>("idle");
   const pendingStopRef = useRef(false);
   const { mutate } = useSWRConfig();
@@ -48,8 +53,8 @@ export function RefreshButton() {
       type="button"
       onClick={handleRefresh}
       disabled={state === "spinning"}
-      aria-label="Daten aktualisieren"
-      title="Daten aktualisieren"
+      aria-label={t("refresh")}
+      title={t("refresh")}
       className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
     >
       <div className="relative h-5 w-5">

@@ -85,7 +85,15 @@ function setupFetchMock(overrides?: {
 }
 
 // Helper to create wrapper with session
-function createWrapper(token?: string, roles?: string[]) {
+// Default test subject is a real supervisor, who carries `groups:read` — the
+// permission the backend requires for /schulhof/status. Pass an empty array to
+// model a limited account (e.g. the `guest` role) that must NOT poll Schulhof.
+function createWrapper(
+  token?: string,
+  roles?: string[],
+  permissions: string[] = ["groups:read"],
+  includePermissions = true,
+) {
   return function Wrapper({ children }: { children: ReactNode }) {
     vi.mocked(useSession).mockReturnValue(
       (token
@@ -96,6 +104,7 @@ function createWrapper(token?: string, roles?: string[]) {
                 id: "1",
                 email: "test@example.com",
                 name: "Test User",
+                ...(includePermissions ? { permissions } : {}),
                 ...(roles ? { roles } : {}),
               },
               expires: "2099-12-31",
@@ -679,6 +688,115 @@ describe("SupervisionProvider Schulhof handling", () => {
     expect(result.current.isSupervising).toBe(true);
     expect(result.current.supervisedRooms).toHaveLength(1);
     expect(result.current.supervisedRooms[0]?.isSchulhof).toBe(true);
+  });
+
+  it("should NOT poll Schulhof status for accounts without groups:read (issue #846)", async () => {
+    // A limited account (e.g. the `guest` role) lacks groups:read. The backend
+    // gates /schulhof/status on that permission, so polling it only ever 403s
+    // and floods the logs. The provider must skip the fetch entirely.
+    setupFetchMock({
+      supervised: { data: [] },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["guest"], []),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).not.toContain("/api/active/schulhof/status");
+
+    // Even though the mock would report an existing Schulhof, no tab appears
+    // because the status was never fetched.
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeUndefined();
+  });
+
+  it("should poll Schulhof status for admins even without an explicit groups:read permission", async () => {
+    // Admins are gated in via the admin wildcard rather than an explicit
+    // grant; the isAdmin guard must keep Schulhof working for them.
+    setupFetchMock({
+      supervised: { data: [] },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"], []),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).toContain("/api/active/schulhof/status");
+
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeDefined();
+  });
+
+  it("should poll Schulhof status for pre-existing staff sessions without a permissions claim", async () => {
+    // Sessions issued before the permissions claim existed still have a valid
+    // backend token. Role-based staff access must continue until refresh adds
+    // the explicit permissions list.
+    setupFetchMock({
+      supervised: { data: [] },
+      schulhof: {
+        data: {
+          data: {
+            exists: true,
+            room_id: 100,
+            room_name: "Schulhof",
+            active_group_id: 200,
+            is_user_supervising: false,
+          },
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["teacher"], [], false),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).toContain("/api/active/schulhof/status");
+
+    const schulhofRoom = result.current.supervisedRooms.find(
+      (r) => r.isSchulhof,
+    );
+    expect(schulhofRoom).toBeDefined();
   });
 
   it("should not include Schulhof when it does not exist", async () => {

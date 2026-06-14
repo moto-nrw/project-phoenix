@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -125,8 +127,7 @@ func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T)
 	staffRepo := &mirrorInstanceStaffRepoStub{}
 	bc := &captureMirrorBroadcaster{}
 	rs := &Resource{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
+		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActivityInstanceRepo: instanceRepo, InstanceStaffRepo: staffRepo}),
 		Broadcaster:       bc,
 		ActivitiesService: &mirrorActivitiesServiceStub{group: &activityModels.Group{Name: "Werkstatt"}},
 	}
@@ -178,7 +179,7 @@ func TestCompleteMirroredTimetableInstanceMarksCompletedAndBroadcasts(t *testing
 		},
 	}
 	bc := &captureMirrorBroadcaster{}
-	rs := &Resource{InstanceRepo: instanceRepo, Broadcaster: bc}
+	rs := &Resource{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActivityInstanceRepo: instanceRepo}), Broadcaster: bc}
 
 	rs.completeMirroredTimetableInstance(ctx, activeGroupID)
 
@@ -212,16 +213,18 @@ func TestMirrorSessionToTimetableSkipsWhenAlreadyMirroredOrLookupFails(t *testin
 	t.Run("already mirrored", func(t *testing.T) {
 		createCalled := false
 		rs := &Resource{
-			InstanceRepo: &mirrorInstanceRepoStub{
-				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-					return &scheduleModel.ActivityInstance{}, nil
+			TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+				ActivityInstanceRepo: &mirrorInstanceRepoStub{
+					findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+						return &scheduleModel.ActivityInstance{}, nil
+					},
+					create: func(context.Context, *scheduleModel.ActivityInstance) error {
+						createCalled = true
+						return nil
+					},
 				},
-				create: func(context.Context, *scheduleModel.ActivityInstance) error {
-					createCalled = true
-					return nil
-				},
-			},
-			InstanceStaffRepo: &mirrorInstanceStaffRepoStub{},
+				InstanceStaffRepo: &mirrorInstanceStaffRepoStub{},
+			}),
 		}
 
 		rs.mirrorSessionToTimetable(context.Background(), activeGroup, []int64{101})
@@ -232,16 +235,18 @@ func TestMirrorSessionToTimetableSkipsWhenAlreadyMirroredOrLookupFails(t *testin
 	t.Run("lookup error", func(t *testing.T) {
 		createCalled := false
 		rs := &Resource{
-			InstanceRepo: &mirrorInstanceRepoStub{
-				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-					return nil, errors.New("db down")
+			TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+				ActivityInstanceRepo: &mirrorInstanceRepoStub{
+					findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+						return nil, errors.New("db down")
+					},
+					create: func(context.Context, *scheduleModel.ActivityInstance) error {
+						createCalled = true
+						return nil
+					},
 				},
-				create: func(context.Context, *scheduleModel.ActivityInstance) error {
-					createCalled = true
-					return nil
-				},
-			},
-			InstanceStaffRepo: &mirrorInstanceStaffRepoStub{},
+				InstanceStaffRepo: &mirrorInstanceStaffRepoStub{},
+			}),
 		}
 
 		rs.mirrorSessionToTimetable(context.Background(), activeGroup, []int64{101})
@@ -258,15 +263,17 @@ func TestMirrorSessionToTimetableHandlesCreateFailures(t *testing.T) {
 	t.Run("instance create failure", func(t *testing.T) {
 		staffRepo := &mirrorInstanceStaffRepoStub{}
 		rs := &Resource{
-			InstanceRepo: &mirrorInstanceRepoStub{
-				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-					return nil, nil
+			TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+				ActivityInstanceRepo: &mirrorInstanceRepoStub{
+					findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+						return nil, nil
+					},
+					create: func(context.Context, *scheduleModel.ActivityInstance) error {
+						return errors.New("insert failed")
+					},
 				},
-				create: func(context.Context, *scheduleModel.ActivityInstance) error {
-					return errors.New("insert failed")
-				},
-			},
-			InstanceStaffRepo: staffRepo,
+				InstanceStaffRepo: staffRepo,
+			}),
 		}
 
 		rs.mirrorSessionToTimetable(context.Background(), activeGroup, []int64{101})
@@ -277,16 +284,18 @@ func TestMirrorSessionToTimetableHandlesCreateFailures(t *testing.T) {
 	t.Run("staff create failure still attempts remaining staff", func(t *testing.T) {
 		staffRepo := &mirrorInstanceStaffRepoStub{err: errors.New("staff insert failed")}
 		rs := &Resource{
-			InstanceRepo: &mirrorInstanceRepoStub{
-				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-					return nil, nil
+			TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+				ActivityInstanceRepo: &mirrorInstanceRepoStub{
+					findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+						return nil, nil
+					},
+					create: func(_ context.Context, inst *scheduleModel.ActivityInstance) error {
+						inst.ID = 77
+						return nil
+					},
 				},
-				create: func(_ context.Context, inst *scheduleModel.ActivityInstance) error {
-					inst.ID = 77
-					return nil
-				},
-			},
-			InstanceStaffRepo: staffRepo,
+				InstanceStaffRepo: staffRepo,
+			}),
 		}
 
 		rs.mirrorSessionToTimetable(context.Background(), activeGroup, []int64{101, 202})
@@ -302,28 +311,32 @@ func TestCompleteMirroredTimetableInstanceSkipsInvalidAndFailedLookups(t *testin
 
 	markCalled := false
 	rs = &Resource{
-		InstanceRepo: &mirrorInstanceRepoStub{
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+			ActivityInstanceRepo: &mirrorInstanceRepoStub{
+				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+					return nil, errors.New("db down")
+				},
+				markCompleted: func(context.Context, int64, time.Time) error {
+					markCalled = true
+					return nil
+				},
+			},
+		}),
+	}
+	rs.completeMirroredTimetableInstance(context.Background(), 66)
+	assert.False(t, markCalled)
+
+	rs.TimetableData = scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+		ActivityInstanceRepo: &mirrorInstanceRepoStub{
 			findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-				return nil, errors.New("db down")
+				return nil, nil
 			},
 			markCompleted: func(context.Context, int64, time.Time) error {
 				markCalled = true
 				return nil
 			},
 		},
-	}
-	rs.completeMirroredTimetableInstance(context.Background(), 66)
-	assert.False(t, markCalled)
-
-	rs.InstanceRepo = &mirrorInstanceRepoStub{
-		findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-			return nil, nil
-		},
-		markCompleted: func(context.Context, int64, time.Time) error {
-			markCalled = true
-			return nil
-		},
-	}
+	})
 	rs.completeMirroredTimetableInstance(context.Background(), 66)
 	assert.False(t, markCalled)
 }
@@ -334,14 +347,16 @@ func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing
 	inst.ID = 77
 	bc := &captureMirrorBroadcaster{}
 	rs := &Resource{
-		InstanceRepo: &mirrorInstanceRepoStub{
-			findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
-				return inst, nil
+		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+			ActivityInstanceRepo: &mirrorInstanceRepoStub{
+				findByActiveGroupID: func(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+					return inst, nil
+				},
+				markCompleted: func(context.Context, int64, time.Time) error {
+					return errors.New("update failed")
+				},
 			},
-			markCompleted: func(context.Context, int64, time.Time) error {
-				return errors.New("update failed")
-			},
-		},
+		}),
 		Broadcaster: bc,
 	}
 
@@ -367,14 +382,12 @@ func TestResourceRouterAndAccessorsAreWired(t *testing.T) {
 }
 
 func TestConfigureTimetableMirrorStoresDependencies(t *testing.T) {
-	instanceRepo := &mirrorInstanceRepoStub{}
-	staffRepo := &mirrorInstanceStaffRepoStub{}
+	timetableData := scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{})
 	bc := &captureMirrorBroadcaster{}
 	rs := &Resource{}
 
-	rs.ConfigureTimetableMirror(instanceRepo, staffRepo, bc)
+	rs.ConfigureTimetableMirror(timetableData, bc)
 
-	assert.Same(t, instanceRepo, rs.InstanceRepo)
-	assert.Same(t, staffRepo, rs.InstanceStaffRepo)
+	assert.Same(t, timetableData, rs.TimetableData)
 	assert.Same(t, bc, rs.Broadcaster)
 }

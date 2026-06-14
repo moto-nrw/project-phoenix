@@ -119,7 +119,7 @@ describe("useStudentData", () => {
       const { result } = renderHook(() => useStudentData("123"));
 
       expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBe("Fehler beim Laden der Schülerdaten.");
+      expect(result.current.error).toBe("Fehler beim Laden der Kinderdaten.");
     });
 
     it("provides refreshData function", () => {

@@ -4,6 +4,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 /**
  * Chevron separator icon for breadcrumbs
@@ -270,9 +271,10 @@ export function ParentChildBreadcrumb({
   childName,
   isScrolled = false,
 }: ParentChildBreadcrumbProps) {
+  const t = useTranslations("parentNav");
   return (
     <BreadcrumbNav isScrolled={isScrolled}>
-      <BreadcrumbLink href="/parents/children">Meine Kinder</BreadcrumbLink>
+      <BreadcrumbLink href="/parents/children">{t("children")}</BreadcrumbLink>
       <BreadcrumbSeparator />
       <BreadcrumbCurrent>{childName}</BreadcrumbCurrent>
     </BreadcrumbNav>

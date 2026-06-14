@@ -33,7 +33,7 @@ import (
 var serviceQueryRatchetAllowlist = map[string]int{
 	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
 	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
-	"services/active/session_service.go":                1, // advisory lock (pg_advisory_xact_lock)
+	"services/active/session_service.go":                4, // advisory lock + savepoints for best-effort DB side effects
 	"services/enrollment/request_service.go":            1,
 	"services/import/student_import_config.go":          3,
 	"services/platform/operator_suggestions_service.go": 3,
@@ -43,8 +43,12 @@ var serviceQueryRatchetAllowlist = map[string]int{
 var (
 	// Query builder construction on a db/tx handle.
 	queryBuilderPattern = regexp.MustCompile(`\.New(Select|Update|Insert|Delete|Raw)\(`)
-	// Driver-level statement execution on a db/tx handle.
-	driverExecPattern = regexp.MustCompile(`\.(ExecContext|QueryContext|QueryRowContext)\(`)
+	// Driver-level statement execution on a db/tx handle — both the
+	// context-taking and context-free variants (Exec/Query/QueryRow compile
+	// fine on bun.DB too). The trailing ([^)]|$) requires an argument (or a
+	// multi-line call continuing past the line end) so the no-arg
+	// `r.URL.Query()` accessor all over api/ does not match.
+	driverExecPattern = regexp.MustCompile(`\.(Exec|Query|QueryRow)(Context)?\(([^)]|$)`)
 )
 
 func TestServiceRepositoryRatchet(t *testing.T) {

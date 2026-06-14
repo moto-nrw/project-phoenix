@@ -44,7 +44,7 @@ function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
   if (pathname.includes("/mensa_history")) return "Mensa Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
-  return "Schüler Details";
+  return "Kinder Details";
 }
 
 function getDatabasePageTitle(pathname: string): string {
@@ -73,12 +73,12 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
-    "/students": "Schüler",
+    "/students": "Kinder",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/statistics": "Statistiken",
     "/substitutions": "Vertretungen",
-    "/timetables": "Stundenplan",
+    "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
     "/emergency": "Notfall",
     "/settings": "Einstellungen",

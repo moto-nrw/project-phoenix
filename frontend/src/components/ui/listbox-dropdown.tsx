@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import {
   useCallback,
+  type CSSProperties,
   useEffect,
   useId,
   useRef,
@@ -23,6 +24,8 @@ interface ListboxDropdownProps<K extends string> {
   readonly onChange: (next: K) => void;
   readonly id?: string;
   readonly ariaLabel?: string;
+  readonly containerClassName?: string;
+  readonly containerStyle?: CSSProperties;
   readonly className?: string;
   readonly menuClassName?: string;
   readonly optionClassName?: string;
@@ -78,6 +81,8 @@ export function ListboxDropdown<K extends string>({
   onChange,
   id,
   ariaLabel,
+  containerClassName = "relative",
+  containerStyle,
   className = "",
   menuClassName = "",
   optionClassName = "",
@@ -220,7 +225,11 @@ export function ListboxDropdown<K extends string>({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <div
+      ref={containerRef}
+      className={containerClassName}
+      style={containerStyle}
+    >
       <button
         ref={buttonRef}
         id={id}

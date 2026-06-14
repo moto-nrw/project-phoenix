@@ -504,7 +504,7 @@ export function PickupTimeRow({
 
   return (
     <TimeStatusRow
-      label="Abholzeit"
+      label="Gehzeit"
       plannedTime={pickupTime}
       actualTime={actualTime}
       isException={isException}

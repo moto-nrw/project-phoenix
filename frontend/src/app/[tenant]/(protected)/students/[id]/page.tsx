@@ -25,7 +25,11 @@ import {
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
-import { normalizeBusDays } from "~/lib/student-helpers";
+import {
+  departureDaysFromLegacy,
+  normalizeBusDays,
+  normalizeDepartureDays,
+} from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
   SupervisorsCard,
@@ -488,7 +492,7 @@ export default function StudentDetailPage() {
   if (error || !student) {
     return (
       <div className="flex min-h-[80vh] flex-col items-center justify-center">
-        <Alert type="error" message={error ?? "Schüler nicht gefunden"} />
+        <Alert type="error" message={error ?? "Kind nicht gefunden"} />
         <button
           onClick={() => router.push(referrer)}
           className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
@@ -512,6 +516,13 @@ export default function StudentDetailPage() {
       // The personal-info form now edits bus_days directly via the weekday
       // picker; bus_days is the single source of truth (#1582).
       bus_days: normalizeBusDays(editedStudent.bus_days),
+      departure_days: normalizeDepartureDays(
+        editedStudent.departure_days ??
+          departureDaysFromLegacy(
+            editedStudent.bus_days,
+            editedStudent.pickup_days,
+          ),
+      ),
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,

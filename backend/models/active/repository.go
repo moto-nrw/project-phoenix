@@ -120,6 +120,11 @@ type VisitRepository interface {
 	// student whose entry_time falls within [start, end], ordered by entry_time desc.
 	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
 
+	// FindActiveWithStudentDisplayByGroup returns the open visits of an
+	// active group joined with the students' display data (name, class,
+	// education group, status flags, photo path), newest entry first.
+	FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
+
 	// FindByStudentAndActiveGroupIDs returns visits for the student whose
 	// active_group_id is in the given list. Used by the timetable per-student
 	// day view to detect unplanned attendance in a single batch query.
@@ -131,6 +136,11 @@ type VisitRepository interface {
 
 	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
 	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
+
+	// TransferActiveVisitsBetweenGroups moves still-open visits from one active
+	// group to another. Ended visits are ignored so stale callers cannot reopen
+	// a checkout by writing an old NULL exit_time back to the row.
+	TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 
 	// Cleanup operations for data retention
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student

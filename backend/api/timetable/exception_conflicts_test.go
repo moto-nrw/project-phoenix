@@ -14,8 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -54,13 +52,8 @@ func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	}
 
 	res := NewResource(Dependencies{
-		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(db),
-		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
-		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(db),
-		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo:  scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		DB:                    db,
+		TimetableData: testTimetableData(db),
+		DB:            db,
 	})
 
 	return &conflictsSetup{

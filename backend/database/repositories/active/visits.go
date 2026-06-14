@@ -326,6 +326,40 @@ func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, 
 	return int(rowsAffected), nil
 }
 
+// TransferActiveVisitsBetweenGroups transfers only currently open visits from
+// one active group to another. The exit_time predicate makes the transfer safe
+// against concurrent checkout/timeout flows.
+func (r *VisitRepository) TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Table(tableActiveVisits).
+		Set("active_group_id = ?", newActiveGroupID).
+		Set("updated_at = ?", time.Now()).
+		Where("active_group_id = ?", oldActiveGroupID).
+		Where("exit_time IS NULL")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "transfer active visits between groups",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get affected rows from active visit transfer",
+			Err: err,
+		}
+	}
+
+	return int(rowsAffected), nil
+}
+
 // DeleteExpiredVisits deletes visits older than retention days for a specific student
 func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error) {
 	cutoffDate := time.Now().AddDate(0, 0, -retentionDays)
@@ -1006,4 +1040,38 @@ func (r *VisitRepository) GetCurrentRoomNamesForStudents(ctx context.Context, st
 		}
 	}
 	return locations, nil
+}
+
+// FindActiveWithStudentDisplayByGroup returns the open visits of an active
+// group joined with student display data, newest entry first (issue #584:
+// moved verbatim out of api/active).
+func (r *VisitRepository) FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error) {
+	var results []*active.VisitWithStudentDisplay
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("v.id AS visit_id").
+		ColumnExpr("v.student_id").
+		ColumnExpr("v.active_group_id").
+		ColumnExpr("v.entry_time").
+		ColumnExpr("v.exit_time").
+		ColumnExpr("v.created_at").
+		ColumnExpr("v.updated_at").
+		ColumnExpr("p.first_name").
+		ColumnExpr("p.last_name").
+		ColumnExpr("COALESCE(s.school_class, '') AS school_class").
+		ColumnExpr("s.group_id").
+		ColumnExpr("COALESCE(g.name, '') AS ogs_group_name").
+		ColumnExpr("s.sick").
+		ColumnExpr("s.sick_since").
+		ColumnExpr("s.excused").
+		ColumnExpr("s.excused_since").
+		ColumnExpr("s.photo_path").
+		TableExpr("active.visits AS v").
+		Join("INNER JOIN users.students AS s ON s.id = v.student_id").
+		Join("INNER JOIN users.persons AS p ON p.id = s.person_id").
+		Join("LEFT JOIN education.groups AS g ON g.id = s.group_id").
+		Where("v.active_group_id = ?", activeGroupID).
+		Where("v.exit_time IS NULL").
+		OrderExpr("v.entry_time DESC").
+		Scan(ctx, &results)
+	return results, err
 }

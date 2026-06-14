@@ -673,8 +673,8 @@ export function PhasesEditor() {
               {!impactLoading && deleteImpact && (
                 <div className="rounded-lg bg-[#83CD2D]/10 px-3 py-2 text-sm text-[#4a7a15]">
                   {deleteImpact.students_kept === 1
-                    ? "1 bereits angelegter Schüler bleibt erhalten."
-                    : `${deleteImpact.students_kept} bereits angelegte Schüler bleiben erhalten.`}
+                    ? "1 bereits angelegter Kind bleibt erhalten."
+                    : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
                 </div>
               )}
             </div>

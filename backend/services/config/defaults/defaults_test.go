@@ -254,12 +254,13 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 	require.NotNil(t, enabledDef)
 	assert.Equal(t, true, enabledDef.Default, "timetable must default to true so the feature is opt-out")
 
-	// The top-level feature is opt-out, but materialization and auto-start stay
-	// opt-in so background writes and live activity transitions do not begin
-	// unless a tenant explicitly enables those behaviours.
+	// The top-level feature is opt-out, and so is materialization: instances
+	// are prepared automatically unless an operator disables it per tenant.
+	// Auto-start stays opt-in so live activity transitions do not begin
+	// unless a tenant explicitly enables that behaviour.
 	matDef := config.GetDefinition("timetable.materialization_enabled")
 	require.NotNil(t, matDef)
-	assert.Equal(t, false, matDef.Default, "materialization must default to false")
+	assert.Equal(t, true, matDef.Default, "materialization must default to true so it is opt-out")
 
 	autoStartDef := config.GetDefinition("timetable.auto_start_planned")
 	require.NotNil(t, autoStartDef)
@@ -345,6 +346,20 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 	require.NotNil(t, retentionDef)
 	assert.Equal(t, "gdpr", retentionDef.Tab)
 	assert.Equal(t, "config:manage", retentionDef.WritePermission, "GDPR settings must use config:manage")
+}
+
+func TestTimetableMaterializationSettings_OperatorOnly(t *testing.T) {
+	keys := []string{
+		"timetable.materialization_enabled",
+		"timetable.materialization_weekday",
+		"timetable.materialization_weeks_ahead",
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equalf(t, config.AccessOperatorOnly, def.AccessPolicy,
+			"setting %q is operator-only - materialization cadence is platform plumbing, not tenant-tunable", key)
+	}
 }
 
 func TestTimetableSettings_WeekdayOptions(t *testing.T) {
@@ -452,14 +467,10 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 	}
 }
 
-// TestEnrollmentLegalTexts guards the per-tenant AGB + Datenschutz
-// document settings: all are textarea-typed (so the admin gets a
-// multi-line editor for a full legal page), default to empty (so the
-// public form falls back to a plain consent label until an admin fills
-// them in), and use the stricter config:manage write permission
-// (legal/GDPR documents). The DSGVO, E-Mail and Foto texts hide behind
-// the enrollment.enabled master toggle; the AGB text instead hides
-// behind enrollment.legal_terms_enabled, since AGB is opt-in per Träger.
+// TestEnrollmentLegalTexts guards the per-tenant legal document settings:
+// all text fields are textarea-typed, default to empty, use the stricter
+// config:manage write permission, and stay visible whenever enrollment is
+// enabled so admins can enter text before activating a block.
 func TestEnrollmentLegalTexts(t *testing.T) {
 	keys := []string{
 		config.KeyEnrollmentLegalAGBText,
@@ -478,34 +489,34 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
 		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
 		require.NotNilf(t, def.DependsOn, "setting %q must declare a DependsOn parent", key)
-		// AGB is opt-in: its text is only shown once a Träger turns on the
-		// terms toggle. The remaining legal texts gate on the master flag.
-		wantParent := config.KeyEnrollmentEnabled
-		if key == config.KeyEnrollmentLegalAGBText {
-			wantParent = config.KeyEnrollmentLegalTermsEnabled
-		}
-		assert.Equalf(t, wantParent, def.DependsOn.Key, "setting %q has unexpected DependsOn parent", key)
+		assert.Equalf(t, config.KeyEnrollmentEnabled, def.DependsOn.Key, "setting %q has unexpected DependsOn parent", key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
 }
 
-// TestEnrollmentLegalTermsEnabled guards the AGB master toggle: a boolean
-// that defaults OFF (no general duty to use AGB, so a fresh tenant must
-// not show a mandatory "AGB akzeptieren" checkbox), uses config:manage,
-// and itself hides behind the enrollment.enabled master flag.
-func TestEnrollmentLegalTermsEnabled(t *testing.T) {
-	def := config.GetDefinition(config.KeyEnrollmentLegalTermsEnabled)
-	require.NotNil(t, def, "enrollment.legal_terms_enabled should be registered")
-	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, false, def.Default, "AGB toggle must default off")
-	assert.Equal(t, "enrollment", def.Tab)
-	assert.Equal(t, "rechtstexte", def.Category)
-	assert.Equal(t, "config:manage", def.WritePermission)
-	assert.NotEmpty(t, def.Label)
-	assert.NotEmpty(t, def.Description)
-	require.NotNil(t, def.DependsOn)
-	assert.Equal(t, config.KeyEnrollmentEnabled, def.DependsOn.Key)
+func TestEnrollmentLegalBlockToggles(t *testing.T) {
+	keys := []string{
+		config.KeyEnrollmentLegalTermsEnabled,
+		config.KeyEnrollmentLegalDSGVOEnabled,
+		config.KeyEnrollmentLegalEmailContactEnabled,
+		config.KeyEnrollmentLegalPhotoEnabled,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should be registered", key)
+		assert.Equalf(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equalf(t, false, def.Default, "setting %q should default off", key)
+		assert.Equalf(t, "enrollment", def.Tab, "setting %q should be in enrollment tab", key)
+		assert.Equalf(t, "rechtstexte", def.Category, "setting %q should be in rechtstexte category", key)
+		assert.Equalf(t, "config:manage", def.WritePermission, "setting %q should use config:manage", key)
+		assert.NotEmptyf(t, def.Label, "setting %q must have a German label", key)
+		assert.NotEmptyf(t, def.Description, "setting %q must have a German description", key)
+		require.NotNilf(t, def.DependsOn, "setting %q must declare a DependsOn parent", key)
+		assert.Equalf(t, config.KeyEnrollmentEnabled, def.DependsOn.Key, "setting %q has unexpected DependsOn parent", key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
 }
 
 // TestEnrollmentEnabled_DefaultsOff guards that the master feature flag is

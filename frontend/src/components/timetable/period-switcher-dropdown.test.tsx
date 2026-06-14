@@ -60,7 +60,7 @@ describe("PeriodSwitcherDropdown", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Periode anlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum anlegen" }));
 
     expect(onCreate).toHaveBeenCalledOnce();
   });
@@ -97,7 +97,7 @@ describe("PeriodSwitcherDropdown", () => {
     expect(onSelect).toHaveBeenCalledWith(basePeriods[1]);
 
     fireEvent.click(screen.getByRole("button", { name: /Schuljahr/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Neue Periode/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Neuen Zeitraum/ }));
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
@@ -164,29 +164,30 @@ describe("PeriodSwitcherDropdown", () => {
         onSelect={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Periode anlegen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum anlegen" }));
     expect(
-      screen.getByText(/Für diesen Monat ist keine aktive Periode hinterlegt/),
+      screen.getByText(/Für diesen Monat ist kein aktiver Zeitraum hinterlegt/),
     ).toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);
+    const schoolYearPeriod = basePeriods[0]!;
+    const holidayPeriod = basePeriods[1]!;
     rerender(
       <PeriodSwitcherDropdown
-        periods={basePeriods}
+        periods={[schoolYearPeriod, { ...holidayPeriod, isActive: true }]}
         weekDays={[
           new Date("2026-07-31T00:00:00"),
           new Date("2026-08-03T00:00:00"),
         ]}
         view="month"
+        selectedPeriodId="1"
         onCreate={vi.fn()}
         onEdit={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Mehrere Perioden/ }));
-    expect(screen.getByText("Umfasst mehrere Perioden.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Einige Tage haben keine aktive Periode."),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Mehrere Zeiträume/ }));
+    expect(screen.getByText("Umfasst mehrere Zeiträume.")).toBeInTheDocument();
+    expect(screen.getAllByTestId("selected-period-check")).toHaveLength(1);
   });
 });

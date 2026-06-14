@@ -64,7 +64,21 @@ describe("calendarPeriodService", () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: backendPeriod }))
       .mockResolvedValueOnce(jsonResponse({ data: backendPeriod }))
-      .mockResolvedValueOnce(jsonResponse({ data: backendPeriod }));
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            ...backendPeriod,
+            warnings: [
+              {
+                code: "overlapping_active_periods",
+                message: "Überschneidung mit aktiven Zeiträumen",
+                overlapping_period_ids: [3],
+                overlapping_period_names: ["Halbjahr 1"],
+              },
+            ],
+          },
+        }),
+      );
 
     const body = {
       name: "Schuljahr 2026/2027",
@@ -79,12 +93,25 @@ describe("calendarPeriodService", () => {
     await expect(calendarPeriodService.get("5")).resolves.toMatchObject({
       id: "5",
     });
+    // create/update return { period, warnings } per the period-warning
+    // contract; warnings default to [] when the backend omits the field.
     await expect(calendarPeriodService.create(body)).resolves.toMatchObject({
-      id: "5",
+      period: { id: "5" },
+      warnings: [],
     });
     await expect(
       calendarPeriodService.update("5", body),
-    ).resolves.toMatchObject({ id: "5" });
+    ).resolves.toMatchObject({
+      period: { id: "5" },
+      warnings: [
+        {
+          code: "overlapping_active_periods",
+          message: "Überschneidung mit aktiven Zeiträumen",
+          overlappingPeriodIds: ["3"],
+          overlappingPeriodNames: ["Halbjahr 1"],
+        },
+      ],
+    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
@@ -95,6 +122,25 @@ describe("calendarPeriodService", () => {
       3,
       "/api/timetable/periods/5",
       expect.objectContaining({ method: "PUT", body: JSON.stringify(body) }),
+    );
+  });
+
+  it("bootstraps default periods and maps the response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: { periods: [backendPeriod], created: true } }),
+    );
+
+    await expect(calendarPeriodService.bootstrap()).resolves.toEqual({
+      periods: [expect.objectContaining({ id: "5" })],
+      created: true,
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/periods/bootstrap",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        body: "{}",
+      }),
     );
   });
 

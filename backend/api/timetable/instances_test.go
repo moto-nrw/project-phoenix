@@ -51,8 +51,13 @@ type mockInstanceService struct {
 	lastStartedBy int64
 	lastFrom      timezone.Date
 	lastTo        timezone.Date
+	lastReplanGID *int64
 	lastCreate    *scheduleSvc.CreateInstanceInput
 	lastUpdate    *scheduleSvc.UpdateInstanceInput
+}
+
+func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
+	return nil, nil
 }
 
 func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
@@ -82,9 +87,10 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
+	m.lastReplanGID = activityGroupID
 	if m.replanErr != nil {
 		return nil, m.replanErr
 	}
@@ -197,9 +203,6 @@ func (m *instMockPersonService) GetFullProfile(_ context.Context, _ int64) (*use
 func (m *instMockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
 	return nil, nil
 }
-func (m *instMockPersonService) StaffRepository() userModels.StaffRepository     { return m.staffRepo }
-func (m *instMockPersonService) TeacherRepository() userModels.TeacherRepository { return nil }
-func (m *instMockPersonService) StudentRepository() userModels.StudentRepository { return nil }
 func (m *instMockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
@@ -216,6 +219,66 @@ func (m *instMockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context
 	return nil, nil
 }
 func (m *instMockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
+	if m.staffRepo == nil {
+		return nil, nil
+	}
+	return m.staffRepo.FindByPersonID(ctx, personID)
+}
+func (m *instMockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
+	return nil, nil
+}
+func (m *instMockPersonService) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
+	return nil, nil, false, nil
+}
+func (m *instMockPersonService) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
+	return nil, usersSvc.TeacherActionNone, nil
+}
+func (m *instMockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
 	return nil, nil
 }
 
@@ -676,7 +739,7 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return person, nil
 		},
-		staffRepo: nil, // returns nil from StaffRepository()
+		staffRepo: nil, // GetStaffByPersonID resolves no staff
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, PersonService: ps, Logger: slog.Default()})
 	claims := jwt.AppClaims{ID: 123}
@@ -981,4 +1044,34 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		renderInstanceLifecycleError(w, r, errors.New("something broke"))
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+}
+
+// WP-B3: the optional activity_group_id body field must reach the service.
+func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
+	mock := &mockInstanceService{
+		replanRes: &scheduleSvc.ReplanWeekResult{
+			From: timezone.NewDate(2026, 4, 27),
+			To:   timezone.NewDate(2026, 5, 3),
+		},
+	}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
+
+	body := map[string]any{
+		"from_date":         "2026-04-27",
+		"to_date":           "2026-05-03",
+		"activity_group_id": 4711,
+	}
+	w := doPost(t, router, "/instances/re-plan-week", body)
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	require.NotNil(t, mock.lastReplanGID)
+	assert.Equal(t, int64(4711), *mock.lastReplanGID)
+
+	// Omitted field stays nil — whole-grid behavior unchanged.
+	w = doPost(t, router, "/instances/re-plan-week", map[string]string{
+		"from_date": "2026-04-27",
+		"to_date":   "2026-05-03",
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	assert.Nil(t, mock.lastReplanGID)
 }

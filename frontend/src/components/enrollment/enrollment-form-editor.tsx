@@ -52,7 +52,7 @@ import {
   type FormSchema,
   type CoreRequirementKey,
   type CoreRequirements,
-  type PublicLegalBlock,
+  type PublicLegalTexts,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
@@ -72,6 +72,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   phone_list: "Telefonliste",
   weekday_schedule: "Wochenzeiten",
   weekday_boolean: "Wochentage",
+  weekday_mode: "Geh- und Abholregelung",
   contact_list: "Kontaktliste",
 };
 
@@ -102,6 +103,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
   "phone_list",
   "weekday_schedule",
   "weekday_boolean",
+  "weekday_mode",
   "contact_list",
 ]);
 
@@ -111,23 +113,30 @@ const structuredFieldTypes = new Set<FormFieldType>([
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.health_info": "Gesundheitsinformationen beim Kind speichern",
   "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.departure": "Geh- und Abholregelung beim Kind speichern",
   "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
   "student.pickup_status": "Abholregelung beim Kind speichern",
-  "schedule.pickup": "Abholzeiten im Stundenplan speichern",
-  "schedule.arrival": "Ankunftszeiten im Stundenplan speichern",
+  "schedule.pickup": "Abholzeiten im Betreuungsplan speichern",
+  "schedule.arrival": "Ankunftszeiten im Betreuungsplan speichern",
   "student.contacts":
     "Weitere Kontakte, Abholberechtigte und Notfallkontakte speichern",
 };
 
 // Targets sorted alphabetically by label for the picker, keeps the
 // dropdown stable across renders even if the underlying map order
-// changes. student.bus is a legacy alias of student.bus_days (#1582) and is
-// excluded so new fields can only pick the canonical target.
+// changes. student.bus / student.bus_days / student.pickup_status are legacy
+// targets superseded by the unified student.departure (#1610); they are
+// excluded so new fields can only pick the canonical unified target.
+const LEGACY_PICKER_TARGETS = new Set<Exclude<FormFieldTarget, "">>([
+  "student.bus",
+  "student.bus_days",
+  "student.pickup_status",
+]);
 const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
   Object.keys(targetPickerLabels) as Array<Exclude<FormFieldTarget, "">>
 )
-  .filter((target) => target !== "student.bus")
+  .filter((target) => !LEGACY_PICKER_TARGETS.has(target))
   .sort((a, b) =>
     targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
   );
@@ -140,6 +149,8 @@ const targetSuggestionDescriptions: Record<
     "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.departure":
+    "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":
     "Für die Information, an welchen Wochentagen ein Kind mit dem Bus fährt.",
   "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",
@@ -323,7 +334,7 @@ export function EnrollmentFormEditor() {
         listPhases().catch(() => [] as Phase[]),
         tenantSlug ? fetchPublicLegalTexts(tenantSlug) : Promise.resolve(null),
       ]);
-      const legalDefaults = mergeStandardLegalBlocks(legalTexts?.blocks ?? []);
+      const legalDefaults = mergeStandardLegalBlocks(legalTexts);
       setStandardLegalBlocks(legalDefaults);
       setAllSchemas(list);
       setPhases(phaseList);
@@ -349,7 +360,7 @@ export function EnrollmentFormEditor() {
     setCoreRequirements(schema.core_requirements ?? {});
     setLegalBlocks(
       schema.legal_blocks && schema.legal_blocks.length > 0
-        ? schema.legal_blocks
+        ? mergeSavedLegalBlocks(schema.legal_blocks, standardLegalBlocks)
         : standardLegalBlocks,
     );
     setError(null);
@@ -475,7 +486,10 @@ export function EnrollmentFormEditor() {
     () =>
       legalBlocksSignature(
         currentSchema?.legal_blocks && currentSchema.legal_blocks.length > 0
-          ? currentSchema.legal_blocks
+          ? mergeSavedLegalBlocks(
+              currentSchema.legal_blocks,
+              standardLegalBlocks,
+            )
           : standardLegalBlocks,
       ),
     [currentSchema?.legal_blocks, standardLegalBlocks],
@@ -718,6 +732,7 @@ export function EnrollmentFormEditor() {
 
             <LegalBlocksSection
               blocks={legalBlocks}
+              standardBlocks={standardLegalBlocks}
               onChange={setLegalBlocks}
               disabled={saving}
             />
@@ -1852,13 +1867,21 @@ function CoreFieldsSection({
 
 function LegalBlocksSection({
   blocks,
+  standardBlocks,
   onChange,
   disabled,
 }: Readonly<{
   blocks: FormLegalBlock[];
+  standardBlocks: FormLegalBlock[];
   onChange: (blocks: FormLegalBlock[]) => void;
   disabled: boolean;
 }>) {
+  const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
+  const standardByKey = useMemo(
+    () => new Map(standardBlocks.map((block) => [block.key, block])),
+    [standardBlocks],
+  );
+
   const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
     onChange(
       blocks.map((block, i) => {
@@ -1875,11 +1898,22 @@ function LegalBlocksSection({
       }),
     );
   };
+  const resetStandardBlock = (index: number, key: string) => {
+    const standardBlock = standardByKey.get(key);
+    if (!standardBlock) return;
+    onChange(blocks.map((block, i) => (i === index ? standardBlock : block)));
+    setEditingStandardKeys((keys) => keys.filter((value) => value !== key));
+  };
+  const editStandardBlock = (key: string) => {
+    setEditingStandardKeys((keys) =>
+      keys.includes(key) ? keys : [...keys, key],
+    );
+  };
   const addCustomBlock = () => {
     onChange([
       ...blocks,
       {
-        key: `custom_consent_${blocks.length + 1}`,
+        key: nextCustomLegalBlockKey(blocks),
         kind: "consent",
         title: "Weitere Einwilligung",
         label: "Ich stimme dieser Einwilligung zu.",
@@ -1894,6 +1928,140 @@ function LegalBlocksSection({
   const removeBlock = (index: number) => {
     onChange(blocks.filter((_, i) => i !== index));
   };
+  const standardEntries = blocks
+    .map((block, index) => ({ block, index }))
+    .filter(
+      ({ block }) =>
+        block.source === "standard" || standardByKey.has(block.key),
+    );
+  const customEntries = blocks
+    .map((block, index) => ({ block, index }))
+    .filter(
+      ({ block }) =>
+        block.source !== "standard" && !standardByKey.has(block.key),
+    );
+  const renderBlockEditor = ({
+    block,
+    index,
+    helperText,
+    onRemove,
+    onReset,
+  }: {
+    block: FormLegalBlock;
+    index: number;
+    helperText: string;
+    onRemove?: () => void;
+    onReset?: () => void;
+  }) => (
+    <div
+      key={`${block.key}-${index}-editor`}
+      className="rounded-xl border border-gray-200 bg-white p-4"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <StyledCheckboxButton
+          checked={block.enabled}
+          disabled={disabled}
+          onCheckedChange={(checked) =>
+            updateBlock(index, { enabled: checked })
+          }
+        >
+          Im Formular anzeigen
+        </StyledCheckboxButton>
+        <p className="max-w-xl text-xs leading-5 text-gray-500">{helperText}</p>
+        <div className="flex flex-wrap gap-2">
+          {onReset ? (
+            <button
+              type="button"
+              onClick={onReset}
+              disabled={disabled}
+              className="inline-flex h-8 w-fit items-center rounded-lg px-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Einstellungen wieder verwenden
+            </button>
+          ) : null}
+          {onRemove ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled}
+              className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-[#CC2626] hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Entfernen
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">Titel</span>
+          <input
+            type="text"
+            value={block.title}
+            disabled={disabled}
+            onChange={(event) =>
+              updateBlock(index, { title: event.target.value })
+            }
+            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          />
+        </label>
+      </div>
+
+      <label className="mt-3 block">
+        <span className="text-xs font-medium text-gray-700">
+          Text neben der Checkbox oder dem Hinweis
+        </span>
+        <textarea
+          value={block.label}
+          disabled={disabled}
+          rows={2}
+          onChange={(event) =>
+            updateBlock(index, { label: event.target.value })
+          }
+          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+        />
+      </label>
+
+      <label className="mt-3 block">
+        <span className="text-xs font-medium text-gray-700">
+          Rechtstext / Erklärung
+        </span>
+        <textarea
+          value={block.text}
+          disabled={disabled}
+          rows={4}
+          onChange={(event) => updateBlock(index, { text: event.target.value })}
+          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+        />
+      </label>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <LegalBlockModeControl
+          isNotice={block.kind === "notice"}
+          disabled={disabled}
+          onModeChange={(isNotice) =>
+            updateBlock(index, {
+              kind: isNotice ? "notice" : checkboxLegalBlockKindFor(block),
+              required: isNotice ? false : block.required,
+            })
+          }
+        />
+        {block.kind !== "notice" ? (
+          <StyledCheckboxButton
+            checked={block.required}
+            disabled={disabled}
+            muted
+            onCheckedChange={(checked) =>
+              updateBlock(index, { required: checked })
+            }
+          >
+            Muss bestätigt werden
+          </StyledCheckboxButton>
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
@@ -1906,10 +2074,10 @@ function LegalBlocksSection({
             Rechtstexte und Einwilligungen
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Diese Blöcke gehören zur Vorlage und erscheinen in jeder Phase, die
-            diese Vorlage nutzt. Die Texte werden mit der Vorlage gespeichert:
-            Spätere Änderungen an den Rechtstexten in den Einstellungen
-            übernimmst du hier manuell.
+            Die vier Standardblöcke starten mit den Texten aus den
+            Einstellungen. Hier blendest du sie für diese Vorlage aus oder
+            bearbeitest bewusst eine Abweichung. Eigene Zustimmungen bleiben
+            direkt an diese Vorlage gebunden.
           </p>
         </div>
       </div>
@@ -1926,147 +2094,93 @@ function LegalBlocksSection({
       ) : null}
 
       <div className="mt-4 space-y-3">
-        {blocks.map((block, index) => (
-          <div
-            key={`${block.key}-${index}`}
-            className="rounded-xl border border-gray-200 bg-white p-4"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-                <input
-                  type="checkbox"
-                  checked={block.enabled}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    updateBlock(index, { enabled: event.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
-                />
-                Im Formular anzeigen
-              </label>
-              {block.source === "standard" ? (
-                <p className="max-w-xl text-xs leading-5 text-gray-500">
-                  Kommt aus den Standard-Einstellungen. Der Haken aktiviert oder
-                  deaktiviert diesen Block nur für diese Vorlage; Text und
-                  Pflichtstatus können hier überschrieben werden.
-                </p>
-              ) : (
-                <p className="max-w-xl text-xs leading-5 text-gray-500">
-                  Eigene Zustimmung für diese Vorlage. Sie erscheint als
-                  zusätzliche Checkbox im Anmeldeformular.
-                </p>
-              )}
-              {block.source === "custom" ? (
-                <button
-                  type="button"
-                  onClick={() => removeBlock(index)}
-                  disabled={disabled}
-                  className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-[#CC2626] hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Entfernen
-                </button>
-              ) : null}
+        {standardEntries.map(({ block, index }) => {
+          const standardBlock = standardByKey.get(block.key);
+          const hasOverride = standardBlock
+            ? hasStandardLegalBlockOverride(block, standardBlock)
+            : false;
+          const isEditing = editingStandardKeys.includes(block.key);
+          if (isEditing) {
+            return renderBlockEditor({
+              block,
+              index,
+              helperText:
+                "Abweichung nur für diese Vorlage. Mit Zurücksetzen nutzt der Block wieder die Einstellungen.",
+              onReset: () => resetStandardBlock(index, block.key),
+            });
+          }
+          return (
+            <div
+              key={`${block.key}-${index}`}
+              className="rounded-xl border border-gray-200 bg-white p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      {block.title}
+                    </h3>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      Aus Einstellungen übernommen
+                    </span>
+                    {hasOverride ? (
+                      <span className="rounded-full bg-[#EAB308]/10 px-2 py-0.5 text-xs font-medium text-[#92400E]">
+                        Abweichung aktiv
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    {block.enabled
+                      ? "Wird in dieser Vorlage angezeigt."
+                      : "Ist für diese Vorlage ausgeblendet."}
+                  </p>
+                  {block.label.trim() !== "" ? (
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                      {block.label}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 items-center justify-end gap-1.5">
+                  <CompactSwitchButton
+                    checked={block.enabled}
+                    onCheckedChange={(checked) =>
+                      updateBlock(index, { enabled: checked })
+                    }
+                    disabled={disabled}
+                    ariaLabel={`${block.title} in dieser Vorlage anzeigen`}
+                  />
+                  <button
+                    type="button"
+                    aria-label={`${block.title} abweichend bearbeiten`}
+                    title="Abweichend bearbeiten"
+                    onClick={() => editStandardBlock(block.key)}
+                    disabled={disabled}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
             </div>
+          );
+        })}
 
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">Titel</span>
-                <input
-                  type="text"
-                  value={block.title}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    updateBlock(index, { title: event.target.value })
-                  }
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  Interner Schlüssel
-                </span>
-                <input
-                  type="text"
-                  value={block.key}
-                  disabled={disabled || block.source === "standard"}
-                  onChange={(event) =>
-                    updateBlock(index, {
-                      key: normalizeFieldKey(event.target.value),
-                    })
-                  }
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-                />
-              </label>
-            </div>
+        {customEntries.map(({ block, index }) =>
+          renderBlockEditor({
+            block,
+            index,
+            helperText:
+              "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
+            onRemove: () => removeBlock(index),
+          }),
+        )}
 
-            <label className="mt-3 block">
-              <span className="text-xs font-medium text-gray-700">
-                Text neben der Checkbox oder dem Hinweis
-              </span>
-              <textarea
-                value={block.label}
-                disabled={disabled}
-                rows={2}
-                onChange={(event) =>
-                  updateBlock(index, { label: event.target.value })
-                }
-                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-              />
-            </label>
-
-            <label className="mt-3 block">
-              <span className="text-xs font-medium text-gray-700">
-                Rechtstext / Erklärung
-              </span>
-              <textarea
-                value={block.text}
-                disabled={disabled}
-                rows={4}
-                onChange={(event) =>
-                  updateBlock(index, { text: event.target.value })
-                }
-                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-              />
-            </label>
-
-            <div className="mt-3 flex flex-wrap gap-3">
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={block.required}
-                  disabled={disabled || block.kind === "notice"}
-                  onChange={(event) =>
-                    updateBlock(index, { required: event.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
-                />
-                Muss bestätigt werden
-              </label>
-              <CustomSelect
-                value={block.kind}
-                disabled={disabled}
-                onChange={(value) => {
-                  const kind = value as FormLegalBlock["kind"];
-                  updateBlock(index, {
-                    kind,
-                    required: kind === "notice" ? false : block.required,
-                  });
-                }}
-                className="h-9 w-auto min-w-56 border-gray-200 bg-white"
-                options={[
-                  { value: "terms", label: "AGB / Teilnahmebedingungen" },
-                  {
-                    value: "privacy_notice",
-                    label: "Datenschutz-Bestätigung",
-                  },
-                  { value: "consent", label: "Einwilligung" },
-                  { value: "notice", label: "Hinweis ohne Checkbox" },
-                ]}
-              />
-            </div>
+        {customEntries.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm leading-6 text-gray-600">
+            Noch keine eigenen Zustimmungen. Füge hier nur zusätzliche Inhalte
+            hinzu, die nicht in den allgemeinen Einstellungen stehen.
           </div>
-        ))}
+        ) : null}
       </div>
 
       <div className="mt-4">
@@ -2082,6 +2196,143 @@ function LegalBlocksSection({
       </div>
     </section>
   );
+}
+
+function hasStandardLegalBlockOverride(
+  block: FormLegalBlock,
+  standardBlock: FormLegalBlock,
+): boolean {
+  return (
+    block.kind !== standardBlock.kind ||
+    block.title !== standardBlock.title ||
+    block.label !== standardBlock.label ||
+    block.text !== standardBlock.text ||
+    block.required !== standardBlock.required
+  );
+}
+
+function LegalBlockModeControl({
+  isNotice,
+  disabled,
+  onModeChange,
+}: Readonly<{
+  isNotice: boolean;
+  disabled: boolean;
+  onModeChange: (isNotice: boolean) => void;
+}>) {
+  return (
+    <div
+      className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1"
+      aria-label="Darstellung im Elternformular"
+    >
+      {[
+        { label: "Mit Checkbox", isNotice: false },
+        { label: "Nur Hinweis", isNotice: true },
+      ].map((option) => {
+        const selected = option.isNotice === isNotice;
+        return (
+          <button
+            key={option.label}
+            type="button"
+            disabled={disabled}
+            aria-pressed={selected}
+            onClick={() => onModeChange(option.isNotice)}
+            className={`h-8 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+              selected
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StyledCheckboxButton({
+  checked,
+  disabled,
+  muted = false,
+  onCheckedChange,
+  children,
+}: Readonly<{
+  checked: boolean;
+  disabled: boolean;
+  muted?: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  children: ReactNode;
+}>) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={`inline-flex min-w-0 items-center gap-2 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 ${
+        muted
+          ? "text-sm font-medium text-gray-700"
+          : "text-sm font-medium text-gray-800"
+      }`}
+    >
+      <span
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
+        }`}
+        aria-hidden="true"
+      >
+        <Check
+          className={`h-3.5 w-3.5 text-white transition-opacity ${
+            checked ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      </span>
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function CompactSwitchButton({
+  checked,
+  disabled,
+  ariaLabel,
+  onCheckedChange,
+}: Readonly<{
+  checked: boolean;
+  disabled: boolean;
+  ariaLabel: string;
+  onCheckedChange: (checked: boolean) => void;
+}>) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={() => onCheckedChange(!checked)}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
+        checked ? "bg-gray-900" : "bg-gray-200"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? "translate-x-[18px]" : "translate-x-0.5"
+        }`}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
+function checkboxLegalBlockKindFor(
+  block: FormLegalBlock,
+): FormLegalBlock["kind"] {
+  if (block.key === "agb") return "terms";
+  if (block.key === "data_processing") return "privacy_notice";
+  return "consent";
 }
 
 function CoreFieldGroup({
@@ -3500,24 +3751,93 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
 }
 
 function mergeStandardLegalBlocks(
-  blocks: PublicLegalBlock[],
+  legalTexts: PublicLegalTexts | null,
 ): FormLegalBlock[] {
-  const byKey = new Map(blocks.map((block) => [block.key, block]));
+  const byKey = new Map(
+    (legalTexts?.blocks ?? []).map((block) => [block.key, block]),
+  );
   return STANDARD_LEGAL_BLOCKS.map((standard) => {
     const configured = byKey.get(standard.key);
-    if (!configured) return standard;
+    const inheritedText = standardLegalBlockText(standard.key, legalTexts);
+    const inheritedEnabled = standardLegalBlockEnabled(
+      standard.key,
+      legalTexts,
+    );
+    if (!configured) {
+      return {
+        ...standard,
+        text: inheritedText,
+        enabled: inheritedEnabled,
+      };
+    }
     return {
       ...standard,
       kind: configured.kind,
       title: configured.title,
       label: configured.label,
-      text: configured.text,
+      text: configured.text || inheritedText,
       required: configured.required,
-      enabled: true,
+      enabled: inheritedEnabled,
       sort_order: configured.sort_order ?? standard.sort_order,
       source: "standard",
     };
   });
+}
+
+function standardLegalBlockText(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): string {
+  if (!legalTexts) return "";
+  switch (key) {
+    case "agb":
+      return legalTexts.agb;
+    case "data_processing":
+      return legalTexts.dsgvo;
+    case "photo":
+      return legalTexts.photo;
+    case "email_contact":
+      return legalTexts.email_contact;
+    default:
+      return "";
+  }
+}
+
+function standardLegalBlockEnabled(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): boolean {
+  if (!legalTexts) return false;
+  switch (key) {
+    case "agb":
+      return legalTexts.terms_enabled && legalTexts.agb.trim() !== "";
+    case "data_processing":
+      return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
+    case "photo":
+      return legalTexts.photo_enabled && legalTexts.photo.trim() !== "";
+    case "email_contact":
+      return (
+        legalTexts.email_contact_enabled &&
+        legalTexts.email_contact.trim() !== ""
+      );
+    default:
+      return false;
+  }
+}
+
+function mergeSavedLegalBlocks(
+  savedBlocks: FormLegalBlock[],
+  standardBlocks: FormLegalBlock[],
+): FormLegalBlock[] {
+  const standardKeys = new Set(standardBlocks.map((block) => block.key));
+  const savedByKey = new Map(savedBlocks.map((block) => [block.key, block]));
+  const mergedStandardBlocks = standardBlocks.map(
+    (standard) => savedByKey.get(standard.key) ?? standard,
+  );
+  const customBlocks = savedBlocks.filter(
+    (block) => block.source !== "standard" && !standardKeys.has(block.key),
+  );
+  return [...mergedStandardBlocks, ...customBlocks];
 }
 
 function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
@@ -3532,6 +3852,23 @@ function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
     sort_order: index * 10 + 10,
     source: block.source ?? "custom",
   }));
+}
+
+function nextCustomLegalBlockKey(blocks: FormLegalBlock[]): string {
+  const usedKeys = new Set(blocks.map((block) => block.key));
+  let nextIndex = Math.max(
+    blocks.length + 1,
+    ...blocks.map((block) => {
+      const match = /^custom_consent_(\d+)$/.exec(block.key);
+      return match ? Number(match[1]) + 1 : 0;
+    }),
+  );
+
+  while (usedKeys.has(`custom_consent_${nextIndex}`)) {
+    nextIndex += 1;
+  }
+
+  return `custom_consent_${nextIndex}`;
 }
 
 function legalBlocksSignature(blocks: FormLegalBlock[]): string {

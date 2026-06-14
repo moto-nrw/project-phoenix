@@ -340,7 +340,7 @@ function ActivityDetailContent() {
             <div className="border-t border-gray-200 pt-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="border-b border-green-200 pb-2 text-lg font-medium text-green-800">
-                  Teilnehmende Schüler
+                  Teilnehmende Kinder
                 </h3>
 
                 <div className="flex items-center gap-4">
@@ -372,7 +372,7 @@ function ActivityDetailContent() {
                         d="M12 4v16m8-8H4"
                       />
                     </svg>
-                    <span>Schüler hinzufügen</span>
+                    <span>Kind hinzufügen</span>
                   </button>
                 </div>
               </div>
@@ -406,11 +406,11 @@ function ActivityDetailContent() {
               ) : (
                 <div className="rounded-lg bg-yellow-50 p-4 text-center text-yellow-800">
                   <p className="mb-2 font-semibold">
-                    Keine Schüler eingeschrieben
+                    Keine Kinder eingeschrieben
                   </p>
                   <p className="text-sm">
-                    Fügen Sie Schüler zu dieser Aktivität hinzu, um die
-                    Teilnahme zu verfolgen.
+                    Fügen Sie Kinder zu dieser Aktivität hinzu, um die Teilnahme
+                    zu verfolgen.
                   </p>
                 </div>
               )}

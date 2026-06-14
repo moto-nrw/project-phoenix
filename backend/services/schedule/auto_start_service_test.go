@@ -161,6 +161,9 @@ func (r *autoStartStaffRepo) FindByInstanceID(context.Context, int64) ([]*schedu
 func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
+func (r *autoStartStaffRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStaff, error) {
+	return nil, nil
+}
 func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids []int64) (map[int64]int, error) {
 	r.requestedIDs = append(r.requestedIDs, ids...)
 	return r.counts, nil
@@ -176,6 +179,10 @@ type autoStartInstanceStarter struct {
 	startedIDs        []int64
 	startedByStaffIDs []int64
 	err               error
+}
+
+func (s *autoStartInstanceStarter) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
+	return nil, nil
 }
 
 func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
@@ -195,7 +202,7 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64) (*scheduleMode
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date) (*ReplanWeekResult, error) {
+func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64) (*ReplanWeekResult, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
@@ -223,7 +230,7 @@ func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezon
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, timezone.Date) (int64, error) {
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
 	return 0, nil
 }
 

@@ -1014,3 +1014,28 @@ func isNotFoundError(err error) bool {
 
 	return false
 }
+
+// GetTenantSlugForToken resolves the tenant slug from an invitation token.
+// Best-effort: returns "" on any error so the accept response still succeeds.
+func (s *invitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
+	var slug string
+	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
+		if err != nil {
+			return err
+		}
+		if invitation == nil {
+			return nil
+		}
+		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		if err != nil {
+			return err
+		}
+		if school == nil || school.IsDeleted() {
+			return nil
+		}
+		slug = school.Slug
+		return nil
+	})
+	return slug
+}

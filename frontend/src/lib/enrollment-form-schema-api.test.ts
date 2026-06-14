@@ -58,6 +58,8 @@ describe("RESERVED_TARGETS", () => {
       "student.bus",
       "student.bus_days",
       "student.contacts",
+      // student.departure is the unified per-weekday departure-mode target (#1610).
+      "student.departure",
       "student.extra_info",
       "student.health_info",
       "student.pickup_status",

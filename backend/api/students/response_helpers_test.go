@@ -16,6 +16,55 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPopulatePublicStudentFields_PreservesNonCanonicalPickupStatus(t *testing.T) {
+	status := "Bitte nur an Oma oder Opa übergeben"
+	student := &users.Student{
+		PickupStatus: &status,
+		DepartureDays: users.DepartureDays{
+			users.PickupDayMonday: users.DepartureBus,
+		},
+	}
+	resp := StudentResponse{}
+
+	populatePublicStudentFields(&resp, student)
+
+	assert.Equal(t, status, resp.PickupStatus)
+	assert.Equal(t, users.DepartureBus, resp.DepartureDays.ModeFor(users.PickupDayMonday))
+	assert.True(t, resp.BusDays[users.PickupDayMonday])
+	assert.True(t, resp.Bus)
+}
+
+func TestPopulateSnapshotPublicFields_PreservesNonCanonicalPickupStatus(t *testing.T) {
+	status := "Abholung nur nach telefonischer Rücksprache"
+	student := &users.Student{
+		PickupStatus: &status,
+		DepartureDays: users.DepartureDays{
+			users.PickupDayWednesday: users.DeparturePickup,
+		},
+	}
+	resp := StudentResponse{}
+
+	populateSnapshotPublicFields(&resp, student)
+
+	assert.Equal(t, status, resp.PickupStatus)
+	assert.Equal(t, users.DeparturePickup, resp.DepartureDays.ModeFor(users.PickupDayWednesday))
+	assert.True(t, resp.PickupDays[users.PickupDayWednesday])
+}
+
+func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing.T) {
+	status := users.PickupStatusPickedUp
+	student := &users.Student{
+		PickupStatus:  &status,
+		DepartureDays: users.DepartureDays{},
+	}
+	resp := StudentResponse{}
+
+	populatePublicStudentFields(&resp, student)
+
+	assert.Equal(t, users.PickupStatusGoesAlone, resp.PickupStatus)
+	assert.False(t, resp.PickupDays.HasAny())
+}
+
 // helper: build a Student with a given ID + photo state.
 func makeStudent(id int64, photoPath *string, consentAt *time.Time, consentBy *int64) *users.Student {
 	s := &users.Student{

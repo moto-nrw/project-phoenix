@@ -71,6 +71,10 @@ type StaffAbsenceService interface {
 	GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error)
 	HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 
+	// GetTodayAbsenceMap returns staff ID -> absence type for today (issue
+	// #584 lookup; repository result returned verbatim).
+	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
+
 	// Vacation workflow (Tranche 4)
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
 	ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
@@ -79,6 +83,11 @@ type StaffAbsenceService interface {
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
 	ListPendingRequests(ctx context.Context) ([]*StaffAbsenceResponse, error)
+}
+
+// GetTodayAbsenceMap returns staff ID -> absence type for today.
+func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {
+	return s.absenceRepo.GetTodayAbsenceMap(ctx)
 }
 
 // staffAbsenceService implements StaffAbsenceService

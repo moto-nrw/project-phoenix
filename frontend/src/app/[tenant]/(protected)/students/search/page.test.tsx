@@ -963,7 +963,7 @@ describe("StudentSearchPage", () => {
       // The two time rows are replaced by the single absence line, no red
       // "overdue" arrival/pickup for a child who isn't coming today.
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Gehzeit:/)).not.toBeInTheDocument();
     });
 
     it("keeps a sick checked-in student out of the overdue pickup row", async () => {
@@ -995,7 +995,7 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      expect(screen.queryByText(/Abholzeit:/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Gehzeit:/)).not.toBeInTheDocument();
     });
 
     it("filters to show only transit students when 'unterwegs' is selected", async () => {
@@ -1212,7 +1212,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         const errorElements = screen.getAllByText(
-          /Fehler beim Laden der Schülerdaten/i,
+          /Fehler beim Laden der Kinderdaten/i,
         );
         expect(errorElements.length).toBeGreaterThan(0);
       });
@@ -1232,7 +1232,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+        expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
       });
     });
   });
@@ -1483,7 +1483,7 @@ describe("StudentSearchPage", () => {
         // The transformed error message for 403
         expect(
           screen.getAllByText(
-            /Du hast keine Berechtigung, Schülerdaten anzuzeigen/,
+            /Du hast keine Berechtigung, Kinderdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
         // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
@@ -1525,7 +1525,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         // The generic error message
         expect(
-          screen.getAllByText(/Fehler beim Laden der Schülerdaten/).length,
+          screen.getAllByText(/Fehler beim Laden der Kinderdaten/).length,
         ).toBeGreaterThan(0);
         // The error heading
         expect(screen.getByText("Fehler")).toBeInTheDocument();
@@ -1604,7 +1604,7 @@ describe("StudentSearchPage", () => {
       // Should show loading, NOT empty state
       expect(screen.getByTestId("loading")).toBeInTheDocument();
       expect(
-        screen.queryByText("Keine Schüler gefunden"),
+        screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
     });
 
@@ -1664,11 +1664,11 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
       });
 
-      // P2 FIX: Should show loading spinner, NOT "Keine Schüler gefunden"
+      // P2 FIX: Should show loading spinner, NOT "Keine Kinder gefunden"
       // because we're in initialization phase (groupsLoaded = false)
       expect(screen.getByTestId("loading")).toBeInTheDocument();
       expect(
-        screen.queryByText("Keine Schüler gefunden"),
+        screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
     });
 
@@ -1693,7 +1693,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // NOW it's appropriate to show empty state
-        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+        expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
       });
     });
   });
@@ -2167,12 +2167,12 @@ describe("StudentSearchPage", () => {
 
       const pickupFilter = screen.getByTestId("filter-pickupTime");
 
-      // Verify "Keine Abholzeit" chip label for "none"
+      // Verify "Keine Gehzeit" chip label for "none"
       fireEvent.change(pickupFilter, { target: { value: "none" } });
       await waitFor(() => {
         expect(
           screen.getByTestId("active-filter-pickupTime"),
-        ).toHaveTextContent("Keine Abholzeit");
+        ).toHaveTextContent("Keine Gehzeit");
       });
 
       // Switch to specific time: verify chip label and clear-all
@@ -2180,7 +2180,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(
           screen.getByTestId("active-filter-pickupTime"),
-        ).toHaveTextContent("Abholzeit 15:30 Uhr");
+        ).toHaveTextContent("Gehzeit 15:30 Uhr");
       });
 
       // Clear all filters
@@ -2203,8 +2203,8 @@ describe("StudentSearchPage", () => {
 
       // Verify pickup time text appears for students with pickup_time
       await waitFor(() => {
-        expect(screen.getByText("Abholzeit: 15:30 Uhr")).toBeInTheDocument();
-        expect(screen.getByText("Abholzeit: 16:00 Uhr")).toBeInTheDocument();
+        expect(screen.getByText("Gehzeit: 15:30 Uhr")).toBeInTheDocument();
+        expect(screen.getByText("Gehzeit: 16:00 Uhr")).toBeInTheDocument();
       });
     });
 
@@ -2235,8 +2235,8 @@ describe("StudentSearchPage", () => {
         expect(screen.getByText("NoPickup")).toBeInTheDocument();
       });
 
-      // Should show the "Abholzeit:" em-dash fallback for students with full access but no pickup time
-      expect(screen.getByText("Abholzeit: —")).toBeInTheDocument();
+      // Should show the "Gehzeit:" em-dash fallback for students with full access but no pickup time
+      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
     });
   });
 

@@ -186,7 +186,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		// INFO: Group empty - student will be created without group
 		errors = append(errors, importModels.ValidationError{
 			Field:    "group",
-			Message:  "Keine Gruppe zugewiesen. Der Schüler wird ohne Gruppe erstellt.",
+			Message:  "Keine Gruppe zugewiesen. Das Kind wird ohne Gruppe erstellt.",
 			Code:     "group_empty",
 			Severity: importModels.ErrorSeverityInfo, // Non-blocking
 		})
@@ -519,7 +519,7 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 	}
 
 	// Multiple matches - ambiguous
-	return nil, fmt.Errorf("mehrere Schüler gefunden mit Name '%s %s' in Klasse '%s'",
+	return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' in Klasse '%s'",
 		row.FirstName, row.LastName, row.SchoolClass)
 }
 
@@ -614,20 +614,44 @@ func busDaysFromImportRow(row importModels.StudentImportRow) users.BusDays {
 	return users.BusDaysFromLegacyFlag(row.BusPermission)
 }
 
+// departurePlanFromImportRow resolves the unified per-day departure plan from an
+// import row. The current per-day "Gehweise.Mo".."Gehweise.Fr" columns take
+// precedence; otherwise the legacy Bus(.Mo..Fr) and Abholstatus columns are
+// folded into the plan so old templates keep importing. departure_days is the
+// single source of truth (#1610).
+func departurePlanFromImportRow(row importModels.StudentImportRow) users.DepartureDays {
+	if row.DepartureDays != nil {
+		out := users.DepartureDays{}
+		for _, key := range users.PickupDayOrder {
+			switch row.DepartureDays[key] {
+			case string(users.DepartureBus):
+				out[key] = users.DepartureBus
+			case string(users.DeparturePickup):
+				out[key] = users.DeparturePickup
+			}
+		}
+		return out
+	}
+	bus := busDaysFromImportRow(row)
+	pickup := users.PickupDaysFromLegacyStatus(row.PickupStatus)
+	return users.DepartureDaysFromLegacy(bus, pickup)
+}
+
 // createStudentFromRow creates a student from person and row
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow) (*users.Student, error) {
 	enrolledFrom := parseOptionalImportCalendarDate(row.EnrolledFrom)
 	enrolledUntil := parseOptionalImportCalendarDate(row.EnrolledUntil)
 
 	student := &users.Student{
-		PersonID:                 personID,
-		SchoolClass:              strings.TrimSpace(row.SchoolClass),
-		GroupID:                  row.GroupID,
-		ExtraInfo:                stringPtr(row.ExtraInfo),
-		SupervisorNotes:          stringPtr(row.SupervisorNotes),
-		HealthInfo:               stringPtr(row.HealthInfo),
-		PickupStatus:             stringPtr(row.PickupStatus),
-		BusDays:                  busDaysFromImportRow(row),
+		PersonID:        personID,
+		SchoolClass:     strings.TrimSpace(row.SchoolClass),
+		GroupID:         row.GroupID,
+		ExtraInfo:       stringPtr(row.ExtraInfo),
+		SupervisorNotes: stringPtr(row.SupervisorNotes),
+		HealthInfo:      stringPtr(row.HealthInfo),
+		// DepartureDays is the unified source of truth; the repository derives
+		// bus_days, pickup_days and pickup_status from it on persist (#1610).
+		DepartureDays:            departurePlanFromImportRow(row),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),

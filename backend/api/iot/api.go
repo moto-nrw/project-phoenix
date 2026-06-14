@@ -19,16 +19,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -54,9 +54,9 @@ type ServiceDependencies struct {
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	SchoolService         platformSvc.SchoolService
+	TimetableDataService  scheduleSvc.TimetableDataService
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
 	DB                    *bun.DB
@@ -73,9 +73,9 @@ type Resource struct {
 	EducationService      educationSvc.Service
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
-	SchoolRepo            platform.SchoolRepository
-	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
-	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	SchoolService         platformSvc.SchoolService
+	TimetableDataService  scheduleSvc.TimetableDataService
+	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	logger                *slog.Logger
 	db                    *bun.DB
@@ -93,9 +93,9 @@ func NewResource(deps ServiceDependencies) *Resource {
 		EducationService:      deps.EducationService,
 		FeedbackService:       deps.FeedbackService,
 		PickupScheduleService: deps.PickupScheduleService,
-		SchoolRepo:            deps.SchoolRepo,
-		ActivityInstanceRepo:  deps.ActivityInstanceRepo,
-		InstanceStaffRepo:     deps.InstanceStaffRepo,
+		SchoolService:         deps.SchoolService,
+		TimetableDataService:  deps.TimetableDataService,
+		UnregisteredTagScans:  deps.UnregisteredTagScans,
 		Broadcaster:           deps.Broadcaster,
 		logger:                deps.Logger,
 		db:                    deps.DB,
@@ -161,12 +161,12 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolRepo))
+		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
-		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
+		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
 		r.Mount("/teachers", dataResource.TeachersRouter())
 
 		// School name endpoint (device API key → school name)
@@ -181,7 +181,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolRepo, rs.pinResolver()))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolService, rs.pinResolver()))
 		r.Use(iotMetricsMiddleware)
 		r.Use(tenant.TenantTxMiddleware(rs.db))
 
@@ -196,6 +196,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.PickupScheduleService,
 			rs.SettingsService,
 			rs.getLogger().With(slog.String("sub", "checkin")),
+			rs.UnregisteredTagScans,
 		)
 		// Register routes directly instead of mounting at "/" to avoid Chi conflict
 		checkinHandler := delegateHandler(checkinResource.Router())
@@ -209,7 +210,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
-		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService)
+		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
 		dataHandler := delegateHandler(dataResourceAuth.Router())
 		r.Get("/students", dataHandler)
 		r.Get("/activities", dataHandler)
@@ -217,7 +218,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService)
+		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)
@@ -230,8 +231,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.EducationService,
 		)
 		sessionsResource.ConfigureTimetableMirror(
-			rs.ActivityInstanceRepo,
-			rs.InstanceStaffRepo,
+			rs.TimetableDataService,
 			rs.Broadcaster,
 		)
 		r.Mount("/session", sessionsResource.Router())
@@ -260,7 +260,7 @@ func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	school, err := rs.SchoolRepo.FindByID(r.Context(), deviceCtx.TenantID)
+	school, err := rs.SchoolService.GetSchoolByID(r.Context(), deviceCtx.TenantID)
 	if err != nil {
 		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
 		return

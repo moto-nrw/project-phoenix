@@ -984,28 +984,6 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 // Repository Accessor Tests
 // =============================================================================
 
-func TestPersonService_RepositoryAccessors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-
-	t.Run("StudentRepository returns non-nil", func(t *testing.T) {
-		repo := service.StudentRepository()
-		assert.NotNil(t, repo)
-	})
-
-	t.Run("StaffRepository returns non-nil", func(t *testing.T) {
-		repo := service.StaffRepository()
-		assert.NotNil(t, repo)
-	})
-
-	t.Run("TeacherRepository returns non-nil", func(t *testing.T) {
-		repo := service.TeacherRepository()
-		assert.NotNil(t, repo)
-	})
-}
-
 // =============================================================================
 // Error Type Tests
 // =============================================================================

@@ -88,7 +88,7 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	}
 
 	// Verify the student exists before any further processing
-	student, studentErr := rs.PersonService.StudentRepository().FindByID(ctx, studentID)
+	student, studentErr := rs.PersonService.GetStudentByID(ctx, studentID)
 	if studentErr != nil || student == nil {
 		return nil, &checkinError{http.StatusNotFound, "Student not found"}
 	}
@@ -143,7 +143,7 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, stude
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
 	}
 
-	staff, staffErr := rs.PersonService.StaffRepository().FindByPersonID(ctx, person.ID)
+	staff, staffErr := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if staffErr != nil || staff == nil {
 		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
 	}

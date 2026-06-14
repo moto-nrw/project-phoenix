@@ -548,7 +548,7 @@ describe("StudentDetailPage", () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
-        error: "Schüler nicht gefunden",
+        error: "Kind nicht gefunden",
         hasFullAccess: false,
         hasWriteAccess: false,
         supervisors: [],
@@ -561,7 +561,7 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-      expect(screen.getByText("Schüler nicht gefunden")).toBeInTheDocument();
+      expect(screen.getByText("Kind nicht gefunden")).toBeInTheDocument();
     });
 
     it("shows error when student is null", () => {
@@ -733,6 +733,49 @@ describe("StudentDetailPage", () => {
         expect(mockUpdateStudent).toHaveBeenCalledWith("1", expect.any(Object));
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("sends explicit departure_days when saving personal info", async () => {
+      mockUpdateStudent.mockResolvedValue({});
+      mockUseStudentData.mockReturnValue({
+        student: {
+          ...mockStudent,
+          bus_days: { mon: true },
+          pickup_days: { wed: true },
+          departure_days: undefined,
+        },
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        supervisors: [],
+        myGroups: ["1"],
+        myGroupRooms: ["Raum 101"],
+        mySupervisedRooms: ["Raum 101"],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("edit-personal-info"));
+      await waitFor(() => {
+        expect(screen.getByTestId("personal-info-modal")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("save-personal-info"));
+      });
+
+      await waitFor(() => {
+        expect(mockUpdateStudent).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            bus_days: { mon: true },
+            pickup_days: { wed: true },
+            departure_days: { mon: "bus", wed: "pickup" },
+          }),
+        );
       });
     });
 

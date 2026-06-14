@@ -513,6 +513,180 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 	})
 }
 
+func TestVisitRepository_CountActiveByStudentID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	now := time.Now()
+	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-30*time.Minute), nil)
+	exitTime := now.Add(-10 * time.Minute)
+	endedVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), &exitTime)
+	otherStudentVisit := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-20*time.Minute), nil)
+	defer func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID, endedVisit.ID, otherStudentVisit.ID)
+	}()
+
+	count, err := repo.CountActiveByStudentID(ctx, data.Student1.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, time.Now().Add(-30*time.Minute), nil)
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+	t.Run("empty input short-circuits", func(t *testing.T) {
+		names, err := repo.GetTodayVisitNamesForStudents(ctx, nil)
+		require.NoError(t, err)
+		assert.Nil(t, names)
+	})
+
+	t.Run("returns activity and room names for today's visits", func(t *testing.T) {
+		names, err := repo.GetTodayVisitNamesForStudents(ctx, []int64{data.Student1.ID, data.Student1.ID})
+
+		require.NoError(t, err)
+		require.NotEmpty(t, names)
+
+		var found bool
+		for _, row := range names {
+			if row.StudentID == data.Student1.ID {
+				found = true
+				assert.NotEmpty(t, row.ActivityGroupName)
+				assert.NotEmpty(t, row.RoomName)
+			}
+		}
+		assert.True(t, found)
+	})
+}
+
+func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	t.Run("empty input returns empty map", func(t *testing.T) {
+		locations, err := repo.GetCurrentRoomNamesForStudents(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, locations)
+	})
+
+	t.Run("returns newest active room per student", func(t *testing.T) {
+		secondRoom := testpkg.CreateTestRoom(t, db, "VisitRoomCurrent")
+		secondActivity := testpkg.CreateTestActivityGroup(t, db, "VisitActivityCurrent")
+		secondGroup := testpkg.CreateTestActiveGroup(t, db, secondActivity.ID, secondRoom.ID)
+		defer func() {
+			cleanupActiveGroupRecords(t, db, secondGroup.ID)
+			testpkg.CleanupActivityFixtures(t, db, secondActivity.ID, secondRoom.ID)
+		}()
+
+		oldExit := time.Now().Add(-90 * time.Minute)
+		oldVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, time.Now().Add(-2*time.Hour), &oldExit)
+		newVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, secondGroup.ID, time.Now().Add(-10*time.Minute), nil)
+		otherVisit := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, time.Now().Add(-20*time.Minute), nil)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "active.visits", oldVisit.ID, newVisit.ID, otherVisit.ID)
+		}()
+
+		locations, err := repo.GetCurrentRoomNamesForStudents(ctx, []int64{data.Student1.ID, data.Student2.ID})
+
+		require.NoError(t, err)
+		assert.Equal(t, secondRoom.Name, locations[data.Student1.ID])
+		assert.NotEmpty(t, locations[data.Student2.ID])
+	})
+
+	t.Run("ended active group is excluded", func(t *testing.T) {
+		endedAt := time.Now()
+		endedGroup := testpkg.CreateTestActiveGroup(t, db, data.ActivityGroup, data.Room)
+		endedGroup.EndTime = &endedAt
+		_, err := db.NewUpdate().
+			Model(endedGroup).
+			ModelTableExpr(`active.groups`).
+			Column("end_time").
+			Where("id = ?", endedGroup.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+		defer cleanupActiveGroupRecords(t, db, endedGroup.ID)
+
+		visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, endedGroup.ID, time.Now().Add(-10*time.Minute), nil)
+		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+		locations, err := repo.GetCurrentRoomNamesForStudents(ctx, []int64{data.Student1.ID})
+
+		require.NoError(t, err)
+		assert.NotContains(t, locations, data.Student1.ID)
+	})
+}
+
+func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	educationGroup := testpkg.CreateTestEducationGroup(t, db, "Visit Display Group")
+	_, err := db.NewUpdate().
+		Table("users.students").
+		Set("group_id = ?", educationGroup.ID).
+		Where("id = ?", data.Student1.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewUpdate().
+			Table("users.students").
+			Set("group_id = NULL").
+			Where("id = ?", data.Student1.ID).
+			Exec(ctx)
+		_, _ = db.NewDelete().
+			Table("education.groups").
+			Where("id = ?", educationGroup.ID).
+			Exec(ctx)
+	}()
+
+	activeVisit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, time.Now().Add(-10*time.Minute), nil)
+	exitTime := time.Now().Add(-5 * time.Minute)
+	endedVisit := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, time.Now().Add(-20*time.Minute), &exitTime)
+	defer func() {
+		testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID, endedVisit.ID)
+	}()
+
+	results, err := repo.FindActiveWithStudentDisplayByGroup(ctx, data.ActiveGroup.ID)
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	row := results[0]
+	assert.Equal(t, activeVisit.ID, row.VisitID)
+	assert.Equal(t, data.Student1.ID, row.StudentID)
+	assert.Equal(t, data.ActiveGroup.ID, row.ActiveGroupID)
+	assert.Equal(t, "Visit", row.FirstName)
+	assert.Equal(t, "Student1", row.LastName)
+	assert.Equal(t, "1a", row.SchoolClass)
+	require.NotNil(t, row.GroupID)
+	assert.Equal(t, educationGroup.ID, *row.GroupID)
+	assert.Equal(t, educationGroup.Name, row.OGSGroupName)
+	assert.Nil(t, row.ExitTime)
+}
+
 // ============================================================================
 // Visit End Tests
 // ============================================================================
@@ -755,6 +929,71 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, transferred)
 	})
+}
+
+func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	groupRepo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	now := time.Now()
+	oldGroup := &active.Group{
+		StartTime:      now.Add(-30 * time.Minute),
+		LastActivity:   now.Add(-10 * time.Minute),
+		TimeoutMinutes: 30,
+		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		RoomID:         data.Room,
+	}
+	require.NoError(t, groupRepo.Create(ctx, oldGroup))
+	defer cleanupActiveGroupRecords(t, db, oldGroup.ID)
+
+	newGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		RoomID:         data.Room,
+	}
+	require.NoError(t, groupRepo.Create(ctx, newGroup))
+	defer cleanupActiveGroupRecords(t, db, newGroup.ID)
+
+	activeVisit := &active.Visit{
+		StudentID:     data.Student1.ID,
+		ActiveGroupID: oldGroup.ID,
+		EntryTime:     now.Add(-20 * time.Minute),
+	}
+	require.NoError(t, repo.Create(ctx, activeVisit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID)
+
+	exitTime := now.Add(-5 * time.Minute)
+	endedVisit := &active.Visit{
+		StudentID:     data.Student2.ID,
+		ActiveGroupID: oldGroup.ID,
+		EntryTime:     now.Add(-25 * time.Minute),
+		ExitTime:      &exitTime,
+	}
+	require.NoError(t, repo.Create(ctx, endedVisit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", endedVisit.ID)
+
+	transferred, err := repo.TransferActiveVisitsBetweenGroups(ctx, oldGroup.ID, newGroup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, transferred)
+
+	foundActive, err := repo.FindByID(ctx, activeVisit.ID)
+	require.NoError(t, err)
+	assert.Equal(t, newGroup.ID, foundActive.ActiveGroupID)
+	assert.Nil(t, foundActive.ExitTime)
+
+	foundEnded, err := repo.FindByID(ctx, endedVisit.ID)
+	require.NoError(t, err)
+	assert.Equal(t, oldGroup.ID, foundEnded.ActiveGroupID)
+	require.NotNil(t, foundEnded.ExitTime)
+	assert.WithinDuration(t, exitTime, *foundEnded.ExitTime, time.Second)
 }
 
 func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {

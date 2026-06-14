@@ -105,9 +105,7 @@ type createTemplateResponse struct {
 
 // createTemplate handles POST /api/timetable/templates.
 func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
-	if rs.activityGroupRepo == nil || rs.activityScheduleRepo == nil ||
-		rs.timeframeRepo == nil || rs.studentEnrollmentRepo == nil ||
-		rs.activitySupervisorRepo == nil {
+	if rs.timetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -176,9 +174,8 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Find or create timeframe matching the requested clock window.
-	//    Reusing existing timeframes keeps the schedule.timeframes table
-	//    from growing one row per template — common slots (12:00–12:50)
-	//    end up shared across Mensa templates from different weeks.
+	//    The find-or-create rule lives in the schedule service (shared with
+	//    the WP-B3 template split) so it exists in exactly one place.
 	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
@@ -207,7 +204,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:        createdByPtr,
 	}
 	group.SetTenantID(tenantID)
-	if err := rs.activityGroupRepo.Create(ctx, group); err != nil {
+	if err := rs.timetableData.CreateActivityGroup(ctx, group); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"create template failed", err))
 		return
@@ -227,7 +224,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			CalendarPeriodID: req.CalendarPeriodID,
 		}
 		sched.SetTenantID(tenantID)
-		if err := rs.activityScheduleRepo.Create(ctx, sched); err != nil {
+		if err := rs.timetableData.CreateActivitySchedule(ctx, sched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"create schedule failed", err))
 			return
@@ -290,7 +287,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 // the template name on first creation as a debug hint, but is informational
 // only — lookups go by time window.
 func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	existing, err := rs.timeframeRepo.FindByTimeRange(ctx, start, end)
+	existing, err := rs.timetableData.GetTimeframesByTimeRange(ctx, start, end)
 	if err == nil {
 		for _, tf := range existing {
 			if tf == nil {
@@ -315,7 +312,7 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 		Description: fmt.Sprintf("auto: %s", descHint),
 	}
 	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timeframeRepo.Create(ctx, tf); err != nil {
+	if err := rs.timetableData.CreateTimeframe(ctx, tf); err != nil {
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil

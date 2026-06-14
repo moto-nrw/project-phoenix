@@ -1,0 +1,24 @@
+package audit
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestUnregisteredTagScanMetadataMethods(t *testing.T) {
+	createdAt := time.Now().Add(-time.Hour)
+	updatedAt := time.Now()
+	scan := &UnregisteredTagScan{
+		TagUID: "ABC123",
+	}
+	scan.ID = 42
+	scan.CreatedAt = createdAt
+	scan.UpdatedAt = updatedAt
+
+	require.Equal(t, "audit.unregistered_tag_scans", scan.TableName())
+	require.Equal(t, int64(42), scan.GetID())
+	require.Equal(t, createdAt, scan.GetCreatedAt())
+	require.Equal(t, updatedAt, scan.GetUpdatedAt())
+}

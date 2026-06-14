@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 const (
@@ -24,7 +26,20 @@ const (
 	errMsgGuardianNotFound = "guardian profile not found: %w"
 	// errMsgPhoneNotFound is the error message format for phone number not found errors
 	errMsgPhoneNotFound = "phone number not found: %w"
+	// emailInUseMsgFmt is the user-facing German message (with a %q placeholder
+	// for the email) returned as a 400 when a guardian email collides with an
+	// existing profile. Single source of truth so the wording stays identical
+	// across the create, update, and batch-validate paths (#819).
+	emailInUseMsgFmt = "E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen"
 )
+
+// newEmailInUseError builds the 400 ValidationError for a duplicate guardian
+// email. email is trimmed for display so the message matches what the unique
+// pre-check compared.
+func newEmailInUseError(email string) *ValidationError {
+	//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+	return &ValidationError{Err: fmt.Errorf(emailInUseMsgFmt, strings.TrimSpace(email))}
+}
 
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
@@ -137,12 +152,18 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 	// as strict as the index and never lets a colliding email slip through.
 	if profile.Email != nil && strings.TrimSpace(*profile.Email) != "" {
 		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*profile.Email)); err == nil && existing != nil {
-			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-			return nil, &ValidationError{Err: fmt.Errorf("E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen", strings.TrimSpace(*profile.Email))}
+			return nil, newEmailInUseError(*profile.Email)
 		}
 	}
 
 	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+		// TOCTOU guard: two concurrent creates can both pass the FindByEmail
+		// pre-check above and then race on the UNIQUE(tenant_id, email) index.
+		// The loser gets a raw 23505 — classify it as the same bad-input
+		// ValidationError (HTTP 400) the pre-check produces, never a 500.
+		if isGuardianUniqueViolation(err) && profile.Email != nil {
+			return nil, newEmailInUseError(*profile.Email)
+		}
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
 	}
 
@@ -206,6 +227,17 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		return err
 	}
 
+	// Reject assigning an email already owned by a DIFFERENT guardian. Without
+	// this the UNIQUE(tenant_id, email) index fires on Update and the handler
+	// maps it to a raw 500. The existing.ID != id guard is essential: saving the
+	// guardian without changing the email must NOT collide with the row itself.
+	// FindByEmail is case-insensitive (LOWER=LOWER), matching CreateGuardian.
+	if req.Email != nil && strings.TrimSpace(*req.Email) != "" {
+		if existing, ferr := s.guardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*req.Email)); ferr == nil && existing != nil && existing.ID != id {
+			return newEmailInUseError(*req.Email)
+		}
+	}
+
 	// Update fields (phone numbers are managed separately)
 	profile.FirstName = req.FirstName
 	profile.LastName = req.LastName
@@ -222,13 +254,108 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 		profile.LanguagePreference = req.LanguagePreference
 	}
 
-	return s.guardianProfileRepo.Update(ctx, profile)
+	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
+		// the email between the check above and this Update.
+		if isGuardianUniqueViolation(err) && profile.Email != nil {
+			return newEmailInUseError(*profile.Email)
+		}
+		return err
+	}
+	return nil
 }
 
-// DeleteGuardian removes a guardian profile
+// DeleteGuardian removes a guardian profile WITHOUT touching its student links.
+//
+// Since migration 1.15.127 the students_guardians → guardian_profiles FK is
+// ON DELETE RESTRICT, so this fails with a foreign-key violation when the
+// guardian is still linked to any student — the handler turns that into a 409.
+// Use this only for guardians with no remaining links; for the deliberate
+// full delete use DeleteGuardianWithLinks.
 func (s *guardianService) DeleteGuardian(ctx context.Context, id int64) error {
-	// CASCADE will handle student_guardians relationships
 	return s.guardianProfileRepo.Delete(ctx, id)
+}
+
+// DeleteGuardianWithLinks deletes a guardian together with all of its
+// student↔guardian links. Under the RESTRICT FK (1.15.127) the link rows MUST
+// be removed before the guardian, so order matters. The caller is expected to
+// run this inside a tenant transaction (the HTTP handler does, via
+// WithTenantTx) so the two steps commit atomically — a mid-way failure rolls
+// back and leaves the guardian and its links intact.
+//
+// This is the "Komplett löschen" path from #819 and is gated to admins at the
+// handler, because it reaches across every linked student — including siblings
+// in groups the caller may not supervise.
+func (s *guardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error {
+	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+
+	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to load guardian links: %w", err)
+	}
+	currentLinkIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		currentLinkIDs = append(currentLinkIDs, link.ID)
+	}
+	if !sameInt64Set(currentLinkIDs, expectedLinkIDs) {
+		return ErrGuardianDeletePreviewChanged
+	}
+	for _, link := range links {
+		if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {
+			return fmt.Errorf("failed to remove guardian link %d: %w", link.ID, err)
+		}
+	}
+	return s.guardianProfileRepo.Delete(ctx, id)
+}
+
+// GetLinkedStudentNames returns the full names of every student currently
+// linked to the guardian. Backs the delete-confirmation flow: an empty slice
+// means a plain delete is safe, a non-empty one drives the 409 warning that
+// lists exactly which children (incl. siblings) would lose the guardian.
+func (s *guardianService) GetLinkedStudentNames(ctx context.Context, guardianProfileID int64) ([]string, error) {
+	impact, err := s.GetGuardianDeleteImpact(ctx, guardianProfileID)
+	if err != nil {
+		return nil, err
+	}
+	return impact.StudentNames, nil
+}
+
+// GetGuardianDeleteImpact returns the exact current affected links and display
+// names for a full guardian delete preview.
+func (s *guardianService) GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
+	return s.getGuardianDeleteImpact(ctx, guardianProfileID)
+}
+
+func sameInt64Set(a, b []int64) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	aCopy := slices.Clone(a)
+	bCopy := slices.Clone(b)
+	slices.Sort(aCopy)
+	slices.Sort(bCopy)
+	return slices.Equal(aCopy, bCopy)
+}
+
+// isGuardianUniqueViolation reports whether err (or a wrapped DatabaseError)
+// carries PostgreSQL code 23505 (unique_violation) — used to classify a raced
+// duplicate-email insert/update as bad input rather than a 500.
+func isGuardianUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *base.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
+	}
+	return false
 }
 
 // SendInvitation sends an invitation to a guardian.
@@ -344,13 +471,25 @@ func (s *guardianService) sendInvitationEmail(ctx context.Context, invitation *a
 // Returns an error if the guardian-student relationships cannot be loaded or if any student/person
 // lookup fails. This ensures callers can distinguish between "no students" and "data retrieval failure".
 func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardianProfileID int64) ([]string, error) {
+	impact, err := s.getGuardianDeleteImpact(ctx, guardianProfileID)
+	if err != nil {
+		return nil, err
+	}
+	return impact.StudentNames, nil
+}
+
+// getGuardianDeleteImpact retrieves the link IDs and full names of all students
+// linked to a guardian from the same relationship snapshot.
+func (s *guardianService) getGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error) {
 	relationships, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian-student relationships: %w", err)
 	}
 
+	linkIDs := make([]int64, 0, len(relationships))
 	studentNames := make([]string, 0, len(relationships))
 	for _, rel := range relationships {
+		linkIDs = append(linkIDs, rel.ID)
 		student, err := s.studentRepo.FindByID(ctx, rel.StudentID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load student %d: %w", rel.StudentID, err)
@@ -369,7 +508,10 @@ func (s *guardianService) getStudentNamesForGuardian(ctx context.Context, guardi
 		studentNames = append(studentNames, person.GetFullName())
 	}
 
-	return studentNames, nil
+	return &GuardianDeleteImpact{
+		LinkIDs:      linkIDs,
+		StudentNames: studentNames,
+	}, nil
 }
 
 // ValidateInvitation validates an invitation token.
@@ -825,7 +967,7 @@ func (s *guardianService) ValidateNewGuardians(ctx context.Context, guardians []
 			}
 			if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
 				//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
-				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist bereits vergeben – bitte die vorhandene Person über die Suche auswählen", i+1, email)}
+				return &ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: "+emailInUseMsgFmt, i+1, email)}
 			}
 			seenEmails[email] = struct{}{}
 		}

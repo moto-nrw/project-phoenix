@@ -15,6 +15,7 @@ export type FormFieldType =
   | "phone_list"
   | "weekday_schedule"
   | "weekday_boolean"
+  | "weekday_mode"
   | "contact_list";
 
 /**
@@ -57,9 +58,11 @@ export type FormFieldTarget =
   | ""
   | "student.health_info"
   | "student.extra_info"
-  // student.bus_days is the canonical Buskind target (#1582). student.bus is a
-  // legacy alias kept so older saved schemas still resolve; it is not offered
-  // in the picker for new fields.
+  // student.departure is the canonical unified target (#1610): per weekday how
+  // the child leaves (alone/bus/pickup). student.bus_days / student.bus /
+  // student.pickup_status are legacy aliases kept so older saved schemas still
+  // resolve; they are not offered in the picker for new fields.
+  | "student.departure"
   | "student.bus_days"
   | "student.bus"
   | "student.pickup_status"
@@ -87,6 +90,11 @@ export const RESERVED_TARGETS: Record<
     type: "textarea",
     appliesToChild: true,
     label: "Hinweise an die Betreuung",
+  },
+  "student.departure": {
+    type: "weekday_mode",
+    appliesToChild: true,
+    label: "Geh- und Abholregelung",
   },
   "student.bus_days": {
     type: "weekday_boolean",
@@ -375,11 +383,10 @@ export interface PublicLegalTexts {
   dsgvo: string;
   email_contact: string;
   photo: string;
-  /**
-   * Mirrors enrollment.legal_terms_enabled. The AGB block is shown only
-   * when this is true and an AGB/Ganztag Info-Brief text is configured.
-   */
   terms_enabled: boolean;
+  dsgvo_enabled: boolean;
+  email_contact_enabled: boolean;
+  photo_enabled: boolean;
   blocks: PublicLegalBlock[];
 }
 

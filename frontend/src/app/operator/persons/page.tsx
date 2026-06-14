@@ -144,7 +144,7 @@ function OperatorPersonsPageContent() {
                     )}
                     {person.isStudent && (
                       <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                        Schüler
+                        Kinder
                       </span>
                     )}
                     {person.hasRfidCard && (

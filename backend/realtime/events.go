@@ -14,6 +14,17 @@ const (
 	EventStudentCheckOut EventType = "student_checkout"
 	EventStudentUpdated  EventType = "student_updated"
 
+	// Bulk checkout event — emitted when a whole session ends (manual end or
+	// scheduler timeout) and every active visit is closed at once. One event
+	// per affected topic carrying all student IDs, instead of one
+	// student_checkout per student, so a single client receives one trigger
+	// rather than N (issue #848: per-student bursts overflowed the SSE channel
+	// buffer and dropped events). Single-student checkouts keep emitting
+	// EventStudentCheckOut. Like all SSE events this is a trigger, not a
+	// payload — the client refetches via bulk endpoints; StudentIDs only drives
+	// per-student detail-cache invalidation.
+	EventBulkStudentCheckOut EventType = "bulk_student_checkout"
+
 	// Activity session lifecycle events
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
@@ -72,6 +83,11 @@ type EventData struct {
 	StudentName *string `json:"student_name,omitempty"`
 	SchoolClass *string `json:"school_class,omitempty"`
 	GroupName   *string `json:"group_name,omitempty"` // Student's OGS group, not active group
+
+	// StudentIDs carries the affected students on a bulk_student_checkout event
+	// (whole-session end). The client adds each to its per-student
+	// detail-cache invalidation set; the refetch itself is topic-driven.
+	StudentIDs *[]string `json:"student_ids,omitempty"`
 
 	// Activity session fields (for activity_start/end/update events)
 	ActivityName  *string   `json:"activity_name,omitempty"`

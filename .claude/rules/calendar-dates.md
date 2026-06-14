@@ -9,10 +9,9 @@ bun converts EVERY `time.Time` parameter to UTC before binding
 value (`2026-02-02 00:00 CET`) is sent as `2026-02-01 23:00 UTC`; PostgreSQL
 casts to DATE and stores `2026-02-01` — one day behind, whenever the wall
 clock is between 00:00 and 02:00 Berlin time. Reads were wrong symmetrically:
-DATE columns scan back as UTC midnight. This single mechanism caused ~20
-production fixes and ~13 test-flake fixes in H1 2026 (worst case PR #1246:
-every attendance record stored one day behind), papered over by 133 manual
-compensation calls that nothing enforced.
+DATE columns scan back as UTC midnight. This single mechanism caused dozens
+of production and test-flake fixes before the 2026-06 migration eliminated
+the bug class.
 
 `timezone.Date` (backend/internal/timezone/date.go) carries year/month/day
 with no instant and no location. Its `driver.Valuer` binds the literal string

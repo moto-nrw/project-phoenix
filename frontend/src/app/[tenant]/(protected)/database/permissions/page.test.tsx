@@ -231,7 +231,7 @@ const mockPermissions = [
   {
     id: "1",
     name: "students:read",
-    description: "Schülerdaten lesen",
+    description: "Kinderdaten lesen",
     resource: "students",
     action: "read",
     createdAt: "2026-01-01",
@@ -240,7 +240,7 @@ const mockPermissions = [
   {
     id: "2",
     name: "students:write",
-    description: "Schülerdaten bearbeiten",
+    description: "Kinderdaten bearbeiten",
     resource: "students",
     action: "write",
     createdAt: "2026-01-01",

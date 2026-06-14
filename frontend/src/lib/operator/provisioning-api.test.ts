@@ -17,6 +17,7 @@ import type {
   BackendOperatorDevice,
   BackendInvitation,
   BackendOperatorPerson,
+  BackendUnregisteredTagScan,
 } from "./provisioning-helpers";
 
 const NOW = "2026-03-15T10:00:00Z";
@@ -97,6 +98,25 @@ const mockBackendInvitation: BackendInvitation = {
   created_by: 0,
   delivery_status: "pending",
   email_retry_count: 0,
+};
+
+const mockBackendUnregisteredTagScan: BackendUnregisteredTagScan = {
+  id: 300,
+  tenant_id: 10,
+  tag_uid: "04AABBCCDD",
+  device_id: 1,
+  scanned_at: NOW,
+  resolved_at: null,
+  resolved_by_operator_id: null,
+  resolution_note: null,
+  created_at: NOW,
+  updated_at: NOW,
+  school_id: 10,
+  school_name: "GGS Europaschule",
+  organization_id: 5,
+  organization_name: "Stadt Köln",
+  device_identifier: "dev-001",
+  device_name: "Eingang Hauptgebäude",
 };
 
 describe("OperatorProvisioningService", () => {
@@ -1099,6 +1119,97 @@ describe("OperatorProvisioningService", () => {
         schoolId: "10",
         organizationId: "42",
       });
+    });
+  });
+
+  describe("listUnregisteredTagScans", () => {
+    it("calls the base endpoint without filters and maps rows", async () => {
+      mockOperatorFetch.mockResolvedValue([mockBackendUnregisteredTagScan]);
+
+      const result = await operatorProvisioningService.listUnregisteredTagScans(
+        {},
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/unregistered-tag-scans",
+      );
+      expect(result).toEqual([
+        {
+          id: "300",
+          tenantId: "10",
+          tagUid: "04AABBCCDD",
+          deviceId: "1",
+          scannedAt: NOW,
+          resolvedAt: null,
+          resolvedByOperatorId: null,
+          resolutionNote: null,
+          createdAt: NOW,
+          updatedAt: NOW,
+          schoolId: "10",
+          schoolName: "GGS Europaschule",
+          organizationId: "5",
+          organizationName: "Stadt Köln",
+          deviceIdentifier: "dev-001",
+          deviceName: "Eingang Hauptgebäude",
+        },
+      ]);
+    });
+
+    it("adds organization, school, and all-resolved filters", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listUnregisteredTagScans({
+        organizationId: "5",
+        schoolId: "10",
+        resolved: "all",
+      });
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/unregistered-tag-scans?organization_id=5&school_id=10&resolved=all",
+      );
+    });
+
+    it("omits resolved query param for unresolved-only mode", async () => {
+      mockOperatorFetch.mockResolvedValue([]);
+
+      await operatorProvisioningService.listUnregisteredTagScans({
+        organizationId: "5",
+        resolved: "unresolved",
+      });
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/unregistered-tag-scans?organization_id=5",
+      );
+    });
+  });
+
+  describe("resolveUnregisteredTagScan", () => {
+    it("posts an empty body when no note is supplied", async () => {
+      mockOperatorFetch.mockResolvedValue(mockBackendUnregisteredTagScan);
+
+      await operatorProvisioningService.resolveUnregisteredTagScan("300");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/unregistered-tag-scans/300/resolve",
+        { method: "POST", body: {} },
+      );
+    });
+
+    it("posts the note and URL-encodes the scan id", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        ...mockBackendUnregisteredTagScan,
+        resolved_at: NOW,
+      });
+
+      await operatorProvisioningService.resolveUnregisteredTagScan(
+        "300/unsafe",
+        "Assigned to new card",
+      );
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/unregistered-tag-scans/300%2Funsafe/resolve",
+        { method: "POST", body: { note: "Assigned to new card" } },
+      );
     });
   });
 });

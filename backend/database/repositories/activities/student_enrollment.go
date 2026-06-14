@@ -36,6 +36,33 @@ func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepo
 	}
 }
 
+// CapActiveByGroup ends every still-active enrollment (valid_until IS NULL)
+// of the given group at validUntil (exclusive). Returns the number of rows
+// changed. Custom method (backend-conventions Rule 2): multi-row bulk update
+// for the template split (WP-B3).
+func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Set("valid_until = ?", validUntil).
+		Where(`"student_enrollment".activity_group_id = ?`, groupID).
+		Where(`"student_enrollment".valid_until IS NULL`)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "cap active enrollments by group",
+			Err: err,
+		}
+	}
+	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return rows, nil
+}
+
 // FindByStudentID finds all enrollments for a specific student
 func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*activities.StudentEnrollment, error) {
 	enrollments := make([]*activities.StudentEnrollment, 0)
@@ -307,4 +334,23 @@ func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBa
 	}
 
 	return enrollments, nil
+}
+
+// CloseOpenByGroupAndPeriod closes the open enrollments of a group for the
+// given calendar period (issue #584: moved verbatim from api/timetable).
+func (r *StudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	update := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.student_enrollments").
+		Set("valid_until = ?", validFrom).
+		Where("tenant_id = ?", tenantID).
+		Where("activity_group_id = ?", groupID).
+		Where("valid_until IS NULL")
+	if calendarPeriodID == nil {
+		update = update.Where("calendar_period_id IS NULL")
+	} else {
+		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
+	}
+	_, err := update.Exec(ctx)
+	return err
 }

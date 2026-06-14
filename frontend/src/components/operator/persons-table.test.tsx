@@ -41,7 +41,7 @@ describe("PersonsTable", () => {
     expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
   });
 
-  it("renders Schüler tag for students and RFID tag for card holders", () => {
+  it("renders Kinder tag for students and RFID tag for card holders", () => {
     render(
       <PersonsTable
         persons={[
@@ -57,7 +57,7 @@ describe("PersonsTable", () => {
       />,
     );
 
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
     expect(screen.getByText("RFID")).toBeInTheDocument();
     expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
   });

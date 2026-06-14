@@ -950,45 +950,14 @@ func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
 // rejectDeletedSchool Tests
 // =============================================================================
 
-// mockSchoolRepo implements the subset of platform.SchoolRepository used by rejectDeletedSchool.
+// mockSchoolRepo implements the SchoolLookup interface used by rejectDeletedSchool.
 type mockSchoolRepo struct {
 	school *platform.School
 	err    error
 }
 
-func (m *mockSchoolRepo) FindByID(_ context.Context, _ int64) (*platform.School, error) {
+func (m *mockSchoolRepo) GetSchoolByID(_ context.Context, _ int64) (*platform.School, error) {
 	return m.school, m.err
-}
-func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, _ int64) (*platform.School, error) {
-	return m.school, m.err
-}
-func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, _ int64) (*platform.School, error) {
-	return m.school, m.err
-}
-func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error { return nil }
-func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
-	return nil, nil
-}
-func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error)      { return nil, nil }
-func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) { return nil, nil }
-func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) { return nil, nil }
-func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
-	return nil, nil
-}
-func (m *mockSchoolRepo) Update(_ context.Context, _ *platform.School) error { return nil }
-func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error        { return nil }
-func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error           { return nil }
-func (m *mockSchoolRepo) CountByIDs(_ context.Context, ids []int64) (int, error) {
-	return len(ids), nil
-}
-func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
 }
 
 func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {

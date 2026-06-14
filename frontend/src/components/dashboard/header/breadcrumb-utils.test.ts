@@ -15,8 +15,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/students/search")).toBe("Kindersuche");
       });
 
-      it("should return 'Schüler Details' for student detail page", () => {
-        expect(getPageTitle("/students/123")).toBe("Schüler Details");
+      it("should return 'Kinder Details' for student detail page", () => {
+        expect(getPageTitle("/students/123")).toBe("Kinder Details");
       });
 
       it("should return 'Feedback Historie' for feedback history page", () => {
@@ -37,8 +37,8 @@ describe("breadcrumb-utils", () => {
         );
       });
 
-      it("should return 'Schüler' for /students route", () => {
-        expect(getPageTitle("/students")).toBe("Schüler");
+      it("should return 'Kinder' for /students route", () => {
+        expect(getPageTitle("/students")).toBe("Kinder");
       });
     });
 

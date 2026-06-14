@@ -4,7 +4,7 @@ Next.js web application for GDPR-compliant RFID student attendance and room mana
 
 ## Tech Stack
 
-- **Next.js 16** (App Router) with **React 19** and **TypeScript 5**
+- **Next.js 16** (App Router) with **React 19** and **TypeScript 6**
 - **Tailwind CSS 4** for styling
 - **NextAuth v5** (beta) for JWT authentication
 - **Axios** + **SWR** for API communication and caching
@@ -28,7 +28,7 @@ See `.env.example` for all required variables. Key ones:
 
 | Variable | Purpose |
 |----------|---------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL (default `http://localhost:8080`) |
+| `NEXT_PUBLIC_API_URL` | Backend API URL (required; `.env.example` uses `http://localhost:8080`) |
 | `NEXTAUTH_URL` | Frontend URL for auth callbacks |
 | `NEXTAUTH_SECRET` | JWT signing secret (`openssl rand -base64 32`) |
 | `SKIP_ENV_VALIDATION` | Set `true` for Docker builds |
@@ -53,23 +53,24 @@ See `.env.example` for all required variables. Key ones:
 ```
 src/
   app/
-    (operator)/     # Operator-facing pages (separate auth context)
-    (protected)/    # Authenticated teacher/admin pages
-    (public)/       # Public pages (invitations, login)
+    [tenant]/       # Tenant (school) app — (protected) + (public) route groups
+    operator/       # Operator portal (separate subdomain + session)
+    parents/        # Parents portal (cross-tenant, separate subdomain + session)
+    help/           # Public in-app manual (PDF-rendered in CI)
+    invite/, reset-password/  # Root-level public token flows
     api/            # Next.js route handlers (proxy to Go backend)
-    reset-password/ # Password reset flow
-  components/       # React components organized by domain
+  proxy.ts          # Subdomain → portal routing
+  components/       # React components organized by domain (shared kit in components/ui/)
   contexts/         # React context providers
-  hooks/            # Custom React hooks (SSE, SWR, etc.)
-  lib/              # API clients, helpers, utilities
-  server/           # Server-side auth configuration
+  lib/              # API clients, helpers, hooks, utilities
+  server/           # Per-portal NextAuth configuration
   styles/           # Global CSS
   test/             # Test utilities, mocks, fixtures
 ```
 
 ## Docker
 
-Development and production Dockerfiles are provided (`Dockerfile`, `Dockerfile.prod`). Both use Node 20 Alpine with pnpm.
+Development and production Dockerfiles are provided (`Dockerfile`, `Dockerfile.prod`). Both use Node 24 Alpine with pnpm.
 
 ```bash
 docker compose up frontend    # Run via docker-compose from project root

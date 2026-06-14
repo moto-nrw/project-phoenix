@@ -10,6 +10,7 @@ import type {
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendOperatorPerson,
+  BackendUnregisteredTagScan,
   Organization,
   OrganizationSummary,
   ProvisioningStats,
@@ -20,6 +21,7 @@ import type {
   OrgAccount,
   OperatorDevice,
   OperatorPerson,
+  UnregisteredTagScan,
   CreateOrganizationRequest,
   CreateSchoolRequest,
   CreateDeviceRequest,
@@ -39,6 +41,7 @@ import {
   mapOrgAccount,
   mapOperatorDevice,
   mapOperatorPerson,
+  mapUnregisteredTagScan,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -233,6 +236,36 @@ class OperatorProvisioningService {
     await operatorFetch<null>(
       `/api/operator/provisioning/persons/${encodeURIComponent(personId)}`,
       { method: "DELETE" },
+    );
+  }
+
+  async listUnregisteredTagScans(options: {
+    organizationId?: string;
+    schoolId?: string;
+    resolved?: "unresolved" | "all";
+  }): Promise<UnregisteredTagScan[]> {
+    const params = new URLSearchParams();
+    if (options.organizationId) {
+      params.set("organization_id", options.organizationId);
+    }
+    if (options.schoolId) {
+      params.set("school_id", options.schoolId);
+    }
+    if (options.resolved === "all") {
+      params.set("resolved", "all");
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : "";
+    const data = await operatorFetch<BackendUnregisteredTagScan[]>(
+      `/api/operator/provisioning/unregistered-tag-scans${suffix}`,
+    );
+    return data.map(mapUnregisteredTagScan);
+  }
+
+  async resolveUnregisteredTagScan(id: string, note?: string): Promise<void> {
+    const body = note ? { note } : {};
+    await operatorFetch<BackendUnregisteredTagScan>(
+      `/api/operator/provisioning/unregistered-tag-scans/${encodeURIComponent(id)}/resolve`,
+      { method: "POST", body },
     );
   }
 

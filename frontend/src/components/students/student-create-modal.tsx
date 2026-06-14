@@ -5,11 +5,7 @@ import { Users, Plus, Search, Trash2, Clock } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
-import {
-  PersonalInfoSection,
-  BusStatusSection,
-  PickupStatusSection,
-} from "./student-form-fields";
+import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
 import {
   validateStudentForm,
@@ -17,10 +13,11 @@ import {
 } from "~/lib/student-form-validation";
 import {
   busDaysHaveAny,
-  normalizeBusDays,
-  type BusDays,
   pickupDaysHaveAny,
-  normalizePickupDays,
+  type BusDays,
+  normalizeDepartureDays,
+  departureToBusDays,
+  departureToPickupDays,
 } from "~/lib/student-helpers";
 import GuardianFormModal, {
   type RelationshipFormData,
@@ -167,6 +164,7 @@ export function StudentCreateModal({
     // makes the stored pickup_days/pickup_status pair correct even when the
     // pickup section is never touched.
     pickup_days: {},
+    departure_days: {},
     pickup_status: "Geht alleine nach Hause",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -211,6 +209,7 @@ export function StudentCreateModal({
         data_retention_days: 30,
         bus: false,
         pickup_days: {},
+        departure_days: {},
         pickup_status: "Geht alleine nach Hause",
       });
       setErrors({});
@@ -342,7 +341,7 @@ export function StudentCreateModal({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Neuer Schüler">
+      <Modal isOpen={isOpen} onClose={onClose} title="Neues Kind">
         <form
           ref={formRef}
           onSubmit={handleSubmit}
@@ -523,29 +522,20 @@ export function StudentCreateModal({
             onChange={handleChange}
           />
 
-          {/* Bus Status */}
-          <BusStatusSection
-            value={formData.bus}
-            days={formData.bus_days}
+          {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
+          <DepartureSection
+            days={formData.departure_days}
             onChange={(value) => {
-              const normalized = normalizeBusDays(value);
+              const departure = normalizeDepartureDays(value);
+              const busDays = departureToBusDays(departure);
+              const pickupDays = departureToPickupDays(departure);
               setFormData((prev) => ({
                 ...prev,
-                bus_days: normalized,
-                bus: busDaysHaveAny(normalized),
-              }));
-            }}
-          />
-
-          {/* Pickup Status */}
-          <PickupStatusSection
-            days={formData.pickup_days}
-            onChange={(value) => {
-              const normalized = normalizePickupDays(value);
-              setFormData((prev) => ({
-                ...prev,
-                pickup_days: normalized,
-                pickup_status: pickupDaysHaveAny(normalized)
+                departure_days: departure,
+                bus_days: busDays,
+                bus: busDaysHaveAny(busDays),
+                pickup_days: pickupDays,
+                pickup_status: pickupDaysHaveAny(pickupDays)
                   ? "Wird abgeholt"
                   : "Geht alleine nach Hause",
               }));

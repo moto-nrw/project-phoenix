@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { InstanceBlock } from "./instance-block";
 import { MonthPlannerGrid } from "./month-planner-grid";
-import { PlanningMenu } from "./planning-menu";
 import { TemplateCard } from "./template-card";
 import { TemplateList } from "./template-list";
+import { TimetableAddMenu } from "./timetable-add-menu";
 import { TimetableToolbar } from "./timetable-toolbar";
 import { WeeklyCalendarGrid } from "./weekly-calendar-grid";
 import { YearPlannerGrid } from "./year-planner-grid";
@@ -140,31 +140,36 @@ describe("small timetable components", () => {
     expect(screen.getByText("Spontan")).toBeInTheDocument();
   });
 
-  it("opens planning actions and confirms week replanning", async () => {
-    const onMaterialize = vi.fn().mockResolvedValue(undefined);
-    const onReplan = vi.fn().mockResolvedValue(undefined);
+  it("offers only one-off and recurring entries in the add menu", () => {
+    const onAddInstance = vi.fn();
+    const onAddSeries = vi.fn();
 
     render(
-      <PlanningMenu
-        onMaterialize={onMaterialize}
-        onReplan={onReplan}
-        weekLabel="KW 19"
+      <TimetableAddMenu
+        onAddInstance={onAddInstance}
+        onAddSeries={onAddSeries}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /lücken füllen/i }));
-    await waitFor(() => expect(onMaterialize).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: /neu/i }));
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
+    expect(
+      screen.queryByText("Fehlende Termine eintragen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Regeltermine neu aufbauen"),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /woche planen/i }));
     fireEvent.click(
-      screen.getByRole("menuitem", { name: /woche neu berechnen/i }),
+      screen.getByRole("menuitem", { name: /einmaliger termin/i }),
     );
-    expect(screen.getByRole("dialog")).toHaveTextContent("KW 19");
+    expect(onAddInstance).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole("button", { name: "Neu berechnen" }));
-
-    await waitFor(() => expect(onReplan).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: /neu/i }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /regelmäßiger termin/i }),
+    );
+    expect(onAddSeries).toHaveBeenCalledOnce();
   });
 
   it("renders template cards/lists and wires create/edit/apply callbacks", () => {
@@ -182,7 +187,7 @@ describe("small timetable components", () => {
         onArchive={onArchive}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /serientermin/i }));
+    fireEvent.click(screen.getByRole("button", { name: /regeltermin/i }));
     expect(onCreate).toHaveBeenCalledOnce();
 
     rerender(
@@ -230,6 +235,34 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
   });
 
+  it("shows a missing-room hint only when the template has no room", () => {
+    const { rerender } = render(
+      <TemplateCard
+        template={template}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByText("Raum fehlt – wird nicht eingeplant"),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <TemplateCard
+        template={{ ...template, roomId: undefined, roomName: undefined }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Raum fehlt – wird nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
   it("handles toolbar view, navigation, add, and density controls", () => {
     const onViewChange = vi.fn();
     const onPrev = vi.fn();
@@ -253,7 +286,9 @@ describe("small timetable components", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("tab", { name: "Monat" }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Monat" }), {
+      button: 0,
+    });
     fireEvent.click(screen.getByLabelText("Vorheriger Zeitraum"));
     fireEvent.click(screen.getByLabelText("Nächster Zeitraum"));
     fireEvent.click(screen.getByRole("button", { name: "Heute" }));
@@ -296,12 +331,57 @@ describe("small timetable components", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
+  it("offers period management in the toolbar overflow menu in every view", () => {
+    const onManagePeriods = vi.fn();
+    const sharedProps = {
+      onViewChange: vi.fn(),
+      rangeLabel: "Mai 2026",
+      onPrev: vi.fn(),
+      onNext: vi.fn(),
+      onToday: vi.fn(),
+      onManagePeriods,
+    };
+
+    const { rerender } = render(
+      <TimetableToolbar view="month" {...sharedProps} />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    // Density only applies to the week view; outside it the menu carries
+    // just the Verwaltung section.
+    expect(screen.queryByText("Zeilenhöhe")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
+    );
+    expect(onManagePeriods).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    rerender(<TimetableToolbar view="series" {...sharedProps} navDisabled />);
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(
+      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    rerender(
+      <TimetableToolbar
+        view="week"
+        {...sharedProps}
+        density="normal"
+        onDensityChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
+    expect(screen.getByText("Zeilenhöhe")).toBeInTheDocument();
+    expect(screen.getByText("Verwaltung")).toBeInTheDocument();
+  });
+
   it("hides irrelevant toolbar controls for series and today states", () => {
     render(
       <TimetableToolbar
         view="series"
         onViewChange={vi.fn()}
-        rangeLabel="Serien"
+        rangeLabel="Regeltermine"
         onPrev={vi.fn()}
         onNext={vi.fn()}
         onToday={vi.fn()}
@@ -419,5 +499,75 @@ describe("small timetable components", () => {
     expect(screen.getByRole("button", { name: /spättermin/i })).toHaveStyle({
       top: "630px",
     });
+  });
+
+  it("renders hourly slot click targets when onSlotClick is provided", () => {
+    const onSlotClick = vi.fn();
+    const onInstanceClick = vi.fn();
+    const weekDays = [
+      new Date("2026-05-04T00:00:00"),
+      new Date("2026-05-05T00:00:00"),
+      new Date("2026-05-06T00:00:00"),
+      new Date("2026-05-07T00:00:00"),
+      new Date("2026-05-08T00:00:00"),
+    ];
+
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={onInstanceClick}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={60}
+        onSlotClick={onSlotClick}
+      />,
+    );
+
+    // 8 full hours (09:00–16:00) per day, 5 visible days
+    const slotButtons = screen.getAllByRole("button", {
+      name: /Neuen Termin anlegen/,
+    });
+    expect(slotButtons).toHaveLength(40);
+    expect(slotButtons[0]).toHaveAttribute(
+      "aria-label",
+      "Neuen Termin anlegen: Mo 04.05., 09:00 Uhr",
+    );
+    // Slots stay out of the tab order — they would add ~40 stops before
+    // the first event; keyboard users go through the "Neu" menu.
+    expect(slotButtons[0]).toHaveAttribute("tabindex", "-1");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Neuen Termin anlegen: Di 05.05., 14:00 Uhr",
+      }),
+    );
+    expect(onSlotClick).toHaveBeenCalledWith("2026-05-05", 14);
+
+    // Instance blocks keep their own click handlers with slots present.
+    fireEvent.click(screen.getByRole("button", { name: /mensa/i }));
+    expect(onInstanceClick).toHaveBeenCalledWith(instance);
+    expect(onSlotClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders no slot click targets without onSlotClick", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={[new Date("2026-05-04T00:00:00")]}
+        instances={[instance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={60}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /Neuen Termin anlegen/ }),
+    ).not.toBeInTheDocument();
   });
 });

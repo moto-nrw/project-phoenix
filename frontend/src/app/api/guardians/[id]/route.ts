@@ -28,10 +28,18 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
 });
 
 // DELETE /api/guardians/[id] - Delete guardian
+// Forwards the optional `force` query param: without it the backend refuses a
+// guardian still linked to students (409); with `force=true` it performs the
+// deliberate full delete (admin-only, enforced in the backend handler).
 export const DELETE = createDeleteHandler(async (request, token, params) => {
   const { id } = params;
   const guardianId = String(id);
 
-  await apiDelete(`/api/guardians/${guardianId}`, token);
+  const queryString = request.nextUrl.searchParams.toString();
+  const endpoint = queryString
+    ? `/api/guardians/${guardianId}?${queryString}`
+    : `/api/guardians/${guardianId}`;
+
+  await apiDelete(endpoint, token);
   return null;
 });

@@ -12,6 +12,7 @@ import {
   useTenantSlugSafe,
 } from "~/components/tenant/tenant-provider";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
@@ -88,7 +89,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/timetables",
-    label: "Stundenplan",
+    label: "Betreuungsplan",
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
     requiresAdmin: true,
@@ -122,14 +123,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
     alwaysShow: true,
     hideForAdmin: true,
-    comingSoon: true,
-  },
-  // Coming soon features - admin only
-  {
-    href: "#",
-    label: "Dienstpläne",
-    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-    requiresAdmin: true,
     comingSoon: true,
   },
   {
@@ -228,6 +221,13 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
+      {
+        href: "/operator/unregistered-tags",
+        label: "Unbekannte RFID",
+        icon: navigationIcons.security,
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
     ],
   },
   {
@@ -298,22 +298,29 @@ const ENROLLMENTS_SUB_PAGES = [
   { href: "/enrollment-form", label: "Anmeldeformulare" },
 ];
 
-const PARENT_PREVIEW_ITEMS: readonly NavItem[] = [
+// `tKey` is the parentNav catalog key; the German `label` is the fallback used
+// only when the preview list is rendered outside an intl context. Mapping on a
+// stable key (not the German label) keeps the translation correct even if the
+// fallback wording changes.
+const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
   {
     href: "#",
     label: "Kalender",
+    tKey: "calendar",
     icon: navigationIcons.calendar,
     comingSoon: true,
   },
   {
     href: "#",
     label: "Nachrichten",
+    tKey: "messages",
     icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
     href: "#",
     label: "Kontaktdaten",
+    tKey: "contactData",
     icon: navigationIcons.profile,
     comingSoon: true,
   },
@@ -352,12 +359,21 @@ interface SidebarProps {
 }
 
 function SidebarContent({ className = "" }: SidebarProps) {
+  const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
+  const parentPreviewItems = useMemo(
+    () =>
+      PARENT_PREVIEW_ITEMS.map((item) => ({
+        ...item,
+        label: tParentNav(item.tKey),
+      })),
+    [tParentNav],
+  );
 
   // Strip tenant prefix so all path checks use unprefixed paths (e.g. "/database").
   // useTenantRouter().push() produces paths like "/school-a/database" while <Link href="/database">
@@ -551,7 +567,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
       {item.comingSoon ? (
         <div
           className={`group ${getLinkClasses(item.href, true)}`}
-          title="Bald verfügbar"
+          title={tParentNav("comingSoonTooltip")}
         >
           <svg
             className={getIconClasses(item)}
@@ -868,7 +884,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
                 />
               </svg>
-              <span>Start</span>
+              <span>{tParentNav("start")}</span>
             </Link>
             <Link
               href="/parents/children"
@@ -887,14 +903,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   d={navigationIcons.group}
                 />
               </svg>
-              <span>Meine Kinder</span>
+              <span>{tParentNav("children")}</span>
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
-                Bald im Elternportal
+                {tParentNav("comingSoon")}
               </p>
               <div className="space-y-1">
-                {PARENT_PREVIEW_ITEMS.map((item) => (
+                {parentPreviewItems.map((item) => (
                   <div
                     key={item.label}
                     className={getLinkClasses(item.href, true)}
@@ -917,7 +933,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="truncate">{item.label}</span>
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        Bald
+                        {tParentNav("soon")}
                       </span>
                     </span>
                   </div>

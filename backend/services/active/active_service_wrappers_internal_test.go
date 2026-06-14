@@ -1,0 +1,246 @@
+package active
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+type attendanceRepoForActiveWrapperTest struct {
+	activeModels.AttendanceRepository
+	has     bool
+	err     error
+	gotDate timezone.Date
+}
+
+func (r *attendanceRepoForActiveWrapperTest) HasOpenAttendanceOn(_ context.Context, date timezone.Date) (bool, error) {
+	r.gotDate = date
+	return r.has, r.err
+}
+
+type roomRepoForActiveWrapperTest struct {
+	facilityModels.RoomRepository
+	rooms  []*facilityModels.Room
+	err    error
+	gotIDs []int64
+}
+
+func (r *roomRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) ([]*facilityModels.Room, error) {
+	r.gotIDs = append([]int64(nil), ids...)
+	return r.rooms, r.err
+}
+
+type visitRepoForActiveWrapperTest struct {
+	activeModels.VisitRepository
+	rows             []*activeModels.VisitWithStudentDisplay
+	err              error
+	gotActiveGroupID int64
+}
+
+func (r *visitRepoForActiveWrapperTest) FindActiveWithStudentDisplayByGroup(_ context.Context, activeGroupID int64) ([]*activeModels.VisitWithStudentDisplay, error) {
+	r.gotActiveGroupID = activeGroupID
+	return r.rows, r.err
+}
+
+type crossTenantRepoForActiveWrapperTest struct {
+	students           []activeModels.CrossTenantStudent
+	err                error
+	gotHostingTenantID int64
+}
+
+func (r *crossTenantRepoForActiveWrapperTest) FindCrossTenantStudents(_ context.Context, hostingTenantID int64) ([]activeModels.CrossTenantStudent, error) {
+	r.gotHostingTenantID = hostingTenantID
+	return r.students, r.err
+}
+
+type staffRepoForActiveWrapperTest struct {
+	userModels.StaffRepository
+	staff *userModels.Staff
+	err   error
+	gotID interface{}
+}
+
+func (r *staffRepoForActiveWrapperTest) FindByID(_ context.Context, id interface{}) (*userModels.Staff, error) {
+	r.gotID = id
+	return r.staff, r.err
+}
+
+type groupRepoForActiveWrapperTest struct {
+	activeModels.GroupRepository
+	groups map[int64]*activeModels.Group
+	err    error
+	gotIDs []int64
+}
+
+func (r *groupRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
+	r.gotIDs = append([]int64(nil), ids...)
+	return r.groups, r.err
+}
+
+func TestActiveServiceThinDelegates(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("has open attendance delegates date and result", func(t *testing.T) {
+		date := timezone.DateFromTime(timezone.Now())
+		repo := &attendanceRepoForActiveWrapperTest{has: true}
+		svc := &service{attendanceRepo: repo}
+
+		hasOpen, err := svc.HasOpenAttendanceOn(ctx, date)
+
+		require.NoError(t, err)
+		assert.True(t, hasOpen)
+		assert.Equal(t, date, repo.gotDate)
+	})
+
+	t.Run("has open attendance preserves repository error", func(t *testing.T) {
+		expectedErr := errors.New("attendance lookup failed")
+		repo := &attendanceRepoForActiveWrapperTest{err: expectedErr}
+		svc := &service{attendanceRepo: repo}
+
+		hasOpen, err := svc.HasOpenAttendanceOn(ctx, timezone.TodayDate())
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.False(t, hasOpen)
+	})
+
+	t.Run("get rooms by ids delegates ids and result", func(t *testing.T) {
+		rooms := []*facilityModels.Room{{Name: "Aula"}}
+		repo := &roomRepoForActiveWrapperTest{rooms: rooms}
+		svc := &service{roomRepo: repo}
+
+		got, err := svc.GetRoomsByIDs(ctx, []int64{10, 20})
+
+		require.NoError(t, err)
+		assert.Equal(t, rooms, got)
+		assert.Equal(t, []int64{10, 20}, repo.gotIDs)
+	})
+
+	t.Run("get active group visits with display delegates active group id", func(t *testing.T) {
+		rows := []*activeModels.VisitWithStudentDisplay{{VisitID: 90, StudentID: 91}}
+		repo := &visitRepoForActiveWrapperTest{rows: rows}
+		svc := &service{visitRepo: repo}
+
+		got, err := svc.GetActiveGroupVisitsWithDisplay(ctx, 80)
+
+		require.NoError(t, err)
+		assert.Equal(t, rows, got)
+		assert.Equal(t, int64(80), repo.gotActiveGroupID)
+	})
+}
+
+func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("empty input returns empty map without repository call", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{}
+		svc := &service{groupRepo: repo}
+
+		groups, err := svc.GetActiveGroupsByIDs(ctx, nil)
+
+		require.NoError(t, err)
+		assert.Empty(t, groups)
+		assert.Nil(t, repo.gotIDs)
+	})
+
+	t.Run("nil repository map becomes empty map", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{}
+		svc := &service{groupRepo: repo}
+
+		groups, err := svc.GetActiveGroupsByIDs(ctx, []int64{10, 20})
+
+		require.NoError(t, err)
+		assert.Empty(t, groups)
+		assert.Equal(t, []int64{10, 20}, repo.gotIDs)
+	})
+
+	t.Run("repository error maps to database operation", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{err: errors.New("group lookup failed")}
+		svc := &service{groupRepo: repo}
+
+		groups, err := svc.GetActiveGroupsByIDs(ctx, []int64{10})
+
+		require.Error(t, err)
+		assert.Nil(t, groups)
+		assert.Contains(t, err.Error(), ErrDatabaseOperation.Error())
+	})
+}
+
+func TestValidateStaffExists_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		repo := &staffRepoForActiveWrapperTest{staff: &userModels.Staff{}}
+		svc := &service{staffRepo: repo}
+
+		err := svc.validateStaffExists(ctx, 42)
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(42), repo.gotID)
+	})
+
+	t.Run("database no rows maps to staff not found", func(t *testing.T) {
+		repo := &staffRepoForActiveWrapperTest{
+			err: &modelBase.DatabaseError{Op: "find staff", Err: sql.ErrNoRows},
+		}
+		svc := &service{staffRepo: repo}
+
+		err := svc.validateStaffExists(ctx, 42)
+
+		require.ErrorIs(t, err, ErrStaffNotFound)
+	})
+
+	t.Run("unexpected repository error is preserved", func(t *testing.T) {
+		expectedErr := errors.New("staff repository unavailable")
+		repo := &staffRepoForActiveWrapperTest{err: expectedErr}
+		svc := &service{staffRepo: repo}
+
+		err := svc.validateStaffExists(ctx, 42)
+
+		require.ErrorIs(t, err, expectedErr)
+	})
+}
+
+func TestGetCrossTenantStudents_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("nil repository returns empty slice", func(t *testing.T) {
+		svc := &service{}
+
+		students, err := svc.GetCrossTenantStudents(ctx, 10)
+
+		require.NoError(t, err)
+		assert.Empty(t, students)
+	})
+
+	t.Run("repository error is wrapped", func(t *testing.T) {
+		expectedErr := errors.New("cross tenant lookup failed")
+		svc := &service{crossTenantRepo: &crossTenantRepoForActiveWrapperTest{err: expectedErr}}
+
+		students, err := svc.GetCrossTenantStudents(ctx, 10)
+
+		require.Error(t, err)
+		assert.Nil(t, students)
+		assert.ErrorIs(t, err, expectedErr)
+	})
+
+	t.Run("returns repository rows", func(t *testing.T) {
+		rows := []activeModels.CrossTenantStudent{{StudentID: 20}}
+		repo := &crossTenantRepoForActiveWrapperTest{students: rows}
+		svc := &service{crossTenantRepo: repo}
+
+		students, err := svc.GetCrossTenantStudents(ctx, 10)
+
+		require.NoError(t, err)
+		assert.Equal(t, rows, students)
+		assert.Equal(t, int64(10), repo.gotHostingTenantID)
+	})
+}

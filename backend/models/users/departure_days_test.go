@@ -1,0 +1,148 @@
+package users
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestDepartureDaysValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		days    DepartureDays
+		wantErr string
+	}{
+		{name: "accepts empty days", days: DepartureDays{}},
+		{
+			name: "accepts valid modes",
+			days: DepartureDays{
+				PickupDayMonday:  DepartureBus,
+				PickupDayFriday:  DeparturePickup,
+				PickupDayTuesday: DepartureAlone,
+			},
+		},
+		{
+			name:    "rejects unknown day",
+			days:    DepartureDays{"sat": DepartureBus},
+			wantErr: `weekday "sat"`,
+		},
+		{
+			name:    "rejects unknown mode",
+			days:    DepartureDays{PickupDayMonday: DepartureMode("walks")},
+			wantErr: `mode "walks"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.days.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("DepartureDays.Validate() unexpected error = %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("DepartureDays.Validate() expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("DepartureDays.Validate() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestDepartureDaysNormalize(t *testing.T) {
+	days := DepartureDays{
+		PickupDayMonday:    DepartureBus,
+		PickupDayTuesday:   DepartureAlone, // dropped (default)
+		PickupDayWednesday: DeparturePickup,
+		"sat":              DepartureBus, // dropped (unknown)
+	}
+
+	got := days.Normalize()
+	want := DepartureDays{
+		PickupDayMonday:    DepartureBus,
+		PickupDayWednesday: DeparturePickup,
+	}
+
+	if len(got) != len(want) {
+		t.Fatalf("Normalize() length = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for day, mode := range want {
+		if got[day] != mode {
+			t.Fatalf("Normalize()[%q] = %q, want %q", day, got[day], mode)
+		}
+	}
+}
+
+func TestDepartureDaysModeForAndHasAny(t *testing.T) {
+	days := DepartureDays{PickupDayMonday: DepartureBus}
+	if got := days.ModeFor(PickupDayMonday); got != DepartureBus {
+		t.Fatalf("ModeFor(mon) = %q, want bus", got)
+	}
+	if got := days.ModeFor(PickupDayTuesday); got != DepartureAlone {
+		t.Fatalf("ModeFor(tue) = %q, want alone (default)", got)
+	}
+	if !days.HasAny() {
+		t.Fatal("HasAny() = false, want true")
+	}
+	if (DepartureDays{}).HasAny() {
+		t.Fatal("empty HasAny() = true, want false")
+	}
+}
+
+func TestDepartureDaysDerivations(t *testing.T) {
+	days := DepartureDays{
+		PickupDayMonday:    DepartureBus,
+		PickupDayWednesday: DeparturePickup,
+		PickupDayFriday:    DepartureBus,
+	}
+
+	bus := days.BusDays()
+	if !bus[PickupDayMonday] || !bus[PickupDayFriday] || bus[PickupDayWednesday] {
+		t.Fatalf("BusDays() = %#v, want mon+fri only", bus)
+	}
+
+	pickup := days.PickupDays()
+	if !pickup[PickupDayWednesday] || pickup[PickupDayMonday] {
+		t.Fatalf("PickupDays() = %#v, want wed only", pickup)
+	}
+
+	if got := days.LegacyPickupStatus(); got != PickupStatusPickedUp {
+		t.Fatalf("LegacyPickupStatus() = %q, want %q", got, PickupStatusPickedUp)
+	}
+
+	// Bus-only must NOT count as picked up for the legacy string.
+	busOnly := DepartureDays{PickupDayMonday: DepartureBus}
+	if got := busOnly.LegacyPickupStatus(); got != PickupStatusGoesAlone {
+		t.Fatalf("bus-only LegacyPickupStatus() = %q, want %q", got, PickupStatusGoesAlone)
+	}
+}
+
+func TestDepartureDaysFromLegacy(t *testing.T) {
+	t.Run("merges disjoint maps", func(t *testing.T) {
+		got := DepartureDaysFromLegacy(
+			BusDays{PickupDayMonday: true},
+			PickupDays{PickupDayWednesday: true},
+		)
+		if got.ModeFor(PickupDayMonday) != DepartureBus {
+			t.Fatalf("mon = %q, want bus", got.ModeFor(PickupDayMonday))
+		}
+		if got.ModeFor(PickupDayWednesday) != DeparturePickup {
+			t.Fatalf("wed = %q, want pickup", got.ModeFor(PickupDayWednesday))
+		}
+		if got.ModeFor(PickupDayFriday) != DepartureAlone {
+			t.Fatalf("fri = %q, want alone", got.ModeFor(PickupDayFriday))
+		}
+	})
+
+	t.Run("pickup wins on contradiction", func(t *testing.T) {
+		got := DepartureDaysFromLegacy(
+			BusDays{PickupDayMonday: true},
+			PickupDays{PickupDayMonday: true},
+		)
+		if got.ModeFor(PickupDayMonday) != DeparturePickup {
+			t.Fatalf("contradictory mon = %q, want pickup (pickup wins)", got.ModeFor(PickupDayMonday))
+		}
+	})
+}

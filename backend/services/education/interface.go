@@ -36,6 +36,12 @@ type Service interface {
 
 	// Substitution operations
 	CreateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
+
+	// CreateGroupTransfer persists a group-transfer substitution WITHOUT the
+	// overlap conflict check: group transfers deliberately allow staff to
+	// hold multiple groups at once (issue #584: moved verbatim from
+	// api/groups, including that documented bypass).
+	CreateGroupTransfer(ctx context.Context, substitution *education.GroupSubstitution) error
 	UpdateSubstitution(ctx context.Context, substitution *education.GroupSubstitution) error
 	DeleteSubstitution(ctx context.Context, id int64) error
 	GetSubstitution(ctx context.Context, id int64) (*education.GroupSubstitution, error)

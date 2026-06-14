@@ -1597,6 +1597,10 @@ func (s *decisionService) applyTargetedFields(
 
 	var errs []string
 	studentDirty := false
+	// A unified departure target wins by replacing both legacy maps after the
+	// loop; the legacy Buskind/Abholregelung targets mutate their own map
+	// directly, so a form carrying both still combines correctly (#1610).
+	var explicitDeparture *users.DepartureDays
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -1619,12 +1623,17 @@ func (s *decisionService) applyTargetedFields(
 				student.ExtraInfo = &str
 				studentDirty = true
 			}
+		case enrollmentModels.TargetStudentDeparture:
+			if days, err := decodeDepartureDays(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				explicitDeparture = &days
+				studentDirty = true
+			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
 			if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
-				// bus_days is the single source of truth (#1582); the bus flag
-				// is derived at the API boundary, not stored.
 				student.BusDays = days
 				studentDirty = true
 			}
@@ -1632,9 +1641,7 @@ func (s *decisionService) applyTargetedFields(
 			if days, err := decodePickupDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
-				status := days.LegacyPickupStatus()
 				student.PickupDays = days
-				student.PickupStatus = &status
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
@@ -1707,6 +1714,15 @@ func (s *decisionService) applyTargetedFields(
 		}
 	}
 
+	// A unified departure field wins by replacing both legacy maps; otherwise
+	// the legacy bus/pickup targets already set their map (each preserving the
+	// other). The student repository folds bus_days + pickup_days into
+	// departure_days, the single source of truth, on Update (#1610).
+	if explicitDeparture != nil {
+		student.BusDays = explicitDeparture.BusDays()
+		student.PickupDays = explicitDeparture.PickupDays()
+	}
+
 	if studentDirty {
 		if err := s.studentRepo.Update(ctx, student); err != nil {
 			errs = append(errs, fmt.Sprintf("update student: %v", err))
@@ -1717,6 +1733,28 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
+// alone/bus/pickup) into the unified per-weekday departure model.
+func decodeDepartureDays(raw any) (users.DepartureDays, error) {
+	var modes enrollmentModels.WeekdayMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return nil, fmt.Errorf("decode weekday_mode: %w", err)
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.DepartureDays{}
+	for day, mode := range modes {
+		switch mode {
+		case enrollmentModels.WeekdayModeBus:
+			out[day] = users.DepartureBus
+		case enrollmentModels.WeekdayModePickup:
+			out[day] = users.DeparturePickup
+		}
+	}
+	return out.Normalize(), nil
 }
 
 func decodeBusDays(raw any) (users.BusDays, error) {

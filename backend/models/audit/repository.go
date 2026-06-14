@@ -37,6 +37,14 @@ type DataAccessLogRepository interface {
 	Create(ctx context.Context, entry *DataAccessLog) error
 }
 
+type UnregisteredTagScanRepository interface {
+	Create(ctx context.Context, scan *UnregisteredTagScan) error
+	FindByID(ctx context.Context, id int64) (*UnregisteredTagScan, error)
+	ListForOperator(ctx context.Context, filter UnregisteredTagScanFilter) ([]*UnregisteredTagScan, error)
+	Resolve(ctx context.Context, id, operatorID int64, note *string) (*UnregisteredTagScan, error)
+	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error)
+}
+
 // DataImportRepository defines operations for managing data import audit records
 type DataImportRepository interface {
 	Create(ctx context.Context, dataImport *DataImport) error

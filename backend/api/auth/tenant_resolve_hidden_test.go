@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,7 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, schoolRepo, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
 	resource.SettingsService = svc.Settings
 
 	router := chi.NewRouter()

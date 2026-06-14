@@ -472,3 +472,12 @@ func toSnakeCase(s string) string {
 	}
 	return result.String()
 }
+
+// AcquireXactLock takes a transaction-scoped advisory lock on the hashed key.
+// Requires a transaction in ctx (TenantTxMiddleware / WithTenantTx); the lock
+// releases automatically at COMMIT/ROLLBACK. Issue #584: shared helper so
+// services never run ExecContext themselves (Rule 11).
+func AcquireXactLock(ctx context.Context, db *bun.DB, key string) error {
+	_, err := GetDB(ctx, db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}

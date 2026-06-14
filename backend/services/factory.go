@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
+	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
@@ -68,6 +69,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
+	TemplateSplit            schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
@@ -96,8 +98,15 @@ type Factory struct {
 	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
+	Schools              platform.SchoolService
+	WorkTimeModels       config.WorkTimeModelService
+	Students             users.StudentService
+	StudentStatusDays    active.StudentStatusDayService
+	StudentHistory       active.StudentHistoryService
+	TimetableData        schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
+	UnregisteredTagScans auditService.UnregisteredTagScanService
 
 	// Email outbox (parent-enrollment PR 5) - shared across features.
 	// EmailOutbox enqueues from feature code; EmailOutboxWorker drains
@@ -285,30 +294,31 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
-		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
-		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
-		StudentStatusRepo:  repos.StudentStatusDay,
-		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
-		EducationService:   educationService,
-		UsersService:       usersService,
-		DB:                 db,
-		Broadcaster:        realtimeHub,           // Pass SSE broadcaster
-		WorkSessionService: workSessionService,    // NFC auto-check-in
-		AttendanceSyncer:   attendanceSyncService, // WP-B10 mirror + SSE enrichment
-		Logger:             activeLogger,
+		GroupRepo:                repos.ActiveGroup,
+		VisitRepo:                repos.ActiveVisit,
+		SupervisorRepo:           repos.GroupSupervisor,
+		CombinedGroupRepo:        repos.CombinedGroup,
+		GroupMappingRepo:         repos.GroupMapping,
+		AttendanceRepo:           repos.Attendance,
+		StudentStatusRepo:        repos.StudentStatusDay,
+		CrossTenantRepo:          activeRepo.NewCrossTenantRepository(db),
+		StudentRepo:              repos.Student,
+		PersonRepo:               repos.Person,
+		TeacherRepo:              repos.Teacher,
+		StaffRepo:                repos.Staff,
+		RoomRepo:                 repos.Room,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityCatRepo:          repos.ActivityCategory,
+		EducationGroupRepo:       repos.Group,
+		DeviceRepo:               repos.Device,
+		EducationService:         educationService,
+		UsersService:             usersService,
+		DB:                       db,
+		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
+		WorkSessionService:       workSessionService,    // NFC auto-check-in
+		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
+		TimetableBridgeCompleter: repos.ActivityInstance,
+		Logger:                   activeLogger,
 	})
 
 	// Initialize feedback service
@@ -419,6 +429,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "materialization"),
 	)
 
+	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
+	// caps the old template's schedules + rosters at an effective date,
+	// creates a successor template and re-plans the affected window via the
+	// materialization service.
+	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
+		GroupRepo:       repos.ActivityGroup,
+		ScheduleRepo:    repos.ActivitySchedule,
+		EnrollmentRepo:  repos.StudentEnrollment,
+		SupervisorRepo:  repos.ActivitySupervisor,
+		InstanceRepo:    repos.ActivityInstance,
+		TimeframeRepo:   repos.Timeframe,
+		Materialization: materializationService,
+		Logger:          logger.With("service", "template-split"),
+	})
+
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
 	// and schedule.activity_exceptions older than the tenant's retention window.
@@ -454,6 +479,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceRepo:      repos.ActivityInstance,
 		InstanceStaffRepo: repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
+		ExceptionRepo:     repos.ActivityException,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		SupervisorRepo:    repos.GroupSupervisor,
 		VisitRepo:         repos.ActiveVisit,
@@ -747,6 +773,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		privacyConsentService,
 		db,
 	)
+	unregisteredTagScanService := auditService.NewUnregisteredTagScanService(repos.UnregisteredTagScan, db)
 
 	// Initialize import service
 	relationshipResolver := importService.NewRelationshipResolver(repos.Group, repos.Room)
@@ -765,6 +792,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	studentImportService := importService.NewImportService(studentImportConfig)
+	studentImportService.SetAuditRepository(repos.DataImport)
 
 	// Staff import bulk-creates invitations (reuses the invitation service);
 	// Person/Account/Staff/Teacher are created when each invitee accepts.
@@ -778,6 +806,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
+	staffImportService.SetAuditRepository(repos.DataImport)
 
 	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
 	// because both serve the same purpose (one-time verification links with the same
@@ -971,6 +1000,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:             repos.ParentChild,
 		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		GuardianProfileRepo:   repos.GuardianProfile,
 		StatusDayRepo:         repos.StudentStatusDay,
 		StudentRepo:           repos.Student,
 		NoteRepo:              repos.StudentParentNote,
@@ -1033,6 +1063,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
+		TemplateSplit:            templateSplitService,
 		TimetableCleanup:         timetableCleanupService,
 		TimeTrackingCleanup:      timeTrackingCleanupService,
 		Instance:                 instanceService,
@@ -1067,8 +1098,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         announcementService,
+		Schools:              platform.NewSchoolService(repos.School),
+		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
+		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
+		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+			InstanceStudentRepo:    repos.InstanceStudent,
+			ActivityInstanceRepo:   repos.ActivityInstance,
+			ActivityExceptionRepo:  repos.ActivityException,
+			ActivityScheduleRepo:   repos.ActivitySchedule,
+			InstanceStaffRepo:      repos.InstanceStaff,
+			ActiveGroupRepo:        repos.ActiveGroup,
+			SupervisorRepo:         repos.GroupSupervisor,
+			ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
+			ArrivalExceptionRepo:   repos.StudentArrivalException,
+			PickupScheduleRepo:     repos.StudentPickupSchedule,
+			PickupExceptionRepo:    repos.StudentPickupException,
+			VisitRepo:              repos.ActiveVisit,
+			RoomRepo:               repos.Room,
+			ActivityCategoryRepo:   repos.ActivityCategory,
+			ActivityGroupRepo:      repos.ActivityGroup,
+			ActivitySupervisorRepo: repos.ActivitySupervisor,
+			StudentEnrollmentRepo:  repos.StudentEnrollment,
+			TimeframeRepo:          repos.Timeframe,
+			EducationGroupRepo:     repos.Group,
+			DB:                     db,
+		}),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
+		UnregisteredTagScans: unregisteredTagScanService,
 
 		EmailOutbox:           emailOutboxService,
 		EmailOutboxWorker:     emailOutboxWorker,

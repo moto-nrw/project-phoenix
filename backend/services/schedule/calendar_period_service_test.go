@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -18,6 +19,90 @@ func TestScheduleErrorUnwrapsSentinel(t *testing.T) {
 	wrapped := &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	assert.True(t, errors.Is(wrapped, schedule.ErrCalendarPeriodNameConflict),
 		"ScheduleError must unwrap to the sentinel so handlers can detect via errors.Is")
+}
+
+// TestDefaultSchoolYearBounds pins the year-boundary logic of the school-year
+// bootstrap (WP-B1). The computation MUST match the frontend helper
+// schoolYearPeriodDefaults (timetables/page.tsx): the school year flips on
+// August 1st and always spans Aug 1 – Jul 31.
+func TestDefaultSchoolYearBounds(t *testing.T) {
+	cases := []struct {
+		name      string
+		today     timezone.Date
+		wantName  string
+		wantStart timezone.Date
+		wantEnd   timezone.Date
+	}{
+		{
+			name:      "june belongs to the school year started last August",
+			today:     timezone.NewDate(2026, time.June, 12),
+			wantName:  "Schuljahr 2025/2026",
+			wantStart: timezone.NewDate(2025, time.August, 1),
+			wantEnd:   timezone.NewDate(2026, time.July, 31),
+		},
+		{
+			name:      "august 1st starts the new school year",
+			today:     timezone.NewDate(2026, time.August, 1),
+			wantName:  "Schuljahr 2026/2027",
+			wantStart: timezone.NewDate(2026, time.August, 1),
+			wantEnd:   timezone.NewDate(2027, time.July, 31),
+		},
+		{
+			name:      "july 31st is still the previous school year",
+			today:     timezone.NewDate(2026, time.July, 31),
+			wantName:  "Schuljahr 2025/2026",
+			wantStart: timezone.NewDate(2025, time.August, 1),
+			wantEnd:   timezone.NewDate(2026, time.July, 31),
+		},
+		{
+			name:      "december belongs to the school year started this August",
+			today:     timezone.NewDate(2026, time.December, 31),
+			wantName:  "Schuljahr 2026/2027",
+			wantStart: timezone.NewDate(2026, time.August, 1),
+			wantEnd:   timezone.NewDate(2027, time.July, 31),
+		},
+		{
+			name:      "january belongs to the school year started last August",
+			today:     timezone.NewDate(2026, time.January, 1),
+			wantName:  "Schuljahr 2025/2026",
+			wantStart: timezone.NewDate(2025, time.August, 1),
+			wantEnd:   timezone.NewDate(2026, time.July, 31),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			name, start, end := defaultSchoolYearBounds(tc.today)
+			assert.Equal(t, tc.wantName, name)
+			assert.Equal(t, tc.wantStart, start)
+			assert.Equal(t, tc.wantEnd, end)
+		})
+	}
+}
+
+// TestFindActiveOverlaps_FastPaths verifies the no-repo-roundtrip branches:
+// inactive and nil periods can never produce advisory overlap warnings.
+func TestFindActiveOverlaps_FastPaths(t *testing.T) {
+	svc := &calendarPeriodService{} // nil repo — must not be touched
+
+	t.Run("nil period returns nil", func(t *testing.T) {
+		overlaps, err := svc.FindActiveOverlaps(context.Background(), nil)
+		require.NoError(t, err)
+		assert.Nil(t, overlaps)
+	})
+
+	t.Run("inactive period returns nil without repo call", func(t *testing.T) {
+		period := &schedule.CalendarPeriod{
+			Name:       "Inaktiv",
+			PeriodType: schedule.PeriodTypeSchoolYear,
+			StartDate:  timezone.NewDate(2025, time.August, 1),
+			EndDate:    timezone.NewDate(2026, time.July, 31),
+			IsActive:   false,
+		}
+		overlaps, err := svc.FindActiveOverlaps(context.Background(), period)
+		require.NoError(t, err)
+		assert.Nil(t, overlaps)
+	})
 }
 
 func TestShouldMaterialize(t *testing.T) {

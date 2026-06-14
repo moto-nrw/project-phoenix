@@ -67,7 +67,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyStudentDailyCheckoutTime,
 		Label:           "Tägliche Abmeldezeit",
-		Description:     "Uhrzeit, ab der Schüler aus dem Heimraum abgemeldet werden können. Wenn leer, ist die Abmeldung jederzeit möglich.",
+		Description:     "Uhrzeit, ab der Kinder aus dem Heimraum abgemeldet werden können. Wenn leer, ist die Abmeldung jederzeit möglich.",
 		Type:            config.FieldTime,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -85,7 +85,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyPerStudentCheckoutEnabled,
 		Label:           "Individuelle Abholzeiten verwenden",
-		Description:     "Wenn aktiviert, wird die Abmeldung anhand der individuellen Abholzeiten der Schüler angezeigt statt der globalen Abmeldezeit.",
+		Description:     "Wenn aktiviert, wird die Abmeldung anhand der individuellen Abholzeiten der Kinder angezeigt statt der globalen Abmeldezeit.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -257,7 +257,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann die Krankmeldung eines Schülers automatisch aufgehoben wird.",
+		Description:     "Legt fest, wann die Krankmeldung eines Kindes automatisch aufgehoben wird.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeNextCheckin,
 		ReadPermission:  "config:read",
@@ -271,7 +271,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyExcusedClearMode,
 		Label:           "Entschuldigung automatisch beenden",
-		Description:     "Legt fest, wann die Entschuldigung eines Schülers automatisch aufgehoben wird.",
+		Description:     "Legt fest, wann die Entschuldigung eines Kindes automatisch aufgehoben wird.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -287,7 +287,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyPresenceMode,
 		Label:           "Anwesenheits-Modus",
-		Description:     "Detailliert erfasst Räume und Aktivitäten. Binär erfasst nur, ob ein Schüler in der Schule ist (ohne Raumverfolgung).",
+		Description:     "Detailliert erfasst Räume und Aktivitäten. Binär erfasst nur, ob ein Kind in der Schule ist (ohne Raumverfolgung).",
 		Type:            config.FieldSelect,
 		Default:         config.PresenceModeDetailed,
 		ReadPermission:  "config:read",
@@ -385,8 +385,8 @@ func init() {
 	maxActivationInterval := float64(1440)
 	config.Register(config.Definition{
 		Key:             config.KeyStudentActivationIntervalMin,
-		Label:           "Schüleraktivierung Intervall (Minuten)",
-		Description:     "Wie oft geprüft wird, ob Schüler mit Status \"ausstehend\" oder mit Abmeldedatum in der Vergangenheit ihren Status wechseln müssen.",
+		Label:           "Kinderaktivierung Intervall (Minuten)",
+		Description:     "Wie oft geprüft wird, ob Kinder mit Status \"ausstehend\" oder mit Abmeldedatum in der Vergangenheit ihren Status wechseln müssen.",
 		Type:            config.FieldNumber,
 		Default:         60,
 		ReadPermission:  "config:read",
@@ -402,7 +402,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyWebCheckinAccess,
 		Label:           "Web-An/Abmeldung Zugriff",
-		Description:     "Legt fest, welche Mitarbeitenden Schüler über die Weboberfläche an- und abmelden dürfen.",
+		Description:     "Legt fest, welche Mitarbeitenden Kinder über die Weboberfläche an- und abmelden dürfen.",
 		Type:            config.FieldSelect,
 		Default:         config.WebCheckinAccessGroupSupervisors,
 		ReadPermission:  "config:read",
@@ -412,7 +412,7 @@ func init() {
 		SortOrder:       41,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Schülers", Value: config.WebCheckinAccessGroupSupervisors},
+				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.WebCheckinAccessGroupSupervisors},
 				{Label: "Alle berechtigten Mitarbeitenden", Value: config.WebCheckinAccessAllStaff},
 			},
 		},
@@ -421,7 +421,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyWebSpontaneousActivities,
 		Label:           "Spontane Aktivitäten über Web/App",
-		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Stundenplan geschrieben, auch wenn die Stundenplanplanung deaktiviert ist.",
+		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Betreuungsplan geschrieben, auch wenn die Betreuungsplanung deaktiviert ist.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

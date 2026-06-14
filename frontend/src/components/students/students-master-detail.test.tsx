@@ -243,7 +243,7 @@ describe("StudentsMasterDetail", () => {
     );
 
     expect(screen.getByTestId("groups-empty")).toBeInTheDocument();
-    expect(screen.getByText("Keine Schüler gefunden.")).toBeInTheDocument();
+    expect(screen.getByText("Keine Kinder gefunden.")).toBeInTheDocument();
   });
 
   it("renders a flat single-group list when grouping is 'none'", () => {
@@ -258,7 +258,7 @@ describe("StudentsMasterDetail", () => {
     );
 
     expect(screen.getByTestId("group-title-__flat__")).toHaveTextContent(
-      "Alle Schüler",
+      "Alle Kinder",
     );
   });
 
@@ -386,7 +386,7 @@ describe("StudentsMasterDetail", () => {
     );
 
     expect(screen.getByTestId("empty-detail")).toHaveTextContent(
-      "Keinen Schüler ausgewählt",
+      "Kein Kind ausgewählt",
     );
   });
 

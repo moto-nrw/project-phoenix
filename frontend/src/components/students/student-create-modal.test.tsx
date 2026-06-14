@@ -59,35 +59,23 @@ vi.mock("./student-form-fields", () => ({
       />
     </div>
   ),
-  BusStatusSection: ({
-    value,
+  // Unified per-day departure selector (#1610).
+  DepartureSection: ({
+    days,
     onChange,
   }: {
-    value: unknown;
-    onChange: (v: boolean) => void;
+    days?: Record<string, string>;
+    onChange: (v: Record<string, string>) => void;
   }) => (
-    <div data-testid="bus-status-section">
-      <input
-        type="checkbox"
-        data-testid="bus-checkbox"
-        checked={(value as boolean) ?? false}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-    </div>
-  ),
-  PickupStatusSection: ({
-    value,
-    onChange,
-  }: {
-    value: unknown;
-    onChange: (v: string) => void;
-  }) => (
-    <div data-testid="pickup-status-section">
-      <input
-        data-testid="pickup-input"
-        value={(value as string) ?? ""}
-        onChange={(e) => onChange(e.target.value)}
-      />
+    <div data-testid="departure-section">
+      <span data-testid="departure-mon">{days?.mon ?? "alone"}</span>
+      <button
+        type="button"
+        data-testid="departure-set-mon-bus"
+        onClick={() => onChange({ ...days, mon: "bus" })}
+      >
+        set-mon-bus
+      </button>
     </div>
   ),
 }));
@@ -322,7 +310,7 @@ describe("StudentCreateModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Neuer Schüler")).toBeInTheDocument();
+      expect(screen.getByText("Neues Kind")).toBeInTheDocument();
     });
   });
 
@@ -340,7 +328,7 @@ describe("StudentCreateModal", () => {
     });
   });
 
-  it("renders bus status section", async () => {
+  it("renders the unified departure section", async () => {
     render(
       <StudentCreateModal
         isOpen={true}
@@ -350,21 +338,7 @@ describe("StudentCreateModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("bus-status-section")).toBeInTheDocument();
-    });
-  });
-
-  it("renders pickup status section", async () => {
-    render(
-      <StudentCreateModal
-        isOpen={true}
-        onClose={mockOnClose}
-        onCreate={mockOnCreate}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByTestId("pickup-status-section")).toBeInTheDocument();
+      expect(screen.getByTestId("departure-section")).toBeInTheDocument();
     });
   });
 
@@ -751,6 +725,7 @@ describe("StudentCreateModal", () => {
     // must be sent as an explicit empty map (not omitted) so the stored
     // pickup_days/pickup_status pair is correct without anyone editing later.
     expect(submitted.pickup_days).toEqual({});
+    expect(submitted.departure_days).toEqual({});
     expect(submitted.pickup_status).toBe("Geht alleine nach Hause");
   });
 

@@ -135,7 +135,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "status", label: "Nach Status" },
   { value: "room", label: "Nach Raum" },
   { value: "arrival", label: "Nach Ankunftszeit" },
-  { value: "pickup", label: "Nach Abholzeit" },
+  { value: "pickup", label: "Nach Gehzeit" },
   { value: "pickup-status", label: "Nach Abholregelung" },
 ];
 
@@ -454,7 +454,7 @@ function roomLabelForStudent(student: Student): string {
 
 function pickupLabelForStudent(student: Student): string {
   if (student.has_full_access === false) return "Nicht einsehbar";
-  return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Abholzeit";
+  return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Gehzeit";
 }
 
 function pickupStatusKind(student: Student): PickupStatusKind {
@@ -542,7 +542,7 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
       }
       if (groupMode === "pickup" || groupMode === "arrival") {
         const rank = (label: string) =>
-          label === "Keine Abholzeit" || label === "Keine Ankunftszeit"
+          label === "Keine Gehzeit" || label === "Keine Ankunftszeit"
             ? "99"
             : label === "Nicht einsehbar"
               ? "zz"
@@ -1191,7 +1191,7 @@ function SearchPageContent() {
     if (rawMessage.includes("403")) {
       return [
         "permission",
-        "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+        "Du hast keine Berechtigung, Kinderdaten anzuzeigen. Bitte wende dich an einen Administrator.",
       ];
     }
     if (rawMessage.includes("401")) {
@@ -1200,7 +1200,7 @@ function SearchPageContent() {
         "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
       ];
     }
-    return ["generic", "Fehler beim Laden der Schülerdaten."];
+    return ["generic", "Fehler beim Laden der Kinderdaten."];
   }, [studentsError]);
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
@@ -1315,12 +1315,12 @@ function SearchPageContent() {
       },
       {
         id: "pickupTime",
-        label: "Abholzeit",
+        label: "Gehzeit",
         type: "dropdown",
         value: pickupTimeFilter,
         onChange: (value) => updatePickupTimeFilter(value as string),
         options: [
-          { value: "all", label: "Alle Abholzeiten" },
+          { value: "all", label: "Alle Gehzeiten" },
           ...Array.from(
             new Set(
               (studentsData?.students ?? [])
@@ -1330,7 +1330,7 @@ function SearchPageContent() {
           )
             .sort((a, b) => a.localeCompare(b))
             .map((time) => ({ value: time, label: `${time} Uhr` })),
-          { value: "none", label: "Keine Abholzeit" },
+          { value: "none", label: "Keine Gehzeit" },
         ],
       },
       {
@@ -1589,8 +1589,8 @@ function SearchPageContent() {
         id: "pickupTime",
         label:
           pickupTimeFilter === "none"
-            ? "Keine Abholzeit"
-            : `Abholzeit ${pickupTimeFilter} Uhr`,
+            ? "Keine Gehzeit"
+            : `Gehzeit ${pickupTimeFilter} Uhr`,
         onRemove: () => updatePickupTimeFilter("all"),
       });
     }
@@ -1968,7 +1968,7 @@ function SearchPageContent() {
                   </svg>
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">
-                      Keine Schüler gefunden
+                      Keine Kinder gefunden
                     </h3>
                     <p className="text-gray-600">
                       Versuche deine Suchkriterien anzupassen.

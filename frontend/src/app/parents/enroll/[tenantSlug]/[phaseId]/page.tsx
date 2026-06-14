@@ -4,6 +4,7 @@ import { use, useCallback } from "react";
 import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
@@ -27,6 +28,7 @@ interface PageProps {
  * Submit + autofill enhancements land in PR 11/3.
  */
 export default function ParentEnrollFormPage({ params }: PageProps) {
+  const t = useTranslations("enrollmentPublic");
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();
 
@@ -57,15 +59,13 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
           className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Zurück zum Elternportal
+          {t("backToPortal")}
         </Link>
         <h1 className="text-2xl font-semibold text-wrap text-gray-900">
-          Anmeldung ausfüllen
+          {t("formEyebrow")}
         </h1>
         <p className="max-w-3xl text-sm leading-6 text-gray-600">
-          Prüfen Sie die vorausgefüllten Daten und ergänzen Sie fehlende
-          Angaben. Nach dem Absenden sehen Sie den Status direkt im
-          Eltern-Portal und erhalten zusätzlich eine Bestätigung per E-Mail.
+          {t("parentEmbeddedDescription")}
         </p>
       </header>
 
@@ -77,6 +77,7 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
           profileFetcher={profileFetcher}
           submitter={submitter}
           skipCaptcha
+          localizedCopy
         />
       </TenantProvider>
     </main>

@@ -125,6 +125,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		InstanceRepo:      s.repos.ActivityInstance,
 		InstanceStaffRepo: s.repos.InstanceStaff,
 		InstanceStudents:  s.repos.InstanceStudent,
+		ExceptionRepo:     s.repos.ActivityException,
 		ActiveGroupRepo:   s.repos.ActiveGroup,
 		SupervisorRepo:    s.repos.GroupSupervisor,
 		VisitRepo:         s.repos.ActiveVisit,
@@ -597,7 +598,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 			plannedNormal, plannedSpont, active, completed, cancelled)
 	})
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to)
+	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
@@ -607,16 +608,56 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
 }
 
+// WP-B3: a re-plan scoped to one template deletes only that template's
+// planned non-spontaneous instances — other templates' rows survive.
+func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
+	s := buildLifecycle(t)
+
+	from := timezone.NewDate(2026, 7, 20)
+	to := from.AddDays(6)
+
+	// Second template in the same tenant with its own planned instance.
+	otherGroup := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("LC-Other-%d", time.Now().UnixNano()))
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, otherGroup.ID, 0)
+	})
+
+	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
+	other := &scheduleModels.ActivityInstance{
+		Date:            from.AddDays(1),
+		Title:           fmt.Sprintf("Row-other-%d", time.Now().UnixNano()),
+		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		RoomID:          s.roomID,
+		Status:          scheduleModels.InstanceStatusPlanned,
+		IsSpontaneous:   false,
+		ActivityGroupID: &otherGroup.ID,
+	}
+	other.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(other).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", mine, other.ID)
+	})
+
+	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, result.DeletedInstances, "only the scoped template's planned instance is deleted")
+	assert.False(t, instanceExists(t, s, mine), "scoped template's planned instance must be deleted")
+	assert.True(t, instanceExists(t, s, other.ID), "other template's planned instance survives a scoped re-plan")
+}
+
 func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) {
 	s := buildLifecycle(t)
 	from := timezone.NewDate(2026, 4, 27)
 	to := timezone.NewDate(2026, 4, 20)
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to)
+	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "to_date")
 
-	_, err = s.svc.ReplanWeek(context.Background(), to, from)
+	_, err = s.svc.ReplanWeek(context.Background(), to, from, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no tenant")
 }

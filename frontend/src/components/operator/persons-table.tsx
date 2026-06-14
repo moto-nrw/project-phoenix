@@ -24,7 +24,7 @@ function PersonTags({ person }: Readonly<{ person: OperatorPerson }>) {
       )}
       {person.isStudent && (
         <span className="inline-flex items-center rounded-full bg-[#83CD2D]/10 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
-          Schüler
+          Kinder
         </span>
       )}
       {person.hasRfidCard && (

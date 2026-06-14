@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -120,6 +121,48 @@ func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface
 	}
 
 	return &supervisor, nil
+}
+
+// CapActiveByGroup ends every still-active supervision (valid_until IS NULL)
+// of the given group at validUntil (exclusive). Returns the number of rows
+// changed. Custom method (backend-conventions Rule 2): multi-row bulk update
+// for the template split (WP-B3).
+//
+// Two statements, non-primary rows first: the BEFORE UPDATE trigger
+// ensure_single_primary_supervisor reacts to ANY update of a row with
+// is_primary=TRUE by updating the group's other rows. Folding primary and
+// non-primary rows into one bulk UPDATE therefore fails with SQLSTATE 27000
+// ("tuple to be updated was already modified by an operation triggered by
+// the current command") as soon as the group has more than one active row —
+// the period-scoped roster case (migration 1.15.52). Capping non-primary
+// rows first leaves the primary row's trigger side effect targeting rows
+// modified by a PREVIOUS command, which PostgreSQL permits.
+func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+	var total int64
+	for _, isPrimary := range []bool{false, true} {
+		query := base.GetDB(ctx, r.db).NewUpdate().
+			Model((*activities.SupervisorPlanned)(nil)).
+			ModelTableExpr(tableExprSupervisorPlanned).
+			Set("valid_until = ?", validUntil).
+			Where(`"supervisor_planned".group_id = ?`, groupID).
+			Where(`"supervisor_planned".valid_until IS NULL`).
+			Where(`"supervisor_planned".is_primary = ?`, isPrimary)
+
+		if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
+			query = query.Where(where, val)
+		}
+
+		res, err := query.Exec(ctx)
+		if err != nil {
+			return total, &modelBase.DatabaseError{
+				Op:  "cap active supervisors by group",
+				Err: err,
+			}
+		}
+		rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+		total += rows
+	}
+	return total, nil
 }
 
 // FindByStaffID finds all supervisions for a specific staff member
@@ -414,4 +457,24 @@ func (r *SupervisorPlannedRepository) ListPlannedSupervisionBlockers(ctx context
 		}
 	}
 	return results, nil
+}
+
+// CloseOpenByGroupAndPeriod closes the open planned supervisions of a group
+// for the given calendar period (issue #584: moved verbatim from
+// api/timetable).
+func (r *SupervisorPlannedRepository) CloseOpenByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	update := base.GetDB(ctx, r.db).NewUpdate().
+		Table("activities.supervisors").
+		Set("valid_until = ?", validFrom).
+		Where("tenant_id = ?", tenantID).
+		Where("group_id = ?", groupID).
+		Where("valid_until IS NULL")
+	if calendarPeriodID == nil {
+		update = update.Where("calendar_period_id IS NULL")
+	} else {
+		update = update.Where("calendar_period_id = ?", *calendarPeriodID)
+	}
+	_, err := update.Exec(ctx)
+	return err
 }

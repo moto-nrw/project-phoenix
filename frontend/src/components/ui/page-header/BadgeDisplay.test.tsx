@@ -20,13 +20,13 @@ describe("BadgeDisplay", () => {
   });
 
   it("renders label when showLabel is true", () => {
-    render(<BadgeDisplay count={10} label="Schüler" showLabel={true} />);
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    render(<BadgeDisplay count={10} label="Kinder" showLabel={true} />);
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
   });
 
   it("does not render label when showLabel is false", () => {
-    render(<BadgeDisplay count={10} label="Schüler" showLabel={false} />);
-    expect(screen.queryByText("Schüler")).not.toBeInTheDocument();
+    render(<BadgeDisplay count={10} label="Kinder" showLabel={false} />);
+    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
   });
 
   it("renders icon when provided", () => {
@@ -41,7 +41,7 @@ describe("BadgeDisplay", () => {
 
   it("hides label on mobile by default", () => {
     const { container } = render(
-      <BadgeDisplay count={10} label="Schüler" showLabel={true} />,
+      <BadgeDisplay count={10} label="Kinder" showLabel={true} />,
     );
     const label = container.querySelector(".hidden.md\\:inline");
     expect(label).toBeInTheDocument();

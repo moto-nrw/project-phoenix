@@ -295,6 +295,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)
@@ -329,6 +330,8 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
 			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used
+			"test/handler_layer_ratchet_test.go",                // Source-scanning ratchet (issue #584); same as above, no DB is used
+			"api/timetable/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
 		}
 		skip := false
 		for _, sf := range skipFiles {

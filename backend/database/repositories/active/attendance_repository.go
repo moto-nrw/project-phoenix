@@ -406,3 +406,26 @@ func (r *AttendanceRepository) FindStaleOpen(ctx context.Context, before timezon
 
 	return records, nil
 }
+
+// HasOpenAttendanceOn reports whether any attendance row on the given
+// calendar date is still open (check_out_time IS NULL). The date binds as a
+// DATE literal (timezone.Date) so the Berlin calendar day is matched exactly,
+// independent of the UTC session date (see the operator presence-mode guard).
+//
+// Requires a tenant tx in ctx; RLS is the only tenant scope — there is no
+// tenant_id WHERE clause, so calling without a tenant tx falls back to the
+// bare *bun.DB and would read attendance across all tenants.
+func (r *AttendanceRepository) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date = ?
+			  AND check_out_time IS NULL
+		)
+	`, date).Scan(ctx, &exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}

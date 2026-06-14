@@ -69,28 +69,28 @@ describe("DatabaseBreadcrumb", () => {
     render(
       <DatabaseBreadcrumb
         pathname="/database/students"
-        pageTitle="Schüler"
+        pageTitle="Kinder"
         subPageLabel=""
         isDeepPage={false}
       />,
     );
 
     expect(screen.getByText("Datenbank")).toBeInTheDocument();
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
   });
 
   it("renders deep page with three levels", () => {
     render(
       <DatabaseBreadcrumb
         pathname="/database/students/123"
-        pageTitle="Schüler"
+        pageTitle="Kinder"
         subPageLabel="Details"
         isDeepPage={true}
       />,
     );
 
     expect(screen.getByText("Datenbank")).toBeInTheDocument();
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
   });
 
@@ -98,7 +98,7 @@ describe("DatabaseBreadcrumb", () => {
     render(
       <DatabaseBreadcrumb
         pathname="/database/students"
-        pageTitle="Schüler"
+        pageTitle="Kinder"
         subPageLabel=""
         isDeepPage={false}
       />,
@@ -256,14 +256,14 @@ describe("StudentHistoryBreadcrumb", () => {
     render(
       <StudentHistoryBreadcrumb
         referrer="/database/students"
-        breadcrumbLabel="Schüler"
+        breadcrumbLabel="Kinder"
         pathname="/database/students/123/history"
         studentName="Max Mustermann"
         historyType="Verlauf"
       />,
     );
 
-    const referrerLink = screen.getByRole("link", { name: "Schüler" });
+    const referrerLink = screen.getByRole("link", { name: "Kinder" });
     expect(referrerLink).toHaveAttribute("href", "/database/students");
   });
 });
@@ -298,7 +298,7 @@ describe("StudentDetailBreadcrumb", () => {
     const { container } = render(
       <StudentDetailBreadcrumb
         referrer="/database/students"
-        breadcrumbLabel="Schüler"
+        breadcrumbLabel="Kinder"
         studentName="Max Mustermann"
         isScrolled={true}
       />,
@@ -312,12 +312,12 @@ describe("StudentDetailBreadcrumb", () => {
     const { container } = render(
       <StudentDetailBreadcrumb
         referrer="/database/students"
-        breadcrumbLabel="Schüler"
+        breadcrumbLabel="Kinder"
         studentName="Max Mustermann"
       />,
     );
 
-    const link = screen.getByRole("link", { name: "Schüler" });
+    const link = screen.getByRole("link", { name: "Kinder" });
     fireEvent.click(link);
     // Just verify it doesn't crash
     expect(container).toBeInTheDocument();

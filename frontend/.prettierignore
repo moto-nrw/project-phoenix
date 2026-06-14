@@ -1,0 +1,4 @@
+# Generated mirror of backend/localization/locales.json. Written verbatim by
+# scripts/generate-locales.mjs and byte-compared by scripts/verify-locales.mjs,
+# so Prettier must not reformat it (trailing commas etc. would break the check).
+src/i18n/locales.generated.ts

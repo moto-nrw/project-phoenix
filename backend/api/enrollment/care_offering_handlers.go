@@ -306,7 +306,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
+	if rs.SchoolService == nil || rs.RequestService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public endpoint not wired")))
 		return
 	}
@@ -464,7 +464,7 @@ func toPublicFormSchemaResponse(schema *enrollmentModels.FormSchema) *PublicForm
 }
 
 func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) {
-	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.CareOfferingService == nil ||
+	if rs.SchoolService == nil || rs.CareOfferingService == nil ||
 		rs.RequestService == nil || rs.CaptchaService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public enrollment bootstrap endpoint not wired")))
 		return
@@ -553,12 +553,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		CaptchaConfig:             captcha,
 		LegalTexts: PublicLegalTextsResponse{
-			AGB:          texts.AGB,
-			DSGVO:        texts.DSGVO,
-			EmailContact: texts.EmailContact,
-			Photo:        texts.Photo,
-			TermsEnabled: texts.TermsEnabled,
-			Blocks:       texts.Blocks,
+			AGB:                 texts.AGB,
+			DSGVO:               texts.DSGVO,
+			EmailContact:        texts.EmailContact,
+			Photo:               texts.Photo,
+			TermsEnabled:        texts.TermsEnabled,
+			DSGVOEnabled:        texts.DSGVOEnabled,
+			EmailContactEnabled: texts.EmailContactEnabled,
+			PhotoEnabled:        texts.PhotoEnabled,
+			Blocks:              texts.Blocks,
 		},
 	}, "Public enrollment form bootstrap retrieved")
 }
@@ -567,7 +570,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 // tenant slug. No JWT — slug-gated. The parent landing page renders
 // these as cards / pickers; clicking one routes the parent to the form.
 func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
-	if rs.SchoolRepo == nil || rs.PhaseRepo == nil || rs.db == nil {
+	if rs.SchoolService == nil || rs.PhaseService == nil || rs.db == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public phases endpoint not wired")))
 		return
 	}
@@ -585,7 +588,7 @@ func (rs *Resource) listPublicPhases(w http.ResponseWriter, r *http.Request) {
 			if rs.RequestService != nil && !rs.RequestService.IsEnrollmentEnabled(txCtx) {
 				return enrollmentService.ErrEnrollmentDisabled
 			}
-			list, listErr := rs.PhaseRepo.ListPublicOpen(txCtx, time.Now())
+			list, listErr := rs.PhaseService.ListPublicOpen(txCtx, time.Now())
 			phases = list
 			return listErr
 		})

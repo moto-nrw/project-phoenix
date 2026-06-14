@@ -14,11 +14,13 @@
 
 import { Archive, Clock, DoorOpen, Users } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import {
   getActivityColor,
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { timetableSurface } from "./timetable-style";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -65,7 +67,9 @@ export function TemplateCard({
   const timeRange = summarizeTimeRange(template);
 
   return (
-    <article className="group moto-content-surface relative flex flex-col overflow-hidden rounded-2xl border transition-shadow hover:shadow-sm">
+    <article
+      className={`${timetableSurface} group relative flex flex-col overflow-hidden transition-[border-color,box-shadow] hover:border-gray-300 hover:shadow-md`}
+    >
       <div
         className="absolute top-0 left-0 h-full w-1"
         style={{ backgroundColor: color }}
@@ -91,7 +95,7 @@ export function TemplateCard({
             return (
               <div
                 key={wd}
-                className={`flex h-6 w-7 items-center justify-center rounded text-[10px] font-semibold ${
+                className={`flex h-6 w-7 items-center justify-center rounded-lg text-[10px] font-semibold ${
                   active
                     ? "bg-gray-900 text-white"
                     : "bg-gray-100 text-gray-400"
@@ -124,33 +128,47 @@ export function TemplateCard({
             </span>
           </div>
         </dl>
+
+        {!template.roomId && (
+          <p className="flex items-center gap-1.5 text-xs text-gray-600">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#EAB308]"
+              aria-hidden
+            />
+            Raum fehlt – wird nicht eingeplant
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">
         <div className="flex items-center justify-between gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => onEdit(template)}
-            className="rounded px-1.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
           >
             Bearbeiten
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => onArchive(template)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
           >
             <Archive className="h-3.5 w-3.5" aria-hidden />
             Archivieren
-          </button>
+          </Button>
         </div>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
+          className="w-full"
           onClick={() => onApply(template)}
-          className="inline-flex h-8 w-full items-center justify-center rounded-md bg-gray-900 px-2.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 focus-visible:outline-none"
         >
           Termine erzeugen
-        </button>
+        </Button>
       </div>
     </article>
   );

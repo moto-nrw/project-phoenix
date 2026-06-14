@@ -32,7 +32,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		renderError(w, r, ErrorForbidden(errors.New("full access required")))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		common.Respond(w, r, http.StatusOK, []StudentStatusDayResponse{}, "Student status days retrieved successfully")
 		return
 	}
@@ -43,7 +43,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, from, to)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -63,7 +63,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
@@ -85,7 +85,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
 		}
@@ -98,7 +98,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		}
 		notePtr := normalizeSickReason(&req.Reason)
 		for _, date := range dates {
-			if err := rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
+			if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 				StudentID:  fresh.ID,
 				Date:       date,
 				Status:     req.Status,
@@ -111,7 +111,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		}
 		if containsDate(dates, today) {
 			applyLiveStatusForToday(fresh, req.Status, now)
-			if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
 			}
 		}
@@ -131,7 +131,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.StudentStatusDayRepo.FindActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -146,7 +146,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 		renderError(w, r, ErrorInvalidRequest(err))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
@@ -177,7 +177,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		for _, studentID := range req.StudentIDs {
-			fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, studentID)
+			fresh, err := rs.StudentService.GetByIDForUpdate(ctx, studentID)
 			if err != nil {
 				return err
 			}
@@ -189,7 +189,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			}
 			notePtr := normalizeSickReason(&req.Reason)
 			for _, date := range dates {
-				if err := rs.StudentStatusDayRepo.UpsertReported(ctx, &active.StudentStatusDay{
+				if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 					StudentID:  fresh.ID,
 					Date:       date,
 					Status:     req.Status,
@@ -202,7 +202,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			}
 			if containsDate(dates, today) {
 				applyLiveStatusForToday(fresh, req.Status, now)
-				if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+				if err := rs.StudentService.Update(ctx, fresh); err != nil {
 					return err
 				}
 			}
@@ -239,7 +239,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid status day id")))
 		return
 	}
-	if rs.StudentStatusDayRepo == nil {
+	if rs.StudentStatusDayService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
@@ -255,7 +255,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		row, err := rs.StudentStatusDayRepo.FindActiveByID(ctx, statusDayID)
+		row, err := rs.StudentStatusDayService.GetActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err
 		}
@@ -263,7 +263,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 			return sql.ErrNoRows
 		}
 
-		fresh, err := rs.StudentRepo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
 		}
@@ -271,12 +271,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 			return errStudentStatusDayReassigned
 		}
 
-		if err := rs.StudentStatusDayRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
+		if err := rs.StudentStatusDayService.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}
 		if row.Date == today {
 			clearLiveStatusForToday(fresh, row.Status)
-			if err := rs.StudentRepo.Update(ctx, fresh); err != nil {
+			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
 			}
 		}
@@ -350,7 +350,7 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 
 func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
 	for _, otherStatus := range active.StudentStatusDayStatusesExcept(status) {
-		if err := rs.StudentStatusDayRepo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
+		if err := rs.StudentStatusDayService.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
 			return err
 		}
 	}

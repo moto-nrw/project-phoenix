@@ -306,7 +306,7 @@ function ResponsibilityBadge({
   instance,
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
   const label = instance.isPrimary
-    ? "Primär"
+    ? "Zuständig"
     : instance.isSubstitute
       ? "Vertretung"
       : instance.isAssigned
@@ -389,7 +389,7 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">
-            {row.studentName || `Schüler ${row.studentId}`}
+            {row.studentName || `Kind ${row.studentId}`}
           </p>
           <p className="mt-0.5 truncate text-xs text-gray-500">
             {[row.schoolClass, row.groupName].filter(Boolean).join(" · ") ||

@@ -12,6 +12,7 @@
 import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
+  BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendExceptionConflictsResponse,
@@ -20,6 +21,7 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendSplitTemplateResult,
   BackendStartInstanceResult,
   BackendSubstituteResponse,
   BackendTimetableTemplate,
@@ -27,6 +29,8 @@ import type {
   BackendWeeklyInstancesResponse,
   AttendancePatchBody,
   AttendanceResponse,
+  ConflictCheckParams,
+  ConflictCheckResult,
   CreateInstanceBody,
   CreateTemplateBody,
   CreateTemplateResult,
@@ -36,6 +40,8 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  SplitTemplateBody,
+  SplitTemplateResult,
   StartInstanceResult,
   SubstituteResponse,
   TemplatesResponse,
@@ -44,6 +50,7 @@ import type {
   WeeklyInstancesResponse,
 } from "./timetable-types";
 import {
+  mapConflictCheckResult,
   mapCreateTemplateResult,
   mapAttendance,
   mapExceptionConflicts,
@@ -52,6 +59,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
+  mapSplitTemplateResult,
   mapStartInstanceResult,
   mapSubstitute,
   mapTemplates,
@@ -189,6 +197,86 @@ class TimetableService {
 
     const raw = await unwrap<BackendTemplatesResponse>(response);
     return mapTemplates(raw);
+  }
+
+  /**
+   * GET /api/timetable/templates/{id} — single template with schedules,
+   * enrollment and staff assignments. Same enriched shape as the list.
+   */
+  async getTemplate(templateId: string): Promise<TimetableTemplate> {
+    const response = await fetch(`/api/timetable/templates/${templateId}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    const raw = await unwrap<BackendTimetableTemplate>(response);
+    return mapTemplates({ templates: [raw] }).templates[0]!;
+  }
+
+  /**
+   * POST /api/timetable/templates/{id}/split — "ab Datum ändern". Ends
+   * the old template version at effective_date and creates a new one with
+   * the submitted fields from that date on. Future instances of the old
+   * version are deleted; the optional materialize window re-creates them
+   * from the new version immediately.
+   */
+  async splitTemplate(
+    templateId: string,
+    body: SplitTemplateBody,
+  ): Promise<SplitTemplateResult> {
+    const response = await fetch(
+      `/api/timetable/templates/${templateId}/split`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+    const raw = await unwrap<BackendSplitTemplateResult>(response);
+    logger.info("template_split", {
+      old_template_id: raw.old_template_id,
+      new_template_id: raw.new_template_id,
+      deleted_instances: raw.deleted_instances,
+      instances_created: raw.instances_created,
+    });
+    return mapSplitTemplateResult(raw);
+  }
+
+  /**
+   * GET /api/timetable/conflict-check — advisory pre-save conflict check
+   * for a date/time window. Optional resource params are omitted when
+   * empty so the backend only checks what the caller asked about.
+   */
+  async checkConflicts(
+    params: ConflictCheckParams,
+  ): Promise<ConflictCheckResult> {
+    const query = new URLSearchParams({
+      date: params.date,
+      start_time: params.startTime,
+      end_time: params.endTime,
+    });
+    if (params.roomId) query.set("room_id", params.roomId);
+    if (params.staffIds && params.staffIds.length > 0) {
+      query.set("staff_ids", params.staffIds.join(","));
+    }
+    if (params.studentIds && params.studentIds.length > 0) {
+      query.set("student_ids", params.studentIds.join(","));
+    }
+    if (params.excludeInstanceId) {
+      query.set("exclude_instance_id", params.excludeInstanceId);
+    }
+
+    const response = await fetch(`/api/timetable/conflict-check?${query}`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "include",
+    });
+    const raw = await unwrap<BackendConflictCheckResult>(response);
+    return mapConflictCheckResult(raw);
   }
 
   async updateTemplate(
@@ -342,7 +430,21 @@ class TimetableService {
     return mapMaterializeResult(raw);
   }
 
-  async replanWeek(from: string, to: string): Promise<ReplanWeekResult> {
+  /**
+   * POST /api/timetable/instances/re-plan-week.
+   * Optional activityGroupId narrows the re-plan to one template's planned
+   * instances (backend body field activity_group_id); the
+   * re-materialization still covers the whole window (insert-only).
+   */
+  async replanWeek(
+    from: string,
+    to: string,
+    activityGroupId?: string,
+  ): Promise<ReplanWeekResult> {
+    const body: Record<string, unknown> = { from_date: from, to_date: to };
+    if (activityGroupId) {
+      body.activity_group_id = Number(activityGroupId);
+    }
     const response = await fetch("/api/timetable/instances/re-plan-week", {
       method: "POST",
       headers: {
@@ -350,7 +452,7 @@ class TimetableService {
         Accept: "application/json",
       },
       credentials: "include",
-      body: JSON.stringify({ from_date: from, to_date: to }),
+      body: JSON.stringify(body),
     });
 
     const raw = await unwrap<BackendReplanWeekResult>(response);

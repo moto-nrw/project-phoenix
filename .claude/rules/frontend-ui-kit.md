@@ -17,7 +17,7 @@ This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and
 | Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`); importing the other components by their file path is correct and expected.
+Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`, `custom-select`, `listbox-dropdown`); importing the other components by their file path is correct and expected.
 
 ## Study these first — canonical reference screens
 
@@ -37,12 +37,12 @@ Keep this list current: if a reference is deleted or substantially rewritten, re
 
 Don't design from imagination. The app's real screens are captured as images you can open directly with the Read tool:
 
-- **App screenshots** → `frontend/public/help/screens/*.webp` (52 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
+- **App screenshots** → `frontend/public/help/screens/*.webp` (~50 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
   - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
   - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities · `feedback.webp` = feedback
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
-- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` → :6006). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
+- **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
 
 Match what you see: density, neutral grays, brand-green accents used sparingly, no decorative hero cards.
 
@@ -60,8 +60,9 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success`; sizes `sm` `base` `lg` `xl` | `~/components/ui/button` |
+| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input` | `~/components/ui/input` |
+| Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
 | Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
 | Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
@@ -71,6 +72,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
 | Info / stat card | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
 | Detail-panel fields | `DataField`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
+| Select dropdown (form value) | `CustomSelect`, `ListboxDropdown` (keyboard/ARIA listbox) | `~/components/ui/custom-select`, `~/components/ui/listbox-dropdown` |
 | Date / range picker | `DatePicker`, date-range picker | `~/components/ui/date-picker`, `~/components/ui/date-range-picker` |
 | Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
 | Avatar | `Avatar` | `~/components/ui/avatar` |
@@ -91,7 +93,7 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 `rounded-sm`=4px · `rounded-md`=8px · `rounded-lg`=12px · `rounded-xl`=16px · `rounded-2xl`=24px · `rounded-full`=9999px
 
-- **Card / panel / floating surface wrapper** → `rounded-2xl border border-gray-200 bg-white shadow-sm`. 24px = the design system's `--card-radius`; this is the canonical card (used 13×+ across the app and in `InfoCard`). Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
+- **Card / panel / floating surface wrapper** → the `.moto-content-surface` utility class (defined in `globals.css`: white bg, gray-200 border color, shadow-sm, backdrop blur, print-mode resets) combined with `rounded-2xl border p-4 shadow-sm sm:p-6` — this is what `InfoCard` renders and the dominant card surface across the app. The plain-Tailwind equivalent `rounded-2xl border border-gray-200 bg-white shadow-sm` also appears; prefer `moto-content-surface` for new cards. 24px = the design system's `--card-radius`. Do not invent another card shape, and never wrap content in a square `border-b`-only strip.
 - Inner controls (buttons, inputs, pills) get their radius from the kit component. Don't sprinkle bare `rounded` (= 4px Tailwind default, off the brand scale).
 - Component radius tokens: button & input = `--radius-md` (8px), card = `--radius-2xl` (24px), badge/pill = `--radius-full`.
 
@@ -107,10 +109,11 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 | Orange | `#F78C10` | `SCHOOLYARD` |
 | Magenta | `#D946EF` | `TRANSIT` |
 | Amber | `#EAB308` | `SICK` |
+| Blue (class trip) | `#5080D8` | `CLASS_TRIP` |
 | Purple | `#7C3AED` | `EXCUSED` |
 | Gray (neutral) | `#6B7280` | `UNKNOWN` / `NOT_ARRIVAL` |
 
-Primary action button green: base `#83CD2D`, hover `#74b827`, active `#669f21`.
+Green CTA shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74b827`, active `#669f21`. Note: the kit `Button` `variant="primary"` is **gray-900**, not green — green CTAs use these hexes via arbitrary-value classes.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`, or you introduce a third, wrong green.
 
@@ -119,7 +122,7 @@ Primary action button green: base `#83CD2D`, hover `#74b827`, active `#669f21`.
 Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 · `3`=12 · `4`=16 · `5`=20 · `6`=24 · `8`=32 · `10`=40 · `12`=48 · `16`=64 px. Canonical component padding (from the design-system component tokens):
 
 - Card → `p-6` (24px); `p-4` compact, `p-10` large
-- Button → `px-5 py-2` (md); `px-3 py-1` (sm)
+- Button → page sizes `px-5 py-3`; `md` (modal/form action) `px-4 py-2 text-sm`; `compact` `h-8 px-2.5`
 - Input → `px-4 py-3`
 
 ### Shadows
@@ -128,12 +131,12 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 
 ## Kit gaps — extend the kit, don't inline a bespoke control
 
-The kit does **not** yet have a compact / ghost / icon-only button or a generic `DropdownMenu`. When you need one, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
+Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`, `size="compact"`, `size="icon"`) — use those for dense toolbar/menu/icon chrome instead of hand-rolling. A modal-footer / in-form action height now EXISTS too: `size="md"` (`px-4 py-2 text-sm`) — use it for slide-over / modal footers and dense form actions instead of the oversized page sizes (`sm`/`base`/`lg`/`xl` are all `px-5 py-3`). A shared `Checkbox` (brand-green checked state) now EXISTS at `ui/checkbox` — never hand-roll a raw `<input type="checkbox">` with an ad-hoc accent color. The kit still does **not** have a generic `DropdownMenu`/popover-menu or a `Select` (native `<select>` styled to the kit `Input` look via the `moto-select` utility is the current convention). When you need a genuinely missing primitive, ADD it to `frontend/src/components/ui/` so the next screen reuses it — do not hand-roll a one-off `<button className="…">` inline. Call out the addition in the PR description.
 
 ## Gotchas
 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
-- **`ui/Button` is page-level** (`rounded-lg px-5 py-3 shadow-md`) and defaults `type="submit"`. In a non-form context pass `type="button"`. For dense toolbar chrome it is oversized — prefer a compact variant (add one per **Kit gaps**) over reaching for raw Tailwind.
+- **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
 ## Detection

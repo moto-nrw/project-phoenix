@@ -76,7 +76,7 @@ describe("PlannedNowSection", () => {
     expect(screen.getByText("8 Kinder")).toBeInTheDocument();
     expect(screen.getAllByText("Hausaufgaben").length).toBeGreaterThan(0);
     expect(screen.getByText("Lernraum 2")).toBeInTheDocument();
-    expect(screen.getByText("Primär")).toBeInTheDocument();
+    expect(screen.getByText("Zuständig")).toBeInTheDocument();
     expect(screen.getByText("Überfällig")).toBeInTheDocument();
     expect(screen.getAllByText("Erwartet").length).toBeGreaterThan(0);
     expect(screen.getByText("Mia Bauer")).toBeInTheDocument();

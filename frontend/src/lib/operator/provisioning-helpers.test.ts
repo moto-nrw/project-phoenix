@@ -9,6 +9,9 @@ import {
   mapOrgAccount,
   mapOperatorDevice,
   mapOperatorPerson,
+  mapUnregisteredTagScan,
+  summaryToOrganization,
+  summaryToSchool,
 } from "./provisioning-helpers";
 import type {
   BackendOrganization,
@@ -18,6 +21,9 @@ import type {
   BackendOrgAccount,
   BackendOperatorDevice,
   BackendOperatorPerson,
+  BackendUnregisteredTagScan,
+  OrganizationSummary,
+  SchoolSummary,
 } from "./provisioning-helpers";
 
 describe("generateSlug", () => {
@@ -26,8 +32,8 @@ describe("generateSlug", () => {
   });
 
   it("handles German umlauts", () => {
-    expect(generateSlug("Städtische Schülerbetreuung")).toBe(
-      "staedtische-schuelerbetreuung",
+    expect(generateSlug("Städtische Kinderbetreuung")).toBe(
+      "staedtische-kinderbetreuung",
     );
     expect(generateSlug("Große Öffnung")).toBe("grosse-oeffnung");
   });
@@ -369,6 +375,76 @@ describe("mapInvitation", () => {
   });
 });
 
+describe("summary adapters", () => {
+  it("drops organization summary counts for base organization consumers", () => {
+    const summary: OrganizationSummary = {
+      id: "5",
+      name: "Stadt Köln",
+      slug: "stadt-koeln",
+      active: true,
+      deletedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      schulenCount: 3,
+      kontenCount: 24,
+      geraeteCount: 7,
+      personenCount: 100,
+    };
+
+    expect(summaryToOrganization(summary)).toEqual({
+      id: "5",
+      name: "Stadt Köln",
+      slug: "stadt-koeln",
+      active: true,
+      deletedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+    });
+  });
+
+  it("drops school summary counts for base school consumers", () => {
+    const summary: SchoolSummary = {
+      id: "10",
+      organizationId: "5",
+      organizationName: "Stadt Köln",
+      name: "GGS Europaschule",
+      slug: "ggs-europa",
+      subdomain: "ggs-europa",
+      address: "Hauptstr. 1",
+      city: "Köln",
+      zip: "50667",
+      phone: "0221123456",
+      email: "info@ggs-europa.de",
+      active: true,
+      hidden: false,
+      deletedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+      kontenCount: 12,
+      geraeteCount: 4,
+      personenCount: 80,
+    };
+
+    expect(summaryToSchool(summary)).toEqual({
+      id: "10",
+      organizationId: "5",
+      name: "GGS Europaschule",
+      slug: "ggs-europa",
+      subdomain: "ggs-europa",
+      address: "Hauptstr. 1",
+      city: "Köln",
+      zip: "50667",
+      phone: "0221123456",
+      email: "info@ggs-europa.de",
+      active: true,
+      hidden: false,
+      deletedAt: null,
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-02T00:00:00Z",
+    });
+  });
+});
+
 describe("mapSchoolAccount", () => {
   it("maps all fields from backend to frontend format", () => {
     const backend: BackendSchoolAccount = {
@@ -706,5 +782,68 @@ describe("mapOperatorPerson", () => {
     expect(result.hasRfidCard).toBe(false);
     expect(result.isStaff).toBe(false);
     expect(result.isStudent).toBe(false);
+  });
+});
+
+describe("mapUnregisteredTagScan", () => {
+  const fullBackendScan: BackendUnregisteredTagScan = {
+    id: 300,
+    tenant_id: 10,
+    tag_uid: "04AABBCCDD",
+    device_id: 200,
+    scanned_at: "2026-05-01T08:00:00Z",
+    resolved_at: "2026-05-01T09:00:00Z",
+    resolved_by_operator_id: 15,
+    resolution_note: "Issued replacement card",
+    created_at: "2026-05-01T08:00:00Z",
+    updated_at: "2026-05-01T09:00:00Z",
+    school_id: 10,
+    school_name: "Testschule",
+    organization_id: 5,
+    organization_name: "Testträger",
+    device_identifier: "reader-entrance",
+    device_name: "Eingang",
+  };
+
+  it("maps all backend fields and converts ids to strings", () => {
+    expect(mapUnregisteredTagScan(fullBackendScan)).toEqual({
+      id: "300",
+      tenantId: "10",
+      tagUid: "04AABBCCDD",
+      deviceId: "200",
+      scannedAt: "2026-05-01T08:00:00Z",
+      resolvedAt: "2026-05-01T09:00:00Z",
+      resolvedByOperatorId: "15",
+      resolutionNote: "Issued replacement card",
+      createdAt: "2026-05-01T08:00:00Z",
+      updatedAt: "2026-05-01T09:00:00Z",
+      schoolId: "10",
+      schoolName: "Testschule",
+      organizationId: "5",
+      organizationName: "Testträger",
+      deviceIdentifier: "reader-entrance",
+      deviceName: "Eingang",
+    });
+  });
+
+  it("normalizes nullable backend fields to null", () => {
+    const backend: BackendUnregisteredTagScan = {
+      ...fullBackendScan,
+      device_id: null,
+      resolved_at: undefined,
+      resolved_by_operator_id: null,
+      resolution_note: undefined,
+      device_identifier: undefined,
+      device_name: null,
+    };
+
+    const result = mapUnregisteredTagScan(backend);
+
+    expect(result.deviceId).toBeNull();
+    expect(result.resolvedAt).toBeNull();
+    expect(result.resolvedByOperatorId).toBeNull();
+    expect(result.resolutionNote).toBeNull();
+    expect(result.deviceIdentifier).toBeNull();
+    expect(result.deviceName).toBeNull();
   });
 });
