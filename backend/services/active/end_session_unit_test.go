@@ -17,6 +17,7 @@ import (
 
 // mockGroupRepository is a minimal mock implementation of active.GroupRepository
 type mockGroupRepository struct {
+	createFunc                      func(ctx context.Context, entity *active.Group) error
 	findByIDFunc                    func(ctx context.Context, id interface{}) (*active.Group, error)
 	listFunc                        func(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*active.Group, error)
@@ -29,6 +30,9 @@ type mockGroupRepository struct {
 }
 
 func (m *mockGroupRepository) Create(ctx context.Context, entity *active.Group) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, entity)
+	}
 	return nil
 }
 
@@ -186,6 +190,7 @@ type mockVisitRepository struct {
 	listActiveStudentIDsByRoomIDFunc      func(ctx context.Context, roomID int64) ([]int64, error)
 	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
 	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	transferVisitsFromRecentSessionsFunc  func(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 }
 
@@ -250,6 +255,9 @@ func (m *mockVisitRepository) EndVisit(ctx context.Context, id int64) error {
 }
 
 func (m *mockVisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
+	if m.transferVisitsFromRecentSessionsFunc != nil {
+		return m.transferVisitsFromRecentSessionsFunc(ctx, newActiveGroupID, deviceID)
+	}
 	return 0, nil
 }
 

@@ -322,6 +322,150 @@ func TestUpdateDeviceLocationBestEffort(t *testing.T) {
 	assert.Equal(t, 1, calls)
 }
 
+func TestCreateSessionBase_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("create failure is returned before side effects", func(t *testing.T) {
+		expectedErr := errors.New("group insert failed")
+		transferCalls := 0
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				createFunc: func(context.Context, *activeModels.Group) error {
+					return expectedErr
+				},
+			},
+			visitRepo: &mockVisitRepository{
+				transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
+					transferCalls++
+					return 0, nil
+				},
+			},
+		}
+
+		group, transferred, err := svc.createSessionBase(ctx, 10, 20, 30)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, group)
+		assert.Zero(t, transferred)
+		assert.Zero(t, transferCalls)
+	})
+
+	t.Run("transfer failure is returned after group creation", func(t *testing.T) {
+		expectedErr := errors.New("visit transfer failed")
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				createFunc: func(_ context.Context, group *activeModels.Group) error {
+					group.ID = 44
+					return nil
+				},
+			},
+			visitRepo: &mockVisitRepository{
+				transferVisitsFromRecentSessionsFunc: func(_ context.Context, newActiveGroupID, deviceID int64) (int, error) {
+					assert.Equal(t, int64(44), newActiveGroupID)
+					assert.Equal(t, int64(20), deviceID)
+					return 0, expectedErr
+				},
+			},
+			deviceRepo: &deviceRepoForSessionUnitTest{},
+		}
+
+		group, transferred, err := svc.createSessionBase(ctx, 10, 20, 30)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, group)
+		assert.Zero(t, transferred)
+	})
+
+	t.Run("success without device skips location update", func(t *testing.T) {
+		locationUpdates := 0
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				createFunc: func(_ context.Context, group *activeModels.Group) error {
+					group.ID = 45
+					return nil
+				},
+			},
+			visitRepo: &mockVisitRepository{
+				transferVisitsFromRecentSessionsFunc: func(_ context.Context, newActiveGroupID, deviceID int64) (int, error) {
+					assert.Equal(t, int64(45), newActiveGroupID)
+					assert.Zero(t, deviceID)
+					return 2, nil
+				},
+			},
+			deviceRepo: &deviceRepoForSessionUnitTest{
+				updateRoomIDFunc: func(context.Context, int64, int64) error {
+					locationUpdates++
+					return nil
+				},
+			},
+		}
+
+		group, transferred, err := svc.createSessionBase(ctx, 10, 0, 30)
+
+		require.NoError(t, err)
+		require.NotNil(t, group)
+		assert.Equal(t, int64(45), group.ID)
+		assert.Equal(t, 2, transferred)
+		assert.Zero(t, locationUpdates)
+	})
+}
+
+func TestCreateSessionWithSupervisor_TransferredVisitsBranch(t *testing.T) {
+	svc := &service{
+		logger: slog.Default(),
+		groupRepo: &mockGroupRepository{
+			createFunc: func(_ context.Context, group *activeModels.Group) error {
+				group.ID = 50
+				return nil
+			},
+		},
+		visitRepo: &mockVisitRepository{
+			transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
+				return 3, nil
+			},
+		},
+		supervisorRepo: &mockGroupSupervisorRepository{},
+		deviceRepo:     &deviceRepoForSessionUnitTest{},
+	}
+
+	group, err := svc.createSessionWithSupervisor(context.Background(), 11, 22, 33, 44)
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	assert.Equal(t, int64(50), group.ID)
+}
+
+func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {
+	var assigned []int64
+	svc := &service{
+		logger: slog.Default(),
+		groupRepo: &mockGroupRepository{
+			createFunc: func(_ context.Context, group *activeModels.Group) error {
+				group.ID = 60
+				return nil
+			},
+		},
+		visitRepo: &mockVisitRepository{
+			transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
+				return 2, nil
+			},
+		},
+		supervisorRepo: &mockGroupSupervisorRepository{
+			createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+				assigned = append(assigned, supervisor.StaffID)
+				return nil
+			},
+		},
+		deviceRepo: &deviceRepoForSessionUnitTest{},
+	}
+
+	group, err := svc.createSessionWithMultipleSupervisors(context.Background(), 11, 22, []int64{33, 44, 33}, 55)
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	assert.ElementsMatch(t, []int64{33, 44}, assigned)
+}
+
 func TestManualRoomSelectionStrategies(t *testing.T) {
 	ctx := context.Background()
 
@@ -407,6 +551,25 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		require.Error(t, err)
 		assert.Nil(t, endedIDs)
 		assert.Contains(t, err.Error(), "active sessions lookup failed")
+	})
+
+	t.Run("end error stops immediately", func(t *testing.T) {
+		expectedErr := errors.New("end active session failed")
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				findActiveByGroupIDFunc: func(context.Context, int64) ([]*activeModels.Group, error) {
+					return []*activeModels.Group{{Model: modelBase.Model{ID: 31}}}, nil
+				},
+				endSessionFunc: func(context.Context, int64) error {
+					return expectedErr
+				},
+			},
+		}
+
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Nil(t, endedIDs)
 	})
 }
 
@@ -566,6 +729,99 @@ func TestEndExistingDeviceSession_Branches(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []int64{300}, endedGroupIDs)
 	})
+
+	t.Run("simple cleanup ends the device session directly", func(t *testing.T) {
+		var ended []int64
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
+					return &activeModels.Group{Model: modelBase.Model{ID: 301}}, nil
+				},
+				endSessionFunc: func(_ context.Context, id int64) error {
+					ended = append(ended, id)
+					return nil
+				},
+			},
+		}
+
+		err := svc.endExistingDeviceSession(ctx, 100, false)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{301}, ended)
+	})
+}
+
+func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("find error is returned", func(t *testing.T) {
+		expectedErr := errors.New("force device lookup failed")
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
+					return nil, expectedErr
+				},
+			},
+		}
+
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Zero(t, endedID)
+	})
+
+	t.Run("nil existing session is zero", func(t *testing.T) {
+		svc := &service{groupRepo: &mockGroupRepository{}}
+
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+
+		require.NoError(t, err)
+		assert.Zero(t, endedID)
+	})
+
+	t.Run("end error is returned", func(t *testing.T) {
+		expectedErr := errors.New("force end failed")
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
+					return &activeModels.Group{Model: modelBase.Model{ID: 302}}, nil
+				},
+				endSessionFunc: func(context.Context, int64) error {
+					return expectedErr
+				},
+			},
+		}
+
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Zero(t, endedID)
+	})
+
+	t.Run("returns ended session id", func(t *testing.T) {
+		svc := &service{
+			groupRepo: &mockGroupRepository{
+				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
+					return &activeModels.Group{Model: modelBase.Model{ID: 303}}, nil
+				},
+			},
+		}
+
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(303), endedID)
+	})
+}
+
+func TestAppendActiveGroupID_DeduplicatesAndSkipsInvalid(t *testing.T) {
+	ids := appendActiveGroupID(nil, 0)
+	ids = appendActiveGroupID(ids, -1)
+	ids = appendActiveGroupID(ids, 10)
+	ids = appendActiveGroupID(ids, 10)
+	ids = appendActiveGroupIDs(ids, 11, 10, 12)
+
+	assert.Equal(t, []int64{10, 11, 12}, ids)
 }
 
 func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
