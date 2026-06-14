@@ -78,7 +78,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(nil, svc, nil, nil, nil, nil, db)
+	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
 	return rs.Router()
 }
 
