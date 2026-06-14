@@ -33,7 +33,7 @@ import (
 var serviceQueryRatchetAllowlist = map[string]int{
 	// Deliberately-kept transaction control (SAVEPOINT / advisory locks /
 	// LOCK TABLE) — transaction orchestration is service-layer per Rule 11.
-	"services/active/session_service.go":                1, // advisory lock (pg_advisory_xact_lock)
+	"services/active/session_service.go":                4, // advisory lock + savepoints for best-effort DB side effects
 	"services/enrollment/request_service.go":            1,
 	"services/import/student_import_config.go":          3,
 	"services/platform/operator_suggestions_service.go": 3,
