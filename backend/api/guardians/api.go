@@ -75,6 +75,10 @@ func (rs *Resource) Router() chi.Router {
 		// Security enforced when linking guardians to students
 		r.With(withTx).Post("/", rs.createGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateGuardian)
+		// Read-only preview of a full delete's blast radius (admin-only check in
+		// the handler). Lets the UI show the affected children before confirming
+		// without the old destructive "probe DELETE" (#819).
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/{id}/delete-preview", rs.guardianDeletePreview)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteGuardian)
 
 		// Guardian invitations

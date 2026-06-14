@@ -64,6 +64,20 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
+// Error carrying the HTTP status so callers can branch on it. The guardian
+// delete flow needs to tell a 409 (still linked — show the affected children
+// and offer a full delete) apart from a 403 (not allowed to fully delete) and
+// a generic failure.
+export class GuardianApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "GuardianApiError";
+    this.status = status;
+  }
+}
+
 // Error message translations (English backend -> German frontend)
 // Exported for testing
 export const errorTranslations: Record<string, string> = {
@@ -343,10 +357,34 @@ export async function updateGuardian(
 }
 
 /**
- * Delete a guardian profile
+ * Delete a guardian profile.
+ *
+ * By default this is a guarded delete: the backend refuses (409) a guardian
+ * that is still linked to any student. Pass `{ force: true }` to perform the
+ * deliberate full delete that also removes every student link — the backend
+ * restricts that to administrators (403 otherwise). On any non-OK response a
+ * {@link GuardianApiError} carrying the HTTP status is thrown so the caller can
+ * branch on 409 / 403.
  */
-export async function deleteGuardian(guardianId: string): Promise<void> {
-  const response = await fetch(`/api/guardians/${guardianId}`, {
+export async function deleteGuardian(
+  guardianId: string,
+  opts: { force?: boolean; expectedAffectedLinkIds?: readonly string[] } = {},
+): Promise<void> {
+  const searchParams = new URLSearchParams();
+  if (opts.force) {
+    searchParams.set("force", "true");
+  }
+  if (opts.expectedAffectedLinkIds?.length) {
+    searchParams.set(
+      "expected_link_ids",
+      opts.expectedAffectedLinkIds.join(","),
+    );
+  }
+  const queryString = searchParams.toString();
+  const url = queryString
+    ? `/api/guardians/${guardianId}?${queryString}`
+    : `/api/guardians/${guardianId}`;
+  const response = await fetch(url, {
     method: "DELETE",
   });
 
@@ -362,7 +400,7 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to delete guardian: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw new GuardianApiError(errorMessage, response.status);
   }
 
   // 204 No Content means successful deletion with no response body
@@ -376,6 +414,67 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
   if (result.status === "error") {
     throw new Error(result.error ?? "Failed to delete guardian");
   }
+}
+
+/** Read-only preview of what a full guardian delete would affect. */
+export interface GuardianDeletePreview {
+  /** How many students are still linked to the guardian. */
+  linkedCount: number;
+  /** Full names of the affected children. */
+  affectedNames: string[];
+  /** Relationship row IDs the server will compare on confirm. */
+  affectedLinkIds: string[];
+  /** Ready-to-show German warning describing the blast radius. */
+  warning: string;
+}
+
+/**
+ * Fetch the blast radius of a full guardian delete WITHOUT deleting anything.
+ *
+ * Backs the admin "Komplett löschen" confirmation: the modal shows
+ * {@link GuardianDeletePreview.warning} (which children would lose the
+ * guardian) before the user confirms the force delete. Admin-only on the
+ * backend (403 otherwise), exposed via {@link GuardianApiError}.
+ */
+export async function fetchGuardianDeletePreview(
+  guardianId: string,
+): Promise<GuardianDeletePreview> {
+  const response = await fetch(`/api/guardians/${guardianId}/delete-preview`);
+
+  if (!response.ok) {
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "fetch_guardian_delete_preview",
+      });
+      return { error: "Failed to load delete preview" };
+    });
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to load delete preview: ${response.statusText}`;
+    throw new GuardianApiError(errorMessage, response.status);
+  }
+
+  const result = (await response.json()) as ApiResponse<{
+    linked_count: number;
+    affected_names: string[];
+    affected_link_ids: number[];
+    warning: string;
+  }>;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(result.error ?? "Failed to load delete preview");
+  }
+
+  return {
+    linkedCount: result.data.linked_count,
+    affectedNames: result.data.affected_names ?? [],
+    affectedLinkIds: (result.data.affected_link_ids ?? []).map((id) =>
+      id.toString(),
+    ),
+    warning: result.data.warning,
+  };
 }
 
 /**

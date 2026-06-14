@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Loader2, Plus, Search } from "lucide-react";
 import GuardianList from "./guardian-list";
 import GuardianFormModal from "./guardian-form-modal";
@@ -26,9 +26,11 @@ import {
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
+  fetchGuardianDeletePreview,
 } from "@/lib/guardian-api";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -55,8 +57,33 @@ export default function StudentGuardianManager({
   const [deletingGuardian, setDeletingGuardian] = useState<
     GuardianWithRelationship | undefined
   >();
+  const [deleteStep, setDeleteStep] = useState<
+    "choose" | "confirm-unlink" | "confirm-full"
+  >("choose");
+  const [fullDeleteWarning, setFullDeleteWarning] = useState<string | null>(
+    null,
+  );
+  const [fullDeleteAffectedLinkIds, setFullDeleteAffectedLinkIds] = useState<
+    string[]
+  >([]);
+  const [isWarningLoading, setIsWarningLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const deletePreviewRequestIdRef = useRef(0);
   const { success: toastSuccess, error: toastError } = useToast();
+
+  // The full "Komplett löschen" path reaches across every linked child
+  // (siblings included), so the backend restricts it to admin wildcards
+  // (admin:* / *:*) — mirror that here to only offer it when it would succeed.
+  const { data: session } = useSession();
+  const canFullDelete = (session?.user?.permissions ?? []).some(
+    (p) => p === "admin:*" || p === "*:*",
+  );
+
+  useEffect(() => {
+    return () => {
+      deletePreviewRequestIdRef.current += 1;
+    };
+  }, []);
 
   // Load guardians
   const loadGuardians = useCallback(async () => {
@@ -132,8 +159,17 @@ export default function StudentGuardianManager({
             }
           }
         } catch (innerError) {
-          // Rollback: delete the guardian profile to prevent orphaned records
+          // Rollback: delete the just-created guardian to prevent orphaned
+          // records. The student↔guardian FK is ON DELETE RESTRICT (backend
+          // migration 1.15.127), so a guardian that was already linked above
+          // cannot be deleted directly — unlink first (best-effort: the link
+          // may not exist if linkGuardianToStudent itself failed), then delete.
           try {
+            try {
+              await removeGuardianFromStudent(studentId, newGuardian.id);
+            } catch {
+              // No link to remove (link step failed) — deletion below proceeds.
+            }
             await deleteGuardian(newGuardian.id);
           } catch (rollbackError) {
             logger.error("guardian_rollback_failed", {
@@ -325,14 +361,21 @@ export default function StudentGuardianManager({
     }
   };
 
-  // Handle delete guardian - open confirmation modal
+  // Handle delete guardian - open the modal. Admins get the choice screen;
+  // everyone else goes straight to the per-child unlink confirmation (their
+  // only option), so they never see a single-option "choice".
   const handleDeleteClick = (guardian: GuardianWithRelationship) => {
+    deletePreviewRequestIdRef.current += 1;
     setDeletingGuardian(guardian);
+    setDeleteStep(canFullDelete ? "choose" : "confirm-unlink");
+    setFullDeleteWarning(null);
+    setIsWarningLoading(false);
     setShowDeleteModal(true);
   };
 
-  // Confirm delete guardian
-  const handleConfirmDelete = async () => {
+  // Confirm the per-child unlink. Sibling links and the guardian profile itself
+  // are untouched.
+  const handleConfirmUnlink = async () => {
     if (!deletingGuardian) return;
 
     const deletedName = getGuardianFullName(deletingGuardian);
@@ -349,7 +392,7 @@ export default function StudentGuardianManager({
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
-      alert(
+      toastError(
         err instanceof Error
           ? err.message
           : "Fehler beim Entfernen der/des Erziehungsberechtigten",
@@ -359,10 +402,108 @@ export default function StudentGuardianManager({
     }
   };
 
+  // Choice → full-delete flow. Switch to the confirmation step IMMEDIATELY (so
+  // the modal feels as instant as the unlink path), then fetch the
+  // affected-children warning via the READ-ONLY delete-preview endpoint. This
+  // never deletes anything by itself — the actual force delete happens only on
+  // explicit confirmation in handleConfirmFullDelete. "Endgültig löschen" stays
+  // disabled until the warning loads.
+  const handleSelectFullDelete = async () => {
+    if (!deletingGuardian) return;
+
+    const guardianId = deletingGuardian.id;
+    const requestId = deletePreviewRequestIdRef.current + 1;
+    deletePreviewRequestIdRef.current = requestId;
+
+    setFullDeleteWarning(null);
+    setFullDeleteAffectedLinkIds([]);
+    setDeleteStep("confirm-full");
+    setIsWarningLoading(true);
+    try {
+      const preview = await fetchGuardianDeletePreview(guardianId);
+      if (deletePreviewRequestIdRef.current !== requestId) return;
+      setFullDeleteWarning(preview.warning);
+      setFullDeleteAffectedLinkIds(preview.affectedLinkIds);
+    } catch (err) {
+      if (deletePreviewRequestIdRef.current !== requestId) return;
+
+      logger.error("guardian_full_delete_preview_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        guardian_id: guardianId,
+        student_id: studentId,
+      });
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Prüfen der betroffenen Kinder",
+      );
+      // Preview failed — drop back to the choice rather than letting the user
+      // confirm a delete whose blast radius we never showed.
+      handleBack();
+    } finally {
+      if (deletePreviewRequestIdRef.current === requestId) {
+        setIsWarningLoading(false);
+      }
+    }
+  };
+
+  // Confirm the full delete (force): removes the guardian and all of its links.
+  const handleConfirmFullDelete = async () => {
+    if (!deletingGuardian || !fullDeleteWarning) return;
+
+    const deletedName = getGuardianFullName(deletingGuardian);
+    setIsDeleting(true);
+    try {
+      await deleteGuardian(deletingGuardian.id, {
+        force: true,
+        expectedAffectedLinkIds: fullDeleteAffectedLinkIds,
+      });
+      await loadGuardians();
+      onUpdate?.();
+      setShowDeleteModal(false);
+      setDeletingGuardian(undefined);
+      setDeleteStep("choose");
+      setFullDeleteWarning(null);
+      setFullDeleteAffectedLinkIds([]);
+      toastSuccess(`${deletedName} wurde vollständig gelöscht`);
+    } catch (err) {
+      logger.error("guardian_full_delete_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      toastError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Löschen der/des Erziehungsberechtigten",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Back from a confirmation step. Admins return to the choice screen; everyone
+  // else has no choice screen, so "back" just closes the modal.
+  const handleBack = () => {
+    deletePreviewRequestIdRef.current += 1;
+    if (canFullDelete) {
+      setDeleteStep("choose");
+      setFullDeleteWarning(null);
+      setFullDeleteAffectedLinkIds([]);
+      setIsWarningLoading(false);
+    } else {
+      handleCancelDelete();
+    }
+  };
+
   // Cancel delete
   const handleCancelDelete = () => {
+    deletePreviewRequestIdRef.current += 1;
     setShowDeleteModal(false);
     setDeletingGuardian(undefined);
+    setDeleteStep("choose");
+    setFullDeleteWarning(null);
+    setFullDeleteAffectedLinkIds([]);
+    setIsWarningLoading(false);
   };
 
   // Open modal for creating
@@ -520,11 +661,19 @@ export default function StudentGuardianManager({
       <GuardianDeleteModal
         isOpen={showDeleteModal}
         onClose={handleCancelDelete}
-        onConfirm={handleConfirmDelete}
         guardianName={
           deletingGuardian ? getGuardianFullName(deletingGuardian) : ""
         }
         isLoading={isDeleting}
+        step={deleteStep}
+        canFullDelete={canFullDelete}
+        fullDeleteWarning={fullDeleteWarning}
+        isWarningLoading={isWarningLoading}
+        onSelectUnlink={() => setDeleteStep("confirm-unlink")}
+        onSelectFullDelete={handleSelectFullDelete}
+        onConfirmUnlink={handleConfirmUnlink}
+        onConfirmFullDelete={handleConfirmFullDelete}
+        onBack={handleBack}
       />
     </div>
   );

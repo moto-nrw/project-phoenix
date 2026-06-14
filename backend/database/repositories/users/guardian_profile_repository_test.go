@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -635,4 +636,36 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 	require.NotNil(t, found.PortalLocale, "the row with an explicit portal_locale must win over the NULL one")
 	assert.Equal(t, "en", *found.PortalLocale)
 	assert.Equal(t, newer.ID, found.ID, "ordering must prefer the explicit-locale row, not the lowest id")
+}
+
+// ============================================================================
+// LockByIDForUpdate
+// ============================================================================
+
+func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+
+	t.Run("locks an existing guardian within a tenant transaction", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-existing")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		// The full-delete flow takes this lock inside a tenant tx; exercise the
+		// real contract rather than a bare autocommit call.
+		err := tenant.WithTenantTx(testpkg.TenantContext(1), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			return repo.LockByIDForUpdate(txCtx, guardian.ID)
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("returns ErrGuardianProfileNotFound for a missing guardian", func(t *testing.T) {
+		// A non-existent id must surface as the typed not-found error, not a raw
+		// sql.ErrNoRows — the delete handler maps it to a clean 404/409.
+		err := tenant.WithTenantTx(testpkg.TenantContext(1), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			return repo.LockByIDForUpdate(txCtx, 999999999)
+		})
+		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound)
+	})
 }

@@ -54,6 +54,10 @@ var (
 
 	// ErrGuardianHasStudents indicates guardian is still linked to students
 	ErrGuardianHasStudents = errors.New("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrGuardianDeletePreviewChanged indicates the affected guardian links no
+	// longer match the set the admin confirmed.
+	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // UsersError represents an error in the users service
