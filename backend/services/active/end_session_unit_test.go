@@ -17,8 +17,15 @@ import (
 
 // mockGroupRepository is a minimal mock implementation of active.GroupRepository
 type mockGroupRepository struct {
-	findByIDFunc   func(ctx context.Context, id interface{}) (*active.Group, error)
-	endSessionFunc func(ctx context.Context, id int64) error
+	findByIDFunc                    func(ctx context.Context, id interface{}) (*active.Group, error)
+	listFunc                        func(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
+	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*active.Group, error)
+	findActiveByGroupIDFunc         func(ctx context.Context, groupID int64) ([]*active.Group, error)
+	endSessionFunc                  func(ctx context.Context, id int64) error
+	updateLastActivityFunc          func(ctx context.Context, id int64, lastActivity time.Time) error
+	findActiveSessionsOlderThanFunc func(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error)
+	checkRoomConflictFunc           func(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error)
+	endSessionsByIDsFunc            func(ctx context.Context, ids []int64) (int64, error)
 }
 
 func (m *mockGroupRepository) Create(ctx context.Context, entity *active.Group) error {
@@ -43,6 +50,9 @@ func (m *mockGroupRepository) Delete(ctx context.Context, id interface{}) error 
 }
 
 func (m *mockGroupRepository) List(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, options)
+	}
 	return nil, nil
 }
 
@@ -55,6 +65,9 @@ func (m *mockGroupRepository) FindActiveByRoomIDAndDeviceID(ctx context.Context,
 }
 
 func (m *mockGroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error) {
+	if m.findActiveByGroupIDFunc != nil {
+		return m.findActiveByGroupIDFunc(ctx, groupID)
+	}
 	return nil, nil
 }
 
@@ -90,6 +103,9 @@ func (m *mockGroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context,
 }
 
 func (m *mockGroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
+	if m.findActiveByDeviceIDFunc != nil {
+		return m.findActiveByDeviceIDFunc(ctx, deviceID)
+	}
 	return nil, nil
 }
 
@@ -102,14 +118,23 @@ func (m *mockGroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context,
 }
 
 func (m *mockGroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
+	if m.checkRoomConflictFunc != nil {
+		return m.checkRoomConflictFunc(ctx, roomID, excludeGroupID)
+	}
 	return false, nil, nil
 }
 
 func (m *mockGroupRepository) UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error {
+	if m.updateLastActivityFunc != nil {
+		return m.updateLastActivityFunc(ctx, id, lastActivity)
+	}
 	return nil
 }
 
 func (m *mockGroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*active.Group, error) {
+	if m.findActiveSessionsOlderThanFunc != nil {
+		return m.findActiveSessionsOlderThanFunc(ctx, cutoffTime)
+	}
 	return nil, nil
 }
 
@@ -138,6 +163,9 @@ func (m *mockGroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, g
 }
 
 func (m *mockGroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error) {
+	if m.endSessionsByIDsFunc != nil {
+		return m.endSessionsByIDsFunc(ctx, ids)
+	}
 	return 0, nil
 }
 
@@ -157,6 +185,7 @@ type mockVisitRepository struct {
 	countActiveByGroupIDFunc          func(ctx context.Context, activeGroupID int64) (int, error)
 	listActiveStudentIDsByRoomIDFunc  func(ctx context.Context, roomID int64) ([]int64, error)
 	getTodayVisitNamesFunc            func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
+	endVisitsByActiveGroupIDsFunc     func(ctx context.Context, activeGroupIDs []int64) (int64, error)
 }
 
 func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
@@ -283,6 +312,9 @@ func (m *mockVisitRepository) FindActiveVisits(ctx context.Context) ([]*active.V
 }
 
 func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
+	if m.endVisitsByActiveGroupIDsFunc != nil {
+		return m.endVisitsByActiveGroupIDsFunc(ctx, activeGroupIDs)
+	}
 	return 0, nil
 }
 
@@ -299,11 +331,15 @@ func (m *mockVisitRepository) GetTodayVisitNamesForStudents(ctx context.Context,
 
 // mockGroupSupervisorRepository is a minimal mock implementation of active.GroupSupervisorRepository
 type mockGroupSupervisorRepository struct {
-	findByActiveGroupIDFunc func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)
-	endSupervisionFunc      func(ctx context.Context, id int64) error
-	createFunc              func(ctx context.Context, entity *active.GroupSupervisor) error
-	createBulkFunc          func(ctx context.Context, supervisors []*active.GroupSupervisor) error
-	findAllActiveFunc       func(ctx context.Context) ([]*active.GroupSupervisor, error)
+	findByActiveGroupIDFunc  func(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*active.GroupSupervisor, error)
+	endSupervisionFunc       func(ctx context.Context, id int64) error
+	createFunc               func(ctx context.Context, entity *active.GroupSupervisor) error
+	createBulkFunc           func(ctx context.Context, supervisors []*active.GroupSupervisor) error
+	findAllActiveFunc        func(ctx context.Context) ([]*active.GroupSupervisor, error)
+	updateFunc               func(ctx context.Context, entity *active.GroupSupervisor) error
+	endSupervisionsByIDsFunc func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	findStaleOpenFunc        func(ctx context.Context, before timezone.Date) ([]*active.GroupSupervisor, error)
+	updateColumnsFunc        func(ctx context.Context, supervisor *active.GroupSupervisor, columns ...string) (int64, error)
 }
 
 func (m *mockGroupSupervisorRepository) Create(ctx context.Context, entity *active.GroupSupervisor) error {
@@ -318,6 +354,9 @@ func (m *mockGroupSupervisorRepository) FindByID(ctx context.Context, id interfa
 }
 
 func (m *mockGroupSupervisorRepository) Update(ctx context.Context, entity *active.GroupSupervisor) error {
+	if m.updateFunc != nil {
+		return m.updateFunc(ctx, entity)
+	}
 	return nil
 }
 
@@ -367,6 +406,9 @@ func (m *mockGroupSupervisorRepository) CreateBulk(ctx context.Context, supervis
 }
 
 func (m *mockGroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
+	if m.endSupervisionsByIDsFunc != nil {
+		return m.endSupervisionsByIDsFunc(ctx, activeGroupIDs)
+	}
 	return 0, nil
 }
 
@@ -636,10 +678,16 @@ func (m *mockVisitRepository) ExpiredVisitMonthlyCounts(context.Context) (map[st
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) FindStaleOpen(context.Context, timezone.Date) ([]*active.GroupSupervisor, error) {
+func (m *mockGroupSupervisorRepository) FindStaleOpen(ctx context.Context, before timezone.Date) ([]*active.GroupSupervisor, error) {
+	if m.findStaleOpenFunc != nil {
+		return m.findStaleOpenFunc(ctx, before)
+	}
 	return nil, nil
 }
 
-func (m *mockGroupSupervisorRepository) UpdateColumns(context.Context, *active.GroupSupervisor, ...string) (int64, error) {
+func (m *mockGroupSupervisorRepository) UpdateColumns(ctx context.Context, supervisor *active.GroupSupervisor, columns ...string) (int64, error) {
+	if m.updateColumnsFunc != nil {
+		return m.updateColumnsFunc(ctx, supervisor, columns...)
+	}
 	return 0, nil
 }
