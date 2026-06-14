@@ -7,6 +7,8 @@ import {
   createGuardian,
   updateGuardian,
   deleteGuardian,
+  createStudentGuardians,
+  fetchGuardianDeletePreview,
   linkGuardianToStudent,
   updateStudentGuardianRelationship,
   removeGuardianFromStudent,
@@ -626,6 +628,167 @@ describe("guardian-api functions", () => {
 
       await expect(deleteGuardian("1")).rejects.toThrow(
         "Cannot delete guardian with linked students",
+      );
+    });
+
+    it("appends force=true and expected link IDs to the URL for a full delete", async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+
+      await expect(
+        deleteGuardian("1", {
+          force: true,
+          expectedAffectedLinkIds: ["10", "20"],
+        }),
+      ).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/1?force=true&expected_link_ids=10%2C20",
+        {
+          method: "DELETE",
+        },
+      );
+    });
+
+    it("throws a GuardianApiError carrying the HTTP status on conflict", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        statusText: "Conflict",
+        json: () => Promise.resolve({ error: "Noch mit Kindern verknüpft" }),
+      });
+
+      await expect(deleteGuardian("1")).rejects.toMatchObject({
+        name: "GuardianApiError",
+        status: 409,
+        message: "Noch mit Kindern verknüpft",
+      });
+    });
+  });
+
+  describe("fetchGuardianDeletePreview", () => {
+    it("maps the snake_case preview payload to camelCase", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: {
+              linked_count: 2,
+              affected_names: ["Anna Müller", "Ben Müller"],
+              affected_link_ids: [10, 20],
+              warning: "Die Person ist mit 2 Kindern verknüpft …",
+            },
+          }),
+      });
+
+      await expect(fetchGuardianDeletePreview("1")).resolves.toEqual({
+        linkedCount: 2,
+        affectedNames: ["Anna Müller", "Ben Müller"],
+        affectedLinkIds: ["10", "20"],
+        warning: "Die Person ist mit 2 Kindern verknüpft …",
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/guardians/1/delete-preview",
+      );
+    });
+
+    it("throws a GuardianApiError carrying the status when the backend forbids it", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: "Forbidden",
+        json: () => Promise.resolve({ error: "nur Administratoren" }),
+      });
+
+      await expect(fetchGuardianDeletePreview("1")).rejects.toMatchObject({
+        name: "GuardianApiError",
+        status: 403,
+        message: "nur Administratoren",
+      });
+    });
+  });
+
+  describe("createStudentGuardians", () => {
+    it("posts the batch as snake_case to the /batch endpoint", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ status: "success" }),
+      });
+
+      await expect(
+        createStudentGuardians("123", [
+          {
+            firstName: "Atomic",
+            lastName: "Guardian",
+            email: "a@b.de",
+            relationshipType: "parent",
+            isPrimary: true,
+            isEmergencyContact: false,
+            canPickup: true,
+            emergencyPriority: 1,
+            phoneNumbers: [
+              {
+                phoneNumber: "+49 1",
+                phoneType: "mobile",
+                isPrimary: true,
+              },
+            ],
+          },
+        ]),
+      ).resolves.toBeUndefined();
+
+      const [url, init] = (global.fetch as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/guardians/students/123/guardians/batch");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(init.body as string)).toEqual({
+        guardians: [
+          expect.objectContaining({
+            first_name: "Atomic",
+            last_name: "Guardian",
+            email: "a@b.de",
+            relationship_type: "parent",
+            is_primary: true,
+            can_pickup: true,
+            emergency_priority: 1,
+            phone_numbers: [
+              expect.objectContaining({
+                phone_number: "+49 1",
+                phone_type: "mobile",
+                is_primary: true,
+              }),
+            ],
+          }),
+        ],
+      });
+    });
+
+    it("translates a duplicate-email 400 into the German guidance message", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        json: () =>
+          Promise.resolve({
+            error:
+              'Erziehungsberechtigte/r 1: E-Mail-Adresse "a@b.de" ist bereits vergeben',
+          }),
+      });
+
+      await expect(
+        createStudentGuardians("123", [
+          {
+            firstName: "A",
+            lastName: "B",
+            relationshipType: "parent",
+            isPrimary: false,
+            isEmergencyContact: false,
+            canPickup: false,
+            emergencyPriority: 1,
+          },
+        ]),
+      ).rejects.toThrow(
+        "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
       );
     });
   });
