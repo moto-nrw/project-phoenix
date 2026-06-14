@@ -175,17 +175,18 @@ func (m *mockGroupRepository) AggregateRoomSessions(ctx context.Context, roomID 
 
 // mockVisitRepository is a minimal mock implementation of active.VisitRepository
 type mockVisitRepository struct {
-	findByActiveGroupIDFunc           func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
-	findByIDFunc                      func(ctx context.Context, id interface{}) (*active.Visit, error)
-	updateFunc                        func(ctx context.Context, entity *active.Visit) error
-	endVisitFunc                      func(ctx context.Context, id int64) error
-	getCurrentByStudentIDFunc         func(ctx context.Context, studentID int64) (*active.Visit, error)
-	getCurrentByStudentIDWithRoomFunc func(ctx context.Context, studentID int64) (*active.Visit, error)
-	countActiveByRoomIDFunc           func(ctx context.Context, roomID int64) (int, error)
-	countActiveByGroupIDFunc          func(ctx context.Context, activeGroupID int64) (int, error)
-	listActiveStudentIDsByRoomIDFunc  func(ctx context.Context, roomID int64) ([]int64, error)
-	getTodayVisitNamesFunc            func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
-	endVisitsByActiveGroupIDsFunc     func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	findByActiveGroupIDFunc               func(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
+	findByIDFunc                          func(ctx context.Context, id interface{}) (*active.Visit, error)
+	updateFunc                            func(ctx context.Context, entity *active.Visit) error
+	endVisitFunc                          func(ctx context.Context, id int64) error
+	getCurrentByStudentIDFunc             func(ctx context.Context, studentID int64) (*active.Visit, error)
+	getCurrentByStudentIDWithRoomFunc     func(ctx context.Context, studentID int64) (*active.Visit, error)
+	countActiveByRoomIDFunc               func(ctx context.Context, roomID int64) (int, error)
+	countActiveByGroupIDFunc              func(ctx context.Context, activeGroupID int64) (int, error)
+	listActiveStudentIDsByRoomIDFunc      func(ctx context.Context, roomID int64) ([]int64, error)
+	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
+	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 }
 
 func (m *mockVisitRepository) Create(ctx context.Context, entity *active.Visit) error {
@@ -249,6 +250,13 @@ func (m *mockVisitRepository) EndVisit(ctx context.Context, id int64) error {
 }
 
 func (m *mockVisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
+	return 0, nil
+}
+
+func (m *mockVisitRepository) TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error) {
+	if m.transferActiveVisitsBetweenGroupsFunc != nil {
+		return m.transferActiveVisitsBetweenGroupsFunc(ctx, oldActiveGroupID, newActiveGroupID)
+	}
 	return 0, nil
 }
 

@@ -757,6 +757,71 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 	})
 }
 
+func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActiveVisit
+	groupRepo := repositories.NewFactory(db).ActiveGroup
+	ctx := testpkg.TenantContext(1)
+	data := createVisitTestData(t, db)
+	defer cleanupVisitTestData(t, db, data)
+
+	now := time.Now()
+	oldGroup := &active.Group{
+		StartTime:      now.Add(-30 * time.Minute),
+		LastActivity:   now.Add(-10 * time.Minute),
+		TimeoutMinutes: 30,
+		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		RoomID:         data.Room,
+	}
+	require.NoError(t, groupRepo.Create(ctx, oldGroup))
+	defer cleanupActiveGroupRecords(t, db, oldGroup.ID)
+
+	newGroup := &active.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		RoomID:         data.Room,
+	}
+	require.NoError(t, groupRepo.Create(ctx, newGroup))
+	defer cleanupActiveGroupRecords(t, db, newGroup.ID)
+
+	activeVisit := &active.Visit{
+		StudentID:     data.Student1.ID,
+		ActiveGroupID: oldGroup.ID,
+		EntryTime:     now.Add(-20 * time.Minute),
+	}
+	require.NoError(t, repo.Create(ctx, activeVisit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", activeVisit.ID)
+
+	exitTime := now.Add(-5 * time.Minute)
+	endedVisit := &active.Visit{
+		StudentID:     data.Student2.ID,
+		ActiveGroupID: oldGroup.ID,
+		EntryTime:     now.Add(-25 * time.Minute),
+		ExitTime:      &exitTime,
+	}
+	require.NoError(t, repo.Create(ctx, endedVisit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", endedVisit.ID)
+
+	transferred, err := repo.TransferActiveVisitsBetweenGroups(ctx, oldGroup.ID, newGroup.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, transferred)
+
+	foundActive, err := repo.FindByID(ctx, activeVisit.ID)
+	require.NoError(t, err)
+	assert.Equal(t, newGroup.ID, foundActive.ActiveGroupID)
+	assert.Nil(t, foundActive.ExitTime)
+
+	foundEnded, err := repo.FindByID(ctx, endedVisit.ID)
+	require.NoError(t, err)
+	assert.Equal(t, oldGroup.ID, foundEnded.ActiveGroupID)
+	require.NotNil(t, foundEnded.ExitTime)
+	assert.WithinDuration(t, exitTime, *foundEnded.ExitTime, time.Second)
+}
+
 func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

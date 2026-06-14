@@ -293,30 +293,31 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize active service with SSE broadcaster
 	activeService := active.NewService(active.ServiceDependencies{
-		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
-		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
-		StudentStatusRepo:  repos.StudentStatusDay,
-		CrossTenantRepo:    activeRepo.NewCrossTenantRepository(db),
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
-		EducationService:   educationService,
-		UsersService:       usersService,
-		DB:                 db,
-		Broadcaster:        realtimeHub,           // Pass SSE broadcaster
-		WorkSessionService: workSessionService,    // NFC auto-check-in
-		AttendanceSyncer:   attendanceSyncService, // WP-B10 mirror + SSE enrichment
-		Logger:             activeLogger,
+		GroupRepo:                repos.ActiveGroup,
+		VisitRepo:                repos.ActiveVisit,
+		SupervisorRepo:           repos.GroupSupervisor,
+		CombinedGroupRepo:        repos.CombinedGroup,
+		GroupMappingRepo:         repos.GroupMapping,
+		AttendanceRepo:           repos.Attendance,
+		StudentStatusRepo:        repos.StudentStatusDay,
+		CrossTenantRepo:          activeRepo.NewCrossTenantRepository(db),
+		StudentRepo:              repos.Student,
+		PersonRepo:               repos.Person,
+		TeacherRepo:              repos.Teacher,
+		StaffRepo:                repos.Staff,
+		RoomRepo:                 repos.Room,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityCatRepo:          repos.ActivityCategory,
+		EducationGroupRepo:       repos.Group,
+		DeviceRepo:               repos.Device,
+		EducationService:         educationService,
+		UsersService:             usersService,
+		DB:                       db,
+		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
+		WorkSessionService:       workSessionService,    // NFC auto-check-in
+		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
+		TimetableBridgeCompleter: repos.ActivityInstance,
+		Logger:                   activeLogger,
 	})
 
 	// Initialize feedback service

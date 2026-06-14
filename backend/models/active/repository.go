@@ -137,6 +137,11 @@ type VisitRepository interface {
 	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
 	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 
+	// TransferActiveVisitsBetweenGroups moves still-open visits from one active
+	// group to another. Ended visits are ignored so stale callers cannot reopen
+	// a checkout by writing an old NULL exit_time back to the row.
+	TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
+
 	// Cleanup operations for data retention
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student
 	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)

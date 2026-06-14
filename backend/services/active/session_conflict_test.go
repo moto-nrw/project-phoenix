@@ -95,7 +95,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -535,6 +537,21 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
 		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+		activeGroupID := session1.ID
+		mirroredInstance := &scheduleModels.ActivityInstance{
+			Date:            timezone.TodayDate(),
+			ActivityGroupID: &activityGroup.ID,
+			Title:           "Force Transfer Activity",
+			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+			EndTime:         time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+			RoomID:          room1.ID,
+			Status:          scheduleModels.InstanceStatusActive,
+			ActiveGroupID:   &activeGroupID,
+			IsSpontaneous:   true,
+		}
+		mirroredInstance.SetTenantID(1)
+		require.NoError(t, repositories.NewFactory(db).ActivityInstance.Create(ctx, mirroredInstance))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", mirroredInstance.ID)
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -557,6 +574,11 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
+
+		completedMirror, err := repositories.NewFactory(db).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
+		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
 
 		oldActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session1.ID)
 		require.NoError(t, err)

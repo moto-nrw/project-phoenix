@@ -70,6 +70,12 @@ type SettingsResolver interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
+// TimetableBridgeCompleter marks timetable instances that are still bridged
+// to active groups as completed. Implemented by schedule.ActivityInstanceRepository.
+type TimetableBridgeCompleter interface {
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+}
+
 // ServiceDependencies contains all dependencies required by the active service
 type ServiceDependencies struct {
 	// Active domain repositories
@@ -113,6 +119,9 @@ type ServiceDependencies struct {
 	// SSE events with attendance status/substatus/note.
 	AttendanceSyncer AttendanceSyncer
 
+	// Optional: Timetable bridge cleanup for force-ended IoT sessions.
+	TimetableBridgeCompleter TimetableBridgeCompleter
+
 	// Optional: Structured logger (nil-safe, Phase 2b will add logging calls)
 	Logger *slog.Logger
 }
@@ -155,6 +164,9 @@ type service struct {
 
 	// Optional: Attendance sync (WP-B10)
 	attendanceSyncer AttendanceSyncer
+
+	// Optional: Timetable bridge cleanup for force-ended IoT sessions.
+	timetableBridgeCompleter TimetableBridgeCompleter
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.
@@ -207,30 +219,31 @@ func (s *service) getLogger() *slog.Logger {
 // NewService creates a new active service instance
 func NewService(deps ServiceDependencies) Service {
 	return &service{
-		groupRepo:          deps.GroupRepo,
-		visitRepo:          deps.VisitRepo,
-		supervisorRepo:     deps.SupervisorRepo,
-		combinedGroupRepo:  deps.CombinedGroupRepo,
-		groupMappingRepo:   deps.GroupMappingRepo,
-		crossTenantRepo:    deps.CrossTenantRepo,
-		studentRepo:        deps.StudentRepo,
-		roomRepo:           deps.RoomRepo,
-		activityGroupRepo:  deps.ActivityGroupRepo,
-		activityCatRepo:    deps.ActivityCatRepo,
-		educationGroupRepo: deps.EducationGroupRepo,
-		personRepo:         deps.PersonRepo,
-		deviceRepo:         deps.DeviceRepo,
-		attendanceRepo:     deps.AttendanceRepo,
-		studentStatusRepo:  deps.StudentStatusRepo,
-		educationService:   deps.EducationService,
-		usersService:       deps.UsersService,
-		teacherRepo:        deps.TeacherRepo,
-		staffRepo:          deps.StaffRepo,
-		db:                 deps.DB,
-		broadcaster:        deps.Broadcaster,
-		workSessionService: deps.WorkSessionService,
-		attendanceSyncer:   deps.AttendanceSyncer,
-		logger:             deps.Logger,
+		groupRepo:                deps.GroupRepo,
+		visitRepo:                deps.VisitRepo,
+		supervisorRepo:           deps.SupervisorRepo,
+		combinedGroupRepo:        deps.CombinedGroupRepo,
+		groupMappingRepo:         deps.GroupMappingRepo,
+		crossTenantRepo:          deps.CrossTenantRepo,
+		studentRepo:              deps.StudentRepo,
+		roomRepo:                 deps.RoomRepo,
+		activityGroupRepo:        deps.ActivityGroupRepo,
+		activityCatRepo:          deps.ActivityCatRepo,
+		educationGroupRepo:       deps.EducationGroupRepo,
+		personRepo:               deps.PersonRepo,
+		deviceRepo:               deps.DeviceRepo,
+		attendanceRepo:           deps.AttendanceRepo,
+		studentStatusRepo:        deps.StudentStatusRepo,
+		educationService:         deps.EducationService,
+		usersService:             deps.UsersService,
+		teacherRepo:              deps.TeacherRepo,
+		staffRepo:                deps.StaffRepo,
+		db:                       deps.DB,
+		broadcaster:              deps.Broadcaster,
+		workSessionService:       deps.WorkSessionService,
+		attendanceSyncer:         deps.AttendanceSyncer,
+		timetableBridgeCompleter: deps.TimetableBridgeCompleter,
+		logger:                   deps.Logger,
 	}
 }
 

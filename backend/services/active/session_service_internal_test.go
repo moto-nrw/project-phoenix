@@ -418,11 +418,8 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	t.Run("visit transfer error", func(t *testing.T) {
 		svc := &service{
 			visitRepo: &mockVisitRepository{
-				findByActiveGroupIDFunc: func(context.Context, int64) ([]*activeModels.Visit, error) {
-					return []*activeModels.Visit{{Model: modelBase.Model{ID: 10}, StudentID: 20}}, nil
-				},
-				updateFunc: func(context.Context, *activeModels.Visit) error {
-					return visitErr
+				transferActiveVisitsBetweenGroupsFunc: func(context.Context, int64, int64) (int, error) {
+					return 0, visitErr
 				},
 			},
 		}
@@ -498,23 +495,15 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 	})
 }
 
-func TestTransferActiveVisitsBetweenGroups_SkipsClosedAndInvalidVisits(t *testing.T) {
+func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTransfer(t *testing.T) {
 	ctx := context.Background()
-	exitTime := time.Now()
-	var updatedVisitIDs []int64
+	var gotOldGroupID, gotNewGroupID int64
 	svc := &service{
 		visitRepo: &mockVisitRepository{
-			findByActiveGroupIDFunc: func(context.Context, int64) ([]*activeModels.Visit, error) {
-				return []*activeModels.Visit{
-					nil,
-					{Model: modelBase.Model{ID: 10}, ExitTime: &exitTime},
-					{Model: modelBase.Model{ID: 11}},
-				}, nil
-			},
-			updateFunc: func(_ context.Context, visit *activeModels.Visit) error {
-				updatedVisitIDs = append(updatedVisitIDs, visit.ID)
-				assert.Equal(t, int64(200), visit.ActiveGroupID)
-				return nil
+			transferActiveVisitsBetweenGroupsFunc: func(_ context.Context, oldGroupID, newGroupID int64) (int, error) {
+				gotOldGroupID = oldGroupID
+				gotNewGroupID = newGroupID
+				return 3, nil
 			},
 		},
 	}
@@ -522,8 +511,9 @@ func TestTransferActiveVisitsBetweenGroups_SkipsClosedAndInvalidVisits(t *testin
 	count, err := svc.transferActiveVisitsBetweenGroups(ctx, 100, 200)
 
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
-	assert.Equal(t, []int64{11}, updatedVisitIDs)
+	assert.Equal(t, 3, count)
+	assert.Equal(t, int64(100), gotOldGroupID)
+	assert.Equal(t, int64(200), gotNewGroupID)
 }
 
 func TestEndExistingDeviceSession_Branches(t *testing.T) {
