@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -457,7 +458,7 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 			return &ActiveError{Op: operation, Err: err}
 		}
 
-		if err := s.transferForceStartedActivityState(txCtx, conflictingSessionIDs, group.ID); err != nil {
+		if err := s.transferForceStartedActivityState(txCtx, conflictingSessionIDs, group.ID, group.StartTime); err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
 
@@ -486,14 +487,14 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 	return endedIDs, nil
 }
 
-func (s *service) transferForceStartedActivityState(ctx context.Context, oldGroupIDs []int64, newGroupID int64) error {
+func (s *service) transferForceStartedActivityState(ctx context.Context, oldGroupIDs []int64, newGroupID int64, newGroupStartTime time.Time) error {
 	for _, oldGroupID := range oldGroupIDs {
 		visitsTransferred, err := s.transferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
 		if err != nil {
 			return err
 		}
 
-		supervisorsTransferred, err := s.transferActiveSupervisorsBetweenGroups(ctx, oldGroupID, newGroupID)
+		supervisorsTransferred, err := s.transferActiveSupervisorsBetweenGroups(ctx, oldGroupID, newGroupID, newGroupStartTime)
 		if err != nil {
 			return err
 		}
@@ -532,7 +533,7 @@ func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGrou
 	return transferred, nil
 }
 
-func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64, newGroupStartTime time.Time) (int, error) {
 	oldSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, oldGroupID, true)
 	if err != nil {
 		return 0, err
@@ -543,12 +544,12 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 		return 0, err
 	}
 
-	existing := make(map[supervisorIdentity]bool, len(newSupervisors))
+	existingStaffIDs := make(map[int64]bool, len(newSupervisors))
 	for _, supervisor := range newSupervisors {
 		if supervisor == nil {
 			continue
 		}
-		existing[supervisorIdentity{staffID: supervisor.StaffID, role: supervisor.Role}] = true
+		existingStaffIDs[supervisor.StaffID] = true
 	}
 
 	transferred := 0
@@ -557,29 +558,36 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 			continue
 		}
 
-		identity := supervisorIdentity{staffID: supervisor.StaffID, role: supervisor.Role}
-		if existing[identity] {
-			if err := s.supervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
-				return transferred, err
-			}
+		if err := s.supervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
+			return transferred, err
+		}
+
+		if existingStaffIDs[supervisor.StaffID] {
 			continue
 		}
 
-		supervisor.GroupID = newGroupID
-		supervisor.UpdatedAt = time.Now()
-		if _, err := s.supervisorRepo.UpdateColumns(ctx, supervisor, "group_id", "updated_at"); err != nil {
+		transferredSupervisor := &active.GroupSupervisor{
+			StaffID:   supervisor.StaffID,
+			GroupID:   newGroupID,
+			Role:      normalizeTransferredSupervisorRole(supervisor.Role),
+			StartDate: timezone.DateFromTime(newGroupStartTime),
+		}
+		transferredSupervisor.SetTenantID(tenant.FromContext(ctx))
+		if err := s.supervisorRepo.Create(ctx, transferredSupervisor); err != nil {
 			return transferred, err
 		}
-		existing[identity] = true
+		existingStaffIDs[supervisor.StaffID] = true
 		transferred++
 	}
 
 	return transferred, nil
 }
 
-type supervisorIdentity struct {
-	staffID int64
-	role    string
+func normalizeTransferredSupervisorRole(role string) string {
+	if strings.EqualFold(role, "supervisor") {
+		return "supervisor"
+	}
+	return role
 }
 
 // endExistingDeviceSession ends any existing session for the device

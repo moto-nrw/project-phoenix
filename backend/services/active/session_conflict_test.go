@@ -562,6 +562,13 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
+		allOldSupervisors, err := repositories.NewFactory(db).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		require.NoError(t, err)
+		require.Len(t, allOldSupervisors, 1, "expected old session supervisor history to be preserved")
+		assert.Equal(t, oldSupervisor.ID, allOldSupervisors[0].StaffID)
+		assert.Equal(t, session1.ID, allOldSupervisors[0].GroupID)
+		assert.NotNil(t, allOldSupervisors[0].EndDate, "expected old supervisor row to be ended, not moved")
+
 		newActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session2.ID)
 		require.NoError(t, err)
 		require.Len(t, newActiveSupervisors, 2, "expected old and new supervisors on the new session")
@@ -572,6 +579,56 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		}
 		assert.True(t, supervisorIDs[oldSupervisor.ID], "expected old supervisor to transfer")
 		assert.True(t, supervisorIDs[newSupervisor.ID], "expected requested supervisor to remain assigned")
+	})
+
+	t.Run("force start deduplicates single-supervisor role casing during transfer", func(t *testing.T) {
+		// ARRANGE: Start through the single-supervisor path, which stores role "Supervisor".
+		activityGroup := testpkg.CreateTestActivityGroup(t, db, "Force Transfer Same Supervisor Activity")
+		device1 := testpkg.CreateTestDevice(t, db, "force-transfer-same-supervisor-device-001")
+		device2 := testpkg.CreateTestDevice(t, db, "force-transfer-same-supervisor-device-002")
+		room1 := testpkg.CreateTestRoom(t, db, "Force Transfer Same Supervisor Room 1")
+		room2 := testpkg.CreateTestRoom(t, db, "Force Transfer Same Supervisor Room 2")
+		staff := testpkg.CreateTestStaff(t, db, "Same", "Supervisor")
+
+		defer testpkg.CleanupActivityFixtures(t, db,
+			activityGroup.ID,
+			device1.ID,
+			device2.ID,
+			room1.ID,
+			room2.ID,
+			staff.ID,
+		)
+
+		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room1.ID)
+		require.NoError(t, err)
+
+		// ACT: Force-start with the same staff member through the multi-supervisor path,
+		// which creates role "supervisor" before transfer runs.
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{staff.ID}, &room2.ID)
+
+		// ASSERT: The old row is ended in place, and the new session has one active row for the staff member.
+		require.NoError(t, err)
+		require.NotNil(t, session2)
+		assert.NotEqual(t, session1.ID, session2.ID)
+
+		oldActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session1.ID)
+		require.NoError(t, err)
+		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
+
+		allOldSupervisors, err := repositories.NewFactory(db).GroupSupervisor.FindByActiveGroupID(ctx, session1.ID, false)
+		require.NoError(t, err)
+		require.Len(t, allOldSupervisors, 1, "expected supervisor row to remain on old session")
+		assert.Equal(t, staff.ID, allOldSupervisors[0].StaffID)
+		assert.Equal(t, session1.ID, allOldSupervisors[0].GroupID)
+		assert.Equal(t, "Supervisor", allOldSupervisors[0].Role)
+		assert.NotNil(t, allOldSupervisors[0].EndDate, "expected old supervisor row to be ended")
+
+		newActiveSupervisors, err := service.FindSupervisorsByActiveGroupID(ctx, session2.ID)
+		require.NoError(t, err)
+		require.Len(t, newActiveSupervisors, 1, "expected role casing mismatch not to duplicate the same staff member")
+		assert.Equal(t, staff.ID, newActiveSupervisors[0].StaffID)
+		assert.Equal(t, session2.ID, newActiveSupervisors[0].GroupID)
+		assert.Equal(t, "supervisor", newActiveSupervisors[0].Role)
 	})
 
 	t.Run("force start fails with empty supervisor list", func(t *testing.T) {
