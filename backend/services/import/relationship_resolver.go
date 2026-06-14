@@ -107,7 +107,7 @@ func (r *RelationshipResolver) resolveEntity(
 	// 3. No matches - proceed without entity (warning only)
 	return nil, []importModels.ValidationError{{
 		Field:    fieldName,
-		Message:  fmt.Sprintf("%s '%s' existiert nicht. Schüler wird ohne %s importiert.", entityType, name, entityType),
+		Message:  fmt.Sprintf("%s '%s' existiert nicht. Kind wird ohne %s importiert.", entityType, name, entityType),
 		Code:     fmt.Sprintf("%s_not_found", fieldName),
 		Severity: importModels.ErrorSeverityWarning,
 	}}

@@ -8,7 +8,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyFeedbackEnabled,
 		Label:           "Feedback aktiviert",
-		Description:     "Ermöglicht das Erfassen und Anzeigen von Feedback. Feedback-Modal beim täglichen Checkout und Feedbackhistorie in der Schülerdetailansicht. Aus Datenschutzgründen standardmäßig deaktiviert.",
+		Description:     "Ermöglicht das Erfassen und Anzeigen von Feedback. Feedback-Modal beim täglichen Checkout und Feedbackhistorie in der Kinddetailansicht. Aus Datenschutzgründen standardmäßig deaktiviert.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

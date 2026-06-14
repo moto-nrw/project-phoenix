@@ -612,7 +612,7 @@ func (s *timetableOperationsService) rosterWarnings(
 			}
 			warnings[studentID] = append(warnings[studentID], OperationRosterWarning{
 				Kind:                  "template_class_mismatch",
-				Message:               "Kind passt nicht zur Klassengruppe der Stundenplan-Vorlage.",
+				Message:               "Kind passt nicht zur Klassengruppe der Betreuungsplan-Vorlage.",
 				ExpectedGroupID:       &expectedGroupID,
 				ExpectedGroupName:     expectedGroupName,
 				CurrentEducationGroup: st.GroupID,

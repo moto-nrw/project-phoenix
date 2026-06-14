@@ -144,4 +144,14 @@ type CalendarPeriodRepository interface {
 
 	// FindByName finds a calendar period by name within the current tenant
 	FindByName(ctx context.Context, name string) (*CalendarPeriod, error)
+
+	// CreateIfAbsent inserts the period unless a row with the same
+	// (tenant_id, name) already exists. It reports whether the insert
+	// happened (false = a period with that name was already present).
+	CreateIfAbsent(ctx context.Context, p *CalendarPeriod) (bool, error)
+
+	// FindActiveOverlapping returns all active periods of the current tenant
+	// whose [start_date, end_date] range overlaps [start, end] (inclusive on
+	// both ends), excluding the period with excludeID.
+	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
 }

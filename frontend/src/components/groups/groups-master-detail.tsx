@@ -194,7 +194,7 @@ function GroupSummary({ group }: { group: Group }) {
           {group.room_name ?? "Kein Gruppenraum"}
         </span>
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {group.student_count ?? 0} Schüler
+          {group.student_count ?? 0} Kinder
         </span>
       </div>
 

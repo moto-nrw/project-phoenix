@@ -25,11 +25,11 @@ describe("SearchBar", () => {
       <SearchBar
         value=""
         onChange={mockOnChange}
-        placeholder="Suche Schüler..."
+        placeholder="Suche Kinder..."
       />,
     );
 
-    expect(screen.getByPlaceholderText("Suche Schüler...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Suche Kinder...")).toBeInTheDocument();
   });
 
   it("displays current value", () => {

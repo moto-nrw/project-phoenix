@@ -1,36 +1,56 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useModal } from "~/components/dashboard/modal-context";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { Input } from "~/components/ui/input";
+import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import {
   SlideOver,
-  SlideOverClose,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { formatDate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
 import { timetableService } from "~/lib/timetable-api";
+import { useDebounce } from "~/lib/use-debounce";
 import {
+  chunkDateRange,
   getActivityColor,
+  getGermanWeekdayLong,
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
+import {
+  timetableMutedSurface,
+  timetableNestedSurface,
+  timetableRequiredMark,
+  timetableSearchClass,
+  timetableSelectClass,
+  timetableTextAreaClass,
+} from "./timetable-style";
 import type {
   ActivityType,
+  ConflictWarningItem,
   CreateInstanceBody,
   CreateTemplateBody,
   EnrichedInstance,
   TimetableTemplate,
+  UpdateTemplateBody,
 } from "~/lib/timetable-types";
 
 interface RoomOption {
@@ -104,11 +124,43 @@ interface TimetableEventModalProps {
   initialSeries?: TimetableTemplate | null;
   convertInstance?: EnrichedInstance | null;
   defaultRepeat?: RepeatMode;
+  /**
+   * "quick" starts collapsed with only Titel, Datum/Zeiten, Raum and a
+   * plain-language repeat select (US-1 quick create). "Benutzerdefiniert"
+   * in that select expands to the full form. Default "full".
+   */
+  variant?: "full" | "quick";
+  defaultStartTime?: string;
+  defaultEndTime?: string;
 }
 
 const logger = createLogger({ component: "TimetableEventModal" });
+const FORM_SELECT_CLASS = timetableSelectClass;
+const FORM_SEARCH_CLASS = timetableSearchClass;
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
+
+/**
+ * Backend cap for a single materialization window
+ * (MaxMaterializationWindowDays in services/schedule/materialization_service.go).
+ * Whole-period runs are split into windows of this size.
+ */
+const MATERIALIZE_CHUNK_DAYS = 56;
+
+/**
+ * Shown when the primary template write succeeded but a follow-up
+ * materialize/replan chunk failed. The form must still close in that case —
+ * re-submitting would duplicate the already-saved template.
+ */
+const FOLLOW_UP_WARNING =
+  "Regeltermin gespeichert, aber nicht alle Termine konnten eingetragen werden. Die fehlenden Termine werden beim nächsten automatischen Lauf ergänzt.";
+
+/** Plain-language repeat presets shown in the quick variant. */
+type QuickRepeatPreset =
+  | "einmalig"
+  | "woechentlich-am"
+  | "jeden-wochentag"
+  | "benutzerdefiniert";
 
 const TYPE_OPTIONS: Array<{
   value: ActivityType;
@@ -116,7 +168,7 @@ const TYPE_OPTIONS: Array<{
   hint: string;
 }> = [
   { value: "care", label: "Betreuung", hint: "Mensa, Lernzeit, Freispiel" },
-  { value: "activity", label: "AG", hint: "Yoga, Bouldern, ..." },
+  { value: "activity", label: "AG", hint: "Yoga, Bouldern, …" },
   { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
 ];
 
@@ -143,13 +195,15 @@ function emptyForm(
   defaultDate: string,
   defaultCalendarPeriodId?: string | null,
   defaultRepeat: RepeatMode = "none",
+  defaultStartTime = "12:00",
+  defaultEndTime = "13:00",
 ): EventFormState {
   const weekday = isoWeekday(defaultDate);
   return {
     title: "",
     date: defaultDate,
-    startTime: "12:00",
-    endTime: "13:00",
+    startTime: defaultStartTime,
+    endTime: defaultEndTime,
     roomId: "",
     type: "care",
     categoryId: "",
@@ -252,10 +306,24 @@ export function TimetableEventModal({
   initialSeries = null,
   convertInstance = null,
   defaultRepeat = "none",
+  variant = "full",
+  defaultStartTime,
+  defaultEndTime,
 }: TimetableEventModalProps) {
-  const { success: toastSuccess, error: toastError } = useToast();
+  const {
+    success: toastSuccess,
+    error: toastError,
+    warning: toastWarning,
+  } = useToast();
+  const { isModalOpen } = useModal();
   const [form, setForm] = useState<EventFormState>(() =>
-    emptyForm(defaultDate, defaultCalendarPeriodId, defaultRepeat),
+    emptyForm(
+      defaultDate,
+      defaultCalendarPeriodId,
+      defaultRepeat,
+      defaultStartTime,
+      defaultEndTime,
+    ),
   );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
@@ -265,11 +333,24 @@ export function TimetableEventModal({
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState(variant === "full");
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Validated room id stashed while the Dreifach-Frage dialog (US-5) is open.
+  const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
+    roomId: number;
+  } | null>(null);
+  const [conflictWarnings, setConflictWarnings] = useState<
+    ConflictWarningItem[]
+  >([]);
+  // Monotonically increasing probe id so stale responses are dropped.
+  const probeSeq = useRef(0);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
   const isConverting = convertInstance !== null;
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
+  const choiceDialogOpen = pendingSeriesEdit !== null;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -280,9 +361,20 @@ export function TimetableEventModal({
           ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
           : initialInstance
             ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-            : emptyForm(defaultDate, defaultCalendarPeriodId, defaultRepeat),
+            : emptyForm(
+                defaultDate,
+                defaultCalendarPeriodId,
+                defaultRepeat,
+                defaultStartTime,
+                defaultEndTime,
+              ),
     );
     setValidationError(null);
+    setFieldErrors({});
+    setExpanded(variant === "full");
+    setMoreOpen(false);
+    setPendingSeriesEdit(null);
+    setConflictWarnings([]);
     setLoadingRefs(true);
 
     void Promise.all([
@@ -375,11 +467,90 @@ export function TimetableEventModal({
     convertInstance,
     defaultCalendarPeriodId,
     defaultDate,
+    defaultEndTime,
     defaultRepeat,
+    defaultStartTime,
     initialInstance,
     initialSeries,
     isOpen,
+    variant,
   ]);
+
+  // ---------------------------------------------------------------------
+  // Inline conflict probe (QA M7). Advisory only — warnings never disable
+  // Speichern. For series (weekly) drafts the backend check is date-based,
+  // so we probe with the form's single date (the instance date / first
+  // occurrence); acceptable for Phase 3.
+  // ---------------------------------------------------------------------
+  const probeKey = JSON.stringify({
+    date: form.date,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    roomId: form.roomId,
+    staffIds: form.staffIds,
+    studentIds: form.studentIds,
+  });
+  const debouncedProbeKey = useDebounce(probeKey, 500);
+  // The convert flow edits an existing instance too — its own slot must not
+  // self-conflict, exactly like the regular instance edit.
+  const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // While the debounced key lags behind the live form (typing, or a
+    // reopen that reset the form), probing would use outdated values —
+    // skip and invalidate any in-flight probe for the outdated key.
+    if (debouncedProbeKey !== probeKey) {
+      probeSeq.current++;
+      return;
+    }
+    const probe = JSON.parse(debouncedProbeKey) as {
+      date: string;
+      startTime: string;
+      endTime: string;
+      roomId: string;
+      staffIds: string[];
+      studentIds: string[];
+    };
+    const hasResource =
+      probe.roomId !== "" ||
+      probe.staffIds.length > 0 ||
+      probe.studentIds.length > 0;
+    if (!probe.date || !probe.startTime || !probe.endTime || !hasResource) {
+      setConflictWarnings([]);
+      return;
+    }
+    const seq = ++probeSeq.current;
+    timetableService
+      .checkConflicts({
+        date: probe.date,
+        startTime: probe.startTime,
+        endTime: probe.endTime,
+        roomId: probe.roomId || undefined,
+        staffIds: probe.staffIds.length > 0 ? probe.staffIds : undefined,
+        studentIds: probe.studentIds.length > 0 ? probe.studentIds : undefined,
+        excludeInstanceId,
+      })
+      .then((result) => {
+        if (probeSeq.current !== seq) return; // out-of-order response
+        setConflictWarnings(result.warnings);
+      })
+      .catch((err: unknown) => {
+        logger.warn("conflict_probe_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (probeSeq.current === seq) setConflictWarnings([]);
+      });
+  }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
+
+  const clearFieldError = (key: string) => {
+    setFieldErrors((prev) => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
 
   const update = <K extends keyof EventFormState>(
     key: K,
@@ -387,6 +558,10 @@ export function TimetableEventModal({
   ) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setValidationError(null);
+    clearFieldError(key);
+    // The end-before-start error is stored under endTime but depends on both
+    // time fields, so correcting the start time must clear it too.
+    if (key === "startTime") clearFieldError("endTime");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -398,55 +573,102 @@ export function TimetableEventModal({
       return { ...prev, weekdays: next };
     });
     setValidationError(null);
+    clearFieldError("weekdays");
   };
 
-  const canSubmit = useMemo(() => {
-    if (submitting) return false;
-    if (form.title.trim() === "") return false;
-    if (form.date === "" || form.startTime === "" || form.endTime === "") {
-      return false;
+  const validateForm = (): { roomId: number; categoryId?: number } | null => {
+    const errors: Record<string, string> = {};
+    if (form.title.trim() === "") {
+      errors.title = "Bitte einen Titel eingeben.";
     }
-    if (form.roomId === "") return false;
-    if (isSeriesFlow && form.categoryId === "") return false;
-    if (isSeriesFlow && form.weekdays.length === 0) return false;
-    if (isSeriesFlow && form.calendarPeriodId === "") return false;
-    if (isEditingInstance && initialInstance?.status !== "planned")
-      return false;
-    return true;
-  }, [
-    form,
-    initialInstance?.status,
-    isEditingInstance,
-    isSeriesFlow,
-    submitting,
-  ]);
-
-  const validateShared = (): { roomId: number; categoryId?: number } | null => {
-    if (form.endTime <= form.startTime) {
-      setValidationError("Endzeit muss nach der Startzeit liegen.");
-      return null;
+    if (form.date === "") {
+      errors.date = "Bitte ein Datum auswählen.";
+    }
+    if (form.startTime === "") {
+      errors.startTime = "Bitte eine Startzeit angeben.";
+    }
+    if (form.endTime === "") {
+      errors.endTime = "Bitte eine Endzeit angeben.";
+    } else if (form.startTime !== "" && form.endTime <= form.startTime) {
+      errors.endTime = "Endzeit muss nach der Startzeit liegen.";
     }
     const roomId = Number.parseInt(form.roomId, 10);
     if (!Number.isFinite(roomId) || roomId <= 0) {
-      setValidationError("Bitte einen Raum auswählen.");
-      return null;
+      errors.roomId = "Bitte einen Raum auswählen.";
     }
-    if (!isSeriesFlow) return { roomId };
-    const categoryId = Number.parseInt(form.categoryId, 10);
-    if (!Number.isFinite(categoryId) || categoryId <= 0) {
-      setValidationError("Bitte eine Kategorie auswählen.");
-      return null;
+    let categoryId: number | undefined;
+    if (isSeriesFlow) {
+      const parsedCategoryId = Number.parseInt(form.categoryId, 10);
+      if (!Number.isFinite(parsedCategoryId) || parsedCategoryId <= 0) {
+        errors.categoryId = "Bitte eine Kategorie auswählen.";
+      } else {
+        categoryId = parsedCategoryId;
+      }
+      const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
+      if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
+        errors.calendarPeriodId = "Bitte einen Planungszeitraum auswählen.";
+      }
+      if (form.weekdays.length === 0) {
+        errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
+      }
     }
-    const calendarPeriodId = Number.parseInt(form.calendarPeriodId, 10);
-    if (!Number.isFinite(calendarPeriodId) || calendarPeriodId <= 0) {
-      setValidationError("Bitte eine Planungsperiode auswählen.");
-      return null;
-    }
-    if (form.weekdays.length === 0) {
-      setValidationError("Bitte mindestens einen Wochentag auswählen.");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      // Quick mode hides the series controls; expand so an inline error on
+      // a hidden field (Kategorie, Planungszeitraum, Wochentage) is visible.
+      if (
+        !expanded &&
+        (errors.categoryId ?? errors.calendarPeriodId ?? errors.weekdays)
+      ) {
+        setExpanded(true);
+      }
       return null;
     }
     return { roomId, categoryId };
+  };
+
+  // -------------------------------------------------------------------
+  // Quick-variant repeat presets ("Wiederholt sich"). The select's value
+  // is derived back from (repeat, weekdays) so external changes keep it
+  // consistent; anything that doesn't match a preset reads as
+  // "Benutzerdefiniert".
+  // -------------------------------------------------------------------
+  const dateWeekday = isoWeekday(form.date);
+  const quickPreset: QuickRepeatPreset =
+    form.repeat === "none"
+      ? "einmalig"
+      : form.repeat === "weekly" &&
+          form.weekdays.length === 1 &&
+          form.weekdays[0] === dateWeekday
+        ? "woechentlich-am"
+        : form.repeat === "weekly" &&
+            form.weekdays.length === WEEKDAYS.length &&
+            WEEKDAYS.every((day) => form.weekdays.includes(day))
+          ? "jeden-wochentag"
+          : "benutzerdefiniert";
+  const dateWeekdayName =
+    getGermanWeekdayLong(new Date(`${form.date}T00:00:00`)) || "Wochentag";
+
+  const handleQuickPresetChange = (value: string) => {
+    switch (value as QuickRepeatPreset) {
+      case "einmalig":
+        update("repeat", "none");
+        break;
+      case "woechentlich-am":
+        update("repeat", "weekly");
+        update(
+          "weekdays",
+          dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
+        );
+        break;
+      case "jeden-wochentag":
+        update("repeat", "weekly");
+        update("weekdays", [...WEEKDAYS]);
+        break;
+      case "benutzerdefiniert":
+        setExpanded(true);
+        break;
+    }
   };
 
   const instanceBody = (roomId: number, activityGroupId?: string) =>
@@ -485,11 +707,189 @@ export function TimetableEventModal({
       : undefined,
   });
 
+  const findPeriod = (id?: string): CalendarPeriod | undefined =>
+    id ? calendarPeriods.find((period) => period.id === id) : undefined;
+
+  /**
+   * Maps the fetched template plus the fields the instance-edit form
+   * actually edits (title, times, room, people) onto an update/split body.
+   * Weekdays, category, period and week pattern come from the template —
+   * the instance form never edits them.
+   */
+  const templateBodyFromForm = (
+    template: TimetableTemplate,
+    roomId: number,
+  ): UpdateTemplateBody => {
+    const firstSchedule = template.schedules[0];
+    const weekdays = template.schedules.map((schedule) => schedule.weekday);
+    const primaryStaffId = form.primaryStaffId || template.primaryStaffId;
+    return {
+      name: form.title.trim(),
+      type: template.type,
+      weekdays: weekdays.length > 0 ? weekdays : [1],
+      start_time: form.startTime,
+      end_time: form.endTime,
+      room_id: roomId,
+      category_id: Number(template.categoryId),
+      education_group_id: template.educationGroupId
+        ? Number(template.educationGroupId)
+        : undefined,
+      max_participants:
+        template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      week_pattern: firstSchedule?.weekPattern ?? 0,
+      calendar_period_id: firstSchedule?.calendarPeriodId
+        ? Number(firstSchedule.calendarPeriodId)
+        : form.calendarPeriodId
+          ? Number(form.calendarPeriodId)
+          : undefined,
+      student_ids: form.studentIds.map(Number),
+      staff_ids: form.staffIds.map(Number),
+      primary_staff_id:
+        primaryStaffId && form.staffIds.includes(primaryStaffId)
+          ? Number(primaryStaffId)
+          : undefined,
+    };
+  };
+
+  /**
+   * Rebuilds a template's future planned instances: chunked scoped
+   * re-plan from today through the period end (each window stays within
+   * the backend's 56-day materialization cap). Chunk failures are caught
+   * here — the primary template write already succeeded, so they must not
+   * bubble into the form's error path. Returns false when a chunk failed.
+   */
+  const replanTemplateFuture = async (
+    templateId: string,
+    periodEndISO?: string,
+  ): Promise<boolean> => {
+    const endISO =
+      periodEndISO ?? findPeriod(form.calendarPeriodId)?.endDate ?? weekTo;
+    if (!endISO) return true;
+    const chunks = chunkDateRange(todayISO(), endISO, MATERIALIZE_CHUNK_DAYS);
+    for (const chunk of chunks) {
+      try {
+        const result = await timetableService.replanWeek(
+          chunk.from,
+          chunk.to,
+          templateId,
+        );
+        // A precondition like "no_active_period" applies to every chunk.
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      } catch (err) {
+        logger.error("series_replan_chunk_failed", {
+          template_id: templateId,
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  /**
+   * Creates the template materializing the whole selected period (US-1
+   * Phase 3). The backend caps one materialization window at 56 days, so
+   * the create call carries only the first chunk; the rest follow as
+   * separate materialize calls. Falls back to the visible week when no
+   * period is resolvable. Follow-up chunk failures are caught here (the
+   * template already exists; a thrown error would invite a duplicating
+   * retry) and reported via `followUpOk`.
+   */
+  const createSeriesForPeriod = async (
+    body: CreateTemplateBody,
+  ): Promise<{
+    templateId: string;
+    totalCreated: number;
+    followUpOk: boolean;
+  }> => {
+    const period = findPeriod(form.calendarPeriodId);
+    const chunks = period
+      ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
+      : [];
+    const [firstChunk, ...restChunks] = chunks;
+    if (!firstChunk) {
+      const created = await timetableService.createTemplate({
+        ...body,
+        materialize_from: weekFrom,
+        materialize_to: weekTo,
+      });
+      return {
+        templateId: created.templateId,
+        totalCreated: created.instancesCreated ?? 0,
+        followUpOk: true,
+      };
+    }
+    const created = await timetableService.createTemplate({
+      ...body,
+      materialize_from: firstChunk.from,
+      materialize_to: firstChunk.to,
+    });
+    let totalCreated = created.instancesCreated ?? 0;
+    let followUpOk = true;
+    for (const chunk of restChunks) {
+      try {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        totalCreated += result.instancesCreated;
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      } catch (err) {
+        logger.error("series_materialize_chunk_failed", {
+          template_id: created.templateId,
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        followUpOk = false;
+        break;
+      }
+    }
+    return { templateId: created.templateId, totalCreated, followUpOk };
+  };
+
+  /**
+   * Materializes the whole selected period after linking a converted
+   * instance. Failures are caught (template and link are already saved)
+   * and reported via the return value.
+   */
+  const materializePeriodAfterConvert = async (): Promise<boolean> => {
+    const period = findPeriod(form.calendarPeriodId);
+    const chunks = period
+      ? chunkDateRange(period.startDate, period.endDate, MATERIALIZE_CHUNK_DAYS)
+      : [];
+    try {
+      if (chunks.length === 0) {
+        if (weekFrom && weekTo) {
+          await timetableService.materialize(weekFrom, weekTo);
+        }
+        return true;
+      }
+      for (const chunk of chunks) {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        if (result.warnings.some((w) => w.code === "no_active_period")) break;
+      }
+      return true;
+    } catch (err) {
+      logger.error("series_materialize_chunk_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    const parsed = validateShared();
+    if (submitting) return;
+    if (isEditingInstance && initialInstance?.status !== "planned") return;
+    const parsed = validateForm();
     if (!parsed) return;
+
+    // US-5 Dreifach-Frage: editing an instance that belongs to a series
+    // first asks for the scope instead of writing immediately.
+    if (!isSeriesFlow && initialInstance?.activityGroupId) {
+      setPendingSeriesEdit({ roomId: parsed.roomId });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -510,7 +910,7 @@ export function TimetableEventModal({
       }
 
       if (!parsed.categoryId) {
-        setValidationError("Bitte eine Kategorie auswählen.");
+        setFieldErrors({ categoryId: "Bitte eine Kategorie auswählen." });
         return;
       }
 
@@ -519,7 +919,11 @@ export function TimetableEventModal({
           initialSeries.id,
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        toastSuccess("Serie gespeichert");
+        if (await replanTemplateFuture(initialSeries.id)) {
+          toastSuccess("Regeltermin gespeichert");
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
+        }
         onSaved({ kind: "series", seriesId: initialSeries.id });
         onClose();
         return;
@@ -533,28 +937,31 @@ export function TimetableEventModal({
           convertInstance.id,
           instanceBody(parsed.roomId, created.templateId),
         );
-        if (weekFrom && weekTo) {
-          await timetableService.materialize(weekFrom, weekTo);
+        if (await materializePeriodAfterConvert()) {
+          toastSuccess("Termin wiederholt");
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
         }
-        toastSuccess("Termin wiederholt");
         onSaved({
           kind: "series",
           seriesId: created.templateId,
           linkedInstanceId: convertInstance.id,
         });
       } else {
-        const created = await timetableService.createTemplate({
-          ...seriesBody(parsed.roomId, parsed.categoryId),
-          materialize_from: weekFrom,
-          materialize_to: weekTo,
-        });
-        const count = created.instancesCreated ?? 0;
-        toastSuccess(
-          count > 0
-            ? `Serientermin angelegt - ${count} Termin${count === 1 ? "" : "e"} eingeplant`
-            : "Serientermin angelegt",
-        );
-        onSaved({ kind: "series", seriesId: created.templateId });
+        const { templateId, totalCreated, followUpOk } =
+          await createSeriesForPeriod(
+            seriesBody(parsed.roomId, parsed.categoryId),
+          );
+        if (followUpOk) {
+          toastSuccess(
+            totalCreated > 0
+              ? `Regeltermin angelegt: ${totalCreated} Termin${totalCreated === 1 ? "" : "e"} eingetragen`
+              : "Regeltermin angelegt",
+          );
+        } else {
+          toastWarning(FOLLOW_UP_WARNING);
+        }
+        onSaved({ kind: "series", seriesId: templateId });
       }
       onClose();
     } catch (err) {
@@ -572,13 +979,229 @@ export function TimetableEventModal({
     }
   };
 
+  /**
+   * Executes the scope picked in the Dreifach-Frage dialog (US-5).
+   * "single" keeps the plain instance PUT; "following" splits the
+   * template at the instance date; "all" updates the template and
+   * rebuilds future planned instances. A changed Datum only applies to
+   * "single" — series-wide scopes ignore it.
+   */
+  const handleScopeSelect = async (scope: string) => {
+    if (submitting) return;
+    const pending = pendingSeriesEdit;
+    const groupId = initialInstance?.activityGroupId;
+    if (!pending || !initialInstance || !groupId) return;
+    setSubmitting(true);
+    try {
+      if (scope === "single") {
+        const saved = await timetableService.update(
+          initialInstance.id,
+          instanceBody(pending.roomId, groupId),
+        );
+        toastSuccess("Termin gespeichert");
+        onSaved({ kind: "instance", instance: saved });
+      } else {
+        const template = await timetableService.getTemplate(groupId);
+        const periodEnd =
+          findPeriod(template.schedules[0]?.calendarPeriodId)?.endDate ??
+          findPeriod(form.calendarPeriodId)?.endDate;
+        const body = templateBodyFromForm(template, pending.roomId);
+        if (scope === "following") {
+          const effectiveDate = initialInstance.date;
+          const chunks = chunkDateRange(
+            effectiveDate,
+            periodEnd ?? weekTo ?? effectiveDate,
+            MATERIALIZE_CHUNK_DAYS,
+          );
+          const split = await timetableService.splitTemplate(groupId, {
+            ...body,
+            effective_date: effectiveDate,
+            materialize_from: effectiveDate,
+            materialize_to: chunks[0]?.to ?? effectiveDate,
+          });
+          // Beyond the first 56-day window the split leaves the old
+          // template's stale planned rows in place; a scoped re-plan per
+          // chunk clears them and materializes the successor template.
+          // Chunk failures are follow-up only — the split already
+          // succeeded, so warn and close instead of re-opening the form.
+          let followUpOk = true;
+          for (const chunk of chunks.slice(1)) {
+            try {
+              const result = await timetableService.replanWeek(
+                chunk.from,
+                chunk.to,
+                groupId,
+              );
+              if (result.warnings.some((w) => w.code === "no_active_period")) {
+                break;
+              }
+            } catch (chunkErr) {
+              logger.error("series_replan_chunk_failed", {
+                template_id: groupId,
+                from: chunk.from,
+                to: chunk.to,
+                error:
+                  chunkErr instanceof Error
+                    ? chunkErr.message
+                    : String(chunkErr),
+              });
+              followUpOk = false;
+              break;
+            }
+          }
+          if (followUpOk) {
+            toastSuccess(
+              `Regeltermin ab ${formatDate(effectiveDate)} geändert`,
+            );
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
+          onSaved({ kind: "series", seriesId: split.newTemplateId });
+        } else {
+          await timetableService.updateTemplate(groupId, body);
+          if (await replanTemplateFuture(groupId, periodEnd)) {
+            toastSuccess("Regeltermin gespeichert");
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
+          onSaved({ kind: "series", seriesId: groupId });
+        }
+      }
+      setPendingSeriesEdit(null);
+      onClose();
+    } catch (err) {
+      logger.error("series_scope_save_failed", {
+        scope,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      const raw =
+        err instanceof Error
+          ? err.message
+          : "Termin konnte nicht gespeichert werden";
+      // Backend rejects splits whose effective date already passed; the
+      // raw English message is meaningless to school staff.
+      const msg = raw.includes("effective_date must not be in the past")
+        ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
+        : raw;
+      setPendingSeriesEdit(null);
+      setValidationError(msg);
+      toastError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Bulk-add entries for the Kinder field: every distinct class and group
+  // present in the loaded students, each carrying its member ids.
+  const studentBulkOptions = useMemo(() => {
+    const classes = new Map<string, string[]>();
+    const groupNames = new Map<string, string[]>();
+    for (const student of students) {
+      const schoolClass = student.schoolClass?.trim();
+      if (schoolClass) {
+        classes.set(schoolClass, [
+          ...(classes.get(schoolClass) ?? []),
+          student.id,
+        ]);
+      }
+      const groupName = student.groupName?.trim();
+      if (groupName) {
+        groupNames.set(groupName, [
+          ...(groupNames.get(groupName) ?? []),
+          student.id,
+        ]);
+      }
+    }
+    const byName = (a: [string, string[]], b: [string, string[]]) =>
+      a[0].localeCompare(b[0], "de");
+    return [
+      ...[...classes.entries()].sort(byName).map(([name, memberIds]) => ({
+        key: `class:${name}`,
+        label: `Klasse ${name}`,
+        memberIds,
+      })),
+      ...[...groupNames.entries()].sort(byName).map(([name, memberIds]) => ({
+        key: `group:${name}`,
+        label: `Gruppe ${name}`,
+        memberIds,
+      })),
+    ];
+  }, [students]);
+
+  // Datum and Notiz only apply to the single-instance scope — series-wide
+  // scopes write the template, which carries neither field.
+  const dateChanged =
+    initialInstance !== null && form.date !== initialInstance.date;
+  const notesChanged =
+    initialInstance !== null && form.notes !== (initialInstance.notes ?? "");
+
   const title = isEditingSeries
-    ? "Serie bearbeiten"
+    ? "Regeltermin bearbeiten"
     : isEditingInstance
       ? "Termin bearbeiten"
       : isConverting
         ? "Termin wiederholen"
         : "Termin";
+
+  // Personal renders before Kinder in every mode (Streichliste 8); the
+  // quick variant tucks all of this behind the "Weitere Optionen" row.
+  const peopleFields = (
+    <>
+      <MultiSelectField
+        label="Personal"
+        options={staff}
+        value={form.staffIds}
+        onChange={(ids) => {
+          update("staffIds", ids);
+          if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+            update("primaryStaffId", "");
+          }
+        }}
+        metadata="staff"
+      />
+
+      {isSeriesFlow && form.staffIds.length > 0 && (
+        <Field label="Zuständige Person" htmlFor="event_primary_staff">
+          <select
+            id="event_primary_staff"
+            value={form.primaryStaffId}
+            onChange={(event) => update("primaryStaffId", event.target.value)}
+            className={FORM_SELECT_CLASS}
+          >
+            <option value="">Keine Auswahl</option>
+            {staff
+              .filter((person) => form.staffIds.includes(person.id))
+              .map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+          </select>
+        </Field>
+      )}
+
+      <MultiSelectField
+        label="Kinder"
+        options={students}
+        value={form.studentIds}
+        onChange={(ids) => update("studentIds", ids)}
+        metadata="student"
+        bulkOptions={studentBulkOptions}
+      />
+
+      {!isSeriesFlow && (
+        <Field label="Notiz" htmlFor="event_notes">
+          <textarea
+            id="event_notes"
+            value={form.notes}
+            onChange={(event) => update("notes", event.target.value)}
+            rows={3}
+            className={timetableTextAreaClass}
+          />
+        </Field>
+      )}
+    </>
+  );
 
   return (
     <SlideOver
@@ -587,39 +1210,58 @@ export function TimetableEventModal({
         if (!open) onClose();
       }}
     >
-      <SlideOverContent widthClass="sm:w-[760px]">
+      <SlideOverContent
+        widthClass="sm:w-[760px]"
+        // The ChoiceModal portals to document.body and lives outside the
+        // drawer's DOM. Without these guards Vaul's DismissableLayer treats
+        // every click inside the open dialog as an outside-click and closes
+        // the slide-over, unmounting the dialog before its buttons can
+        // fire. See issue #1358. `submitting` additionally blocks dismissal
+        // mid-save (both the form submit and the scope flow set it).
+        onInteractOutside={(event) => {
+          if (isModalOpen || choiceDialogOpen || submitting) {
+            event.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(event) => {
+          if (isModalOpen || choiceDialogOpen || submitting) {
+            event.preventDefault();
+          }
+        }}
+      >
         <SlideOverHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <SlideOverTitle>{title}</SlideOverTitle>
               <SlideOverDescription>
                 {isSeriesFlow
-                  ? "Wiederkehrenden Termin mit Kindern und Personal planen."
-                  : "Einmaligen Termin im Stundenplan anlegen."}
+                  ? "Regelmäßigen Termin mit Kindern und Personal planen."
+                  : isEditingInstance
+                    ? "Termin im Betreuungsplan bearbeiten."
+                    : "Einmaligen Termin im Betreuungsplan anlegen."}
               </SlideOverDescription>
             </div>
-            <SlideOverClose asChild>
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 text-gray-500 transition-colors hover:bg-gray-100"
-                aria-label="Schließen"
-              >
-                <X className="h-4 w-4" aria-hidden />
-              </button>
-            </SlideOverClose>
+            <SlideOverCloseButton />
           </div>
         </SlideOverHeader>
 
         <form
           id="timetable-event-form"
+          noValidate
           onSubmit={(event) => void handleSubmit(event)}
           className="flex-1 overflow-y-auto px-5 py-4"
         >
           <div className="flex flex-col gap-5">
-            {initialInstance && initialInstance.status !== "planned" && (
-              <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]">
-                Nur geplante Termine können bearbeitet werden.
-              </div>
+            {initialInstance &&
+              initialInstance.status !== "planned" &&
+              renderModalErrorAlert({
+                message: "Nur geplante Termine können bearbeitet werden.",
+              })}
+
+            {isEditingSeries && (
+              <p className="text-xs text-gray-500">
+                Änderungen gelten für alle Termine dieser Serie.
+              </p>
             )}
 
             <Field label="Titel" htmlFor="event_title" required>
@@ -629,6 +1271,8 @@ export function TimetableEventModal({
                 onChange={(event) => update("title", event.target.value)}
                 placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
                 maxLength={255}
+                controlSize="compact"
+                error={fieldErrors.title}
                 autoFocus
                 required
               />
@@ -640,11 +1284,18 @@ export function TimetableEventModal({
                   id="event_date"
                   type="date"
                   value={form.date}
+                  controlSize="compact"
+                  error={fieldErrors.date}
                   onChange={(event) => {
                     const nextDate = event.target.value;
                     const nextWeekday = isoWeekday(nextDate);
                     update("date", nextDate);
-                    if (!isSeriesFlow && nextWeekday >= 1 && nextWeekday <= 5) {
+                    // One-off events follow the date; the quick preset
+                    // "Wöchentlich am <Tag>" retargets to the new weekday.
+                    const followsDate =
+                      !isSeriesFlow ||
+                      (!expanded && quickPreset === "woechentlich-am");
+                    if (followsDate && nextWeekday >= 1 && nextWeekday <= 5) {
                       update("weekdays", [nextWeekday]);
                     }
                   }}
@@ -656,6 +1307,8 @@ export function TimetableEventModal({
                   id="event_start"
                   type="time"
                   value={form.startTime}
+                  controlSize="compact"
+                  error={fieldErrors.startTime}
                   onChange={(event) => update("startTime", event.target.value)}
                   required
                 />
@@ -665,23 +1318,34 @@ export function TimetableEventModal({
                   id="event_end"
                   type="time"
                   value={form.endTime}
+                  controlSize="compact"
+                  error={fieldErrors.endTime}
                   onChange={(event) => update("endTime", event.target.value)}
                   required
                 />
               </Field>
             </div>
 
-            <Field label="Raum" htmlFor="event_room" required>
+            <Field
+              label="Raum"
+              htmlFor="event_room"
+              required
+              error={fieldErrors.roomId}
+            >
               <select
                 id="event_room"
                 value={form.roomId}
                 onChange={(event) => update("roomId", event.target.value)}
                 disabled={loadingRefs}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                aria-invalid={fieldErrors.roomId ? true : undefined}
+                aria-describedby={
+                  fieldErrors.roomId ? "event_room_error" : undefined
+                }
+                className={FORM_SELECT_CLASS}
               >
                 <option value="">
-                  {loadingRefs ? "Lade Räume ..." : "Raum auswählen ..."}
+                  {loadingRefs ? "Lade Räume …" : "Raum auswählen …"}
                 </option>
                 {rooms.map((room) => (
                   <option key={room.id} value={room.id}>
@@ -693,50 +1357,69 @@ export function TimetableEventModal({
               </select>
             </Field>
 
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-gray-700">
-                Wiederholen
-              </span>
-              <div className="inline-flex w-fit rounded-md bg-gray-100 p-0.5">
-                {REPEAT_OPTIONS.map((option) => {
-                  const isActive = form.repeat === option.value;
-                  const disabled = isEditingSeries && option.value === "none";
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => {
-                        update("repeat", option.value);
-                        if (
-                          option.value !== "none" &&
-                          form.weekdays.length === 0
-                        ) {
-                          const weekday = isoWeekday(form.date);
-                          update(
-                            "weekdays",
-                            weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-                          );
-                        }
-                      }}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                        isActive
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
+            {expanded ? (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-gray-700">
+                  Wiederholt sich
+                </span>
+                <Tabs
+                  value={form.repeat}
+                  onValueChange={(value) => {
+                    const nextRepeat = value as RepeatMode;
+                    update("repeat", nextRepeat);
+                    if (nextRepeat !== "none" && form.weekdays.length === 0) {
+                      const weekday = isoWeekday(form.date);
+                      update(
+                        "weekdays",
+                        weekday >= 1 && weekday <= 5 ? [weekday] : [1],
+                      );
+                    }
+                  }}
+                >
+                  <TabsList aria-label="Wiederholung" className="w-fit">
+                    {REPEAT_OPTIONS.map((option) => (
+                      <TabsTrigger
+                        key={option.value}
+                        value={option.value}
+                        disabled={isEditingSeries && option.value === "none"}
+                      >
+                        {option.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
               </div>
-            </div>
+            ) : (
+              <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
+                <select
+                  id="event_quick_repeat"
+                  value={quickPreset}
+                  onChange={(event) =>
+                    handleQuickPresetChange(event.target.value)
+                  }
+                  className={FORM_SELECT_CLASS}
+                >
+                  <option value="einmalig">Einmalig</option>
+                  {/* On Sa/So a weekly preset would silently save a Monday
+                      series (weekdays are Mo–Fr) — omit it instead. */}
+                  {dateWeekday >= 1 && dateWeekday <= 5 && (
+                    <option value="woechentlich-am">
+                      {`Wöchentlich am ${dateWeekdayName}`}
+                    </option>
+                  )}
+                  <option value="jeden-wochentag">
+                    Jeden Wochentag (Mo–Fr)
+                  </option>
+                  <option value="benutzerdefiniert">Benutzerdefiniert …</option>
+                </select>
+              </Field>
+            )}
 
-            {isSeriesFlow && (
+            {expanded && isSeriesFlow && (
               <>
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold text-gray-700">
-                    Typ <span className="ml-0.5 text-[#FF3130]">*</span>
+                    Typ <span className={timetableRequiredMark}>*</span>
                   </span>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {TYPE_OPTIONS.map((option) => {
@@ -747,12 +1430,12 @@ export function TimetableEventModal({
                           key={option.value}
                           type="button"
                           onClick={() => update("type", option.value)}
-                          className={`flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left transition-colors ${
+                          className={`flex flex-col items-start gap-0.5 rounded-xl border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                             isActive
-                              ? "border-2 bg-white"
-                              : "border border-gray-200 bg-gray-50 hover:bg-white"
+                              ? "border-gray-300 bg-white"
+                              : "border-gray-200 bg-white hover:bg-gray-50"
                           }`}
-                          style={isActive ? { borderColor: color } : undefined}
+                          style={{ borderLeftColor: color }}
                         >
                           <span
                             className="text-sm font-semibold"
@@ -771,7 +1454,7 @@ export function TimetableEventModal({
 
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold text-gray-700">
-                    Wochentage <span className="ml-0.5 text-[#FF3130]">*</span>
+                    Wochentage <span className={timetableRequiredMark}>*</span>
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {WEEKDAYS.map((iso) => {
@@ -781,7 +1464,7 @@ export function TimetableEventModal({
                           key={iso}
                           type="button"
                           onClick={() => toggleWeekday(iso)}
-                          className={`min-w-[44px] rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                          className={`min-w-[44px] rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                             isActive
                               ? "border-gray-900 bg-gray-900 text-white"
                               : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
@@ -793,10 +1476,20 @@ export function TimetableEventModal({
                       );
                     })}
                   </div>
+                  {fieldErrors.weekdays && (
+                    <p role="alert" className="mt-1 text-xs text-red-600">
+                      {fieldErrors.weekdays}
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Kategorie" htmlFor="event_category" required>
+                  <Field
+                    label="Kategorie"
+                    htmlFor="event_category"
+                    required
+                    error={fieldErrors.categoryId}
+                  >
                     <select
                       id="event_category"
                       value={form.categoryId}
@@ -805,12 +1498,18 @@ export function TimetableEventModal({
                       }
                       required
                       disabled={loadingRefs}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                      aria-invalid={fieldErrors.categoryId ? true : undefined}
+                      aria-describedby={
+                        fieldErrors.categoryId
+                          ? "event_category_error"
+                          : undefined
+                      }
+                      className={FORM_SELECT_CLASS}
                     >
                       <option value="">
                         {loadingRefs
-                          ? "Lade Kategorien ..."
-                          : "Kategorie wählen ..."}
+                          ? "Lade Kategorien …"
+                          : "Kategorie wählen …"}
                       </option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
@@ -827,7 +1526,7 @@ export function TimetableEventModal({
                         update("educationGroupId", event.target.value)
                       }
                       disabled={loadingRefs}
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none disabled:bg-gray-100"
+                      className={FORM_SELECT_CLASS}
                     >
                       <option value="">Keine Zuordnung</option>
                       {groups.map((group) => (
@@ -842,9 +1541,10 @@ export function TimetableEventModal({
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {showPeriodField ? (
                     <Field
-                      label="Planungsperiode"
+                      label="Planungszeitraum"
                       htmlFor="event_period"
                       required
+                      error={fieldErrors.calendarPeriodId}
                     >
                       <select
                         id="event_period"
@@ -853,9 +1553,17 @@ export function TimetableEventModal({
                           update("calendarPeriodId", event.target.value)
                         }
                         required
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+                        aria-invalid={
+                          fieldErrors.calendarPeriodId ? true : undefined
+                        }
+                        aria-describedby={
+                          fieldErrors.calendarPeriodId
+                            ? "event_period_error"
+                            : undefined
+                        }
+                        className={FORM_SELECT_CLASS}
                       >
-                        <option value="">Periode auswählen ...</option>
+                        <option value="">Zeitraum auswählen …</option>
                         {calendarPeriods.map((period) => (
                           <option key={period.id} value={period.id}>
                             {period.name}
@@ -866,7 +1574,7 @@ export function TimetableEventModal({
                   ) : (
                     <div className="flex flex-col justify-end gap-1">
                       <span className="text-xs font-semibold text-gray-700">
-                        Planungsperiode
+                        Planungszeitraum
                       </span>
                       <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
                         <span className="truncate">
@@ -874,97 +1582,72 @@ export function TimetableEventModal({
                           <span className="font-semibold text-gray-800">
                             {calendarPeriods.find(
                               (p) => p.id === form.calendarPeriodId,
-                            )?.name ?? "der aktuellen Planungsperiode"}
+                            )?.name ?? "dem aktuellen Planungszeitraum"}
                           </span>
                         </span>
                       </div>
+                      {fieldErrors.calendarPeriodId && (
+                        <p role="alert" className="mt-1 text-xs text-red-600">
+                          {fieldErrors.calendarPeriodId}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
               </>
             )}
 
-            <MultiSelectField
-              label="Kinder"
-              options={students}
-              value={form.studentIds}
-              onChange={(ids) => update("studentIds", ids)}
-              metadata="student"
-            />
-
-            <MultiSelectField
-              label="Personal"
-              options={staff}
-              value={form.staffIds}
-              onChange={(ids) => {
-                update("staffIds", ids);
-                if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-                  update("primaryStaffId", "");
-                }
-              }}
-              metadata="staff"
-            />
-
-            {isSeriesFlow && form.staffIds.length > 0 && (
-              <Field label="Hauptverantwortlich" htmlFor="event_primary_staff">
-                <select
-                  id="event_primary_staff"
-                  value={form.primaryStaffId}
-                  onChange={(event) =>
-                    update("primaryStaffId", event.target.value)
-                  }
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            {expanded ? (
+              peopleFields
+            ) : (
+              <div className="flex flex-col gap-5">
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen((open) => !open)}
+                  aria-expanded={moreOpen}
+                  className="flex w-fit items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 >
-                  <option value="">Keine Auswahl</option>
-                  {staff
-                    .filter((person) => form.staffIds.includes(person.id))
-                    .map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name}
-                      </option>
-                    ))}
-                </select>
-              </Field>
-            )}
-
-            {!isSeriesFlow && (
-              <Field label="Notiz" htmlFor="event_notes">
-                <textarea
-                  id="event_notes"
-                  value={form.notes}
-                  onChange={(event) => update("notes", event.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
-                />
-              </Field>
-            )}
-
-            {isSeriesFlow && calendarPeriods.length === 0 && (
-              <div
-                role="alert"
-                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
-              >
-                Für diese Woche gibt es keine aktive Planungsperiode. Lege
-                zuerst eine Periode im Kopfbereich an.
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                  Weitere Optionen
+                </button>
+                {moreOpen && peopleFields}
               </div>
             )}
 
-            {validationError && (
-              <div
-                role="alert"
-                className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
-              >
-                {validationError}
-              </div>
-            )}
+            {isSeriesFlow &&
+              calendarPeriods.length === 0 &&
+              renderModalErrorAlert({
+                message:
+                  "Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an.",
+              })}
+
+            {validationError &&
+              renderModalErrorAlert({ message: validationError })}
           </div>
         </form>
+
+        {conflictWarnings.length > 0 && (
+          // Advisory pre-save hints (QA M7): visible in quick and expanded
+          // mode, pinned above the footer. Never disables Speichern.
+          <div className="flex flex-col gap-2 border-t border-gray-200 px-5 py-3">
+            {conflictWarnings.map((warning, index) => (
+              <Alert
+                key={`${warning.kind}-${warning.resourceId}-${index}`}
+                type="warning"
+                message={`Hinweis: ${warning.message}`}
+              />
+            ))}
+          </div>
+        )}
 
         <SlideOverFooter className="flex-row items-center justify-end">
           <Button
             type="button"
             variant="outline"
-            size="sm"
+            size="md"
             onClick={onClose}
             disabled={submitting}
           >
@@ -974,14 +1657,51 @@ export function TimetableEventModal({
             type="submit"
             form="timetable-event-form"
             variant="primary"
-            size="sm"
+            size="md"
             isLoading={submitting}
-            loadingText="Speichere ..."
-            disabled={!canSubmit}
+            loadingText="Speichere …"
+            disabled={
+              submitting ||
+              (isEditingInstance && initialInstance?.status !== "planned")
+            }
           >
             Speichern
           </Button>
         </SlideOverFooter>
+
+        {initialInstance && (
+          <ChoiceModal
+            isOpen={choiceDialogOpen}
+            onClose={() => setPendingSeriesEdit(null)}
+            title="Wiederholenden Termin ändern"
+            description={
+              `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
+              (dateChanged || notesChanged
+                ? " Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“."
+                : "")
+            }
+            options={[
+              {
+                value: "single",
+                label: "Nur dieser Termin",
+                description: `Die Änderung gilt nur am ${formatDate(form.date)}.`,
+              },
+              {
+                value: "following",
+                label: "Dieser und alle folgenden",
+                description: `Die Änderung gilt ab dem ${formatDate(initialInstance.date)} für diesen und alle weiteren Termine; frühere bleiben unverändert.`,
+              },
+              {
+                value: "all",
+                label: "Alle Termine der Serie",
+                description:
+                  "Ändert den Regeltermin und baut künftige geplante Termine neu auf.",
+              },
+            ]}
+            onSelect={(value) => void handleScopeSelect(value)}
+            isBusy={submitting}
+          />
+        )}
       </SlideOverContent>
     </SlideOver>
   );
@@ -991,21 +1711,32 @@ function Field({
   label,
   htmlFor,
   required = false,
+  error,
   children,
 }: {
   label: string;
   htmlFor: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-gray-700">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
         {label}
-        {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
-      </span>
+        {required && <span className={timetableRequiredMark}>*</span>}
+      </label>
       {children}
-    </label>
+      {error && (
+        <p
+          id={`${htmlFor}_error`}
+          role="alert"
+          className="mt-1 text-xs text-red-600"
+        >
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1015,12 +1746,18 @@ function MultiSelectField({
   value,
   onChange,
   metadata,
+  bulkOptions,
 }: {
   label: string;
   options: PersonOption[];
   value: string[];
   onChange: (value: string[]) => void;
   metadata: "student" | "staff";
+  /**
+   * Whole-cohort entries (e.g. "Klasse 1a") rendered as a select in the
+   * action row; choosing one unions its memberIds into the selection.
+   */
+  bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
 }) {
   const [query, setQuery] = useState("");
   const [classFilter, setClassFilter] = useState("all");
@@ -1097,7 +1834,7 @@ function MultiSelectField({
   };
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className={`${timetableMutedSurface} flex flex-col gap-2 p-3`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
         <span className="text-[11px] text-gray-500">
@@ -1116,15 +1853,15 @@ function MultiSelectField({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={`${label} suchen ...`}
-            className="h-9 w-full rounded-md border border-gray-200 bg-white pr-3 pl-9 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            placeholder={`${label} suchen …`}
+            className={FORM_SEARCH_CLASS}
           />
         </label>
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
             onChange={(event) => setClassFilter(event.target.value)}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className={FORM_SELECT_CLASS}
             aria-label="Nach Klasse filtern"
           >
             <option value="all">Alle Klassen</option>
@@ -1139,7 +1876,7 @@ function MultiSelectField({
           <select
             value={groupFilter}
             onChange={(event) => setGroupFilter(event.target.value)}
-            className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-700 focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className={FORM_SELECT_CLASS}
             aria-label="Nach Gruppe filtern"
           >
             <option value="all">Alle Gruppen</option>
@@ -1157,15 +1894,40 @@ function MultiSelectField({
           type="button"
           onClick={allVisibleSelected ? clearVisible : selectVisible}
           disabled={visibleIds.length === 0}
-          className="rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
         </button>
+        {bulkOptions && bulkOptions.length > 0 && (
+          // Pinned to "" so picking an entry adds its members and the
+          // select snaps back to the placeholder.
+          <select
+            value=""
+            onChange={(event) => {
+              const entry = bulkOptions.find(
+                (option) => option.key === event.target.value,
+              );
+              if (!entry) return;
+              onChange(Array.from(new Set([...value, ...entry.memberIds])));
+            }}
+            aria-label="Klasse oder Gruppe komplett hinzufügen"
+            className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <option value="" disabled>
+              Klasse/Gruppe komplett hinzufügen …
+            </option>
+            {bulkOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
         {value.length > 0 && (
           <button
             type="button"
             onClick={() => onChange([])}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Auswahl leeren
           </button>
@@ -1178,14 +1940,14 @@ function MultiSelectField({
               setClassFilter("all");
               setGroupFilter("all");
             }}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Filter zurücksetzen
           </button>
         )}
       </div>
 
-      <div className="max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2">
+      <div className={`${timetableNestedSurface} max-h-72 overflow-y-auto p-2`}>
         {options.length === 0 ? (
           <div className="px-2 py-3 text-xs text-gray-500">
             Keine Einträge gefunden
@@ -1199,13 +1961,11 @@ function MultiSelectField({
             {filteredOptions.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={selected.has(option.id)}
                   onChange={() => toggle(option.id)}
-                  className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-200"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{option.name}</span>

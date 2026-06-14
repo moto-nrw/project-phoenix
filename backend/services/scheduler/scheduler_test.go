@@ -2857,19 +2857,24 @@ func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
 	assert.Equal(t, 0, m.materializeCalls, "must skip work when task already running")
 }
 
-func TestCheckAndRunMaterialization_DisabledByDefault(t *testing.T) {
-	// With no settings resolver and no env vars, resolveBoolSetting returns
-	// the defaultVal (false) — materializer must never be called.
+func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
+	// With no tenant override on the enabled key, resolveBoolSetting returns
+	// the defaultVal (true) — materializer runs on the configured weekday.
 	m := &fakeMaterializer{}
 	s := &Scheduler{
 		logger:       slog.Default(),
 		materializer: m,
+		settings: &fakeSettingsResolver{
+			intValues: map[string]int{
+				configModel.KeyTimetableMaterializationWeekday: currentISOWeekday(),
+			},
+		},
 	}
 	task := &ScheduledTask{Name: "test"}
 
 	s.checkAndRunMaterialization(task)
 
-	assert.Equal(t, 0, m.materializeCalls, "disabled tenant must not invoke materializer")
+	assert.Equal(t, 1, m.materializeCalls, "default-enabled tenant must invoke materializer")
 	// Task running flag must be cleared via the deferred unlock.
 	task.mu.Lock()
 	assert.False(t, task.Running, "Running flag must be cleared after run")
@@ -3092,6 +3097,11 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 			logger:       slog.Default(),
 			tasks:        make(map[string]*ScheduledTask),
 			materializer: m,
+			settings: &fakeSettingsResolver{
+				boolValues: map[string]bool{
+					configModel.KeyTimetableMaterializationEnabled: false,
+				},
+			},
 		}
 		task := &ScheduledTask{Name: "timetable-materialization"}
 
@@ -3104,8 +3114,8 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 		synctest.Wait()
 
 		// checkAndRunMaterialization was called at startup + on each tick.
-		// With no settings resolver, all calls short-circuit before the
-		// materializer — we assert on the cleanup path instead.
+		// With the enabled=false override, all calls short-circuit before
+		// the materializer — we assert on the cleanup path instead.
 		m.mu.Lock()
 		assert.Equal(t, 0, m.materializeCalls, "disabled tenant must not call materializer")
 		m.mu.Unlock()

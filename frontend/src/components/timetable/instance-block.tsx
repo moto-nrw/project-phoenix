@@ -5,7 +5,7 @@
  *
  * Visual style matches the TemplateCard idiom:
  * - 3px left color-bar tied to activity type via `getActivityColor`
- * - flat surface with single hairline border, no default shadow
+ * - neutral surface with single hairline border and subtle shadow
  * - status indicator as a 6px dot, not a noisy pill
  * - text hierarchy: title 12px semibold, time/room 10px gray-500
  *
@@ -16,11 +16,9 @@
 
 import { TriangleAlert } from "lucide-react";
 
-import {
-  getActivityColor,
-  getActivityLightTint,
-} from "~/lib/timetable-helpers";
+import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { timetableStatusColors } from "./timetable-style";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -54,30 +52,29 @@ export function InstanceBlock({
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
 
-  const tint = isCancelled
-    ? "#FAFAFA"
-    : getActivityLightTint(instance.activityType);
-
   const ringClass = isSelected
     ? "ring-2 ring-offset-1 ring-gray-900"
     : "ring-0 hover:ring-1 hover:ring-gray-300";
 
   const borderClass = isCancelled
     ? "border border-dashed border-[#FF3130]"
-    : "border border-gray-200/60";
+    : "border border-gray-200";
+  const activityColor = isCancelled
+    ? timetableStatusColors.cancelled
+    : getActivityColor(instance.activityType);
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={isSelected}
-      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-md text-left transition-all focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
+      className={`group absolute ${ringClass} ${borderClass} cursor-pointer overflow-hidden rounded-xl border-l-[3px] bg-white text-left shadow-sm transition-[background-color,border-color,box-shadow] hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
       style={{
         top: `${top}px`,
         height: `${Math.max(height, 18)}px`,
         left,
         width,
-        backgroundColor: tint,
+        borderLeftColor: activityColor,
         padding: isTiny ? "2px 6px" : "4px 6px",
       }}
     >
@@ -116,11 +113,14 @@ export function InstanceBlock({
         )}
 
         {!isCompact && instance.isSpontaneous && !isCancelled && (
-          <div className="truncate text-[10px] font-semibold text-gray-600">
+          <div
+            className="truncate text-[10px] font-semibold text-gray-600"
+            title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+          >
             <span
               className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
               style={{
-                backgroundColor: getActivityColor(instance.activityType),
+                backgroundColor: activityColor,
               }}
               aria-hidden
             />

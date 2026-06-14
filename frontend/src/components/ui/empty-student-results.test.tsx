@@ -6,7 +6,7 @@ describe("EmptyStudentResults", () => {
   it("renders the empty state message", () => {
     render(<EmptyStudentResults totalCount={100} filteredCount={0} />);
 
-    expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+    expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
   });
 
   it("displays the search icon", () => {
@@ -30,7 +30,7 @@ describe("EmptyStudentResults", () => {
     render(<EmptyStudentResults totalCount={100} filteredCount={0} />);
 
     expect(
-      screen.getByText("100 Schüler insgesamt, 0 nach Filtern"),
+      screen.getByText("100 Kinder insgesamt, 0 nach Filtern"),
     ).toBeInTheDocument();
   });
 
@@ -38,7 +38,7 @@ describe("EmptyStudentResults", () => {
     render(<EmptyStudentResults totalCount={50} filteredCount={5} />);
 
     expect(
-      screen.getByText("50 Schüler insgesamt, 5 nach Filtern"),
+      screen.getByText("50 Kinder insgesamt, 5 nach Filtern"),
     ).toBeInTheDocument();
   });
 });

@@ -436,14 +436,13 @@ describe("Sidebar", () => {
       expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
-    it("shows admin-only coming soon items for admins", () => {
+    it("does not show the old Dienstpläne placeholder for admins", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
-      // Admin-only coming soon features
-      expect(screen.getByText("Dienstpläne")).toBeInTheDocument();
+      expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
       expect(screen.getByText("Berichte")).toBeInTheDocument();
     });
 

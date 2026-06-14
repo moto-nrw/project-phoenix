@@ -38,6 +38,10 @@ describe("RootPage", () => {
     render(<RootPage />);
 
     expect(screen.getByText("Willkommen")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Los geht's" })).toHaveAttribute(
+      "href",
+      "/start",
+    );
     expect(screen.getByText("Einrichtung")).toBeInTheDocument();
     // Select is rendered but disabled while loading (avoids layout flicker)
     const select = screen.getByRole("combobox");

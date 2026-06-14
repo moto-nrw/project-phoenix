@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type React from "react";
 import {
   CalendarClock,
   ShieldAlert,
@@ -17,6 +16,14 @@ import type {
   GapInstance,
   EnrichedInstance,
 } from "~/lib/timetable-types";
+import {
+  timetableDangerPanel,
+  timetableNestedSurface,
+  timetableSelectClass,
+  timetableSurfacePadded,
+  timetableWarningPanel,
+} from "./timetable-style";
+import { TimetableStatCard } from "./timetable-stat-card";
 
 interface PlanQualityPanelProps {
   instances: EnrichedInstance[];
@@ -112,7 +119,7 @@ export function PlanQualityPanel({
   };
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <section className={timetableSurfacePadded}>
       <div>
         <h2 className="text-sm font-bold text-gray-900">Planstatus</h2>
         <p className="mt-0.5 text-xs text-gray-500">
@@ -127,25 +134,25 @@ export function PlanQualityPanel({
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-4">
-        <Metric
+        <TimetableStatCard
           icon={<CalendarClock className="h-4 w-4" />}
           label="Geplant"
           value={String(plannedCount)}
           tone="neutral"
         />
-        <Metric
+        <TimetableStatCard
           icon={<UsersRound className="h-4 w-4" />}
           label="Läuft"
           value={String(activeCount)}
           tone="success"
         />
-        <Metric
+        <TimetableStatCard
           icon={<UserPlus className="h-4 w-4" />}
           label="Ohne Personal"
           value={String(gaps.length)}
           tone={gaps.length > 0 ? "danger" : "neutral"}
         />
-        <Metric
+        <TimetableStatCard
           icon={<ShieldAlert className="h-4 w-4" />}
           label="Abwesend"
           value={String(absentStaffCount)}
@@ -154,8 +161,8 @@ export function PlanQualityPanel({
       </div>
 
       {hasError && (
-        <div className="mt-4 rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3 text-xs text-[#EAB308]">
-          <div className="flex items-center gap-2 font-bold">
+        <div className={`${timetableWarningPanel} mt-4 text-xs text-[#92400E]`}>
+          <div className="flex items-center gap-2 font-bold text-[#92400E]">
             <TriangleAlert className="h-4 w-4" />
             Prüfung unvollständig
           </div>
@@ -169,7 +176,7 @@ export function PlanQualityPanel({
       {(gaps.length > 0 || conflicts.length > 0) && (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {gaps.length > 0 && (
-            <div className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 p-3">
+            <div className={timetableDangerPanel}>
               <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
                 <UserPlus className="h-4 w-4" />
                 Personal-Lücken
@@ -185,7 +192,7 @@ export function PlanQualityPanel({
                   return (
                     <div
                       key={gap.instanceId}
-                      className="rounded-md bg-white p-2 text-xs shadow-sm"
+                      className={`${timetableNestedSurface} p-2 text-xs`}
                     >
                       <button
                         type="button"
@@ -203,7 +210,7 @@ export function PlanQualityPanel({
                         <div className="mt-2">
                           <Button
                             type="button"
-                            size="sm"
+                            size="compact"
                             variant="outline"
                             onClick={() => onEditInstance(gap.instanceId)}
                           >
@@ -214,7 +221,7 @@ export function PlanQualityPanel({
                       {canSubstitute && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           {absentRows.length === 1 ? (
-                            <span className="text-xs font-semibold text-[#991B1B]">
+                            <span className="text-xs font-semibold text-[#CC2626]">
                               Abwesend:{" "}
                               {staffNameById.get(absentRows[0]!.staffId) ??
                                 `Personal #${absentRows[0]!.staffId}`}
@@ -232,7 +239,7 @@ export function PlanQualityPanel({
                                   [gap.instanceId]: e.target.value,
                                 }))
                               }
-                              className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                              className={`${timetableSelectClass} min-w-48`}
                             >
                               {absentRows.map((item) => (
                                 <option key={item.staffId} value={item.staffId}>
@@ -250,7 +257,7 @@ export function PlanQualityPanel({
                                 [gap.instanceId]: e.target.value,
                               }))
                             }
-                            className="min-w-48 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs"
+                            className={`${timetableSelectClass} min-w-48`}
                           >
                             <option value="">Ersatz auswählen …</option>
                             {availableStaff.map((item) => (
@@ -261,7 +268,7 @@ export function PlanQualityPanel({
                           </select>
                           <Button
                             type="button"
-                            size="sm"
+                            size="compact"
                             variant="outline"
                             onClick={() => handleSubstitute(gap)}
                             isLoading={submittingGapId === gap.instanceId}
@@ -279,8 +286,8 @@ export function PlanQualityPanel({
           )}
 
           {conflicts.length > 0 && (
-            <div className="rounded-md border border-[#EAB308]/20 bg-[#EAB308]/10 p-3">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#EAB308]">
+            <div className={timetableWarningPanel}>
+              <div className="flex items-center gap-2 text-xs font-bold text-[#92400E]">
                 <TriangleAlert className="h-4 w-4" />
                 Ausnahmen prüfen
               </div>
@@ -290,7 +297,7 @@ export function PlanQualityPanel({
                     key={`${conflict.kind}-${conflict.instanceId}-${conflict.studentId}`}
                     type="button"
                     onClick={() => onSelectInstance(conflict.instanceId)}
-                    className="block w-full rounded-md bg-white p-2 text-left text-xs shadow-sm hover:bg-[#FFF7ED]"
+                    className={`${timetableNestedSurface} block w-full p-2 text-left text-xs hover:bg-[#EAB308]/5 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none`}
                   >
                     <div className="font-bold text-gray-900">
                       {dateLabel(conflict.date)} • {conflict.activityTitle}
@@ -301,7 +308,7 @@ export function PlanQualityPanel({
                   </button>
                 ))}
                 {conflicts.length > 6 && (
-                  <div className="text-xs font-semibold text-[#EAB308]">
+                  <div className="text-xs font-semibold text-[#92400E]">
                     + {conflicts.length - 6} weitere Konflikte
                   </div>
                 )}
@@ -311,33 +318,5 @@ export function PlanQualityPanel({
         </div>
       )}
     </section>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: "neutral" | "success" | "warning" | "danger";
-}) {
-  const palette = {
-    neutral: "border-gray-200 bg-gray-50 text-gray-700",
-    success: "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]",
-    warning: "border-[#EAB308]/20 bg-[#EAB308]/10 text-[#EAB308]",
-    danger: "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]",
-  };
-  return (
-    <div className={`rounded-md border px-3 py-2 ${palette[tone]}`}>
-      <div className="flex items-center gap-2 text-[11px] font-bold uppercase">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-bold">{value}</div>
-    </div>
   );
 }

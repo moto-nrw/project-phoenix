@@ -10,7 +10,6 @@ const {
   mockTenantMutate,
   mockUseSWRAuth,
   mockMaterialize,
-  mockReplanWeek,
   mockStart,
   mockComplete,
   mockCancel,
@@ -18,6 +17,10 @@ const {
   mockPatchAttendance,
   mockDeleteCancelled,
   mockArchiveTemplate,
+  mockBootstrap,
+  mockEventModalProps,
+  mockLoggerWarn,
+  mockLoggerError,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
@@ -27,7 +30,6 @@ const {
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockMaterialize: vi.fn(),
-  mockReplanWeek: vi.fn(),
   mockStart: vi.fn(),
   mockComplete: vi.fn(),
   mockCancel: vi.fn(),
@@ -35,6 +37,10 @@ const {
   mockPatchAttendance: vi.fn(),
   mockDeleteCancelled: vi.fn(),
   mockArchiveTemplate: vi.fn(),
+  mockBootstrap: vi.fn(),
+  mockEventModalProps: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockLoggerError: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -56,8 +62,8 @@ vi.mock("~/contexts/ToastContext", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
+    error: mockLoggerError,
+    warn: mockLoggerWarn,
   }),
 }));
 
@@ -77,7 +83,7 @@ vi.mock("~/lib/timetable-api", () => ({
     getGaps: vi.fn(),
     getExceptionConflicts: vi.fn(),
     materialize: mockMaterialize,
-    replanWeek: mockReplanWeek,
+    replanWeek: vi.fn(),
     start: mockStart,
     complete: mockComplete,
     cancel: mockCancel,
@@ -125,7 +131,13 @@ vi.mock("~/components/ui/modal", () => ({
 vi.mock("~/lib/calendar-period-api", () => ({
   calendarPeriodService: {
     list: vi.fn(),
+    bootstrap: mockBootstrap,
   },
+}));
+
+vi.mock("~/lib/settings-api", () => ({
+  SETTINGS_SCHEMA_SWR_KEY: "settings-schema",
+  fetchSettingsSchema: vi.fn(),
 }));
 
 vi.mock("~/lib/student-api", () => ({
@@ -151,8 +163,9 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
     onPrev,
     onNext,
     onToday,
-    onAddInstance,
     onDensityChange,
+    onManagePeriods,
+    periodSwitcher,
     planWeekAction,
   }: {
     view: string;
@@ -161,14 +174,18 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
     onPrev: () => void;
     onNext: () => void;
     onToday: () => void;
-    onAddInstance: () => void;
     onDensityChange: (density: "compact" | "normal" | "comfortable") => void;
+    onManagePeriods: () => void;
+    periodSwitcher: React.ReactNode;
     planWeekAction: React.ReactNode;
   }) => (
     <div data-testid="toolbar">
       <span>
         {view}:{rangeLabel}
       </span>
+      <button type="button" onClick={onManagePeriods}>
+        manage-periods
+      </button>
       <button type="button" onClick={() => onViewChange("week")}>
         week-view
       </button>
@@ -193,28 +210,26 @@ vi.mock("~/components/timetable/timetable-toolbar", () => ({
       <button type="button" onClick={() => onDensityChange("comfortable")}>
         density
       </button>
-      <button type="button" onClick={onAddInstance}>
-        add-instance
-      </button>
+      {periodSwitcher}
       {planWeekAction}
     </div>
   ),
 }));
 
-vi.mock("~/components/timetable/planning-menu", () => ({
-  PlanningMenu: ({
-    onMaterialize,
-    onReplan,
+vi.mock("~/components/timetable/timetable-add-menu", () => ({
+  TimetableAddMenu: ({
+    onAddInstance,
+    onAddSeries,
   }: {
-    onMaterialize: () => Promise<void>;
-    onReplan: () => Promise<void>;
+    onAddInstance: () => void;
+    onAddSeries: () => void;
   }) => (
     <div>
-      <button type="button" onClick={() => void onMaterialize()}>
-        materialize
+      <button type="button" onClick={onAddInstance}>
+        add-instance
       </button>
-      <button type="button" onClick={() => void onReplan()}>
-        replan
+      <button type="button" onClick={onAddSeries}>
+        add-series
       </button>
     </div>
   ),
@@ -308,13 +323,25 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
     instances,
     onInstanceClick,
+    onSlotClick,
   }: {
     instances: Array<{ id: string }>;
     onInstanceClick: (instance: { id: string } | null) => void;
+    onSlotClick?: (dateISO: string, hour: number) => void;
   }) => (
-    <button type="button" onClick={() => onInstanceClick(instances[0] ?? null)}>
-      week-grid
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={() => onInstanceClick(instances[0] ?? null)}
+      >
+        week-grid
+      </button>
+      {onSlotClick && (
+        <button type="button" onClick={() => onSlotClick("2026-05-05", 14)}>
+          slot-click
+        </button>
+      )}
+    </div>
   ),
 }));
 
@@ -459,11 +486,7 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
 }));
 
 vi.mock("~/components/timetable/timetable-event-modal", () => ({
-  TimetableEventModal: ({
-    isOpen,
-    onClose,
-    onSaved,
-  }: {
+  TimetableEventModal: (props: {
     isOpen: boolean;
     onClose: () => void;
     onSaved: (
@@ -471,22 +494,30 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
         | { kind: "instance"; instance: { id: string } }
         | { kind: "series"; seriesId: string; linkedInstanceId?: string },
     ) => void;
-  }) =>
-    isOpen ? (
+    variant?: "full" | "quick";
+    defaultDate?: string;
+    defaultStartTime?: string;
+    defaultEndTime?: string;
+    defaultCalendarPeriodId?: string | null;
+  }) => {
+    mockEventModalProps(props);
+    return props.isOpen ? (
       <div>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={props.onClose}>
           event-close
         </button>
         <button
           type="button"
-          onClick={() => onSaved({ kind: "instance", instance: { id: "42" } })}
+          onClick={() =>
+            props.onSaved({ kind: "instance", instance: { id: "42" } })
+          }
         >
           event-save
         </button>
         <button
           type="button"
           onClick={() =>
-            onSaved({
+            props.onSaved({
               kind: "series",
               seriesId: "7",
               linkedInstanceId: "42",
@@ -496,7 +527,8 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
           event-save-series
         </button>
       </div>
-    ) : null,
+    ) : null;
+  },
 }));
 
 vi.mock("~/components/timetable/calendar-period-modal", () => ({
@@ -574,6 +606,16 @@ const period = {
   isActive: true,
 };
 
+const laterPeriod = {
+  id: "6",
+  name: "Schuljahr 2027/2028",
+  periodType: "school_year" as const,
+  startDate: "2027-08-01",
+  endDate: "2028-07-31",
+  weekCycleLength: 1,
+  isActive: true,
+};
+
 const template = {
   id: "7",
   name: "Yoga",
@@ -598,11 +640,24 @@ const template = {
   ],
 };
 
-function setupSWR() {
+function setupSWR({
+  periods = [period],
+  settingsSchema = null,
+  settingsSchemaLoading = false,
+}: {
+  periods?: Array<typeof period>;
+  settingsSchema?: unknown;
+  settingsSchemaLoading?: boolean;
+} = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
+    if (key === "settings-schema") {
+      return settingsSchemaLoading
+        ? { isLoading: true }
+        : { data: settingsSchema, isLoading: false };
+    }
     if (key === "database-calendar-periods-list") {
-      return { data: [period], isLoading: false };
+      return { data: periods, isLoading: false };
     }
     if (key === "timetable-staff-list") {
       return {
@@ -653,10 +708,7 @@ describe("TimetablesPage", () => {
       instancesCreated: 2,
       warnings: [],
     });
-    mockReplanWeek.mockResolvedValue({
-      instancesCreated: 3,
-      warnings: [],
-    });
+    mockBootstrap.mockResolvedValue({ periods: [], created: false });
     mockStart.mockResolvedValue({ warnings: [] });
     mockComplete.mockResolvedValue({});
     mockCancel.mockResolvedValue({});
@@ -674,7 +726,9 @@ describe("TimetablesPage", () => {
   it("renders month view by default and opens create/edit period flows", async () => {
     render(<TimetablesPage />);
 
-    expect(screen.getByRole("heading", { name: "Stundenplan" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Betreuungsplan" }),
+    ).toBeVisible();
     expect(screen.getByText(/month:/)).toBeInTheDocument();
     expect(screen.getByTestId("conflicts")).toHaveTextContent("1");
 
@@ -708,15 +762,6 @@ describe("TimetablesPage", () => {
     fireEvent.click(screen.getByText("week-view"));
     await waitFor(() => expect(screen.getByText("week-grid")).toBeVisible());
     fireEvent.click(screen.getByText("week-grid"));
-    fireEvent.click(screen.getByText("materialize"));
-    await waitFor(() => expect(mockMaterialize).toHaveBeenCalled());
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Woche geplant: 2 Termine angelegt",
-    );
-
-    fireEvent.click(screen.getByText("replan"));
-    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalled());
-
     fireEvent.click(screen.getByText("detail-start"));
     await waitFor(() => expect(mockStart).toHaveBeenCalledWith("42"));
     fireEvent.click(screen.getByText("detail-complete"));
@@ -770,18 +815,20 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("archive-template"));
     expect(
-      screen.getByRole("dialog", { name: "Serie archivieren?" }),
-    ).toHaveTextContent("Serie „Yoga“");
+      screen.getByRole("dialog", { name: "Regeltermin archivieren?" }),
+    ).toHaveTextContent("Regeltermin „Yoga“");
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(mockArchiveTemplate).not.toHaveBeenCalled();
     expect(
-      screen.queryByRole("dialog", { name: "Serie archivieren?" }),
+      screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
     await waitFor(() => expect(mockArchiveTemplate).toHaveBeenCalledWith("7"));
-    expect(mockToastSuccess).toHaveBeenCalledWith('Serie "Yoga" archiviert');
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Regeltermin "Yoga" archiviert',
+    );
     expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
 
     fireEvent.click(screen.getByText("month-view"));
@@ -815,7 +862,7 @@ describe("TimetablesPage", () => {
       expect(mockToastError).toHaveBeenCalledWith("Archivierung kaputt"),
     );
     expect(
-      screen.getByRole("dialog", { name: "Serie archivieren?" }),
+      screen.getByRole("dialog", { name: "Regeltermin archivieren?" }),
     ).toBeInTheDocument();
   });
 
@@ -824,6 +871,187 @@ describe("TimetablesPage", () => {
 
     render(<TimetablesPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    expect(screen.getByTestId("timetable-toolbar-skeleton")).toBeVisible();
+    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
+    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+  });
+
+  it("shows a calendar-shaped skeleton while timetable data loads", () => {
+    mockUseSWRAuth.mockImplementation((key: string | null) => {
+      if (key === null) return {};
+      if (key === "database-calendar-periods-list") {
+        return { data: [period], isLoading: false };
+      }
+      if (key.startsWith("timetable-")) {
+        return { isLoading: true };
+      }
+      return {};
+    });
+
+    render(<TimetablesPage />);
+
+    expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
+    expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
+    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+  });
+
+  it("bootstraps a default period exactly once when none exist", async () => {
+    setupSWR({ periods: [] });
+    mockBootstrap.mockResolvedValue({ periods: [period], created: true });
+
+    const { rerender } = render(<TimetablesPage />);
+
+    await waitFor(() => expect(mockBootstrap).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mockTenantMutate).toHaveBeenCalledWith(
+        "database-calendar-periods-list",
+      ),
+    );
+
+    rerender(<TimetablesPage />);
+    expect(mockBootstrap).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not bootstrap when periods already exist", () => {
+    render(<TimetablesPage />);
+
+    expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  it("logs a warning when the bootstrap fails with 403", async () => {
+    setupSWR({ periods: [] });
+    mockBootstrap.mockRejectedValue(
+      Object.assign(new Error("permission denied"), { httpStatus: 403 }),
+    );
+
+    render(<TimetablesPage />);
+
+    await waitFor(() =>
+      expect(mockLoggerWarn).toHaveBeenCalledWith("periods_bootstrap_failed", {
+        error: "permission denied",
+        status: 403,
+      }),
+    );
+    expect(mockLoggerError).not.toHaveBeenCalledWith(
+      "periods_bootstrap_failed",
+      expect.anything(),
+    );
+  });
+
+  it("logs an error when the bootstrap fails for other reasons", async () => {
+    setupSWR({ periods: [] });
+    mockBootstrap.mockRejectedValue(new Error("backend down"));
+
+    render(<TimetablesPage />);
+
+    await waitFor(() =>
+      expect(mockLoggerError).toHaveBeenCalledWith("periods_bootstrap_failed", {
+        error: "backend down",
+      }),
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalledWith(
+      "periods_bootstrap_failed",
+      expect.anything(),
+    );
+  });
+
+  it("opens the quick-create modal from an empty week slot", () => {
+    mockSearch.value = "view=week";
+    render(<TimetablesPage />);
+
+    fireEvent.click(screen.getByText("slot-click"));
+
+    expect(screen.getByText("event-save")).toBeInTheDocument();
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        variant: "quick",
+        defaultDate: "2026-05-05",
+        defaultStartTime: "14:00",
+        defaultEndTime: "15:00",
+      }),
+    );
+
+    // Closing resets the prefill; the next manual create is the full form.
+    fireEvent.click(screen.getByText("event-close"));
+    fireEvent.click(screen.getByText("add-instance"));
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        variant: "full",
+        defaultStartTime: undefined,
+        defaultEndTime: undefined,
+      }),
+    );
+  });
+
+  it("passes the series list period to the event modal", () => {
+    setupSWR({ periods: [period, laterPeriod] });
+    mockSearch.value = "view=series&period=6";
+    render(<TimetablesPage />);
+
+    fireEvent.click(screen.getByText("create-template"));
+
+    expect(mockEventModalProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        isOpen: true,
+        defaultCalendarPeriodId: "6",
+      }),
+    );
+  });
+
+  it("hides the period pill for a fully covered week and reveals it via Verwaltung", () => {
+    mockSearch.value = "view=week";
+    render(<TimetablesPage />);
+
+    expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("manage-periods"));
+    expect(screen.getByTestId("period-switcher")).toBeInTheDocument();
+  });
+
+  it("renders no period UI when no periods exist and Verwaltung opens create", () => {
+    setupSWR({ periods: [] });
+    render(<TimetablesPage />);
+
+    expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("manage-periods"));
+    expect(screen.getByText("period-save")).toBeInTheDocument();
+  });
+
+  it("renders the disabled state when the timetable setting is off", () => {
+    setupSWR({
+      settingsSchema: {
+        tabs: [
+          {
+            id: "operations",
+            label: "Betrieb",
+            categories: [
+              {
+                id: "timetable",
+                label: "Betreuungsplan",
+                items: [{ key: "timetable.enabled", value: false }],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    render(<TimetablesPage />);
+
+    expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
+    expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
+    expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();
+    expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  it("shows the skeleton while the settings schema loads", () => {
+    setupSWR({ settingsSchemaLoading: true });
+    render(<TimetablesPage />);
+
+    expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
+    expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();
   });
 });

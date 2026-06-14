@@ -14,7 +14,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingIndicatorsEnabled,
 		Label:           "Aktivitäts-Indikatoren",
-		Description:     "Zeigt in den Schülerkarten an, ob ein Kind heute bereits in bestimmten Räumen oder Aktivitäten war",
+		Description:     "Zeigt in das Kindkarten an, ob ein Kind heute bereits in bestimmten Räumen oder Aktivitäten war",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

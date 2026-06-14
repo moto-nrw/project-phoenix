@@ -548,7 +548,7 @@ describe("StudentDetailPage", () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
-        error: "Schüler nicht gefunden",
+        error: "Kind nicht gefunden",
         hasFullAccess: false,
         hasWriteAccess: false,
         supervisors: [],
@@ -561,7 +561,7 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-      expect(screen.getByText("Schüler nicht gefunden")).toBeInTheDocument();
+      expect(screen.getByText("Kind nicht gefunden")).toBeInTheDocument();
     });
 
     it("shows error when student is null", () => {

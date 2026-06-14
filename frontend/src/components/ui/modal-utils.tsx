@@ -225,7 +225,10 @@ export function renderModalErrorAlert({
   message,
 }: ModalErrorAlertProps): JSX.Element {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-red-100 bg-red-50/80 p-4 backdrop-blur-sm">
+    <div
+      role="alert"
+      className="relative overflow-hidden rounded-2xl border border-red-100 bg-red-50/80 p-4 backdrop-blur-sm"
+    >
       <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-pink-50/50 opacity-50"></div>
       <div className="relative flex items-start gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-red-100">

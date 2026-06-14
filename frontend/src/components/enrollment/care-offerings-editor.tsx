@@ -402,7 +402,7 @@ export function CareOfferingsEditor() {
               <FeaturePill label="Ferienbetreuung" />
             ) : null}
             {offering.activity_group_id ? (
-              <FeaturePill label="Stundenplan" />
+              <FeaturePill label="Betreuungsplan" />
             ) : null}
             {!offering.is_required &&
             !offering.includes_lunch &&
@@ -981,7 +981,7 @@ function CareOfferingForm({
       <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
         <label className="block" htmlFor="care-offering-template">
           <span className="text-xs font-medium text-gray-700">
-            Stundenplan-Vorlage
+            Betreuungsplan-Vorlage
           </span>
           <CustomSelect
             id="care-offering-template"
@@ -995,7 +995,7 @@ function CareOfferingForm({
             options={[
               {
                 value: "",
-                label: "Keine automatische Stundenplan-Zuordnung",
+                label: "Keine automatische Betreuungsplan-Zuordnung",
               },
               ...templates.map((template) => ({
                 value: String(template.id),

@@ -1391,7 +1391,7 @@ describe("OGSGroupPage additional scenarios", () => {
     render(<OGSGroupPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Keine Schüler in/)).toBeInTheDocument();
+      expect(screen.getByText(/Keine Kinder in/)).toBeInTheDocument();
     });
   });
 
@@ -2171,16 +2171,16 @@ describe("OGSGroupPage renderStudentContent logic", () => {
 
   it("generates correct no students message", () => {
     const currentGroup = { name: "OGS Gruppe A" };
-    const message = `Keine Schüler in ${currentGroup?.name ?? "dieser Gruppe"}`;
+    const message = `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`;
 
-    expect(message).toBe("Keine Schüler in OGS Gruppe A");
+    expect(message).toBe("Keine Kinder in OGS Gruppe A");
   });
 
   it("uses fallback message when no current group", () => {
     const currentGroup = null as { name: string } | null;
-    const message = `Keine Schüler in ${currentGroup?.name ?? "dieser Gruppe"}`;
+    const message = `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`;
 
-    expect(message).toBe("Keine Schüler in dieser Gruppe");
+    expect(message).toBe("Keine Kinder in dieser Gruppe");
   });
 
   it("shows suggestion for multiple groups when no students", () => {

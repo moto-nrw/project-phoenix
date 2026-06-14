@@ -27,7 +27,7 @@ export function StudentGuardiansTab({
           </div>
           <div className="mt-0.5 text-xs">
             Erziehungsberechtigte sind nur für Mitarbeitende mit Vollzugriff auf
-            diesen Schüler sichtbar. Bitte bei der Schulleitung nachfragen.
+            dieses Kind sichtbar. Bitte bei der Schulleitung nachfragen.
           </div>
         </div>
       </div>

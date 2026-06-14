@@ -51,6 +51,7 @@ type mockInstanceService struct {
 	lastStartedBy int64
 	lastFrom      timezone.Date
 	lastTo        timezone.Date
+	lastReplanGID *int64
 	lastCreate    *scheduleSvc.CreateInstanceInput
 	lastUpdate    *scheduleSvc.UpdateInstanceInput
 }
@@ -86,9 +87,10 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
+	m.lastReplanGID = activityGroupID
 	if m.replanErr != nil {
 		return nil, m.replanErr
 	}
@@ -1042,4 +1044,34 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		renderInstanceLifecycleError(w, r, errors.New("something broke"))
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+}
+
+// WP-B3: the optional activity_group_id body field must reach the service.
+func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
+	mock := &mockInstanceService{
+		replanRes: &scheduleSvc.ReplanWeekResult{
+			From: timezone.NewDate(2026, 4, 27),
+			To:   timezone.NewDate(2026, 5, 3),
+		},
+	}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/re-plan-week", rs.replanWeek)
+
+	body := map[string]any{
+		"from_date":         "2026-04-27",
+		"to_date":           "2026-05-03",
+		"activity_group_id": 4711,
+	}
+	w := doPost(t, router, "/instances/re-plan-week", body)
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	require.NotNil(t, mock.lastReplanGID)
+	assert.Equal(t, int64(4711), *mock.lastReplanGID)
+
+	// Omitted field stays nil — whole-grid behavior unchanged.
+	w = doPost(t, router, "/instances/re-plan-week", map[string]string{
+		"from_date": "2026-04-27",
+		"to_date":   "2026-05-03",
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+	assert.Nil(t, mock.lastReplanGID)
 }

@@ -138,7 +138,7 @@ describe("ClassBulkArrivalModal", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/1 Schüler haben bereits Ankunftszeiten/),
+        screen.getByText(/1 Kind hat bereits Ankunftszeiten/),
       ).toBeInTheDocument(),
     );
   });
@@ -154,7 +154,7 @@ describe("ClassBulkArrivalModal", () => {
     );
 
     await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
-    expect(screen.queryByText(/Schüler haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
   });
 
   it("gracefully treats fetch errors as no-existing-schedule", async () => {
@@ -170,7 +170,7 @@ describe("ClassBulkArrivalModal", () => {
     );
 
     await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
-    expect(screen.queryByText(/Schüler haben bereits/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
   });
 
   it("disables submit until a valid time is entered", () => {
@@ -183,7 +183,7 @@ describe("ClassBulkArrivalModal", () => {
       />,
     );
 
-    const submit = screen.getByRole("button", { name: /Für 1 Schüler setzen/ });
+    const submit = screen.getByRole("button", { name: /Für 1 Kind setzen/ });
     expect(submit).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Montag"), {
@@ -228,9 +228,7 @@ describe("ClassBulkArrivalModal", () => {
     fireEvent.change(screen.getByLabelText("Mittwoch"), {
       target: { value: "09:30" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Für 1 Schüler setzen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Für 1 Kind setzen/ }));
 
     await waitFor(() => expect(mockBulkUpsert).toHaveBeenCalled());
     expect(mockBulkUpsert).toHaveBeenCalledWith("3a", [
@@ -257,9 +255,7 @@ describe("ClassBulkArrivalModal", () => {
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "08:00" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Für 1 Schüler setzen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Für 1 Kind setzen/ }));
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(

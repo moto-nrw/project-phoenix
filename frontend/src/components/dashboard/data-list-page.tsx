@@ -15,10 +15,10 @@ interface BaseEntity {
 }
 
 interface DataListPageProps<T extends BaseEntity> {
-  readonly title: string; // Page title (e.g., "Schülerauswahl")
-  readonly sectionTitle?: string; // Section title with gradient (e.g., "Schüler auswählen")
+  readonly title: string; // Page title (e.g., "Kinderauswahl")
+  readonly sectionTitle?: string; // Section title with gradient (e.g., "Kinder auswählen")
   readonly backUrl: string; // URL to navigate back to
-  readonly newEntityLabel: string; // Label for new entity button (e.g., "Neuen Schüler erstellen")
+  readonly newEntityLabel: string; // Label for new entity button (e.g., "Neues Kind erstellen")
   readonly newEntityUrl: string; // URL to create a new entity
   readonly data: T[]; // Array of entities to display
   readonly onSelectEntityAction: (entity: T) => void; // Callback when entity is selected

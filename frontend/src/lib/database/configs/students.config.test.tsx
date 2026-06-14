@@ -31,8 +31,8 @@ describe("studentsConfig", () => {
   it("exports a valid entity config", () => {
     expect(studentsConfig).toBeDefined();
     expect(studentsConfig.name).toEqual({
-      singular: "Schüler",
-      plural: "Schüler",
+      singular: "Kinder",
+      plural: "Kinder",
     });
   });
 
@@ -45,12 +45,12 @@ describe("studentsConfig", () => {
   });
 
   it("has list configuration", () => {
-    expect(studentsConfig.list.title).toBe("Schüler auswählen");
+    expect(studentsConfig.list.title).toBe("Kinder auswählen");
     expect(studentsConfig.list.searchStrategy).toBe("frontend");
   });
 
   it("has custom labels", () => {
-    expect(studentsConfig.labels?.createButton).toBe("Neuen Schüler erstellen");
+    expect(studentsConfig.labels?.createButton).toBe("Neues Kind erstellen");
   });
 
   it("does not forward stale departure_days from the legacy database editor", () => {

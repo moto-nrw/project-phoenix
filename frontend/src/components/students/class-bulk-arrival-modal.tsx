@@ -27,6 +27,10 @@ interface ClassBulkArrivalModalProps {
 
 type DraftState = Record<number, string>;
 
+function childCountLabel(count: number): string {
+  return count === 1 ? "1 Kind" : `${count} Kinder`;
+}
+
 function initialDraft(): DraftState {
   const draft: DraftState = {};
   for (const day of WEEKDAYS) {
@@ -111,7 +115,7 @@ export function ClassBulkArrivalModal({
     try {
       await bulkUpsertArrivalByClass(schoolClass, schedules);
       toastSuccess(
-        `Ankunftszeiten für Klasse ${schoolClass} gesetzt (${studentsInClass.length} Schüler)`,
+        `Ankunftszeiten für Klasse ${schoolClass} gesetzt (${childCountLabel(studentsInClass.length)})`,
       );
       onSuccess?.();
       onClose();
@@ -146,15 +150,16 @@ export function ClassBulkArrivalModal({
           >
             {saving
               ? "Speichern..."
-              : `Für ${studentsInClass.length} Schüler setzen`}
+              : `Für ${childCountLabel(studentsInClass.length)} setzen`}
           </Button>
         </div>
       }
     >
       <div className="space-y-4 p-4">
         <p className="text-sm text-gray-600">
-          Setzt die Ankunftszeit für alle {studentsInClass.length} Schüler der
-          Klasse {schoolClass}. Leere Felder bleiben unverändert.
+          Setzt die Ankunftszeit für alle{" "}
+          {childCountLabel(studentsInClass.length)} der Klasse {schoolClass}.
+          Leere Felder bleiben unverändert.
         </p>
         {collisionCount !== null && collisionCount > 0 ? (
           <div className="flex items-start gap-2 rounded-lg border border-[#F78C10] bg-[#FFF8ED] p-3 text-sm">
@@ -164,7 +169,8 @@ export function ClassBulkArrivalModal({
             />
             <div>
               <div className="font-semibold text-[#F78C10]">
-                {collisionCount} Schüler haben bereits Ankunftszeiten
+                {childCountLabel(collisionCount)}{" "}
+                {collisionCount === 1 ? "hat" : "haben"} bereits Ankunftszeiten
               </div>
               <div className="text-[#8B5016]">
                 Existierende Zeiten werden an den gesetzten Tagen überschrieben.

@@ -166,9 +166,7 @@ describe("StudentMensaHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Zurück zum Kindprofil")).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
@@ -179,14 +177,12 @@ describe("StudentMensaHistoryPage", () => {
 
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Zurück zum Schülerprofil"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Zurück zum Kindprofil")).toBeInTheDocument();
       },
       { timeout: 2000 },
     );
 
-    fireEvent.click(screen.getByText("Zurück zum Schülerprofil"));
+    fireEvent.click(screen.getByText("Zurück zum Kindprofil"));
 
     expect(mockPush).toHaveBeenCalledWith(
       "/test-tenant/students/1?from=/students/search",

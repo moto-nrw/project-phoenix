@@ -1212,7 +1212,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         const errorElements = screen.getAllByText(
-          /Fehler beim Laden der Schülerdaten/i,
+          /Fehler beim Laden der Kinderdaten/i,
         );
         expect(errorElements.length).toBeGreaterThan(0);
       });
@@ -1232,7 +1232,7 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+        expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
       });
     });
   });
@@ -1483,7 +1483,7 @@ describe("StudentSearchPage", () => {
         // The transformed error message for 403
         expect(
           screen.getAllByText(
-            /Du hast keine Berechtigung, Schülerdaten anzuzeigen/,
+            /Du hast keine Berechtigung, Kinderdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
         // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")
@@ -1525,7 +1525,7 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         // The generic error message
         expect(
-          screen.getAllByText(/Fehler beim Laden der Schülerdaten/).length,
+          screen.getAllByText(/Fehler beim Laden der Kinderdaten/).length,
         ).toBeGreaterThan(0);
         // The error heading
         expect(screen.getByText("Fehler")).toBeInTheDocument();
@@ -1604,7 +1604,7 @@ describe("StudentSearchPage", () => {
       // Should show loading, NOT empty state
       expect(screen.getByTestId("loading")).toBeInTheDocument();
       expect(
-        screen.queryByText("Keine Schüler gefunden"),
+        screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
     });
 
@@ -1664,11 +1664,11 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
       });
 
-      // P2 FIX: Should show loading spinner, NOT "Keine Schüler gefunden"
+      // P2 FIX: Should show loading spinner, NOT "Keine Kinder gefunden"
       // because we're in initialization phase (groupsLoaded = false)
       expect(screen.getByTestId("loading")).toBeInTheDocument();
       expect(
-        screen.queryByText("Keine Schüler gefunden"),
+        screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
     });
 
@@ -1693,7 +1693,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         // NOW it's appropriate to show empty state
-        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+        expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
       });
     });
   });

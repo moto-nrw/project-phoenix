@@ -391,7 +391,7 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Fehler beim Laden der Schüler/),
+        screen.getByText(/Fehler beim Laden der Kinder/),
       ).toBeInTheDocument();
     });
   });
@@ -419,7 +419,7 @@ describe("StudentsPage", () => {
     render(<StudentsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Schüler vorhanden")).toBeInTheDocument();
+      expect(screen.getByText("Keine Kinder vorhanden")).toBeInTheDocument();
     });
   });
 
@@ -563,7 +563,7 @@ describe("StudentsPage", () => {
   it("opens create modal when create button is clicked", async () => {
     render(<StudentsPage />);
 
-    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
+    const createButton = screen.getAllByLabelText("Kind erstellen")[0]!;
     fireEvent.click(createButton);
 
     await waitFor(() => {
@@ -624,7 +624,7 @@ describe("StudentsPage", () => {
     render(<StudentsPage />);
 
     // Open create modal
-    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
+    const createButton = screen.getAllByLabelText("Kind erstellen")[0]!;
     fireEvent.click(createButton);
 
     await waitFor(() => {
@@ -649,7 +649,7 @@ describe("StudentsPage", () => {
 
     render(<StudentsPage />);
 
-    const createButton = screen.getAllByLabelText("Schüler erstellen")[0]!;
+    const createButton = screen.getAllByLabelText("Kind erstellen")[0]!;
     fireEvent.click(createButton);
 
     await waitFor(() => {
@@ -715,7 +715,7 @@ describe("StudentsPage", () => {
   });
 
   it("shows error toast when delete returns error", async () => {
-    mockDelete.mockResolvedValueOnce("Schüler/in kann nicht gelöscht werden");
+    mockDelete.mockResolvedValueOnce("Kind kann nicht gelöscht werden");
 
     setSelectedStudent("1");
     render(<StudentsPage />);
@@ -733,7 +733,7 @@ describe("StudentsPage", () => {
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        "Schüler/in kann nicht gelöscht werden",
+        "Kind kann nicht gelöscht werden",
       );
     });
   });
@@ -745,7 +745,7 @@ describe("StudentsPage", () => {
     fireEvent.change(searchInput, { target: { value: "xyz123" } });
 
     await waitFor(() => {
-      expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+      expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
     });
   });
 
@@ -1168,7 +1168,7 @@ describe("StudentsPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Keine Schüler gefunden")).toBeInTheDocument();
+        expect(screen.getByText("Keine Kinder gefunden")).toBeInTheDocument();
       });
     });
   });

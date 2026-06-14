@@ -34,13 +34,13 @@ export function EmptyStudentResults({
         </svg>
         <div>
           <h3 className="text-lg font-medium text-gray-900">
-            Keine Schüler gefunden
+            Keine Kinder gefunden
           </h3>
           <p className="text-gray-600">
             Versuche deine Suchkriterien anzupassen.
           </p>
           <p className="mt-2 text-sm text-gray-500">
-            {totalCount} Schüler insgesamt, {filteredCount} nach Filtern
+            {totalCount} Kinder insgesamt, {filteredCount} nach Filtern
           </p>
         </div>
       </div>

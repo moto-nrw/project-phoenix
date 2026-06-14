@@ -204,7 +204,7 @@ describe("StudentEditModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Schüler bearbeiten")).toBeInTheDocument();
+      expect(screen.getByText("Kind bearbeiten")).toBeInTheDocument();
     });
   });
 
@@ -302,7 +302,7 @@ describe("StudentEditModal", () => {
       expect(
         screen.getByText(/Erziehungsberechtigte verwalten/i),
       ).toBeInTheDocument();
-      expect(screen.getByText("Zur Schülerdetailseite")).toBeInTheDocument();
+      expect(screen.getByText("Zur Kinddetailseite")).toBeInTheDocument();
     });
   });
 
@@ -317,7 +317,7 @@ describe("StudentEditModal", () => {
     );
 
     await waitFor(() => {
-      const link = screen.getByText("Zur Schülerdetailseite").closest("a");
+      const link = screen.getByText("Zur Kinddetailseite").closest("a");
       expect(link).toHaveAttribute("href", "/students/1");
       expect(link).toHaveAttribute("target", "_blank");
     });

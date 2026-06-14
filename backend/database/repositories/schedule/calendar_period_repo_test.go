@@ -1,6 +1,7 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -345,6 +347,227 @@ func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Nil(t, found)
+	})
+}
+
+// newOverlapTenant provisions a fresh tenant so date-range assertions can be
+// exact: the shared tenant 1 accumulates periods from other tests (and other
+// packages running in parallel against the same test DB) whose ranges would
+// pollute overlap results.
+func newOverlapTenant(t *testing.T, db *bun.DB, base int64) (int64, context.Context) {
+	t.Helper()
+	tenantID := base + time.Now().UnixNano()%50000
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Table("schedule.calendar_periods").
+			Where("tenant_id = ?", tenantID).
+			Exec(context.Background())
+	})
+	return tenantID, testpkg.TenantContext(tenantID)
+}
+
+func createPeriodForTenant(t *testing.T, repo scheduleModels.CalendarPeriodRepository, ctx context.Context, tenantID int64, name string, start, end timezone.Date, isActive bool) *scheduleModels.CalendarPeriod {
+	t.Helper()
+	period := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		PeriodType:      scheduleModels.PeriodTypeCustom,
+		StartDate:       start,
+		EndDate:         end,
+		WeekCycleLength: 1,
+		IsActive:        isActive,
+	}
+	period.SetTenantID(tenantID)
+	require.NoError(t, repo.Create(ctx, period))
+	return period
+}
+
+func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+
+	t.Run("inserts when name is absent, no-ops on conflict", func(t *testing.T) {
+		tenantID, ctx := newOverlapTenant(t, db, 510000)
+		name := fmt.Sprintf("Bootstrap-%d", time.Now().UnixNano())
+
+		first := &scheduleModels.CalendarPeriod{
+			Name:            name,
+			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+			StartDate:       timezone.NewDate(2030, time.August, 1),
+			EndDate:         timezone.NewDate(2031, time.July, 31),
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+		first.SetTenantID(tenantID)
+		created, err := repo.CreateIfAbsent(ctx, first)
+		require.NoError(t, err)
+		assert.True(t, created)
+		assert.Greater(t, first.ID, int64(0))
+
+		second := &scheduleModels.CalendarPeriod{
+			Name:            name,
+			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+			StartDate:       timezone.NewDate(2030, time.August, 1),
+			EndDate:         timezone.NewDate(2031, time.July, 31),
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+		second.SetTenantID(tenantID)
+		createdAgain, err := repo.CreateIfAbsent(ctx, second)
+		require.NoError(t, err, "conflict must be a clean no-op, not an error")
+		assert.False(t, createdAgain)
+
+		var rowCount int
+		require.NoError(t, db.NewSelect().
+			TableExpr("schedule.calendar_periods").
+			ColumnExpr("COUNT(*)").
+			Where("tenant_id = ?", tenantID).
+			Where("name = ?", name).
+			Scan(ctx, &rowCount))
+		assert.Equal(t, 1, rowCount)
+	})
+
+	t.Run("same name in another tenant still inserts", func(t *testing.T) {
+		tenantA, ctxA := newOverlapTenant(t, db, 520000)
+		tenantB, ctxB := newOverlapTenant(t, db, 530000)
+		name := fmt.Sprintf("Bootstrap-Cross-%d", time.Now().UnixNano())
+
+		makePeriod := func(tenantID int64) *scheduleModels.CalendarPeriod {
+			p := &scheduleModels.CalendarPeriod{
+				Name:            name,
+				PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+				StartDate:       timezone.NewDate(2030, time.August, 1),
+				EndDate:         timezone.NewDate(2031, time.July, 31),
+				WeekCycleLength: 1,
+				IsActive:        true,
+			}
+			p.SetTenantID(tenantID)
+			return p
+		}
+
+		createdA, err := repo.CreateIfAbsent(ctxA, makePeriod(tenantA))
+		require.NoError(t, err)
+		assert.True(t, createdA)
+
+		createdB, err := repo.CreateIfAbsent(ctxB, makePeriod(tenantB))
+		require.NoError(t, err)
+		assert.True(t, createdB, "uniqueness is per tenant, not global")
+	})
+
+	t.Run("fails on nil period", func(t *testing.T) {
+		_, ctx := newOverlapTenant(t, db, 540000)
+		created, err := repo.CreateIfAbsent(ctx, nil)
+		require.Error(t, err)
+		assert.False(t, created)
+		assert.Contains(t, err.Error(), "cannot be nil")
+	})
+
+	t.Run("fails validation before touching the database", func(t *testing.T) {
+		tenantID, ctx := newOverlapTenant(t, db, 550000)
+		invalid := &scheduleModels.CalendarPeriod{
+			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+			StartDate:       timezone.NewDate(2030, time.August, 1),
+			EndDate:         timezone.NewDate(2031, time.July, 31),
+			WeekCycleLength: 1,
+		}
+		invalid.SetTenantID(tenantID)
+		created, err := repo.CreateIfAbsent(ctx, invalid)
+		require.Error(t, err)
+		assert.False(t, created)
+		assert.Contains(t, err.Error(), "name is required")
+	})
+}
+
+func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+	tenantID, ctx := newOverlapTenant(t, db, 560000)
+
+	// Fixture layout (all in the fresh tenant):
+	//   active     2030-08-01 .. 2031-07-31  (the period others may collide with)
+	//   inactive   2030-08-01 .. 2031-07-31  (same range, is_active = false)
+	//   adjacent   2031-08-01 .. 2032-07-31  (starts the day after active ends)
+	active := createPeriodForTenant(t, repo, ctx, tenantID, "Overlap-Aktiv",
+		timezone.NewDate(2030, time.August, 1), timezone.NewDate(2031, time.July, 31), true)
+	inactive := createPeriodForTenant(t, repo, ctx, tenantID, "Overlap-Inaktiv",
+		timezone.NewDate(2030, time.August, 1), timezone.NewDate(2031, time.July, 31), false)
+	adjacent := createPeriodForTenant(t, repo, ctx, tenantID, "Overlap-Angrenzend",
+		timezone.NewDate(2031, time.August, 1), timezone.NewDate(2032, time.July, 31), true)
+
+	idsOf := func(periods []*scheduleModels.CalendarPeriod) []int64 {
+		ids := make([]int64, 0, len(periods))
+		for _, p := range periods {
+			ids = append(ids, p.ID)
+		}
+		return ids
+	}
+
+	t.Run("finds overlapping active period", func(t *testing.T) {
+		got, err := repo.FindActiveOverlapping(ctx,
+			timezone.NewDate(2030, time.September, 1), timezone.NewDate(2030, time.October, 1), 0)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{active.ID}, idsOf(got))
+	})
+
+	t.Run("ignores inactive periods", func(t *testing.T) {
+		got, err := repo.FindActiveOverlapping(ctx,
+			timezone.NewDate(2030, time.September, 1), timezone.NewDate(2030, time.October, 1), 0)
+		require.NoError(t, err)
+		assert.NotContains(t, idsOf(got), inactive.ID)
+	})
+
+	t.Run("excludes the period itself", func(t *testing.T) {
+		got, err := repo.FindActiveOverlapping(ctx,
+			active.StartDate, active.EndDate, active.ID)
+		require.NoError(t, err)
+		assert.NotContains(t, idsOf(got), active.ID)
+	})
+
+	t.Run("inclusive boundary day counts as overlap", func(t *testing.T) {
+		// Range starting exactly on active's last day must still collide.
+		got, err := repo.FindActiveOverlapping(ctx,
+			timezone.NewDate(2031, time.July, 31), timezone.NewDate(2031, time.July, 31), adjacent.ID)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{active.ID}, idsOf(got))
+	})
+
+	t.Run("adjacent ranges do not overlap", func(t *testing.T) {
+		// adjacent's own range starts 2031-08-01, one day after active ends.
+		got, err := repo.FindActiveOverlapping(ctx,
+			adjacent.StartDate, adjacent.EndDate, adjacent.ID)
+		require.NoError(t, err)
+		assert.NotContains(t, idsOf(got), active.ID)
+		assert.Empty(t, got)
+	})
+
+	t.Run("disjoint range finds nothing", func(t *testing.T) {
+		got, err := repo.FindActiveOverlapping(ctx,
+			timezone.NewDate(2040, time.January, 1), timezone.NewDate(2040, time.December, 31), 0)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("cross-tenant isolation", func(t *testing.T) {
+		otherTenantID, otherCtx := newOverlapTenant(t, db, 570000)
+		other := createPeriodForTenant(t, repo, otherCtx, otherTenantID, "Overlap-Fremd",
+			timezone.NewDate(2030, time.August, 1), timezone.NewDate(2031, time.July, 31), true)
+
+		// Query in the first tenant: the other tenant's period is invisible.
+		got, err := repo.FindActiveOverlapping(ctx,
+			timezone.NewDate(2030, time.September, 1), timezone.NewDate(2030, time.October, 1), 0)
+		require.NoError(t, err)
+		assert.NotContains(t, idsOf(got), other.ID)
+		assert.Equal(t, []int64{active.ID}, idsOf(got))
+
+		// And vice versa: the other tenant only sees its own period.
+		gotOther, err := repo.FindActiveOverlapping(otherCtx,
+			timezone.NewDate(2030, time.September, 1), timezone.NewDate(2030, time.October, 1), 0)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{other.ID}, idsOf(gotOther))
 	})
 }
 

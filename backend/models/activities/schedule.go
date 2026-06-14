@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -31,6 +32,18 @@ type Schedule struct {
 	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
 	WeekPattern      int    `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
 	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+	// ValidUntil is the exclusive end of this schedule's recurrence: the
+	// schedule no longer produces instances ON or AFTER this date (same
+	// convention as enrollment valid_until). NULL = open-ended. Set by the
+	// template split ("Dieser und alle folgenden") to retire the old
+	// template's recurrence from the effective date onward.
+	ValidUntil *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
+	// ValidFrom is the inclusive start of this schedule's recurrence: the
+	// schedule produces no instances BEFORE this date. NULL = open start.
+	// Set on successor schedules by the template split ("Dieser und alle
+	// folgenden") so materialization never emits successor instances before
+	// the effective date (which would duplicate the old template's rows).
+	ValidFrom *timezone.Date `bun:"valid_from" json:"valid_from,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`

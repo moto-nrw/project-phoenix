@@ -42,6 +42,8 @@ type materializeResponse struct {
 	CandidatesSkippedABWeek     int                  `json:"candidates_skipped_ab_week"`
 	CandidatesSkippedNoPeriod   int                  `json:"candidates_skipped_no_period"`
 	CandidatesSkippedIncomplete int                  `json:"candidates_skipped_incomplete"`
+	SkippedEnded                int                  `json:"skipped_ended"`
+	SkippedNotStarted           int                  `json:"skipped_not_started"`
 	CandidatesRaced             int                  `json:"candidates_raced"`
 	InstanceStudentsCreated     int                  `json:"instance_students_created"`
 	InstanceStaffCreated        int                  `json:"instance_staff_created"`
@@ -109,6 +111,8 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 		CandidatesSkippedABWeek:     result.CandidatesSkippedABWeek,
 		CandidatesSkippedNoPeriod:   result.CandidatesSkippedNoPeriod,
 		CandidatesSkippedIncomplete: result.CandidatesSkippedIncomplete,
+		SkippedEnded:                result.CandidatesSkippedEnded,
+		SkippedNotStarted:           result.CandidatesSkippedNotStarted,
 		CandidatesRaced:             result.CandidatesRaced,
 		InstanceStudentsCreated:     result.InstanceStudentsCreated,
 		InstanceStaffCreated:        result.InstanceStaffCreated,

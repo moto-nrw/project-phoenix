@@ -23,6 +23,9 @@ type templateScheduleResponse struct {
 	EndTime          string `json:"end_time"`
 	WeekPattern      int    `json:"week_pattern"`
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	// ValidUntil is the exclusive recurrence end (YYYY-MM-DD) set by a
+	// template split; empty = open-ended.
+	ValidUntil string `json:"valid_until,omitempty"`
 }
 
 func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
@@ -92,6 +95,7 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 			EndTime:          row.EndTime.String,
 			WeekPattern:      row.WeekPattern,
 			CalendarPeriodID: calendarPeriodID,
+			ValidUntil:       row.ScheduleValidUntil.String,
 		})
 	}
 	return templates
@@ -155,6 +159,13 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		periodID = &id
 	}
 
+	// WP-B6: the people subqueries (enrollment_count / supervisor_count) are
+	// deliberately NOT filtered by calendar_period_id. The roster of a
+	// template that is shown is always shown — rosters are period-scoped at
+	// write time (see templates_people.go), so a card visible under an
+	// overlapping period must still display its real headcount instead of
+	// "0 Kinder". Only the schedule join below stays period-filtered, which
+	// decides WHETHER the card appears at all.
 	rows, err := rs.timetableData.ListTemplateRowsForPeriod(r.Context(), periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))

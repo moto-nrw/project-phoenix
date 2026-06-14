@@ -23,6 +23,25 @@ export const PERIOD_TYPE_LABELS: Record<PeriodType, string> = {
   custom: "Sonstiges",
 };
 
+/**
+ * Soft warning attached to period create/update responses, e.g. when the
+ * saved period overlaps other active periods. Advisory only — the save
+ * has already succeeded when warnings arrive.
+ */
+export interface BackendCalendarPeriodWarning {
+  code: "overlapping_active_periods" | (string & {});
+  message: string;
+  overlapping_period_ids?: number[];
+  overlapping_period_names?: string[];
+}
+
+export interface CalendarPeriodWarning {
+  code: "overlapping_active_periods" | (string & {});
+  message: string;
+  overlappingPeriodIds: string[];
+  overlappingPeriodNames: string[];
+}
+
 /** Backend wire shape (snake_case, int64 IDs). */
 export interface BackendCalendarPeriod {
   id: number;
@@ -36,6 +55,8 @@ export interface BackendCalendarPeriod {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  /** Only present on create/update responses. */
+  warnings?: BackendCalendarPeriodWarning[] | null;
 }
 
 /** Frontend shape (camelCase, string IDs). */
@@ -82,6 +103,32 @@ export function mapPeriod(raw: BackendCalendarPeriod): CalendarPeriod {
 
 export function mapPeriods(raw: BackendCalendarPeriod[]): CalendarPeriod[] {
   return raw.map(mapPeriod);
+}
+
+export function mapPeriodWarnings(
+  raw: BackendCalendarPeriodWarning[] | null | undefined,
+): CalendarPeriodWarning[] {
+  return (raw ?? []).map((warning) => ({
+    code: warning.code,
+    message: warning.message,
+    overlappingPeriodIds: (warning.overlapping_period_ids ?? []).map(String),
+    overlappingPeriodNames: warning.overlapping_period_names ?? [],
+  }));
+}
+
+/** Result of a period create/update — the saved period plus soft warnings. */
+export interface CalendarPeriodSaveResult {
+  period: CalendarPeriod;
+  warnings: CalendarPeriodWarning[];
+}
+
+export function mapPeriodWithWarnings(
+  raw: BackendCalendarPeriod,
+): CalendarPeriodSaveResult {
+  return {
+    period: mapPeriod(raw),
+    warnings: mapPeriodWarnings(raw.warnings),
+  };
 }
 
 export function findPeriodForDate(

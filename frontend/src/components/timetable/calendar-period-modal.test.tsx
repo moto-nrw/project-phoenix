@@ -46,8 +46,10 @@ const period: CalendarPeriod = {
 describe("CalendarPeriodModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCreate.mockResolvedValue(period);
-    mockUpdate.mockResolvedValue(period);
+    // create/update return { period, warnings }; with empty warnings the
+    // modal closes right after saving, otherwise it stays open and lists them.
+    mockCreate.mockResolvedValue({ period, warnings: [] });
+    mockUpdate.mockResolvedValue({ period, warnings: [] });
     mockDelete.mockResolvedValue(undefined);
   });
 
@@ -79,18 +81,18 @@ describe("CalendarPeriodModal", () => {
     fireEvent.change(screen.getByLabelText("Enddatum*"), {
       target: { value: "2027-07-31" },
     });
-    fireEvent.change(screen.getByLabelText("Wochenzyklus (1 = jede Woche)"), {
+    fireEvent.change(screen.getByLabelText("Wiederholung in Wochen"), {
       target: { value: "2" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bei mehrwöchigem Rhythmus ist ein Anker-Datum erforderlich.",
+      "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
     );
 
-    fireEvent.change(screen.getByLabelText("Anker-Datum*"), {
+    fireEvent.change(screen.getByLabelText("Startdatum der Wiederholung*"), {
       target: { value: "2026-08-03" },
     });
-    fireEvent.click(screen.getByLabelText(/Periode ist aktiv/));
+    fireEvent.click(screen.getByLabelText(/Zeitraum im Plan verwenden/));
     fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
 
     await waitFor(() =>
@@ -105,7 +107,7 @@ describe("CalendarPeriodModal", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Periode "Schuljahr 2026/2027" angelegt',
+      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).toHaveBeenCalledOnce();
@@ -125,7 +127,7 @@ describe("CalendarPeriodModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Name*"), {
+    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
       target: { value: "Neues Schuljahr" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -155,6 +157,55 @@ describe("CalendarPeriodModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
+  });
+
+  it("keeps the modal open and lists warnings when the save overlaps active periods", async () => {
+    const onClose = vi.fn();
+    const onSaved = vi.fn();
+    mockCreate.mockResolvedValueOnce({
+      period,
+      warnings: [
+        {
+          code: "overlapping_active_periods",
+          message:
+            'Der Zeitraum überschneidet sich mit dem aktiven Zeitraum "Schuljahr 2025/2026".',
+          overlappingPeriodIds: ["3"],
+          overlappingPeriodNames: ["Schuljahr 2025/2026"],
+        },
+      ],
+    });
+
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={onSaved}
+        createDefaults={{
+          name: "Schuljahr 2026/2027",
+          startDate: "2026-08-01",
+          endDate: "2027-07-31",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+
+    expect(
+      await screen.findByText(
+        'Der Zeitraum überschneidet sich mit dem aktiven Zeitraum "Schuljahr 2025/2026".',
+      ),
+    ).toBeInTheDocument();
+    expect(onSaved).toHaveBeenCalledWith(period);
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Anlegen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("surfaces API failures", async () => {

@@ -29,6 +29,7 @@ import {
 import type { EnrichedInstance } from "~/lib/timetable-types";
 
 import { InstanceBlock } from "./instance-block";
+import { timetableSurface } from "./timetable-style";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column (gutter + 1fr) via the day strip; sm+ shows all seven.
@@ -47,6 +48,12 @@ interface WeeklyCalendarGridProps {
   dayEndHour: number;
   /** Pixel height per hour row. Driven by zoom controls. */
   hourHeightPx: number;
+  /**
+   * When provided, every full hour of every day column becomes a click
+   * target for creating a new instance at that slot. Without it the grid
+   * renders exactly as before (no extra elements).
+   */
+  onSlotClick?: (dateISO: string, hour: number) => void;
   emptyState?: {
     title: string;
     description: string;
@@ -62,6 +69,7 @@ export function WeeklyCalendarGrid({
   dayStartHour,
   dayEndHour,
   hourHeightPx,
+  onSlotClick,
   emptyState,
 }: WeeklyCalendarGridProps) {
   const grouped = groupInstancesByDate(instances);
@@ -111,7 +119,7 @@ export function WeeklyCalendarGrid({
   );
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <div className={`${timetableSurface} overflow-hidden`}>
       {/* Mobile day strip — tap a day to switch (single-day view < sm) */}
       <div className="flex gap-1 border-b border-gray-200 bg-white p-2 sm:hidden">
         {weekDays.map((day, index) => {
@@ -251,6 +259,32 @@ export function WeeklyCalendarGrid({
                   );
                 })}
 
+                {/* Empty-slot click targets — before the event blocks in DOM
+                    order, so blocks paint on top and keep their own click
+                    handlers without z-index tricks. */}
+                {onSlotClick &&
+                  hours.slice(0, -1).map((hour) => (
+                    <button
+                      key={`slot-${hour}`}
+                      type="button"
+                      // Out of the tab order: ~100 hourly slots would bury
+                      // the first event behind dozens of tab stops; keyboard
+                      // users create events via the "Neu" menu instead.
+                      tabIndex={-1}
+                      onClick={() => onSlotClick(iso, hour)}
+                      aria-label={`Neuen Termin anlegen: ${formatDayHeader(day)}, ${String(hour).padStart(2, "0")}:00 Uhr`}
+                      className="group absolute inset-x-0 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset"
+                      style={{
+                        top: `${(hour - renderStartHour) * hourHeightPx}px`,
+                        height: `${hourHeightPx}px`,
+                      }}
+                    >
+                      <span className="pointer-events-none hidden rounded-lg border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-500 shadow-sm group-hover:inline group-focus-visible:inline">
+                        + Termin
+                      </span>
+                    </button>
+                  ))}
+
                 {/* Event blocks */}
                 {laned.map(({ instance, lane, laneCount }) => {
                   const { top, height } = getEventBlockPosition(
@@ -304,7 +338,7 @@ export function WeeklyCalendarGrid({
 
         {emptyState && (
           <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
-            <div className="max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
+            <div className="moto-content-surface max-w-sm rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 text-center shadow-sm backdrop-blur">
               <h3 className="text-sm font-semibold text-gray-900">
                 {emptyState.title}
               </h3>

@@ -287,7 +287,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       delete: true,
       custom: [
         {
-          label: "Schüler verwalten",
+          label: "Kinder verwalten",
           onClick: (activity) => {
             globalThis.location.href = `/database/activities/${activity.id}/students`;
           },

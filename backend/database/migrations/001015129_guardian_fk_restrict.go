@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	guardianFKRestrictVersion     = "1.15.127"
+	guardianFKRestrictVersion     = "1.15.129"
 	guardianFKRestrictDescription = "Change students_guardians → guardian_profiles FK from ON DELETE CASCADE to RESTRICT to prevent unintended sibling unlinking on guardian deletion (#819)"
 )
 
@@ -18,7 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     guardianFKRestrictVersion,
 		Description: guardianFKRestrictDescription,
-		DependsOn:   []string{"1.15.126", "1.15.2"}, // composite FKs created in 1.15.2
+		DependsOn:   []string{"1.15.128", "1.15.2"}, // composite FKs created in 1.15.2
 	})
 
 	Migrations.MustRegister(
@@ -38,7 +38,7 @@ func init() {
 // removed every students_guardians row for that guardian — including links to
 // SIBLINGS the caller never intended to touch (#819). RESTRICT turns a blind
 // guardian delete into a hard error when links still exist, which is what makes
-// the handler's existing 409 ("Noch mit Schüler/innen verknüpft") branch
+// the handler's existing 409 ("Noch mit Kindern verknüpft") branch
 // reachable. Deliberate full deletion removes the link rows first, then the
 // guardian, inside one tenant transaction.
 //

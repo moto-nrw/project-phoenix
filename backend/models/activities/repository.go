@@ -113,6 +113,13 @@ type ScheduleRepository interface {
 	// WHERE clause as defense-in-depth alongside RLS. Returns an empty
 	// slice when groupIDs is empty.
 	FindTemplateStartTimesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*TemplateStartTime, error)
+
+	// CapValidUntil ends the recurrence of every schedule of the given
+	// template at validUntil (exclusive): rows that are open-ended
+	// (valid_until IS NULL) or end later than validUntil are capped to
+	// validUntil. Returns the number of rows changed. Used by the template
+	// split ("Dieser und alle folgenden", WP-B3).
+	CapValidUntil(ctx context.Context, activityGroupID int64, validUntil timezone.Date) (int64, error)
 }
 
 // SupervisorPlannedRepository defines operations for managing activity supervisors
@@ -146,6 +153,11 @@ type SupervisorPlannedRepository interface {
 	// DeleteByStaffID removes all planned supervisions for a staff member
 	// (staff offboarding cleanup).
 	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
+
+	// CapActiveByGroup ends every still-active supervision (valid_until IS
+	// NULL) of the given group at validUntil (exclusive). Returns the number
+	// of rows changed. Used by the template split (WP-B3).
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
@@ -171,6 +183,11 @@ type StudentEnrollmentRepository interface {
 
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
+
+	// CapActiveByGroup ends every still-active enrollment (valid_until IS
+	// NULL) of the given group at validUntil (exclusive). Returns the number
+	// of rows changed. Used by the template split (WP-B3).
+	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -200,4 +217,5 @@ type TemplateListRow struct {
 	EndTime            sql.NullString `bun:"end_time"`
 	WeekPattern        int            `bun:"week_pattern"`
 	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidUntil sql.NullString `bun:"schedule_valid_until"`
 }

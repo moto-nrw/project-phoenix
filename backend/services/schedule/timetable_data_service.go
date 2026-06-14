@@ -93,6 +93,7 @@ type TimetableDataService interface {
 	// Templates (raw aggregation queries live in the activities repositories)
 	ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModel.TemplateListRow, error)
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModel.TemplateListRow, error)
+	DetectPlannedConflicts(ctx context.Context, query PlannedConflictQuery, logger *slog.Logger) []PlannedConflictWarning
 	UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error)
 	ArchiveTemplate(ctx context.Context, id int64) (int64, error)
 	DeleteSchedulesByGroupID(ctx context.Context, groupID int64) error
@@ -321,6 +322,14 @@ func (s *timetableDataService) ListTemplateRows(ctx context.Context, templateID 
 
 func (s *timetableDataService) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModel.TemplateListRow, error) {
 	return s.deps.ActivityGroupRepo.ListTemplateRowsForPeriod(ctx, periodID)
+}
+
+func (s *timetableDataService) DetectPlannedConflicts(ctx context.Context, query PlannedConflictQuery, logger *slog.Logger) []PlannedConflictWarning {
+	return DetectPlannedConflicts(ctx, PlannedConflictDependencies{
+		InstanceRepo:      s.deps.ActivityInstanceRepo,
+		InstanceStaffRepo: s.deps.InstanceStaffRepo,
+		InstanceStudents:  s.deps.InstanceStudentRepo,
+	}, query, logger)
 }
 
 func (s *timetableDataService) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {

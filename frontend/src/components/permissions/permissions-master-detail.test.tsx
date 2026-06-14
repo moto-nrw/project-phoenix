@@ -20,7 +20,7 @@ import type { Permission } from "@/lib/auth-helpers";
 const readPermission: Permission = {
   id: "1",
   name: "students:read",
-  description: "Schülerdaten lesen",
+  description: "Kinderdaten lesen",
   resource: "students",
   action: "read",
   createdAt: "2026-01-01",
@@ -30,7 +30,7 @@ const readPermission: Permission = {
 const writePermission: Permission = {
   id: "2",
   name: "students:write",
-  description: "Schülerdaten bearbeiten",
+  description: "Kinderdaten bearbeiten",
   resource: "students",
   action: "write",
   createdAt: "2026-01-01",
@@ -130,7 +130,7 @@ describe("PermissionsMasterDetail", () => {
     // List rows surface the German description as the title. Click the row
     // matching writePermission and assert it selects id="2", confirming each
     // row is wired to its own id rather than a captured stale value.
-    fireEvent.click(screen.getByText("Schülerdaten bearbeiten"));
+    fireEvent.click(screen.getByText("Kinderdaten bearbeiten"));
     expect(onSelect).toHaveBeenCalledWith("2");
   });
 

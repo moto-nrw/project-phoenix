@@ -853,7 +853,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 
 	if len(linkedNames) > 0 {
 		if !force {
-			message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft"
+			message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"
 			if isAdmin {
 				message = guardianFullDeleteWarning(linkedNames)
 			}
@@ -894,7 +894,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 		// the RESTRICT FK — surface it as the same 409 rather than a 500.
 		if common.IsConstraintViolation(err) {
 			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Schüler/innen verknüpft"))
+			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"))
 			return
 		}
 		// Check for "not found" errors and return 404

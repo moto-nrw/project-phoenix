@@ -11,6 +11,7 @@ import { toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
+  BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendExceptionConflictsResponse,
@@ -19,11 +20,13 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendSplitTemplateResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
   BackendSubstituteResponse,
   BackendWeeklyInstancesResponse,
   AttendanceResponse,
+  ConflictCheckResult,
   CreateTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
@@ -33,9 +36,11 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  SplitTemplateResult,
   StartInstanceResult,
   SubstituteResponse,
   TemplatesResponse,
+  TimetableTemplate,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 
@@ -197,7 +202,10 @@ export function getGermanWeekdayShort(d: Date): string {
 }
 
 /**
- * "KW 38 • Mo 22.09 – So 28.09.2026" — the week-navigator header.
+ * "KW 38 · 22.09.–28.09.2026" — the week-navigator header. Weekday names are
+ * omitted on purpose: the grid columns directly below already show Mo–So, so
+ * repeating them here only bloated the label and pushed the toolbar onto a
+ * second row.
  */
 export function formatWeekLabel(from: Date, to: Date): string {
   const kw = getISOWeekNumber(from);
@@ -206,7 +214,7 @@ export function formatWeekLabel(from: Date, to: Date): string {
   const toDay = String(to.getDate()).padStart(2, "0");
   const toMonth = String(to.getMonth() + 1).padStart(2, "0");
   const year = to.getFullYear();
-  return `KW ${kw} • Mo ${fromDay}.${fromMonth} – So ${toDay}.${toMonth}.${year}`;
+  return `KW ${kw} · ${fromDay}.${fromMonth}.–${toDay}.${toMonth}.${year}`;
 }
 
 /**
@@ -522,6 +530,35 @@ export function mapCreateTemplateResult(
   };
 }
 
+export function mapSplitTemplateResult(
+  raw: BackendSplitTemplateResult,
+): SplitTemplateResult {
+  return {
+    oldTemplateId: String(raw.old_template_id),
+    newTemplateId: String(raw.new_template_id),
+    scheduleIds: (raw.schedule_ids ?? []).map(String),
+    deletedInstances: raw.deleted_instances,
+    instancesCreated: raw.instances_created,
+  };
+}
+
+export function mapConflictCheckResult(
+  raw: BackendConflictCheckResult,
+): ConflictCheckResult {
+  return {
+    date: raw.date,
+    startTime: raw.start_time,
+    endTime: raw.end_time,
+    warnings: (raw.warnings ?? []).map((warning) => ({
+      kind: warning.kind,
+      resourceId: String(warning.resource_id),
+      message: warning.message,
+      conflictingInstanceId: String(warning.conflicting_instance_id),
+      conflictingTitle: warning.conflicting_title,
+    })),
+  };
+}
+
 export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
   return {
     templates: (raw.templates ?? []).map((template) => ({
@@ -727,4 +764,87 @@ export function assignBlockLanes(
 
   flushCluster();
   return result;
+}
+
+/**
+ * KPI + onboarding helpers for the planner overview zone.
+ *
+ * These are intentionally pure and instance/template-driven so the
+ * "Geplant" / "Ohne Personal" headline cards work in every view
+ * (week/month/year/series) without hitting the 14-day-capped, week-only
+ * /api/timetable/gaps endpoint.
+ */
+
+/** Count non-cancelled instances in the given list. */
+export function countPlanned(instances: EnrichedInstance[]): number {
+  return instances.filter((inst) => inst.status !== "cancelled").length;
+}
+
+/**
+ * Count instances with no effective staff (none assigned, or every assigned
+ * person marked absent), excluding cancelled ones. A client-side
+ * approximation of a Personal-Lücke that works across any date range — the
+ * backend /api/timetable/gaps endpoint is capped at 14 days and week-only.
+ */
+export function countStaffGaps(instances: EnrichedInstance[]): number {
+  return instances.filter(
+    (inst) =>
+      inst.status !== "cancelled" &&
+      inst.staffCount - inst.absentStaffCount <= 0,
+  ).length;
+}
+
+/** Count recurring series (Regeltermine) without any assigned staff. */
+export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
+  return templates.filter((tpl) => tpl.staffIds.length === 0).length;
+}
+
+export type TimetableEnrollmentStatus = "active" | "none" | "unknown";
+
+export interface TimetableSetupState {
+  periodDone: boolean;
+  enrollmentDone: boolean;
+  planDone: boolean;
+  /** false when the enrollment status is unknown (no read access) */
+  enrollmentApplicable: boolean;
+  completedSteps: number;
+  totalSteps: number;
+  progressPercent: number;
+  /** Required steps (period + first plan) complete — collapses the guide. */
+  setupComplete: boolean;
+}
+
+/**
+ * Status of the three onboarding steps shown in the planner setup guide
+ * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
+ * enrollment step is optional and is dropped from the progress count when
+ * its status is unknown (the admin cannot read enrollment phases).
+ */
+export function computeTimetableSetup(input: {
+  hasActivePeriod: boolean;
+  enrollment: TimetableEnrollmentStatus;
+  hasPlan: boolean;
+}): TimetableSetupState {
+  const periodDone = input.hasActivePeriod;
+  const planDone = input.hasPlan;
+  const enrollmentApplicable = input.enrollment !== "unknown";
+  const enrollmentDone = input.enrollment === "active";
+
+  const totalSteps = enrollmentApplicable ? 3 : 2;
+  const completedSteps =
+    (periodDone ? 1 : 0) +
+    (planDone ? 1 : 0) +
+    (enrollmentApplicable && enrollmentDone ? 1 : 0);
+  const progressPercent = Math.round((completedSteps / totalSteps) * 100);
+
+  return {
+    periodDone,
+    enrollmentDone,
+    planDone,
+    enrollmentApplicable,
+    completedSteps,
+    totalSteps,
+    progressPercent,
+    setupComplete: periodDone && planDone,
+  };
 }

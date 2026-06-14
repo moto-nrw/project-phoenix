@@ -598,6 +598,14 @@ func (materializationAllowCalendarService) DeletePeriod(context.Context, int64) 
 	panic("unused")
 }
 
+func (materializationAllowCalendarService) EnsureDefaultSchoolYear(context.Context) ([]*schedule.CalendarPeriod, bool, error) {
+	panic("unused")
+}
+
+func (materializationAllowCalendarService) FindActiveOverlaps(context.Context, *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error) {
+	panic("unused")
+}
+
 func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date, *schedule.CalendarPeriod) bool {
 	return true
 }
@@ -1009,4 +1017,23 @@ func newMaterializationBranchService(instanceRepo materializationFakeInstanceRep
 	)
 
 	return svc, date
+}
+
+// -----------------------------------------------------------------------------
+// TestScheduleEndedOn — WP-B3: schedules capped by a template split stop
+// producing instances ON or AFTER valid_until (exclusive end).
+// -----------------------------------------------------------------------------
+
+func TestScheduleEndedOn(t *testing.T) {
+	date := timezone.NewDate(2026, time.June, 15)
+	until := timezone.NewDate(2026, time.June, 15)
+
+	assert.False(t, scheduleEndedOn(nil, date), "nil schedule never matches")
+	assert.False(t, scheduleEndedOn(&activities.Schedule{}, date), "nil valid_until = open-ended")
+	assert.True(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date),
+		"valid_until is exclusive: the schedule is ended ON that date")
+	assert.True(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(1)),
+		"dates after valid_until are ended")
+	assert.False(t, scheduleEndedOn(&activities.Schedule{ValidUntil: &until}, date.AddDays(-1)),
+		"dates before valid_until still materialize")
 }

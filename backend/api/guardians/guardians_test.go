@@ -608,7 +608,7 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 	errText := linkedGuardianErrorText(t, rr.Body.String())
-	assert.Contains(t, errText, "Noch mit Schüler/innen verknüpft")
+	assert.Contains(t, errText, "Noch mit Kindern verknüpft")
 	assert.NotContains(t, errText, "Private")
 	assert.NotContains(t, errText, "Child")
 }

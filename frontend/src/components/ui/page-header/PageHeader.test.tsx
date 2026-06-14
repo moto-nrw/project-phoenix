@@ -27,9 +27,9 @@ describe("PageHeader", () => {
   });
 
   it("renders badge label", () => {
-    render(<PageHeader title="Test" badge={{ count: 10, label: "Schüler" }} />);
+    render(<PageHeader title="Test" badge={{ count: 10, label: "Kinder" }} />);
 
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
   });
 
   it("renders badge icon", () => {
