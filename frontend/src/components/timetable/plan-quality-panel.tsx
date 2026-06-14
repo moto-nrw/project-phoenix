@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type React from "react";
 import {
   CalendarClock,
   ShieldAlert,
@@ -24,6 +23,7 @@ import {
   timetableSurfacePadded,
   timetableWarningPanel,
 } from "./timetable-style";
+import { TimetableStatCard } from "./timetable-stat-card";
 
 interface PlanQualityPanelProps {
   instances: EnrichedInstance[];
@@ -134,25 +134,25 @@ export function PlanQualityPanel({
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-4">
-        <Metric
+        <TimetableStatCard
           icon={<CalendarClock className="h-4 w-4" />}
           label="Geplant"
           value={String(plannedCount)}
           tone="neutral"
         />
-        <Metric
+        <TimetableStatCard
           icon={<UsersRound className="h-4 w-4" />}
           label="Läuft"
           value={String(activeCount)}
           tone="success"
         />
-        <Metric
+        <TimetableStatCard
           icon={<UserPlus className="h-4 w-4" />}
           label="Ohne Personal"
           value={String(gaps.length)}
           tone={gaps.length > 0 ? "danger" : "neutral"}
         />
-        <Metric
+        <TimetableStatCard
           icon={<ShieldAlert className="h-4 w-4" />}
           label="Abwesend"
           value={String(absentStaffCount)}
@@ -318,33 +318,5 @@ export function PlanQualityPanel({
         </div>
       )}
     </section>
-  );
-}
-
-function Metric({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: "neutral" | "success" | "warning" | "danger";
-}) {
-  const palette = {
-    neutral: "border-gray-200 bg-gray-50 text-gray-700",
-    success: "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]",
-    warning: "border-[#EAB308]/20 bg-[#EAB308]/10 text-[#92400E]",
-    danger: "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]",
-  };
-  return (
-    <div className={`rounded-xl border px-3 py-2 ${palette[tone]}`}>
-      <div className="flex items-center gap-2 text-[11px] font-bold uppercase">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-1 text-lg font-bold">{value}</div>
-    </div>
   );
 }

@@ -40,6 +40,7 @@ import type {
   StartInstanceResult,
   SubstituteResponse,
   TemplatesResponse,
+  TimetableTemplate,
   WeeklyInstancesResponse,
 } from "./timetable-types";
 
@@ -763,4 +764,87 @@ export function assignBlockLanes(
 
   flushCluster();
   return result;
+}
+
+/**
+ * KPI + onboarding helpers for the planner overview zone.
+ *
+ * These are intentionally pure and instance/template-driven so the
+ * "Geplant" / "Ohne Personal" headline cards work in every view
+ * (week/month/year/series) without hitting the 14-day-capped, week-only
+ * /api/timetable/gaps endpoint.
+ */
+
+/** Count non-cancelled instances in the given list. */
+export function countPlanned(instances: EnrichedInstance[]): number {
+  return instances.filter((inst) => inst.status !== "cancelled").length;
+}
+
+/**
+ * Count instances with no effective staff (none assigned, or every assigned
+ * person marked absent), excluding cancelled ones. A client-side
+ * approximation of a Personal-Lücke that works across any date range — the
+ * backend /api/timetable/gaps endpoint is capped at 14 days and week-only.
+ */
+export function countStaffGaps(instances: EnrichedInstance[]): number {
+  return instances.filter(
+    (inst) =>
+      inst.status !== "cancelled" &&
+      inst.staffCount - inst.absentStaffCount <= 0,
+  ).length;
+}
+
+/** Count recurring series (Regeltermine) without any assigned staff. */
+export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
+  return templates.filter((tpl) => tpl.staffIds.length === 0).length;
+}
+
+export type TimetableEnrollmentStatus = "active" | "none" | "unknown";
+
+export interface TimetableSetupState {
+  periodDone: boolean;
+  enrollmentDone: boolean;
+  planDone: boolean;
+  /** false when the enrollment status is unknown (no read access) */
+  enrollmentApplicable: boolean;
+  completedSteps: number;
+  totalSteps: number;
+  progressPercent: number;
+  /** Required steps (period + first plan) complete — collapses the guide. */
+  setupComplete: boolean;
+}
+
+/**
+ * Status of the three onboarding steps shown in the planner setup guide
+ * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
+ * enrollment step is optional and is dropped from the progress count when
+ * its status is unknown (the admin cannot read enrollment phases).
+ */
+export function computeTimetableSetup(input: {
+  hasActivePeriod: boolean;
+  enrollment: TimetableEnrollmentStatus;
+  hasPlan: boolean;
+}): TimetableSetupState {
+  const periodDone = input.hasActivePeriod;
+  const planDone = input.hasPlan;
+  const enrollmentApplicable = input.enrollment !== "unknown";
+  const enrollmentDone = input.enrollment === "active";
+
+  const totalSteps = enrollmentApplicable ? 3 : 2;
+  const completedSteps =
+    (periodDone ? 1 : 0) +
+    (planDone ? 1 : 0) +
+    (enrollmentApplicable && enrollmentDone ? 1 : 0);
+  const progressPercent = Math.round((completedSteps / totalSteps) * 100);
+
+  return {
+    periodDone,
+    enrollmentDone,
+    planDone,
+    enrollmentApplicable,
+    completedSteps,
+    totalSteps,
+    progressPercent,
+    setupComplete: periodDone && planDone,
+  };
 }

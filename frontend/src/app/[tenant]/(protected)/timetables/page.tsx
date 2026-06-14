@@ -34,6 +34,8 @@ import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
+import { TimetableOverview } from "~/components/timetable/timetable-overview";
+import { TimetableSetupGuide } from "~/components/timetable/timetable-setup-guide";
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import {
@@ -58,6 +60,8 @@ import {
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
+import { listPhases } from "~/lib/enrollment-phase-api";
+import { formatDate } from "~/lib/date-helpers";
 import {
   findPeriodForDate,
   mapPeriodsForDates,
@@ -66,6 +70,9 @@ import {
 import { timetableService } from "~/lib/timetable-api";
 import {
   chunkDateRange,
+  countPlanned,
+  countStaffGaps,
+  countTemplateStaffGaps,
   formatWeekLabel,
   formatMonthLabel,
   formatYearLabel,
@@ -76,6 +83,7 @@ import {
   getYearMonths,
   getYearRange,
   toISODate,
+  type TimetableEnrollmentStatus,
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
@@ -850,6 +858,15 @@ function TimetablesContent() {
     status === "authenticated" ? "timetable-student-list" : null,
     () => fetchStudents({ page_size: 500 }),
   );
+  // Enrollment phases drive the optional "Mit der Anmeldung verknüpfen"
+  // setup step. The fetcher swallows errors (e.g. 403 when the planner
+  // admin can't read enrollment) so a missing permission degrades to the
+  // neutral "unknown" status instead of failing the page.
+  const { data: enrollmentPhases } = useSWRAuth(
+    status === "authenticated" ? "timetable-enrollment-phases" : null,
+    () => listPhases().catch(() => null),
+    { revalidateOnFocus: false },
+  );
   const {
     data: periods,
     error: periodsError,
@@ -1064,6 +1081,61 @@ function TimetablesContent() {
     [instances, selectedInstanceId],
   );
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
+
+  // --- Overview zone (KPIs + setup guide), rendered in every view ---
+  // KPIs are derived from the already-loaded instances/templates so they
+  // work in month/year too — the /api/timetable/gaps endpoint is week-only
+  // and capped at 14 days. In the week view we prefer the gaps count when
+  // loaded so the headline KPI matches the Planstatus panel below.
+  const isSeriesView = view === "series";
+  const plannedCount = useMemo(
+    () => (isSeriesView ? templates.length : countPlanned(instances)),
+    [isSeriesView, templates, instances],
+  );
+  const staffGapCount = useMemo(() => {
+    if (isSeriesView) return countTemplateStaffGaps(templates);
+    if (view === "week" && gapsData) return gaps.length;
+    return countStaffGaps(instances);
+  }, [isSeriesView, templates, view, gapsData, gaps, instances]);
+  const plannedSublabel = isSeriesView
+    ? "als Regeltermin"
+    : view === "week"
+      ? "diese Woche"
+      : view === "month"
+        ? "diesen Monat"
+        : "dieses Jahr";
+  const staffGapSublabel =
+    staffGapCount > 0 ? "brauchen Personal" : "alles besetzt";
+  const hasActivePeriod = useMemo(
+    () => calendarPeriods.some((period) => period.isActive),
+    [calendarPeriods],
+  );
+  const activePeriodLabel = useMemo(() => {
+    const period =
+      findPeriodForDate(calendarPeriods, todayISO) ??
+      calendarPeriods.find((item) => item.isActive) ??
+      null;
+    if (!period) return null;
+    return `${period.name} · gültig bis ${formatDate(period.endDate)}`;
+  }, [calendarPeriods, todayISO]);
+  const hasPlan = instances.length > 0 || templates.length > 0;
+  const enrollmentPhaseList = Array.isArray(enrollmentPhases)
+    ? enrollmentPhases
+    : null;
+  const enrollmentStatus: TimetableEnrollmentStatus =
+    enrollmentPhaseList === null
+      ? "unknown"
+      : enrollmentPhaseList.some((phase) => phase.is_active)
+        ? "active"
+        : "none";
+  const enrollmentLabel = useMemo(() => {
+    const active = (enrollmentPhaseList ?? []).filter(
+      (phase) => phase.is_active,
+    );
+    if (active.length === 0) return null;
+    if (active.length === 1) return active[0]!.name;
+    return `${active.length} aktive Phasen`;
+  }, [enrollmentPhaseList]);
 
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
@@ -1465,6 +1537,30 @@ function TimetablesContent() {
             onAddSeries={openSeriesCreate}
           />
         }
+      />
+
+      <TimetableOverview
+        plannedLabel={isSeriesView ? "Regeltermine" : "Geplant"}
+        plannedCount={plannedCount}
+        plannedSublabel={plannedSublabel}
+        staffGapCount={staffGapCount}
+        staffGapSublabel={staffGapSublabel}
+        createLabel={
+          isSeriesView ? "Regeltermin erstellen" : "Termin erstellen"
+        }
+        onCreate={isSeriesView ? openSeriesCreate : openEventCreate}
+      />
+
+      <TimetableSetupGuide
+        hasActivePeriod={hasActivePeriod}
+        activePeriodLabel={activePeriodLabel}
+        enrollmentStatus={enrollmentStatus}
+        enrollmentLabel={enrollmentLabel}
+        hasPlan={hasPlan}
+        plannedCount={plannedCount}
+        onManagePeriods={handleManagePeriods}
+        onCreateEvent={openEventCreate}
+        enrollmentHref="/admin/enrollments"
       />
 
       {shouldLoadInstances && (

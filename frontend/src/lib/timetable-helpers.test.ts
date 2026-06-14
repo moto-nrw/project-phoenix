@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   assignBlockLanes,
   chunkDateRange,
+  computeTimetableSetup,
+  countPlanned,
+  countStaffGaps,
+  countTemplateStaffGaps,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
@@ -38,7 +42,7 @@ import {
   parseTimeToMinutes,
   toISODate,
 } from "./timetable-helpers";
-import type { EnrichedInstance } from "./timetable-types";
+import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
 
 // Minimal helper — assignBlockLanes only inspects startTime/endTime.
 function fakeInstance(
@@ -754,5 +758,133 @@ describe("mapConflictCheckResult", () => {
       endTime: "13:00",
       warnings: [],
     });
+  });
+});
+
+function planInstance(
+  overrides: Partial<EnrichedInstance> = {},
+): EnrichedInstance {
+  return {
+    id: "i1",
+    date: "2026-06-15",
+    startTime: "09:00",
+    endTime: "10:00",
+    title: "Mensa",
+    status: "planned",
+    isSpontaneous: false,
+    isLive: false,
+    activityType: "care",
+    roomId: "1",
+    roomName: "Raum",
+    staff: [],
+    students: [],
+    studentIds: [],
+    staffCount: 0,
+    absentStaffCount: 0,
+    expectedStudentsCount: 0,
+    presentStudentsCount: 0,
+    conflictWarnings: [],
+    ...overrides,
+  } as unknown as EnrichedInstance;
+}
+
+function fakeTemplate(staffIds: string[]): TimetableTemplate {
+  return { staffIds } as unknown as TimetableTemplate;
+}
+
+describe("countPlanned", () => {
+  it("counts non-cancelled instances", () => {
+    expect(
+      countPlanned([
+        planInstance({ id: "a", status: "planned" }),
+        planInstance({ id: "b", status: "active" }),
+        planInstance({ id: "c", status: "completed" }),
+        planInstance({ id: "d", status: "cancelled" }),
+      ]),
+    ).toBe(3);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(countPlanned([])).toBe(0);
+  });
+});
+
+describe("countStaffGaps", () => {
+  it("counts instances with no effective staff, ignoring cancelled", () => {
+    expect(
+      countStaffGaps([
+        planInstance({ id: "none", staffCount: 0, absentStaffCount: 0 }),
+        planInstance({ id: "all-absent", staffCount: 2, absentStaffCount: 2 }),
+        planInstance({ id: "staffed", staffCount: 1, absentStaffCount: 0 }),
+        planInstance({
+          id: "cancelled-gap",
+          status: "cancelled",
+          staffCount: 0,
+          absentStaffCount: 0,
+        }),
+      ]),
+    ).toBe(2);
+  });
+});
+
+describe("countTemplateStaffGaps", () => {
+  it("counts series without assigned staff", () => {
+    expect(
+      countTemplateStaffGaps([
+        fakeTemplate([]),
+        fakeTemplate(["7"]),
+        fakeTemplate([]),
+      ]),
+    ).toBe(2);
+  });
+});
+
+describe("computeTimetableSetup", () => {
+  it("completes when period + plan are done (enrollment optional)", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: true,
+      enrollment: "none",
+      hasPlan: true,
+    });
+    expect(result.setupComplete).toBe(true);
+    expect(result.periodDone).toBe(true);
+    expect(result.planDone).toBe(true);
+    expect(result.totalSteps).toBe(3);
+    expect(result.completedSteps).toBe(2);
+    expect(result.progressPercent).toBe(67);
+  });
+
+  it("is incomplete for a fresh school (no period, no plan)", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: false,
+      enrollment: "none",
+      hasPlan: false,
+    });
+    expect(result.setupComplete).toBe(false);
+    expect(result.completedSteps).toBe(0);
+    expect(result.progressPercent).toBe(0);
+  });
+
+  it("counts an active enrollment step toward progress", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: true,
+      enrollment: "active",
+      hasPlan: true,
+    });
+    expect(result.enrollmentDone).toBe(true);
+    expect(result.completedSteps).toBe(3);
+    expect(result.progressPercent).toBe(100);
+  });
+
+  it("drops the enrollment step from progress when status is unknown", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: true,
+      enrollment: "unknown",
+      hasPlan: false,
+    });
+    expect(result.enrollmentApplicable).toBe(false);
+    expect(result.totalSteps).toBe(2);
+    expect(result.completedSteps).toBe(1);
+    expect(result.progressPercent).toBe(50);
   });
 });
