@@ -993,7 +993,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:           realtimeHub,
 		GuardianInvites:       guardianInvitationService,
 		StudentGuardianRepo:   repos.StudentGuardian,
-		GuardianProfileRepo:   repos.GuardianProfile,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),
 	})

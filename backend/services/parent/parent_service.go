@@ -137,7 +137,6 @@ type ServiceConfig struct {
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
 	StudentGuardianRepo usersModels.StudentGuardianRepository
-	GuardianProfileRepo usersModels.GuardianProfileRepository
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -157,7 +156,6 @@ type service struct {
 
 	guardianInvites     authService.GuardianInvitationService
 	studentGuardianRepo usersModels.StudentGuardianRepository
-	guardianProfileRepo usersModels.GuardianProfileRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -181,7 +179,6 @@ func NewService(cfg ServiceConfig) Service {
 		broadcaster:           cfg.Broadcaster,
 		guardianInvites:       cfg.GuardianInvites,
 		studentGuardianRepo:   cfg.StudentGuardianRepo,
-		guardianProfileRepo:   cfg.GuardianProfileRepo,
 		db:                    cfg.DB,
 		logger:                logger,
 	}
