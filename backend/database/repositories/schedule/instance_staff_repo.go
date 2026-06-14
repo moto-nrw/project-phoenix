@@ -127,6 +127,38 @@ func (r *InstanceStaffRepository) FindByInstanceID(ctx context.Context, instance
 	return rows, nil
 }
 
+// FindByInstanceIDs returns every instance_staff row for any of the given
+// instance IDs. Tenant-scoped. Empty input returns an empty slice without
+// hitting the DB, matching the sibling bulk helpers (see
+// FindExpectedByInstanceIDs in instance_student_repo). Custom method
+// (backend-conventions Rule 2): bulk IN lookup the generic List(filters)
+// shape cannot express without per-call map allocation games; required by the
+// planned-conflict probe to stay O(1) queries for N overlapping instances.
+func (r *InstanceStaffRepository) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*schedule.InstanceStaff, error) {
+	if len(instanceIDs) == 0 {
+		return []*schedule.InstanceStaff{}, nil
+	}
+	var rows []*schedule.InstanceStaff
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStaff).
+		Where(`"instance_staff".instance_id IN (?)`, bun.List(instanceIDs)).
+		OrderExpr(`"instance_staff".instance_id ASC, "instance_staff".id ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by instance ids",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindByStaffAndDate returns all staff assignments for a staff member across
 // all instances on the given date.
 func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*schedule.InstanceStaff, error) {

@@ -29,7 +29,7 @@ func TestRenderRecords_ProducesValidPDF(t *testing.T) {
 	svc := NewService()
 	doc := RecordDocument{
 		Title:       "Anmeldungen – Test",
-		Subtitle:    "1 Anmeldungen, 1 Kinder",
+		Subtitle:    "1 Anmeldung, 1 Kind",
 		GeneratedAt: time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC),
 		Footer:      "Vertraulich",
 		Records:     []Record{sampleRecord("Familie Muster")},

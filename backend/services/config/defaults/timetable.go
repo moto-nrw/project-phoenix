@@ -9,9 +9,10 @@ import (
 // behaviour, and the GDPR retention window for completed/cancelled instances.
 //
 // The top-level timetable feature is opt-out, so tenants see the navigation
-// entry and related settings unless they explicitly disable it. The automated
-// behaviours remain opt-in: `materialization_enabled` and `auto_start_planned`
-// both default to FALSE.
+// entry and related settings unless they explicitly disable it. Materialization
+// is opt-out too: `materialization_enabled` defaults to TRUE, and the three
+// materialization settings are operator-only because the cadence is platform
+// plumbing. `auto_start_planned` stays opt-in and defaults to FALSE.
 //
 // The weekday option values match ISO 8601 numbering (1 = Monday … 7 = Sunday)
 // so they slot directly into time.Weekday comparisons after the usual +1 shift.
@@ -26,8 +27,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyTimetableEnabled,
-		Label:           "Stundenplan aktivieren",
-		Description:     "Zeigt den Stundenplan in der Navigation an und schaltet die passenden Einstellungen frei.",
+		Label:           "Betreuungsplan aktivieren",
+		Description:     "Zeigt den Betreuungsplan in der Navigation an und schaltet die passenden Einstellungen frei.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -42,12 +43,13 @@ func init() {
 		Label:           "Wiederkehrende Termine automatisch vorbereiten",
 		Description:     "Legt aus den wiederkehrenden Aktivitäten automatisch die konkreten Termine für die kommenden Wochen an.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       30,
+		AccessPolicy:    config.AccessOperatorOnly,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -62,6 +64,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       31,
+		AccessPolicy:    config.AccessOperatorOnly,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Montag", Value: 1},
@@ -93,6 +96,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "stundenplan",
 		SortOrder:       32,
+		AccessPolicy:    config.AccessOperatorOnly,
 		Validation:      &config.ValidationRules{Min: &minWeeksAhead, Max: &maxWeeksAhead},
 		DependsOn: &config.Dependency{
 			Key:       config.KeyTimetableMaterializationEnabled,
@@ -159,7 +163,7 @@ func init() {
 	maxRetention := float64(1825) // 5 years
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimetableRetentionDays,
-		Label:           "Aufbewahrungsdauer Stundenplan (Tage)",
+		Label:           "Aufbewahrungsdauer Betreuungsplan (Tage)",
 		Description:     "Anzahl der Tage, für die abgeschlossene oder abgesagte Termine gespeichert bleiben.",
 		Type:            config.FieldNumber,
 		Default:         365,

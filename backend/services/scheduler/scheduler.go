@@ -1561,9 +1561,9 @@ func statusForFlagColumn(flagColumn string) (string, error) {
 
 // --- Timetable materialization (WP-B8) ---
 //
-// Defaults-off: a tenant opts in by setting `timetable.materialization_enabled`
-// to true in the settings UI. Without the opt-in, the per-tenant check short-
-// circuits and the scheduler does nothing for that tenant. The job fires
+// Defaults-on: materialization runs unless `timetable.materialization_enabled`
+// is overridden to false (operator-only setting). With the opt-out, the
+// per-tenant check short-circuits and does nothing for that tenant. The job fires
 // once per day-of-week (on the configured weekday) via a 60-second
 // minute-polling loop, same shape as scheduleSessionEndTask.
 //
@@ -1651,7 +1651,7 @@ func (s *Scheduler) checkAndRunMaterialization(task *ScheduledTask) {
 	defer cancel()
 
 	s.forEachTenantSettings(ctx, "materialization-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableMaterializationEnabled, "", false)
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTimetableMaterializationEnabled, "", true)
 		if !enabled {
 			return nil
 		}

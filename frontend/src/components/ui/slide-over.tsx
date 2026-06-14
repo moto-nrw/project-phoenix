@@ -26,6 +26,7 @@
 
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
+import { X } from "lucide-react";
 
 import { cn } from "~/lib/utils";
 
@@ -144,6 +145,33 @@ SlideOverDescription.displayName = DrawerPrimitive.Description.displayName;
 
 const SlideOverClose = DrawerPrimitive.Close;
 
+/**
+ * SlideOverCloseButton — the shared close (X) control for slide-over headers.
+ *
+ * The SlideOver primitive (Vaul) ships no styled close button, so every panel
+ * used to hand-roll its own — which is why the close-X drifted across the app.
+ * This is the single source of truth: a round icon button matching the
+ * canonical slide-over close (room-detail-modal's closeButtonClass). Renders a
+ * default X; pass children to override, and aria-label to retitle it.
+ */
+const SlideOverCloseButton = React.forwardRef<
+  React.ComponentRef<typeof DrawerPrimitive.Close>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
+>(({ className, children, ...props }, ref) => (
+  <DrawerPrimitive.Close
+    ref={ref}
+    aria-label="Schließen"
+    className={cn(
+      "inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300",
+      className,
+    )}
+    {...props}
+  >
+    {children ?? <X className="h-5 w-5" aria-hidden="true" />}
+  </DrawerPrimitive.Close>
+));
+SlideOverCloseButton.displayName = "SlideOverCloseButton";
+
 export {
   SlideOver,
   SlideOverContent,
@@ -152,4 +180,5 @@ export {
   SlideOverTitle,
   SlideOverDescription,
   SlideOverClose,
+  SlideOverCloseButton,
 };

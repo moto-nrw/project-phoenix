@@ -11,6 +11,7 @@ import type {
   BackendGuardianPickerResponse,
   BackendGuardianWithRelationship,
   PhoneNumber,
+  PhoneType,
   PhoneNumberCreateRequest,
   PhoneNumberUpdateRequest,
   BackendPhoneNumber,
@@ -64,6 +65,20 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
   );
 }
 
+// Error carrying the HTTP status so callers can branch on it. The guardian
+// delete flow needs to tell a 409 (still linked — show the affected children
+// and offer a full delete) apart from a 403 (not allowed to fully delete) and
+// a generic failure.
+export class GuardianApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "GuardianApiError";
+    this.status = status;
+  }
+}
+
 // Error message translations (English backend -> German frontend)
 // Exported for testing
 export const errorTranslations: Record<string, string> = {
@@ -76,7 +91,7 @@ export const errorTranslations: Record<string, string> = {
   "bereits vergeben":
     "Diese E-Mail-Adresse ist bereits vergeben. Bitte die vorhandene Person über die Suche auswählen.",
   "guardian not found": "Erziehungsberechtigte/r nicht gefunden",
-  "student not found": "Schüler/in nicht gefunden",
+  "student not found": "Kind nicht gefunden",
   "relationship already exists": "Diese Verknüpfung existiert bereits",
   "validation failed": "Validierung fehlgeschlagen",
   "invalid phone number format":
@@ -343,10 +358,34 @@ export async function updateGuardian(
 }
 
 /**
- * Delete a guardian profile
+ * Delete a guardian profile.
+ *
+ * By default this is a guarded delete: the backend refuses (409) a guardian
+ * that is still linked to any student. Pass `{ force: true }` to perform the
+ * deliberate full delete that also removes every student link — the backend
+ * restricts that to administrators (403 otherwise). On any non-OK response a
+ * {@link GuardianApiError} carrying the HTTP status is thrown so the caller can
+ * branch on 409 / 403.
  */
-export async function deleteGuardian(guardianId: string): Promise<void> {
-  const response = await fetch(`/api/guardians/${guardianId}`, {
+export async function deleteGuardian(
+  guardianId: string,
+  opts: { force?: boolean; expectedAffectedLinkIds?: readonly string[] } = {},
+): Promise<void> {
+  const searchParams = new URLSearchParams();
+  if (opts.force) {
+    searchParams.set("force", "true");
+  }
+  if (opts.expectedAffectedLinkIds?.length) {
+    searchParams.set(
+      "expected_link_ids",
+      opts.expectedAffectedLinkIds.join(","),
+    );
+  }
+  const queryString = searchParams.toString();
+  const url = queryString
+    ? `/api/guardians/${guardianId}?${queryString}`
+    : `/api/guardians/${guardianId}`;
+  const response = await fetch(url, {
     method: "DELETE",
   });
 
@@ -362,7 +401,7 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
     const errorMessage = isErrorResponse(error)
       ? error.error
       : `Failed to delete guardian: ${response.statusText}`;
-    throw new Error(errorMessage);
+    throw new GuardianApiError(errorMessage, response.status);
   }
 
   // 204 No Content means successful deletion with no response body
@@ -376,6 +415,69 @@ export async function deleteGuardian(guardianId: string): Promise<void> {
   if (result.status === "error") {
     throw new Error(result.error ?? "Failed to delete guardian");
   }
+}
+
+/** Read-only preview of what a full guardian delete would affect. */
+export interface GuardianDeletePreview {
+  /** How many students are still linked to the guardian. */
+  linkedCount: number;
+  /** Full names of the affected children. */
+  affectedNames: string[];
+  /** Relationship row IDs the server will compare on confirm. */
+  affectedLinkIds: string[];
+  /** Ready-to-show German warning describing the blast radius. */
+  warning: string;
+}
+
+/**
+ * Fetch the blast radius of a full guardian delete WITHOUT deleting anything.
+ *
+ * Backs the admin "Komplett löschen" confirmation: the modal shows
+ * {@link GuardianDeletePreview.warning} (which children would lose the
+ * guardian) before the user confirms the force delete. Admin-only on the
+ * backend (403 otherwise), exposed via {@link GuardianApiError}.
+ */
+export async function fetchGuardianDeletePreview(
+  guardianId: string,
+): Promise<GuardianDeletePreview> {
+  const response = await fetch(`/api/guardians/${guardianId}/delete-preview`);
+
+  if (!response.ok) {
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "fetch_guardian_delete_preview",
+      });
+      return { error: "Failed to load delete preview" };
+    });
+    const errorMessage = isErrorResponse(error)
+      ? error.error
+      : `Failed to load delete preview: ${response.statusText}`;
+    throw new GuardianApiError(errorMessage, response.status);
+  }
+
+  const result = (await response.json()) as ApiResponse<{
+    linked_count: number;
+    affected_names: string[];
+    // The backend sends int64 link IDs as strings (lossless across the JS
+    // safe-integer boundary); tolerate legacy numbers defensively.
+    affected_link_ids: Array<string | number>;
+    warning: string;
+  }>;
+
+  if (result.status === "error" || !result.data) {
+    throw new Error(result.error ?? "Failed to load delete preview");
+  }
+
+  return {
+    linkedCount: result.data.linked_count,
+    affectedNames: result.data.affected_names ?? [],
+    affectedLinkIds: (result.data.affected_link_ids ?? []).map((id) =>
+      String(id),
+    ),
+    warning: result.data.warning,
+  };
 }
 
 /**
@@ -417,6 +519,113 @@ export async function linkGuardianToStudent(
 
   if (result.status === "error") {
     throw new Error(result.error ?? "Failed to link guardian");
+  }
+}
+
+/**
+ * One guardian to create and link to an existing student in a single atomic
+ * request. This flow always creates a NEW profile; the sibling/existing-guardian
+ * case is handled separately by {@link linkGuardianToStudent} via the picker.
+ */
+export interface NewStudentGuardianInput {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  addressStreet?: string;
+  addressCity?: string;
+  addressPostalCode?: string;
+  languagePreference?: string;
+  notes?: string;
+  relationshipType: string;
+  isPrimary: boolean;
+  isEmergencyContact: boolean;
+  canPickup: boolean;
+  pickupNotes?: string;
+  emergencyPriority: number;
+  phoneNumbers?: Array<{
+    phoneNumber: string;
+    phoneType: PhoneType;
+    label?: string;
+    isPrimary: boolean;
+  }>;
+}
+
+/**
+ * Atomically create one or more guardians for an existing student.
+ *
+ * The backend creates every guardian profile, links it to the student, and adds
+ * its phone numbers inside ONE transaction (#819). Any failure rolls the whole
+ * batch back server-side, so there are no orphaned profiles and the client needs
+ * no compensating delete (which a non-admin supervisor could not perform once a
+ * guardian had lost its links). Bad input (e.g. a duplicate email) comes back as
+ * a 400 with a German message, translated for display.
+ */
+export async function createStudentGuardians(
+  studentId: string,
+  guardians: NewStudentGuardianInput[],
+): Promise<void> {
+  const body = {
+    guardians: guardians.map((g) => ({
+      first_name: g.firstName,
+      last_name: g.lastName,
+      email: g.email,
+      address_street: g.addressStreet,
+      address_city: g.addressCity,
+      address_postal_code: g.addressPostalCode,
+      language_preference: g.languagePreference,
+      notes: g.notes,
+      relationship_type: g.relationshipType,
+      is_primary: g.isPrimary,
+      is_emergency_contact: g.isEmergencyContact,
+      can_pickup: g.canPickup,
+      pickup_notes: g.pickupNotes,
+      emergency_priority: g.emergencyPriority,
+      phone_numbers: g.phoneNumbers?.map((p) => ({
+        phone_number: p.phoneNumber,
+        phone_type: p.phoneType,
+        label: p.label,
+        is_primary: p.isPrimary,
+      })),
+    })),
+  };
+
+  const response = await fetch(
+    `/api/guardians/students/${studentId}/guardians/batch`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!response.ok) {
+    const error: unknown = await response.json().catch((err) => {
+      logger.debug("json_parse_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        status: response.status,
+        operation: "create_student_guardians",
+      });
+      return { error: "Failed to create guardians" };
+    });
+    const errorMessage = isErrorResponse(error)
+      ? translateApiError(error.error)
+      : translateApiError(`Failed to create guardians: ${response.statusText}`);
+    throw new Error(errorMessage);
+  }
+
+  // 201 Created with no meaningful body — the caller reloads the guardian list.
+  if (response.status === 204) {
+    return;
+  }
+
+  const result = (await response.json()) as ApiResponse<null>;
+
+  if (result.status === "error") {
+    throw new Error(
+      translateApiError(result.error ?? "Failed to create guardians"),
+    );
   }
 }
 

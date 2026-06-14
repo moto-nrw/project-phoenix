@@ -159,7 +159,7 @@ func (rs *Resource) downloadStudentTemplateXLSX(w http.ResponseWriter, _ *http.R
 		}
 	}()
 
-	sheetName := "Schüler"
+	sheetName := "Kinder"
 	if err := setupExcelSheet(f, sheetName); err != nil {
 		slog.Default().Error("Error setting up sheet", slog.String("error", err.Error()))
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
@@ -284,17 +284,17 @@ func writeHinweiseSheet(f *excelize.File) {
 	// Section headers (row index → label) — rendered as merged, bold section dividers
 	sectionRows := map[int]string{
 		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
-		23: "Schüler-Zusatzinfos",
-		36: "Gehzeiten (Montag bis Freitag)",
-		40: "Allgemeine Hinweise",
+		23: "Kinder-Zusatzinfos",
+		37: "Abholzeiten (Montag bis Freitag)",
+		41: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
 		// row 1: header
 		{"Spalte", "Pflicht?", "Erlaubte Werte / Format", "Beschreibung"},
 		// rows 2-6: student fields
-		{"Vorname", "Ja", "Text", "Vorname des Schülers"},
-		{"Nachname", "Ja", "Text", "Nachname des Schülers"},
+		{"Vorname", "Ja", "Text", "Vorname des Kindes"},
+		{"Nachname", "Ja", "Text", "Nachname des Kindes"},
 		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
 		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
 		{"Geburtstag", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Geburtsdatum, z.B. 2015-08-15, 15.08.2015 oder 15.08.15"},
@@ -315,7 +315,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
 		{"Erz1.Notizen", "Nein", "Text", "Interne Notizen zum Erziehungsberechtigten"},
 		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
-		// row 23: section header "Schüler-Zusatzinfos" (injected)
+		// row 23: section header "Kinder-Zusatzinfos" (injected)
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
 		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},

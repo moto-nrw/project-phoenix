@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CalendarPeriodModal — create or edit a Kalenderperiode (Schuljahr,
+ * CalendarPeriodModal creates or edits a planning window (Schuljahr,
  * Halbjahr, Ferien, Sonstiges). The same form drives both modes; pass an
  * `initial` to switch into edit mode.
  *
@@ -12,20 +12,26 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
+import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
   type CalendarPeriod,
+  type CalendarPeriodWarning,
   PERIOD_TYPES,
   PERIOD_TYPE_LABELS,
   type PeriodType,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
+import { timetableRequiredMark, timetableSelectClass } from "./timetable-style";
 
 const logger = createLogger({ component: "CalendarPeriodModal" });
+const FORM_SELECT_CLASS = timetableSelectClass;
 
 interface CalendarPeriodModalProps {
   isOpen: boolean;
@@ -86,6 +92,7 @@ export function CalendarPeriodModal({
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
 
   const isEdit = Boolean(initial);
 
@@ -96,6 +103,7 @@ export function CalendarPeriodModal({
     );
     setValidationError(null);
     setDeleteConfirm(false);
+    setSaveWarnings([]);
   }, [isOpen, initial, createDefaults]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
@@ -116,6 +124,12 @@ export function CalendarPeriodModal({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (saveWarnings.length > 0) {
+      // Already saved; Enter mirrors the "Schließen" primary action so a
+      // re-submit cannot create a duplicate period.
+      onClose();
+      return;
+    }
     if (!canSubmit) return;
 
     if (form.endDate <= form.startDate) {
@@ -124,7 +138,7 @@ export function CalendarPeriodModal({
     }
     if (cycleLength > 1 && form.weekCycleAnchor === "") {
       setValidationError(
-        "Bei mehrwöchigem Rhythmus ist ein Anker-Datum erforderlich.",
+        "Bei einer Wiederholung über mehrere Wochen ist das Startdatum der Wiederholung erforderlich.",
       );
       return;
     }
@@ -143,17 +157,23 @@ export function CalendarPeriodModal({
           : {}),
       };
 
-      const result = isEdit
+      const { period, warnings } = isEdit
         ? await calendarPeriodService.update(initial!.id, body)
         : await calendarPeriodService.create(body);
 
       toastSuccess(
         isEdit
-          ? `Periode "${result.name}" aktualisiert`
-          : `Periode "${result.name}" angelegt`,
+          ? `Planungszeitraum "${period.name}" aktualisiert`
+          : `Planungszeitraum "${period.name}" angelegt`,
       );
-      onSaved(result);
-      onClose();
+      onSaved(period);
+      if (warnings.length === 0) {
+        onClose();
+      } else {
+        // Advisory only: the save succeeded. Keep the modal open so the
+        // user reads the overlap warning, then closes it explicitly.
+        setSaveWarnings(warnings);
+      }
     } catch (err) {
       logger.error("period_save_failed", {
         mode: isEdit ? "edit" : "create",
@@ -162,7 +182,7 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Periode konnte nicht gespeichert werden";
+          : "Planungszeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
@@ -179,7 +199,7 @@ export function CalendarPeriodModal({
     setDeleting(true);
     try {
       await calendarPeriodService.delete(initial.id);
-      toastSuccess(`Periode "${initial.name}" gelöscht`);
+      toastSuccess(`Planungszeitraum "${initial.name}" gelöscht`);
       onDeleted?.(initial);
       onClose();
     } catch (err) {
@@ -190,7 +210,7 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Periode konnte nicht gelöscht werden";
+          : "Planungszeitraum konnte nicht gelöscht werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
@@ -203,7 +223,9 @@ export function CalendarPeriodModal({
       isOpen={isOpen}
       onClose={onClose}
       size="md"
-      title={isEdit ? "Kalenderperiode bearbeiten" : "Kalenderperiode anlegen"}
+      title={
+        isEdit ? "Planungszeitraum bearbeiten" : "Planungszeitraum anlegen"
+      }
       footer={
         <div className="flex w-full items-center justify-between gap-2">
           <div>
@@ -212,7 +234,7 @@ export function CalendarPeriodModal({
                 <Button
                   type="button"
                   variant="outline_danger"
-                  size="sm"
+                  size="md"
                   onClick={() => void handleDelete()}
                   isLoading={deleting}
                   loadingText="Lösche …"
@@ -221,9 +243,9 @@ export function CalendarPeriodModal({
                   {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
                 </Button>
                 {deleteConfirm && !deleting && (
-                  <p className="text-xs text-[#991B1B]">
-                    Löschen klappt nur, wenn diese Periode nicht mehr von Serien
-                    oder Terminen verwendet wird.
+                  <p className="text-xs text-[#CC2626]">
+                    Löschen klappt nur, wenn dieser Zeitraum nicht mehr von
+                    Regelterminen oder einzelnen Terminen verwendet wird.
                   </p>
                 )}
               </div>
@@ -231,34 +253,48 @@ export function CalendarPeriodModal({
           </div>
           <div className="flex items-center justify-end gap-2">
             {deleteConfirm && !deleting && (
-              <button
+              <Button
                 type="button"
-                className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                variant="ghost"
+                size="compact"
                 onClick={() => setDeleteConfirm(false)}
               >
                 Löschen abbrechen
-              </button>
+              </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              disabled={submitting || deleting}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="submit"
-              form="calendar-period-form"
-              variant="primary"
-              size="sm"
-              isLoading={submitting}
-              loadingText="Speichere …"
-              disabled={!canSubmit || deleting}
-            >
-              {isEdit ? "Speichern" : "Anlegen"}
-            </Button>
+            {saveWarnings.length === 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={onClose}
+                disabled={submitting || deleting}
+              >
+                Abbrechen
+              </Button>
+            )}
+            {saveWarnings.length > 0 ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={onClose}
+              >
+                Schließen
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="calendar-period-form"
+                variant="primary"
+                size="md"
+                isLoading={submitting}
+                loadingText="Speichere …"
+                disabled={!canSubmit || deleting}
+              >
+                {isEdit ? "Speichern" : "Anlegen"}
+              </Button>
+            )}
           </div>
         </div>
       }
@@ -268,24 +304,25 @@ export function CalendarPeriodModal({
         onSubmit={(e) => void handleSubmit(e)}
         className="flex flex-col gap-4"
       >
-        <Field label="Name" htmlFor="name" required>
+        <Field label="Bezeichnung" htmlFor="name" required>
           <Input
             id="name"
             value={form.name}
             onChange={(e) => update("name", e.target.value)}
             placeholder="z. B. Schuljahr 2025/2026"
             maxLength={255}
+            controlSize="compact"
             required
             autoFocus
           />
         </Field>
 
-        <Field label="Typ" htmlFor="period_type" required>
+        <Field label="Art" htmlFor="period_type" required>
           <select
             id="period_type"
             value={form.periodType}
             onChange={(e) => update("periodType", e.target.value as PeriodType)}
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:ring-1 focus:ring-gray-200 focus:outline-none"
+            className={FORM_SELECT_CLASS}
           >
             {PERIOD_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -301,6 +338,7 @@ export function CalendarPeriodModal({
               id="start_date"
               type="date"
               value={form.startDate}
+              controlSize="compact"
               onChange={(e) => update("startDate", e.target.value)}
               required
             />
@@ -310,6 +348,7 @@ export function CalendarPeriodModal({
               id="end_date"
               type="date"
               value={form.endDate}
+              controlSize="compact"
               onChange={(e) => update("endDate", e.target.value)}
               required
             />
@@ -317,18 +356,22 @@ export function CalendarPeriodModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Wochenzyklus (1 = jede Woche)" htmlFor="cycle_length">
+          <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
             <Input
               id="cycle_length"
               type="number"
               min={1}
               max={4}
               value={form.weekCycleLength}
+              controlSize="compact"
               onChange={(e) => update("weekCycleLength", e.target.value)}
             />
+            <span className="text-xs font-normal text-gray-500">
+              1 = jede Woche, 2 = alle 2 Wochen
+            </span>
           </Field>
           <Field
-            label="Anker-Datum"
+            label="Startdatum der Wiederholung"
             htmlFor="cycle_anchor"
             required={cycleLength > 1}
           >
@@ -336,33 +379,39 @@ export function CalendarPeriodModal({
               id="cycle_anchor"
               type="date"
               value={form.weekCycleAnchor}
+              controlSize="compact"
               onChange={(e) => update("weekCycleAnchor", e.target.value)}
               disabled={cycleLength <= 1}
             />
           </Field>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-          <input
-            type="checkbox"
+        <label
+          htmlFor="period_active"
+          className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
+        >
+          <Checkbox
+            id="period_active"
             checked={form.isActive}
             onChange={(e) => update("isActive", e.target.checked)}
-            className="h-4 w-4"
           />
-          <span className="font-semibold text-gray-700">Periode ist aktiv</span>
+          <span className="font-semibold text-gray-700">
+            Zeitraum im Plan verwenden
+          </span>
           <span className="text-xs text-gray-500">
-            Nur aktive Perioden erzeugen Serientermine
+            Nur aktive Zeiträume legen Termine aus Regelterminen an
           </span>
         </label>
 
-        {validationError && (
-          <div
-            role="alert"
-            className="rounded-md border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-xs font-semibold text-[#CC2626]"
-          >
-            {validationError}
-          </div>
-        )}
+        {saveWarnings.map((warning, index) => (
+          <Alert
+            key={`${warning.code}-${index}`}
+            type="warning"
+            message={warning.message}
+          />
+        ))}
+
+        {validationError && renderModalErrorAlert({ message: validationError })}
       </form>
     </FormModal>
   );
@@ -377,12 +426,12 @@ interface FieldProps {
 
 function Field({ label, htmlFor, required = false, children }: FieldProps) {
   return (
-    <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-xs font-semibold text-gray-700">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
         {label}
-        {required && <span className="ml-0.5 text-[#FF3130]">*</span>}
-      </span>
+        {required && <span className={timetableRequiredMark}>*</span>}
+      </label>
       {children}
-    </label>
+    </div>
   );
 }

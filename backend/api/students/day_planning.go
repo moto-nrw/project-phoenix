@@ -106,7 +106,7 @@ func resolveDayPlanning(
 		return DayPlanningStatusComesToday, dayPlanningReasonPickupSchedule, "Abholplan heute"
 	}
 	if _, ok := timetableIDs[student.ID]; ok {
-		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, "Stundenplan heute"
+		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, "Betreuungsplan heute"
 	}
 	if arrival != nil && arrival.IsException && arrival.ArrivalTime == nil {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonArrivalException, dayPlanningExceptionLabel(arrival.Notes)

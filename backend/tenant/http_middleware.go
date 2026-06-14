@@ -36,12 +36,16 @@ func TenantTxMiddleware(db *bun.DB) func(http.Handler) http.Handler {
 			sw := &statusWriter{ResponseWriter: w}
 
 			err := WithTenantTx(r.Context(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+				ctx = withRollbackMarker(ctx)
 				next.ServeHTTP(sw, r.WithContext(ctx))
 
 				// Roll back if the handler signalled a server error so that
 				// any partial writes inside the transaction are not committed.
 				if sw.status >= http.StatusInternalServerError {
 					return fmt.Errorf("tenant: handler returned %d; rolling back tx", sw.status)
+				}
+				if rollbackRequested(ctx) {
+					return fmt.Errorf("tenant: handler requested rollback after status %d", sw.statusCode())
 				}
 				return nil
 			})

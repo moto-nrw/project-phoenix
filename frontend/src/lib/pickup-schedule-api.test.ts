@@ -139,7 +139,7 @@ describe("pickup-schedule-api", () => {
         );
 
       await expect(fetchStudentPickupData("999")).rejects.toThrow(
-        "Schüler/in nicht gefunden",
+        "Kind nicht gefunden",
       );
     });
 
@@ -460,7 +460,7 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupException("999", "456", exceptionData),
-      ).rejects.toThrow("Schüler/in nicht gefunden");
+      ).rejects.toThrow("Kind nicht gefunden");
     });
 
     it("throws translated error when JSON parse fails", async () => {
@@ -540,7 +540,7 @@ describe("pickup-schedule-api", () => {
         );
 
       await expect(deleteStudentPickupException("999", "456")).rejects.toThrow(
-        "Schüler/in nicht gefunden",
+        "Kind nicht gefunden",
       );
     });
 
@@ -881,7 +881,7 @@ describe("pickup-schedule-api", () => {
 
       await expect(
         updateStudentPickupNote("999", "10", noteData),
-      ).rejects.toThrow("Schüler/in nicht gefunden");
+      ).rejects.toThrow("Kind nicht gefunden");
     });
 
     it("throws translated error when JSON parse fails", async () => {
@@ -955,7 +955,7 @@ describe("pickup-schedule-api", () => {
         );
 
       await expect(deleteStudentPickupNote("999", "10")).rejects.toThrow(
-        "Schüler/in nicht gefunden",
+        "Kind nicht gefunden",
       );
     });
 

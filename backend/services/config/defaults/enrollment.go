@@ -247,8 +247,8 @@ func registerEnrollmentLifecycle() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentDefaultActivationMode,
-		Label:           "Aktivierung neuer Schüler",
-		Description:     "Genehmigte Schüler werden sofort aktiv geschaltet oder erst zum eingetragenen Anmeldedatum (z. B. Schuljahresbeginn).",
+		Label:           "Aktivierung neuer Kinder",
+		Description:     "Genehmigte Kinder werden sofort aktiv geschaltet oder erst zum eingetragenen Anmeldedatum (z. B. Schuljahresbeginn).",
 		Type:            config.FieldSelect,
 		Default:         config.EnrollmentActivationModeScheduled,
 		ReadPermission:  "config:read",

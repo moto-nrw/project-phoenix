@@ -1464,7 +1464,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		if common.IsConstraintViolation(err) {
-			renderError(w, r, common.ErrorConflictMessage("Schüler/in kann nicht gelöscht werden: Schüler/in hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
+			renderError(w, r, common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
 			return
 		}
 		renderError(w, r, ErrorInternalServer(err))

@@ -323,18 +323,30 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 
 // DeletePlannedNonSpontaneousInWindow removes every still-planned,
 // template-backed instance whose date falls in the inclusive [from, to]
-// window and returns the number of rows deleted. CASCADE removes the
-// instance_staff / instance_students children (declared at DDL level).
-// Custom method (backend-conventions Rule 2): multi-predicate lifecycle
-// delete for the ReplanWeek admin action.
-func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from, to timezone.Date) (int64, error) {
+// window and returns the number of rows deleted. A nil `to` makes the window
+// open-ended (date >= from, no upper bound) — used by the template split so
+// the old template's planned instances are purged from the effective date
+// onward regardless of the materialization horizon. A non-nil
+// activityGroupID narrows the delete to that template's instances (template
+// split, WP-B3); nil deletes across all templates (ReplanWeek over the whole
+// grid). CASCADE removes the instance_staff / instance_students children
+// (declared at DDL level). Custom method (backend-conventions Rule 2):
+// multi-predicate lifecycle delete for the ReplanWeek admin action.
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
-		Where(`"activity_instance".date <= ?`, to).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false)
+
+	if to != nil {
+		q = q.Where(`"activity_instance".date <= ?`, *to)
+	}
+
+	if activityGroupID != nil {
+		q = q.Where(`"activity_instance".activity_group_id = ?`, *activityGroupID)
+	}
 
 	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
 		q = q.Where(where, val)

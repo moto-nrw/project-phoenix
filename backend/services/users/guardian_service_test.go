@@ -14,6 +14,7 @@ import (
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,6 +290,53 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("rejects an email already owned by another guardian", func(t *testing.T) {
+		// ARRANGE — two distinct guardians.
+		other := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-other")
+		target := testpkg.CreateTestGuardianProfile(t, db, "update-dedup-target")
+		defer testpkg.CleanupActivityFixtures(t, db, other.ID, target.ID)
+
+		req := users.GuardianCreateRequest{
+			FirstName:              "Target",
+			LastName:               "Guardian",
+			Email:                  other.Email, // steal the other guardian's email
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		}
+
+		// ACT
+		err := service.UpdateGuardian(ctx, target.ID, req)
+
+		// ASSERT — must be a ValidationError (→ 400), never a raw 500 from 23505.
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr, "duplicate email on update must be a ValidationError → 400")
+		assert.Contains(t, err.Error(), "bereits vergeben")
+	})
+
+	t.Run("allows saving a guardian without changing its own email (self-exclusion)", func(t *testing.T) {
+		// ARRANGE — a guardian kept at its own email is NOT a collision with itself.
+		profile := testpkg.CreateTestGuardianProfile(t, db, "update-self")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := users.GuardianCreateRequest{
+			FirstName:              "Renamed",
+			LastName:               "Same-Email",
+			Email:                  profile.Email, // unchanged
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		}
+
+		// ACT
+		err := service.UpdateGuardian(ctx, profile.ID, req)
+
+		// ASSERT
+		require.NoError(t, err, "re-saving a guardian with its own email must not collide")
+		updated, err := service.GetGuardianByID(ctx, profile.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "Renamed", updated.FirstName)
+	})
 }
 
 // =============================================================================
@@ -317,6 +365,115 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		result, _ := service.GetGuardianByID(ctx, profile.ID)
 		assert.Nil(t, result)
 	})
+
+	t.Run("plain delete is refused while the guardian is still linked (RESTRICT)", func(t *testing.T) {
+		// ARRANGE — guardian linked to a student. Since migration 1.15.127 the
+		// students_guardians → guardian_profiles FK is ON DELETE RESTRICT, so a
+		// blind delete must fail instead of silently cascading the link away
+		// (the #819 sibling-data-loss bug).
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "restrict-linked")
+		student := testpkg.CreateTestStudent(t, db, "Restrict", "Linked", "1a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+
+		// ACT
+		err = service.DeleteGuardian(ctx, guardian.ID)
+
+		// ASSERT — the FK violation surfaces; the guardian survives.
+		require.Error(t, err, "RESTRICT FK must block deleting a linked guardian")
+		survivor, _ := service.GetGuardianByID(ctx, guardian.ID)
+		assert.NotNil(t, survivor, "guardian must still exist after a refused delete")
+	})
+}
+
+// =============================================================================
+// DeleteGuardianWithLinks + GetLinkedStudentNames Tests (#819)
+// =============================================================================
+
+func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — guardian linked to two students (the sibling case #819 is about).
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete")
+	siblingA := testpkg.CreateTestStudent(t, db, "Sibling", "Aaa", "1a")
+	siblingB := testpkg.CreateTestStudent(t, db, "Sibling", "Bbb", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, siblingA.ID, siblingB.ID)
+	for _, s := range []int64{siblingA.ID, siblingB.ID} {
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         s,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+	}
+
+	// GetLinkedStudentNames reports both children before deletion.
+	names, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	require.NoError(t, err)
+	assert.Len(t, names, 2, "both linked children must be reported for the 409 warning")
+	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
+	require.NoError(t, err)
+	require.Len(t, impact.LinkIDs, 2, "both link IDs must be returned as the delete concurrency token")
+
+	// ACT — the deliberate full delete removes links first, then the guardian.
+	// Run inside a tenant transaction: DeleteGuardianWithLinks documents that it
+	// MUST run in one (the SELECT ... FOR UPDATE row lock and the link-then-
+	// guardian ordering are only meaningful/atomic within a single tx), and the
+	// HTTP handler wraps it that way. Exercising the real contract here.
+	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs)
+	})
+
+	// ASSERT — guardian gone, and no links survive.
+	require.NoError(t, err)
+	gone, _ := service.GetGuardianByID(ctx, guardian.ID)
+	assert.Nil(t, gone, "guardian must be deleted by the force path")
+	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	require.NoError(t, err)
+	assert.Empty(t, remaining, "all student links must be removed")
+}
+
+func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "force-delete-stale")
+	student := testpkg.CreateTestStudent(t, db, "Preview", "Changed", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: guardian.ID,
+		RelationshipType:  "parent",
+		EmergencyPriority: 1,
+	})
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999})
+	})
+
+	require.ErrorIs(t, err, users.ErrGuardianDeletePreviewChanged)
+	survivor, err := service.GetGuardianByID(ctx, guardian.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, survivor, "guardian must survive when preview token is stale")
+	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	require.NoError(t, err)
+	assert.Len(t, remaining, 1, "link must survive when preview token is stale")
 }
 
 // =============================================================================

@@ -286,12 +286,13 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 	require.NotNil(t, enabledDef)
 	assert.Equal(t, true, enabledDef.Default, "timetable must default to true so the feature is opt-out")
 
-	// The top-level feature is opt-out, but materialization and auto-start stay
-	// opt-in so background writes and live activity transitions do not begin
-	// unless a tenant explicitly enables those behaviours.
+	// The top-level feature is opt-out, and so is materialization: instances
+	// are prepared automatically unless an operator disables it per tenant.
+	// Auto-start stays opt-in so live activity transitions do not begin
+	// unless a tenant explicitly enables that behaviour.
 	matDef := config.GetDefinition("timetable.materialization_enabled")
 	require.NotNil(t, matDef)
-	assert.Equal(t, false, matDef.Default, "materialization must default to false")
+	assert.Equal(t, true, matDef.Default, "materialization must default to true so it is opt-out")
 
 	autoStartDef := config.GetDefinition("timetable.auto_start_planned")
 	require.NotNil(t, autoStartDef)
@@ -377,6 +378,20 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 	require.NotNil(t, retentionDef)
 	assert.Equal(t, "gdpr", retentionDef.Tab)
 	assert.Equal(t, "config:manage", retentionDef.WritePermission, "GDPR settings must use config:manage")
+}
+
+func TestTimetableMaterializationSettings_OperatorOnly(t *testing.T) {
+	keys := []string{
+		"timetable.materialization_enabled",
+		"timetable.materialization_weekday",
+		"timetable.materialization_weeks_ahead",
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equalf(t, config.AccessOperatorOnly, def.AccessPolicy,
+			"setting %q is operator-only - materialization cadence is platform plumbing, not tenant-tunable", key)
+	}
 }
 
 func TestTimetableSettings_WeekdayOptions(t *testing.T) {

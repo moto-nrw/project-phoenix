@@ -186,10 +186,10 @@ describe("OperatorPersonsPage", () => {
 
     expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
     expect(screen.getByText("RFID")).toBeInTheDocument();
-    expect(screen.queryByText("Schüler")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
   });
 
-  it("shows Schüler badge for student person", () => {
+  it("shows Kinder badge for student person", () => {
     mockSearchParamsGet.mockImplementation((key: string) =>
       key === "schoolId" ? "10" : null,
     );
@@ -206,7 +206,7 @@ describe("OperatorPersonsPage", () => {
 
     render(<OperatorPersonsPage />);
 
-    expect(screen.getByText("Schüler")).toBeInTheDocument();
+    expect(screen.getByText("Kinder")).toBeInTheDocument();
     expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
     expect(screen.queryByText("RFID")).not.toBeInTheDocument();
   });

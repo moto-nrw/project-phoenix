@@ -395,7 +395,7 @@ describe("CareOfferingsEditor", () => {
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
     await waitForInputByName("name");
-    await chooseOption("Stundenplan-Vorlage", /Lernzeit/);
+    await chooseOption("Betreuungsplan-Vorlage", /Lernzeit/);
 
     expect(
       screen.getByText(

@@ -174,9 +174,8 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. Find or create timeframe matching the requested clock window.
-	//    Reusing existing timeframes keeps the schedule.timeframes table
-	//    from growing one row per template — common slots (12:00–12:50)
-	//    end up shared across Mensa templates from different weeks.
+	//    The find-or-create rule lives in the schedule service (shared with
+	//    the WP-B3 template split) so it exists in exactly one place.
 	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(

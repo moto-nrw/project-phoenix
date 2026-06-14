@@ -76,6 +76,10 @@ interface DisplayStudent {
   health_info: string;
 }
 
+function childCountLabel(count: number): string {
+  return count === 1 ? "1 Kind" : `${count} Kinder`;
+}
+
 export default function StudentImportPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayStudent[]>([]);
@@ -241,7 +245,7 @@ export default function StudentImportPage() {
             row: 0,
             status: "new",
             errors: [],
-            first_name: `${importData.TotalRows} Schüler`,
+            first_name: `${importData.TotalRows} Kinder`,
             last_name: "bereit zum Import",
             school_class: "",
             group_name: "",
@@ -323,13 +327,13 @@ export default function StudentImportPage() {
         );
         setPreviewData(errorDisplayData);
         toast.warning(
-          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
+          `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
         );
       } else {
         // Full success: Mark complete, show success toast and reset form for next import
         setImportComplete(true);
         toast.success(
-          `${importData.CreatedCount} Schüler importiert, ${importData.UpdatedCount} aktualisiert`,
+          `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert`,
         );
         resetForm();
       }
@@ -422,7 +426,7 @@ export default function StudentImportPage() {
             </h3>
             <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
               <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Schülerdaten aus</li>
+              <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
               <li>
                 Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
                 TT.MM.JJJJ oder TT.MM.JJ
@@ -637,7 +641,7 @@ export default function StudentImportPage() {
             >
               {isImporting
                 ? "Importiere..."
-                : `${stats.new} Schüler importieren`}
+                : `${childCountLabel(stats.new)} importieren`}
             </button>
           </div>
         </>

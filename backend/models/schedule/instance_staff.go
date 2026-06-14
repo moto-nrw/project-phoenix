@@ -73,6 +73,14 @@ type InstanceStaffRepository interface {
 	// FindByInstanceID returns all staff assignments for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStaff, error)
 
+	// FindByInstanceIDs returns every instance_staff row for any of the
+	// given instance IDs in a single IN query, tenant-scoped. Returns an
+	// empty slice (not nil) when instanceIDs is empty, matching the sibling
+	// bulk helpers (FindExpectedByInstanceIDs, CountNonAbsentByInstanceIDs).
+	// Used by the planned-conflict probe to intersect requested staff with
+	// staff already assigned to overlapping instances without N+1.
+	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStaff, error)
+
 	// FindByStaffAndDate returns all staff assignments for the given staff
 	// member across all instances on a given date. Used by the one-click
 	// substitute flow (E6) and gap detection.

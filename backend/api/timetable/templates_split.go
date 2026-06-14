@@ -1,0 +1,169 @@
+// Package timetable — POST /api/timetable/templates/{id}/split handler (WP-B3).
+//
+// "Dieser und alle folgenden": caps the old template's schedules and rosters
+// at the effective date (exclusive), creates a successor template from the
+// submitted fields, deletes the old template's still-planned future instances
+// and optionally re-materializes the window. Admin-only (SchedulesManage),
+// runs inside the tenant transaction so the split is all-or-nothing.
+package timetable
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+)
+
+// splitTemplateRequest is the update-template body plus the split controls.
+// effective_date is required (YYYY-MM-DD); materialize_from/materialize_to
+// are optional and mirror the create-template materialization window.
+type splitTemplateRequest struct {
+	updateTemplateRequest
+	EffectiveDate   string  `json:"effective_date"`
+	MaterializeFrom *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
+	MaterializeTo   *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
+}
+
+// Bind reuses the update-template presence checks and adds the split's own
+// required field. Format/business validation happens in handler + service.
+func (req *splitTemplateRequest) Bind(r *http.Request) error {
+	if err := req.updateTemplateRequest.Bind(r); err != nil {
+		return err
+	}
+	if req.EffectiveDate == "" {
+		return errors.New("effective_date is required (YYYY-MM-DD)")
+	}
+	return nil
+}
+
+// splitTemplateResponse is the wire contract the planner UI consumes.
+// instances_created comes from the optional materialization run (0 if none).
+type splitTemplateResponse struct {
+	OldTemplateID    int64   `json:"old_template_id"`
+	NewTemplateID    int64   `json:"new_template_id"`
+	ScheduleIDs      []int64 `json:"schedule_ids"`
+	DeletedInstances int     `json:"deleted_instances"`
+	InstancesCreated int     `json:"instances_created"`
+}
+
+// splitTemplate handles POST /api/timetable/templates/{id}/split.
+func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
+	id, ok := templateIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	if rs.templateSplitService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template split service not wired")))
+		return
+	}
+	req := &splitTemplateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	in, err := buildTemplateSplitInput(id, req)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	// Same tenant-scoped period check the create/update handlers run; the
+	// returned roster start date is unused — the split anchors rosters on
+	// the effective date instead.
+	if _, err := rs.templateRosterValidFrom(r.Context(), req.CalendarPeriodID); err != nil {
+		renderTemplatePeriodLookupError(w, r, err)
+		return
+	}
+	if err := rs.validateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	result, err := rs.templateSplitService.Split(r.Context(), in)
+	if err != nil {
+		renderTemplateSplitError(w, r, err)
+		return
+	}
+
+	resp := splitTemplateResponse{
+		OldTemplateID:    result.OldTemplateID,
+		NewTemplateID:    result.NewTemplateID,
+		ScheduleIDs:      result.NewScheduleIDs,
+		DeletedInstances: result.DeletedInstances,
+	}
+	if result.Materialization != nil {
+		resp.InstancesCreated = result.Materialization.InstancesCreated
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Template split")
+}
+
+// buildTemplateSplitInput parses the wire shape into the service input.
+// Reuses the shared HH:MM / YYYY-MM-DD parse helpers.
+func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.TemplateSplitInput, error) {
+	startTime, err := parseClockTime(req.StartTime)
+	if err != nil {
+		return scheduleSvc.TemplateSplitInput{}, errors.New("invalid start_time format, expected HH:MM")
+	}
+	endTime, err := parseClockTime(req.EndTime)
+	if err != nil {
+		return scheduleSvc.TemplateSplitInput{}, errors.New("invalid end_time format, expected HH:MM")
+	}
+	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	if err != nil {
+		return scheduleSvc.TemplateSplitInput{}, errors.New("invalid effective_date format, expected YYYY-MM-DD")
+	}
+	materializeFrom, err := parseOptionalSplitDate(req.MaterializeFrom)
+	if err != nil {
+		return scheduleSvc.TemplateSplitInput{}, errors.New("invalid materialize_from format, expected YYYY-MM-DD")
+	}
+	materializeTo, err := parseOptionalSplitDate(req.MaterializeTo)
+	if err != nil {
+		return scheduleSvc.TemplateSplitInput{}, errors.New("invalid materialize_to format, expected YYYY-MM-DD")
+	}
+
+	return scheduleSvc.TemplateSplitInput{
+		TemplateID:       id,
+		EffectiveDate:    effectiveDate,
+		Name:             req.Name,
+		Type:             req.Type,
+		Weekdays:         req.Weekdays,
+		StartTime:        startTime,
+		EndTime:          endTime,
+		RoomID:           req.RoomID,
+		CategoryID:       req.CategoryID,
+		MaxParticipants:  req.MaxParticipants,
+		WeekPattern:      req.WeekPattern,
+		CalendarPeriodID: req.CalendarPeriodID,
+		EducationGroupID: req.EducationGroupID,
+		StudentIDs:       req.StudentIDs,
+		StaffIDs:         req.StaffIDs,
+		PrimaryStaffID:   req.PrimaryStaffID,
+		MaterializeFrom:  materializeFrom,
+		MaterializeTo:    materializeTo,
+	}, nil
+}
+
+func parseOptionalSplitDate(raw *string) (*timezone.Date, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	d, err := timezone.ParseDate(*raw)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// renderTemplateSplitError maps the service sentinels onto HTTP statuses.
+func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("split template failed", err))
+	}
+}

@@ -11,7 +11,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
@@ -175,12 +178,271 @@ func DetectStartConflicts(
 				warnings = append(warnings, InstanceConflictWarning{
 					Kind:        ConflictKindStudent,
 					ResourceID:  sid,
-					Message:     fmt.Sprintf("Schüler hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
+					Message:     fmt.Sprintf("Kind hat bereits einen aktiven Aufenthalt in Gruppe #%d", visit.ActiveGroupID),
 					CanOverride: true,
 				})
 			}
 		}
 	}
 
+	return warnings
+}
+
+// germanDateLayout renders calendar dates as dd.mm.yyyy in user-facing copy.
+const germanDateLayout = "02.01.2006"
+
+// PlannedConflictQuery is the input of DetectPlannedConflicts: a hypothetical
+// slot (date + wall-clock window) plus the resources the caller wants checked.
+// At least one of RoomID / StaffIDs / StudentIDs must be set — the HTTP
+// handler enforces that before calling.
+type PlannedConflictQuery struct {
+	Date              timezone.Date
+	StartTime         time.Time // wall-clock, any year anchor
+	EndTime           time.Time // wall-clock, any year anchor
+	RoomID            *int64
+	StaffIDs          []int64
+	StudentIDs        []int64
+	ExcludeInstanceID *int64 // instance being edited — never conflicts with itself
+}
+
+// PlannedConflictWarning is one advisory hit of the planning-time conflict
+// probe (GET /api/timetable/conflicts). Unlike InstanceConflictWarning it
+// names the conflicting instance so the planner UI can link to it; there is
+// no can_override flag because the probe never blocks anything.
+type PlannedConflictWarning struct {
+	Kind                  string `json:"kind"` // "room" | "staff" | "student"
+	ResourceID            int64  `json:"resource_id"`
+	Message               string `json:"message"` // German user-facing copy
+	ConflictingInstanceID int64  `json:"conflicting_instance_id"`
+	ConflictingTitle      string `json:"conflicting_title"`
+}
+
+// PlannedConflictDependencies groups the repos DetectPlannedConflicts needs.
+// All fields are required.
+type PlannedConflictDependencies struct {
+	InstanceRepo      scheduleModel.ActivityInstanceRepository
+	InstanceStaffRepo scheduleModel.InstanceStaffRepository
+	InstanceStudents  scheduleModel.InstanceStudentRepository
+}
+
+// DetectPlannedConflicts checks a hypothetical slot against the day's already
+// planned/active instances and returns advisory warnings. Sibling of
+// DetectStartConflicts, but planning-time: it compares against the timetable
+// (schedule.activity_instances), not the live layer (active.*).
+//
+// Error handling mirrors DetectStartConflicts: a failing sub-check degrades
+// to zero warnings of that kind plus a slog warning — the probe must never
+// turn into a 500 for the planner UI.
+//
+// Ordering is deterministic: room warnings first (by conflicting instance
+// ID), then staff (by instance ID, then assignment row ID), then student (by
+// instance ID, then student ID).
+func DetectPlannedConflicts(
+	ctx context.Context,
+	deps PlannedConflictDependencies,
+	q PlannedConflictQuery,
+	logger *slog.Logger,
+) []PlannedConflictWarning {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	overlapping := loadOverlappingInstances(ctx, deps, q, logger)
+	if len(overlapping) == 0 {
+		return []PlannedConflictWarning{}
+	}
+
+	byID := make(map[int64]*scheduleModel.ActivityInstance, len(overlapping))
+	ids := make([]int64, 0, len(overlapping))
+	for _, inst := range overlapping {
+		byID[inst.ID] = inst
+		ids = append(ids, inst.ID)
+	}
+
+	warnings := make([]PlannedConflictWarning, 0)
+	warnings = append(warnings, plannedRoomConflicts(q, overlapping)...)
+	warnings = append(warnings, plannedStaffConflicts(ctx, deps, q, ids, byID, logger)...)
+	warnings = append(warnings, plannedStudentConflicts(ctx, deps, q, ids, byID, logger)...)
+	return warnings
+}
+
+// loadOverlappingInstances fetches the day's instances and keeps the
+// planned/active ones whose wall-clock window overlaps the queried slot
+// (startA < endB && startB < endA — touching edges are NOT a conflict).
+// Result is sorted by instance ID for deterministic warning order.
+//
+// Instances scan their TIME columns with arbitrary, driver-chosen year
+// anchors (see the WallClock caveat in api/timetable/exception_conflicts.go);
+// normalising both sides through timezone.WallClock pins the comparison to
+// pure HH:MM:SS.
+func loadOverlappingInstances(
+	ctx context.Context,
+	deps PlannedConflictDependencies,
+	q PlannedConflictQuery,
+	logger *slog.Logger,
+) []*scheduleModel.ActivityInstance {
+	instances, err := deps.InstanceRepo.FindByTenantAndDateRange(ctx, q.Date, q.Date)
+	if err != nil {
+		logger.Warn("planned conflict detection: load day instances failed",
+			slog.String("date", q.Date.String()),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+
+	qStart := timezone.WallClock(q.StartTime)
+	qEnd := timezone.WallClock(q.EndTime)
+
+	out := make([]*scheduleModel.ActivityInstance, 0, len(instances))
+	for _, inst := range instances {
+		if inst.Status != scheduleModel.InstanceStatusPlanned &&
+			inst.Status != scheduleModel.InstanceStatusActive {
+			continue // completed/cancelled are history, not conflicts
+		}
+		if q.ExcludeInstanceID != nil && inst.ID == *q.ExcludeInstanceID {
+			continue
+		}
+		iStart := timezone.WallClock(inst.StartTime)
+		iEnd := timezone.WallClock(inst.EndTime)
+		if qStart.Before(iEnd) && iStart.Before(qEnd) {
+			out = append(out, inst)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// plannedRoomConflicts flags every overlapping instance occupying the
+// queried room.
+func plannedRoomConflicts(q PlannedConflictQuery, overlapping []*scheduleModel.ActivityInstance) []PlannedConflictWarning {
+	if q.RoomID == nil {
+		return nil
+	}
+	var warnings []PlannedConflictWarning
+	for _, inst := range overlapping {
+		if inst.RoomID != *q.RoomID {
+			continue
+		}
+		warnings = append(warnings, PlannedConflictWarning{
+			Kind:       ConflictKindRoom,
+			ResourceID: *q.RoomID,
+			Message: fmt.Sprintf("Raum ist am %s von %s–%s bereits durch „%s“ belegt.",
+				q.Date.Format(germanDateLayout),
+				timezone.WallClock(inst.StartTime).Format("15:04"),
+				timezone.WallClock(inst.EndTime).Format("15:04"),
+				inst.Title,
+			),
+			ConflictingInstanceID: inst.ID,
+			ConflictingTitle:      inst.Title,
+		})
+	}
+	return warnings
+}
+
+// plannedStaffConflicts bulk-loads the overlapping instances' staff
+// assignments and intersects them with the queried staff. IsAbsent rows are
+// skipped — staff marked out for an instance are not actually bound by it.
+// Staff names are not cheaply loadable here (users.staff carries only the
+// person FK), so the copy uses the generic "Personal" subject and names the
+// conflicting instance instead — no N+1 lookups.
+func plannedStaffConflicts(
+	ctx context.Context,
+	deps PlannedConflictDependencies,
+	q PlannedConflictQuery,
+	overlappingIDs []int64,
+	byID map[int64]*scheduleModel.ActivityInstance,
+	logger *slog.Logger,
+) []PlannedConflictWarning {
+	if len(q.StaffIDs) == 0 {
+		return nil
+	}
+	rows, err := deps.InstanceStaffRepo.FindByInstanceIDs(ctx, overlappingIDs)
+	if err != nil {
+		logger.Warn("planned conflict detection: load instance_staff failed",
+			slog.String("date", q.Date.String()),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	requested := make(map[int64]struct{}, len(q.StaffIDs))
+	for _, id := range q.StaffIDs {
+		requested[id] = struct{}{}
+	}
+	var warnings []PlannedConflictWarning
+	for _, row := range rows {
+		if row.IsAbsent {
+			continue
+		}
+		if _, ok := requested[row.StaffID]; !ok {
+			continue
+		}
+		inst, ok := byID[row.InstanceID]
+		if !ok {
+			continue
+		}
+		warnings = append(warnings, PlannedConflictWarning{
+			Kind:       ConflictKindStaff,
+			ResourceID: row.StaffID,
+			Message: fmt.Sprintf("„Personal“ ist am %s von %s–%s bereits bei „%s“ eingeplant.",
+				q.Date.Format(germanDateLayout),
+				timezone.WallClock(inst.StartTime).Format("15:04"),
+				timezone.WallClock(inst.EndTime).Format("15:04"),
+				inst.Title,
+			),
+			ConflictingInstanceID: inst.ID,
+			ConflictingTitle:      inst.Title,
+		})
+	}
+	return warnings
+}
+
+// plannedStudentConflicts intersects the queried students with the students
+// still expected on overlapping instances (status='expected'; checked-in or
+// absent students belong to that other instance's history, not the plan).
+func plannedStudentConflicts(
+	ctx context.Context,
+	deps PlannedConflictDependencies,
+	q PlannedConflictQuery,
+	overlappingIDs []int64,
+	byID map[int64]*scheduleModel.ActivityInstance,
+	logger *slog.Logger,
+) []PlannedConflictWarning {
+	if len(q.StudentIDs) == 0 {
+		return nil
+	}
+	rows, err := deps.InstanceStudents.FindExpectedByInstanceIDs(ctx, overlappingIDs)
+	if err != nil {
+		logger.Warn("planned conflict detection: load instance_students failed",
+			slog.String("date", q.Date.String()),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	requested := make(map[int64]struct{}, len(q.StudentIDs))
+	for _, id := range q.StudentIDs {
+		requested[id] = struct{}{}
+	}
+	var warnings []PlannedConflictWarning
+	for _, row := range rows {
+		if _, ok := requested[row.StudentID]; !ok {
+			continue
+		}
+		inst, ok := byID[row.InstanceID]
+		if !ok {
+			continue
+		}
+		warnings = append(warnings, PlannedConflictWarning{
+			Kind:       ConflictKindStudent,
+			ResourceID: row.StudentID,
+			Message: fmt.Sprintf("Kind ist am %s von %s–%s bereits bei „%s“ eingeplant.",
+				q.Date.Format(germanDateLayout),
+				timezone.WallClock(inst.StartTime).Format("15:04"),
+				timezone.WallClock(inst.EndTime).Format("15:04"),
+				inst.Title,
+			),
+			ConflictingInstanceID: inst.ID,
+			ConflictingTitle:      inst.Title,
+		})
+	}
 	return warnings
 }

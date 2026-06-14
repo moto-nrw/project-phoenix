@@ -510,7 +510,8 @@ const templateListSelect = `
 			COALESCE(TO_CHAR(tf.start_time, 'HH24:MI'), '') AS start_time,
 			COALESCE(TO_CHAR(tf.end_time, 'HH24:MI'), '') AS end_time,
 			s.week_pattern,
-			s.calendar_period_id
+			s.calendar_period_id,
+			TO_CHAR(s.valid_until, 'YYYY-MM-DD') AS schedule_valid_until
 		FROM activities.groups AS g
 		INNER JOIN activities.schedules AS s
 			ON s.activity_group_id = g.id AND s.tenant_id = g.tenant_id
@@ -577,10 +578,6 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activities.TemplateListRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	rows := make([]activities.TemplateListRow, 0)
-	peoplePeriodFilter := ""
-	if periodID != nil {
-		peoplePeriodFilter = "AND (calendar_period_id = ? OR calendar_period_id IS NULL)"
-	}
 	query := templateListSelect + `
 			LEFT JOIN (
 				SELECT
@@ -592,7 +589,6 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 					FROM activities.student_enrollments
 					WHERE tenant_id = ?
 					  AND valid_until IS NULL
-					  ` + peoplePeriodFilter + `
 				) AS active_enrollments
 				GROUP BY activity_group_id
 			) AS enrollments ON enrollments.activity_group_id = g.id
@@ -607,7 +603,6 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 					FROM activities.supervisors
 					WHERE tenant_id = ?
 					  AND valid_until IS NULL
-					  ` + peoplePeriodFilter + `
 					GROUP BY group_id, staff_id
 				) AS active_supervisors
 				GROUP BY group_id
@@ -617,13 +612,7 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 		  AND g.archived_at IS NULL`
 
 	args := []any{tenantID}
-	if periodID != nil {
-		args = append(args, *periodID)
-	}
 	args = append(args, tenantID)
-	if periodID != nil {
-		args = append(args, *periodID)
-	}
 	args = append(args, tenantID)
 	if periodID != nil {
 		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`

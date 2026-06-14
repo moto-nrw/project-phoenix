@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -170,6 +171,35 @@ func parseSQLClock(raw string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Date(1, 1, 1, parsed.Hour(), parsed.Minute(), parsed.Second(), parsed.Nanosecond(), time.UTC), nil
+}
+
+// CapValidUntil ends the recurrence of every schedule of the given template
+// at validUntil (exclusive): open-ended rows (valid_until IS NULL) and rows
+// ending later than validUntil are capped to validUntil. Returns the number
+// of rows changed. Custom method (backend-conventions Rule 2): multi-row,
+// multi-predicate bulk update for the template split (WP-B3) — not
+// expressible via the generic per-entity Update.
+func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID int64, validUntil timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.Schedule)(nil)).
+		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
+		Set("valid_until = ?", validUntil).
+		Where(`"schedule".activity_group_id = ?`, activityGroupID).
+		Where(`("schedule".valid_until IS NULL OR "schedule".valid_until > ?)`, validUntil)
+
+	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
+		query = query.Where(where, val)
+	}
+
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "cap schedule valid_until",
+			Err: err,
+		}
+	}
+	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
+	return rows, nil
 }
 
 // FindByTimeframeID finds all schedules for a specific timeframe

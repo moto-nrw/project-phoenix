@@ -290,7 +290,7 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Schüler nicht gefunden.")).toBeInTheDocument();
+      expect(screen.getByText("Kind nicht gefunden.")).toBeInTheDocument();
     });
   });
 

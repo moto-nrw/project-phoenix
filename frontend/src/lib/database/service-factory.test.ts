@@ -531,7 +531,7 @@ describe("createCrudService", () => {
       const backendError = JSON.stringify({
         status: "error",
         error:
-          "education: DeleteGroup: Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+          "education: DeleteGroup: Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder",
       });
       const routeHandlerError = JSON.stringify({
         error: `API error (409): ${backendError}`,
@@ -546,7 +546,7 @@ describe("createCrudService", () => {
       const service = createCrudService(mockConfig);
       const result = await service.delete("1");
       expect(result).toBe(
-        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Schüler/innen",
+        "Gruppe kann nicht gelöscht werden: Gruppe hat noch zugewiesene Kinder",
       );
     });
 

@@ -127,6 +127,14 @@ type GuardianPickerMatch struct {
 	Children []*users.GuardianLinkedChild
 }
 
+// GuardianDeleteImpact is the exact current blast radius of a full guardian
+// delete. LinkIDs is the concurrency token the frontend sends back on confirm;
+// StudentNames is display-only warning text.
+type GuardianDeleteImpact struct {
+	LinkIDs      []int64
+	StudentNames []string
+}
+
 // StudentWithRelationship represents a student with guardian relationship details
 type StudentWithRelationship struct {
 	Student      *users.Student
@@ -161,8 +169,25 @@ type GuardianService interface {
 	// UpdateGuardian updates a guardian profile
 	UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error
 
-	// DeleteGuardian removes a guardian profile (and all relationships)
+	// DeleteGuardian removes a guardian profile without touching its student
+	// links. Fails with a FK violation (→ 409 at the handler) when links remain,
+	// because the FK is ON DELETE RESTRICT since migration 1.15.127.
 	DeleteGuardian(ctx context.Context, id int64) error
+
+	// DeleteGuardianWithLinks deletes a guardian together with all of its
+	// student↔guardian links (the deliberate "Komplett löschen" path, #819).
+	// Must run inside a tenant transaction; the handler gates it to admins.
+	// expectedLinkIDs must be the exact link set returned by the delete preview.
+	DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error
+
+	// GetLinkedStudentNames returns the full names of every student linked to
+	// the guardian. Empty means a plain delete is safe; non-empty drives the
+	// 409 warning listing the affected children.
+	GetLinkedStudentNames(ctx context.Context, guardianProfileID int64) ([]string, error)
+
+	// GetGuardianDeleteImpact returns the exact current affected link IDs and
+	// student names for the admin full-delete confirmation.
+	GetGuardianDeleteImpact(ctx context.Context, guardianProfileID int64) (*GuardianDeleteImpact, error)
 
 	// SendInvitation sends an invitation to a guardian
 	SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error)

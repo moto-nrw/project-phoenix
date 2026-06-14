@@ -219,6 +219,7 @@ func (s *stubGuardianProfileRepo) Create(context.Context, *userModels.GuardianPr
 func (s *stubGuardianProfileRepo) FindByID(context.Context, int64) (*userModels.GuardianProfile, error) {
 	return nil, nil
 }
+func (s *stubGuardianProfileRepo) LockByIDForUpdate(context.Context, int64) error { return nil }
 func (s *stubGuardianProfileRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
 	return nil, nil
 }

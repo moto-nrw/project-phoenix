@@ -54,8 +54,8 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
     "Diese Funktion ist für Ihre Schule deaktiviert. Bitte wenden Sie sich an Ihre Administration.",
   not_group_supervisor:
-    "Sie können nur das Anwesenheitsprotokoll von Schülern Ihrer betreuten Gruppen einsehen.",
-  not_found: "Schüler nicht gefunden.",
+    "Sie können nur das Anwesenheitsprotokoll von Kindern Ihrer betreuten Gruppen einsehen.",
+  not_found: "Kind nicht gefunden.",
   generic: "Fehler beim Laden des Anwesenheitsprotokolls.",
 };
 

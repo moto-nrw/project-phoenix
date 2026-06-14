@@ -42,7 +42,7 @@ export function getDeleteErrorMessage(err: unknown): string {
   }
   const message = err.message;
   if (message.includes("students enrolled")) {
-    return "Diese Aktivität kann nicht gelöscht werden, da noch Schüler eingeschrieben sind. Bitte entfernen Sie zuerst alle Schüler aus der Aktivität.";
+    return "Diese Aktivität kann nicht gelöscht werden, da noch Kinder eingeschrieben sind. Bitte entfernen Sie zuerst alle Kinder aus der Aktivität.";
   }
   // Check for ownership/permission error (403 with specific message)
   if (

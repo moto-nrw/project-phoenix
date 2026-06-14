@@ -158,7 +158,7 @@ describe("useStudentData", () => {
 
       const { result } = renderHook(() => useStudentData("1"));
 
-      expect(result.current.error).toBe("Fehler beim Laden der Schülerdaten.");
+      expect(result.current.error).toBe("Fehler beim Laden der Kinderdaten.");
       expect(result.current.student).toBeNull();
     });
 

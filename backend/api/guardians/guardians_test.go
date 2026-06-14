@@ -18,6 +18,7 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -451,6 +452,278 @@ func TestDeleteGuardian_InvalidID(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertBadRequest(t, rr)
+}
+
+func TestGuardianDeletePreview_NotFound(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	router := chi.NewRouter()
+	router.Get("/guardians/{id}/delete-preview", ctx.resource.GuardianDeletePreviewHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", "/guardians/99999/delete-preview", nil,
+		testutil.WithClaims(testutil.AdminTestClaims(999)),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertNotFound(t, rr)
+}
+
+func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-preview")
+	defer cleanupGuardian(t, ctx.db, guardianID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+
+	router := chi.NewRouter()
+	router.Get("/guardians/{id}/delete-preview", ctx.resource.GuardianDeletePreviewHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/guardians/%d/delete-preview", guardianID), nil,
+		testutil.WithClaims(testutil.AdminTestClaims(999)),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok, "expected data object in response: %s", rr.Body.String())
+	assert.Equal(t, float64(1), data["linked_count"])
+	assert.Len(t, data["affected_names"], 1)
+	assert.Len(t, data["affected_link_ids"], 1)
+}
+
+// createLinkedGuardian creates a guardian profile linked to a fresh student in
+// tenant 1 and returns both IDs. The caller is responsible for cleanup
+// (cleanupGuardian removes the link + guardian; the student is left for the
+// test's own teardown).
+func createLinkedGuardian(t *testing.T, ctx *testContext, emailSeed string) (guardianID, studentID int64) {
+	t.Helper()
+	tenantCtx := testpkg.TenantContext(1)
+	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, emailSeed)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Child", "1a")
+	_, err := ctx.services.Guardian.LinkGuardianToStudent(tenantCtx, usersSvc.StudentGuardianCreateRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: guardian.ID,
+		RelationshipType:  "parent",
+		EmergencyPriority: 1,
+	})
+	require.NoError(t, err)
+	return guardian.ID, student.ID
+}
+
+func linkedGuardianErrorText(t *testing.T, rrBody string) string {
+	t.Helper()
+	response := testutil.ParseJSONResponse(t, []byte(rrBody))
+	text, ok := response["error"].(string)
+	require.True(t, ok, "expected error text in response: %s", rrBody)
+	return text
+}
+
+// TestDeleteGuardian_WithLinks_Conflict verifies that deleting a guardian that
+// is still linked to a student, WITHOUT ?force=true, is refused with 409 rather
+// than silently unlinking siblings (#819).
+func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-conflict")
+	defer cleanupGuardian(t, ctx.db, guardianID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+
+	sibling := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Sibling", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, sibling.ID)
+	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+		StudentID:         sibling.ID,
+		GuardianProfileID: guardianID,
+		RelationshipType:  "parent",
+		EmergencyPriority: 2,
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d", guardianID), nil,
+		testutil.WithClaims(testutil.AdminTestClaims(999)),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Linked Child")
+
+	// Guardian must still exist after the refused delete.
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	require.NoError(t, err)
+	assert.NotNil(t, survivor)
+}
+
+func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Delete", "Supervisor")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "DeletePrivacy")
+	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
+
+	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "delete-privacy")
+	defer cleanupGuardian(t, ctx.db, guardian.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Private", "Child", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+	_, err := ctx.db.NewUpdate().
+		TableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Where("id = ?", student.ID).
+		Where("tenant_id = ?", 1).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: guardian.ID,
+		RelationshipType:  "parent",
+		EmergencyPriority: 1,
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d", guardian.ID), nil,
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		testutil.WithPermissions("users:delete"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+	errText := linkedGuardianErrorText(t, rr.Body.String())
+	assert.Contains(t, errText, "Noch mit Kindern verknüpft")
+	assert.NotContains(t, errText, "Private")
+	assert.NotContains(t, errText, "Child")
+}
+
+// TestDeleteGuardian_WithLinks_ForceAdmin_Success verifies that an admin can
+// fully delete a linked guardian with ?force=true: the guardian and all its
+// student links are removed.
+func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force")
+	defer cleanupGuardian(t, ctx.db, guardianID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
+
+	impact, err := ctx.services.Guardian.GetGuardianDeleteImpact(testpkg.TenantContext(1), guardianID)
+	require.NoError(t, err)
+	require.Len(t, impact.LinkIDs, 1)
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d?force=true&expected_link_ids=%d", guardianID, impact.LinkIDs[0]), nil,
+		testutil.WithClaims(testutil.AdminTestClaims(999)),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	// Guardian is gone.
+	gone, _ := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	assert.Nil(t, gone)
+}
+
+func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force-stale")
+	defer cleanupGuardian(t, ctx.db, guardianID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d?force=true&expected_link_ids=999999", guardianID), nil,
+		testutil.WithClaims(testutil.AdminTestClaims(999)),
+		testutil.WithPermissions("admin:*"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
+	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Vorschau")
+
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	require.NoError(t, err)
+	assert.NotNil(t, survivor)
+}
+
+// TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden verifies that a
+// non-admin supervisor cannot full-delete a linked guardian even with
+// ?force=true: the full delete reaches across siblings they may not supervise,
+// so the blast radius is restricted to admins (403). The guardian survives.
+func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Force", "Supervisor")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
+	group := testpkg.CreateTestEducationGroup(t, ctx.db, "ForceForbidden")
+	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
+
+	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "force-forbidden")
+	defer cleanupGuardian(t, ctx.db, guardian.ID)
+
+	student := testpkg.CreateTestStudent(t, ctx.db, "Force", "Child", "1a")
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
+	_, err := ctx.db.NewUpdate().
+		TableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Where("id = ?", student.ID).
+		Where("tenant_id = ?", 1).
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: guardian.ID,
+		RelationshipType:  "parent",
+		EmergencyPriority: 1,
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Delete("/guardians/{id}", ctx.resource.DeleteGuardianHandler())
+
+	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/guardians/%d?force=true", guardian.ID), nil,
+		testutil.WithClaims(testutil.TeacherTestClaims(int(account.ID))),
+		testutil.WithPermissions("users:delete"),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+
+	// Guardian must still exist after the refused force delete.
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardian.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, survivor)
 }
 
 // =============================================================================

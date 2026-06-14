@@ -17,7 +17,7 @@ describe("SchoolCheckinModeMobile", () => {
       );
 
       const button = screen.getByRole("button", {
-        name: /Schüler an- und abmelden/i,
+        name: /Kinder an- und abmelden/i,
       });
       expect(button).toBeInTheDocument();
       expect(button).toHaveAttribute("aria-pressed", "false");
@@ -73,7 +73,7 @@ describe("SchoolCheckinModeMobile", () => {
         />,
       );
 
-      expect(screen.getByText(/Tippe auf einen Schüler/i)).toBeInTheDocument();
+      expect(screen.getByText(/Tippe auf ein Kind/i)).toBeInTheDocument();
     });
 
     it("surfaces the success count once the user has toggled at least one", () => {

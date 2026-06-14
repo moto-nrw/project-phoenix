@@ -1191,7 +1191,7 @@ function SearchPageContent() {
     if (rawMessage.includes("403")) {
       return [
         "permission",
-        "Du hast keine Berechtigung, Schülerdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+        "Du hast keine Berechtigung, Kinderdaten anzuzeigen. Bitte wende dich an einen Administrator.",
       ];
     }
     if (rawMessage.includes("401")) {
@@ -1200,7 +1200,7 @@ function SearchPageContent() {
         "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
       ];
     }
-    return ["generic", "Fehler beim Laden der Schülerdaten."];
+    return ["generic", "Fehler beim Laden der Kinderdaten."];
   }, [studentsError]);
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
@@ -1968,7 +1968,7 @@ function SearchPageContent() {
                   </svg>
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">
-                      Keine Schüler gefunden
+                      Keine Kinder gefunden
                     </h3>
                     <p className="text-gray-600">
                       Versuche deine Suchkriterien anzupassen.

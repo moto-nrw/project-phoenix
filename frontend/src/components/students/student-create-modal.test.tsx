@@ -310,7 +310,7 @@ describe("StudentCreateModal", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Neuer Schüler")).toBeInTheDocument();
+      expect(screen.getByText("Neues Kind")).toBeInTheDocument();
     });
   });
 

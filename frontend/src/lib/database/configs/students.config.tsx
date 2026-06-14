@@ -27,8 +27,8 @@ const PrivacyConsentSection = dynamic(
 
 export const studentsConfig = defineEntityConfig<Student>({
   name: {
-    singular: "Schüler",
-    plural: "Schüler",
+    singular: "Kinder",
+    plural: "Kinder",
   },
 
   theme: databaseThemes.students,
@@ -116,7 +116,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             name: "bus",
             label: "Fährt mit dem Bus",
             type: "checkbox",
-            helperText: "Aktivieren, wenn der Schüler mit dem Bus fährt",
+            helperText: "Aktivieren, wenn das Kind mit dem Bus fährt",
           },
         ],
       },
@@ -131,7 +131,7 @@ export const studentsConfig = defineEntityConfig<Student>({
             type: "textarea",
             required: false,
             helperText:
-              "Weitere wichtige Informationen über den Schüler (nur für Betreuer sichtbar)",
+              "Weitere wichtige Informationen über das Kind (nur für Betreuer sichtbar)",
             colSpan: 2,
           },
         ],
@@ -389,9 +389,9 @@ export const studentsConfig = defineEntityConfig<Student>({
   },
 
   list: {
-    title: "Schüler auswählen",
-    description: "Verwalte Schülerdaten und Gruppenzuweisungen",
-    searchPlaceholder: "Schüler suchen...",
+    title: "Kinder auswählen",
+    description: "Verwalte Kinderdaten und Gruppenzuweisungen",
+    searchPlaceholder: "Kinder suchen...",
 
     // Frontend search configuration (loads all data at once)
     searchStrategy: "frontend",
@@ -486,11 +486,11 @@ export const studentsConfig = defineEntityConfig<Student>({
   },
 
   labels: {
-    createButton: "Neuen Schüler erstellen",
-    createModalTitle: "Neuer Schüler",
-    editModalTitle: "Schüler bearbeiten",
-    detailModalTitle: "Schülerdetails",
+    createButton: "Neues Kind erstellen",
+    createModalTitle: "Neues Kind",
+    editModalTitle: "Kind bearbeiten",
+    detailModalTitle: "Kinddetails",
     deleteConfirmation:
-      "Sind Sie sicher, dass Sie diesen Schüler löschen möchten?",
+      "Sind Sie sicher, dass Sie dieses Kind löschen möchten?",
   },
 });

@@ -989,7 +989,7 @@ describe("MeinRaumPage additional scenarios", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Keine Schüler in diesem Raum"),
+        screen.getByText("Keine Kinder in diesem Raum"),
       ).toBeInTheDocument();
     });
   });
@@ -2153,7 +2153,7 @@ describe("Schulhof permanent tab functionality", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Übernimm die Aufsicht, um Schüler zu sehen."),
+        screen.getByText("Übernimm die Aufsicht, um Kinder zu sehen."),
       ).toBeInTheDocument();
     });
   });
@@ -4578,7 +4578,7 @@ describe("BFF dashboard data with students and Schulhof", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Keine Schüler in diesem Raum"),
+        screen.getByText("Keine Kinder in diesem Raum"),
       ).toBeInTheDocument();
     });
   });
@@ -6148,7 +6148,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Keine Schüler in diesem Raum"),
+        screen.getByText("Keine Kinder in diesem Raum"),
       ).toBeInTheDocument();
     });
   });
@@ -6558,7 +6558,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Room shows empty students state (no crash, graceful degradation)
     await waitFor(() => {
       expect(
-        screen.getByText("Keine Schüler in diesem Raum"),
+        screen.getByText("Keine Kinder in diesem Raum"),
       ).toBeInTheDocument();
     });
 

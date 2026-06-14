@@ -297,6 +297,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
+		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

@@ -596,6 +596,102 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	assert.Equal(t, periodA.StartDate.Format(dateLayout), newStudentFrom.Format(dateLayout))
 }
 
+// TestListTemplatesEnrollmentCountIsPeriodTolerant is the regression test for
+// the "0 Kinder" bug (WP-B6): template cards lost their headcount when the
+// list was filtered by a period other than the one the roster was written
+// for. The people subqueries must NOT be period-filtered — the roster of a
+// template that is shown is always shown; rosters are period-scoped at write
+// time only.
+func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	// Two OVERLAPPING active periods (createTemplateTestPeriod uses the same
+	// 2026-01-01..2026-12-31 range for both, is_active=true).
+	periodP := createTemplateTestPeriod(t, s.db, "TplTolerantP")
+	periodQ := createTemplateTestPeriod(t, s.db, "TplTolerantQ")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodP.ID, periodQ.ID)
+	})
+
+	// Template 1: schedules AND roster scoped to P via the regular create path.
+	bodyP := createTemplateBody(s, "Tpl-Tolerant-P")
+	bodyP["calendar_period_id"] = periodP.ID
+	bodyP["student_ids"] = []int64{s.studentA, s.studentB}
+	wP := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyP)
+	require.Equal(t, http.StatusCreated, wP.Code, "body=%s", wP.Body.String())
+	createdP := decodeTemplateData[createTemplateResponse](t, wP)
+
+	// Template 2: unscoped schedules (card visible under EVERY period filter)
+	// but a roster written for period P — the exact "0 Kinder" constellation.
+	bodyGlobal := createTemplateBody(s, "Tpl-Tolerant-Global")
+	bodyGlobal["student_ids"] = []int64{}
+	bodyGlobal["staff_ids"] = []int64{}
+	delete(bodyGlobal, "primary_staff_id")
+	wG := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyGlobal)
+	require.Equal(t, http.StatusCreated, wG.Code, "body=%s", wG.Body.String())
+	createdGlobal := decodeTemplateData[createTemplateResponse](t, wG)
+
+	for _, studentID := range []int64{s.studentA, s.studentB} {
+		enrollment := &activitiesModel.StudentEnrollment{
+			StudentID:        studentID,
+			ActivityGroupID:  createdGlobal.TemplateID,
+			ValidFrom:        periodP.StartDate,
+			CalendarPeriodID: &periodP.ID,
+		}
+		enrollment.SetTenantID(1)
+		require.NoError(t, s.res.timetableData.CreateStudentEnrollment(s.ctx, enrollment))
+	}
+	supervisor := &activitiesModel.SupervisorPlanned{
+		StaffID:          s.staffA,
+		GroupID:          createdGlobal.TemplateID,
+		ValidFrom:        periodP.StartDate,
+		CalendarPeriodID: &periodP.ID,
+	}
+	supervisor.SetTenantID(1)
+	require.NoError(t, s.res.timetableData.CreatePlannedSupervisor(s.ctx, supervisor))
+
+	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
+		t.Helper()
+		w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates?period_id=%d", periodID), nil)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		list := decodeTemplateData[listTemplatesResponse](t, w)
+		byID := make(map[int64]templateResponse, len(list.Templates))
+		for _, tpl := range list.Templates {
+			byID[tpl.ID] = tpl
+		}
+		return byID
+	}
+
+	t.Run("filter by the roster's own period P", func(t *testing.T) {
+		byID := listFor(t, periodP.ID)
+
+		tplP, ok := byID[createdP.TemplateID]
+		require.True(t, ok, "P-scoped template must appear under its own period")
+		assert.Equal(t, 2, tplP.EnrollmentCount)
+		assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, tplP.StudentIDs)
+
+		tplGlobal, ok := byID[createdGlobal.TemplateID]
+		require.True(t, ok, "unscoped template must appear under every period")
+		assert.Equal(t, 2, tplGlobal.EnrollmentCount)
+		assert.Equal(t, 1, tplGlobal.SupervisorCount)
+	})
+
+	t.Run("filter by the overlapping period Q shows the real headcount", func(t *testing.T) {
+		byID := listFor(t, periodQ.ID)
+
+		// The card with unscoped schedules appears under Q — and must carry
+		// its P-scoped roster instead of "0 Kinder".
+		tplGlobal, ok := byID[createdGlobal.TemplateID]
+		require.True(t, ok, "unscoped template must appear under period Q")
+		assert.Equal(t, 2, tplGlobal.EnrollmentCount,
+			"roster written for overlapping period P must still be counted (the 0-Kinder bug)")
+		assert.Equal(t, 1, tplGlobal.SupervisorCount)
+		assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, tplGlobal.StudentIDs)
+	})
+}
+
 func createTemplateTestPeriod(t *testing.T, db *bun.DB, name string) *scheduleModel.CalendarPeriod {
 	t.Helper()
 	period := &scheduleModel.CalendarPeriod{

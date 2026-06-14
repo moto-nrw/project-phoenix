@@ -517,7 +517,7 @@ describe("StudentImportPage", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("student-row")).toHaveTextContent(
-        "5 Schüler bereit zum Import",
+        "5 Kinder bereit zum Import",
       );
     });
   });
@@ -559,7 +559,7 @@ describe("StudentImportPage", () => {
     fireEvent.click(fileSelectButton);
 
     await waitFor(() => {
-      expect(screen.getByText("7 Schüler importieren")).toBeInTheDocument();
+      expect(screen.getByText("7 Kinder importieren")).toBeInTheDocument();
     });
   });
 
@@ -603,16 +603,16 @@ describe("StudentImportPage", () => {
     fireEvent.click(fileSelectButton);
 
     await waitFor(() => {
-      expect(screen.getByText("3 Schüler importieren")).toBeInTheDocument();
+      expect(screen.getByText("3 Kinder importieren")).toBeInTheDocument();
     });
 
     // Click import button
-    const importButton = screen.getByText("3 Schüler importieren");
+    const importButton = screen.getByText("3 Kinder importieren");
     fireEvent.click(importButton);
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
-        "3 Schüler importiert, 0 aktualisiert",
+        "3 Kinder importiert, 0 aktualisiert",
       );
     });
   });
@@ -652,7 +652,7 @@ describe("StudentImportPage", () => {
               {
                 code: "duplicate",
                 severity: "error",
-                message: "Schüler bereits vorhanden",
+                message: "Kind bereits vorhanden",
                 field: "",
               },
             ],
@@ -679,17 +679,17 @@ describe("StudentImportPage", () => {
     fireEvent.click(fileSelectButton);
 
     await waitFor(() => {
-      expect(screen.getByText("3 Schüler importieren")).toBeInTheDocument();
+      expect(screen.getByText("3 Kinder importieren")).toBeInTheDocument();
     });
 
     // Click import button (enabled because preview showed 0 errors)
-    const importButton = screen.getByText("3 Schüler importieren");
+    const importButton = screen.getByText("3 Kinder importieren");
     fireEvent.click(importButton);
 
     await waitFor(() => {
       // Should show warning toast, not success
       expect(mockToast.warning).toHaveBeenCalledWith(
-        "2 Schüler importiert, 0 aktualisiert, 1 übersprungen",
+        "2 Kinder importiert, 0 aktualisiert, 1 übersprungen",
       );
       // Should NOT have called success
       expect(mockToast.success).not.toHaveBeenCalled();
@@ -730,11 +730,11 @@ describe("StudentImportPage", () => {
     fireEvent.click(fileSelectButton);
 
     await waitFor(() => {
-      expect(screen.getByText("2 Schüler importieren")).toBeInTheDocument();
+      expect(screen.getByText("2 Kinder importieren")).toBeInTheDocument();
     });
 
     // Click import button
-    const importButton = screen.getByText("2 Schüler importieren");
+    const importButton = screen.getByText("2 Kinder importieren");
     fireEvent.click(importButton);
 
     await waitFor(() => {
@@ -785,7 +785,7 @@ describe("StudentImportPage", () => {
     fireEvent.click(fileSelectButton);
 
     await waitFor(() => {
-      const importButton = screen.getByText("0 Schüler importieren");
+      const importButton = screen.getByText("0 Kinder importieren");
       expect(importButton).toBeDisabled();
     });
   });
@@ -1052,12 +1052,12 @@ describe("StudentImportPage", () => {
         }),
     });
 
-    const importButton = screen.getByText("2 Schüler importieren");
+    const importButton = screen.getByText("2 Kinder importieren");
     fireEvent.click(importButton);
 
     await waitFor(() => {
       expect(mockToast.warning).toHaveBeenCalledWith(
-        "1 Schüler importiert, 0 aktualisiert, 1 übersprungen",
+        "1 Kind importiert, 0 aktualisiert, 1 übersprungen",
       );
     });
   });

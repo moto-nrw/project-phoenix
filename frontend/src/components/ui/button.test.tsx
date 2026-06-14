@@ -103,6 +103,15 @@ describe("Button", () => {
     expect(button.className).toContain("text-sm");
   });
 
+  it("applies md size styles", () => {
+    render(<Button size="md">Medium</Button>);
+
+    const button = screen.getByRole("button");
+    expect(button.className).toContain("px-4");
+    expect(button.className).toContain("py-2");
+    expect(button.className).toContain("text-sm");
+  });
+
   it("applies base size styles by default", () => {
     render(<Button>Base</Button>);
 

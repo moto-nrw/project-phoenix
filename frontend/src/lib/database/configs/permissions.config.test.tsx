@@ -21,7 +21,7 @@ vi.mock("@/lib/permission-labels", () => ({
 vi.mock("@/components/permissions/permission-selector", () => ({
   PermissionSelector: vi.fn(() => null),
   RESOURCES: [
-    { value: "students", label: "Schüler" },
+    { value: "students", label: "Kinder" },
     { value: "rooms", label: "Räume" },
   ],
   ACTION_LABELS: {
@@ -70,7 +70,7 @@ describe("permissionsConfig", () => {
     };
 
     const transformed = permissionsConfig.form.transformBeforeSubmit?.(data);
-    expect(transformed?.name).toBe("schüler:lesen");
+    expect(transformed?.name).toBe("kinder:lesen");
     expect(transformed?.resource).toBe("students");
     expect(transformed?.action).toBe("read");
   });

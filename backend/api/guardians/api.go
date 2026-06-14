@@ -79,6 +79,10 @@ func (rs *Resource) Router() chi.Router {
 		// Security enforced when linking guardians to students
 		r.With(withTx).Post("/", rs.createGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateGuardian)
+		// Read-only preview of a full delete's blast radius (admin-only check in
+		// the handler). Lets the UI show the affected children before confirming
+		// without the old destructive "probe DELETE" (#819).
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/{id}/delete-preview", rs.guardianDeletePreview)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteGuardian)
 
 		// Guardian invitations
@@ -92,6 +96,11 @@ func (rs *Resource) Router() chi.Router {
 
 		// Create/Update/Delete relationships - custom supervisor permissions checked in handlers
 		r.With(withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
+		// Atomic create-or-link of one or more guardians for an existing student
+		// (#819): the whole batch succeeds or rolls back as one transaction, so a
+		// partially-created guardian is never orphaned and the frontend needs no
+		// client-side rollback. Supervisor gate checked in the handler.
+		r.With(withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)
 		r.With(withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
 		r.With(withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
 

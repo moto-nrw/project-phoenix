@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * PeriodSwitcherDropdown — replaces CalendarPeriodHeaderButton.
+ * PeriodSwitcherDropdown: replaces CalendarPeriodHeaderButton.
  *
  * Fixes the user-reported "du kannst nirgendwo diese Periode auswählen"
  * friction: the previous component only listed periods that already
@@ -10,18 +10,20 @@
  * manually.
  *
  * The new dropdown shows three things:
- * 1. Per-day assignment for the visible week — preserves the
- *    "Grenzwoche" insight when a week crosses period boundaries.
+ * 1. Per-day assignment for the visible week, preserves the
+ *    "Übergangswoche" insight when a week crosses period boundaries.
  * 2. All registered periods, grouped by status (active / upcoming /
  *    archived). Clicking jumps the calendar to that period's start.
- * 3. A "Neue Periode anlegen" footer.
+ * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
 import { useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
+import { timetablePopoverSurface } from "./timetable-style";
 
 import {
   type CalendarPeriod,
@@ -82,18 +84,18 @@ export function PeriodSwitcherDropdown({
   // Headline label on the trigger pill.
   const triggerLabel =
     view === "year"
-      ? "Planungsperioden"
+      ? "Zeiträume"
       : view === "series" && selectedPeriod
         ? selectedPeriod.name
         : view === "series"
-          ? "Planungsperioden"
+          ? "Zeiträume"
           : assignedPeriods.length === 0
-            ? "Periode anlegen"
+            ? "Zeitraum anlegen"
             : assignedPeriods.length === 1 && !hasMissingDays
               ? assignedPeriods[0]!.name
               : view === "week"
-                ? "Grenzwoche"
-                : "Mehrere Perioden";
+                ? "Übergangswoche"
+                : "Mehrere Zeiträume";
 
   // Group all periods for the list section.
   const grouped = useMemo<PeriodGroup[]>(() => {
@@ -115,7 +117,10 @@ export function PeriodSwitcherDropdown({
     return [
       { label: "Aktiv", periods: active.sort(byStart) },
       { label: "Geplant", periods: upcoming.sort(byStart) },
-      { label: "Archiv", periods: archived.sort(byStart).reverse() },
+      {
+        label: "Abgelaufen oder deaktiviert",
+        periods: archived.sort(byStart).reverse(),
+      },
     ].filter((g) => g.periods.length > 0);
   }, [periods]);
 
@@ -125,20 +130,22 @@ export function PeriodSwitcherDropdown({
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.
   if (isLoading) {
-    return <Skeleton className="h-8 w-44 rounded-md" />;
+    return <Skeleton className="h-8 w-44 rounded-lg" />;
   }
 
-  // Empty state — no periods exist at all.
+  // Empty state: no periods exist at all.
   if (periods.length === 0) {
     return (
-      <button
+      <Button
         type="button"
+        variant="primary"
+        size="compact"
         onClick={onCreate}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        title="Ohne aktive Kalenderperiode kann der Plan nicht materialisiert werden."
+        className="rounded-lg"
+        title="Ohne aktiven Zeitraum können keine regelmäßigen Termine eingetragen werden."
       >
-        Periode anlegen
-      </button>
+        Zeitraum anlegen
+      </Button>
     );
   }
 
@@ -149,8 +156,8 @@ export function PeriodSwitcherDropdown({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        title="Planungsperiode wechseln"
+        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        title="Planungszeitraum wechseln"
       >
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
@@ -161,13 +168,17 @@ export function PeriodSwitcherDropdown({
       </button>
 
       {open && (
-        <div className="absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg sm:right-0 sm:left-auto sm:w-96">
+        <div
+          className={`absolute left-0 z-30 mt-2 w-[calc(100vw-3rem)] max-w-96 sm:right-0 sm:left-auto sm:w-96 ${timetablePopoverSurface}`}
+        >
           <div className="border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">
-              Planungsperiode
+              Planungszeitraum
             </p>
             <p className="text-[11px] text-gray-500">
-              Wähle eine Periode oder erstelle eine neue.
+              Zeiträume legen fest, in welchen Wochen regelmäßige Termine
+              gelten. So kannst du Schuljahr, Ferien oder besondere Phasen
+              getrennt planen.
             </p>
           </div>
 
@@ -196,8 +207,8 @@ export function PeriodSwitcherDropdown({
                       </span>
                       <span className="min-w-0 flex-1 truncate text-right text-gray-700">
                         {a.period?.name ?? (
-                          <span className="text-[#EAB308]">
-                            Keine aktive Periode
+                          <span className="text-[#92400E]">
+                            Kein aktiver Zeitraum
                           </span>
                         )}
                       </span>
@@ -216,10 +227,9 @@ export function PeriodSwitcherDropdown({
                   {group.label}
                 </p>
                 {group.periods.map((p) => {
-                  const isAssigned = selectedPeriodId
+                  const isSelected = selectedPeriodId
                     ? p.id === selectedPeriodId
-                    : view !== "year" &&
-                      assignedPeriods.some((ap) => ap.id === p.id);
+                    : false;
                   return (
                     <div key={p.id} className="flex items-center gap-1 px-2">
                       <button
@@ -228,36 +238,38 @@ export function PeriodSwitcherDropdown({
                           setOpen(false);
                           onSelect(p);
                         }}
-                        className={`group min-w-0 flex-1 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-gray-100 ${
-                          isAssigned ? "bg-gray-100" : ""
+                        className={`group relative min-w-0 flex-1 rounded-lg px-2 py-1.5 pr-8 text-left transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                          isSelected ? "bg-gray-100" : ""
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
                           <span className="truncate text-xs font-medium text-gray-900">
                             {p.name}
                           </span>
-                          {isAssigned && (
-                            <Check
-                              className="h-3.5 w-3.5 shrink-0 text-gray-900"
-                              aria-hidden
-                            />
-                          )}
                         </div>
                         <p className="text-[10px] text-gray-500 tabular-nums">
                           {formatPeriodRange(p)}
                         </p>
+                        {isSelected && (
+                          <Check
+                            data-testid="selected-period-check"
+                            className="absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-gray-900"
+                            aria-hidden
+                          />
+                        )}
                       </button>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="compact"
                         onClick={() => {
                           setOpen(false);
                           onEdit(p);
                         }}
-                        className="rounded-md px-2 py-1 text-[10px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
                         aria-label={`${p.name} bearbeiten`}
                       >
                         Bearbeiten
-                      </button>
+                      </Button>
                     </div>
                   );
                 })}
@@ -274,7 +286,7 @@ export function PeriodSwitcherDropdown({
             }}
             className="flex w-full items-center gap-1.5 border-t border-gray-100 px-4 py-2.5 text-left text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
           >
-            <Plus className="h-4 w-4" aria-hidden /> Neue Periode anlegen
+            <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
           </button>
         </div>
       )}
@@ -310,8 +322,8 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className="text-xs text-[#EAB308]">
-          Für diesen Monat ist keine aktive Periode hinterlegt.
+        <p className="text-xs text-[#92400E]">
+          Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
     );
@@ -322,7 +334,7 @@ function MonthPeriodSummary({
       <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
         Dieser Monat
       </p>
-      <p className="mb-1.5 text-xs text-gray-700">Umfasst mehrere Perioden.</p>
+      <p className="mb-1.5 text-xs text-gray-700">Umfasst mehrere Zeiträume.</p>
       <div className="space-y-0.5">
         {assignedPeriods.map((period) => (
           <p
@@ -334,8 +346,8 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-[11px] text-[#EAB308]">
-            Einige Tage haben keine aktive Periode.
+          <p className="text-[11px] text-[#92400E]">
+            Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}
       </div>

@@ -103,7 +103,7 @@ const permissionDescriptions: Record<string, string> = {
   "schedules:update": "Stundenpläne bearbeiten",
   "schedules:delete": "Stundenpläne löschen",
   "schedules:list": "Stundenpläne auflisten",
-  "schedules:manage": "Stundenplanverwaltung (Vollzugriff)",
+  "schedules:manage": "Betreuungsplanverwaltung (Vollzugriff)",
 
   // Visits
   "visits:create": "Neue Besuche erstellen",
