@@ -74,6 +74,108 @@ describe("SettingsCategory", () => {
     expect(getByText("Name")).toBeDefined();
   });
 
+  it("hides empty enrollment legal text fields while their toggle is off", () => {
+    const { queryByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory({
+          key: "rechtstexte",
+          items: [
+            {
+              key: "enrollment.legal_dsgvo_enabled",
+              label: "Datenschutzinformation anzeigen",
+              description: "",
+              type: "boolean",
+              default: false,
+              value: false,
+              is_default: true,
+              writable: true,
+              visible: true,
+              sort_order: 1,
+              access_policy: "shared",
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+            {
+              key: "enrollment.legal_dsgvo_text",
+              label: "Datenschutzinformation",
+              description: "",
+              type: "textarea",
+              default: "",
+              value: "",
+              is_default: true,
+              writable: true,
+              visible: true,
+              sort_order: 2,
+              access_policy: "shared",
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+          ],
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(queryByText("Datenschutzinformation anzeigen")).toBeDefined();
+    expect(queryByText("Datenschutzinformation")).toBeNull();
+  });
+
+  it("hides enrollment legal text fields while their toggle is off even when text exists", () => {
+    const { getByText, queryByText } = renderWithProviders(
+      <SettingsCategory
+        category={makeCategory({
+          key: "rechtstexte",
+          items: [
+            {
+              key: "enrollment.legal_dsgvo_enabled",
+              label: "Datenschutzinformation anzeigen",
+              description: "",
+              type: "boolean",
+              default: false,
+              value: false,
+              is_default: true,
+              writable: true,
+              visible: true,
+              sort_order: 1,
+              access_policy: "shared",
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+            {
+              key: "enrollment.legal_dsgvo_text",
+              label: "Datenschutzinformation",
+              description: "",
+              type: "textarea",
+              default: "",
+              value: "Bestehender Datenschutztext",
+              is_default: false,
+              writable: true,
+              visible: true,
+              sort_order: 2,
+              access_policy: "shared",
+              validation: null,
+              depends_on: null,
+              options: null,
+            },
+          ],
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(getByText("Datenschutzinformation anzeigen")).toBeDefined();
+    expect(
+      getByText("Text ist gespeichert, wird aber nicht angezeigt."),
+    ).toBeDefined();
+    expect(queryByText("Datenschutzinformation")).toBeNull();
+    expect(queryByText("Bestehender Datenschutztext")).toBeNull();
+  });
+
   it("renders nothing when all items are hidden", () => {
     const { container } = renderWithProviders(
       <SettingsCategory

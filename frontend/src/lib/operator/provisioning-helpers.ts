@@ -585,3 +585,67 @@ export function mapOperatorPerson(data: BackendOperatorPerson): OperatorPerson {
     createdAt: data.created_at,
   };
 }
+
+export interface BackendUnregisteredTagScan {
+  id: number;
+  tenant_id: number;
+  tag_uid: string;
+  device_id?: number | null;
+  scanned_at: string;
+  resolved_at?: string | null;
+  resolved_by_operator_id?: number | null;
+  resolution_note?: string | null;
+  created_at: string;
+  updated_at: string;
+  school_id: number;
+  school_name: string;
+  organization_id: number;
+  organization_name: string;
+  device_identifier?: string | null;
+  device_name?: string | null;
+}
+
+export interface UnregisteredTagScan {
+  id: string;
+  tenantId: string;
+  tagUid: string;
+  deviceId: string | null;
+  scannedAt: string;
+  resolvedAt: string | null;
+  resolvedByOperatorId: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  schoolId: string;
+  schoolName: string;
+  organizationId: string;
+  organizationName: string;
+  deviceIdentifier: string | null;
+  deviceName: string | null;
+}
+
+export function mapUnregisteredTagScan(
+  data: BackendUnregisteredTagScan,
+): UnregisteredTagScan {
+  return {
+    id: data.id.toString(),
+    tenantId: data.tenant_id.toString(),
+    tagUid: data.tag_uid,
+    deviceId: data.device_id != null ? data.device_id.toString() : null,
+    scannedAt: data.scanned_at,
+    resolvedAt: data.resolved_at ?? null,
+    resolvedByOperatorId:
+      data.resolved_by_operator_id != null
+        ? data.resolved_by_operator_id.toString()
+        : null,
+    resolutionNote: data.resolution_note ?? null,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+    schoolId: data.school_id.toString(),
+    schoolName: data.school_name,
+    organizationId: data.organization_id.toString(),
+    organizationName: data.organization_name,
+    deviceIdentifier: data.device_identifier ?? null,
+    deviceName: data.device_name ?? null,
+  };
+}

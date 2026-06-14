@@ -383,11 +383,10 @@ export interface PublicLegalTexts {
   dsgvo: string;
   email_contact: string;
   photo: string;
-  /**
-   * Mirrors enrollment.legal_terms_enabled. The AGB block is shown only
-   * when this is true and an AGB/Ganztag Info-Brief text is configured.
-   */
   terms_enabled: boolean;
+  dsgvo_enabled: boolean;
+  email_contact_enabled: boolean;
+  photo_enabled: boolean;
   blocks: PublicLegalBlock[];
 }
 

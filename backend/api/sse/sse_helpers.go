@@ -199,7 +199,7 @@ func (conn *sseConnection) sendHeartbeat() error {
 // createAndRegisterClient creates the SSE client and registers it with the hub
 func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
 	conn.client = &realtime.Client{
-		Channel:          make(chan realtime.Event, 10), // Buffer up to 10 events
+		Channel:          make(chan realtime.Event, 32), // Buffer up to 32 events (issue #848: headroom for bursts, e.g. admin-overview clients subscribed to every group)
 		UserID:           conn.staffID,
 		TenantID:         conn.tenantID,
 		SubscribedGroups: make(map[string]bool),

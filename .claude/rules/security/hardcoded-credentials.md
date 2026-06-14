@@ -33,4 +33,4 @@ Treat your codebase as public and untrusted. Any credential that appears in sour
 - Base64 encoded strings near authentication code
 - Any string that grants access to external services
 
-You must always explain how this rule was applied and why it was applied.
+In this repo, secrets belong in env files (local: `dev.env` / `.env.local`; deployed: SOPS-encrypted `environments/*.sops.env`). Enforcement already exists (gitleaks, lefthook git-secrets hook, CI plaintext guard) — don't fight it with allowlist edits; fix the leak.

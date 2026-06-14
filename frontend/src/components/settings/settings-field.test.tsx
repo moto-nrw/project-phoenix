@@ -107,6 +107,26 @@ describe("SettingsField", () => {
     expect(resetBtn).toBeNull();
   });
 
+  it("hides reset button for enrollment legal text fields", () => {
+    const { container } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_dsgvo_text",
+          type: "textarea",
+          value: "Datenschutz Text",
+          is_default: false,
+        })}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    const resetBtn = container.querySelector(
+      "button[title='Auf Standard zurücksetzen']",
+    );
+    expect(resetBtn).toBeNull();
+  });
+
   it("renders boolean field as toggle", () => {
     const { getByRole } = renderWithProviders(
       <SettingsField
@@ -299,6 +319,140 @@ describe("SettingsField", () => {
       const errorText = container.querySelector(".text-red-600");
       expect(errorText).not.toBeNull();
       expect(errorText!.textContent).toBe("Ungültiger Wert.");
+    });
+  });
+
+  it("warns when an enabled enrollment legal block has no text", () => {
+    const { getByText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_dsgvo_enabled",
+          label: "Datenschutzinformation anzeigen",
+          type: "boolean",
+          value: true,
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_dsgvo_text",
+            type: "textarea",
+            value: "",
+          }),
+        ]}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(
+      getByText(
+        "Wird erst im Anmeldeformular angezeigt, wenn der passende Text eingetragen ist.",
+      ),
+    ).toBeDefined();
+  });
+
+  it("edits enrollment legal text in a modal and blocks empty saves", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { container, getByRole, getByLabelText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_dsgvo_text",
+          label: "Datenschutzinformation Text",
+          type: "textarea",
+          value: "Datenschutz Text",
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_dsgvo_enabled",
+            type: "boolean",
+            value: true,
+          }),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(container.querySelector("textarea")).toBeNull();
+
+    fireEvent.click(getByRole("button", { name: "Rechtstext bearbeiten" }));
+
+    const textarea = getByLabelText("Rechtstext");
+    expect((textarea as HTMLTextAreaElement).value).toBe("Datenschutz Text");
+
+    fireEvent.change(textarea, { target: { value: "" } });
+    expect(getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(document.body.textContent).toContain(
+      "Dieser Text ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.",
+    );
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea, { target: { value: "Neuer Datenschutz Text" } });
+    fireEvent.click(getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.legal_dsgvo_text",
+        "Neuer Datenschutz Text",
+      );
+    });
+  });
+
+  it("opens a required text modal before enabling an enrollment legal block", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, getByLabelText, queryByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_dsgvo_enabled",
+          label: "Datenschutzinformation anzeigen",
+          type: "boolean",
+          value: false,
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_dsgvo_text",
+            type: "textarea",
+            value: "",
+          }),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch"));
+
+    expect(
+      getByRole("heading", {
+        name: "Datenschutzinformation aktivieren",
+      }),
+    ).toBeDefined();
+    expect(getByLabelText("Rechtstext")).toBeDefined();
+    expect(getByRole("button", { name: "Aktivieren" })).toBeDisabled();
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(getByLabelText("Rechtstext"), {
+      target: { value: "Datenschutz Text" },
+    });
+    fireEvent.click(getByRole("button", { name: "Aktivieren" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenNthCalledWith(
+        1,
+        "enrollment.legal_dsgvo_text",
+        "Datenschutz Text",
+      );
+      expect(onSave).toHaveBeenNthCalledWith(
+        2,
+        "enrollment.legal_dsgvo_enabled",
+        true,
+      );
+    });
+    await waitFor(() => {
+      expect(
+        queryByRole("heading", {
+          name: "Datenschutzinformation aktivieren",
+        }),
+      ).toBeNull();
     });
   });
 

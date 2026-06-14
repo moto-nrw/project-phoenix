@@ -326,6 +326,40 @@ func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, 
 	return int(rowsAffected), nil
 }
 
+// TransferActiveVisitsBetweenGroups transfers only currently open visits from
+// one active group to another. The exit_time predicate makes the transfer safe
+// against concurrent checkout/timeout flows.
+func (r *VisitRepository) TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Table(tableActiveVisits).
+		Set("active_group_id = ?", newActiveGroupID).
+		Set("updated_at = ?", time.Now()).
+		Where("active_group_id = ?", oldActiveGroupID).
+		Where("exit_time IS NULL")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "transfer active visits between groups",
+			Err: err,
+		}
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "get affected rows from active visit transfer",
+			Err: err,
+		}
+	}
+
+	return int(rowsAffected), nil
+}
+
 // DeleteExpiredVisits deletes visits older than retention days for a specific student
 func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error) {
 	cutoffDate := time.Now().AddDate(0, 0, -retentionDays)

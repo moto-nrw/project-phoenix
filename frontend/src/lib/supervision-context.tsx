@@ -9,7 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin, isCaregiver } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SupervisionContext" });
@@ -108,6 +108,21 @@ export function SupervisionProvider({
   tokenRef.current = session?.user?.token;
   const isAdminRef = React.useRef<boolean>(isAdmin(session));
   isAdminRef.current = isAdmin(session);
+
+  // Whether the user may read group/supervision data. The Schulhof status
+  // endpoint is gated by `groups:read` on the backend, so accounts with an
+  // explicit permissions list that lacks it (e.g. the limited `guest` role)
+  // get skipped instead of flooding production with guaranteed 403s. Admins
+  // keep their role fallback; staff sessions issued before the permissions
+  // claim existed have no list at all, so keep their role-based access alive
+  // during that rollout window and let the backend remain the final authority.
+  const canReadGroupsRef = React.useRef<boolean>(false);
+  const sessionPermissions = session?.user?.permissions;
+  const hasExplicitPermissions = Array.isArray(sessionPermissions);
+  canReadGroupsRef.current =
+    isAdmin(session) ||
+    hasPermission(session, "groups:read") ||
+    (!hasExplicitPermissions && isCaregiver(session));
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<
@@ -250,13 +265,19 @@ export function SupervisionProvider({
         return adminResponse;
       };
 
-      // Fetch supervised groups and Schulhof status in parallel
+      // Fetch supervised groups and Schulhof status in parallel.
+      // Skip the Schulhof fetch for accounts without `groups:read`: the
+      // backend gates /schulhof/status on that permission, so polling it
+      // would only ever 403 (issue #846). The supervised-groups fetch below
+      // hits permission-less /me endpoints and is safe for everyone.
       const [response, schulhofResponse] = await Promise.all([
         fetchSupervisedGroups(),
-        fetch("/api/active/schulhof/status", {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }).catch(() => null), // Schulhof is optional
+        canReadGroupsRef.current
+          ? fetch("/api/active/schulhof/status", {
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+            }).catch(() => null) // Schulhof is optional
+          : Promise.resolve(null),
       ]);
 
       // Parse Schulhof status

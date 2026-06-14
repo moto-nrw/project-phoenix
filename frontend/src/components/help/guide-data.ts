@@ -652,7 +652,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
-          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` pflegst du nur die Texte, die eure Einrichtung tatsächlich nutzt. Leere Rechtstexte werden im Elternformular nicht angezeigt. Wenn ihr mit einem Ganztag Info-Brief, AGB oder Teilnahmebedingungen arbeitet, `AGB / Teilnahmebedingungen abfragen` einschalten und den Text dort hinterlegen; dann müssen Eltern genau diesen Block bestätigen. Eigene Formularvorlagen können diese Blöcke unter `Rechtstexte und Einwilligungen` je Vorlage anpassen oder um eigene Einwilligungen ergänzen.",
+          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
         ],
         callout: {
           title: "So hängt alles zusammen",
@@ -754,13 +754,13 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Geh- und Abholregelung` wählen Eltern pro Wochentag, ob das Kind alleine geht, mit dem Bus fährt oder abgeholt wird.",
-          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen Eltern bestätigen: Die Standardblöcke kommen aus den Einstellungen und lassen sich hier anpassen; über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
+          "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",
         ],
         callout: {
           title: "Formular und Phase gehören zusammen",
-          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Wenn du die `Datenschutzinformation` in einer Vorlage deaktivierst, stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, etwa über den Elternbrief.",
+          body: "Ein Formular wirkt nicht für sich allein: Eine Phase nutzt entweder das `Basisformular` oder eine ausgewählte Vorlage. Ohne ausdrückliche Auswahl gilt automatisch das Basisformular. Die Rechtstexte werden mit der Vorlage gespeichert: Spätere Änderungen an den Rechtstexten in den Einstellungen übernimmst du in der Vorlage manuell. Eltern öffnen längere Rechtstexte im Formular über `Details`. Wenn du die `Datenschutzinformation` in einer Vorlage deaktivierst, stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, etwa über den Elternbrief.",
           tone: "blue",
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",

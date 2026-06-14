@@ -176,6 +176,13 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *o
 		WithTraceID:      false,
 		Filters: []slogchi.Filter{
 			slogchi.IgnorePath("/health"),
+			// Bot/scanner probes use HTTP methods our API never serves
+			// (CONNECT tunneling, TRACE/XST, PRI HTTP/2 preface). They get a
+			// 404/405 but add only WARN-level log noise (issue #850). Drop the
+			// log lines; the Prometheus HTTP middleware runs earlier in the
+			// chain and still counts them, so volume-based scan alerting is
+			// unaffected. Legitimate 4xx on GET/POST/... routes keep logging.
+			slogchi.IgnoreMethod(http.MethodConnect, http.MethodTrace, "PRI"),
 		},
 	}))
 	router.Use(middleware.Recoverer)
@@ -418,6 +425,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolService:         api.Services.Schools,
 		TimetableDataService:  api.Services.TimetableData,
+		UnregisteredTagScans:  api.Services.UnregisteredTagScans,
 		Broadcaster:           api.Services.RealtimeHub,
 		Logger:                logger.With("handler", "iot"),
 		DB:                    db,
@@ -454,6 +462,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
 		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
+		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolService:              api.Services.Schools,

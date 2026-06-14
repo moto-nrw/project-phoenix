@@ -553,12 +553,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		CaptchaConfig:             captcha,
 		LegalTexts: PublicLegalTextsResponse{
-			AGB:          texts.AGB,
-			DSGVO:        texts.DSGVO,
-			EmailContact: texts.EmailContact,
-			Photo:        texts.Photo,
-			TermsEnabled: texts.TermsEnabled,
-			Blocks:       texts.Blocks,
+			AGB:                 texts.AGB,
+			DSGVO:               texts.DSGVO,
+			EmailContact:        texts.EmailContact,
+			Photo:               texts.Photo,
+			TermsEnabled:        texts.TermsEnabled,
+			DSGVOEnabled:        texts.DSGVOEnabled,
+			EmailContactEnabled: texts.EmailContactEnabled,
+			PhotoEnabled:        texts.PhotoEnabled,
+			Blocks:              texts.Blocks,
 		},
 	}, "Public enrollment form bootstrap retrieved")
 }

@@ -188,9 +188,8 @@ const (
 	KeyEnrollmentCaptchaSecretKey            = "enrollment.captcha_secret_key"
 	KeyEnrollmentGradeLevelMax               = "enrollment.grade_level_max"
 	// Per-tenant info texts (Markdown) shown behind each consent
-	// checkbox on the public enrollment form. Empty = the whole block
-	// is omitted from the form (see buildLegalBlocks in
-	// services/enrollment/request_service.go), not just the link.
+	// checkbox on the public enrollment form. A block is shown only when
+	// its matching enable setting is true and its text is non-empty.
 	KeyEnrollmentLegalAGBText          = "enrollment.legal_agb_text"
 	KeyEnrollmentLegalDSGVOText        = "enrollment.legal_dsgvo_text"
 	KeyEnrollmentLegalEmailContactText = "enrollment.legal_email_contact_text"
@@ -200,7 +199,10 @@ const (
 	// AGB, so a Träger without standard terms must not be forced to show a
 	// mandatory "AGB akzeptieren" checkbox. Schools that incorporate terms
 	// switch this on and fill in enrollment.legal_agb_text.
-	KeyEnrollmentLegalTermsEnabled = "enrollment.legal_terms_enabled"
+	KeyEnrollmentLegalTermsEnabled        = "enrollment.legal_terms_enabled"
+	KeyEnrollmentLegalDSGVOEnabled        = "enrollment.legal_dsgvo_enabled"
+	KeyEnrollmentLegalEmailContactEnabled = "enrollment.legal_email_contact_enabled"
+	KeyEnrollmentLegalPhotoEnabled        = "enrollment.legal_photo_enabled"
 )
 
 // Enrollment select-option values.

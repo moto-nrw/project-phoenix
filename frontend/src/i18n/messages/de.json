@@ -396,7 +396,9 @@
       "submit": "Anmeldung absenden",
       "submitting": "Wird übermittelt…",
       "previewSubmit": "Vorschau, nicht absenden",
-      "showMore": "Mehr anzeigen"
+      "showMore": "Mehr anzeigen",
+      "details": "Details",
+      "detailsAria": "Details zu {title} anzeigen"
     },
     "care": {
       "requiredTitle": "Pflichtangebote",

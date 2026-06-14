@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -13,19 +14,25 @@ import (
 
 // Resource defines the Data API resource for device data queries
 type Resource struct {
-	IoTService        iotSvc.Service
-	UsersService      usersSvc.PersonService
-	ActivitiesService activitiesSvc.ActivityService
-	FacilityService   facilitiesSvc.Service
+	IoTService           iotSvc.Service
+	UsersService         usersSvc.PersonService
+	ActivitiesService    activitiesSvc.ActivityService
+	FacilityService      facilitiesSvc.Service
+	UnregisteredTagScans auditSvc.UnregisteredTagScanService
 }
 
 // NewResource creates a new Data resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *Resource {
+	var scanService auditSvc.UnregisteredTagScanService
+	if len(unregisteredTagScans) > 0 {
+		scanService = unregisteredTagScans[0]
+	}
 	return &Resource{
-		IoTService:        iotService,
-		UsersService:      usersService,
-		ActivitiesService: activitiesService,
-		FacilityService:   facilityService,
+		IoTService:           iotService,
+		UsersService:         usersService,
+		ActivitiesService:    activitiesService,
+		FacilityService:      facilityService,
+		UnregisteredTagScans: scanService,
 	}
 }
 
