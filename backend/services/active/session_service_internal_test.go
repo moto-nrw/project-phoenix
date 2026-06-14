@@ -8,12 +8,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type deviceRepoForSessionUnitTest struct {
@@ -90,6 +95,106 @@ func (s *settingsResolverForSessionUnitTest) ResolveString(context.Context, stri
 }
 func (s *settingsResolverForSessionUnitTest) ResolveInt(context.Context, string) (int, error) {
 	return s.intVal, s.intErr
+}
+
+type workSessionServiceForSessionUnitTest struct {
+	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
+}
+
+func (w *workSessionServiceForSessionUnitTest) CheckIn(context.Context, int64, string, string) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) CheckOut(context.Context, int64) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) StartBreak(context.Context, int64, *int) (*activeModels.WorkSessionBreak, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) EndBreak(context.Context, int64) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetSessionBreaks(context.Context, int64, int64) ([]*activeModels.WorkSessionBreak, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) UpdateSession(context.Context, int64, int64, SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) UpdateSessionAsAdmin(context.Context, int64, int64, int64, SessionUpdateRequest) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) CreateSessionAsAdmin(context.Context, int64, int64, AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetCurrentSession(context.Context, int64) (*activeModels.WorkSession, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetHistory(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetSessionEdits(context.Context, int64, int64) ([]*WorkSessionEditView, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetSessionEditsForStaff(context.Context, int64, int64) ([]*WorkSessionEditView, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetTodayPresenceMap(context.Context) (map[int64]string, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) CleanupOpenSessions(context.Context) (int, error) {
+	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+	if w.ensureCheckedInFunc != nil {
+		return w.ensureCheckedInFunc(ctx, staffID, source)
+	}
+	return &activeModels.WorkSession{}, nil
+}
+func (w *workSessionServiceForSessionUnitTest) ExportSessions(context.Context, int64, timezone.Date, timezone.Date, string) ([]byte, string, error) {
+	return nil, "", nil
+}
+func (w *workSessionServiceForSessionUnitTest) AutoEndExpiredBreaks(context.Context) (int, error) {
+	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetStaffIDsWithSupervisionToday(context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetWorkTimeModelByID(context.Context, int64) (*configModels.WorkTimeModel, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) GetCurrentScheduleRows(context.Context, int64) ([]*configModels.StaffWorkSchedule, error) {
+	return nil, nil
+}
+func (w *workSessionServiceForSessionUnitTest) AssignScheduleTemplate(context.Context, *userModels.Staff, int64) error {
+	return nil
+}
+func (w *workSessionServiceForSessionUnitTest) ApplyCustomScheduleRows(context.Context, *userModels.Staff, []*configModels.StaffWorkSchedule, timezone.Date) error {
+	return nil
+}
+func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(context.Context, *userModels.Staff, string, int, timezone.Date, []*configModels.WorkTimeModelEntry) error {
+	return nil
+}
+
+func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
+	t.Helper()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, db.Close())
+	})
+	return db, mock
+}
+
+type timetableBridgeCompleterForSessionUnitTest struct {
+	completeFunc func(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+}
+
+func (t *timetableBridgeCompleterForSessionUnitTest) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
+	if t.completeFunc != nil {
+		return t.completeFunc(ctx, activeGroupIDs, completedAt)
+	}
+	return 0, nil
 }
 
 func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T) {
@@ -320,6 +425,155 @@ func TestUpdateDeviceLocationBestEffort(t *testing.T) {
 	svc.updateDeviceLocation(context.Background(), 50, 60)
 
 	assert.Equal(t, 1, calls)
+}
+
+func TestAssignSupervisorNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("supervisor insert and auto check-in errors are logged but swallowed", func(t *testing.T) {
+		var checkedStaffID int64
+		svc := &service{
+			logger: slog.Default(),
+			supervisorRepo: &mockGroupSupervisorRepository{
+				createFunc: func(context.Context, *activeModels.GroupSupervisor) error {
+					return errors.New("supervisor insert failed")
+				},
+			},
+			workSessionService: &workSessionServiceForSessionUnitTest{
+				ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+					checkedStaffID = staffID
+					assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
+					return nil, errors.New("auto check-in failed")
+				},
+			},
+		}
+
+		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
+
+		assert.Equal(t, int64(88), checkedStaffID)
+	})
+
+	t.Run("nil auto check-in session is accepted", func(t *testing.T) {
+		svc := &service{
+			logger:         slog.Default(),
+			supervisorRepo: &mockGroupSupervisorRepository{},
+			workSessionService: &workSessionServiceForSessionUnitTest{
+				ensureCheckedInFunc: func(context.Context, int64, string) (*activeModels.WorkSession, error) {
+					return nil, nil
+				},
+			},
+		}
+
+		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
+	})
+}
+
+func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
+	ctx := context.Background()
+	checkInResults := map[int64]error{
+		10: errors.New("auto check-in failed"),
+		20: nil,
+	}
+	checked := map[int64]bool{}
+	created := map[int64]bool{}
+	svc := &service{
+		logger: slog.Default(),
+		supervisorRepo: &mockGroupSupervisorRepository{
+			createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+				created[supervisor.StaffID] = true
+				return nil
+			},
+		},
+		workSessionService: &workSessionServiceForSessionUnitTest{
+			ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+				checked[staffID] = true
+				assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
+				if err := checkInResults[staffID]; err != nil {
+					return nil, err
+				}
+				return nil, nil
+			},
+		},
+	}
+
+	svc.assignMultipleSupervisorsNonCritical(ctx, 99, []int64{10, 20, 10}, time.Now())
+
+	assert.Equal(t, map[int64]bool{10: true, 20: true}, created)
+	assert.Equal(t, map[int64]bool{10: true, 20: true}, checked)
+}
+
+func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("savepoint create failure skips operation", func(t *testing.T) {
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		mock.ExpectExec("SAVEPOINT sp_active_assign_supervisor").WillReturnError(errors.New("savepoint failed"))
+		mock.ExpectRollback()
+
+		called := false
+		svc := &service{logger: slog.Default()}
+		svc.runBestEffortDB(txCtx, "assign_supervisor", func() error {
+			called = true
+			return nil
+		}, func(error) {
+			t.Fatal("operation failure logger must not run when savepoint creation fails")
+		})
+
+		assert.False(t, called)
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("operation failure rolls back to savepoint", func(t *testing.T) {
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		mock.ExpectExec("SAVEPOINT sp_active_nfc_auto_checkin").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("ROLLBACK TO SAVEPOINT sp_active_nfc_auto_checkin").WillReturnError(errors.New("rollback failed"))
+		mock.ExpectRollback()
+
+		logged := false
+		svc := &service{logger: slog.Default()}
+		svc.runBestEffortDB(txCtx, "nfc_auto_checkin", func() error {
+			return errors.New("operation failed")
+		}, func(error) {
+			logged = true
+		})
+
+		assert.True(t, logged)
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("release failure is logged after successful operation", func(t *testing.T) {
+		db, mock := newSessionSQLMockDB(t)
+		mock.ExpectBegin()
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		txCtx := modelBase.ContextWithTx(ctx, &tx)
+		mock.ExpectExec("SAVEPOINT sp_active_update_device_location").WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectExec("RELEASE SAVEPOINT sp_active_update_device_location").WillReturnError(errors.New("release failed"))
+		mock.ExpectRollback()
+
+		called := false
+		svc := &service{logger: slog.Default()}
+		svc.runBestEffortDB(txCtx, "update_device_location", func() error {
+			called = true
+			return nil
+		}, func(error) {
+			t.Fatal("operation failure logger must not run on release failure")
+		})
+
+		assert.True(t, called)
+		require.NoError(t, tx.Rollback())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestCreateSessionBase_Branches(t *testing.T) {
@@ -608,6 +862,23 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 	})
 }
 
+func TestCompleteForceEndedTimetableMirrors_PropagatesRepositoryError(t *testing.T) {
+	expectedErr := errors.New("bridge update failed")
+	svc := &service{
+		timetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+			completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
+				assert.Equal(t, []int64{10, 20}, activeGroupIDs)
+				return 0, expectedErr
+			},
+		},
+	}
+
+	err := svc.completeForceEndedTimetableMirrors(context.Background(), []int64{10, 20})
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Contains(t, err.Error(), "complete force-ended timetable mirrors")
+}
+
 func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 	ctx := context.Background()
 	today := timezone.TodayDate()
@@ -646,6 +917,69 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 					return []*activeModels.GroupSupervisor{}, nil
 				},
 				endSupervisionFunc: func(context.Context, int64) error {
+					return expectedErr
+				},
+			},
+		}
+
+		count, err := svc.transferActiveSupervisorsBetweenGroups(ctx, 1, 2, time.Now())
+
+		require.ErrorIs(t, err, expectedErr)
+		assert.Zero(t, count)
+	})
+
+	t.Run("skips nil and duplicate supervisors", func(t *testing.T) {
+		var ended []int64
+		var created []*activeModels.GroupSupervisor
+		svc := &service{
+			supervisorRepo: &mockGroupSupervisorRepository{
+				findByActiveGroupIDFunc: func(_ context.Context, activeGroupID int64, _ bool) ([]*activeModels.GroupSupervisor, error) {
+					if activeGroupID == 1 {
+						return []*activeModels.GroupSupervisor{
+							nil,
+							{Model: modelBase.Model{ID: 10}, StaffID: 20, Role: "Supervisor", StartDate: today},
+							{Model: modelBase.Model{ID: 11}, StaffID: 30, Role: "helper", StartDate: today},
+						}, nil
+					}
+					return []*activeModels.GroupSupervisor{
+						nil,
+						{Model: modelBase.Model{ID: 12}, StaffID: 20, Role: "supervisor", StartDate: today},
+					}, nil
+				},
+				endSupervisionFunc: func(_ context.Context, id int64) error {
+					ended = append(ended, id)
+					return nil
+				},
+				createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+					created = append(created, supervisor)
+					return nil
+				},
+			},
+		}
+
+		count, err := svc.transferActiveSupervisorsBetweenGroups(ctx, 1, 2, time.Now())
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+		assert.Equal(t, []int64{10, 11}, ended)
+		require.Len(t, created, 1)
+		assert.Equal(t, int64(30), created[0].StaffID)
+		assert.Equal(t, "helper", created[0].Role)
+	})
+
+	t.Run("create error returns partial count", func(t *testing.T) {
+		expectedErr := errors.New("create transferred supervisor failed")
+		svc := &service{
+			supervisorRepo: &mockGroupSupervisorRepository{
+				findByActiveGroupIDFunc: func(_ context.Context, activeGroupID int64, _ bool) ([]*activeModels.GroupSupervisor, error) {
+					if activeGroupID == 1 {
+						return []*activeModels.GroupSupervisor{
+							{Model: modelBase.Model{ID: 10}, StaffID: 20, Role: "Supervisor", StartDate: today},
+						}, nil
+					}
+					return []*activeModels.GroupSupervisor{}, nil
+				},
+				createFunc: func(context.Context, *activeModels.GroupSupervisor) error {
 					return expectedErr
 				},
 			},
