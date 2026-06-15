@@ -25,12 +25,14 @@ import {
   pickupDaysHaveAny,
   normalizePickupDays,
   type PickupDays,
-  type DepartureDays,
+  type AllowedDepartureModes,
   normalizeDepartureDays,
   departureDaysFromLegacy,
-  departureToBusDays,
-  departureToPickupDays,
-  departureModeFor,
+  allowedDepartureModesFromDeparture,
+  allowedDepartureToBusDays,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToPickupDays,
+  normalizeAllowedDepartureModes,
   DEPARTURE_WEEKDAYS,
 } from "~/lib/student-helpers";
 import type { Student } from "~/lib/api";
@@ -87,13 +89,20 @@ function pickupDaysEqual(
   );
 }
 
-function departureDaysEqual(
-  a?: DepartureDays | null,
-  b?: DepartureDays | null,
+function allowedDepartureModesEqual(
+  a?: AllowedDepartureModes | null,
+  b?: AllowedDepartureModes | null,
 ): boolean {
-  return DEPARTURE_WEEKDAYS.every(
-    (day) => departureModeFor(a, day.key) === departureModeFor(b, day.key),
-  );
+  const left = normalizeAllowedDepartureModes(a);
+  const right = normalizeAllowedDepartureModes(b);
+  return DEPARTURE_WEEKDAYS.every((day) => {
+    const leftModes = left[day.key] ?? [];
+    const rightModes = right[day.key] ?? [];
+    return (
+      leftModes.length === rightModes.length &&
+      leftModes.every((mode, idx) => mode === rightModes[idx])
+    );
+  });
 }
 
 function buildDraft(
@@ -117,6 +126,12 @@ function buildDraft(
     bus: student.bus ?? false,
     bus_days: normalizeBusDays(student.bus_days),
     pickup_days: normalizePickupDays(student.pickup_days),
+    allowed_departure_modes: student.allowed_departure_modes
+      ? normalizeAllowedDepartureModes(student.allowed_departure_modes)
+      : allowedDepartureModesFromDeparture(
+          student.departure_days ??
+            departureDaysFromLegacy(student.bus_days, student.pickup_days),
+        ),
     departure_days: student.departure_days
       ? normalizeDepartureDays(student.departure_days)
       : departureDaysFromLegacy(student.bus_days, student.pickup_days),
@@ -308,9 +323,15 @@ export function StudentStammdatenTab({
         );
       }
       if (key === "departure_days") {
-        return !departureDaysEqual(
-          originalDraft.departure_days,
-          formData.departure_days,
+        return !allowedDepartureModesEqual(
+          originalDraft.allowed_departure_modes,
+          formData.allowed_departure_modes,
+        );
+      }
+      if (key === "allowed_departure_modes") {
+        return !allowedDepartureModesEqual(
+          originalDraft.allowed_departure_modes,
+          formData.allowed_departure_modes,
         );
       }
       return originalDraft[key] !== formData[key];
@@ -320,7 +341,7 @@ export function StudentStammdatenTab({
   const handleChange = useCallback(
     (
       field: keyof Student,
-      value: string | boolean | number | BusDays | null,
+      value: string | boolean | number | BusDays | AllowedDepartureModes | null,
     ) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
       if (errors[field]) {
@@ -401,9 +422,15 @@ export function StudentStammdatenTab({
       }
       setSaving(true);
       const submitData: Partial<Student> = { ...formData };
-      submitData.departure_days = normalizeDepartureDays(
-        formData.departure_days ??
-          departureDaysFromLegacy(formData.bus_days, formData.pickup_days),
+      submitData.allowed_departure_modes = normalizeAllowedDepartureModes(
+        formData.allowed_departure_modes ??
+          allowedDepartureModesFromDeparture(
+            formData.departure_days ??
+              departureDaysFromLegacy(formData.bus_days, formData.pickup_days),
+          ),
+      );
+      submitData.departure_days = allowedDepartureToDepartureDays(
+        submitData.allowed_departure_modes,
       );
       if (
         submitData.photo_consent_given === originalDraft.photo_consent_given
@@ -530,13 +557,15 @@ export function StudentStammdatenTab({
       />
 
       <DepartureSection
-        days={formData.departure_days}
+        days={formData.allowed_departure_modes}
         onChange={(value) => {
-          const departure = normalizeDepartureDays(value);
-          const busDays = departureToBusDays(departure);
-          const pickupDays = departureToPickupDays(departure);
+          const allowed = normalizeAllowedDepartureModes(value);
+          const departure = allowedDepartureToDepartureDays(allowed);
+          const busDays = allowedDepartureToBusDays(allowed);
+          const pickupDays = allowedDepartureToPickupDays(allowed);
           setFormData((prev) => ({
             ...prev,
+            allowed_departure_modes: allowed,
             departure_days: departure,
             // Keep the derived legacy fields consistent for any reader.
             bus_days: busDays,

@@ -926,6 +926,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
@@ -952,6 +953,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		PhaseRepo:                repos.Phase,

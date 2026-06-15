@@ -73,6 +73,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   weekday_schedule: "Wochenzeiten",
   weekday_boolean: "Wochentage",
   weekday_mode: "Geh- und Abholregelung",
+  weekday_multi_mode: "Erlaubte Heimwege",
   contact_list: "Kontaktliste",
 };
 
@@ -104,6 +105,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
   "weekday_schedule",
   "weekday_boolean",
   "weekday_mode",
+  "weekday_multi_mode",
   "contact_list",
 ]);
 
@@ -113,6 +115,7 @@ const structuredFieldTypes = new Set<FormFieldType>([
 const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
   "student.health_info": "Gesundheitsinformationen beim Kind speichern",
   "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
+  "student.allowed_departure_modes": "Erlaubte Heimwege beim Kind speichern",
   "student.departure": "Geh- und Abholregelung beim Kind speichern",
   "student.bus_days": "Buskind beim Kind speichern",
   "student.bus": "Buskind beim Kind speichern",
@@ -129,6 +132,7 @@ const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
 // targets superseded by the unified student.departure (#1610); they are
 // excluded so new fields can only pick the canonical unified target.
 const LEGACY_PICKER_TARGETS = new Set<Exclude<FormFieldTarget, "">>([
+  "student.departure",
   "student.bus",
   "student.bus_days",
   "student.pickup_status",
@@ -149,6 +153,8 @@ const targetSuggestionDescriptions: Record<
     "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
+  "student.allowed_departure_modes":
+    "Für die Wochentage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus oder Abholung. Mehrere Optionen pro Tag sind möglich.",
   "student.departure":
     "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":
@@ -3892,6 +3898,9 @@ function getRequiredHint(field: FormField): string {
   }
   if (field.type === "weekday_boolean") {
     return "Eltern müssen mindestens einen Wochentag auswählen.";
+  }
+  if (field.type === "weekday_multi_mode") {
+    return "Eltern müssen pro Betreuungstag mindestens einen Heimweg auswählen.";
   }
   if (field.type === "contact_list") {
     return "Eltern müssen mindestens einen vollständigen Kontakt angeben.";

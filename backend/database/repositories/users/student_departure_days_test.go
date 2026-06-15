@@ -29,6 +29,24 @@ func requireStudentsDepartureDaysColumn(t *testing.T, db *bun.DB) {
 	}
 }
 
+func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
+	t.Helper()
+	var exists bool
+	err := db.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'allowed_departure_modes'
+		)
+	`).Scan(testpkg.TenantContext(1), &exists)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip("users.students.allowed_departure_modes column is not present in this test database")
+	}
+}
+
 // TestStudentRepository_DepartureDaysRoundtrip exercises the unified
 // departure_days source of truth (#1610): persisting a unified plan derives the
 // legacy bus_days/pickup_days/pickup_status mirrors, hydration reads the plan
@@ -67,12 +85,14 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 
 	t.Run("legacy maps fold into departure_days", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "Departure", "Fold", "2a")
 		defer cleanupStudentRecords(t, db, student.ID)
 
-		// A contradictory legacy state (bus AND pickup on Monday) folds with
-		// pickup winning, leaving no bus/pickup overlap.
+		// A legacy state can still say bus AND pickup on Monday. The exclusive
+		// departure_days projection uses pickup, but allowed_departure_modes
+		// must preserve both permissions.
 		student.BusDays = users.BusDays{users.PickupDayMonday: true, users.PickupDayTuesday: true}
 		student.PickupDays = users.PickupDays{users.PickupDayMonday: true}
 		require.NoError(t, repo.Update(ctx, student))
@@ -81,7 +101,71 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, users.DeparturePickup, found.DepartureDays.ModeFor(users.PickupDayMonday))
 		assert.Equal(t, users.DepartureBus, found.DepartureDays.ModeFor(users.PickupDayTuesday))
-		assert.False(t, found.BusDays[users.PickupDayMonday]) // pickup won
+		assert.Equal(t, users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{
+				users.DepartureBus,
+				users.DeparturePickup,
+			},
+			users.PickupDayTuesday: []users.DepartureMode{
+				users.DepartureBus,
+			},
+		}, found.AllowedDepartureModes)
+		assert.True(t, found.BusDays[users.PickupDayMonday])
+	})
+
+	t.Run("legacy maps merge into existing allowed modes", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "Merge", "2b")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{
+				users.DepartureAlone,
+				users.DepartureBus,
+			},
+			users.PickupDayTuesday: []users.DepartureMode{
+				users.DeparturePickup,
+			},
+		}
+		require.NoError(t, repo.Update(ctx, student))
+
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		fresh.PickupDays = users.PickupDays{
+			users.PickupDayMonday:  true,
+			users.PickupDayTuesday: true,
+		}
+		require.NoError(t, repo.Update(ctx, fresh))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{
+				users.DepartureAlone,
+				users.DepartureBus,
+				users.DeparturePickup,
+			},
+			users.PickupDayTuesday: []users.DepartureMode{
+				users.DeparturePickup,
+			},
+		}, found.AllowedDepartureModes)
+
+		found.BusDays = users.BusDays{}
+		require.NoError(t, repo.Update(ctx, found))
+
+		afterRemoval, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t, users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{
+				users.DepartureAlone,
+				users.DeparturePickup,
+			},
+			users.PickupDayTuesday: []users.DepartureMode{
+				users.DeparturePickup,
+			},
+		}, afterRemoval.AllowedDepartureModes)
 	})
 
 	t.Run("unified replacement clears prior days", func(t *testing.T) {

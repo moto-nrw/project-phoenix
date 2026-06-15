@@ -334,6 +334,7 @@
       "guardianKicker": "Step 1",
       "guardianTitle": "Legal guardian",
       "guardianDescription": "Enter the person who can answer questions and should receive the status link.",
+      "additionalGuardianLabel": "Guardian {index}",
       "extraKicker": "Additional questions",
       "extraTitle": "More information",
       "extraDescription": "The OGS needs this information in addition to the basic data. Required questions are marked with an asterisk.",
@@ -352,6 +353,7 @@
       "email": "Email *",
       "phone": "Phone",
       "phoneRequired": "Phone *",
+      "emailPlain": "Email",
       "dateOfBirth": "Date of birth *",
       "gradeLevel": "Grade level *",
       "choose": "Please choose",
@@ -385,10 +387,12 @@
       "groupAtMostOne": "Please choose at most one offer for “{group}”.",
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
-      "weekdayModeConfirm": "Please confirm the departure arrangement."
+      "weekdayModeConfirm": "Please confirm the departure arrangement.",
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
     },
     "actions": {
       "addChild": "Add another child",
+      "addGuardian": "Add another guardian",
       "remove": "Remove",
       "submit": "Submit enrollment",
       "submitting": "Submitting…",
@@ -458,11 +462,13 @@
       "phoneNumbers": "Phone numbers",
       "pickupDaysHelp": "Select the days on which the child is picked up. On unselected days the child goes home alone.",
       "busDaysHelp": "Select the days on which the child takes the bus.",
-      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Walks home”.",
+      "weekdayMultiModeHelp": "Choose every way home that is allowed for your child on each care day.",
+      "weekdayMultiModeNoDays": "Choose the care days first.",
       "departureModes": {
-        "alone": "Goes alone",
+        "alone": "Walks home",
         "bus": "Bus",
-        "pickup": "Pickup"
+        "pickup": "Picked up"
       }
     },
     "months": [
@@ -555,6 +561,7 @@
     "emailLabel": "Email",
     "phoneLabel": "Phone",
     "notProvided": "Not provided",
+    "additionalGuardiansLabel": "Additional guardians",
     "firstNameLabel": "First name",
     "lastNameLabel": "Last name",
     "phoneOptionalLabel": "Phone, optional",

@@ -72,13 +72,16 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
-	// departure_days is the single source of truth (#1610); bus_days, pickup_days
-	// and the derived bus flag are emitted for clients not yet migrated.
-	departure := student.DepartureDays.Normalize()
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
 	response.DepartureDays = departure
-	response.BusDays = departure.BusDays()
+	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = departure.PickupDays()
+	response.PickupDays = allowed.PickupDays()
 	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
 }
 
@@ -221,12 +224,16 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
-	// departure_days is the single source of truth (#1610); the rest are derived.
-	departure := student.DepartureDays.Normalize()
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	departure := allowed.DepartureDays()
+	response.AllowedDepartureModes = allowed
 	response.DepartureDays = departure
-	response.BusDays = departure.BusDays()
+	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
-	response.PickupDays = departure.PickupDays()
+	response.PickupDays = allowed.PickupDays()
 	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
 }
 

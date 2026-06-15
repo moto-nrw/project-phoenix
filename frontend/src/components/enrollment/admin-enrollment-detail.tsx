@@ -18,6 +18,7 @@ import {
 import {
   type AdminRequestChild,
   type AdminRequestChildOffering,
+  type AdminRequestGuardian,
   type AdminRequestSchemaField,
   type AdminRequestSummary,
   type ChildStatus,
@@ -305,6 +306,34 @@ function EnrollmentSummary({
           value={submittedAt}
         />
       </dl>
+
+      {data.additional_guardians && data.additional_guardians.length > 0 && (
+        <div className="mt-4 space-y-3">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Weitere erziehungsberechtigte Personen
+          </p>
+          {data.additional_guardians.map((g: AdminRequestGuardian) => (
+            <div
+              key={g.id}
+              className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
+            >
+              <p className="text-sm font-semibold text-gray-900">
+                {g.first_name} {g.last_name}
+              </p>
+              <div className="mt-1 flex flex-col gap-1 text-sm text-gray-600 sm:flex-row sm:gap-4">
+                <span className="flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                  {g.email && g.email.trim() !== "" ? g.email : "Nicht gesetzt"}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                  {g.phone && g.phone.trim() !== "" ? g.phone : "Nicht gesetzt"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -828,6 +857,26 @@ function formatWeekdayObject(
   o: Record<string, unknown>,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
+  const isWeekdayMultiMode =
+    field?.type === "weekday_multi_mode" ||
+    WEEKDAYS.some(([key]) => Array.isArray(o[key]));
+  if (isWeekdayMultiMode) {
+    const modeLabels: Record<string, string> = {
+      alone: "geht zu Fuß",
+      bus: "fährt Bus",
+      pickup: "wird abgeholt",
+    };
+    const parts = WEEKDAYS.flatMap(([key, label]) => {
+      const raw = o[key];
+      if (!Array.isArray(raw)) return [];
+      const modes = raw
+        .filter((mode): mode is string => typeof mode === "string")
+        .map((mode) => modeLabels[mode] ?? mode);
+      return modes.length > 0 ? [`${label}: ${modes.join(", ")}`] : [];
+    });
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+
   // weekday_mode (Geh- und Abholregelung, #1610): values are per-day mode
   // strings ({mon: "bus", wed: "pickup"}). Render "Mo: fährt Bus, Mi: wird
   // abgeholt", mirroring the backend formatWeekdayMode. Must run before the
@@ -839,7 +888,7 @@ function formatWeekdayObject(
     );
   if (isWeekdayMode) {
     const modeLabels: Record<string, string> = {
-      alone: "geht alleine",
+      alone: "geht zu Fuß",
       bus: "fährt Bus",
       pickup: "wird abgeholt",
     };
