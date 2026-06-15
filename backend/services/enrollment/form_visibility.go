@@ -254,6 +254,9 @@ func customAnswerSatisfiesRequired(field enrollmentModels.FormField, answers map
 }
 
 func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormField, answers map[string]any, careDays map[string]bool) bool {
+	if len(careDays) == 0 {
+		return true
+	}
 	value, present := answers[field.Key]
 	if !present {
 		return false

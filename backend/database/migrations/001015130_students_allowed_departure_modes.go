@@ -44,13 +44,36 @@ func studentsAllowedDepartureModesUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
 		UPDATE users.students AS s
 		SET allowed_departure_modes = (
-			SELECT COALESCE(jsonb_object_agg(d.day, jsonb_build_array(s.departure_days ->> d.day)), '{}'::jsonb)
-			FROM (VALUES ('mon'), ('tue'), ('wed'), ('thu'), ('fri')) AS d(day)
-			WHERE s.departure_days ? d.day
-				AND s.departure_days ->> d.day IN ('alone', 'bus', 'pickup')
+			SELECT COALESCE(jsonb_object_agg(backfill.day, backfill.modes), '{}'::jsonb)
+			FROM (
+				SELECT d.day,
+					CASE
+						WHEN s.bus_days @> jsonb_build_object(d.day, true)
+							OR s.pickup_days @> jsonb_build_object(d.day, true)
+						THEN (
+							SELECT jsonb_agg(mode.value ORDER BY mode.ord)
+							FROM (
+								VALUES
+									(1, 'bus'::text, s.bus_days @> jsonb_build_object(d.day, true)),
+									(2, 'pickup'::text, s.pickup_days @> jsonb_build_object(d.day, true))
+							) AS mode(ord, value, enabled)
+							WHERE mode.enabled
+						)
+						WHEN s.departure_days ? d.day
+							AND s.departure_days ->> d.day IN ('alone', 'bus', 'pickup')
+						THEN jsonb_build_array(s.departure_days ->> d.day)
+						ELSE NULL
+					END AS modes
+				FROM (VALUES ('mon'), ('tue'), ('wed'), ('thu'), ('fri')) AS d(day)
+			) AS backfill
+			WHERE backfill.modes IS NOT NULL
 		)
 		WHERE allowed_departure_modes = '{}'::jsonb
-			AND departure_days <> '{}'::jsonb;
+			AND (
+				bus_days <> '{}'::jsonb
+				OR pickup_days <> '{}'::jsonb
+				OR departure_days <> '{}'::jsonb
+			);
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed backfilling users.students.allowed_departure_modes: %w", err)
 	}

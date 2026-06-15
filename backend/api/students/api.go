@@ -723,11 +723,10 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 }
 
 // applyDeparturePlan sets how a child leaves each weekday from a create/update
-// request. A unified DepartureDays is authoritative when present and is
-// decomposed (full replacement) onto the legacy per-day maps; otherwise the
-// legacy pickup_status/pickup_days/bus/bus_days inputs are applied. Either way
-// the repository folds bus_days + pickup_days into departure_days, the single
-// source of truth, on persist (#1610).
+// request. allowed_departure_modes is the rich source of truth when present.
+// Legacy fields are passed through without rebuilding allowed_departure_modes,
+// so stale older clients cannot collapse a stored multi-mode plan before the
+// repository compares against current state.
 func applyDeparturePlan(allowed *users.AllowedDepartureModes, departure *users.DepartureDays, status *string, pickupDays *users.PickupDays, legacyBus *bool, busDays *users.BusDays, student *users.Student) {
 	if allowed == nil && departure == nil && status == nil && pickupDays == nil && legacyBus == nil && busDays == nil {
 		return
@@ -745,14 +744,10 @@ func applyDeparturePlan(allowed *users.AllowedDepartureModes, departure *users.D
 	if departure != nil {
 		dd := departure.Normalize()
 		student.DepartureDays = dd
-		student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(dd)
-		student.BusDays = dd.BusDays()
-		student.PickupDays = dd.PickupDays()
 		return
 	}
 	reconcilePickupFields(student, status, pickupDays)
 	applyBusDays(legacyBus, busDays, student)
-	student.AllowedDepartureModes = users.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
 }
 
 // applyBusDays sets the student's bus_days from a create/update request.

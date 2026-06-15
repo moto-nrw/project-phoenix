@@ -304,11 +304,11 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 // persistDepartureDays writes the unified per-weekday departure mode AND its
 // derived legacy mirrors (bus_days, pickup_days, pickup_status) in a single
 // update, so the repository is the single source of truth (#1610): any caller
-// that mutates the departure plan — via DepartureDays or one of the legacy
-// maps — leaves all columns consistent and free of the bus/pickup contradiction
-// the old two-map model allowed. Callers that touch unrelated student fields
-// without loading the departure plan leave all four nil and this is a no-op,
-// preserving the previous "don't clobber what wasn't provided" behavior.
+// that mutates the departure plan — via allowed modes, DepartureDays, or one of
+// the legacy maps — leaves all columns consistent. Callers that touch unrelated
+// student fields without loading the departure plan leave all four nil and this
+// is a no-op, preserving the previous "don't clobber what wasn't provided"
+// behavior.
 func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
 	if student.AllowedDepartureModes == nil &&
 		student.DepartureDays == nil &&
@@ -392,8 +392,24 @@ func resolveAllowedDepartureModes(student *users.Student, current *studentDepart
 			return student.AllowedDepartureModes.Normalize()
 		}
 	}
-	departure := resolveDepartureDays(student, current)
-	return users.AllowedDepartureModesFromDeparture(departure).Normalize()
+	if current == nil {
+		if student.DepartureDays != nil {
+			return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+		}
+		return users.AllowedDepartureModesFromLegacy(student.BusDays, resolvedPickupDays(student)).Normalize()
+	}
+
+	pickup := resolvedPickupDays(student)
+	busChanged := student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)
+	pickupChanged := pickup != nil && !pickupDaysEqual(pickup, current.PickupDays)
+	if busChanged || pickupChanged {
+		return mergeLegacyDepartureModes(current.AllowedDepartureModes, student.BusDays, pickup, busChanged, pickupChanged)
+	}
+
+	if student.DepartureDays != nil && !departureDaysEqual(student.DepartureDays, current.DepartureDays) {
+		return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
+	}
+	return current.AllowedDepartureModes.Normalize()
 }
 
 func shouldUseAllowedDepartureModes(student *users.Student, current *studentDepartureState) bool {
@@ -403,10 +419,7 @@ func shouldUseAllowedDepartureModes(student *users.Student, current *studentDepa
 	if !allowedDepartureModesEqual(student.AllowedDepartureModes, current.AllowedDepartureModes) {
 		return true
 	}
-	pickup := student.PickupDays
-	if pickup == nil && student.PickupStatus != nil {
-		pickup = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
-	}
+	pickup := resolvedPickupDays(student)
 	departureChanged := student.DepartureDays != nil &&
 		!departureDaysEqual(student.DepartureDays, current.DepartureDays)
 	legacyChanged := (student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)) ||
@@ -414,15 +427,37 @@ func shouldUseAllowedDepartureModes(student *users.Student, current *studentDepa
 	return !departureChanged && !legacyChanged
 }
 
-func resolveDepartureDays(student *users.Student, current *studentDepartureState) users.DepartureDays {
-	pickup := student.PickupDays
-	if pickup == nil && student.PickupStatus != nil {
-		pickup = users.PickupDaysFromLegacyStatus(*student.PickupStatus)
+func resolvedPickupDays(student *users.Student) users.PickupDays {
+	if student.PickupDays != nil {
+		return student.PickupDays
 	}
-	if student.DepartureDays != nil && shouldUseUnifiedDeparture(student, pickup, current) {
-		return student.DepartureDays.Normalize()
+	if student.PickupStatus != nil {
+		return users.PickupDaysFromLegacyStatus(*student.PickupStatus)
 	}
-	return users.DepartureDaysFromLegacy(student.BusDays, pickup)
+	return nil
+}
+
+func mergeLegacyDepartureModes(current users.AllowedDepartureModes, bus users.BusDays, pickup users.PickupDays, busChanged, pickupChanged bool) users.AllowedDepartureModes {
+	current = current.Normalize()
+	out := users.AllowedDepartureModes{}
+	for _, day := range users.PickupDayOrder {
+		modes := map[users.DepartureMode]bool{}
+		for _, mode := range current[day] {
+			modes[mode] = true
+		}
+		if busChanged {
+			modes[users.DepartureBus] = bus[day]
+		}
+		if pickupChanged {
+			modes[users.DeparturePickup] = pickup[day]
+		}
+		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup} {
+			if modes[mode] {
+				out[day] = append(out[day], mode)
+			}
+		}
+	}
+	return out.Normalize()
 }
 
 type studentDepartureState struct {
@@ -448,18 +483,6 @@ func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, stude
 		DepartureDays:         student.DepartureDays.Normalize(),
 		AllowedDepartureModes: student.AllowedDepartureModes.Normalize(),
 	}, nil
-}
-
-func shouldUseUnifiedDeparture(student *users.Student, pickup users.PickupDays, current *studentDepartureState) bool {
-	if student.BusDays == nil && pickup == nil {
-		return true
-	}
-	if current == nil {
-		return false
-	}
-	legacyUnchanged := busDaysEqual(student.BusDays, current.BusDays) && pickupDaysEqual(pickup, current.PickupDays)
-	unifiedChanged := !departureDaysEqual(student.DepartureDays, current.DepartureDays)
-	return legacyUnchanged && unifiedChanged
 }
 
 func allowedDepartureModesEqual(a, b users.AllowedDepartureModes) bool {
