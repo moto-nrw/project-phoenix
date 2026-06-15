@@ -333,13 +333,13 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      // bus_days fold into "Bus" on Monday; Friday defaults to "Alleine".
+      // bus_days fold into "Bus" on Monday; Friday remains unselected.
       expect(
-        screen.getByRole("button", { name: "Montag: Bus", pressed: true }),
-      ).toBeInTheDocument();
+        screen.getByRole("checkbox", { name: "Montag: Bus" }),
+      ).toBeChecked();
       expect(
-        screen.getByRole("button", { name: "Freitag: Alleine", pressed: true }),
-      ).toBeInTheDocument();
+        screen.getByRole("checkbox", { name: "Freitag: Zu Fuß" }),
+      ).not.toBeChecked();
     });
 
     it("shows pickup days as 'Abholung' in the departure picker", () => {
@@ -356,14 +356,13 @@ describe("PersonalInfoFormModal", () => {
       );
 
       expect(
-        screen.getByRole("button", { name: "Montag: Abholung", pressed: true }),
-      ).toBeInTheDocument();
+        screen.getByRole("checkbox", { name: "Montag: Abgeholt" }),
+      ).toBeChecked();
       expect(
-        screen.getByRole("button", {
-          name: "Mittwoch: Abholung",
-          pressed: true,
+        screen.getByRole("checkbox", {
+          name: "Mittwoch: Abgeholt",
         }),
-      ).toBeInTheDocument();
+      ).toBeChecked();
     });
 
     it("sets a bus day and saves the derived bus_days", async () => {
@@ -377,12 +376,13 @@ describe("PersonalInfoFormModal", () => {
         />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "Montag: Bus" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: "Montag: Bus" }));
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
       await waitFor(() => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
+            allowed_departure_modes: { mon: ["bus"] },
             departure_days: { mon: "bus" },
             bus_days: { mon: true },
             buskind: true,
@@ -415,6 +415,7 @@ describe("PersonalInfoFormModal", () => {
         expect(mockOnSave).toHaveBeenCalledWith(
           expect.objectContaining({
             first_name: "Maja",
+            allowed_departure_modes: { mon: ["bus"], wed: ["pickup"] },
             departure_days: { mon: "bus", wed: "pickup" },
           }),
         );

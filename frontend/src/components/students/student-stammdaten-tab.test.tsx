@@ -108,15 +108,15 @@ vi.mock("./student-form-fields", () => ({
     days,
     onChange,
   }: {
-    days?: Record<string, string> | null;
-    onChange: (v: Record<string, string>) => void;
+    days?: Record<string, string[]> | null;
+    onChange: (v: Record<string, string[]>) => void;
   }) => (
     <div data-testid="departure-section">
       <span data-testid="departure-mon">{days?.mon ?? "alone"}</span>
       <button
         type="button"
         data-testid="departure-set-mon-bus"
-        onClick={() => onChange({ ...days, mon: "bus" })}
+        onClick={() => onChange({ ...days, mon: ["bus"] })}
       >
         set-mon-bus
       </button>

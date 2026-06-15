@@ -8,7 +8,6 @@ import { DepartureSection } from "./student-form-fields";
 import {
   busDaysHaveAny,
   pickupDaysHaveAny,
-  normalizeDepartureDays,
   departureDaysFromLegacy,
   allowedDepartureModesFromDeparture,
   allowedDepartureToBusDays,
@@ -54,19 +53,28 @@ export function PersonalInfoFormModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const allowedDepartureModes = normalizeAllowedDepartureModes(
+        editedStudent.allowed_departure_modes ??
+          allowedDepartureModesFromDeparture(
+            editedStudent.departure_days ??
+              departureDaysFromLegacy(
+                editedStudent.bus_days,
+                editedStudent.pickup_days,
+              ),
+          ),
+      );
+      const busDays = allowedDepartureToBusDays(allowedDepartureModes);
+      const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
       await onSave({
         ...editedStudent,
-        allowed_departure_modes: normalizeAllowedDepartureModes(
-          editedStudent.allowed_departure_modes ??
-            allowedDepartureModesFromDeparture(
-              editedStudent.departure_days ??
-                departureDaysFromLegacy(
-                  editedStudent.bus_days,
-                  editedStudent.pickup_days,
-                ),
-            ),
-        ),
-        departure_days: normalizeDepartureDays(editedStudent.departure_days),
+        allowed_departure_modes: allowedDepartureModes,
+        departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
+        bus_days: busDays,
+        buskind: busDaysHaveAny(busDays),
+        pickup_days: pickupDays,
+        pickup_status: pickupDaysHaveAny(pickupDays)
+          ? "Wird abgeholt"
+          : "Geht alleine nach Hause",
       });
       onClose();
     } catch (err) {

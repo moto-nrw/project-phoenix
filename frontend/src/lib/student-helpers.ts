@@ -248,7 +248,7 @@ export function formatAllowedDepartureModes(
         .join(", ")}`,
     ];
   });
-  return parts.length > 0 ? parts.join("; ") : "Keine Heimwege hinterlegt";
+  return parts.length > 0 ? parts.join("; ") : "Geht immer alleine";
 }
 
 /**
