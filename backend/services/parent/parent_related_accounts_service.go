@@ -84,7 +84,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 			if profile == nil {
 				continue
 			}
-			status := s.relatedAccountStatus(txCtx, profile)
+			status := s.relatedAccountStatus(txCtx, profile, studentID)
 			email := ""
 			if profile.Email != nil {
 				email = *profile.Email
@@ -107,7 +107,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
-func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile) RelatedAccountStatus {
+func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, studentID int64) RelatedAccountStatus {
 	if profile.HasAccount {
 		return RelatedAccountActive
 	}
@@ -120,6 +120,9 @@ func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.
 	}
 	now := time.Now()
 	for _, inv := range invitations {
+		if inv.StudentID == nil || *inv.StudentID != studentID {
+			continue
+		}
 		if authService.GuardianInvitationValid(inv, now) && inv.ApprovalStatus != authModels.GuardianInvitationApprovalRejected {
 			return RelatedAccountPending
 		}
@@ -187,6 +190,13 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return err
 	}
 
+	mode, err := s.settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	if err != nil {
+		return fmt.Errorf("parent: resolve invite mode: %w", err)
+	}
+	if mode == configModels.ParentInviteModeDisabled {
+		return ErrRemoveDisabled
+	}
 	canRemove, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
 	if err != nil {
 		return fmt.Errorf("parent: resolve remove setting: %w", err)

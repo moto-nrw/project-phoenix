@@ -41,6 +41,12 @@ const sampleAccount: RelatedAccount = {
   status: "active",
 };
 
+const noAccountSample: RelatedAccount = {
+  ...sampleAccount,
+  guardian_profile_id: "11",
+  status: "no_account",
+};
+
 describe("parent-api related accounts", () => {
   describe("listRelatedAccounts", () => {
     it("returns the unwrapped account list", async () => {
@@ -52,6 +58,12 @@ describe("parent-api related accounts", () => {
       const out = await listRelatedAccounts("3");
       expect(out).toEqual([sampleAccount]);
       expect(calledUrl).toBe("/api/parent/me/children/3/related-accounts");
+    });
+
+    it("accepts no-account contact rows from the backend", async () => {
+      mockFetch(async () => jsonResponse({ data: [noAccountSample] }));
+      const out = await listRelatedAccounts("3");
+      expect(out[0]?.status).toBe("no_account");
     });
 
     it("throws on a non-ok response", async () => {

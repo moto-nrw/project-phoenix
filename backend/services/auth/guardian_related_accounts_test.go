@@ -130,6 +130,45 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 	assert.True(t, profile.HasAccount)
 }
 
+func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_DefersAttachment(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Pending", "Existing", "2d")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Pending", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      account.Email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+
+	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "staff approval must not create the child link")
+
+	profile, err := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile)
+	assert.False(t, profile.HasAccount, "existing account must not be attached before staff approval")
+	assert.Nil(t, profile.AccountID)
+
+	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID), "approval must create the child link")
+	profile, err = env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.AccountID)
+	assert.Equal(t, account.ID, *profile.AccountID)
+	assert.True(t, profile.HasAccount)
+}
+
 func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
@@ -176,6 +215,73 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.False(t, env.linkExists(t, student.ID, profile.ID), "staff removal must delete the link")
+}
+
+func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Staff", "Contact", "3d")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "staff-managed-no-account")
+	actorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	link := &users.StudentGuardian{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "guardian",
+		EmergencyPriority: 1,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+
+	err := env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		ActorAccountID:    actorID,
+		ByParent:          true,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian))
+	assert.True(t, env.linkExists(t, student.ID, profile.ID), "staff-maintained contact link must survive")
+}
+
+func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Pending", "Remove", "3e")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("pending-remove-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
+
+	require.NoError(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: result.GuardianProfileID,
+		ActorAccountID:    creatorID,
+		ByParent:          true,
+	}))
+	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "pending access link must be removed")
+
+	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+	assert.False(t, inv.ExpiresAt.After(time.Now()), "removing pending access must invalidate the token")
 }
 
 func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
@@ -378,6 +484,47 @@ func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
 
 	require.Error(t, env.service.ApproveInvitation(ctx, *res.InvitationID, approver), "not awaiting approval")
 	require.Error(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver), "not awaiting approval")
+}
+
+func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+	ctx := testpkg.TenantContext(1)
+	creator := env.inviterAccountID(t)
+	student := testpkg.CreateTestStudent(t, env.db, "Repeat", "Invite", "4a")
+	email := fmt.Sprintf("repeat-invite-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	first, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     email,
+		CreatedBy: creator,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.InvitationID)
+	defer env.cleanupInvitation(t, *first.InvitationID, first.GuardianProfileID)
+
+	second, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     email,
+		CreatedBy: creator,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.InvitationID)
+
+	assert.Equal(t, first.GuardianProfileID, second.GuardianProfileID)
+	assert.Equal(t, *first.InvitationID, *second.InvitationID, "repeat invite should reuse the open invitation")
+
+	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, first.GuardianProfileID)
+	require.NoError(t, err)
+	openForStudent := 0
+	now := time.Now()
+	for _, inv := range invitations {
+		if inv.StudentID != nil && *inv.StudentID == student.ID && authService.GuardianInvitationValid(inv, now) {
+			openForStudent++
+		}
+	}
+	assert.Equal(t, 1, openForStudent)
 }
 
 func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {

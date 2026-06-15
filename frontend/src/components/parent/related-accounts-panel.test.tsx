@@ -37,6 +37,16 @@ const secondaryPending: RelatedAccount = {
   status: "pending",
 };
 
+const staffContactNoAccount: RelatedAccount = {
+  guardian_profile_id: "3",
+  first_name: "Clara",
+  last_name: "Kontakt",
+  email: "clara.kontakt@email.de",
+  relationship_type: "guardian",
+  is_primary: false,
+  status: "no_account",
+};
+
 describe("RelatedAccountsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,6 +72,19 @@ describe("RelatedAccountsPanel", () => {
     expect(screen.getByText("Markus Wolf")).toBeInTheDocument();
     expect(screen.getByText(/Konto aktiv/)).toBeInTheDocument();
     expect(screen.getByText(/Einladung offen/)).toBeInTheDocument();
+  });
+
+  it("renders no-account contacts without a remove affordance", async () => {
+    mockList.mockResolvedValue([primaryActive, staffContactNoAccount]);
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={false} canRemove={true} />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Clara Kontakt")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Kontakt ohne Konto/)).toBeInTheDocument();
+    expect(screen.queryByTitle("Zugang entfernen")).not.toBeInTheDocument();
   });
 
   it("hides the invite control when inviting is disabled", async () => {

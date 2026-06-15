@@ -19,6 +19,7 @@ const STATUS_META: Record<
 > = {
   active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
   pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
+  no_account: { label: "Kontakt ohne Konto", dot: LOCATION_COLORS.UNKNOWN },
 };
 
 function initials(first: string, last: string): string {
@@ -234,6 +235,7 @@ export default function RelatedAccountsPanel({
                 </div>
                 {canRemove &&
                   !acc.is_primary &&
+                  acc.status !== "no_account" &&
                   (confirmingId === acc.guardian_profile_id ? (
                     <div className="flex shrink-0 items-center gap-1">
                       <button

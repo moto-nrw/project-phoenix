@@ -109,7 +109,7 @@ export interface RelatedAccount {
   readonly email?: string;
   readonly relationship_type: string;
   readonly is_primary: boolean;
-  readonly status: "active" | "pending";
+  readonly status: "active" | "pending" | "no_account";
 }
 
 interface ApiEnvelope<T> {

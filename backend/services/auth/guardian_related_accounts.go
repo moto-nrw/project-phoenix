@@ -111,12 +111,12 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 	if profile == nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: fmt.Errorf("guardian profile resolution failed")}
 	}
-	if err := s.attachExistingAccountByEmail(ctx, profile, email, tenantID); err != nil {
-		return nil, err
-	}
 
 	if req.RequireApproval {
 		return s.queuePendingApproval(ctx, req, profile, tenantID, resolved.created)
+	}
+	if err := s.attachExistingAccountByEmail(ctx, profile, email, tenantID); err != nil {
+		return nil, err
 	}
 	return s.resolveInviteNow(ctx, req, profile, tenantID, resolved.created)
 }
@@ -258,6 +258,13 @@ func (s *guardianInvitationService) ensureStudentLink(ctx context.Context, stude
 // student and (for parent-initiated invites) the requesting account.
 func (s *guardianInvitationService) createStudentInvitation(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, approvalStatus string, profileCreated bool) (*authModels.GuardianInvitation, error) {
 	studentID := req.StudentID
+	openInvitation, err := s.findOpenStudentInvitation(ctx, profile.ID, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if openInvitation != nil {
+		return openInvitation, nil
+	}
 	invitation := &authModels.GuardianInvitation{
 		Token:                       uuid.Must(uuid.NewV4()).String(),
 		GuardianProfileID:           profile.ID,
@@ -273,6 +280,17 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
 	return invitation, nil
+}
+
+func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Context, guardianProfileID, studentID int64) (*authModels.GuardianInvitation, error) {
+	invitations, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, time.Now())
+	if err != nil {
+		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	if len(invitations) == 0 {
+		return nil, nil
+	}
+	return invitations[0], nil
 }
 
 // ApproveInvitation resolves a pending parent-initiated request: it links the
@@ -452,6 +470,40 @@ func guardianInvitationNonFinal(inv *authModels.GuardianInvitation, now time.Tim
 	return inv.ExpiresAt.IsZero() || inv.ExpiresAt.After(now)
 }
 
+func (s *guardianInvitationService) openStudentInvitations(ctx context.Context, guardianProfileID, studentID int64, now time.Time) ([]*authModels.GuardianInvitation, error) {
+	invitations, err := s.invitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return nil, err
+	}
+	open := make([]*authModels.GuardianInvitation, 0, len(invitations))
+	for _, inv := range invitations {
+		if inv.StudentID == nil || *inv.StudentID != studentID {
+			continue
+		}
+		if guardianInvitationNonFinal(inv, now) {
+			open = append(open, inv)
+		}
+	}
+	return open, nil
+}
+
+func (s *guardianInvitationService) expireOpenStudentInvitations(ctx context.Context, guardianProfileID, studentID int64, now time.Time) error {
+	invitations, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, now)
+	if err != nil {
+		return err
+	}
+	for _, inv := range invitations {
+		inv.ExpiresAt = now
+		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalPending {
+			inv.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+		}
+		if err := s.invitationRepo.Update(ctx, inv); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ListPendingApprovals returns parent-initiated invitations awaiting staff
 // approval for the current tenant.
 func (s *guardianInvitationService) ListPendingApprovals(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
@@ -562,6 +614,28 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 	}
 	if req.ByParent && link.IsPrimary {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePrimaryGuardian}
+	}
+	if req.ByParent {
+		profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
+		if err != nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: err}
+		}
+		if profile == nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("guardian profile not found")}
+		}
+		if !profile.HasAccount {
+			now := time.Now()
+			openInvitations, err := s.openStudentInvitations(ctx, req.GuardianProfileID, req.StudentID, now)
+			if err != nil {
+				return &AuthError{Op: opGuardianRevokeAccess, Err: err}
+			}
+			if len(openInvitations) == 0 {
+				return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemoveStaffManagedGuardian}
+			}
+			if err := s.expireOpenStudentInvitations(ctx, req.GuardianProfileID, req.StudentID, now); err != nil {
+				return &AuthError{Op: opGuardianRevokeAccess, Err: err}
+			}
+		}
 	}
 
 	if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {

@@ -215,7 +215,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		SickNoteEnabled:              sick,
 		NotesEnabled:                 notes,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
-		RelatedAccountsRemoveEnabled: canRemove,
+		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
 	}, nil
 }
 
