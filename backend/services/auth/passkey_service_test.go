@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -146,6 +148,463 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 	assert.Empty(t, user.WebAuthnCredentials())
 }
 
+func TestNewPasskeyServiceValidation(t *testing.T) {
+	baseCfg := PasskeyServiceConfig{
+		Repos:        &repositories.Factory{},
+		MFAService:   &passkeyMFAServiceStub{},
+		AuthService:  &Service{},
+		DB:           &bun.DB{},
+		RPID:         "localhost:3000",
+		RPName:       "moto tests",
+		TenantDomain: "localhost:3000",
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*PasskeyServiceConfig)
+	}{
+		{name: "missing repos", mutate: func(cfg *PasskeyServiceConfig) { cfg.Repos = nil }},
+		{name: "missing mfa", mutate: func(cfg *PasskeyServiceConfig) { cfg.MFAService = nil }},
+		{name: "missing auth", mutate: func(cfg *PasskeyServiceConfig) { cfg.AuthService = nil }},
+		{name: "missing db", mutate: func(cfg *PasskeyServiceConfig) { cfg.DB = nil }},
+		{name: "missing rp id", mutate: func(cfg *PasskeyServiceConfig) { cfg.RPID = " " }},
+		{name: "missing tenant domain", mutate: func(cfg *PasskeyServiceConfig) { cfg.TenantDomain = " " }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseCfg
+			tt.mutate(&cfg)
+			_, err := NewPasskeyService(cfg)
+			require.Error(t, err)
+		})
+	}
+
+	svc, err := NewPasskeyService(baseCfg)
+	require.NoError(t, err)
+	concrete := svc.(*passkeyService)
+	assert.Equal(t, "localhost", concrete.rpID)
+	assert.Equal(t, "localhost", concrete.tenantDomain)
+
+	cfgWithDefaultName := baseCfg
+	cfgWithDefaultName.RPName = " "
+	svc, err = NewPasskeyService(cfgWithDefaultName)
+	require.NoError(t, err)
+	assert.Equal(t, "moto", svc.(*passkeyService).rpName)
+}
+
+func TestPasskeyEnrollmentChallenge(t *testing.T) {
+	account := &authModel.Account{Model: base.Model{ID: 11}, Email: "teacher@example.test", Active: true}
+	mfa := &passkeyMFAServiceStub{challengeToken: "challenge-token"}
+	svc := &passkeyService{
+		repos:      &repositories.Factory{Account: newStubAccountRepository(account)},
+		mfaService: mfa,
+	}
+
+	challenge, err := svc.StartEnrollmentChallenge(context.Background(), account.ID, 42, net.ParseIP("203.0.113.8"))
+	require.NoError(t, err)
+	assert.Equal(t, "challenge-token", challenge.ChallengeToken)
+	assert.Contains(t, challenge.MaskedEmail, "@")
+	assert.Equal(t, account.ID, mfa.startedAccountID)
+	assert.Equal(t, int64(42), mfa.startedTenantID)
+	assert.Equal(t, authjwt.MFAChallengeScopeTenant, mfa.startedScope)
+}
+
+func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
+	account := &authModel.Account{Model: base.Model{ID: 12}, Email: "teacher@example.test", Active: true}
+	wantErr := errors.New("mfa down")
+
+	tests := []struct {
+		name  string
+		repos *repositories.Factory
+		mfa   *passkeyMFAServiceStub
+	}{
+		{
+			name:  "unknown account",
+			repos: &repositories.Factory{Account: newStubAccountRepository()},
+			mfa:   &passkeyMFAServiceStub{},
+		},
+		{
+			name:  "mfa start fails",
+			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
+			mfa:   &passkeyMFAServiceStub{startErr: wantErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &passkeyService{repos: tt.repos, mfaService: tt.mfa}
+			_, err := svc.StartEnrollmentChallenge(context.Background(), account.ID, 42, net.ParseIP("203.0.113.8"))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
+	account := &authModel.Account{Model: base.Model{ID: 21}, Email: "teacher@example.test", Active: true}
+	sessions := &passkeySessionRepoStub{}
+	mfa := &passkeyMFAServiceStub{}
+	svc := &passkeyService{
+		repos: &repositories.Factory{
+			Account:           newStubAccountRepository(account),
+			PasskeyCredential: &passkeyCredentialRepoStub{},
+			PasskeySession:    sessions,
+		},
+		mfaService:   mfa,
+		rpID:         "localhost",
+		rpName:       "moto",
+		tenantDomain: "localhost",
+	}
+
+	creation, err := svc.BeginRegistration(context.Background(), PasskeyRegistrationStartRequest{
+		AccountID:       account.ID,
+		TenantID:        44,
+		TenantSubdomain: "school",
+		ExpectedOrigin:  "http://school.localhost:3000",
+		Code:            "123456",
+		Name:            "Laptop",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, creation.SessionID)
+	require.NotNil(t, creation.Options)
+	require.NotNil(t, sessions.created)
+	require.NotNil(t, sessions.created.AccountID)
+	require.NotNil(t, sessions.created.TenantID)
+	assert.Equal(t, account.ID, *sessions.created.AccountID)
+	assert.Equal(t, int64(44), *sessions.created.TenantID)
+	assert.Equal(t, authModel.PasskeySessionPurposeRegistration, sessions.created.Purpose)
+	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.True(t, json.Valid(sessions.created.SessionJSON))
+	assert.Equal(t, account.ID, mfa.verifiedAccountID)
+	assert.Equal(t, "123456", mfa.verifiedCode)
+}
+
+func TestPasskeyBeginRegistrationErrors(t *testing.T) {
+	account := &authModel.Account{Model: base.Model{ID: 22}, Email: "teacher@example.test", Active: true}
+	inactive := &authModel.Account{Model: base.Model{ID: 23}, Email: "inactive@example.test", Active: false}
+	wantErr := errors.New("boom")
+
+	tests := []struct {
+		name    string
+		req     PasskeyRegistrationStartRequest
+		repos   *repositories.Factory
+		mfa     *passkeyMFAServiceStub
+		wantErr error
+	}{
+		{
+			name: "invalid origin short circuits before mfa",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      account.ID,
+				ExpectedOrigin: "http://other.localhost:3000",
+			},
+			repos:   &repositories.Factory{Account: newStubAccountRepository(account)},
+			mfa:     &passkeyMFAServiceStub{},
+			wantErr: ErrPasskeyOriginInvalid,
+		},
+		{
+			name: "mfa verify fails",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      account.ID,
+				ExpectedOrigin: "http://localhost:3000",
+				Code:           "000000",
+			},
+			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
+			mfa:   &passkeyMFAServiceStub{verifyErr: wantErr},
+		},
+		{
+			name: "unknown account",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      999,
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos:   &repositories.Factory{Account: newStubAccountRepository()},
+			mfa:     &passkeyMFAServiceStub{},
+			wantErr: ErrAccountNotFound,
+		},
+		{
+			name: "inactive account",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      inactive.ID,
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos:   &repositories.Factory{Account: newStubAccountRepository(inactive)},
+			mfa:     &passkeyMFAServiceStub{},
+			wantErr: ErrAccountInactive,
+		},
+		{
+			name: "credential lookup fails while building user",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      account.ID,
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Account:           newStubAccountRepository(account),
+				PasskeyCredential: &passkeyCredentialRepoStub{err: wantErr},
+			},
+			mfa: &passkeyMFAServiceStub{},
+		},
+		{
+			name: "session create fails",
+			req: PasskeyRegistrationStartRequest{
+				AccountID:      account.ID,
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Account:           newStubAccountRepository(account),
+				PasskeyCredential: &passkeyCredentialRepoStub{},
+				PasskeySession:    &passkeySessionRepoStub{createErr: wantErr},
+			},
+			mfa: &passkeyMFAServiceStub{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &passkeyService{
+				repos:        tt.repos,
+				mfaService:   tt.mfa,
+				rpID:         "localhost",
+				rpName:       "moto",
+				tenantDomain: "localhost",
+			}
+			_, err := svc.BeginRegistration(context.Background(), tt.req)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestPasskeyBeginLoginStoresSession(t *testing.T) {
+	sessions := &passkeySessionRepoStub{}
+	svc := &passkeyService{
+		repos:        &repositories.Factory{PasskeySession: sessions},
+		rpID:         "localhost",
+		rpName:       "moto",
+		tenantDomain: "localhost",
+	}
+
+	assertion, err := svc.BeginLogin(context.Background(), PasskeyLoginStartRequest{
+		TenantID:        45,
+		TenantSubdomain: "school",
+		ExpectedOrigin:  "http://school.localhost:3000",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, assertion.SessionID)
+	require.NotNil(t, assertion.Options)
+	require.NotNil(t, sessions.created)
+	require.NotNil(t, sessions.created.TenantID)
+	assert.Equal(t, int64(45), *sessions.created.TenantID)
+	assert.Equal(t, authModel.PasskeySessionPurposeLogin, sessions.created.Purpose)
+	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
+}
+
+func TestPasskeyBeginLoginErrors(t *testing.T) {
+	wantErr := errors.New("session down")
+
+	tests := []struct {
+		name    string
+		req     PasskeyLoginStartRequest
+		session *passkeySessionRepoStub
+		wantErr error
+	}{
+		{
+			name: "invalid origin",
+			req: PasskeyLoginStartRequest{
+				TenantSubdomain: "school",
+				ExpectedOrigin:  "http://other.localhost:3000",
+			},
+			session: &passkeySessionRepoStub{},
+			wantErr: ErrPasskeyOriginInvalid,
+		},
+		{
+			name: "session create fails",
+			req: PasskeyLoginStartRequest{
+				TenantID:       45,
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			session: &passkeySessionRepoStub{createErr: wantErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &passkeyService{
+				repos:        &repositories.Factory{PasskeySession: tt.session},
+				rpID:         "localhost",
+				rpName:       "moto",
+				tenantDomain: "localhost",
+			}
+			_, err := svc.BeginLogin(context.Background(), tt.req)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
+	account := &authModel.Account{Model: base.Model{ID: 31}, Email: "teacher@example.test", Active: true}
+	otherAccountID := account.ID + 1
+
+	tests := []struct {
+		name    string
+		session *authModel.PasskeySession
+		repos   *repositories.Factory
+		wantErr error
+	}{
+		{
+			name: "consume fails",
+			repos: &repositories.Factory{
+				PasskeySession: &passkeySessionRepoStub{consumeErr: sql.ErrNoRows},
+			},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+		{
+			name: "missing account id",
+			session: &authModel.PasskeySession{
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos:   &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+		{
+			name: "wrong account id",
+			session: &authModel.PasskeySession{
+				AccountID:      &otherAccountID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos:   &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+		{
+			name: "invalid session json",
+			session: &authModel.PasskeySession{
+				AccountID:      &account.ID,
+				SessionJSON:    json.RawMessage(`{`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos: &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
+		},
+		{
+			name: "unknown account",
+			session: &authModel.PasskeySession{
+				AccountID:      &account.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Account:        newStubAccountRepository(),
+				PasskeySession: &passkeySessionRepoStub{},
+			},
+			wantErr: ErrAccountNotFound,
+		},
+		{
+			name: "invalid response json",
+			session: &authModel.PasskeySession{
+				AccountID:      &account.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Account:           newStubAccountRepository(account),
+				PasskeyCredential: &passkeyCredentialRepoStub{},
+				PasskeySession:    &passkeySessionRepoStub{},
+			},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionRepo := tt.repos.PasskeySession.(*passkeySessionRepoStub)
+			sessionRepo.consumed = tt.session
+			svc := &passkeyService{repos: tt.repos, rpID: "localhost", rpName: "moto"}
+			_, err := svc.FinishRegistration(context.Background(), PasskeyRegistrationFinishRequest{
+				AccountID:          account.ID,
+				SessionID:          "session-id",
+				CredentialResponse: json.RawMessage(`{`),
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
+	tenantID := int64(55)
+
+	tests := []struct {
+		name    string
+		session *authModel.PasskeySession
+		wantErr error
+	}{
+		{
+			name:    "consume fails",
+			wantErr: ErrPasskeySessionInvalid,
+		},
+		{
+			name: "missing tenant id",
+			session: &authModel.PasskeySession{
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+		{
+			name: "invalid session json",
+			session: &authModel.PasskeySession{
+				TenantID:       &tenantID,
+				SessionJSON:    json.RawMessage(`{`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+		},
+		{
+			name: "invalid response json",
+			session: &authModel.PasskeySession{
+				TenantID:       &tenantID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			wantErr: ErrPasskeySessionInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionRepo := &passkeySessionRepoStub{consumed: tt.session}
+			if tt.session == nil {
+				sessionRepo.consumeErr = sql.ErrNoRows
+			}
+			svc := &passkeyService{
+				repos: &repositories.Factory{
+					PasskeySession: sessionRepo,
+				},
+				rpID:   "localhost",
+				rpName: "moto",
+			}
+			_, err := svc.FinishLogin(context.Background(), PasskeyLoginFinishRequest{
+				SessionID:          "session-id",
+				CredentialResponse: json.RawMessage(`{`),
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestPasskeyCredentialServiceMethods(t *testing.T) {
 	now := time.Now().UTC()
 	account := &authModel.Account{Model: base.Model{ID: 91}, Email: "teacher@example.test"}
@@ -236,6 +695,147 @@ func (r *passkeyCredentialRepoStub) Revoke(_ context.Context, accountID, id int6
 	r.revokedAccountID = accountID
 	r.revokedCredentialID = id
 	return r.err
+}
+
+type passkeySessionRepoStub struct {
+	created    *authModel.PasskeySession
+	consumed   *authModel.PasskeySession
+	createErr  error
+	consumeErr error
+}
+
+func (r *passkeySessionRepoStub) Create(_ context.Context, session *authModel.PasskeySession) error {
+	r.created = session
+	return r.createErr
+}
+
+func (r *passkeySessionRepoStub) Consume(_ context.Context, _, _ string, _ time.Time) (*authModel.PasskeySession, error) {
+	if r.consumeErr != nil {
+		return nil, r.consumeErr
+	}
+	if r.consumed == nil {
+		return nil, sql.ErrNoRows
+	}
+	return r.consumed, nil
+}
+
+func (r *passkeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int, error) {
+	return 0, nil
+}
+
+type passkeyMFAServiceStub struct {
+	challengeToken string
+	startErr       error
+	verifyErr      error
+
+	startedAccountID  int64
+	startedTenantID   int64
+	startedScope      string
+	verifiedAccountID int64
+	verifiedCode      string
+}
+
+func (s *passkeyMFAServiceStub) IsRequired(context.Context, *authModel.Account, int64) (bool, error) {
+	return false, nil
+}
+
+func (s *passkeyMFAServiceStub) HasEnrollment(context.Context, int64) (bool, error) {
+	return false, nil
+}
+
+func (s *passkeyMFAServiceStub) AccountBelongsToTenant(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+func (s *passkeyMFAServiceStub) StartChallenge(_ context.Context, accountID, tenantID int64, scope string, _ net.IP) (string, error) {
+	s.startedAccountID = accountID
+	s.startedTenantID = tenantID
+	s.startedScope = scope
+	if s.startErr != nil {
+		return "", s.startErr
+	}
+	if s.challengeToken != "" {
+		return s.challengeToken, nil
+	}
+	return "challenge-token", nil
+}
+
+func (s *passkeyMFAServiceStub) VerifyChallenge(context.Context, string, string) (*VerifiedChallenge, error) {
+	return nil, nil
+}
+
+func (s *passkeyMFAServiceStub) ResendChallenge(context.Context, string, net.IP) (string, error) {
+	return "challenge-token", nil
+}
+
+func (s *passkeyMFAServiceStub) VerifyCodeForAccount(_ context.Context, accountID int64, code string) error {
+	s.verifiedAccountID = accountID
+	s.verifiedCode = code
+	return s.verifyErr
+}
+
+func (s *passkeyMFAServiceStub) Enroll(context.Context, int64) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) Disable(context.Context, int64) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
+	return "", time.Time{}, nil
+}
+
+func (s *passkeyMFAServiceStub) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
+	return false, nil
+}
+
+func (s *passkeyMFAServiceStub) ListTrustedDevices(context.Context, int64, int64) ([]*authModel.MFATrustedDevice, error) {
+	return nil, nil
+}
+
+func (s *passkeyMFAServiceStub) RevokeTrustedDevice(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) IsTrustedDeviceEnabled(context.Context, int64) bool {
+	return false
+}
+
+func (s *passkeyMFAServiceStub) TrustedDeviceDays(context.Context, int64) int {
+	return 0
+}
+
+func (s *passkeyMFAServiceStub) AdminDisable(context.Context, int64, int64, int64, string, []string) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) GetTenantMFAOverride(context.Context, int64, int64) (string, error) {
+	return "none", nil
+}
+
+func (s *passkeyMFAServiceStub) GetGlobalMFAOverride(context.Context, int64) (string, error) {
+	return "none", nil
+}
+
+func (s *passkeyMFAServiceStub) OperatorAdminDisable(context.Context, int64, int64, int64, string) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) OperatorSetMFAOverride(context.Context, int64, int64, int64, string, string) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) OperatorSetGlobalMFAOverride(context.Context, int64, int64, string, string) error {
+	return nil
+}
+
+func (s *passkeyMFAServiceStub) GetAdminState(context.Context, int64, int64, int64, []string) (MFAAdminState, error) {
+	return MFAAdminState{}, nil
 }
 
 func TestPasskeyRepositories(t *testing.T) {

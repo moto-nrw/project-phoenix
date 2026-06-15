@@ -545,8 +545,11 @@ func HostWithoutPortForPlatform(value string) string {
 
 func originHostWithoutPort(origin string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+	if err != nil {
 		return "", err
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("origin must include scheme and host")
 	}
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
 		return "", fmt.Errorf("unsupported origin scheme")

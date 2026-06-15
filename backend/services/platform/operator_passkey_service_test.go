@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -90,6 +91,434 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 	assert.Equal(t, "operator@example.test", user.WebAuthnName())
 	assert.Equal(t, "Operator", user.WebAuthnDisplayName())
 	assert.Empty(t, user.WebAuthnCredentials())
+}
+
+func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
+	baseCfg := OperatorPasskeyServiceConfig{
+		Repos:               &repositories.Factory{},
+		MFAService:          &operatorPasskeyMFAServiceStub{},
+		AuthService:         &operatorAuthService{},
+		DB:                  &bun.DB{},
+		RPID:                "operator.localhost:3000",
+		RPName:              "moto tests",
+		OperatorFrontendURL: "http://operator.localhost:3000",
+	}
+
+	tests := []struct {
+		name   string
+		mutate func(*OperatorPasskeyServiceConfig)
+	}{
+		{name: "missing repos", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Repos = nil }},
+		{name: "missing mfa", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.MFAService = nil }},
+		{name: "missing auth", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.AuthService = nil }},
+		{name: "missing db", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.DB = nil }},
+		{name: "missing rp id", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.RPID = " " }},
+		{name: "invalid operator frontend url", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.OperatorFrontendURL = "not-a-url" }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseCfg
+			tt.mutate(&cfg)
+			_, err := NewOperatorPasskeyService(cfg)
+			require.Error(t, err)
+		})
+	}
+
+	svc, err := NewOperatorPasskeyService(baseCfg)
+	require.NoError(t, err)
+	concrete := svc.(*operatorPasskeyService)
+	assert.Equal(t, "operator.localhost", concrete.rpID)
+	assert.Equal(t, "operator.localhost", concrete.operatorOriginHost)
+
+	cfgWithDefaultName := baseCfg
+	cfgWithDefaultName.RPName = " "
+	svc, err = NewOperatorPasskeyService(cfgWithDefaultName)
+	require.NoError(t, err)
+	assert.Equal(t, "moto", svc.(*operatorPasskeyService).rpName)
+}
+
+func TestOperatorPasskeyEnrollmentChallenge(t *testing.T) {
+	operator := &platformModel.Operator{Model: base.Model{ID: 101}, Email: "operator@example.test", Active: true}
+	mfa := &operatorPasskeyMFAServiceStub{challengeToken: "operator-challenge"}
+	svc := &operatorPasskeyService{
+		repos:      &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
+		mfaService: mfa,
+	}
+
+	challenge, err := svc.StartEnrollmentChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	require.NoError(t, err)
+	assert.Equal(t, "operator-challenge", challenge.ChallengeToken)
+	assert.Contains(t, challenge.MaskedEmail, "@")
+	assert.Equal(t, operator.ID, mfa.startedOperatorID)
+}
+
+func TestOperatorPasskeyEnrollmentChallengeErrors(t *testing.T) {
+	operator := &platformModel.Operator{Model: base.Model{ID: 102}, Email: "operator@example.test", Active: true}
+	wantErr := errors.New("mfa down")
+
+	tests := []struct {
+		name  string
+		repos *repositories.Factory
+		mfa   *operatorPasskeyMFAServiceStub
+	}{
+		{
+			name:  "unknown operator",
+			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows}},
+			mfa:   &operatorPasskeyMFAServiceStub{},
+		},
+		{
+			name:  "mfa start fails",
+			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
+			mfa:   &operatorPasskeyMFAServiceStub{startErr: wantErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &operatorPasskeyService{repos: tt.repos, mfaService: tt.mfa}
+			_, err := svc.StartEnrollmentChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
+	operator := &platformModel.Operator{Model: base.Model{ID: 111}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
+	sessions := &operatorPasskeySessionRepoStub{}
+	mfa := &operatorPasskeyMFAServiceStub{}
+	svc := &operatorPasskeyService{
+		repos: &repositories.Factory{
+			Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
+			OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
+			OperatorPasskeySession:    sessions,
+		},
+		mfaService:         mfa,
+		rpID:               "operator.localhost",
+		rpName:             "moto",
+		operatorOriginHost: "operator.localhost",
+	}
+
+	creation, err := svc.BeginRegistration(context.Background(), OperatorPasskeyRegistrationStartRequest{
+		OperatorID:     operator.ID,
+		ExpectedOrigin: "http://operator.localhost:3000",
+		Code:           "123456",
+		Name:           "Admin laptop",
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, creation.SessionID)
+	require.NotNil(t, creation.Options)
+	require.NotNil(t, sessions.created)
+	require.NotNil(t, sessions.created.OperatorID)
+	assert.Equal(t, operator.ID, *sessions.created.OperatorID)
+	assert.Equal(t, platformModel.OperatorPasskeySessionPurposeRegistration, sessions.created.Purpose)
+	assert.Equal(t, "http://operator.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.True(t, json.Valid(sessions.created.SessionJSON))
+	assert.Equal(t, operator.ID, mfa.verifiedOperatorID)
+	assert.Equal(t, "123456", mfa.verifiedCode)
+}
+
+func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
+	operator := &platformModel.Operator{Model: base.Model{ID: 112}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
+	inactive := &platformModel.Operator{Model: base.Model{ID: 113}, Email: "inactive@example.test", DisplayName: "Inactive", Active: false}
+	wantErr := errors.New("boom")
+
+	tests := []struct {
+		name    string
+		req     OperatorPasskeyRegistrationStartRequest
+		repos   *repositories.Factory
+		mfa     *operatorPasskeyMFAServiceStub
+		wantErr error
+	}{
+		{
+			name: "invalid origin short circuits before mfa",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     operator.ID,
+				ExpectedOrigin: "http://school.localhost:3000",
+			},
+			repos:   &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
+			mfa:     &operatorPasskeyMFAServiceStub{},
+			wantErr: authService.ErrPasskeyOriginInvalid,
+		},
+		{
+			name: "mfa verify fails",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     operator.ID,
+				ExpectedOrigin: "http://operator.localhost:3000",
+				Code:           "000000",
+			},
+			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
+			mfa:   &operatorPasskeyMFAServiceStub{verifyErr: wantErr},
+		},
+		{
+			name: "unknown operator",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     999,
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows}},
+			mfa:   &operatorPasskeyMFAServiceStub{},
+		},
+		{
+			name: "inactive operator",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     inactive.ID,
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: inactive}},
+			mfa:   &operatorPasskeyMFAServiceStub{},
+		},
+		{
+			name: "credential lookup fails while building user",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     operator.ID,
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
+				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{err: wantErr},
+			},
+			mfa: &operatorPasskeyMFAServiceStub{},
+		},
+		{
+			name: "session create fails",
+			req: OperatorPasskeyRegistrationStartRequest{
+				OperatorID:     operator.ID,
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
+				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
+				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{createErr: wantErr},
+			},
+			mfa: &operatorPasskeyMFAServiceStub{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &operatorPasskeyService{
+				repos:              tt.repos,
+				mfaService:         tt.mfa,
+				rpID:               "operator.localhost",
+				rpName:             "moto",
+				operatorOriginHost: "operator.localhost",
+			}
+			_, err := svc.BeginRegistration(context.Background(), tt.req)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
+	sessions := &operatorPasskeySessionRepoStub{}
+	svc := &operatorPasskeyService{
+		repos:              &repositories.Factory{OperatorPasskeySession: sessions},
+		rpID:               "operator.localhost",
+		rpName:             "moto",
+		operatorOriginHost: "operator.localhost",
+	}
+
+	assertion, err := svc.BeginLogin(context.Background(), "http://operator.localhost:3000")
+	require.NoError(t, err)
+	require.NotEmpty(t, assertion.SessionID)
+	require.NotNil(t, assertion.Options)
+	require.NotNil(t, sessions.created)
+	assert.Equal(t, platformModel.OperatorPasskeySessionPurposeLogin, sessions.created.Purpose)
+	assert.Equal(t, "http://operator.localhost:3000", sessions.created.ExpectedOrigin)
+}
+
+func TestOperatorPasskeyBeginLoginErrors(t *testing.T) {
+	wantErr := errors.New("session down")
+
+	tests := []struct {
+		name    string
+		origin  string
+		session *operatorPasskeySessionRepoStub
+		wantErr error
+	}{
+		{
+			name:    "invalid origin",
+			origin:  "http://school.localhost:3000",
+			session: &operatorPasskeySessionRepoStub{},
+			wantErr: authService.ErrPasskeyOriginInvalid,
+		},
+		{
+			name:    "session create fails",
+			origin:  "http://operator.localhost:3000",
+			session: &operatorPasskeySessionRepoStub{createErr: wantErr},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &operatorPasskeyService{
+				repos:              &repositories.Factory{OperatorPasskeySession: tt.session},
+				rpID:               "operator.localhost",
+				rpName:             "moto",
+				operatorOriginHost: "operator.localhost",
+			}
+			_, err := svc.BeginLogin(context.Background(), tt.origin)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
+	operator := &platformModel.Operator{Model: base.Model{ID: 121}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
+	otherOperatorID := operator.ID + 1
+
+	tests := []struct {
+		name    string
+		session *platformModel.OperatorPasskeySession
+		repos   *repositories.Factory
+		wantErr error
+	}{
+		{
+			name: "consume fails",
+			repos: &repositories.Factory{
+				OperatorPasskeySession: &operatorPasskeySessionRepoStub{consumeErr: sql.ErrNoRows},
+			},
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name: "missing operator id",
+			session: &platformModel.OperatorPasskeySession{
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos:   &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name: "wrong operator id",
+			session: &platformModel.OperatorPasskeySession{
+				OperatorID:     &otherOperatorID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos:   &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name: "invalid session json",
+			session: &platformModel.OperatorPasskeySession{
+				OperatorID:     &operator.ID,
+				SessionJSON:    json.RawMessage(`{`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+		},
+		{
+			name: "unknown operator",
+			session: &platformModel.OperatorPasskeySession{
+				OperatorID:     &operator.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Operator:               &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
+				OperatorPasskeySession: &operatorPasskeySessionRepoStub{},
+			},
+		},
+		{
+			name: "invalid response json",
+			session: &platformModel.OperatorPasskeySession{
+				OperatorID:     &operator.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			repos: &repositories.Factory{
+				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
+				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
+				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{},
+			},
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionRepo := tt.repos.OperatorPasskeySession.(*operatorPasskeySessionRepoStub)
+			sessionRepo.consumed = tt.session
+			svc := &operatorPasskeyService{
+				repos:              tt.repos,
+				rpID:               "operator.localhost",
+				rpName:             "moto",
+				operatorOriginHost: "operator.localhost",
+			}
+			_, err := svc.FinishRegistration(context.Background(), OperatorPasskeyRegistrationFinishRequest{
+				OperatorID:         operator.ID,
+				SessionID:          "session-id",
+				CredentialResponse: json.RawMessage(`{`),
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
+	tests := []struct {
+		name    string
+		session *platformModel.OperatorPasskeySession
+		wantErr error
+	}{
+		{
+			name:    "consume fails",
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name: "invalid session json",
+			session: &platformModel.OperatorPasskeySession{
+				SessionJSON:    json.RawMessage(`{`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+		},
+		{
+			name: "invalid response json",
+			session: &platformModel.OperatorPasskeySession{
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			},
+			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessionRepo := &operatorPasskeySessionRepoStub{consumed: tt.session}
+			if tt.session == nil {
+				sessionRepo.consumeErr = sql.ErrNoRows
+			}
+			svc := &operatorPasskeyService{
+				repos:              &repositories.Factory{OperatorPasskeySession: sessionRepo},
+				rpID:               "operator.localhost",
+				rpName:             "moto",
+				operatorOriginHost: "operator.localhost",
+			}
+			_, err := svc.FinishLogin(context.Background(), OperatorPasskeyLoginFinishRequest{
+				SessionID:          "session-id",
+				CredentialResponse: json.RawMessage(`{`),
+			})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				return
+			}
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
@@ -183,6 +612,146 @@ func (r *operatorPasskeyCredentialRepoStub) Revoke(_ context.Context, operatorID
 	r.revokedOperatorID = operatorID
 	r.revokedCredentialID = id
 	return r.err
+}
+
+type operatorPasskeySessionRepoStub struct {
+	created    *platformModel.OperatorPasskeySession
+	consumed   *platformModel.OperatorPasskeySession
+	createErr  error
+	consumeErr error
+}
+
+func (r *operatorPasskeySessionRepoStub) Create(_ context.Context, session *platformModel.OperatorPasskeySession) error {
+	r.created = session
+	return r.createErr
+}
+
+func (r *operatorPasskeySessionRepoStub) Consume(_ context.Context, _, _ string, _ time.Time) (*platformModel.OperatorPasskeySession, error) {
+	if r.consumeErr != nil {
+		return nil, r.consumeErr
+	}
+	if r.consumed == nil {
+		return nil, sql.ErrNoRows
+	}
+	return r.consumed, nil
+}
+
+func (r *operatorPasskeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int, error) {
+	return 0, nil
+}
+
+type operatorPasskeyOperatorRepoStub struct {
+	operator *platformModel.Operator
+	err      error
+}
+
+func (r *operatorPasskeyOperatorRepoStub) Create(context.Context, *platformModel.Operator) error {
+	return nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) FindByID(context.Context, int64) (*platformModel.Operator, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.operator == nil {
+		return nil, sql.ErrNoRows
+	}
+	return r.operator, nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*platformModel.Operator, error) {
+	return r.FindByID(ctx, id)
+}
+
+func (r *operatorPasskeyOperatorRepoStub) FindByEmail(context.Context, string) (*platformModel.Operator, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (r *operatorPasskeyOperatorRepoStub) Update(context.Context, *platformModel.Operator) error {
+	return nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) Delete(context.Context, int64) error {
+	return nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) List(context.Context) ([]*platformModel.Operator, error) {
+	return nil, nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) UpdateLastLogin(context.Context, int64) error {
+	return nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) IncrementMFAAttempts(context.Context, int64, int, time.Duration) (platformModel.OperatorMFAAttemptResult, error) {
+	return platformModel.OperatorMFAAttemptResult{}, nil
+}
+
+func (r *operatorPasskeyOperatorRepoStub) ResetMFAAttempts(context.Context, int64) error {
+	return nil
+}
+
+type operatorPasskeyMFAServiceStub struct {
+	challengeToken string
+	startErr       error
+	verifyErr      error
+
+	startedOperatorID  int64
+	verifiedOperatorID int64
+	verifiedCode       string
+}
+
+func (s *operatorPasskeyMFAServiceStub) HasEnrollment(context.Context, int64) (bool, error) {
+	return false, nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) StartChallenge(_ context.Context, operatorID int64, _ net.IP) (string, error) {
+	s.startedOperatorID = operatorID
+	if s.startErr != nil {
+		return "", s.startErr
+	}
+	if s.challengeToken != "" {
+		return s.challengeToken, nil
+	}
+	return "operator-challenge-token", nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) VerifyChallenge(context.Context, string, string) (*OperatorVerifiedChallenge, error) {
+	return nil, nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) ResendChallenge(context.Context, string, net.IP) (string, error) {
+	return "operator-challenge-token", nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) VerifyCodeForOperator(_ context.Context, operatorID int64, code string) error {
+	s.verifiedOperatorID = operatorID
+	s.verifiedCode = code
+	return s.verifyErr
+}
+
+func (s *operatorPasskeyMFAServiceStub) Enroll(context.Context, int64) error {
+	return nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) Disable(context.Context, int64) error {
+	return nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) IssueTrustedDevice(context.Context, int64, string, net.IP) (string, time.Time, error) {
+	return "", time.Time{}, nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) VerifyTrustedDevice(context.Context, int64, string) (bool, error) {
+	return false, nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) ListTrustedDevices(context.Context, int64) ([]*platformModel.OperatorMFATrustedDevice, error) {
+	return nil, nil
+}
+
+func (s *operatorPasskeyMFAServiceStub) RevokeTrustedDevice(context.Context, int64, int64) error {
+	return nil
 }
 
 func TestOperatorPasskeyRepositories(t *testing.T) {
