@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	guardianInvitationProfileOriginVersion     = "1.15.131"
+	guardianInvitationProfileOriginVersion     = "1.15.134"
 	guardianInvitationProfileOriginDescription = "Track guardian profiles created solely for a guardian invitation"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     guardianInvitationProfileOriginVersion,
 		Description: guardianInvitationProfileOriginDescription,
-		DependsOn:   []string{"1.15.130"},
+		DependsOn:   []string{guardianInvitationsParentInitiatedVersion},
 	})
 
 	Migrations.MustRegister(
@@ -30,7 +30,7 @@ func init() {
 }
 
 func guardianInvitationProfileOriginUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.131: Tracking invite-created guardian profiles...")
+	fmt.Println("Migration 1.15.134: Tracking invite-created guardian profiles...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
@@ -42,7 +42,7 @@ func guardianInvitationProfileOriginUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianInvitationProfileOriginDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.131: dropping invite-created profile marker...")
+	fmt.Println("Rolling back migration 1.15.134: dropping invite-created profile marker...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations

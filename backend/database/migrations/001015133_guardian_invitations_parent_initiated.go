@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	guardianInvitationsParentInitiatedVersion     = "1.15.130"
+	guardianInvitationsParentInitiatedVersion     = "1.15.133"
 	guardianInvitationsParentInitiatedDescription = "Add parent-initiated invite + staff-approval columns to auth.guardian_invitations"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func guardianInvitationsParentInitiatedUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.130: Extending auth.guardian_invitations for parent-initiated invites...")
+	fmt.Println("Migration 1.15.133: Extending auth.guardian_invitations for parent-initiated invites...")
 
 	// New columns:
 	//   student_id              — which child the invite grants access to. Lets
@@ -83,7 +83,7 @@ func guardianInvitationsParentInitiatedUp(ctx context.Context, db *bun.DB) error
 }
 
 func guardianInvitationsParentInitiatedDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.130: dropping parent-initiated columns...")
+	fmt.Println("Rolling back migration 1.15.133: dropping parent-initiated columns...")
 
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_guardian_invitations_pending_approval;
