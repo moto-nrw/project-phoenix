@@ -197,10 +197,14 @@ func (e *PhaseExport) Counts() (requests, children int) {
 	return len(e.Rows), children
 }
 
-// ExportRequestRow is one parent submission with its resolved children.
+// ExportRequestRow is one parent submission with its resolved children
+// and the additional guardians (co-guardians) the parent submitted
+// alongside the primary contact. Guardians is nil when the submission had
+// none.
 type ExportRequestRow struct {
-	Request  *enrollmentModels.Request
-	Children []ExportChildRow
+	Request   *enrollmentModels.Request
+	Children  []ExportChildRow
+	Guardians []*enrollmentModels.RequestGuardian
 }
 
 // ExportChildRow is one child plus its care-offering selections,
@@ -533,6 +537,20 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
 	}
 
+	// Load + group the additional guardians (co-guardians) so the export
+	// carries every submitted contact, matching the admin detail and the
+	// public status page. Defensive against an unwired repo.
+	guardiansByRequest := make(map[int64][]*enrollmentModels.RequestGuardian)
+	if s.requestGuardianRepo != nil {
+		guardians, gerr := s.requestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
+		if gerr != nil {
+			return nil, fmt.Errorf("decision: export load co-guardians: %w", gerr)
+		}
+		for _, g := range guardians {
+			guardiansByRequest[g.RequestID] = append(guardiansByRequest[g.RequestID], g)
+		}
+	}
+
 	// Load each distinct pinned schema version once for label resolution.
 	schemas := make(map[int64]*enrollmentModels.FormSchema)
 	for _, req := range requests {
@@ -582,7 +600,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		if childStatusFilter != "" && len(childRows) == 0 {
 			continue
 		}
-		rows = append(rows, ExportRequestRow{Request: req, Children: childRows})
+		rows = append(rows, ExportRequestRow{Request: req, Children: childRows, Guardians: guardiansByRequest[req.ID]})
 	}
 
 	return &PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
@@ -1181,6 +1199,46 @@ func (s *decisionService) linkAdditionalGuardians(
 		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
 			return fmt.Errorf("create co-guardian student_guardian: %w", err)
 		}
+		// Persist the co-guardian's phone number, mirroring the primary
+		// guardian. A co-guardian can be a phone-only contact (no email),
+		// so this is the ONLY reachable detail downstream contact views
+		// have — dropping it would leave an approved emergency contact /
+		// pickup-authorized person unreachable. Non-fatal: a phone write
+		// failure must not roll back an otherwise-valid approval, same as
+		// the primary path.
+		if extra.Phone != nil {
+			if err := s.createGuardianPhoneNumber(ctx, profileID, *extra.Phone); err != nil {
+				s.logger.Warn("decision: persist co-guardian phone failed",
+					slog.Int64("guardian_profile_id", profileID),
+					slog.String("error", err.Error()))
+			}
+		}
+	}
+	return nil
+}
+
+// createGuardianPhoneNumber inserts phone as the guardian's primary mobile
+// number on users.guardian_phone_numbers. A blank phone or an unwired repo
+// is a no-op. A unique-violation (the guardian already has this number on
+// file from a previous enrollment, or an earlier child of the same request
+// already wrote it) is benign and returns nil; any other error is returned
+// for the caller to decide whether to surface or swallow.
+func (s *decisionService) createGuardianPhoneNumber(ctx context.Context, profileID int64, phone string) error {
+	phone = strings.TrimSpace(phone)
+	if phone == "" || s.guardianPhoneRepo == nil {
+		return nil
+	}
+	row := &users.GuardianPhoneNumber{
+		GuardianProfileID: profileID,
+		PhoneNumber:       phone,
+		PhoneType:         users.PhoneType("mobile"),
+		IsPrimary:         true,
+	}
+	if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return nil
+		}
+		return err
 	}
 	return nil
 }
@@ -1831,22 +1889,9 @@ func (s *decisionService) applyTargetedFields(
 			studentDirty = true
 		}
 	}
-	if request.GuardianPhone != nil && s.guardianPhoneRepo != nil {
-		phone := strings.TrimSpace(*request.GuardianPhone)
-		if phone != "" {
-			row := &users.GuardianPhoneNumber{
-				GuardianProfileID: guardian.ID,
-				PhoneNumber:       phone,
-				PhoneType:         users.PhoneType("mobile"),
-				IsPrimary:         true,
-			}
-			if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
-				// Unique-violation = guardian already had this number
-				// on file from a previous enrollment — benign.
-				if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
-					errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
-				}
-			}
+	if request.GuardianPhone != nil {
+		if err := s.createGuardianPhoneNumber(ctx, guardian.ID, *request.GuardianPhone); err != nil {
+			errs = append(errs, fmt.Sprintf("auto guardian_phone: %v", err))
 		}
 	}
 

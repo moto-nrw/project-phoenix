@@ -694,7 +694,11 @@ func normalizeAdditionalGuardians(req *SubmitRequest) error {
 		return nil
 	}
 	seen := make(map[string]struct{}, len(req.AdditionalGuardians)+1)
-	if primary := guardianDedupKey(req.GuardianEmail, req.GuardianFirstName, req.GuardianLastName); primary != "" {
+	primaryPhone := ""
+	if req.GuardianPhone != nil {
+		primaryPhone = strings.TrimSpace(*req.GuardianPhone)
+	}
+	if primary := guardianDedupKey(req.GuardianEmail, primaryPhone, req.GuardianFirstName, req.GuardianLastName); primary != "" {
 		seen[primary] = struct{}{}
 	}
 	cleaned := make([]SubmitGuardian, 0, len(req.AdditionalGuardians))
@@ -729,7 +733,7 @@ func normalizeAdditionalGuardians(req *SubmitRequest) error {
 			}
 		}
 
-		key := guardianDedupKey(email, first, last)
+		key := guardianDedupKey(email, phone, first, last)
 		if _, dup := seen[key]; dup {
 			continue
 		}
@@ -752,17 +756,22 @@ func normalizeAdditionalGuardians(req *SubmitRequest) error {
 
 // guardianDedupKey builds a stable dedup key for a guardian: prefer the
 // lowercased email when present (the identity anchor), else fall back to
-// the case-folded full name. Returns "" only when all inputs are empty.
-func guardianDedupKey(email, first, last string) string {
+// the case-folded full name PLUS the phone number. Including the phone in
+// the email-less key keeps two same-name co-guardians with different
+// phone numbers (e.g. relatives sharing a surname) as distinct people
+// instead of silently collapsing the later row into the first. Returns ""
+// only when all inputs are empty.
+func guardianDedupKey(email, phone, first, last string) string {
 	if e := strings.ToLower(strings.TrimSpace(email)); e != "" {
 		return "e:" + e
 	}
 	f := strings.ToLower(strings.TrimSpace(first))
 	l := strings.ToLower(strings.TrimSpace(last))
-	if f == "" && l == "" {
+	p := strings.TrimSpace(phone)
+	if f == "" && l == "" && p == "" {
 		return ""
 	}
-	return "n:" + f + "|" + l
+	return "n:" + f + "|" + l + "|p:" + p
 }
 
 // validateOfferingSelections cross-checks every offering id against the

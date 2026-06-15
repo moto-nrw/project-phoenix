@@ -50,6 +50,27 @@ func (r *RequestGuardianRepository) ListByRequestID(ctx context.Context, request
 	return guardians, nil
 }
 
+// ListByRequestIDs returns every co-guardian across the given requests in
+// a single query, sorted by request_id, sort_order, id so the caller can
+// group rows by request without re-sorting. Tenant-scoped via RLS. Empty
+// input short-circuits to an empty slice (no query, no IN ()).
+func (r *RequestGuardianRepository) ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*enrollment.RequestGuardian, error) {
+	if len(requestIDs) == 0 {
+		return nil, nil
+	}
+	var guardians []*enrollment.RequestGuardian
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&guardians).
+		ModelTableExpr(requestGuardianTableExpr).
+		Where(`"request_guardian".request_id IN (?)`, bun.List(requestIDs)).
+		OrderExpr(`"request_guardian".request_id, "request_guardian".sort_order, "request_guardian".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list request guardians by request ids: %w", err)
+	}
+	return guardians, nil
+}
+
 // StampResolvedProfile back-links the co-guardian row to the
 // guardian_profiles row it resolved to on the first child approval.
 func (r *RequestGuardianRepository) StampResolvedProfile(ctx context.Context, id, guardianProfileID int64) error {

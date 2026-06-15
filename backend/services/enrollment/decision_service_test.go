@@ -472,6 +472,54 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	}
 }
 
+// TestDecisionService_Decide_PersistsCoGuardianPhone verifies that on
+// approval a co-guardian's phone number is written to
+// users.guardian_phone_numbers, mirroring the primary guardian. The
+// phone-only contact (no email) is the critical case: that number is the
+// ONLY way to reach the approved emergency contact, so dropping it would
+// leave them unreachable.
+func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-phone@example.com", "Kjell", "Approved")
+
+	// One phone-only co-guardian (no email) and one with both email + phone.
+	opaPhone := "0151-9990001"
+	omaEmail := "oma-phone@example.com"
+	omaPhone := "0151-9990002"
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID, FirstName: "Opa", LastName: "Phone", Phone: &opaPhone, SortOrder: 0,
+	}))
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID, FirstName: "Oma", LastName: "Phone", Email: &omaEmail, Phone: &omaPhone, SortOrder: 1,
+	}))
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	// Each co-guardian's resolved profile must carry the submitted phone.
+	extras, err := env.repos.RequestGuardian.ListByRequestID(ctx, reqID)
+	require.NoError(t, err)
+	require.Len(t, extras, 2)
+
+	wantPhone := map[string]string{"Opa": "0151-9990001", "Oma": "0151-9990002"}
+	for _, ex := range extras {
+		require.NotNil(t, ex.GuardianProfileID, "approval stamps the resolved profile id")
+		phones, perr := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, *ex.GuardianProfileID)
+		require.NoError(t, perr)
+		require.Len(t, phones, 1, "co-guardian %s must have exactly one phone persisted", ex.FirstName)
+		assert.Equal(t, wantPhone[ex.FirstName], phones[0].PhoneNumber)
+		assert.True(t, phones[0].IsPrimary, "the co-guardian's only number is their primary")
+	}
+}
+
 // TestDecisionService_Decide_AppliesDepartureField verifies the unified
 // weekday_mode departure field (#1610) flows from the enrollment submission
 // onto the approved student's departure_days, deriving the legacy mirrors.

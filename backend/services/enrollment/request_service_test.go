@@ -333,6 +333,44 @@ func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
 	assert.Equal(t, "oma@example.com", *stored[1].Email, "email must be lowercased")
 }
 
+// TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones
+// verifies that two email-less co-guardians sharing a first/last name but
+// giving different phone numbers (e.g. relatives) are both kept — the
+// name-only dedup key folds in the phone, so the later row is not silently
+// dropped. A genuine duplicate (same name, same phone) is still deduped.
+func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phoneA := "0151-111"
+	phoneB := "0151-222"
+	phoneDup := "0151-111"
+	req := validSubmission(env.phaseID)
+	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
+		{FirstName: "Maria", LastName: "Schmidt", Phone: &phoneA},
+		{FirstName: "Maria", LastName: "Schmidt", Phone: &phoneB},   // same name, different phone -> kept
+		{FirstName: "Maria", LastName: "Schmidt", Phone: &phoneDup}, // same name + same phone as #1 -> dropped
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+
+	var stored []*enrollmentModels.RequestGuardian
+	err = env.db.NewSelect().
+		Model(&stored).
+		ModelTableExpr(`enrollment.request_guardians AS "request_guardian"`).
+		Where(`"request_guardian".request_id = ?`, result.Request.ID).
+		OrderExpr(`"request_guardian".sort_order`).
+		Scan(ctx)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "same-name co-guardians with distinct phones are both kept; the exact duplicate is dropped")
+	require.NotNil(t, stored[0].Phone)
+	require.NotNil(t, stored[1].Phone)
+	assert.Equal(t, "0151-111", *stored[0].Phone)
+	assert.Equal(t, "0151-222", *stored[1].Phone)
+}
+
 // TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians
 // verifies the public status page can read back the co-guardians via the
 // status token.

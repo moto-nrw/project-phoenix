@@ -45,6 +45,11 @@ type RequestGuardianRepository interface {
 	Create(ctx context.Context, guardian *RequestGuardian) error
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestGuardian, error)
 
+	// ListByRequestIDs returns every co-guardian across the given requests
+	// in a single query, so the phase export can attach co-guardians
+	// without one query per request. Tenant-scoped via RLS.
+	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestGuardian, error)
+
 	// StampResolvedProfile back-links a co-guardian row to the
 	// users.guardian_profiles row it resolved to on the first child
 	// approval, so later approvals of the same request reuse it.

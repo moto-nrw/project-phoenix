@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -376,9 +377,14 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		req = serviceReq
 		children = serviceChildren
-		// Best-effort: a failure here must not hide the request status.
+		// Best-effort: a failure here must not hide the request status, but a
+		// silent drop would mask a permission/RLS/DB problem behind a 200 with
+		// missing co-guardians. Log it so the failure is visible.
 		if g, gerr := rs.RequestService.GuardiansByStatusToken(adminCtx, token); gerr == nil {
 			guardians = g
+		} else {
+			rs.logger().Warn("enrollment status: load co-guardians failed",
+				slog.String("error", gerr.Error()))
 		}
 		return nil
 	})

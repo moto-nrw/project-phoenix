@@ -386,6 +386,16 @@ func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	// Phone/email validation must precede the generic ErrInvalidSubmission
+	// branch below: ErrInvalidGuardianEmail wraps ErrInvalidSubmission, and
+	// ErrInvalidGuardianPhone does NOT wrap it at all — without these cases an
+	// invalid optional co-guardian phone would fall through to 500. Codes
+	// mirror enrollment.ErrCodeEnrollmentInvalidPhone / InvalidEmail so the
+	// shared EnrollmentForm renders the same German message as the public form.
+	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_phone"))
+	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_email"))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
