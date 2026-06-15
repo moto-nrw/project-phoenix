@@ -118,6 +118,21 @@ export class PasskeyApiError extends Error {
   }
 }
 
+export function isPasskeyCeremonyIncompleteError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  if (error.name === "AbortError" || error.name === "NotAllowedError") {
+    return true;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("operation either timed out or was not allowed") ||
+    message.includes("user cancelled") ||
+    message.includes("user canceled")
+  );
+}
+
 export function isPasskeySupported(): boolean {
   return browserSupportsWebAuthn();
 }

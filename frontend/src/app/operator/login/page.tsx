@@ -25,6 +25,7 @@ import {
 } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
+  isPasskeyCeremonyIncompleteError,
   loginWithPasskey,
   PasskeyApiError,
 } from "~/lib/passkey-api";
@@ -213,6 +214,12 @@ export default function OperatorLoginPage() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
+      if (isPasskeyCeremonyIncompleteError(err)) {
+        logger.info("operator_passkey_login_not_completed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
       if (err instanceof PasskeyApiError && err.status === 401) {
         setError("Passkey-Anmeldung fehlgeschlagen.");
       } else {

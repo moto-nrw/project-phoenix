@@ -30,6 +30,7 @@ import {
 } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
+  isPasskeyCeremonyIncompleteError,
   loginWithPasskey,
   PasskeyApiError,
 } from "~/lib/passkey-api";
@@ -292,6 +293,12 @@ function LoginForm() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
+      if (isPasskeyCeremonyIncompleteError(err)) {
+        logger.info("passkey login not completed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
       if (err instanceof PasskeyApiError && err.status === 401) {
         setError("Passkey-Anmeldung fehlgeschlagen.");
       } else {

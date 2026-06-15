@@ -24,6 +24,7 @@ vi.mock("next-auth/react", () => ({
 
 import {
   isPasskeySupported,
+  isPasskeyCeremonyIncompleteError,
   listPasskeys,
   loginWithPasskey,
   PasskeyApiError,
@@ -64,6 +65,32 @@ describe("passkey-api", () => {
 
     expect(isPasskeySupported()).toBe(false);
     expect(mockBrowserSupportsWebAuthn).toHaveBeenCalledTimes(1);
+  });
+
+  it("identifies passkey ceremonies that did not complete", () => {
+    expect(
+      isPasskeyCeremonyIncompleteError(
+        new DOMException("User cancelled the request", "AbortError"),
+      ),
+    ).toBe(true);
+    expect(
+      isPasskeyCeremonyIncompleteError(
+        new DOMException(
+          "The operation either timed out or was not allowed.",
+          "NotAllowedError",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isPasskeyCeremonyIncompleteError(
+        new Error("The operation either timed out or was not allowed."),
+      ),
+    ).toBe(true);
+    expect(
+      isPasskeyCeremonyIncompleteError(
+        new Error("Passkey-Anfrage fehlgeschlagen."),
+      ),
+    ).toBe(false);
   });
 
   it("runs tenant passkey login through options, WebAuthn, and verify", async () => {
