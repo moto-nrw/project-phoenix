@@ -37,10 +37,11 @@ var serveCmd = &cobra.Command{
 			Env:    viper.GetString("app_env"),
 		})
 
-		if dsn := viper.GetString("sentry_dsn"); dsn != "" {
+		if dsn := strings.TrimSpace(viper.GetString("sentry_dsn")); dsn != "" {
+			sentryEnv := strings.TrimSpace(viper.GetString("sentry_environment"))
 			err := sentry.Init(sentry.ClientOptions{
 				Dsn:         dsn,
-				Environment: viper.GetString("app_env"),
+				Environment: sentryEnv,
 				BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
 					if event.Request != nil {
 						for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
@@ -110,6 +111,11 @@ func validateServeConfig() error {
 		} else {
 			missing = append(missing, "DB_DSN")
 		}
+	}
+
+	if strings.TrimSpace(viper.GetString("sentry_dsn")) != "" &&
+		strings.TrimSpace(viper.GetString("sentry_environment")) == "" {
+		missing = append(missing, "SENTRY_ENVIRONMENT")
 	}
 
 	if len(missing) > 0 {
