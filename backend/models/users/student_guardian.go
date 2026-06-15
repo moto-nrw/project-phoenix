@@ -27,6 +27,7 @@ type StudentGuardian struct {
 	StudentID          int64                  `bun:"student_id,notnull" json:"student_id"`
 	GuardianProfileID  int64                  `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	RelationshipType   string                 `bun:"relationship_type,notnull" json:"relationship_type"`
+	GuardianRole       string                 `bun:"guardian_role,notnull,default:'custom'" json:"guardian_role"`
 	IsPrimary          bool                   `bun:"is_primary,notnull" json:"is_primary"`
 	IsEmergencyContact bool                   `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
 	CanPickup          bool                   `bun:"can_pickup,notnull" json:"can_pickup"`
@@ -75,6 +76,11 @@ func (sg *StudentGuardian) Validate() error {
 	// Validate against the shared allowed set (single source of truth)
 	if !IsValidRelationshipType(sg.RelationshipType) {
 		return errors.New("invalid relationship type")
+	}
+
+	sg.GuardianRole = strings.ToLower(strings.TrimSpace(sg.GuardianRole))
+	if sg.GuardianRole == "" {
+		sg.GuardianRole = "custom"
 	}
 
 	// Initialize permissions with empty object if nil

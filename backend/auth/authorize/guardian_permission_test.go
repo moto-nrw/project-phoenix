@@ -141,3 +141,105 @@ func TestStudentGuardianHasPermission(t *testing.T) {
 		t.Error("StudentGuardianHasPermission(nil, ...) should return false")
 	}
 }
+
+func TestStudentGuardianPermissionSet(t *testing.T) {
+	fullRoles := []string{
+		GuardianRolePrimaryGuardian,
+		GuardianRoleLegalGuardian,
+		GuardianRoleCoGuardian,
+	}
+	for _, role := range fullRoles {
+		t.Run(role, func(t *testing.T) {
+			sg := &users.StudentGuardian{}
+			ApplyStudentGuardianRole(sg, role)
+
+			for _, permission := range []string{
+				GuardianPermissionPortalAccess,
+				GuardianPermissionSickNoteSubmit,
+				GuardianPermissionNotesWrite,
+				GuardianPermissionEnrollmentsView,
+				GuardianPermissionEnrollmentSubmit,
+			} {
+				if !StudentGuardianHasPermission(sg, permission) {
+					t.Fatalf("role %q missing permission %q", role, permission)
+				}
+			}
+		})
+	}
+
+	noPortalRoles := []string{
+		GuardianRoleEmergency,
+		GuardianRolePickupOnly,
+		GuardianRoleSocialWorker,
+		GuardianRoleCustom,
+		"unknown_role",
+	}
+	for _, role := range noPortalRoles {
+		t.Run(role, func(t *testing.T) {
+			perms := StudentGuardianPermissionSet(role)
+			if len(perms) != 0 {
+				t.Fatalf("role %q got portal permissions: %#v", role, perms)
+			}
+		})
+	}
+}
+
+func TestDefaultStudentGuardianRole(t *testing.T) {
+	tests := []struct {
+		name               string
+		relationshipType   string
+		isPrimary          bool
+		isEmergencyContact bool
+		canPickup          bool
+		want               string
+	}{
+		{
+			name:             "primary wins",
+			relationshipType: "relative",
+			isPrimary:        true,
+			canPickup:        true,
+			want:             GuardianRolePrimaryGuardian,
+		},
+		{
+			name:             "parent becomes legal guardian",
+			relationshipType: "parent",
+			want:             GuardianRoleLegalGuardian,
+		},
+		{
+			name:             "guardian becomes legal guardian",
+			relationshipType: "guardian",
+			want:             GuardianRoleLegalGuardian,
+		},
+		{
+			name:             "pickup relative is pickup only",
+			relationshipType: "relative",
+			canPickup:        true,
+			want:             GuardianRolePickupOnly,
+		},
+		{
+			name:               "emergency contact without stronger role",
+			relationshipType:   "other",
+			isEmergencyContact: true,
+			want:               GuardianRoleEmergency,
+		},
+		{
+			name:             "other without flags is custom",
+			relationshipType: "other",
+			want:             GuardianRoleCustom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DefaultStudentGuardianRole(
+				tt.relationshipType,
+				tt.isPrimary,
+				tt.isEmergencyContact,
+				tt.canPickup,
+			)
+			if got != tt.want {
+				t.Fatalf("DefaultStudentGuardianRole() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
