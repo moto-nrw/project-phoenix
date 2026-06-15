@@ -250,6 +250,53 @@ func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "staff-maintained contact link must survive")
 }
 
+func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLink(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Staff", "Pending", "3f")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "staff-managed-pending")
+	actorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	ctx := testpkg.TenantContext(1)
+	link := &users.StudentGuardian{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "guardian",
+		EmergencyPriority: 1,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
+	studentID := student.ID
+	invitation := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("staff-contact-open-invite-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         actorID,
+		ExpiresAt:         time.Now().Add(time.Hour),
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+	}
+	invitation.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
+
+	require.NoError(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		ActorAccountID:    actorID,
+		ByParent:          true,
+	}))
+	assert.True(t, env.linkExists(t, student.ID, profile.ID), "cancelling portal invite must not delete staff contact data")
+
+	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	require.NoError(t, err)
+	assert.False(t, updated.ExpiresAt.After(time.Now()), "pending portal token must be invalidated")
+}
+
 func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
@@ -326,6 +373,42 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID),
 		"approval must link the child")
+}
+
+func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Promote", "Pending", "4e")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("promote-pending-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	pending, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, pending.InvitationID)
+	defer env.cleanupInvitation(t, *pending.InvitationID, pending.GuardianProfileID)
+
+	direct, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, direct.InvitationID)
+	assert.Equal(t, *pending.InvitationID, *direct.InvitationID, "staff/direct invite should reuse the pending token")
+	assert.True(t, env.linkExists(t, student.ID, pending.GuardianProfileID), "staff/direct invite should create the child link")
+
+	invitation, err := env.repos.GuardianInvitation.FindByID(context.Background(), *pending.InvitationID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
 }
 
 func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {

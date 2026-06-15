@@ -263,6 +263,19 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 		return nil, err
 	}
 	if openInvitation != nil {
+		if openInvitation.ApprovalStatus == authModels.GuardianInvitationApprovalPending &&
+			approvalStatus == authModels.GuardianInvitationApprovalNotRequired {
+			now := time.Now()
+			openInvitation.ApprovalStatus = authModels.GuardianInvitationApprovalNotRequired
+			openInvitation.ApprovedBy = nil
+			openInvitation.ApprovedAt = nil
+			openInvitation.ExpiresAt = now.Add(s.resolveTokenExpiry(ctx))
+			openInvitation.EmailSentAt = nil
+			openInvitation.EmailError = nil
+			if err := s.invitationRepo.Update(ctx, openInvitation); err != nil {
+				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+			}
+		}
 		return openInvitation, nil
 	}
 	invitation := &authModels.GuardianInvitation{
@@ -487,11 +500,7 @@ func (s *guardianInvitationService) openStudentInvitations(ctx context.Context, 
 	return open, nil
 }
 
-func (s *guardianInvitationService) expireOpenStudentInvitations(ctx context.Context, guardianProfileID, studentID int64, now time.Time) error {
-	invitations, err := s.openStudentInvitations(ctx, guardianProfileID, studentID, now)
-	if err != nil {
-		return err
-	}
+func (s *guardianInvitationService) expireInvitations(ctx context.Context, invitations []*authModels.GuardianInvitation, now time.Time) error {
 	for _, inv := range invitations {
 		inv.ExpiresAt = now
 		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalPending {
@@ -615,6 +624,7 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 	if req.ByParent && link.IsPrimary {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePrimaryGuardian}
 	}
+	deleteLink := true
 	if req.ByParent {
 		profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
 		if err != nil {
@@ -632,10 +642,26 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 			if len(openInvitations) == 0 {
 				return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemoveStaffManagedGuardian}
 			}
-			if err := s.expireOpenStudentInvitations(ctx, req.GuardianProfileID, req.StudentID, now); err != nil {
+			if err := s.expireInvitations(ctx, openInvitations, now); err != nil {
 				return &AuthError{Op: opGuardianRevokeAccess, Err: err}
 			}
+			deleteLink = false
+			for _, inv := range openInvitations {
+				if inv.ProfileCreatedForInvitation {
+					deleteLink = true
+					break
+				}
+			}
 		}
+	}
+	if !deleteLink {
+		s.getLogger().Info("guardian pending invite cancelled without deleting staff-managed contact",
+			slog.Int64("student_id", req.StudentID),
+			slog.Int64("guardian_profile_id", req.GuardianProfileID),
+			slog.Int64("actor_account_id", req.ActorAccountID),
+			slog.Bool("by_parent", req.ByParent),
+		)
+		return nil
 	}
 
 	if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {

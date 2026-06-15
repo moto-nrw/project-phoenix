@@ -315,6 +315,44 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, hasGuardian, "guardian role should be assigned")
 }
 
+func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	ctx := testpkg.TenantContext(1)
+	creatorID := env.inviterAccountID(t)
+	statuses := []string{
+		authModels.GuardianInvitationApprovalPending,
+		authModels.GuardianInvitationApprovalRejected,
+	}
+	for _, status := range statuses {
+		t.Run(status, func(t *testing.T) {
+			profile := testpkg.CreateTestGuardianProfile(t, env.db, "unapproved-token-"+status)
+			invitation := &authModels.GuardianInvitation{
+				Token:             "unapproved-token-" + status + "-" + time.Now().Format("150405.000000000"),
+				GuardianProfileID: profile.ID,
+				CreatedBy:         creatorID,
+				ExpiresAt:         time.Now().Add(time.Hour),
+				ApprovalStatus:    status,
+			}
+			invitation.SetTenantID(1)
+			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
+			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+			_, err := env.service.Validate(context.Background(), invitation.Token)
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+
+			_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+				Password:        strongTestPassword,
+				ConfirmPassword: strongTestPassword,
+			})
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+		})
+	}
+}
+
 func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()

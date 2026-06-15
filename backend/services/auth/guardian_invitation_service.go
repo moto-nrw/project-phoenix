@@ -551,7 +551,22 @@ func (s *guardianInvitationService) fetchValidInvitation(ctx context.Context, to
 	if GuardianInvitationExpired(invitation, time.Now()) {
 		return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationExpired}
 	}
+	if !guardianInvitationTokenConsumable(invitation) {
+		return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationNotFound}
+	}
 	return invitation, nil
+}
+
+func guardianInvitationTokenConsumable(invitation *authModels.GuardianInvitation) bool {
+	if invitation == nil {
+		return false
+	}
+	switch invitation.ApprovalStatus {
+	case "", authModels.GuardianInvitationApprovalNotRequired, authModels.GuardianInvitationApprovalApproved:
+		return true
+	default:
+		return false
+	}
 }
 
 // lookupSchoolName resolves the tenant display name for inclusion in the
