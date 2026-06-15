@@ -87,7 +87,7 @@ func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialIDAndUserHan
 }
 
 func (r *OperatorPasskeyCredentialRepository) UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.OperatorPasskeyCredential)(nil)).
 		ModelTableExpr(operatorPasskeyCredentialTable).
 		Set("credential_json = ?::jsonb", string(credentialJSON)).
@@ -98,7 +98,7 @@ func (r *OperatorPasskeyCredentialRepository) UpdateAfterUse(ctx context.Context
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update operator passkey after use", Err: err}
 	}
-	return nil
+	return base.AssertRowsAffected(res, 1, "update operator passkey after use")
 }
 
 func (r *OperatorPasskeyCredentialRepository) Revoke(ctx context.Context, operatorID, id int64, revokedAt time.Time) error {

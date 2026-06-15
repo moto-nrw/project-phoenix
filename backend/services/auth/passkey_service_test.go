@@ -911,6 +911,7 @@ func TestPasskeyRepositories(t *testing.T) {
 	active, err = repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
 	require.NoError(t, err)
 	assert.Empty(t, active)
+	require.Error(t, repos.PasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"revoked"}`), time.Now()))
 
 	sessionID := "test-passkey-session-" + suffix
 	session := &authModel.PasskeySession{

@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -208,6 +209,130 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, w.Code)
 	assert.EqualValues(t, claims.ID, svc.revokeAccountID)
 	assert.Equal(t, passkeyID, svc.revokeCredentialID)
+}
+
+func TestPasskeyAuthenticatedHandlersRejectNonTenantAccountClaims(t *testing.T) {
+	platformClaims := jwt.AppClaims{ID: 99, Scope: tenant.ScopePlatform}
+	zeroTenantClaims := jwt.AppClaims{ID: 99}
+
+	tests := []struct {
+		name   string
+		claims jwt.AppClaims
+		call   func(*Resource, *httptest.ResponseRecorder, jwt.AppClaims)
+		assert func(*testing.T, *passkeyServiceStub)
+	}{
+		{
+			name:   "enrollment challenge rejects platform claims",
+			claims: platformClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := passkeyJSONRequest("/passkeys/enrollment/challenge", `{}`)
+				rs.passkeyEnrollmentChallenge(w, withPasskeyClaims(req, claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.enrollmentAccountID)
+				assert.Zero(t, svc.enrollmentTenantID)
+			},
+		},
+		{
+			name:   "register options rejects platform claims",
+			claims: platformClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := passkeyJSONRequest("/passkeys/register/options", `{"code":"123456","name":"Laptop"}`)
+				req.Header.Set("Origin", "https://school-a.localhost")
+				rs.passkeyRegisterOptions(w, withPasskeyClaims(req, claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.beginRegistrationReq.AccountID)
+			},
+		},
+		{
+			name:   "register verify rejects platform claims",
+			claims: platformClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := passkeyJSONRequest("/passkeys/register/verify", `{"session_id":"registration-session","name":"Phone","response":{"id":"credential"}}`)
+				rs.passkeyRegisterVerify(w, withPasskeyClaims(req, claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.finishRegistrationReq.AccountID)
+			},
+		},
+		{
+			name:   "register verify rejects zero tenant claims",
+			claims: zeroTenantClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := passkeyJSONRequest("/passkeys/register/verify", `{"session_id":"registration-session","name":"Phone","response":{"id":"credential"}}`)
+				rs.passkeyRegisterVerify(w, withPasskeyClaims(req, claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.finishRegistrationReq.AccountID)
+			},
+		},
+		{
+			name:   "list rejects platform claims",
+			claims: platformClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				rs.passkeyList(w, withPasskeyClaims(httptest.NewRequest(http.MethodGet, "/passkeys", nil), claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.listAccountID)
+			},
+		},
+		{
+			name:   "list rejects zero tenant claims",
+			claims: zeroTenantClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				rs.passkeyList(w, withPasskeyClaims(httptest.NewRequest(http.MethodGet, "/passkeys", nil), claims))
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.listAccountID)
+			},
+		},
+		{
+			name:   "revoke rejects platform claims",
+			claims: platformClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := withPasskeyRouteParam(
+					withPasskeyClaims(httptest.NewRequest(http.MethodDelete, "/passkeys/8", nil), claims),
+					"passkeyId",
+					"8",
+				)
+				rs.passkeyRevoke(w, req)
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.revokeAccountID)
+				assert.Zero(t, svc.revokeCredentialID)
+			},
+		},
+		{
+			name:   "revoke rejects zero tenant claims",
+			claims: zeroTenantClaims,
+			call: func(rs *Resource, w *httptest.ResponseRecorder, claims jwt.AppClaims) {
+				req := withPasskeyRouteParam(
+					withPasskeyClaims(httptest.NewRequest(http.MethodDelete, "/passkeys/8", nil), claims),
+					"passkeyId",
+					"8",
+				)
+				rs.passkeyRevoke(w, req)
+			},
+			assert: func(t *testing.T, svc *passkeyServiceStub) {
+				assert.Zero(t, svc.revokeAccountID)
+				assert.Zero(t, svc.revokeCredentialID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &passkeyServiceStub{}
+			rs := &Resource{PasskeyService: svc}
+			w := httptest.NewRecorder()
+
+			tt.call(rs, w, tt.claims)
+
+			require.Equal(t, http.StatusUnauthorized, w.Code)
+			tt.assert(t, svc)
+		})
+	}
 }
 
 func TestPasskeyHandlerErrors(t *testing.T) {

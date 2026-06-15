@@ -820,6 +820,7 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 	active, err = repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
 	require.NoError(t, err)
 	assert.Empty(t, active)
+	require.Error(t, repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"operator-revoked"}`), time.Now()))
 
 	sessionID := "test-operator-passkey-session-" + suffix
 	session := &platformModel.OperatorPasskeySession{

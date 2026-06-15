@@ -87,7 +87,7 @@ func (r *PasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx 
 }
 
 func (r *PasskeyCredentialRepository) UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*auth.PasskeyCredential)(nil)).
 		ModelTableExpr(passkeyCredentialTable).
 		Set("credential_json = ?::jsonb", string(credentialJSON)).
@@ -98,7 +98,7 @@ func (r *PasskeyCredentialRepository) UpdateAfterUse(ctx context.Context, id int
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "update passkey after use", Err: err}
 	}
-	return nil
+	return base.AssertRowsAffected(res, 1, "update passkey after use")
 }
 
 func (r *PasskeyCredentialRepository) Revoke(ctx context.Context, accountID, id int64, revokedAt time.Time) error {

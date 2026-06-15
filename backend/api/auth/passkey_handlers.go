@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const headerMotoFrontendOrigin = "X-Moto-Frontend-Origin"
@@ -82,6 +83,21 @@ func (rs *Resource) requirePasskey(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
+func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (jwt.AppClaims, bool) {
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID <= 0 || claims.TenantID <= 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		return jwt.AppClaims{}, false
+	}
+	switch claims.Scope {
+	case tenant.ScopeTenant, "tenant", tenant.ScopeOrg:
+		return claims, true
+	default:
+		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		return jwt.AppClaims{}, false
+	}
+}
+
 func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) {
 	if !rs.requirePasskey(w, r) {
 		return
@@ -143,9 +159,8 @@ func (rs *Resource) passkeyEnrollmentChallenge(w http.ResponseWriter, r *http.Re
 	if !rs.requirePasskey(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.TenantID <= 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+	claims, ok := requireTenantPasskeyClaims(w, r)
+	if !ok {
 		return
 	}
 	result, err := rs.PasskeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), claims.TenantID, net.ParseIP(getClientIP(r)))
@@ -165,9 +180,8 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.TenantID <= 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+	claims, ok := requireTenantPasskeyClaims(w, r)
+	if !ok {
 		return
 	}
 	origin := passkeyExpectedOrigin(r)
@@ -204,7 +218,10 @@ func (rs *Resource) passkeyRegisterVerify(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims, ok := requireTenantPasskeyClaims(w, r)
+	if !ok {
+		return
+	}
 	credential, err := rs.PasskeyService.FinishRegistration(r.Context(), authService.PasskeyRegistrationFinishRequest{
 		AccountID:          int64(claims.ID),
 		SessionID:          req.SessionID,
@@ -222,7 +239,10 @@ func (rs *Resource) passkeyList(w http.ResponseWriter, r *http.Request) {
 	if !rs.requirePasskey(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims, ok := requireTenantPasskeyClaims(w, r)
+	if !ok {
+		return
+	}
 	credentials, err := rs.PasskeyService.ListCredentials(r.Context(), int64(claims.ID))
 	if err != nil {
 		mapPasskeyError(w, r, err)
@@ -241,7 +261,10 @@ func (rs *Resource) passkeyRevoke(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid passkey id")))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims, ok := requireTenantPasskeyClaims(w, r)
+	if !ok {
+		return
+	}
 	if err := rs.PasskeyService.RevokeCredential(r.Context(), int64(claims.ID), id); err != nil {
 		mapPasskeyError(w, r, err)
 		return
