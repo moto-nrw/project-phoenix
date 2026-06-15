@@ -117,9 +117,10 @@ type PendingGuardianInvite struct {
 // per-child counts so the admin can scan the queue without expanding
 // every detail page.
 type RequestSummary struct {
-	Request  *enrollmentModels.Request
-	Phase    *enrollmentModels.Phase
-	Children []*enrollmentModels.RequestChild
+	Request   *enrollmentModels.Request
+	Phase     *enrollmentModels.Phase
+	Children  []*enrollmentModels.RequestChild
+	Guardians []*enrollmentModels.RequestGuardian
 }
 
 // RequestFilters narrows the admin list. Zero-value fields are
@@ -237,6 +238,7 @@ type DecisionSettingsResolver interface {
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
@@ -268,6 +270,7 @@ type DecisionServiceConfig struct {
 type decisionService struct {
 	requestRepo              enrollmentModels.RequestRepository
 	requestChildRepo         enrollmentModels.RequestChildRepository
+	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	phaseRepo                enrollmentModels.PhaseRepository
@@ -304,6 +307,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 	return &decisionService{
 		requestRepo:              cfg.RequestRepo,
 		requestChildRepo:         cfg.RequestChildRepo,
+		requestGuardianRepo:      cfg.RequestGuardianRepo,
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		phaseRepo:                cfg.PhaseRepo,
@@ -382,7 +386,14 @@ func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Re
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}
-	return &RequestSummary{Request: req, Phase: phase, Children: children}, nil
+	var guardians []*enrollmentModels.RequestGuardian
+	if s.requestGuardianRepo != nil {
+		guardians, err = s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: list guardians for request %d: %w", req.ID, err)
+		}
+	}
+	return &RequestSummary{Request: req, Phase: phase, Children: children, Guardians: guardians}, nil
 }
 
 // ListChildOfferings returns the offerings each child in this request
@@ -937,6 +948,15 @@ func (s *decisionService) applyApproval(
 		return nil, fmt.Errorf("decision: create student_guardian: %w", err)
 	}
 
+	// 4a. Link any additional guardians (co-guardians the parent added
+	// beyond the primary) to the same student. Mapped identically to the
+	// primary except IsPrimary=false; contact-only, so no account
+	// attach/invitation. Resolved once per request and reused across the
+	// request's children.
+	if err := s.linkAdditionalGuardians(ctx, request, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: link additional guardians: %w", err)
+	}
+
 	// 4b. Dispatch every targeted form field onto the right downstream
 	// record. Scalar targets (health_info, extra_info, photo_
 	// consent, pickup_status) update the Student row in place;
@@ -1117,6 +1137,114 @@ func (s *decisionService) resolveGuardianProfile(
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
+}
+
+// linkAdditionalGuardians materializes the co-guardians stored on the
+// request (enrollment.request_guardians) as additional students_guardians
+// links for the just-created student. Co-guardians are mapped identically
+// to the primary guardian except IsPrimary=false; they are contact-only,
+// so there is deliberately NO account attach and NO invitation here.
+//
+// Each co-guardian resolves to a users.guardian_profiles row exactly once
+// per request: the first child approval stamps guardian_profile_id back on
+// the request_guardians row and later child approvals reuse it. Children
+// are approved one at a time, and an email-less co-guardian cannot be
+// deduped by email — the stamp is what prevents duplicate profiles.
+func (s *decisionService) linkAdditionalGuardians(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+) error {
+	if s.requestGuardianRepo == nil {
+		return nil
+	}
+	extras, err := s.requestGuardianRepo.ListByRequestID(ctx, request.ID)
+	if err != nil {
+		return fmt.Errorf("list additional guardians: %w", err)
+	}
+	for _, extra := range extras {
+		profileID, err := s.resolveAdditionalGuardianProfile(ctx, extra)
+		if err != nil {
+			return err
+		}
+		rel := &users.StudentGuardian{
+			StudentID:          studentID,
+			GuardianProfileID:  profileID,
+			RelationshipType:   "guardian",
+			IsPrimary:          false,
+			IsEmergencyContact: true,
+			CanPickup:          true,
+		}
+		if err := rel.Validate(); err != nil {
+			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
+		}
+		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+			return fmt.Errorf("create co-guardian student_guardian: %w", err)
+		}
+	}
+	return nil
+}
+
+// resolveAdditionalGuardianProfile returns the guardian_profiles id for a
+// co-guardian, creating the profile on first use and stamping the id back
+// on the request_guardians row so the request's other children reuse it.
+// A stamped id always wins (idempotent across the request's children).
+// Otherwise an existing profile is preferred by email when the co-guardian
+// gave one; absent that, a fresh contact-only profile is created.
+func (s *decisionService) resolveAdditionalGuardianProfile(
+	ctx context.Context,
+	extra *enrollmentModels.RequestGuardian,
+) (int64, error) {
+	if extra.GuardianProfileID != nil && *extra.GuardianProfileID > 0 {
+		return *extra.GuardianProfileID, nil
+	}
+
+	email := ""
+	if extra.Email != nil {
+		email = strings.TrimSpace(strings.ToLower(*extra.Email))
+	}
+
+	var profileID int64
+	if email != "" {
+		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+			profileID = existing.ID
+		}
+	}
+	if profileID == 0 {
+		contactMethod := "email"
+		if email == "" {
+			contactMethod = "phone"
+		}
+		profile := &users.GuardianProfile{
+			FirstName:              strings.TrimSpace(extra.FirstName),
+			LastName:               strings.TrimSpace(extra.LastName),
+			PreferredContactMethod: contactMethod,
+			LanguagePreference:     "de",
+		}
+		if email != "" {
+			e := email
+			profile.Email = &e
+		}
+		if err := profile.Validate(); err != nil {
+			return 0, fmt.Errorf("validate co-guardian profile: %w", err)
+		}
+		if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+			return 0, fmt.Errorf("create co-guardian profile: %w", err)
+		}
+		profileID = profile.ID
+	}
+
+	// Stamp the resolved profile back so the request's other children
+	// reuse it. Non-fatal on failure: the link is created regardless;
+	// worst case a later child creates a duplicate email-less profile.
+	if err := s.requestGuardianRepo.StampResolvedProfile(ctx, extra.ID, profileID); err != nil {
+		s.logger.Warn("decision: stamp co-guardian profile failed",
+			slog.Int64("request_guardian_id", extra.ID),
+			slog.Int64("guardian_profile_id", profileID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return profileID, nil
 }
 
 // gradeToClass renders the optional grade level into the student's

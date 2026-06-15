@@ -53,20 +53,31 @@ type SubmitOfferingDaysRow struct {
 	SelectedDays []string `json:"selected_days"`
 }
 
+// SubmitGuardianRequest is the wire shape for one additional guardian
+// (co-guardian) the parent added beyond the primary guardian. Only the
+// names are required; email and phone are optional.
+type SubmitGuardianRequest struct {
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
+}
+
 // SubmitEnrollmentRequest is the public submit body. PhaseID identifies
 // the parent's chosen enrollment phase (school year, holiday window,
 // etc.). CaptchaToken is the Turnstile widget output; verified before
 // any DB write.
 type SubmitEnrollmentRequest struct {
-	PhaseID           int64                `json:"phase_id"`
-	GuardianFirstName string               `json:"guardian_first_name"`
-	GuardianLastName  string               `json:"guardian_last_name"`
-	GuardianEmail     string               `json:"guardian_email"`
-	GuardianPhone     *string              `json:"guardian_phone,omitempty"`
-	ConsentFlags      map[string]any       `json:"consent_flags,omitempty"`
-	CustomData        map[string]any       `json:"custom_data,omitempty"`
-	Children          []SubmitChildRequest `json:"children"`
-	CaptchaToken      string               `json:"captcha_token,omitempty"`
+	PhaseID             int64                   `json:"phase_id"`
+	GuardianFirstName   string                  `json:"guardian_first_name"`
+	GuardianLastName    string                  `json:"guardian_last_name"`
+	GuardianEmail       string                  `json:"guardian_email"`
+	GuardianPhone       *string                 `json:"guardian_phone,omitempty"`
+	AdditionalGuardians []SubmitGuardianRequest `json:"additional_guardians,omitempty"`
+	ConsentFlags        map[string]any          `json:"consent_flags,omitempty"`
+	CustomData          map[string]any          `json:"custom_data,omitempty"`
+	Children            []SubmitChildRequest    `json:"children"`
+	CaptchaToken        string                  `json:"captcha_token,omitempty"`
 }
 
 // Bind defaults nil maps + slices to empty so downstream code doesn't
@@ -80,6 +91,9 @@ func (req *SubmitEnrollmentRequest) Bind(_ *http.Request) error {
 	}
 	if req.Children == nil {
 		req.Children = []SubmitChildRequest{}
+	}
+	if req.AdditionalGuardians == nil {
+		req.AdditionalGuardians = []SubmitGuardianRequest{}
 	}
 	return nil
 }
@@ -186,6 +200,14 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		GuardianPhone:     wireReq.GuardianPhone,
 		ConsentFlags:      wireReq.ConsentFlags,
 		CustomData:        wireReq.CustomData,
+	}
+	for _, g := range wireReq.AdditionalGuardians {
+		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
+		})
 	}
 	for i, c := range wireReq.Children {
 		dob, err := timezone.ParseDate(c.DateOfBirth)
@@ -306,6 +328,18 @@ type StatusResponse struct {
 	SubmittedAt       time.Time             `json:"submitted_at"`
 	WithdrawnAt       *time.Time            `json:"withdrawn_at,omitempty"`
 	Children          []StatusChildResponse `json:"children"`
+	// AdditionalGuardians are the co-guardians the parent added beyond the
+	// primary guardian above. Empty when none were added.
+	AdditionalGuardians []StatusGuardianResponse `json:"additional_guardians,omitempty"`
+}
+
+// StatusGuardianResponse is one additional guardian on the public status
+// page. Email/phone are optional.
+type StatusGuardianResponse struct {
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
 }
 
 // StatusChildResponse is one row in StatusResponse.Children.
@@ -331,8 +365,9 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		req      *enrollmentModels.Request
-		children []*enrollmentModels.RequestChild
+		req       *enrollmentModels.Request
+		children  []*enrollmentModels.RequestChild
+		guardians []*enrollmentModels.RequestGuardian
 	)
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
@@ -341,6 +376,10 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		req = serviceReq
 		children = serviceChildren
+		// Best-effort: a failure here must not hide the request status.
+		if g, gerr := rs.RequestService.GuardiansByStatusToken(adminCtx, token); gerr == nil {
+			guardians = g
+		}
 		return nil
 	})
 	if err != nil {
@@ -364,6 +403,14 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			LastName:     c.LastName,
 			Status:       c.Status,
 			StatusReason: c.StatusReason,
+		})
+	}
+	for _, g := range guardians {
+		resp.AdditionalGuardians = append(resp.AdditionalGuardians, StatusGuardianResponse{
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")

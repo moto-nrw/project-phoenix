@@ -190,18 +190,29 @@ type submitParentOfferingDaysEntry struct {
 	SelectedDays []string `json:"selected_days"`
 }
 
+// submitParentGuardianEntry mirrors api/enrollment.SubmitGuardianRequest —
+// one additional guardian (co-guardian) beyond the primary. Names
+// required; email/phone optional.
+type submitParentGuardianEntry struct {
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
+}
+
 // submitParentEnrollmentRequest is the parent-authenticated submit
 // body. Captcha is intentionally absent — the parent JWT IS the
 // anti-bot signal; we skip captcha verification end-to-end.
 type submitParentEnrollmentRequest struct {
-	PhaseID           int64                      `json:"phase_id"`
-	GuardianFirstName string                     `json:"guardian_first_name"`
-	GuardianLastName  string                     `json:"guardian_last_name"`
-	GuardianEmail     string                     `json:"guardian_email"`
-	GuardianPhone     *string                    `json:"guardian_phone,omitempty"`
-	ConsentFlags      map[string]any             `json:"consent_flags,omitempty"`
-	CustomData        map[string]any             `json:"custom_data,omitempty"`
-	Children          []submitParentChildRequest `json:"children"`
+	PhaseID             int64                       `json:"phase_id"`
+	GuardianFirstName   string                      `json:"guardian_first_name"`
+	GuardianLastName    string                      `json:"guardian_last_name"`
+	GuardianEmail       string                      `json:"guardian_email"`
+	GuardianPhone       *string                     `json:"guardian_phone,omitempty"`
+	AdditionalGuardians []submitParentGuardianEntry `json:"additional_guardians,omitempty"`
+	ConsentFlags        map[string]any              `json:"consent_flags,omitempty"`
+	CustomData          map[string]any              `json:"custom_data,omitempty"`
+	Children            []submitParentChildRequest  `json:"children"`
 }
 
 // submitParentResponse is what the embedded form receives after a
@@ -334,6 +345,14 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		CustomData:        wireReq.CustomData,
 		GuardianAccountID: &accountID,
 		RemoteIP:          remoteIP,
+	}
+	for _, g := range wireReq.AdditionalGuardians {
+		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
+		})
 	}
 	for i, c := range wireReq.Children {
 		dob, err := timezone.ParseDate(c.DateOfBirth)

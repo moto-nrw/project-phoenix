@@ -150,6 +150,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	svc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
+		RequestGuardianRepo:      repoFactory.RequestGuardian,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
 		CareOfferingRepo:         repoFactory.CareOffering,
 		FormSchemaRepo:           repoFactory.FormSchema,
@@ -286,6 +287,77 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 	require.Len(t, parents, 1, "exactly one parent confirmation email must be enqueued")
 	admins := env.outbox.ByKind("enrollment_admin_notification")
 	require.Len(t, admins, 2, "one admin notification per configured recipient")
+}
+
+// TestRequestService_Submit_PersistsAdditionalGuardians verifies that
+// co-guardians are normalized (trim, lowercase email), deduped (against
+// the primary + each other), and that fully-blank cards are dropped. The
+// email-less co-guardian must persist with a NULL email.
+func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	opaPhone := "012345678"
+	omaEmail := "OMA@example.com"  // upper-case: must be lowercased
+	dupEmail := "anna@example.com" // duplicates the primary guardian
+	req := validSubmission(env.phaseID)
+	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
+		{FirstName: " Opa ", LastName: "Schmidt", Phone: &opaPhone}, // contact-only, no email
+		{FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail},
+		{FirstName: "Anna", LastName: "Beispiel", Email: &dupEmail}, // dup of primary -> dropped
+		{}, // blank card -> dropped
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+
+	var stored []*enrollmentModels.RequestGuardian
+	err = env.db.NewSelect().
+		Model(&stored).
+		ModelTableExpr(`enrollment.request_guardians AS "request_guardian"`).
+		Where(`"request_guardian".request_id = ?`, result.Request.ID).
+		OrderExpr(`"request_guardian".sort_order`).
+		Scan(ctx)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "blank card + primary-duplicate must be dropped")
+
+	assert.Equal(t, "Opa", stored[0].FirstName, "first name must be trimmed")
+	assert.Nil(t, stored[0].Email, "email-less co-guardian persists with NULL email")
+	require.NotNil(t, stored[0].Phone)
+	assert.Equal(t, "012345678", *stored[0].Phone)
+	assert.Nil(t, stored[0].GuardianProfileID, "profile id is stamped only on approval")
+
+	assert.Equal(t, "Oma", stored[1].FirstName)
+	require.NotNil(t, stored[1].Email)
+	assert.Equal(t, "oma@example.com", *stored[1].Email, "email must be lowercased")
+}
+
+// TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians
+// verifies the public status page can read back the co-guardians via the
+// status token.
+func TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	omaEmail := "oma@example.com"
+	req := validSubmission(env.phaseID)
+	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
+		{FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail},
+	}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+
+	guardians, err := env.svc.GuardiansByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+	assert.Equal(t, "Oma", guardians[0].FirstName)
+	assert.Equal(t, "Schmidt", guardians[0].LastName)
+
+	// An unknown token must not leak rows.
+	_, err = env.svc.GuardiansByStatusToken(ctx, "does-not-exist")
+	require.Error(t, err)
 }
 
 func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {

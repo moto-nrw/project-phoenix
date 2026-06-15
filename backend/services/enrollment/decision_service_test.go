@@ -68,6 +68,7 @@ func setupDecisionTestWithSettings(
 	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
+		RequestGuardianRepo:      repoFactory.RequestGuardian,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
 		CareOfferingRepo:         repoFactory.CareOffering,
 		PhaseRepo:                repoFactory.Phase,
@@ -402,6 +403,73 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, student)
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
+}
+
+// TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
+// "GENAUSO" mapping: on approval every co-guardian stored on the request is
+// linked to the created student as an additional students_guardians row
+// (IsPrimary=false, but emergency-contact + can-pickup like the primary),
+// and the resolved guardian_profiles id is stamped back on the request row.
+// The email-less co-guardian must resolve to a contact profile with NULL email.
+func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-guardian@example.com", "Kjell", "Approved")
+
+	// Two co-guardians: one contact-only (no email), one with an email.
+	opaPhone := "012345678"
+	omaEmail := "oma@example.com"
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID, FirstName: "Opa", LastName: "Schmidt", Phone: &opaPhone, SortOrder: 0,
+	}))
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID, FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail, SortOrder: 1,
+	}))
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	// THREE guardian links: primary + two co-guardians.
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 3, "primary + two co-guardians must all be linked")
+	primaryCount := 0
+	for _, l := range links {
+		if l.IsPrimary {
+			primaryCount++
+		}
+		assert.True(t, l.IsEmergencyContact, "co-guardians mapped like primary: emergency contact")
+		assert.True(t, l.CanPickup, "co-guardians mapped like primary: can pick up")
+	}
+	assert.Equal(t, 1, primaryCount, "exactly one primary guardian")
+
+	// Both co-guardian rows must be stamped with their resolved profile id,
+	// and the email-less one must resolve to a profile with NULL email.
+	extras, err := env.repos.RequestGuardian.ListByRequestID(ctx, reqID)
+	require.NoError(t, err)
+	require.Len(t, extras, 2)
+	for _, ex := range extras {
+		require.NotNil(t, ex.GuardianProfileID, "approval must stamp the resolved profile id")
+		profile, perr := env.repos.GuardianProfile.FindByID(ctx, *ex.GuardianProfileID)
+		require.NoError(t, perr)
+		require.NotNil(t, profile)
+		assert.Equal(t, ex.LastName, profile.LastName)
+		if ex.Email == nil {
+			assert.Nil(t, profile.Email, "email-less co-guardian creates a contact profile with NULL email")
+		} else {
+			require.NotNil(t, profile.Email)
+			assert.Equal(t, *ex.Email, *profile.Email)
+		}
+	}
 }
 
 // TestDecisionService_Decide_AppliesDepartureField verifies the unified

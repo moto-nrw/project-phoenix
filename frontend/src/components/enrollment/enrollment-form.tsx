@@ -16,6 +16,7 @@ import {
   type CareOfferingSelectionMode,
   type PublicCareOffering,
   type SubmitChildPayload,
+  type SubmitGuardianPayload,
 } from "~/lib/enrollment-submission-api";
 import {
   fetchPublicActiveSchema,
@@ -68,6 +69,21 @@ interface ChildDraft {
    */
   offering_days: Record<string, Set<string>>;
   custom: Record<string, unknown>;
+}
+
+// GuardianDraft is one ADDITIONAL guardian (co-guardian) the parent can
+// add beyond the primary guardian. Only the names are required; email
+// and phone are optional. On approval each becomes an additional
+// students_guardians link to every enrolled child.
+interface GuardianDraft {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
+
+function blankGuardian(): GuardianDraft {
+  return { first_name: "", last_name: "", email: "", phone: "" };
 }
 
 import type {
@@ -213,6 +229,11 @@ export function EnrollmentForm({
   const [children, setChildren] = useState<ChildDraft[]>([
     blankChild(initialRequiredOfferingIDs),
   ]);
+  // Additional guardians (co-guardians). Start empty — the primary
+  // guardian above is always required; co-guardians are opt-in.
+  const [additionalGuardians, setAdditionalGuardians] = useState<
+    GuardianDraft[]
+  >([]);
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
   // shared across all children in the submission.
@@ -474,6 +495,15 @@ export function EnrollmentForm({
   const removeChild = (index: number) =>
     setChildren((prev) => prev.filter((_, i) => i !== index));
 
+  const addGuardian = () =>
+    setAdditionalGuardians((prev) => [...prev, blankGuardian()]);
+  const updateGuardian = (index: number, patch: Partial<GuardianDraft>) =>
+    setAdditionalGuardians((prev) =>
+      prev.map((g, i) => (i === index ? { ...g, ...patch } : g)),
+    );
+  const removeGuardian = (index: number) =>
+    setAdditionalGuardians((prev) => prev.filter((_, i) => i !== index));
+
   // Conditional field visibility. Contexts are rebuilt from the live answers
   // each render so info blocks and questions appear/disappear as the parent
   // fills the form. Hidden fields are also stripped from the submitted payload
@@ -553,6 +583,32 @@ export function EnrollmentForm({
     } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
       newFieldErrors.guardian_phone = tr("errors.validPhone");
     }
+    // Additional guardians: a card with ANY field filled must carry both
+    // names; email/phone are validated for format only when present.
+    // Fully-empty cards are dropped at submit, so they never block it.
+    additionalGuardians.forEach((g, i) => {
+      const gFirst = g.first_name.trim();
+      const gLast = g.last_name.trim();
+      const gEmail = g.email.trim();
+      const gPhone = g.phone.trim();
+      if (!gFirst && !gLast && !gEmail && !gPhone) return;
+      if (!gFirst) {
+        newFieldErrors[`additional_guardian_${i}_first_name`] =
+          tr("errors.firstName");
+      }
+      if (!gLast) {
+        newFieldErrors[`additional_guardian_${i}_last_name`] =
+          tr("errors.lastName");
+      }
+      if (gEmail && !GUARDIAN_EMAIL_PATTERN.test(gEmail)) {
+        newFieldErrors[`additional_guardian_${i}_email`] =
+          tr("errors.validEmail");
+      }
+      if (gPhone && !GUARDIAN_PHONE_PATTERN.test(gPhone)) {
+        newFieldErrors[`additional_guardian_${i}_phone`] =
+          tr("errors.validPhone");
+      }
+    });
     // Only visible (passing their show-if condition) non-info guardian fields
     // are enforced — a hidden required field must never block submit.
     for (const field of visibleGuardianFields) {
@@ -777,12 +833,31 @@ export function EnrollmentForm({
           block.kind === "notice" ? true : legalConsents[block.key] === true;
       }
 
+      // Drop fully-blank co-guardian cards; trim + lowercase the rest.
+      // Validation above guarantees any non-blank card has both names.
+      const additionalGuardiansPayload: SubmitGuardianPayload[] =
+        additionalGuardians
+          .map((g) => ({
+            first_name: g.first_name.trim(),
+            last_name: g.last_name.trim(),
+            email: g.email.trim().toLowerCase() || undefined,
+            phone: g.phone.trim() || undefined,
+          }))
+          .filter(
+            (g) =>
+              g.first_name !== "" || g.last_name !== "" || g.email || g.phone,
+          );
+
       const payload: SubmitEnrollmentPayload = {
         phase_id: Number(phaseID),
         guardian_first_name: guardianFirstName.trim(),
         guardian_last_name: guardianLastName.trim(),
         guardian_email: guardianEmail.trim().toLowerCase(),
         guardian_phone: guardianPhone.trim() || undefined,
+        additional_guardians:
+          additionalGuardiansPayload.length > 0
+            ? additionalGuardiansPayload
+            : undefined,
         consent_flags: consentFlags,
         custom_data: visibleAnswerData(
           schema?.fields ?? [],
@@ -865,11 +940,21 @@ export function EnrollmentForm({
       )}
 
       <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
-        <SectionHeading
-          kicker={tr("sections.guardianKicker")}
-          title={tr("sections.guardianTitle")}
-          description={tr("sections.guardianDescription")}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <SectionHeading
+            kicker={tr("sections.guardianKicker")}
+            title={tr("sections.guardianTitle")}
+            description={tr("sections.guardianDescription")}
+          />
+          <button
+            type="button"
+            onClick={addGuardian}
+            className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {tr("actions.addGuardian")}
+          </button>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input
             label={tr("fields.firstName")}
@@ -915,6 +1000,65 @@ export function EnrollmentForm({
             error={fieldErrors.guardian_phone}
           />
         </div>
+
+        {additionalGuardians.map((g, i) => (
+          <div
+            key={i}
+            className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                {tr("sections.additionalGuardianLabel", { index: i + 1 })}
+              </h3>
+              <button
+                type="button"
+                onClick={() => removeGuardian(i)}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+              >
+                {tr("actions.remove")}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label={tr("fields.firstName")}
+                name={`additional_guardian_${i}_first_name`}
+                autoComplete="given-name"
+                value={g.first_name}
+                onChange={(v) => updateGuardian(i, { first_name: v })}
+                required
+                error={fieldErrors[`additional_guardian_${i}_first_name`]}
+              />
+              <Input
+                label={tr("fields.lastName")}
+                name={`additional_guardian_${i}_last_name`}
+                autoComplete="family-name"
+                value={g.last_name}
+                onChange={(v) => updateGuardian(i, { last_name: v })}
+                required
+                error={fieldErrors[`additional_guardian_${i}_last_name`]}
+              />
+              <Input
+                label={tr("fields.emailPlain")}
+                name={`additional_guardian_${i}_email`}
+                type="email"
+                autoComplete="email"
+                value={g.email}
+                onChange={(v) => updateGuardian(i, { email: v })}
+                error={fieldErrors[`additional_guardian_${i}_email`]}
+              />
+              <Input
+                label={tr("fields.phone")}
+                name={`additional_guardian_${i}_phone`}
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                value={g.phone}
+                onChange={(v) => updateGuardian(i, { phone: v })}
+                error={fieldErrors[`additional_guardian_${i}_phone`]}
+              />
+            </div>
+          </div>
+        ))}
       </section>
 
       {schema?.fields.some((f) => !f.applies_to_child) && (

@@ -95,6 +95,20 @@ export interface AdminRequestSummary {
    */
   schema_legal_blocks?: Array<{ key: string; title: string }>;
   children: AdminRequestChild[];
+  /**
+   * Co-guardians the parent added beyond the primary guardian above.
+   * Empty/absent when none were added.
+   */
+  additional_guardians?: AdminRequestGuardian[];
+}
+
+/** One additional guardian (co-guardian) on a submission. */
+export interface AdminRequestGuardian {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
 }
 
 interface BackendEnvelope<T> {
