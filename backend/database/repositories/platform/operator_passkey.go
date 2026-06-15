@@ -90,7 +90,7 @@ func (r *OperatorPasskeyCredentialRepository) UpdateAfterUse(ctx context.Context
 	_, err := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*platform.OperatorPasskeyCredential)(nil)).
 		ModelTableExpr(operatorPasskeyCredentialTable).
-		Set("credential_json = ?", credentialJSON).
+		Set("credential_json = ?::jsonb", string(credentialJSON)).
 		Set("last_used_at = ?", usedAt).
 		Where(platformWhereID, id).
 		Where("revoked_at IS NULL").
