@@ -35,6 +35,7 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import { Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 
@@ -581,7 +582,13 @@ export function EnrollmentForm({
         []) {
         if (field.type === "information" || !field.required) continue;
         if (!isFieldVisible(field, childCtx)) continue;
-        if (customValueMissing(field, c.custom[field.key])) {
+        if (
+          customValueMissing(
+            field,
+            c.custom[field.key],
+            relevantCareDaysForChild(c, offerings, previewMode),
+          )
+        ) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
             requiredMessageForField(field, tr);
         }
@@ -746,11 +753,15 @@ export function EnrollmentForm({
         target_grade_level: Number(c.target_grade_level),
         // Strip answers to fields the parent couldn't see (hidden by a
         // show-if condition) so a stale value never reaches the backend.
-        custom_data: visibleAnswerData(
+        custom_data: pruneWeekdayMultiModeAnswers(
+          visibleAnswerData(
+            schema?.fields ?? [],
+            true,
+            c.custom,
+            childConditionCtx(c),
+          ),
           schema?.fields ?? [],
-          true,
-          c.custom,
-          childConditionCtx(c),
+          relevantCareDaysForChild(c, offerings, previewMode),
         ),
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
@@ -1219,6 +1230,11 @@ export function EnrollmentForm({
                       })
                     }
                     error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                    relevantDays={relevantCareDaysForChild(
+                      child,
+                      offerings,
+                      previewMode,
+                    )}
                     tr={tr}
                   />
                 ),
@@ -2049,6 +2065,7 @@ function LegalDetailsButton({
 function customValueMissing(
   field: PublicFormSchema["fields"][number],
   value: unknown,
+  relevantDays?: readonly string[],
 ): boolean {
   if (field.type === "boolean") {
     return typeof value !== "boolean";
@@ -2079,6 +2096,12 @@ function customValueMissing(
     // Like pickup, an all-alone (empty) plan is a valid answer; only a
     // never-touched field counts as missing for a required Geh-/Abholregelung.
     return value === undefined || value === null || typeof value !== "object";
+  }
+  if (field.type === "weekday_multi_mode") {
+    const days = relevantDays ?? WEEKDAYS;
+    if (days.length === 0) return false;
+    const modes = asWeekdayMultiModeObject(value, days);
+    return days.some((day) => (modes[day]?.length ?? 0) === 0);
   }
   return typeof value !== "string" || value.trim() === "";
 }
@@ -2138,6 +2161,9 @@ function requiredMessageForField(
   if (field.type === "weekday_mode") {
     return tr("errors.weekdayModeConfirm");
   }
+  if (field.type === "weekday_multi_mode") {
+    return tr("errors.weekdayMultiModeRequired");
+  }
   if (field.type === "select") {
     return tr("errors.select");
   }
@@ -2150,6 +2176,7 @@ interface CustomFieldInputProps {
   readonly onChange: (v: unknown) => void;
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
+  readonly relevantDays?: readonly string[];
 }
 
 function CustomFieldInput({
@@ -2158,6 +2185,7 @@ function CustomFieldInput({
   onChange,
   error,
   tr,
+  relevantDays,
 }: CustomFieldInputProps) {
   const labelEl = (
     <>
@@ -2289,6 +2317,18 @@ function CustomFieldInput({
         onChange={onChange}
         error={error}
         tr={tr}
+      />
+    );
+  }
+  if (field.type === "weekday_multi_mode") {
+    return (
+      <WeekdayMultiModeInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        error={error}
+        tr={tr}
+        relevantDays={relevantDays}
       />
     );
   }
@@ -2492,6 +2532,12 @@ function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
 
 type DepartureModeValue = "alone" | "bus" | "pickup";
 
+const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
+  "alone",
+  "bus",
+  "pickup",
+];
+
 function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, DepartureModeValue> = {};
@@ -2504,11 +2550,81 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   return out;
 }
 
+function asWeekdayMultiModeObject(
+  v: unknown,
+  allowedDays: readonly string[] = WEEKDAYS,
+): Record<string, DepartureModeValue[]> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const allowed = new Set(allowedDays);
+  const out: Record<string, DepartureModeValue[]> = {};
+  for (const w of WEEKDAYS) {
+    if (!allowed.has(w)) continue;
+    const raw = (v as Record<string, unknown>)[w];
+    if (!Array.isArray(raw)) continue;
+    const seen = new Set<DepartureModeValue>();
+    for (const item of raw) {
+      if (item === "alone" || item === "bus" || item === "pickup") {
+        seen.add(item);
+      }
+    }
+    const modes = DEPARTURE_MULTI_MODE_OPTIONS.filter((mode) => seen.has(mode));
+    if (modes.length > 0) out[w] = modes;
+  }
+  return out;
+}
+
 const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
   "pickup",
 ];
+
+function selectedCareDaysForChild(
+  child: ChildDraft,
+  offerings: readonly PublicCareOffering[],
+): string[] {
+  const days = new Set<string>();
+  for (const id of child.offering_ids) {
+    const offering = offerings.find((o) => o.id === id);
+    if (!offering) continue;
+    const selected =
+      offering.days_of_week_mode === "parent_choice"
+        ? Array.from(child.offering_days[id] ?? new Set<string>())
+        : offering.available_days;
+    for (const day of selected) {
+      if ((WEEKDAYS as readonly string[]).includes(day)) {
+        days.add(day);
+      }
+    }
+  }
+  return WEEKDAYS.filter((day) => days.has(day));
+}
+
+function relevantCareDaysForChild(
+  child: ChildDraft,
+  offerings: readonly PublicCareOffering[],
+  previewMode: boolean,
+): string[] {
+  if (previewMode && offerings.length === 0) {
+    return [...WEEKDAYS];
+  }
+  return selectedCareDaysForChild(child, offerings);
+}
+
+function pruneWeekdayMultiModeAnswers(
+  data: Record<string, unknown>,
+  fields: readonly PublicFormSchema["fields"][number][],
+  relevantDays: readonly string[],
+): Record<string, unknown> {
+  const next = { ...data };
+  for (const field of fields) {
+    if (field.type !== "weekday_multi_mode" || !(field.key in next)) {
+      continue;
+    }
+    next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
+  }
+  return next;
+}
 
 function WeekdayScheduleInput({
   field,
@@ -2679,6 +2795,130 @@ function WeekdayModeInput({
             </div>
           );
         })}
+      </div>
+      {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+    </fieldset>
+  );
+}
+
+function WeekdayMultiModeInput({
+  field,
+  value,
+  onChange,
+  error,
+  tr,
+  relevantDays,
+}: CustomFieldInputProps) {
+  const daysToRender = relevantDays ?? WEEKDAYS;
+  const modes = asWeekdayMultiModeObject(value, daysToRender);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(
+    () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
+  );
+  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
+  const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
+  const activeDays = daysToRender.filter(
+    (day) => expandedDays.has(day) || (modes[day]?.length ?? 0) > 0,
+  );
+  const toggleDay = (day: string) => {
+    const isActive = activeDays.includes(day);
+    const nextExpanded = new Set(expandedDays);
+    if (isActive) {
+      nextExpanded.delete(day);
+      const nextRaw = { ...modes };
+      delete nextRaw[day];
+      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    } else {
+      nextExpanded.add(day);
+    }
+    setExpandedDays(nextExpanded);
+  };
+  const updateDay = (day: string, mode: DepartureModeValue) => {
+    const current = new Set(modes[day] ?? []);
+    if (current.has(mode)) current.delete(mode);
+    else current.add(mode);
+    const nextRaw = {
+      ...modes,
+      [day]: DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m)),
+    };
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+  };
+  return (
+    <fieldset
+      className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
+      aria-invalid={error ? "true" : undefined}
+    >
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        {field.label}
+        {field.required && <span className="text-[#FF3130]"> *</span>}
+      </legend>
+      {field.help_text && (
+        <p className="mt-1 text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </p>
+      )}
+      <p className="text-xs text-gray-500">
+        {tr("structured.weekdayMultiModeHelp")}
+      </p>
+      <div className="mt-3">
+        {daysToRender.length > 0 ? (
+          <div className="grid grid-cols-5 gap-2">
+            {daysToRender.map((day) => {
+              const active = activeDays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleDay(day)}
+                  className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
+                    active
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {weekdayLabels[day] ?? day}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            {tr("structured.weekdayMultiModeNoDays")}
+          </p>
+        )}
+        <div className="mt-3 space-y-2">
+          {activeDays.map((day) => (
+            <div
+              key={day}
+              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+            >
+              <div className="mb-2 text-xs font-semibold text-gray-700">
+                {weekdayLabels[day] ?? day}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                  const checked = modes[day]?.includes(mode) ?? false;
+                  return (
+                    <label
+                      key={mode}
+                      className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
+                        checked
+                          ? "border-gray-900 text-gray-900"
+                          : "border-gray-200 text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onChange={() => updateDay(day, mode)}
+                      />
+                      <span>{departureModeLabels[mode] ?? mode}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>

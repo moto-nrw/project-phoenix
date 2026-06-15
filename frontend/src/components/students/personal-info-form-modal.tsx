@@ -8,10 +8,12 @@ import { DepartureSection } from "./student-form-fields";
 import {
   busDaysHaveAny,
   pickupDaysHaveAny,
-  normalizeDepartureDays,
-  departureToBusDays,
-  departureToPickupDays,
   departureDaysFromLegacy,
+  allowedDepartureModesFromDeparture,
+  allowedDepartureToBusDays,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToPickupDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -51,15 +53,28 @@ export function PersonalInfoFormModal({
   const handleSave = async () => {
     setIsSaving(true);
     try {
+      const allowedDepartureModes = normalizeAllowedDepartureModes(
+        editedStudent.allowed_departure_modes ??
+          allowedDepartureModesFromDeparture(
+            editedStudent.departure_days ??
+              departureDaysFromLegacy(
+                editedStudent.bus_days,
+                editedStudent.pickup_days,
+              ),
+          ),
+      );
+      const busDays = allowedDepartureToBusDays(allowedDepartureModes);
+      const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
       await onSave({
         ...editedStudent,
-        departure_days: normalizeDepartureDays(
-          editedStudent.departure_days ??
-            departureDaysFromLegacy(
-              editedStudent.bus_days,
-              editedStudent.pickup_days,
-            ),
-        ),
+        allowed_departure_modes: allowedDepartureModes,
+        departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
+        bus_days: busDays,
+        buskind: busDaysHaveAny(busDays),
+        pickup_days: pickupDays,
+        pickup_status: pickupDaysHaveAny(pickupDays)
+          ? "Wird abgeholt"
+          : "Geht alleine nach Hause",
       });
       onClose();
     } catch (err) {
@@ -132,18 +147,23 @@ export function PersonalInfoFormModal({
         />
         <DepartureSection
           days={
-            editedStudent.departure_days ??
-            departureDaysFromLegacy(
-              editedStudent.bus_days,
-              editedStudent.pickup_days,
+            editedStudent.allowed_departure_modes ??
+            allowedDepartureModesFromDeparture(
+              editedStudent.departure_days ??
+                departureDaysFromLegacy(
+                  editedStudent.bus_days,
+                  editedStudent.pickup_days,
+                ),
             )
           }
           onChange={(value) => {
-            const departure = normalizeDepartureDays(value);
-            const busDays = departureToBusDays(departure);
-            const pickupDays = departureToPickupDays(departure);
+            const allowed = normalizeAllowedDepartureModes(value);
+            const departure = allowedDepartureToDepartureDays(allowed);
+            const busDays = allowedDepartureToBusDays(allowed);
+            const pickupDays = allowedDepartureToPickupDays(allowed);
             setEditedStudent((prev) => ({
               ...prev,
+              allowed_departure_modes: allowed,
               departure_days: departure,
               bus_days: busDays,
               buskind: busDaysHaveAny(busDays),

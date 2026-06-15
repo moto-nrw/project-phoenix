@@ -64,8 +64,8 @@ vi.mock("./student-form-fields", () => ({
     days,
     onChange,
   }: {
-    days?: Record<string, string>;
-    onChange: (v: Record<string, string>) => void;
+    days?: Record<string, string[]>;
+    onChange: (v: Record<string, string[]>) => void;
   }) => (
     <div data-testid="departure-section">
       {["mon", "tue", "wed", "thu", "fri"].map((d) => (
@@ -76,7 +76,7 @@ vi.mock("./student-form-fields", () => ({
       <button
         type="button"
         data-testid="departure-set-mon-bus"
-        onClick={() => onChange({ ...days, mon: "bus" })}
+        onClick={() => onChange({ ...days, mon: ["bus"] })}
       >
         set-mon-bus
       </button>

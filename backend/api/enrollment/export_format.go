@@ -144,6 +144,8 @@ func formatCustomValue(field enrollmentModels.FormField, raw any) string {
 		return formatWeekdayBoolean(raw)
 	case enrollmentModels.FormFieldWeekdayMode:
 		return formatWeekdayMode(raw)
+	case enrollmentModels.FormFieldWeekdayMultiMode:
+		return formatWeekdayMultiMode(raw)
 	case enrollmentModels.FormFieldPhoneList:
 		return formatPhoneList(raw)
 	case enrollmentModels.FormFieldContactList:
@@ -171,9 +173,37 @@ func formatWeekdayBoolean(raw any) string {
 	return strings.Join(parts, ", ")
 }
 
+func formatWeekdayMultiMode(raw any) string {
+	var modes enrollmentModels.WeekdayMultiMode
+	if !decodeComposite(raw, &modes) {
+		return stringifyValue(raw)
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		rawModes := modes[day]
+		if len(rawModes) == 0 {
+			continue
+		}
+		modeParts := make([]string, 0, len(rawModes))
+		for _, mode := range rawModes {
+			modeLabel := departureModeLabelsDE[mode]
+			if modeLabel == "" {
+				modeLabel = mode
+			}
+			modeParts = append(modeParts, modeLabel)
+		}
+		label := dayLabelsDE[day]
+		if label == "" {
+			label = day
+		}
+		parts = append(parts, label+": "+strings.Join(modeParts, ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
 // departureModeLabelsDE renders a per-day departure mode for staff exports.
 var departureModeLabelsDE = map[string]string{
-	enrollmentModels.WeekdayModeAlone:  "geht alleine",
+	enrollmentModels.WeekdayModeAlone:  "geht zu Fuß",
 	enrollmentModels.WeekdayModeBus:    "fährt Bus",
 	enrollmentModels.WeekdayModePickup: "wird abgeholt",
 }

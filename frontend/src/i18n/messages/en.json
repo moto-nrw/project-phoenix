@@ -385,7 +385,8 @@
       "groupAtMostOne": "Please choose at most one offer for “{group}”.",
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
-      "weekdayModeConfirm": "Please confirm the departure arrangement."
+      "weekdayModeConfirm": "Please confirm the departure arrangement.",
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
     },
     "actions": {
       "addChild": "Add another child",
@@ -458,11 +459,13 @@
       "phoneNumbers": "Phone numbers",
       "pickupDaysHelp": "Select the days on which the child is picked up. On unselected days the child goes home alone.",
       "busDaysHelp": "Select the days on which the child takes the bus.",
-      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+      "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Walks home”.",
+      "weekdayMultiModeHelp": "Choose every way home that is allowed for your child on each care day.",
+      "weekdayMultiModeNoDays": "Choose the care days first.",
       "departureModes": {
-        "alone": "Goes alone",
+        "alone": "Walks home",
         "bus": "Bus",
-        "pickup": "Pickup"
+        "pickup": "Picked up"
       }
     },
     "months": [

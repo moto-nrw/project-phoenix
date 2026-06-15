@@ -44,27 +44,29 @@ const (
 	// Structured types — admins cannot define their internal shape;
 	// the renderer + decision service know how to interpret them.
 	// Each pairs with a specific FormField.Target (see ReservedTargets).
-	FormFieldPhoneList       FormFieldType = "phone_list"       // 0..N labelled phone numbers
-	FormFieldWeekdaySchedule FormFieldType = "weekday_schedule" // mon..fri → HH:MM, optional per day
-	FormFieldWeekdayBoolean  FormFieldType = "weekday_boolean"  // mon..fri → bool, optional per day
-	FormFieldWeekdayMode     FormFieldType = "weekday_mode"     // mon..fri → alone/bus/pickup, optional per day
-	FormFieldContactList     FormFieldType = "contact_list"     // 0..N people (name + phones + flags)
+	FormFieldPhoneList        FormFieldType = "phone_list"         // 0..N labelled phone numbers
+	FormFieldWeekdaySchedule  FormFieldType = "weekday_schedule"   // mon..fri → HH:MM, optional per day
+	FormFieldWeekdayBoolean   FormFieldType = "weekday_boolean"    // mon..fri → bool, optional per day
+	FormFieldWeekdayMode      FormFieldType = "weekday_mode"       // mon..fri → alone/bus/pickup, optional per day
+	FormFieldWeekdayMultiMode FormFieldType = "weekday_multi_mode" // mon..fri → []alone/bus/pickup, optional per day
+	FormFieldContactList      FormFieldType = "contact_list"       // 0..N people (name + phones + flags)
 )
 
 // validFormFieldTypes is the set of accepted FormFieldType values.
 var validFormFieldTypes = map[FormFieldType]bool{
-	FormFieldBoolean:         true,
-	FormFieldNumber:          true,
-	FormFieldText:            true,
-	FormFieldTextarea:        true,
-	FormFieldDate:            true,
-	FormFieldSelect:          true,
-	FormFieldInfo:            true,
-	FormFieldPhoneList:       true,
-	FormFieldWeekdaySchedule: true,
-	FormFieldWeekdayBoolean:  true,
-	FormFieldWeekdayMode:     true,
-	FormFieldContactList:     true,
+	FormFieldBoolean:          true,
+	FormFieldNumber:           true,
+	FormFieldText:             true,
+	FormFieldTextarea:         true,
+	FormFieldDate:             true,
+	FormFieldSelect:           true,
+	FormFieldInfo:             true,
+	FormFieldPhoneList:        true,
+	FormFieldWeekdaySchedule:  true,
+	FormFieldWeekdayBoolean:   true,
+	FormFieldWeekdayMode:      true,
+	FormFieldWeekdayMultiMode: true,
+	FormFieldContactList:      true,
 }
 
 // FormFieldOption is a single static option on a select-type field.
@@ -260,7 +262,8 @@ const (
 	// (TargetStudentPickupStatus) targets, which are kept as legacy aliases so
 	// older saved schemas keep working; all of them dispatch onto
 	// student.departure_days, the single source of truth (#1610).
-	TargetStudentDeparture = "student.departure"
+	TargetStudentDeparture             = "student.departure"
+	TargetStudentAllowedDepartureModes = "student.allowed_departure_modes"
 	// TargetStudentBusDays is the legacy Buskind target. TargetStudentBus
 	// ("student.bus") is kept as a legacy alias so older saved schemas keep
 	// working; both dispatch onto student.departure_days as bus days.
@@ -283,15 +286,16 @@ const (
 //
 // Keep in sync with the frontend editor's reserved-targets picker.
 var ReservedTargets = map[string]ReservedTarget{
-	TargetStudentHealthInfo:   {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
-	TargetStudentExtraInfo:    {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
-	TargetStudentDeparture:    {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
-	TargetStudentBusDays:      {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
-	TargetStudentBus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
-	TargetStudentPickupStatus: {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
-	TargetSchedulePickup:      {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
-	TargetScheduleArrival:     {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
-	TargetStudentContacts:     {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},
+	TargetStudentHealthInfo:            {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
+	TargetStudentExtraInfo:             {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
+	TargetStudentAllowedDepartureModes: {Type: FormFieldWeekdayMultiMode, AppliesToChild: true, Label: "Erlaubte Heimwege"},
+	TargetStudentDeparture:             {Type: FormFieldWeekdayMode, AppliesToChild: true, Label: "Geh- und Abholregelung"},
+	TargetStudentBusDays:               {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
+	TargetStudentBus:                   {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Buskind"},
+	TargetStudentPickupStatus:          {Type: FormFieldWeekdayBoolean, AppliesToChild: true, Label: "Abholregelung"},
+	TargetSchedulePickup:               {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Abholzeiten"},
+	TargetScheduleArrival:              {Type: FormFieldWeekdaySchedule, AppliesToChild: true, Label: "Ankunftszeiten"},
+	TargetStudentContacts:              {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},
 }
 
 // CoreFieldKeys are reserved - the form_schemas.fields JSONB MUST NOT
@@ -431,7 +435,7 @@ func (f *FormField) validateQuestion() error {
 // renderer and decision service treat these specially.
 func isStructuredFieldType(t FormFieldType) bool {
 	switch t {
-	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldContactList:
+	case FormFieldPhoneList, FormFieldWeekdaySchedule, FormFieldWeekdayBoolean, FormFieldWeekdayMode, FormFieldWeekdayMultiMode, FormFieldContactList:
 		return true
 	default:
 		return false
@@ -512,6 +516,32 @@ func (w WeekdayMode) Validate() error {
 		}
 		if !ValidWeekdayModes[mode] {
 			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+		}
+	}
+	return nil
+}
+
+// WeekdayMultiMode is the value of a FormFieldWeekdayMultiMode field. Each
+// weekday contains every allowed departure mode for that care day.
+type WeekdayMultiMode map[string][]string
+
+func (w WeekdayMultiMode) Validate() error {
+	for day, modes := range w {
+		if !ValidWeekdays[day] {
+			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
+		}
+		if len(modes) == 0 {
+			return fmt.Errorf("weekday %q must contain at least one departure mode", day)
+		}
+		seen := map[string]bool{}
+		for _, mode := range modes {
+			if !ValidWeekdayModes[mode] {
+				return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+			}
+			if seen[mode] {
+				return fmt.Errorf("weekday %q contains duplicate mode %q", day, mode)
+			}
+			seen[mode] = true
 		}
 	}
 	return nil
