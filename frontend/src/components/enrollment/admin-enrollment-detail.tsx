@@ -828,6 +828,26 @@ function formatWeekdayObject(
   o: Record<string, unknown>,
   field?: AdminRequestSchemaField,
 ): React.ReactNode | null {
+  const isWeekdayMultiMode =
+    field?.type === "weekday_multi_mode" ||
+    WEEKDAYS.some(([key]) => Array.isArray(o[key]));
+  if (isWeekdayMultiMode) {
+    const modeLabels: Record<string, string> = {
+      alone: "geht zu Fuß",
+      bus: "fährt Bus",
+      pickup: "wird abgeholt",
+    };
+    const parts = WEEKDAYS.flatMap(([key, label]) => {
+      const raw = o[key];
+      if (!Array.isArray(raw)) return [];
+      const modes = raw
+        .filter((mode): mode is string => typeof mode === "string")
+        .map((mode) => modeLabels[mode] ?? mode);
+      return modes.length > 0 ? [`${label}: ${modes.join(", ")}`] : [];
+    });
+    return parts.length > 0 ? parts.join("; ") : null;
+  }
+
   // weekday_mode (Geh- und Abholregelung, #1610): values are per-day mode
   // strings ({mon: "bus", wed: "pickup"}). Render "Mo: fährt Bus, Mi: wird
   // abgeholt", mirroring the backend formatWeekdayMode. Must run before the
@@ -839,7 +859,7 @@ function formatWeekdayObject(
     );
   if (isWeekdayMode) {
     const modeLabels: Record<string, string> = {
-      alone: "geht alleine",
+      alone: "geht zu Fuß",
       bus: "fährt Bus",
       pickup: "wird abgeholt",
     };

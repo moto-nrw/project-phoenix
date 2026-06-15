@@ -16,6 +16,7 @@ export type FormFieldType =
   | "weekday_schedule"
   | "weekday_boolean"
   | "weekday_mode"
+  | "weekday_multi_mode"
   | "contact_list";
 
 /**
@@ -62,6 +63,7 @@ export type FormFieldTarget =
   // the child leaves (alone/bus/pickup). student.bus_days / student.bus /
   // student.pickup_status are legacy aliases kept so older saved schemas still
   // resolve; they are not offered in the picker for new fields.
+  | "student.allowed_departure_modes"
   | "student.departure"
   | "student.bus_days"
   | "student.bus"
@@ -90,6 +92,11 @@ export const RESERVED_TARGETS: Record<
     type: "textarea",
     appliesToChild: true,
     label: "Hinweise an die Betreuung",
+  },
+  "student.allowed_departure_modes": {
+    type: "weekday_multi_mode",
+    appliesToChild: true,
+    label: "Erlaubte Heimwege",
   },
   "student.departure": {
     type: "weekday_mode",

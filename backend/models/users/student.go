@@ -49,6 +49,10 @@ type Student struct {
 	// for compatibility. The legacy boolean bus column was dropped in migration
 	// 1.15.119; the API derives a compatibility bus flag from BusDays.HasAny().
 	DepartureDays DepartureDays `bun:"departure_days,type:jsonb,scanonly" json:"departure_days,omitempty"`
+	// AllowedDepartureModes is the preferred source of truth for parent
+	// enrollment: every allowed way a child may leave per weekday. It can carry
+	// multiple values per day (for example bus + pickup).
+	AllowedDepartureModes AllowedDepartureModes `bun:"allowed_departure_modes,type:jsonb,scanonly" json:"allowed_departure_modes,omitempty"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
@@ -128,6 +132,10 @@ func (s *Student) Validate() error {
 	}
 
 	if err := s.DepartureDays.Validate(); err != nil {
+		return err
+	}
+
+	if err := s.AllowedDepartureModes.Validate(); err != nil {
 		return err
 	}
 

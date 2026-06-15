@@ -2,10 +2,16 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
-import type { BusDays, DepartureDays, PickupDays } from "~/lib/student-helpers";
+import type {
+  AllowedDepartureModes,
+  BusDays,
+  DepartureDays,
+  PickupDays,
+} from "~/lib/student-helpers";
 import {
-  formatDepartureDays,
+  allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
+  formatAllowedDepartureModes,
 } from "~/lib/student-helpers";
 
 interface ExtendedStudent {
@@ -17,6 +23,7 @@ interface ExtendedStudent {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   pickup_status?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -98,10 +105,13 @@ function PersonalInfoDisplay({
         }
       />
       <InfoItem
-        label="Geh- und Abholregelung"
-        value={formatDepartureDays(
-          student.departure_days ??
-            departureDaysFromLegacy(student.bus_days, student.pickup_days),
+        label="Erlaubte Heimwege"
+        value={formatAllowedDepartureModes(
+          student.allowed_departure_modes ??
+            allowedDepartureModesFromDeparture(
+              student.departure_days ??
+                departureDaysFromLegacy(student.bus_days, student.pickup_days),
+            ),
         )}
       />
 

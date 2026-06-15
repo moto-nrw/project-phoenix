@@ -216,6 +216,12 @@ func (s *requestService) validateRequiredCustomFields(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
+			if f.Type == enrollmentModels.FormFieldWeekdayMultiMode {
+				if !customAnswerSatisfiesRequiredWeekdayMultiMode(*f, child.CustomData, selectedCareDays(child, openByID)) {
+					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
+				}
+				continue
+			}
 			if !customAnswerSatisfiesRequired(*f, child.CustomData) {
 				return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 			}
@@ -241,7 +247,35 @@ func customAnswerSatisfiesRequired(field enrollmentModels.FormField, answers map
 	if (pickupBoolean || field.Type == enrollmentModels.FormFieldWeekdayMode) && !present {
 		return false
 	}
+	if field.Type == enrollmentModels.FormFieldWeekdayMultiMode && !present {
+		return false
+	}
 	return customValueSatisfiesRequired(field, value)
+}
+
+func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormField, answers map[string]any, careDays map[string]bool) bool {
+	value, present := answers[field.Key]
+	if !present {
+		return false
+	}
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(value, &modes); err != nil {
+		return false
+	}
+	if err := modes.Validate(); err != nil {
+		return false
+	}
+	for day := range modes {
+		if !careDays[day] {
+			return false
+		}
+	}
+	for day := range careDays {
+		if len(modes[day]) == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // customValueSatisfiesRequired reports whether a required field's answer is
@@ -275,6 +309,8 @@ func customValueSatisfiesRequired(field enrollmentModels.FormField, value any) b
 		// An all-alone (empty) plan is a valid answer, so a well-formed map
 		// satisfies a required Geh-/Abholregelung (#1610).
 		return weekdayModeWellFormed(value)
+	case enrollmentModels.FormFieldWeekdayMultiMode:
+		return weekdayMultiModeWellFormed(value)
 	case enrollmentModels.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
 	default:
@@ -314,6 +350,38 @@ func weekdayModeWellFormed(value any) bool {
 		return false
 	}
 	return modes.Validate() == nil
+}
+
+func weekdayMultiModeWellFormed(value any) bool {
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(value, &modes); err != nil {
+		return false
+	}
+	return modes.Validate() == nil
+}
+
+func selectedCareDays(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+	picksByOffering := make(map[int64][]string, len(child.OfferingDays))
+	for _, pick := range child.OfferingDays {
+		picksByOffering[pick.OfferingID] = pick.SelectedDays
+	}
+	days := map[string]bool{}
+	for _, id := range child.OfferingIDs {
+		offering := openByID[id]
+		if offering == nil {
+			continue
+		}
+		selected := offering.AvailableDays
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
+			selected = picksByOffering[id]
+		}
+		for _, day := range selected {
+			if enrollmentModels.ValidWeekdays[day] {
+				days[day] = true
+			}
+		}
+	}
+	return days
 }
 
 func phoneListSatisfiesRequired(value any) bool {

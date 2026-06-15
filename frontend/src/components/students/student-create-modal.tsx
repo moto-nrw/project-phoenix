@@ -15,9 +15,10 @@ import {
   busDaysHaveAny,
   pickupDaysHaveAny,
   type BusDays,
-  normalizeDepartureDays,
-  departureToBusDays,
-  departureToPickupDays,
+  allowedDepartureToBusDays,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToPickupDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import GuardianFormModal, {
   type RelationshipFormData,
@@ -165,6 +166,7 @@ export function StudentCreateModal({
     // pickup section is never touched.
     pickup_days: {},
     departure_days: {},
+    allowed_departure_modes: {},
     pickup_status: "Geht alleine nach Hause",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -524,13 +526,15 @@ export function StudentCreateModal({
 
           {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
           <DepartureSection
-            days={formData.departure_days}
+            days={formData.allowed_departure_modes}
             onChange={(value) => {
-              const departure = normalizeDepartureDays(value);
-              const busDays = departureToBusDays(departure);
-              const pickupDays = departureToPickupDays(departure);
+              const allowed = normalizeAllowedDepartureModes(value);
+              const departure = allowedDepartureToDepartureDays(allowed);
+              const busDays = allowedDepartureToBusDays(allowed);
+              const pickupDays = allowedDepartureToPickupDays(allowed);
               setFormData((prev) => ({
                 ...prev,
+                allowed_departure_modes: allowed,
                 departure_days: departure,
                 bus_days: busDays,
                 bus: busDaysHaveAny(busDays),

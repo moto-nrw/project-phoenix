@@ -1601,6 +1601,7 @@ func (s *decisionService) applyTargetedFields(
 	// loop; the legacy Buskind/Abholregelung targets mutate their own map
 	// directly, so a form carrying both still combines correctly (#1610).
 	var explicitDeparture *users.DepartureDays
+	var explicitAllowedDeparture *users.AllowedDepartureModes
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -1628,6 +1629,13 @@ func (s *decisionService) applyTargetedFields(
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				explicitDeparture = &days
+				studentDirty = true
+			}
+		case enrollmentModels.TargetStudentAllowedDepartureModes:
+			if modes, err := decodeAllowedDepartureModes(raw); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				explicitAllowedDeparture = &modes
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
@@ -1714,11 +1722,19 @@ func (s *decisionService) applyTargetedFields(
 		}
 	}
 
+	if explicitAllowedDeparture != nil {
+		student.AllowedDepartureModes = explicitAllowedDeparture.Normalize()
+		student.DepartureDays = student.AllowedDepartureModes.DepartureDays()
+		student.BusDays = student.AllowedDepartureModes.BusDays()
+		student.PickupDays = student.AllowedDepartureModes.PickupDays()
+	}
+
 	// A unified departure field wins by replacing both legacy maps; otherwise
 	// the legacy bus/pickup targets already set their map (each preserving the
 	// other). The student repository folds bus_days + pickup_days into
 	// departure_days, the single source of truth, on Update (#1610).
-	if explicitDeparture != nil {
+	if explicitAllowedDeparture == nil && explicitDeparture != nil {
+		student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(*explicitDeparture)
 		student.BusDays = explicitDeparture.BusDays()
 		student.PickupDays = explicitDeparture.PickupDays()
 	}
@@ -1752,6 +1768,30 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 			out[day] = users.DepartureBus
 		case enrollmentModels.WeekdayModePickup:
 			out[day] = users.DeparturePickup
+		}
+	}
+	return out.Normalize(), nil
+}
+
+func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return nil, fmt.Errorf("decode weekday_multi_mode: %w", err)
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, err
+	}
+	out := users.AllowedDepartureModes{}
+	for day, rawModes := range modes {
+		for _, mode := range rawModes {
+			switch mode {
+			case enrollmentModels.WeekdayModeAlone:
+				out[day] = append(out[day], users.DepartureAlone)
+			case enrollmentModels.WeekdayModeBus:
+				out[day] = append(out[day], users.DepartureBus)
+			case enrollmentModels.WeekdayModePickup:
+				out[day] = append(out[day], users.DeparturePickup)
+			}
 		}
 	}
 	return out.Normalize(), nil

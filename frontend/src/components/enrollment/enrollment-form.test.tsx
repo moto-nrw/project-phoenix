@@ -902,6 +902,36 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("renders demo weekdays for allowed departure modes in template preview", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    expect(
+      screen.queryByText("Wählen Sie zuerst die Betreuungstage aus."),
+    ).not.toBeInTheDocument();
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(within(group).getAllByRole("button")).toHaveLength(5);
+    expect(within(group).queryAllByRole("checkbox")).toHaveLength(0);
+
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+
+    expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+  });
+
   it("uses injected submitter and skips captcha for authenticated parent paths", async () => {
     const submitter = vi
       .fn()
@@ -1007,14 +1037,16 @@ describe("EnrollmentForm", () => {
     expect(await screen.findByText("Geh-/Abholregelung")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Choose how your child goes home for each weekday. The default is “Goes alone”.",
+        "Choose how your child goes home for each weekday. The default is “Walks home”.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Goes alone" })).toHaveLength(
+    expect(screen.getAllByRole("button", { name: "Walks home" })).toHaveLength(
       5,
     );
     expect(screen.getAllByRole("button", { name: "Bus" })).toHaveLength(5);
-    expect(screen.getAllByRole("button", { name: "Pickup" })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Picked up" })).toHaveLength(
+      5,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Submit enrollment" }));
 

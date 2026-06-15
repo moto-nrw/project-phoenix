@@ -717,7 +717,7 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 
 	return student
 }
@@ -728,16 +728,31 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 // legacy pickup_status/pickup_days/bus/bus_days inputs are applied. Either way
 // the repository folds bus_days + pickup_days into departure_days, the single
 // source of truth, on persist (#1610).
-func applyDeparturePlan(departure *users.DepartureDays, status *string, pickupDays *users.PickupDays, legacyBus *bool, busDays *users.BusDays, student *users.Student) {
+func applyDeparturePlan(allowed *users.AllowedDepartureModes, departure *users.DepartureDays, status *string, pickupDays *users.PickupDays, legacyBus *bool, busDays *users.BusDays, student *users.Student) {
+	if allowed == nil && departure == nil && status == nil && pickupDays == nil && legacyBus == nil && busDays == nil {
+		return
+	}
+	if allowed != nil {
+		modes := allowed.Normalize()
+		student.AllowedDepartureModes = modes
+		student.DepartureDays = modes.DepartureDays()
+		student.BusDays = modes.BusDays()
+		student.PickupDays = modes.PickupDays()
+		s := student.DepartureDays.LegacyPickupStatus()
+		student.PickupStatus = &s
+		return
+	}
 	if departure != nil {
 		dd := departure.Normalize()
 		student.DepartureDays = dd
+		student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(dd)
 		student.BusDays = dd.BusDays()
 		student.PickupDays = dd.PickupDays()
 		return
 	}
 	reconcilePickupFields(student, status, pickupDays)
 	applyBusDays(legacyBus, busDays, student)
+	student.AllowedDepartureModes = users.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
 }
 
 // applyBusDays sets the student's bus_days from a create/update request.
@@ -1125,7 +1140,7 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
-	applyDeparturePlan(req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

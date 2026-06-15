@@ -388,7 +388,8 @@
       "groupAtMostOne": "Bitte bei „{group}“ höchstens ein Angebot wählen.",
       "pickupConfirm": "Bitte die Abholregelung bestätigen (Tage auswählen oder leer lassen).",
       "weekdayRequired": "Bitte mindestens einen Wochentag auswählen.",
-      "weekdayModeConfirm": "Bitte die Geh- und Abholregelung bestätigen."
+      "weekdayModeConfirm": "Bitte die Geh- und Abholregelung bestätigen.",
+      "weekdayMultiModeRequired": "Bitte für jeden Betreuungstag mindestens einen Heimweg auswählen."
     },
     "actions": {
       "addChild": "Weiteres Kind",
@@ -461,11 +462,13 @@
       "year": "Jahr",
       "pickupDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind abgeholt wird. An nicht gewählten Tagen geht es alleine nach Hause.",
       "busDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt.",
-      "departureModeHelp": "Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist „Geht alleine“.",
+      "departureModeHelp": "Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist „Geht zu Fuß“.",
+      "weekdayMultiModeHelp": "Wählen Sie pro Betreuungstag alle Heimwege aus, die für Ihr Kind erlaubt sind.",
+      "weekdayMultiModeNoDays": "Wählen Sie zuerst die Betreuungstage aus.",
       "departureModes": {
-        "alone": "Geht alleine",
+        "alone": "Geht zu Fuß",
         "bus": "Bus",
-        "pickup": "Abholung"
+        "pickup": "Wird abgeholt"
       }
     },
     "months": [

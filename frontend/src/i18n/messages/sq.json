@@ -408,7 +408,8 @@
       "groupAtMostOne": "Ju lutemi zgjidhni më së shumti një ofertë te “{group}”.",
       "pickupConfirm": "Ju lutemi konfirmoni rregullimin e marrjes (zgjidhni ditët ose lëreni bosh).",
       "weekdayRequired": "Ju lutemi zgjidhni të paktën një ditë të javës.",
-      "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit."
+      "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit.",
+      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi."
     },
     "care": {
       "requiredTitle": "Oferta të detyrueshme",
@@ -461,11 +462,13 @@
       "year": "Viti",
       "pickupDaysHelp": "Zgjidhni ditët kur fëmija merret. Në ditët e pazgjedhura fëmija shkon vetëm në shtëpi.",
       "busDaysHelp": "Zgjidhni ditët kur fëmija udhëton me autobus.",
-      "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon vetëm.",
+      "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon në këmbë.",
+      "weekdayMultiModeHelp": "Zgjidhni të gjitha mënyrat e kthimit që lejohen për fëmijën tuaj në çdo ditë kujdesi.",
+      "weekdayMultiModeNoDays": "Së pari zgjidhni ditët e kujdesit.",
       "departureModes": {
-        "alone": "Shkon vetëm",
+        "alone": "Shkon në këmbë",
         "bus": "Autobus",
-        "pickup": "Marrje"
+        "pickup": "Merret"
       }
     },
     "months": [
