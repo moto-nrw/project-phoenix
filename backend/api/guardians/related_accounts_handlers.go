@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // inviteToStudentRequest is the wire shape for POST
@@ -57,6 +58,11 @@ func (rs *Resource) inviteGuardianToStudent(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	canModify, err := rs.canModifyStudent(r.Context(), studentID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
 
 	var body inviteToStudentRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -74,6 +80,7 @@ func (rs *Resource) inviteGuardianToStudent(w http.ResponseWriter, r *http.Reque
 		RequireApproval:  false,
 	})
 	if err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -107,7 +114,18 @@ func (rs *Resource) approveInvitation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	studentID, err := rs.InvitationService.PendingInvitationStudentID(r.Context(), invitationID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	canModify, err := rs.canModifyStudent(r.Context(), studentID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
 	if err := rs.InvitationService.ApproveInvitation(r.Context(), invitationID, accountID); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
@@ -124,7 +142,18 @@ func (rs *Resource) rejectInvitation(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	studentID, err := rs.InvitationService.PendingInvitationStudentID(r.Context(), invitationID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	canModify, err := rs.canModifyStudent(r.Context(), studentID)
+	if !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
 	if err := rs.InvitationService.RejectInvitation(r.Context(), invitationID, accountID); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}

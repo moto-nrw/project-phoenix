@@ -3,15 +3,19 @@ package parent_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -74,6 +78,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 		NoteRepo:            repos.StudentParentNote,
 		Settings:            relAcctSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     invites,
+		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -96,6 +101,86 @@ func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 	assert.True(t, accounts[0].IsPrimary)
 	// The chain's guardian profile has an account linked → active.
 	assert.Equal(t, parentService.RelatedAccountActive, accounts[0].Status)
+}
+
+func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
+	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "staff-contact")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+	link := &userModels.StudentGuardian{
+		StudentID:         chain.StudentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "guardian",
+		EmergencyPriority: 1,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+
+	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+
+	var found *parentService.RelatedAccount
+	for _, account := range accounts {
+		if account.GuardianProfileID == profile.ID {
+			found = account
+		}
+	}
+	require.NotNil(t, found)
+	assert.Equal(t, parentService.RelatedAccountNoAccount, found.Status)
+}
+
+func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
+	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "pending-contact")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("auth.guardian_invitations").Where("guardian_profile_id = ?", profile.ID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+	link := &userModels.StudentGuardian{
+		StudentID:         chain.StudentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "guardian",
+		EmergencyPriority: 1,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	studentID := chain.StudentID
+	invitation := &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("pending-parent-status-test-%d", time.Now().UnixNano()),
+		GuardianProfileID: profile.ID,
+		CreatedBy:         chain.AccountID,
+		ExpiresAt:         time.Now().Add(time.Hour),
+		StudentID:         &studentID,
+		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+	}
+	invitation.SetTenantID(1)
+	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+
+	accounts, err := svc.ListRelatedAccounts(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+
+	var found *parentService.RelatedAccount
+	for _, account := range accounts {
+		if account.GuardianProfileID == profile.ID {
+			found = account
+		}
+	}
+	require.NotNil(t, found)
+	assert.Equal(t, parentService.RelatedAccountPending, found.Status)
 }
 
 func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
@@ -233,6 +318,7 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 		NoteRepo:            repos.StudentParentNote,
 		Settings:            settings,
 		GuardianInvites:     &stubInvites{},
+		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -250,6 +336,18 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "   ", "", "")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, parentService.ErrEmailRequired))
+	assert.Nil(t, invites.lastInvite)
+}
+
+func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
+	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "not-an-email", "", "")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, parentService.ErrInvalidInviteInput))
 	assert.Nil(t, invites.lastInvite)
 }
 
@@ -290,6 +388,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		NoteRepo:            repos.StudentParentNote,
 		Settings:            relAcctSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     invites,
+		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,

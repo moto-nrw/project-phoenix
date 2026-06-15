@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/uptrace/bun"
 
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -23,6 +27,8 @@ var (
 	ErrRemoveDisabled = errors.New("parent: removing guardians is disabled for this school")
 	// ErrEmailRequired means the invite request carried no email.
 	ErrEmailRequired = errors.New("parent: email is required")
+	// ErrInvalidInviteInput means the invite request failed input validation.
+	ErrInvalidInviteInput = errors.New("parent: invalid related-account invite input")
 )
 
 // RelatedAccountStatus describes a linked guardian's portal-access state.
@@ -33,6 +39,9 @@ const (
 	RelatedAccountActive RelatedAccountStatus = "active"
 	// RelatedAccountPending: linked but no account yet (invite outstanding).
 	RelatedAccountPending RelatedAccountStatus = "pending"
+	// RelatedAccountNoAccount: a staff-maintained contact link without portal
+	// access and without an open invite.
+	RelatedAccountNoAccount RelatedAccountStatus = "no_account"
 )
 
 // RelatedAccount is one guardian linked to a child, with portal-access status.
@@ -75,10 +84,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 			if profile == nil {
 				continue
 			}
-			status := RelatedAccountPending
-			if profile.HasAccount {
-				status = RelatedAccountActive
-			}
+			status := s.relatedAccountStatus(txCtx, profile)
 			email := ""
 			if profile.Email != nil {
 				email = *profile.Email
@@ -101,12 +107,35 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
+func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile) RelatedAccountStatus {
+	if profile.HasAccount {
+		return RelatedAccountActive
+	}
+	if s.guardianInviteRepo == nil {
+		return RelatedAccountNoAccount
+	}
+	invitations, err := s.guardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
+	if err != nil {
+		return RelatedAccountNoAccount
+	}
+	now := time.Now()
+	for _, inv := range invitations {
+		if authService.GuardianInvitationValid(inv, now) && inv.ApprovalStatus != authModels.GuardianInvitationApprovalRejected {
+			return RelatedAccountPending
+		}
+	}
+	return RelatedAccountNoAccount
+}
+
 // InviteRelatedAccount invites a further guardian to the parent's child by
 // email. Gated by guardians.parent_invite_mode; staff_approval mode queues the
 // request instead of acting immediately.
 func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string) (*InviteRelatedAccountResult, error) {
 	if strings.TrimSpace(email) == "" {
 		return nil, ErrEmailRequired
+	}
+	if _, err := mail.ParseAddress(strings.TrimSpace(email)); err != nil {
+		return nil, fmt.Errorf("%w: invalid email", ErrInvalidInviteInput)
 	}
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {

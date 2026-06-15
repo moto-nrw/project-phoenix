@@ -332,7 +332,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
-		errors.Is(err, parentService.ErrEmailRequired):
+		errors.Is(err, parentService.ErrEmailRequired),
+		errors.Is(err, parentService.ErrInvalidInviteInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

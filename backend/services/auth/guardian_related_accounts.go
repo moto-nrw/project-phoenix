@@ -70,6 +70,11 @@ type InviteToStudentResult struct {
 	InvitationID      *int64 // nil for auto-link / already-linked outcomes
 }
 
+type relatedAccountProfileResolution struct {
+	profile *userModels.GuardianProfile
+	created bool
+}
+
 // RevokeAccessRequest removes one account's access to one child by deleting the
 // students_guardians link. The account, profile, and sibling links are left
 // untouched.
@@ -98,28 +103,34 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 	}
 
 	tenantID := tenant.FromContext(ctx)
-	profile, err := s.findOrCreateProfileByEmail(ctx, email, req.FirstName, req.LastName, tenantID)
+	resolved, err := s.findOrCreateProfileByEmail(ctx, email, req.FirstName, req.LastName, tenantID)
 	if err != nil {
+		return nil, err
+	}
+	profile := resolved.profile
+	if profile == nil {
+		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: fmt.Errorf("guardian profile resolution failed")}
+	}
+	if err := s.attachExistingAccountByEmail(ctx, profile, email, tenantID); err != nil {
 		return nil, err
 	}
 
 	if req.RequireApproval {
-		return s.queuePendingApproval(ctx, req, profile, tenantID)
+		return s.queuePendingApproval(ctx, req, profile, tenantID, resolved.created)
 	}
-	return s.resolveInviteNow(ctx, req, profile, tenantID)
+	return s.resolveInviteNow(ctx, req, profile, tenantID, resolved.created)
 }
 
 // findOrCreateProfileByEmail returns the guardian profile for this email,
 // creating a fresh contact record when none exists.
-func (s *guardianInvitationService) findOrCreateProfileByEmail(ctx context.Context, email, firstName, lastName string, tenantID int64) (*userModels.GuardianProfile, error) {
+func (s *guardianInvitationService) findOrCreateProfileByEmail(ctx context.Context, email, firstName, lastName string, tenantID int64) (*relatedAccountProfileResolution, error) {
 	existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
 	if err == nil && existing != nil {
-		return existing, nil
+		return &relatedAccountProfileResolution{profile: existing}, nil
 	}
-	// Both sql.ErrNoRows and the repo's "not found" string flow through here;
-	// we don't distinguish — if the lookup finds nothing we create. A genuine
-	// DB failure surfaces from the Create below. Mirrors the enrollment
-	// decision service's find-or-create-by-email path.
+	if err != nil && !isNotFoundError(err) {
+		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
 
 	emailCopy := email
 	profile := &userModels.GuardianProfile{
@@ -138,12 +149,34 @@ func (s *guardianInvitationService) findOrCreateProfileByEmail(ctx context.Conte
 	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
-	return profile, nil
+	return &relatedAccountProfileResolution{profile: profile, created: true}, nil
+}
+
+func (s *guardianInvitationService) attachExistingAccountByEmail(ctx context.Context, profile *userModels.GuardianProfile, email string, tenantID int64) error {
+	if profile.HasAccount || s.accountRepo == nil {
+		return nil
+	}
+	account, err := s.accountRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil
+		}
+		return &AuthError{Op: opGuardianInviteToStudent, Err: err}
+	}
+	if account == nil {
+		return nil
+	}
+	if err := s.linkProfileToAccount(ctx, profile, account.ID, tenantID, opGuardianInviteToStudent); err != nil {
+		return err
+	}
+	profile.AccountID = &account.ID
+	profile.HasAccount = true
+	return nil
 }
 
 // resolveInviteNow links/invites immediately (staff invites, or parent invites
 // in "direct" mode).
-func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64) (*InviteToStudentResult, error) {
+func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool) (*InviteToStudentResult, error) {
 	rel := req.RelationshipType
 	if rel == "" {
 		rel = defaultRelationshipType
@@ -169,7 +202,7 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 	}
 
 	// No account yet → issue a token invitation for this child.
-	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalNotRequired)
+	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalNotRequired, profileCreated)
 	if err != nil {
 		return nil, err
 	}
@@ -185,8 +218,8 @@ func (s *guardianInvitationService) resolveInviteNow(ctx context.Context, req In
 // queuePendingApproval records a parent-initiated request awaiting staff
 // approval. No link is created and no email is sent until a staff member
 // approves it.
-func (s *guardianInvitationService) queuePendingApproval(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64) (*InviteToStudentResult, error) {
-	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalPending)
+func (s *guardianInvitationService) queuePendingApproval(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, profileCreated bool) (*InviteToStudentResult, error) {
+	invitation, err := s.createStudentInvitation(ctx, req, profile, tenantID, authModels.GuardianInvitationApprovalPending, profileCreated)
 	if err != nil {
 		return nil, err
 	}
@@ -223,16 +256,17 @@ func (s *guardianInvitationService) ensureStudentLink(ctx context.Context, stude
 
 // createStudentInvitation persists a guardian_invitations row carrying the
 // student and (for parent-initiated invites) the requesting account.
-func (s *guardianInvitationService) createStudentInvitation(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, approvalStatus string) (*authModels.GuardianInvitation, error) {
+func (s *guardianInvitationService) createStudentInvitation(ctx context.Context, req InviteToStudentRequest, profile *userModels.GuardianProfile, tenantID int64, approvalStatus string, profileCreated bool) (*authModels.GuardianInvitation, error) {
 	studentID := req.StudentID
 	invitation := &authModels.GuardianInvitation{
-		Token:                uuid.Must(uuid.NewV4()).String(),
-		GuardianProfileID:    profile.ID,
-		CreatedBy:            req.CreatedBy,
-		ExpiresAt:            time.Now().Add(s.resolveTokenExpiry(ctx)),
-		StudentID:            &studentID,
-		RequestedByAccountID: req.RequestedByParentAccountID,
-		ApprovalStatus:       approvalStatus,
+		Token:                       uuid.Must(uuid.NewV4()).String(),
+		GuardianProfileID:           profile.ID,
+		CreatedBy:                   req.CreatedBy,
+		ExpiresAt:                   time.Now().Add(s.resolveTokenExpiry(ctx)),
+		StudentID:                   &studentID,
+		RequestedByAccountID:        req.RequestedByParentAccountID,
+		ApprovalStatus:              approvalStatus,
+		ProfileCreatedForInvitation: profileCreated,
 	}
 	invitation.SetTenantID(tenantID)
 	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
@@ -259,6 +293,14 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return &AuthError{Op: opGuardianInviteApprove, Err: err}
+	}
+	if profile != nil && !profile.HasAccount && profile.Email != nil {
+		email := strings.ToLower(strings.TrimSpace(*profile.Email))
+		if email != "" {
+			if err := s.attachExistingAccountByEmail(ctx, profile, email, invitation.TenantID); err != nil {
+				return err
+			}
+		}
 	}
 
 	rel := defaultRelationshipType
@@ -326,7 +368,7 @@ func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invita
 		return &AuthError{Op: opGuardianInviteReject, Err: err}
 	}
 
-	s.cleanupOrphanProfile(ctx, invitation.GuardianProfileID)
+	s.cleanupOrphanProfile(ctx, invitation)
 
 	s.getLogger().Info("guardian invitation rejected",
 		slog.Int64("invitation_id", invitation.ID),
@@ -335,10 +377,34 @@ func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invita
 	return nil
 }
 
+// PendingInvitationStudentID returns the child targeted by a pending approval
+// request. Staff handlers use it for the same per-student authorization gate
+// as direct relationship mutations before approve/reject mutates anything.
+func (s *guardianInvitationService) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
+	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return 0, &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationNotFound}
+		}
+		return 0, &AuthError{Op: opGuardianInviteApprove, Err: err}
+	}
+	if !invitation.IsPendingApproval() {
+		return 0, &AuthError{Op: opGuardianInviteApprove, Err: fmt.Errorf("invitation is not awaiting approval")}
+	}
+	if invitation.StudentID == nil || *invitation.StudentID <= 0 {
+		return 0, &AuthError{Op: opGuardianInviteApprove, Err: fmt.Errorf("invitation is missing student_id")}
+	}
+	return *invitation.StudentID, nil
+}
+
 // cleanupOrphanProfile deletes a guardian profile that has no account and no
 // remaining child links — i.e. one created only to back a now-rejected
 // request. Best-effort; failures are logged, not surfaced.
-func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, guardianProfileID int64) {
+func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, invitation *authModels.GuardianInvitation) {
+	if invitation == nil || !invitation.ProfileCreatedForInvitation {
+		return
+	}
+	guardianProfileID := invitation.GuardianProfileID
 	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil || profile == nil || profile.HasAccount {
 		return
@@ -353,11 +419,37 @@ func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, gu
 	if len(links) > 0 {
 		return
 	}
+	invitations, err := s.invitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		s.getLogger().Warn("guardian invitation reject: orphan-profile invitation check failed",
+			slog.Int64("guardian_profile_id", guardianProfileID),
+			slog.String("error", err.Error()))
+		return
+	}
+	now := time.Now()
+	for _, inv := range invitations {
+		if inv.ID == invitation.ID {
+			continue
+		}
+		if guardianInvitationNonFinal(inv, now) {
+			return
+		}
+	}
 	if err := s.guardianProfileRepo.Delete(ctx, guardianProfileID); err != nil {
 		s.getLogger().Warn("guardian invitation reject: orphan-profile cleanup failed",
 			slog.Int64("guardian_profile_id", guardianProfileID),
 			slog.String("error", err.Error()))
 	}
+}
+
+func guardianInvitationNonFinal(inv *authModels.GuardianInvitation, now time.Time) bool {
+	if inv == nil || inv.AcceptedAt != nil {
+		return false
+	}
+	if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {
+		return false
+	}
+	return inv.ExpiresAt.IsZero() || inv.ExpiresAt.After(now)
 }
 
 // ListPendingApprovals returns parent-initiated invitations awaiting staff

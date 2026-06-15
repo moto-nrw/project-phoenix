@@ -98,6 +98,38 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 	assert.True(t, env.linkExists(t, student.ID, profile.ID))
 }
 
+func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Cross", "Tenant", "2c")
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Cross", "Account")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.TenantContext(1)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     account.Email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", result.GuardianProfileID).Exec(context.Background())
+	}()
+
+	assert.Equal(t, authService.InviteOutcomeLinkedExistingAccount, result.Outcome)
+	assert.Nil(t, result.InvitationID, "existing accounts are linked without a password invite")
+	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
+
+	profile, err := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.AccountID)
+	assert.Equal(t, account.ID, *profile.AccountID)
+	assert.True(t, profile.HasAccount)
+}
+
 func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
@@ -399,4 +431,81 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 	// Profile is NOT cleaned up: it still has its link to student A.
 	p, _ := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
 	assert.NotNil(t, p, "a guardian with other child links must survive a reject")
+}
+
+func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+	ctx := testpkg.TenantContext(1)
+	approver := env.inviterAccountID(t)
+	student := testpkg.CreateTestStudent(t, env.db, "Existing", "Contact", "1a")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "preexisting-contact")
+	defer env.deleteStudentGuardianLinks(student.ID)
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	res, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      *profile.Email,
+		CreatedBy:                  approver,
+		RequestedByParentAccountID: &approver,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res.InvitationID)
+	require.Equal(t, profile.ID, res.GuardianProfileID)
+	defer env.cleanupInvitation(t, *res.InvitationID, profile.ID)
+
+	require.NoError(t, env.service.RejectInvitation(ctx, *res.InvitationID, approver))
+	p, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, p, "pre-existing contact profiles must survive reject cleanup")
+}
+
+func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+	ctx := testpkg.TenantContext(1)
+	approver := env.inviterAccountID(t)
+	studentA := testpkg.CreateTestStudent(t, env.db, "Shared", "Aaa", "1a")
+	studentB := testpkg.CreateTestStudent(t, env.db, "Shared", "Bbb", "1b")
+	email := fmt.Sprintf("shared-pending-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(studentA.ID)
+	defer env.deleteStudentGuardianLinks(studentB.ID)
+
+	first, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  studentA.ID,
+		Email:                      email,
+		FirstName:                  "Shared",
+		LastName:                   "Pending",
+		CreatedBy:                  approver,
+		RequestedByParentAccountID: &approver,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.InvitationID)
+
+	second, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  studentB.ID,
+		Email:                      email,
+		CreatedBy:                  approver,
+		RequestedByParentAccountID: &approver,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.InvitationID)
+	require.Equal(t, first.GuardianProfileID, second.GuardianProfileID)
+	defer env.cleanupInvitation(t, *first.InvitationID, first.GuardianProfileID)
+	defer env.cleanupInvitation(t, *second.InvitationID, second.GuardianProfileID)
+
+	require.NoError(t, env.service.RejectInvitation(ctx, *first.InvitationID, approver))
+
+	p, err := env.repos.GuardianProfile.FindByID(ctx, first.GuardianProfileID)
+	require.NoError(t, err)
+	assert.NotNil(t, p, "profile with another open invitation must survive reject cleanup")
+
+	inv, err := env.repos.GuardianInvitation.FindByID(ctx, *second.InvitationID)
+	require.NoError(t, err)
+	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 }

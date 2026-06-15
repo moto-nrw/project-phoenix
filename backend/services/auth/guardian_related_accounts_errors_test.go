@@ -19,10 +19,11 @@ var errBoom = errors.New("boom")
 
 type mockInvitationRepo struct {
 	authModels.GuardianInvitationRepository
-	findByID         func(int64) (*authModels.GuardianInvitation, error)
-	update           func(*authModels.GuardianInvitation) error
-	create           func(*authModels.GuardianInvitation) error
-	findPendingApprv func() ([]*authModels.GuardianInvitation, error)
+	findByID              func(int64) (*authModels.GuardianInvitation, error)
+	update                func(*authModels.GuardianInvitation) error
+	create                func(*authModels.GuardianInvitation) error
+	findPendingApprv      func() ([]*authModels.GuardianInvitation, error)
+	findByGuardianProfile func(int64) ([]*authModels.GuardianInvitation, error)
 }
 
 func (m mockInvitationRepo) FindByID(_ context.Context, id int64) (*authModels.GuardianInvitation, error) {
@@ -36,6 +37,12 @@ func (m mockInvitationRepo) Create(_ context.Context, inv *authModels.GuardianIn
 }
 func (m mockInvitationRepo) FindPendingApproval(_ context.Context) ([]*authModels.GuardianInvitation, error) {
 	return m.findPendingApprv()
+}
+func (m mockInvitationRepo) FindByGuardianProfileID(_ context.Context, id int64) ([]*authModels.GuardianInvitation, error) {
+	if m.findByGuardianProfile == nil {
+		return nil, nil
+	}
+	return m.findByGuardianProfile(id)
 }
 
 type mockProfileRepo struct {
@@ -100,7 +107,12 @@ func buildMockService(cfg authService.GuardianInvitationServiceConfig) authServi
 }
 
 func pendingInvitation(profileID int64) *authModels.GuardianInvitation {
-	inv := &authModels.GuardianInvitation{GuardianProfileID: profileID, ApprovalStatus: authModels.GuardianInvitationApprovalPending}
+	inv := &authModels.GuardianInvitation{
+		GuardianProfileID:           profileID,
+		ApprovalStatus:              authModels.GuardianInvitationApprovalPending,
+		ProfileCreatedForInvitation: true,
+		ExpiresAt:                   time.Now().Add(time.Hour),
+	}
 	inv.ID = 99
 	return inv
 }

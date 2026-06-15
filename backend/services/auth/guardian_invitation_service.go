@@ -365,7 +365,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		if innerErr != nil {
 			return innerErr
 		}
-		if innerErr := s.linkProfileToAccount(txCtx, profile, acc.ID, invitation.TenantID); innerErr != nil {
+		if innerErr := s.linkProfileToAccount(txCtx, profile, acc.ID, invitation.TenantID, opGuardianInviteAccept); innerErr != nil {
 			return innerErr
 		}
 		if innerErr := s.invitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
@@ -440,24 +440,24 @@ func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, ema
 // linkProfileToAccount writes the role assignment + account_tenants mapping +
 // guardian profile linkage for this tenant. Splits out so Accept stays under
 // gocognit 15.
-func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, profile *userModels.GuardianProfile, accountID, tenantID int64) error {
+func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, profile *userModels.GuardianProfile, accountID, tenantID int64, op string) error {
 	role, err := s.roleRepo.FindByName(ctx, guardianRoleBaseName)
 	if err != nil {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("guardian role lookup failed: %w", err)}
+		return &AuthError{Op: op, Err: fmt.Errorf("guardian role lookup failed: %w", err)}
 	}
 	if role == nil {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("guardian role not found")}
+		return &AuthError{Op: op, Err: fmt.Errorf("guardian role not found")}
 	}
 
 	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
 	roleAssignment.SetTenantID(tenantID)
 	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
 	if err != nil && !isNotFoundError(err) {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("find guardian role assignment: %w", err)}
+		return &AuthError{Op: op, Err: fmt.Errorf("find guardian role assignment: %w", err)}
 	}
 	if existingRole == nil {
 		if err := s.accountRoleRepo.Create(ctx, roleAssignment); err != nil {
-			return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("assign guardian role: %w", err)}
+			return &AuthError{Op: op, Err: fmt.Errorf("assign guardian role: %w", err)}
 		}
 	}
 
@@ -469,11 +469,11 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 		ActivatedAt: &now,
 	}
 	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("link account to tenant: %w", err)}
+		return &AuthError{Op: op, Err: fmt.Errorf("link account to tenant: %w", err)}
 	}
 
 	if err := s.guardianProfileRepo.LinkAccount(ctx, profile.ID, accountID); err != nil {
-		return &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("link guardian profile to account: %w", err)}
+		return &AuthError{Op: op, Err: fmt.Errorf("link guardian profile to account: %w", err)}
 	}
 	return nil
 }

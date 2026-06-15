@@ -1009,6 +1009,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:              settingsService,
 		Broadcaster:           realtimeHub,
 		GuardianInvites:       guardianInvitationService,
+		GuardianInviteRepo:    repos.GuardianInvitation,
 		StudentGuardianRepo:   repos.StudentGuardian,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),

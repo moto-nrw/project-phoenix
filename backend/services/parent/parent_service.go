@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -136,6 +137,7 @@ type ServiceConfig struct {
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
+	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	DB     *bun.DB
@@ -155,6 +157,7 @@ type service struct {
 	broadcaster   realtime.Broadcaster
 
 	guardianInvites     authService.GuardianInvitationService
+	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
 	db     *bun.DB
@@ -178,6 +181,7 @@ func NewService(cfg ServiceConfig) Service {
 		settings:              cfg.Settings,
 		broadcaster:           cfg.Broadcaster,
 		guardianInvites:       cfg.GuardianInvites,
+		guardianInviteRepo:    cfg.GuardianInviteRepo,
 		studentGuardianRepo:   cfg.StudentGuardianRepo,
 		db:                    cfg.DB,
 		logger:                logger,

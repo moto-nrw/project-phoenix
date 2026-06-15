@@ -34,6 +34,9 @@ type GuardianInvitation struct {
 	ApprovalStatus string     `bun:"approval_status,notnull,default:'not_required'" json:"approval_status"`
 	ApprovedBy     *int64     `bun:"approved_by" json:"approved_by,omitempty"`
 	ApprovedAt     *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
+	// ProfileCreatedForInvitation is true only when this invite flow created
+	// the guardian profile specifically to back this invitation.
+	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
 
 	// Relations (not stored in database)
 	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
