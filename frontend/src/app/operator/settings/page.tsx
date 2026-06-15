@@ -8,6 +8,7 @@ import { PasswordChangeModal } from "~/components/ui";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
+import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
@@ -272,6 +273,7 @@ function OperatorSettingsContent() {
         </div>
 
         {/* Trusted Devices Section */}
+        <PasskeySettingsSection scope="operator" />
         <TrustedDevicesSection scope="operator" />
       </div>
 

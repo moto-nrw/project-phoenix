@@ -85,6 +85,10 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
+vi.mock("~/components/settings/passkey-settings-section", () => ({
+  PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
+}));
+
 // Mock Button component
 vi.mock("~/components/ui/button", () => ({
   Button: ({

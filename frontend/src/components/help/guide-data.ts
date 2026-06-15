@@ -157,6 +157,26 @@ export const setupChapters: readonly GuideChapter[] = [
         image: "/help/screens/konto-erstellen.webp",
       },
       {
+        id: "passkey-einrichten",
+        title: "Passkey einrichten",
+        summary:
+          "Nach der ersten Anmeldung kann ein Passkey für die Anmeldung ohne Passwort hinterlegt werden.",
+        steps: [
+          "`Profil` öffnen.",
+          "In der Sektion `Passkeys` auf `Hinzufügen` klicken.",
+          "Den Hinweis prüfen und `E-Mail senden` wählen.",
+          "Das E-Mail-Postfach öffnen, den Code eingeben und einen Namen für das Gerät vergeben.",
+          "Den Passkey mit der Gerätefreigabe speichern.",
+          "Bei der nächsten Anmeldung `Mit Passkey anmelden` wählen.",
+        ],
+        callout: {
+          title: "Gilt für Team- und Operator-Zugänge",
+          body: "Passkeys stehen für normale Nutzerkonten und moto-Operatoren zur Verfügung. Elternkonten nutzen weiterhin den Elternbereich.",
+          tone: "blue",
+        },
+        screenshot: "Profilseite mit der Sektion Passkeys.",
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:

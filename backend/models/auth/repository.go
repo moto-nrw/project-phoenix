@@ -288,6 +288,23 @@ type MFATrustedDeviceRepository interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
+// PasskeyCredentialRepository persists WebAuthn credentials for tenant-portal accounts.
+type PasskeyCredentialRepository interface {
+	Create(ctx context.Context, credential *PasskeyCredential) error
+	FindActiveByAccountID(ctx context.Context, accountID int64) ([]*PasskeyCredential, error)
+	FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*PasskeyCredential, error)
+	FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*PasskeyCredential, error)
+	UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
+	Revoke(ctx context.Context, accountID, id int64, revokedAt time.Time) error
+}
+
+// PasskeySessionRepository persists server-side WebAuthn ceremony state.
+type PasskeySessionRepository interface {
+	Create(ctx context.Context, session *PasskeySession) error
+	Consume(ctx context.Context, id, purpose string, now time.Time) (*PasskeySession, error)
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
+}
+
 // MFAOverrideRepository persists the per-(account, tenant) admin
 // overrides plus the optional platform-wide ("operator account-wide")
 // row keyed on TenantID IS NULL. Reads return nil instead of an error

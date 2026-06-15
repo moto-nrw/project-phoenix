@@ -48,6 +48,7 @@ import (
 type Factory struct {
 	Auth                     auth.AuthService
 	MFA                      auth.MFAService
+	Passkey                  auth.PasskeyService
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
@@ -106,6 +107,7 @@ type Factory struct {
 	TimetableData        schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
+	OperatorPasskey      platform.OperatorPasskeyService
 	UnregisteredTagScans auditService.UnregisteredTagScanService
 
 	// Email outbox (parent-enrollment PR 5) - shared across features.
@@ -576,6 +578,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// post-construction so we don't introduce a constructor cycle.
 	authService.SetMFAService(mfaService)
 
+	tenantDomain := strings.TrimSpace(viper.GetString("tenant_domain"))
+	if tenantDomain == "" {
+		return nil, fmt.Errorf("TENANT_DOMAIN is required")
+	}
+	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
+		Repos:        repos,
+		MFAService:   mfaService,
+		AuthService:  authService,
+		DB:           db,
+		Logger:       authLogger,
+		RPID:         tenantDomain,
+		RPName:       "moto",
+		TenantDomain: tenantDomain,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init passkey service: %w", err)
+	}
+
 	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -836,6 +856,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		}
 		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
 	}
+	if operatorFrontendURL == "" {
+		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
+	}
 
 	// Initialize platform services (operator dashboard)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
@@ -881,6 +904,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// platform scope). Done post-construction to break the
 	// OperatorAuthService ↔ OperatorMFAService cycle.
 	operatorAuthService.SetMFAService(operatorMFAService)
+	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
+		Repos:               repos,
+		MFAService:          operatorMFAService,
+		AuthService:         operatorAuthService,
+		DB:                  db,
+		Logger:              platformLogger,
+		RPID:                tenantDomain,
+		RPName:              "moto",
+		OperatorFrontendURL: operatorFrontendURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init operator passkey service: %w", err)
+	}
 
 	announcementService := platform.NewAnnouncementService(platform.AnnouncementServiceConfig{
 		AnnouncementRepo:     repos.Announcement,
@@ -1046,6 +1082,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	factory := &Factory{
 		Auth:                     authService,
 		MFA:                      mfaService,
+		Passkey:                  passkeyService,
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
@@ -1129,6 +1166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		}),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
+		OperatorPasskey:      operatorPasskeyService,
 		UnregisteredTagScans: unregisteredTagScanService,
 
 		EmailOutbox:           emailOutboxService,
