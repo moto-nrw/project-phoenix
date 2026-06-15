@@ -103,6 +103,14 @@ func TestPasskeyHelpers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "school.localhost", host)
 
+	rpID, err := ResolvePasskeyRPIDForOrigin("localhost", "http://school.localhost:3000")
+	require.NoError(t, err)
+	assert.Equal(t, "school.localhost", rpID)
+
+	rpID, err = ResolvePasskeyRPIDForOrigin("example.com", "https://school.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "example.com", rpID)
+
 	assert.Equal(t, "Short name", normalizePasskeyName("  Short name  "))
 	assert.Empty(t, normalizePasskeyName("   "))
 	assert.Len(t, normalizePasskeyName(strings.Repeat("a", 90)), 80)
@@ -273,7 +281,9 @@ func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	assert.Equal(t, account.ID, *sessions.created.AccountID)
 	assert.Equal(t, int64(44), *sessions.created.TenantID)
 	assert.Equal(t, authModel.PasskeySessionPurposeRegistration, sessions.created.Purpose)
+	assert.Equal(t, "school.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.False(t, sessions.created.ExpiresAt.IsZero())
 	assert.True(t, json.Valid(sessions.created.SessionJSON))
 	assert.Equal(t, account.ID, mfa.verifiedAccountID)
 	assert.Equal(t, "123456", mfa.verifiedCode)
@@ -398,7 +408,9 @@ func TestPasskeyBeginLoginStoresSession(t *testing.T) {
 	require.NotNil(t, sessions.created.TenantID)
 	assert.Equal(t, int64(45), *sessions.created.TenantID)
 	assert.Equal(t, authModel.PasskeySessionPurposeLogin, sessions.created.Purpose)
+	assert.Equal(t, "school.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.False(t, sessions.created.ExpiresAt.IsZero())
 }
 
 func TestPasskeyBeginLoginErrors(t *testing.T) {
@@ -637,6 +649,10 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 	user, err = svc.passkeyUserForAccount(context.Background(), account)
 	require.NoError(t, err)
 	assert.Len(t, user.WebAuthnID(), passkeyUserHandleBytes)
+
+	user, err = svc.passkeyUserForAccount(context.Background(), account, []byte("session-handle"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("session-handle"), user.WebAuthnID())
 
 	repo.rows = []*authModel.PasskeyCredential{{CredentialJSON: json.RawMessage(`{`)}}
 	_, err = svc.passkeyUserForAccount(context.Background(), account)

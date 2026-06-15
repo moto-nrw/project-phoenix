@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Mail, Plus, Trash2 } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
@@ -27,6 +28,7 @@ export function PasskeySettingsSection({
   const [supported, setSupported] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirmingEnrollment, setConfirmingEnrollment] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [maskedEmail, setMaskedEmail] = useState("");
   const [code, setCode] = useState("");
@@ -63,6 +65,7 @@ export function PasskeySettingsSection({
       setMaskedEmail(challenge.masked_email);
       setName("Dieses Gerät");
       setCode("");
+      setConfirmingEnrollment(false);
       setEnrolling(true);
     } catch (err) {
       setError(
@@ -81,6 +84,7 @@ export function PasskeySettingsSection({
     setMessage(null);
     try {
       await registerPasskey(scope, { code, name });
+      setConfirmingEnrollment(false);
       setEnrolling(false);
       setCode("");
       setName("");
@@ -124,13 +128,18 @@ export function PasskeySettingsSection({
           <KeyRound className="h-5 w-5 text-gray-800" aria-hidden="true" />
           <h3 className="text-base font-semibold text-gray-900">Passkeys</h3>
         </div>
-        {supported && !enrolling && (
+        {supported && !confirmingEnrollment && !enrolling && (
           <Button
             type="button"
             variant="outline"
             size="sm"
+            className="gap-2"
             disabled={busy}
-            onClick={() => void startEnrollment()}
+            onClick={() => {
+              setError(null);
+              setMessage(null);
+              setConfirmingEnrollment(true);
+            }}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Hinzufügen
@@ -145,25 +154,68 @@ export function PasskeySettingsSection({
       )}
 
       {error && (
-        <div
-          role="alert"
-          className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700"
-        >
-          {error}
+        <div role="alert" className="mb-3">
+          <Alert type="error" message={error} />
         </div>
       )}
       {message && (
-        <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-700">
-          {message}
+        <div className="mb-3">
+          <Alert type="success" message={message} />
+        </div>
+      )}
+
+      {confirmingEnrollment && (
+        <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-gray-900">
+              Sicherheitscode per E-Mail senden
+            </p>
+            <p className="text-sm text-gray-600">
+              Zum Einrichten senden wir einen sechsstelligen Code an Ihre
+              E-Mail-Adresse. Öffnen Sie danach Ihr E-Mail-Postfach und geben
+              Sie den Code hier ein.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="gap-2"
+              disabled={busy}
+              onClick={() => void startEnrollment()}
+            >
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              E-Mail senden
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={busy}
+              onClick={() => {
+                setConfirmingEnrollment(false);
+                setError(null);
+              }}
+            >
+              Abbrechen
+            </Button>
+          </div>
         </div>
       )}
 
       {enrolling && (
         <div className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
           {maskedEmail && (
-            <p className="text-sm text-gray-600">
-              Code gesendet an {maskedEmail}
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-900">
+                Code gesendet an {maskedEmail}
+              </p>
+              <p className="text-sm text-gray-600">
+                Öffnen Sie Ihr E-Mail-Postfach und tragen Sie den sechsstelligen
+                Code ein.
+              </p>
+            </div>
           )}
           <Input
             label="Code"
@@ -197,6 +249,7 @@ export function PasskeySettingsSection({
               size="sm"
               disabled={busy}
               onClick={() => {
+                setConfirmingEnrollment(false);
                 setEnrolling(false);
                 setCode("");
                 setName("");

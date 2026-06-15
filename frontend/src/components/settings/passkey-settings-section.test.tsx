@@ -98,6 +98,16 @@ describe("PasskeySettingsSection", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Hinzufügen" }));
 
+    expect(mockStartPasskeyEnrollment).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Sicherheitscode per E-Mail senden"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Öffnen Sie danach Ihr E-Mail-Postfach/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
+
     await waitFor(() => {
       expect(mockStartPasskeyEnrollment).toHaveBeenCalledWith("tenant");
     });
@@ -165,6 +175,7 @@ describe("PasskeySettingsSection", () => {
       new Error("Code konnte nicht gesendet werden"),
     );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(

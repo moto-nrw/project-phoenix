@@ -1,5 +1,34 @@
 import type { NextRequest } from "next/server";
 
+function firstHeaderValue(value: string | null): string {
+  return value?.split(",")[0]?.trim() ?? "";
+}
+
+function isSafeForwardedHost(value: string): boolean {
+  return value !== "" && !value.includes("/") && !value.includes("\\");
+}
+
+function frontendOrigin(request: NextRequest): string {
+  const host =
+    firstHeaderValue(request.headers.get("x-moto-original-host")) ||
+    firstHeaderValue(request.headers.get("host")) ||
+    firstHeaderValue(request.headers.get("x-forwarded-host"));
+
+  if (!isSafeForwardedHost(host)) {
+    return request.nextUrl.origin;
+  }
+
+  const forwardedProto =
+    firstHeaderValue(request.headers.get("x-moto-original-proto")) ||
+    firstHeaderValue(request.headers.get("x-forwarded-proto"));
+  const protocol =
+    forwardedProto === "http" || forwardedProto === "https"
+      ? forwardedProto
+      : request.nextUrl.protocol.replace(/:$/, "");
+
+  return `${protocol}://${host}`;
+}
+
 /**
  * Extracts the real client IP and User-Agent from an incoming request
  * and returns headers that should be forwarded to the backend.
@@ -22,7 +51,7 @@ export function getClientForwardHeaders(
   return {
     "X-Forwarded-For": ip,
     "X-Real-IP": ip,
-    "X-Moto-Frontend-Origin": request.nextUrl.origin,
+    "X-Moto-Frontend-Origin": frontendOrigin(request),
     "User-Agent": userAgent,
   };
 }

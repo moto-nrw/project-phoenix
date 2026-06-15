@@ -26,6 +26,8 @@ import (
 
 const passkeyUserHandleBytes = 32
 
+const PasskeyCeremonyTimeout = 10 * time.Minute
+
 var (
 	ErrPasskeyUnavailable    = errors.New("passkey service is unavailable")
 	ErrPasskeyOriginInvalid  = errors.New("passkey origin is invalid")
@@ -200,6 +202,10 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 		return nil, &AuthError{Op: "load passkey user", Err: err}
 	}
 
+	rpID, err := s.rpIDForOrigin(req.ExpectedOrigin)
+	if err != nil {
+		return nil, &AuthError{Op: "resolve passkey rp id", Err: err}
+	}
 	webAuthn, err := s.webAuthnForOrigin(req.ExpectedOrigin)
 	if err != nil {
 		return nil, &AuthError{Op: "configure passkey registration", Err: err}
@@ -230,7 +236,7 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 		AccountID:      &accountID,
 		TenantID:       &tenantID,
 		Purpose:        authModel.PasskeySessionPurposeRegistration,
-		RPID:           s.rpID,
+		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
@@ -258,7 +264,7 @@ func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegi
 	if err != nil {
 		return nil, &AuthError{Op: "finish passkey registration", Err: ErrAccountNotFound}
 	}
-	user, err := s.passkeyUserForAccount(ctx, account)
+	user, err := s.passkeyUserForAccount(ctx, account, sessionData.UserID)
 	if err != nil {
 		return nil, &AuthError{Op: "load passkey user", Err: err}
 	}
@@ -299,6 +305,10 @@ func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRe
 	if err := s.validateTenantOrigin(req.ExpectedOrigin, req.TenantSubdomain); err != nil {
 		return nil, &AuthError{Op: "begin passkey login", Err: err}
 	}
+	rpID, err := s.rpIDForOrigin(req.ExpectedOrigin)
+	if err != nil {
+		return nil, &AuthError{Op: "resolve passkey rp id", Err: err}
+	}
 	webAuthn, err := s.webAuthnForOrigin(req.ExpectedOrigin)
 	if err != nil {
 		return nil, &AuthError{Op: "configure passkey login", Err: err}
@@ -320,7 +330,7 @@ func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRe
 		ID:             sessionID.String(),
 		TenantID:       &tenantID,
 		Purpose:        authModel.PasskeySessionPurposeLogin,
-		RPID:           s.rpID,
+		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
@@ -408,7 +418,7 @@ func (s *passkeyService) RevokeCredential(ctx context.Context, accountID, creden
 	return nil
 }
 
-func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account) (*tenantPasskeyUser, error) {
+func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*tenantPasskeyUser, error) {
 	rows, err := s.repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
 	if err != nil {
 		return nil, err
@@ -426,9 +436,13 @@ func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *aut
 		credentials = append(credentials, credential)
 	}
 	if len(userHandle) == 0 {
-		userHandle = make([]byte, passkeyUserHandleBytes)
-		if _, err := rand.Read(userHandle); err != nil {
-			return nil, err
+		if len(sessionUserHandle) > 0 && len(sessionUserHandle[0]) > 0 {
+			userHandle = sessionUserHandle[0]
+		} else {
+			userHandle = make([]byte, passkeyUserHandleBytes)
+			if _, err := rand.Read(userHandle); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &tenantPasskeyUser{
@@ -441,11 +455,31 @@ func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *aut
 }
 
 func (s *passkeyService) webAuthnForOrigin(origin string) (*webauthn.WebAuthn, error) {
+	rpID, err := s.rpIDForOrigin(origin)
+	if err != nil {
+		return nil, err
+	}
 	return webauthn.New(&webauthn.Config{
-		RPID:          s.rpID,
+		RPID:          rpID,
 		RPDisplayName: s.rpName,
 		RPOrigins:     []string{origin},
+		Timeouts: webauthn.TimeoutsConfig{
+			Login: webauthn.TimeoutConfig{
+				Enforce:    true,
+				Timeout:    PasskeyCeremonyTimeout,
+				TimeoutUVD: PasskeyCeremonyTimeout,
+			},
+			Registration: webauthn.TimeoutConfig{
+				Enforce:    true,
+				Timeout:    PasskeyCeremonyTimeout,
+				TimeoutUVD: PasskeyCeremonyTimeout,
+			},
+		},
 	})
+}
+
+func (s *passkeyService) rpIDForOrigin(origin string) (string, error) {
+	return ResolvePasskeyRPIDForOrigin(s.rpID, origin)
 }
 
 func (s *passkeyService) validateTenantOrigin(origin, subdomain string) error {
@@ -541,6 +575,18 @@ func hostWithoutPort(value string) string {
 
 func HostWithoutPortForPlatform(value string) string {
 	return hostWithoutPort(value)
+}
+
+func ResolvePasskeyRPIDForOrigin(configuredRPID, origin string) (string, error) {
+	rpID := hostWithoutPort(configuredRPID)
+	if rpID != "localhost" {
+		return rpID, nil
+	}
+	originHost, err := originHostWithoutPort(origin)
+	if err != nil {
+		return "", err
+	}
+	return originHost, nil
 }
 
 func originHostWithoutPort(origin string) (string, error) {

@@ -164,7 +164,8 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "`Profil` öffnen.",
           "In der Sektion `Passkeys` auf `Hinzufügen` klicken.",
-          "Den Code aus der E-Mail eingeben und einen Namen für das Gerät vergeben.",
+          "Den Hinweis prüfen und `E-Mail senden` wählen.",
+          "Das E-Mail-Postfach öffnen, den Code eingeben und einen Namen für das Gerät vergeben.",
           "Den Passkey mit der Gerätefreigabe speichern.",
           "Bei der nächsten Anmeldung `Mit Passkey anmelden` wählen.",
         ],

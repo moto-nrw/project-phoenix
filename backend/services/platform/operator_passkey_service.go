@@ -154,6 +154,10 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 	if err != nil {
 		return nil, err
 	}
+	rpID, err := s.rpIDForOrigin(req.ExpectedOrigin)
+	if err != nil {
+		return nil, err
+	}
 	webAuthn, err := s.webAuthnForOrigin(req.ExpectedOrigin)
 	if err != nil {
 		return nil, err
@@ -181,7 +185,7 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 		ID:             sessionID.String(),
 		OperatorID:     &operatorID,
 		Purpose:        platform.OperatorPasskeySessionPurposeRegistration,
-		RPID:           s.rpID,
+		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
@@ -207,7 +211,7 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	if err != nil {
 		return nil, err
 	}
-	user, err := s.passkeyUserForOperator(ctx, operator)
+	user, err := s.passkeyUserForOperator(ctx, operator, sessionData.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +252,10 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 	if err := s.validateOperatorOrigin(expectedOrigin); err != nil {
 		return nil, err
 	}
+	rpID, err := s.rpIDForOrigin(expectedOrigin)
+	if err != nil {
+		return nil, err
+	}
 	webAuthn, err := s.webAuthnForOrigin(expectedOrigin)
 	if err != nil {
 		return nil, err
@@ -267,7 +275,7 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 	if err := s.repos.OperatorPasskeySession.Create(ctx, &platform.OperatorPasskeySession{
 		ID:             sessionID.String(),
 		Purpose:        platform.OperatorPasskeySessionPurposeLogin,
-		RPID:           s.rpID,
+		RPID:           rpID,
 		ExpectedOrigin: expectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
@@ -350,7 +358,7 @@ func (s *operatorPasskeyService) RevokeCredential(ctx context.Context, operatorI
 	return nil
 }
 
-func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator) (*operatorPasskeyUser, error) {
+func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator, sessionUserHandle ...[]byte) (*operatorPasskeyUser, error) {
 	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
 	if err != nil {
 		return nil, err
@@ -368,9 +376,13 @@ func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, ope
 		credentials = append(credentials, credential)
 	}
 	if len(userHandle) == 0 {
-		userHandle = make([]byte, authService.PasskeyUserHandleBytesForPlatform())
-		if _, err := rand.Read(userHandle); err != nil {
-			return nil, err
+		if len(sessionUserHandle) > 0 && len(sessionUserHandle[0]) > 0 {
+			userHandle = sessionUserHandle[0]
+		} else {
+			userHandle = make([]byte, authService.PasskeyUserHandleBytesForPlatform())
+			if _, err := rand.Read(userHandle); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &operatorPasskeyUser{
@@ -383,11 +395,31 @@ func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, ope
 }
 
 func (s *operatorPasskeyService) webAuthnForOrigin(origin string) (*webauthn.WebAuthn, error) {
+	rpID, err := s.rpIDForOrigin(origin)
+	if err != nil {
+		return nil, err
+	}
 	return webauthn.New(&webauthn.Config{
-		RPID:          s.rpID,
+		RPID:          rpID,
 		RPDisplayName: s.rpName,
 		RPOrigins:     []string{origin},
+		Timeouts: webauthn.TimeoutsConfig{
+			Login: webauthn.TimeoutConfig{
+				Enforce:    true,
+				Timeout:    authService.PasskeyCeremonyTimeout,
+				TimeoutUVD: authService.PasskeyCeremonyTimeout,
+			},
+			Registration: webauthn.TimeoutConfig{
+				Enforce:    true,
+				Timeout:    authService.PasskeyCeremonyTimeout,
+				TimeoutUVD: authService.PasskeyCeremonyTimeout,
+			},
+		},
 	})
+}
+
+func (s *operatorPasskeyService) rpIDForOrigin(origin string) (string, error) {
+	return authService.ResolvePasskeyRPIDForOrigin(s.rpID, origin)
 }
 
 func (s *operatorPasskeyService) validateOperatorOrigin(origin string) error {

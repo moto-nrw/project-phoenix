@@ -194,7 +194,7 @@ func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
 			OperatorPasskeySession:    sessions,
 		},
 		mfaService:         mfa,
-		rpID:               "operator.localhost",
+		rpID:               "localhost",
 		rpName:             "moto",
 		operatorOriginHost: "operator.localhost",
 	}
@@ -212,7 +212,9 @@ func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	require.NotNil(t, sessions.created.OperatorID)
 	assert.Equal(t, operator.ID, *sessions.created.OperatorID)
 	assert.Equal(t, platformModel.OperatorPasskeySessionPurposeRegistration, sessions.created.Purpose)
+	assert.Equal(t, "operator.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://operator.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.False(t, sessions.created.ExpiresAt.IsZero())
 	assert.True(t, json.Valid(sessions.created.SessionJSON))
 	assert.Equal(t, operator.ID, mfa.verifiedOperatorID)
 	assert.Equal(t, "123456", mfa.verifiedCode)
@@ -318,7 +320,7 @@ func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
 	sessions := &operatorPasskeySessionRepoStub{}
 	svc := &operatorPasskeyService{
 		repos:              &repositories.Factory{OperatorPasskeySession: sessions},
-		rpID:               "operator.localhost",
+		rpID:               "localhost",
 		rpName:             "moto",
 		operatorOriginHost: "operator.localhost",
 	}
@@ -329,7 +331,9 @@ func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
 	require.NotNil(t, assertion.Options)
 	require.NotNil(t, sessions.created)
 	assert.Equal(t, platformModel.OperatorPasskeySessionPurposeLogin, sessions.created.Purpose)
+	assert.Equal(t, "operator.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://operator.localhost:3000", sessions.created.ExpectedOrigin)
+	assert.False(t, sessions.created.ExpiresAt.IsZero())
 }
 
 func TestOperatorPasskeyBeginLoginErrors(t *testing.T) {
@@ -554,6 +558,10 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 	user, err = svc.passkeyUserForOperator(context.Background(), operator)
 	require.NoError(t, err)
 	assert.Len(t, user.WebAuthnID(), authService.PasskeyUserHandleBytesForPlatform())
+
+	user, err = svc.passkeyUserForOperator(context.Background(), operator, []byte("session-handle"))
+	require.NoError(t, err)
+	assert.Equal(t, []byte("session-handle"), user.WebAuthnID())
 
 	repo.rows = []*platformModel.OperatorPasskeyCredential{{CredentialJSON: json.RawMessage(`{`)}}
 	_, err = svc.passkeyUserForOperator(context.Background(), operator)

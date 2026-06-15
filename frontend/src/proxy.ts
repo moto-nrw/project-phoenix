@@ -54,6 +54,36 @@ const CSP_HEADER = [
   "form-action 'self'",
 ].join("; ");
 
+const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
+const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
+
+function originalHost(request: NextRequest): string {
+  return (
+    request.headers.get("host") ?? request.headers.get("x-forwarded-host") ?? ""
+  );
+}
+
+function originalProtocol(request: NextRequest): string {
+  const forwardedProto = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim();
+  if (forwardedProto === "http" || forwardedProto === "https") {
+    return forwardedProto;
+  }
+  return request.nextUrl.protocol.replace(/:$/, "");
+}
+
+function preserveOriginalRequestTarget(
+  headers: Headers,
+  request: NextRequest,
+): Headers {
+  const host = originalHost(request);
+  if (host) headers.set(ORIGINAL_HOST_HEADER, host);
+  headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  return headers;
+}
+
 /** Attach security headers (CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) to a response. */
 function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Content-Security-Policy", CSP_HEADER);
@@ -68,7 +98,7 @@ function withSecurityHeaders(response: NextResponse): NextResponse {
 function localizedHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
   headers.set(LOCALE_SCOPE_HEADER, "1");
-  return headers;
+  return preserveOriginalRequestTarget(headers, request);
 }
 
 /** Like NextResponse.rewrite, but flags the request as a localized surface. */
@@ -95,7 +125,7 @@ function nextLocalized(request: NextRequest): NextResponse {
 function sanitizedHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
   headers.delete(LOCALE_SCOPE_HEADER);
-  return headers;
+  return preserveOriginalRequestTarget(headers, request);
 }
 
 /** Like NextResponse.next, but strips any client-forged localize header. */
