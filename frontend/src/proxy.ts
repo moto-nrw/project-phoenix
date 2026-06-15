@@ -59,7 +59,7 @@ const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
 
 function originalHost(request: NextRequest): string {
   return (
-    request.headers.get("host") ?? request.headers.get("x-forwarded-host") ?? ""
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? ""
   );
 }
 

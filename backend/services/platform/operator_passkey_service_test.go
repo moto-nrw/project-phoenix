@@ -77,7 +77,7 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 	summary := summarizeOperatorPasskeyCredential(row)
 
 	require.NotNil(t, summary)
-	assert.Equal(t, row.ID, summary.ID)
+	assert.Equal(t, "55", summary.ID)
 	assert.Equal(t, "Admin laptop", summary.Name)
 	assert.Equal(t, now, summary.CreatedAt)
 	assert.Equal(t, &lastUsedAt, summary.LastUsedAt)
@@ -541,7 +541,7 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 	list, err := svc.ListCredentials(context.Background(), operator.ID)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
-	assert.Equal(t, row.ID, list[0].ID)
+	assert.Equal(t, "82", list[0].ID)
 
 	require.NoError(t, svc.RevokeCredential(context.Background(), operator.ID, row.ID))
 	assert.Equal(t, operator.ID, repo.revokedOperatorID)

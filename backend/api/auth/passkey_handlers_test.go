@@ -61,7 +61,7 @@ func (s *passkeyServiceStub) FinishRegistration(_ context.Context, req authServi
 	if s.finishRegistrationErr != nil {
 		return nil, s.finishRegistrationErr
 	}
-	return &authService.PasskeyCredentialSummary{ID: 7, Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return &authService.PasskeyCredentialSummary{ID: "7", Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
 func (s *passkeyServiceStub) BeginLogin(_ context.Context, req authService.PasskeyLoginStartRequest) (*authService.PasskeyCredentialAssertion, error) {
@@ -85,7 +85,7 @@ func (s *passkeyServiceStub) ListCredentials(_ context.Context, accountID int64)
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return []authService.PasskeyCredentialSummary{{ID: 8, Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
+	return []authService.PasskeyCredentialSummary{{ID: "8", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
 }
 
 func (s *passkeyServiceStub) RevokeCredential(_ context.Context, accountID, credentialID int64) error {
@@ -176,6 +176,7 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.EqualValues(t, claims.ID, svc.enrollmentAccountID)
 	assert.Equal(t, claims.TenantID, svc.enrollmentTenantID)
+	assert.JSONEq(t, `{"challenge_token":"challenge-token","masked_email":"m***@example.test"}`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	req := withPasskeyClaims(passkeyJSONRequest("/passkeys/register/options", `{"code":"123456","name":" Laptop "}`), claims)
@@ -189,11 +190,13 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 	rs.passkeyRegisterVerify(w, withPasskeyClaims(passkeyJSONRequest("/passkeys/register/verify", `{"session_id":"registration-session","name":"Phone","response":{"id":"credential"}}`), claims))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "registration-session", svc.finishRegistrationReq.SessionID)
+	assert.JSONEq(t, `{"id":"7","name":"Laptop","created_at":"1970-01-01T00:00:01Z"}`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	rs.passkeyList(w, withPasskeyClaims(httptest.NewRequest(http.MethodGet, "/passkeys", nil), claims))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.EqualValues(t, claims.ID, svc.listAccountID)
+	assert.JSONEq(t, `[{"id":"8","name":"Phone","created_at":"1970-01-01T00:00:02Z"}]`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	passkeyID := school.ID + 1
@@ -220,6 +223,18 @@ func TestPasskeyHandlerErrors(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), authService.ErrPasskeyNotFound)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	w = httptest.NewRecorder()
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrAccountInactive})
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	w = httptest.NewRecorder()
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrTenantAccessDenied})
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+
+	w = httptest.NewRecorder()
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), &authService.AuthError{Op: "issue tokens", Err: authService.ErrTenantNotFound})
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()

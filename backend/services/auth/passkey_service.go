@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,8 +58,8 @@ type PasskeyServiceConfig struct {
 }
 
 type PasskeyEnrollmentChallenge struct {
-	ChallengeToken string
-	MaskedEmail    string
+	ChallengeToken string `json:"challenge_token"`
+	MaskedEmail    string `json:"masked_email"`
 }
 
 type PasskeyRegistrationStartRequest struct {
@@ -106,7 +107,7 @@ type PasskeyLoginResult struct {
 }
 
 type PasskeyCredentialSummary struct {
-	ID         int64      `json:"id"`
+	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
@@ -381,6 +382,18 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
 	}
 
+	passkeyUser, ok := user.(*tenantPasskeyUser)
+	if !ok {
+		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
+	}
+	tenantID := *sessionRow.TenantID
+	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.accountID, tenantID)
+	if err != nil {
+		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
+	}
+	if !hasAccess {
+		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
+	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
 		return nil, &AuthError{Op: "marshal passkey credential", Err: err}
@@ -388,11 +401,7 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 	if err := s.repos.PasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
 		return nil, &AuthError{Op: "update passkey after login", Err: err}
 	}
-	passkeyUser, ok := user.(*tenantPasskeyUser)
-	if !ok {
-		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
-	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.accountID, *sessionRow.TenantID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.accountID, tenantID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -531,7 +540,7 @@ func passkeyResponseRequest(ctx context.Context, raw json.RawMessage) (*http.Req
 
 func summarizePasskeyCredential(row *authModel.PasskeyCredential) *PasskeyCredentialSummary {
 	return &PasskeyCredentialSummary{
-		ID:         row.ID,
+		ID:         strconv.FormatInt(row.ID, 10),
 		Name:       row.Name,
 		CreatedAt:  row.CreatedAt,
 		LastUsedAt: row.LastUsedAt,

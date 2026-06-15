@@ -34,7 +34,7 @@ describe("PasskeySettingsSection", () => {
       masked_email: "m***@example.test",
     });
     mockRegisterPasskey.mockResolvedValue({
-      id: 2,
+      id: "2",
       name: "Dieses Gerät",
       created_at: "2026-06-15T10:00:00Z",
     });
@@ -60,12 +60,12 @@ describe("PasskeySettingsSection", () => {
   it("renders existing passkeys and formatted dates", async () => {
     mockListPasskeys.mockResolvedValueOnce([
       {
-        id: 1,
+        id: "1",
         name: "Laptop",
         created_at: "2026-06-15T10:00:00Z",
       },
       {
-        id: 2,
+        id: "2",
         name: "Phone",
         created_at: "2026-06-01T10:00:00Z",
         last_used_at: "2026-06-14T10:00:00Z",
@@ -88,7 +88,7 @@ describe("PasskeySettingsSection", () => {
   it("starts enrollment, registers a passkey, and reloads credentials", async () => {
     mockListPasskeys.mockResolvedValueOnce([]).mockResolvedValueOnce([
       {
-        id: 3,
+        id: "3",
         name: "MacBook",
         created_at: "2026-06-15T10:00:00Z",
       },
@@ -143,7 +143,7 @@ describe("PasskeySettingsSection", () => {
     mockListPasskeys
       .mockResolvedValueOnce([
         {
-          id: 5,
+          id: "5",
           name: "Old phone",
           created_at: "2026-06-15T10:00:00Z",
         },
@@ -155,7 +155,7 @@ describe("PasskeySettingsSection", () => {
     fireEvent.click(await screen.findByLabelText("Passkey entfernen"));
 
     await waitFor(() => {
-      expect(mockRevokePasskey).toHaveBeenCalledWith("operator", 5);
+      expect(mockRevokePasskey).toHaveBeenCalledWith("operator", "5");
     });
     await waitFor(() => {
       expect(screen.getByText("Passkey wurde entfernt.")).toBeInTheDocument();

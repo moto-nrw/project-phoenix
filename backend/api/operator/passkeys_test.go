@@ -58,7 +58,7 @@ func (s *operatorPasskeyServiceStub) FinishRegistration(_ context.Context, req p
 	if s.finishRegistrationErr != nil {
 		return nil, s.finishRegistrationErr
 	}
-	return &authSvc.PasskeyCredentialSummary{ID: 9, Name: "Admin laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return &authSvc.PasskeyCredentialSummary{ID: "9", Name: "Admin laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
 func (s *operatorPasskeyServiceStub) BeginLogin(_ context.Context, expectedOrigin string) (*authSvc.PasskeyCredentialAssertion, error) {
@@ -82,7 +82,7 @@ func (s *operatorPasskeyServiceStub) ListCredentials(_ context.Context, operator
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return []authSvc.PasskeyCredentialSummary{{ID: 10, Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
+	return []authSvc.PasskeyCredentialSummary{{ID: "10", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
 }
 
 func (s *operatorPasskeyServiceStub) RevokeCredential(_ context.Context, operatorID, credentialID int64) error {
@@ -125,6 +125,7 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 	rs.PasskeyEnrollmentChallenge(w, withOperatorPasskeyClaims(operatorPasskeyJSONRequest("/auth/passkeys/enrollment/challenge", `{}`), claims))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.EqualValues(t, claims.ID, svc.enrollmentOperatorID)
+	assert.JSONEq(t, `{"challenge_token":"operator-challenge-token","masked_email":"o***@example.test"}`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	req := withOperatorPasskeyClaims(operatorPasskeyJSONRequest("/auth/passkeys/register/options", `{"code":"654321","name":" Admin laptop "}`), claims)
@@ -138,11 +139,13 @@ func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 	rs.PasskeyRegisterVerify(w, withOperatorPasskeyClaims(operatorPasskeyJSONRequest("/auth/passkeys/register/verify", `{"session_id":"operator-registration","name":"Phone","response":{"id":"credential"}}`), claims))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "operator-registration", svc.finishRegistrationReq.SessionID)
+	assert.JSONEq(t, `{"id":"9","name":"Admin laptop","created_at":"1970-01-01T00:00:01Z"}`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	rs.PasskeyList(w, withOperatorPasskeyClaims(httptest.NewRequest(http.MethodGet, "/auth/passkeys", nil), claims))
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.EqualValues(t, claims.ID, svc.listOperatorID)
+	assert.JSONEq(t, `[{"id":"10","name":"Phone","created_at":"1970-01-01T00:00:02Z"}]`, w.Body.String())
 
 	w = httptest.NewRecorder()
 	passkeyID := svc.enrollmentOperatorID + 1

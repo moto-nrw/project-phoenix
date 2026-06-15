@@ -20,7 +20,7 @@ export interface PasskeyTokenResponse {
 }
 
 export interface PasskeyCredentialSummary {
-  id: number;
+  id: string;
   name: string;
   created_at: string;
   last_used_at?: string;
@@ -226,7 +226,7 @@ export async function listPasskeys(
 
 export async function revokePasskey(
   scope: PasskeyScope,
-  id: number,
+  id: string,
 ): Promise<void> {
   const token = await currentBearerToken();
   await requestJson<void>(

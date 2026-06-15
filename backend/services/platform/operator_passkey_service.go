@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,8 +43,8 @@ type OperatorPasskeyServiceConfig struct {
 }
 
 type OperatorPasskeyEnrollmentChallenge struct {
-	ChallengeToken string
-	MaskedEmail    string
+	ChallengeToken string `json:"challenge_token"`
+	MaskedEmail    string `json:"masked_email"`
 }
 
 type OperatorPasskeyRegistrationStartRequest struct {
@@ -448,7 +449,7 @@ func (u *operatorPasskeyUser) WebAuthnCredentials() []webauthn.Credential { retu
 
 func summarizeOperatorPasskeyCredential(row *platform.OperatorPasskeyCredential) *authService.PasskeyCredentialSummary {
 	return &authService.PasskeyCredentialSummary{
-		ID:         row.ID,
+		ID:         strconv.FormatInt(row.ID, 10),
 		Name:       row.Name,
 		CreatedAt:  row.CreatedAt,
 		LastUsedAt: row.LastUsedAt,

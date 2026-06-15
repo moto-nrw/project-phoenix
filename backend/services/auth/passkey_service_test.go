@@ -140,7 +140,7 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 	summary := summarizePasskeyCredential(row)
 
 	require.NotNil(t, summary)
-	assert.Equal(t, row.ID, summary.ID)
+	assert.Equal(t, "44", summary.ID)
 	assert.Equal(t, "Laptop", summary.Name)
 	assert.Equal(t, now, summary.CreatedAt)
 	assert.Equal(t, &lastUsedAt, summary.LastUsedAt)
@@ -633,7 +633,7 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 	list, err := svc.ListCredentials(context.Background(), account.ID)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
-	assert.Equal(t, row.ID, list[0].ID)
+	assert.Equal(t, "92", list[0].ID)
 
 	require.NoError(t, svc.RevokeCredential(context.Background(), account.ID, row.ID))
 	assert.Equal(t, account.ID, repo.revokedAccountID)

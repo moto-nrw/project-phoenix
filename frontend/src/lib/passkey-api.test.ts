@@ -210,7 +210,7 @@ describe("passkey-api", () => {
       )
       .mockResolvedValueOnce(
         jsonResponse(200, {
-          id: 12,
+          id: "12",
           name: "MacBook",
           created_at: "2026-06-15T10:00:00Z",
         }),
@@ -221,7 +221,7 @@ describe("passkey-api", () => {
       name: "MacBook",
     });
 
-    expect(result.id).toBe(12);
+    expect(result.id).toBe("12");
     expect(mockStartRegistration).toHaveBeenCalledWith({
       optionsJSON: { challenge: "registration-challenge" },
     });
@@ -254,7 +254,7 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, [
           {
-            id: 7,
+            id: "7",
             name: "Phone",
             created_at: "2026-06-15T10:00:00Z",
           },
@@ -263,7 +263,7 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await expect(listPasskeys("tenant")).resolves.toHaveLength(1);
-    await expect(revokePasskey("tenant", 7)).resolves.toBeUndefined();
+    await expect(revokePasskey("tenant", "7")).resolves.toBeUndefined();
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,

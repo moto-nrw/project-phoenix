@@ -102,7 +102,7 @@ export function PasskeySettingsSection({
     }
   };
 
-  const revoke = async (id: number) => {
+  const revoke = async (id: string) => {
     setBusy(true);
     setError(null);
     setMessage(null);

@@ -263,8 +263,15 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	switch {
 	case errors.Is(err, authService.ErrInvalidCredentials),
-		errors.Is(err, authService.ErrPasskeySessionInvalid):
+		errors.Is(err, authService.ErrPasskeySessionInvalid),
+		errors.Is(err, authService.ErrAccountNotFound):
 		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
+	case errors.Is(err, authService.ErrAccountInactive):
+		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
+	case errors.Is(err, authService.ErrTenantAccessDenied):
+		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+	case errors.Is(err, authService.ErrTenantNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 	case errors.Is(err, authService.ErrPasskeyOriginInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 	case errors.Is(err, authService.ErrMFACodeInvalid):
