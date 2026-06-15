@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -546,7 +547,7 @@ func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 	data := createVisitTestData(t, db)
 	defer cleanupVisitTestData(t, db, data)
 
-	visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, time.Now().Add(-30*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, timezone.Today().Add(30*time.Minute), nil)
 	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
 	t.Run("empty input short-circuits", func(t *testing.T) {
