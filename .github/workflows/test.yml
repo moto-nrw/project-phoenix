@@ -127,6 +127,7 @@ jobs:
           AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
           FRONTEND_URL: http://localhost:3000
           PARENTS_URL: http://parents.localhost:3000
+          TENANT_DOMAIN: localhost
         # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
         # gotestsum reruns overwrite the coverage profile (upstream issue;
         # fix PR unmerged), and flaky tests should fail loudly, not retry.
