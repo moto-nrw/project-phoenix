@@ -44,6 +44,7 @@ function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
   if (pathname.includes("/mensa_history")) return "Mensa Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
+  if (pathname.includes("/change-history")) return "Änderungsverlauf";
   return "Kinder Details";
 }
 
@@ -141,6 +142,7 @@ export function getHistoryType(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
   if (pathname.includes("/mensa_history")) return "Mensa Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
+  if (pathname.includes("/change-history")) return "Änderungsverlauf";
   return "";
 }
 
@@ -166,13 +168,15 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/students/search" &&
     !pathname.includes("/feedback_history") &&
     !pathname.includes("/mensa_history") &&
-    !pathname.includes("/room-history");
+    !pathname.includes("/room-history") &&
+    !pathname.includes("/change-history");
 
   const isStudentHistoryPage =
     isStudentPath &&
     (pathname.includes("/feedback_history") ||
       pathname.includes("/mensa_history") ||
-      pathname.includes("/room-history"));
+      pathname.includes("/room-history") ||
+      pathname.includes("/change-history"));
 
   const isStaffDetailPage =
     pathname.startsWith("/staff/") && pathname !== "/staff";

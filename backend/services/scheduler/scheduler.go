@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -91,6 +92,7 @@ type Scheduler struct {
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
+	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	autoStart                  scheduleSvc.AutoStartService
 	settings                   SettingsResolver
 	db                         *bun.DB
@@ -111,13 +113,14 @@ type Scheduler struct {
 	breakAutoEndIntervalSeconds int
 
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
-	lastSessionEnd          sync.Map // tenant_id → time.Time
-	lastDataCleanup         sync.Map // tenant_id → time.Time
-	lastSessionCleanup      sync.Map // tenant_id → time.Time
-	lastStatusFlagClear     sync.Map // tenant_id → time.Time
-	lastMaterialization     sync.Map // tenant_id → time.Time
-	lastTimetableCleanup    sync.Map // tenant_id → time.Time (WP-B14)
-	lastTimeTrackingCleanup sync.Map // tenant_id → time.Time (Tranche 0b)
+	lastSessionEnd              sync.Map // tenant_id → time.Time
+	lastDataCleanup             sync.Map // tenant_id → time.Time
+	lastSessionCleanup          sync.Map // tenant_id → time.Time
+	lastStatusFlagClear         sync.Map // tenant_id → time.Time
+	lastMaterialization         sync.Map // tenant_id → time.Time
+	lastTimetableCleanup        sync.Map // tenant_id → time.Time (WP-B14)
+	lastTimeTrackingCleanup     sync.Map // tenant_id → time.Time (Tranche 0b)
+	lastStudentChangeLogCleanup sync.Map // tenant_id → time.Time (issue #1455)
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -239,6 +242,13 @@ func (s *Scheduler) SetTimeTrackingCleanup(svc active.TimeTrackingCleanupService
 	s.timeTrackingCleanup = svc
 }
 
+// SetStudentChangeLogCleanup wires the per-child change-history retention
+// cleanup service (issue #1455). Same opt-in shape — nil is fine, the task
+// simply doesn't register in Start().
+func (s *Scheduler) SetStudentChangeLogCleanup(svc usersSvc.StudentChangeLogCleanupService) {
+	s.studentChangeLogCleanup = svc
+}
+
 // SetAutoStartService wires the planned-instance auto-start service. When set,
 // the scheduler registers a minute-polled task gated by timetable.enabled and
 // timetable.auto_start_planned.
@@ -339,6 +349,10 @@ func (s *Scheduler) Start() {
 	// (gdpr.data_cleanup_enabled) and same cleanup-time as the other
 	// retention jobs so admins have a single nightly window to configure.
 	s.scheduleTimeTrackingCleanupTask()
+
+	// Schedule daily per-child change-history GDPR cleanup (issue #1455).
+	// Same toggle + cleanup-time as the other retention jobs.
+	s.scheduleStudentChangeLogCleanupTask()
 
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
@@ -2300,6 +2314,140 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
 				slog.Int("sessions_deleted", result.SessionsDeleted),
 				slog.Int("absences_deleted", result.AbsencesDeleted),
 				slog.Int("staff_affected", result.StaffAffected),
+				slog.Int("retention_days", result.RetentionDays),
+				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
+// --- Per-child change-history GDPR cleanup (issue #1455) ---
+//
+// Per-tenant iteration via forEachTenantSettings; dedupe via
+// lastStudentChangeLogCleanup. Mirrors the time-tracking cleanup task.
+
+// scheduleStudentChangeLogCleanupTask registers the daily change-history
+// cleanup when a StudentChangeLogCleanupService has been wired in. Nil → no
+// task.
+func (s *Scheduler) scheduleStudentChangeLogCleanupTask() {
+	if s.studentChangeLogCleanup == nil {
+		s.getLogger().Info("student change-log GDPR cleanup not configured (no StudentChangeLogCleanupService)")
+		return
+	}
+
+	task := &ScheduledTask{
+		Name:     "student-change-log-cleanup",
+		Schedule: "1m-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runStudentChangeLogCleanupTaskPolling(task)
+}
+
+// runStudentChangeLogCleanupTaskPolling ticks every minute and defers to
+// checkAndRunStudentChangeLogCleanup. Minute-aligned so HH:MM:00 ticks land
+// deterministically.
+func (s *Scheduler) runStudentChangeLogCleanupTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in student change-log cleanup task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("student change-log cleanup task using minute-polling for per-tenant scheduling")
+
+	s.checkAndRunStudentChangeLogCleanup(task)
+
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunStudentChangeLogCleanup(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunStudentChangeLogCleanup evaluates each tenant's cleanup settings
+// and runs change-history cleanup if the configured cleanup time matches now.
+// Shares the same data-cleanup toggle/time/timeout as the other retention
+// jobs — one admin switch for all nightly retention.
+func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "student-change-log-cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
+		if !enabled {
+			return nil
+		}
+
+		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
+		if !timeMatchesNow(cleanupTime) {
+			return nil
+		}
+
+		if wasRunToday(&s.lastStudentChangeLogCleanup, tenantID) {
+			return nil
+		}
+
+		// Mark immediately to prevent double-fire from concurrent ticks.
+		markRunToday(&s.lastStudentChangeLogCleanup, tenantID)
+
+		s.getLogger().Info("running student change-log GDPR cleanup for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("cleanup_time", cleanupTime),
+		)
+
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
+		defer cleanupCancel()
+
+		result, err := s.studentChangeLogCleanup.CleanupExpiredChangeLog(cleanupCtx)
+		if err != nil {
+			s.getLogger().Error("student change-log cleanup failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			// Clear today-mark so retry on next matching minute succeeds.
+			s.lastStudentChangeLogCleanup.Delete(tenantID)
+			return nil
+		}
+
+		if result.EditsDeleted > 0 {
+			s.getLogger().Info("student change-log cleanup completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("edits_deleted", result.EditsDeleted),
+				slog.Int("students_affected", result.StudentsAffected),
 				slog.Int("retention_days", result.RetentionDays),
 				slog.Int64("duration_ms", result.DurationMS),
 			)

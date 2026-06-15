@@ -72,6 +72,7 @@ type Factory struct {
 	TemplateSplit            schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
+	StudentChangeLogCleanup  users.StudentChangeLogCleanupService
 	Instance                 schedule.InstanceService
 	AutoStart                schedule.AutoStartService
 	TimetableOperations      schedule.TimetableOperationsService
@@ -101,6 +102,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       config.WorkTimeModelService
 	Students             users.StudentService
+	StudentAudit         users.StudentAuditService
 	StudentStatusDays    active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
 	TimetableData        schedule.TimetableDataService
@@ -468,6 +470,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.DataDeletion,
 		settingsService,
 		logger.With("service", "time-tracking-cleanup"),
+	)
+
+	// Per-child change-history retention cleanup (issue #1455). Deletes
+	// audit.student_field_edits older than the tenant's retention window
+	// (gdpr.student_change_log_retention_days, default 90). One per-student
+	// DataDeletion audit row per run; shares the nightly cleanup window.
+	studentChangeLogCleanupService := users.NewStudentChangeLogCleanupService(
+		repos.StudentFieldEdit,
+		repos.DataDeletion,
+		settingsService,
+		logger.With("service", "student-change-log-cleanup"),
 	)
 
 	// Initialize instance lifecycle service (WP-B9). Drives the state machine
@@ -1066,6 +1079,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TemplateSplit:            templateSplitService,
 		TimetableCleanup:         timetableCleanupService,
 		TimeTrackingCleanup:      timeTrackingCleanupService,
+		StudentChangeLogCleanup:  studentChangeLogCleanupService,
 		Instance:                 instanceService,
 		AutoStart:                autoStartService,
 		TimetableOperations:      timetableOperationsService,
@@ -1101,6 +1115,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
 		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		StudentAudit:         users.NewStudentAuditService(repos.StudentFieldEdit, logger.With("service", "student_audit")),
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{

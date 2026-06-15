@@ -91,6 +91,10 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.TimeTrackingCleanup != nil {
 			srv.scheduler.SetTimeTrackingCleanup(api.Services.TimeTrackingCleanup)
 		}
+		// Issue #1455: per-child change-history GDPR cleanup. Same nil-safe wiring.
+		if api.Services.StudentChangeLogCleanup != nil {
+			srv.scheduler.SetStudentChangeLogCleanup(api.Services.StudentChangeLogCleanup)
+		}
 		// WP-B9: overdue instance tick. Requires both the ActivityInstance
 		// repo and a broadcaster — either missing disables the tick.
 		if api.repos != nil && api.Services.RealtimeHub != nil {

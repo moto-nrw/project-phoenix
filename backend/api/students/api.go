@@ -56,6 +56,7 @@ type Resource struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	StudentAuditService     userService.StudentAuditService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	Broadcaster             realtime.Broadcaster
@@ -81,6 +82,7 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	StudentAuditService     userService.StudentAuditService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	Broadcaster             realtime.Broadcaster
@@ -111,6 +113,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SchoolService:           cfg.SchoolService,
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
+		StudentAuditService:     cfg.StudentAuditService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
 		Broadcaster:             cfg.Broadcaster,
@@ -148,6 +151,10 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
+		// Per-child change history (issue #1455). Full access (admin / group
+		// supervisor) enforced inside the handler so it reads as a support tool,
+		// not general staff surveillance.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -1347,6 +1354,12 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		wasSick := boolPtrValue(fresh.Sick)
 		wasExcused := boolPtrValue(fresh.Excused)
 
+		// Snapshot the tracked profile fields before applying the patch so the
+		// audit diff (#1455) compares pre- vs post-update. applyStudentFieldUpdates
+		// replaces (never mutates in place) the pointer/map fields we track, so a
+		// shallow struct copy is a safe before-image.
+		before := *fresh
+
 		applyStudentFieldUpdates(req, fresh)
 		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
@@ -1356,6 +1369,14 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		if err := rs.StudentService.Update(ctx, fresh); err != nil {
+			return err
+		}
+
+		// Record the per-child change history (#1455). The audit write runs on
+		// this same tx, so a failure must propagate: swallowing it would still
+		// poison the tx and fail the COMMIT, losing the edit behind a 500. A
+		// recorded edit must always carry its audit row, so roll back together.
+		if err := rs.recordStudentChanges(ctx, &before, fresh); err != nil {
 			return err
 		}
 

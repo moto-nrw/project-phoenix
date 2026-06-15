@@ -37,6 +37,9 @@ const (
 	DeletionTypeGDPRRequest           = "gdpr_request"
 	DeletionTypeTimetableRetention    = "timetable_retention"
 	DeletionTypeTimeTrackingRetention = "time_tracking_retention"
+	// DeletionTypeStudentChangeLogRetention records automated cleanup of the
+	// per-child change history (audit.student_field_edits, issue #1455).
+	DeletionTypeStudentChangeLogRetention = "student_change_log_retention"
 )
 
 // TableName returns the database table name
@@ -64,7 +67,8 @@ func (dd *DataDeletion) Validate() error {
 		DeletionTypeManual,
 		DeletionTypeGDPRRequest,
 		DeletionTypeTimetableRetention,
-		DeletionTypeTimeTrackingRetention:
+		DeletionTypeTimeTrackingRetention,
+		DeletionTypeStudentChangeLogRetention:
 		// Valid types
 	default:
 		return errors.New("invalid deletion type")
