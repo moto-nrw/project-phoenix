@@ -55,12 +55,30 @@ export interface SubmitChildPayload {
   offering_days?: SubmitOfferingDays[];
 }
 
+/**
+ * One additional guardian (co-guardian) the parent added beyond the
+ * primary guardian. Names are required; email and phone are optional —
+ * a co-guardian (e.g. a grandparent) may be a contact-only record.
+ */
+export interface SubmitGuardianPayload {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+}
+
 export interface SubmitEnrollmentPayload {
   phase_id: number;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
   guardian_phone?: string;
+  /**
+   * Co-guardians beyond the primary guardian. Omitted (or empty) when
+   * the parent added none. On approval each becomes an additional
+   * users.students_guardians link to every enrolled child.
+   */
+  additional_guardians?: SubmitGuardianPayload[];
   consent_flags?: Record<string, unknown>;
   custom_data?: Record<string, unknown>;
   children: SubmitChildPayload[];
@@ -288,6 +306,14 @@ export interface StatusChild {
   status_reason?: string | null;
 }
 
+/** One additional guardian (co-guardian) on the public status page. */
+export interface StatusGuardian {
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 export interface StatusResponse {
   request_id: string;
   guardian_first_name: string;
@@ -297,6 +323,8 @@ export interface StatusResponse {
   submitted_at: string;
   withdrawn_at?: string | null;
   children: StatusChild[];
+  /** Co-guardians the parent added beyond the primary guardian. */
+  additional_guardians?: StatusGuardian[];
 }
 
 /**

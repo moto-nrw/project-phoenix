@@ -164,6 +164,25 @@ func TestMapParentSubmitError_InvalidSubmission400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// An invalid optional co-guardian phone must map to 400 with the stable
+// code, not 500. ErrInvalidGuardianPhone does NOT wrap ErrInvalidSubmission,
+// so without an explicit case it would fall through to the default 500.
+func TestMapParentSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrInvalidGuardianPhone)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.invalid_phone")
+}
+
+func TestMapParentSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrInvalidGuardianEmail)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.invalid_email")
+}
+
 func TestMapParentSubmitError_CareOfferingFull409WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)

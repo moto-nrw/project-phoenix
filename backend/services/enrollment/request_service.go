@@ -103,6 +103,22 @@ type SubmitRequest struct {
 	GuardianAccountID *int64
 
 	Children []SubmitChild
+
+	// AdditionalGuardians are the co-guardians the parent added beyond
+	// the primary guardian above. Stored in enrollment.request_guardians
+	// and materialized as additional users.students_guardians links on
+	// approval. Email/phone are optional per co-guardian.
+	AdditionalGuardians []SubmitGuardian
+}
+
+// SubmitGuardian is one additional guardian (Erziehungsberechtigte:r)
+// within a SubmitRequest. Only first/last name are required; email and
+// phone are optional (a co-guardian may be a contact-only record).
+type SubmitGuardian struct {
+	FirstName string
+	LastName  string
+	Email     *string
+	Phone     *string
 }
 
 // SubmitChild is one child within a SubmitRequest.
@@ -153,6 +169,10 @@ type EditPatch struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
+	// GuardiansByStatusToken returns the additional guardians (co-guardians)
+	// for the request behind a public status token. Kept separate from
+	// GetByStatusToken so the edit/withdraw callers stay untouched.
+	GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentModels.RequestGuardian, error)
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	Withdraw(ctx context.Context, token string, childID int64) error
 
@@ -241,6 +261,7 @@ type RequestSettingsResolver interface {
 type RequestServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -273,6 +294,7 @@ type OutboxEnqueueRequest struct {
 type requestService struct {
 	requestRepo              enrollmentModels.RequestRepository
 	requestChildRepo         enrollmentModels.RequestChildRepository
+	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -298,6 +320,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 	return &requestService{
 		requestRepo:              cfg.RequestRepo,
 		requestChildRepo:         cfg.RequestChildRepo,
+		requestGuardianRepo:      cfg.RequestGuardianRepo,
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
@@ -394,6 +417,14 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	legalBlocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
 	if err != nil {
 		return nil, fmt.Errorf("submit: resolve legal blocks: %w", err)
+	}
+	// Normalize + validate additional guardians (co-guardians the parent
+	// added beyond the primary). Mutates req.AdditionalGuardians in place:
+	// trims, drops fully-blank cards, errors on a half-filled card or a
+	// bad email/phone, and dedups against the primary + each other. The
+	// cleaned slice is what the insert loop below persists.
+	if err := normalizeAdditionalGuardians(&req); err != nil {
+		return nil, err
 	}
 	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
 		return nil, err
@@ -499,6 +530,25 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			return fmt.Errorf("submit: create request: %w", err)
 		}
 		createdRequest = request
+
+		// Additional guardians (co-guardians). Already normalized +
+		// validated above. Stored here; materialized as students_guardians
+		// links on approval by the decision service.
+		if s.requestGuardianRepo != nil {
+			for i, g := range req.AdditionalGuardians {
+				row := &enrollmentModels.RequestGuardian{
+					RequestID: request.ID,
+					FirstName: g.FirstName,
+					LastName:  g.LastName,
+					Email:     g.Email,
+					Phone:     g.Phone,
+					SortOrder: i,
+				}
+				if err := s.requestGuardianRepo.Create(txCtx, row); err != nil {
+					return fmt.Errorf("submit: create request guardian %d: %w", i, err)
+				}
+			}
+		}
 
 		for i, child := range req.Children {
 			status := enrollmentModels.ChildStatusSubmitted
@@ -631,6 +681,99 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	return nil
 }
 
+// normalizeAdditionalGuardians cleans req.AdditionalGuardians in place:
+// trims every field, drops fully-blank cards the parent added but never
+// filled, returns a typed error for a half-filled card (one name missing)
+// or a malformed email/phone, and dedups co-guardians against the primary
+// guardian and each other. Email/phone are optional per co-guardian; only
+// first + last name are required. The primary guardian is the source of
+// truth — a co-guardian that duplicates it is dropped so approval never
+// creates two students_guardians links to the same profile.
+func normalizeAdditionalGuardians(req *SubmitRequest) error {
+	if len(req.AdditionalGuardians) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(req.AdditionalGuardians)+1)
+	primaryPhone := ""
+	if req.GuardianPhone != nil {
+		primaryPhone = strings.TrimSpace(*req.GuardianPhone)
+	}
+	if primary := guardianDedupKey(req.GuardianEmail, primaryPhone, req.GuardianFirstName, req.GuardianLastName); primary != "" {
+		seen[primary] = struct{}{}
+	}
+	cleaned := make([]SubmitGuardian, 0, len(req.AdditionalGuardians))
+	for i, g := range req.AdditionalGuardians {
+		first := strings.TrimSpace(g.FirstName)
+		last := strings.TrimSpace(g.LastName)
+		email := ""
+		if g.Email != nil {
+			email = strings.ToLower(strings.TrimSpace(*g.Email))
+		}
+		phone := ""
+		if g.Phone != nil {
+			phone = strings.TrimSpace(*g.Phone)
+		}
+
+		// Fully blank card: the parent added a row but never filled it.
+		if first == "" && last == "" && email == "" && phone == "" {
+			continue
+		}
+		// Name is the only hard requirement for a co-guardian.
+		if first == "" || last == "" {
+			return fmt.Errorf("%w: additional guardian %d missing name", ErrInvalidSubmission, i)
+		}
+		if email != "" {
+			if err := users.ValidateOptionalEmail(email); err != nil {
+				return ErrInvalidGuardianEmail
+			}
+		}
+		if phone != "" {
+			if err := users.ValidateOptionalPhone(phone); err != nil {
+				return ErrInvalidGuardianPhone
+			}
+		}
+
+		key := guardianDedupKey(email, phone, first, last)
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		out := SubmitGuardian{FirstName: first, LastName: last}
+		if email != "" {
+			e := email
+			out.Email = &e
+		}
+		if phone != "" {
+			p := phone
+			out.Phone = &p
+		}
+		cleaned = append(cleaned, out)
+	}
+	req.AdditionalGuardians = cleaned
+	return nil
+}
+
+// guardianDedupKey builds a stable dedup key for a guardian: prefer the
+// lowercased email when present (the identity anchor), else fall back to
+// the case-folded full name PLUS the phone number. Including the phone in
+// the email-less key keeps two same-name co-guardians with different
+// phone numbers (e.g. relatives sharing a surname) as distinct people
+// instead of silently collapsing the later row into the first. Returns ""
+// only when all inputs are empty.
+func guardianDedupKey(email, phone, first, last string) string {
+	if e := strings.ToLower(strings.TrimSpace(email)); e != "" {
+		return "e:" + e
+	}
+	f := strings.ToLower(strings.TrimSpace(first))
+	l := strings.ToLower(strings.TrimSpace(last))
+	p := strings.TrimSpace(phone)
+	if f == "" && l == "" && p == "" {
+		return ""
+	}
+	return "n:" + f + "|" + l + "|p:" + p
+}
+
 // validateOfferingSelections cross-checks every offering id against the
 // live open-window catalog. Defense-in-depth against stale clients.
 func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
@@ -757,6 +900,28 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 		}
 	}
 	return req, children, nil
+}
+
+// GuardiansByStatusToken loads the additional guardians (co-guardians)
+// behind a public status token. Same token/expiry gate as
+// GetByStatusToken; caller sets an admin-tx context (token-only auth).
+func (s *requestService) GuardiansByStatusToken(ctx context.Context, token string) ([]*enrollmentModels.RequestGuardian, error) {
+	if s.requestGuardianRepo == nil {
+		return nil, nil
+	}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrRequestNotFound
+	}
+	req, err := s.requestRepo.FindByStatusToken(ctx, token)
+	if err != nil {
+		return nil, ErrRequestNotFound
+	}
+	if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
+		return nil, ErrRequestNotFound
+	}
+	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
+	return s.requestGuardianRepo.ListByRequestID(tenantCtx, req.ID)
 }
 
 // statusReasonVisibleToParent reports whether the given phase allows a

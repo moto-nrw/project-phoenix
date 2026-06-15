@@ -26,9 +26,11 @@ import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
+  allowedDepartureModesFromDeparture,
+  allowedDepartureToDepartureDays,
   departureDaysFromLegacy,
   normalizeBusDays,
-  normalizeDepartureDays,
+  normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import {
   StudentDetailHeader,
@@ -508,21 +510,24 @@ export default function StudentDetailPage() {
   // =============================================================================
 
   const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+    const allowedDepartureModes = normalizeAllowedDepartureModes(
+      editedStudent.allowed_departure_modes ??
+        allowedDepartureModesFromDeparture(
+          editedStudent.departure_days ??
+            departureDaysFromLegacy(
+              editedStudent.bus_days,
+              editedStudent.pickup_days,
+            ),
+        ),
+    );
     await studentService.updateStudent(studentId, {
       first_name: editedStudent.first_name,
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
       birthday: editedStudent.birthday,
-      // The personal-info form now edits bus_days directly via the weekday
-      // picker; bus_days is the single source of truth (#1582).
       bus_days: normalizeBusDays(editedStudent.bus_days),
-      departure_days: normalizeDepartureDays(
-        editedStudent.departure_days ??
-          departureDaysFromLegacy(
-            editedStudent.bus_days,
-            editedStudent.pickup_days,
-          ),
-      ),
+      allowed_departure_modes: allowedDepartureModes,
+      departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,

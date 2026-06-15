@@ -13,6 +13,7 @@ import {
   normalizeBusDays,
   pickupDaysHaveAny,
   formatPickupDays,
+  formatAllowedDepartureModes,
   normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
@@ -181,6 +182,23 @@ describe("pickup day helpers", () => {
     );
     expect(formatPickupDays({ tue: false })).toBe("Keine Abhol-Tage");
     expect(formatPickupDays(null)).toBe("Keine Abhol-Tage");
+  });
+});
+
+describe("allowed departure mode helpers", () => {
+  it("formats allowed modes with weekday separators", () => {
+    expect(
+      formatAllowedDepartureModes({
+        mon: ["bus"],
+        wed: ["bus", "pickup"],
+        fri: ["pickup"],
+      }),
+    ).toBe("Mo: Fährt Bus; Mi: Fährt Bus, Wird abgeholt; Fr: Wird abgeholt");
+  });
+
+  it("formats an empty map as going alone", () => {
+    expect(formatAllowedDepartureModes({})).toBe("Geht immer alleine");
+    expect(formatAllowedDepartureModes(null)).toBe("Geht immer alleine");
   });
 });
 

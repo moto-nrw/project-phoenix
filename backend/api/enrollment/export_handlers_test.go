@@ -286,6 +286,55 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 	}
 }
 
+// Co-guardians submitted alongside the primary contact must appear in both
+// export formats — names, emails and phones — matching the admin detail and
+// the public status page. A phone-only co-guardian (no email) must still
+// carry the phone.
+func TestPhaseExport_IncludesAdditionalGuardians(t *testing.T) {
+	data := sampleExport()
+	omaEmail := "oma@example.test"
+	omaPhone := "0151-555"
+	opaPhone := "0151-777"
+	data.Rows[0].Guardians = []*enrollmentModels.RequestGuardian{
+		{FirstName: "Oma", LastName: "Muster", Email: &omaEmail, Phone: &omaPhone},
+		{FirstName: "Opa", LastName: "Muster", Phone: &opaPhone}, // phone-only, no email
+	}
+
+	// PDF: one "Weitere Erziehungsberechtigte" field per co-guardian.
+	pdf := buildPhaseExportRecords(data, "P", "")
+	if len(pdf.Records) != 1 {
+		t.Fatalf("records = %d, want 1", len(pdf.Records))
+	}
+	var coGuardianValues []string
+	for _, f := range pdf.Records[0].Fields {
+		if f.Label == "Weitere Erziehungsberechtigte" {
+			coGuardianValues = append(coGuardianValues, f.Value)
+		}
+	}
+	if len(coGuardianValues) != 2 {
+		t.Fatalf("co-guardian fields = %d, want 2 (%v)", len(coGuardianValues), coGuardianValues)
+	}
+	joined := strings.Join(coGuardianValues, " | ")
+	for _, want := range []string{"Oma Muster", "oma@example.test", "0151-555", "Opa Muster", "0151-777"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("PDF co-guardian fields %q missing %q", joined, want)
+		}
+	}
+
+	// XLSX: a single "Weitere Erziehungsberechtigte" cell joining both.
+	xlsx := buildPhaseExportTable(data, "P", "")
+	rows := tableDataRows(xlsx.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("xlsx data rows = %d, want 1", len(rows))
+	}
+	cell := rows[0].Values["additional_guardians"]
+	for _, want := range []string{"Oma Muster", "oma@example.test", "0151-555", "Opa Muster", "0151-777"} {
+		if !strings.Contains(cell, want) {
+			t.Errorf("XLSX additional_guardians cell %q missing %q", cell, want)
+		}
+	}
+}
+
 func statusExportSample() *enrollmentService.PhaseExport {
 	mkReq := func(first, last string) *enrollmentModels.Request {
 		return &enrollmentModels.Request{

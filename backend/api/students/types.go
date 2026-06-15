@@ -49,18 +49,19 @@ type StudentResponse struct {
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). Bus, BusDays and PickupDays are derived from it and
 	// kept for backward compatibility with clients not yet on departure_days.
-	DepartureDays     users.DepartureDays `json:"departure_days,omitempty"`
-	Bus               bool                `json:"bus"`
-	BusDays           users.BusDays       `json:"bus_days,omitempty"`
-	Sick              bool                `json:"sick"`
-	SickSince         *time.Time          `json:"sick_since,omitempty"`
-	Excused           bool                `json:"excused"`
-	ExcusedSince      *time.Time          `json:"excused_since,omitempty"`
-	ClassTrip         bool                `json:"class_trip"`
-	ClassTripSince    *time.Time          `json:"class_trip_since,omitempty"`
-	DayPlanningStatus string              `json:"day_planning_status,omitempty"`
-	DayPlanningReason string              `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel  string              `json:"day_planning_label,omitempty"`
+	DepartureDays         users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	Bus                   bool                        `json:"bus"`
+	BusDays               users.BusDays               `json:"bus_days,omitempty"`
+	Sick                  bool                        `json:"sick"`
+	SickSince             *time.Time                  `json:"sick_since,omitempty"`
+	Excused               bool                        `json:"excused"`
+	ExcusedSince          *time.Time                  `json:"excused_since,omitempty"`
+	ClassTrip             bool                        `json:"class_trip"`
+	ClassTripSince        *time.Time                  `json:"class_trip_since,omitempty"`
+	DayPlanningStatus     string                      `json:"day_planning_status,omitempty"`
+	DayPlanningReason     string                      `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel      string                      `json:"day_planning_label,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -169,11 +170,12 @@ type StudentRequest struct {
 	// (alone/bus/pickup). When provided it supersedes the legacy PickupStatus /
 	// PickupDays / Bus / BusDays inputs below, which remain accepted for clients
 	// not yet migrated.
-	DepartureDays *users.DepartureDays `json:"departure_days,omitempty"`
-	PickupStatus  *string              `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays    *users.PickupDays    `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus           *bool                `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays       *users.BusDays       `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	PickupStatus          *string                      `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays            *users.PickupDays            `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                   *bool                        `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays               *users.BusDays               `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
 
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
@@ -247,15 +249,17 @@ type UpdateStudentRequest struct {
 	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
 	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	// DepartureDays supersedes the legacy pickup/bus inputs below when provided.
-	DepartureDays *users.DepartureDays `json:"departure_days,omitempty"`
-	PickupStatus  *string              `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays    *users.PickupDays    `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus           *bool                `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays       *users.BusDays       `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
-	Sick          *bool                `json:"sick,omitempty"`          // true = currently sick
-	SickReason    *string              `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
-	Excused       *bool                `json:"excused,omitempty"`       // true = currently excused (not attending today)
+	// AllowedDepartureModes supersedes the legacy exclusive departure/pickup/bus
+	// inputs below when provided.
+	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
+	PickupStatus          *string                      `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays            *users.PickupDays            `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                   *bool                        `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays               *users.BusDays               `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	Sick                  *bool                        `json:"sick,omitempty"`          // true = currently sick
+	SickReason            *string                      `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
+	Excused               *bool                        `json:"excused,omitempty"`       // true = currently excused (not attending today)
 
 	// PhotoConsentGiven: documented parental photo-consent flag. The handler
 	// records who set it and when (photo_consent_given_at/_by columns) on a
@@ -362,6 +366,13 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 		normalized := req.DepartureDays.Normalize()
 		req.DepartureDays = &normalized
 	}
+	if req.AllowedDepartureModes != nil {
+		if err := req.AllowedDepartureModes.Validate(); err != nil {
+			return err
+		}
+		normalized := req.AllowedDepartureModes.Normalize()
+		req.AllowedDepartureModes = &normalized
+	}
 
 	return nil
 }
@@ -398,6 +409,13 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 		}
 		normalized := req.DepartureDays.Normalize()
 		req.DepartureDays = &normalized
+	}
+	if req.AllowedDepartureModes != nil {
+		if err := req.AllowedDepartureModes.Validate(); err != nil {
+			return err
+		}
+		normalized := req.AllowedDepartureModes.Normalize()
+		req.AllowedDepartureModes = &normalized
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler

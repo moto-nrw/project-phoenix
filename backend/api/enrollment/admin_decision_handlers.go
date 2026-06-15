@@ -47,6 +47,19 @@ type AdminRequestSummary struct {
 	// "Schwimmbad") instead of rendering raw keys. Detail endpoint only.
 	SchemaLegalBlocks []AdminRequestSchemaLegalBlock `json:"schema_legal_blocks,omitempty"`
 	Children          []AdminRequestChild            `json:"children"`
+	// AdditionalGuardians are the co-guardians the parent added beyond the
+	// primary guardian above. Empty when none were added.
+	AdditionalGuardians []AdminRequestGuardian `json:"additional_guardians,omitempty"`
+}
+
+// AdminRequestGuardian is one additional guardian (co-guardian) within an
+// admin summary/detail payload. Email/phone are optional.
+type AdminRequestGuardian struct {
+	ID        string  `json:"id"`
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
 }
 
 // AdminRequestSchemaLegalBlock is the slim legal-block shape the admin
@@ -138,6 +151,16 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ReviewedBy:       c.ReviewedBy,
 			ActivationMode:   c.ActivationMode,
 			CustomData:       c.CustomData,
+		})
+	}
+	out.AdditionalGuardians = make([]AdminRequestGuardian, 0, len(s.Guardians))
+	for _, g := range s.Guardians {
+		out.AdditionalGuardians = append(out.AdditionalGuardians, AdminRequestGuardian{
+			ID:        strconv.FormatInt(g.ID, 10),
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
 		})
 	}
 	return out

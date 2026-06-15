@@ -116,6 +116,9 @@ export function formatPickupDays(value?: PickupDays | null): string {
 export type DepartureMode = "alone" | "bus" | "pickup";
 export type DepartureDayKey = BusDayKey;
 export type DepartureDays = Partial<Record<DepartureDayKey, DepartureMode>>;
+export type AllowedDepartureModes = Partial<
+  Record<DepartureDayKey, DepartureMode[]>
+>;
 
 export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
   key: DepartureDayKey;
@@ -130,19 +133,10 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
 
 /** German labels for the three departure modes (shown in forms and badges). */
 const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
-  alone: "Geht alleine",
+  alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",
 };
-
-/** Mode for a weekday, defaulting to "alone" for any day not set to bus/pickup. */
-export function departureModeFor(
-  value: DepartureDays | null | undefined,
-  key: DepartureDayKey,
-): DepartureMode {
-  const mode = value?.[key];
-  return mode === "bus" || mode === "pickup" ? mode : "alone";
-}
 
 export function normalizeDepartureDays(
   value?: DepartureDays | null,
@@ -155,11 +149,19 @@ export function normalizeDepartureDays(
   return out;
 }
 
-export function departureDaysHaveAny(value?: DepartureDays | null): boolean {
-  return DEPARTURE_WEEKDAYS.some((day) => {
-    const mode = value?.[day.key];
-    return mode === "bus" || mode === "pickup";
-  });
+export function normalizeAllowedDepartureModes(
+  value?: AllowedDepartureModes | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const raw = value?.[day.key];
+    if (!Array.isArray(raw)) continue;
+    const modes = (["alone", "bus", "pickup"] as const).filter((mode) =>
+      raw.includes(mode),
+    );
+    if (modes.length > 0) out[day.key] = modes;
+  }
+  return out;
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a
@@ -176,37 +178,77 @@ export function departureDaysFromLegacy(
   return out;
 }
 
-/** Derives the legacy bus_days map (days whose mode is "bus") for consumers
- *  and partial updates that still read it. */
-export function departureToBusDays(value?: DepartureDays | null): BusDays {
-  const out: BusDays = {};
+export function allowedDepartureModesFromDeparture(
+  value?: DepartureDays | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
   for (const day of DEPARTURE_WEEKDAYS) {
-    if (value?.[day.key] === "bus") out[day.key] = true;
+    const mode = value?.[day.key];
+    if (mode === "bus" || mode === "pickup") out[day.key] = [mode];
   }
   return out;
 }
 
-/** Derives the legacy pickup_days map (days whose mode is "pickup"). */
-export function departureToPickupDays(
-  value?: DepartureDays | null,
+function allowedDepartureModesFromLegacy(
+  bus?: BusDays | null,
+  pickup?: PickupDays | null,
+): AllowedDepartureModes {
+  const out: AllowedDepartureModes = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const modes: DepartureMode[] = [];
+    if (bus?.[day.key]) modes.push("bus");
+    if (pickup?.[day.key]) modes.push("pickup");
+    if (modes.length > 0) out[day.key] = modes;
+  }
+  return out;
+}
+
+export function allowedDepartureToBusDays(
+  value?: AllowedDepartureModes | null,
+): BusDays {
+  const out: BusDays = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (value?.[day.key]?.includes("bus")) out[day.key] = true;
+  }
+  return out;
+}
+
+export function allowedDepartureToPickupDays(
+  value?: AllowedDepartureModes | null,
 ): PickupDays {
   const out: PickupDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
-    if (value?.[day.key] === "pickup") out[day.key] = true;
+    if (value?.[day.key]?.includes("pickup")) out[day.key] = true;
   }
   return out;
 }
 
-/** Compact summary, e.g. "Mo: Fährt Bus, Mi: Wird abgeholt" or a fallback. */
-export function formatDepartureDays(value?: DepartureDays | null): string {
-  const parts = DEPARTURE_WEEKDAYS.filter((day) => {
-    const mode = value?.[day.key];
-    return mode === "bus" || mode === "pickup";
-  }).map(
-    (day) =>
-      `${day.label.slice(0, 2)}: ${DEPARTURE_MODE_LABELS[value![day.key]!]}`,
-  );
-  return parts.length > 0 ? parts.join(", ") : "Geht immer alleine";
+export function allowedDepartureToDepartureDays(
+  value?: AllowedDepartureModes | null,
+): DepartureDays {
+  const out: DepartureDays = {};
+  for (const day of DEPARTURE_WEEKDAYS) {
+    const modes = value?.[day.key] ?? [];
+    if (modes.includes("pickup")) out[day.key] = "pickup";
+    else if (modes.includes("bus")) out[day.key] = "bus";
+  }
+  return out;
+}
+
+export function formatAllowedDepartureModes(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  const parts = DEPARTURE_WEEKDAYS.flatMap((day) => {
+    const modes = normalized[day.key] ?? [];
+    if (modes.length === 0) return [];
+    return [
+      `${day.label.slice(0, 2)}: ${modes
+        .map((mode) => DEPARTURE_MODE_LABELS[mode])
+        .join(", ")}`,
+    ];
+  });
+  return parts.length > 0 ? parts.join("; ") : "Geht immer alleine";
 }
 
 /**
@@ -242,6 +284,7 @@ export interface BackendStudent {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   sick_since?: string;
   excused?: boolean;
@@ -367,6 +410,7 @@ export interface Student {
   // Unified per-weekday departure mode (alone/bus/pickup), the source of truth
   // for how the child leaves; bus_days/pickup_days are derived from it (#1610).
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -457,6 +501,14 @@ export function mapStudentResponse(
     bus: busDaysHaveAny(backendStudent.bus_days),
     bus_days: normalizeBusDays(backendStudent.bus_days),
     pickup_days: normalizePickupDays(backendStudent.pickup_days),
+    allowed_departure_modes: backendStudent.allowed_departure_modes
+      ? normalizeAllowedDepartureModes(backendStudent.allowed_departure_modes)
+      : backendStudent.departure_days
+        ? allowedDepartureModesFromDeparture(backendStudent.departure_days)
+        : allowedDepartureModesFromLegacy(
+            backendStudent.bus_days,
+            backendStudent.pickup_days,
+          ),
     // departure_days is authoritative; fall back to folding the legacy maps for
     // older payloads that predate it (#1610).
     departure_days: backendStudent.departure_days
@@ -576,6 +628,10 @@ export function prepareStudentForBackend(
       student.pickup_days !== undefined
         ? normalizePickupDays(student.pickup_days)
         : undefined,
+    allowed_departure_modes:
+      student.allowed_departure_modes !== undefined
+        ? normalizeAllowedDepartureModes(student.allowed_departure_modes)
+        : undefined,
     // departure_days is the unified source of truth (#1610); when provided the
     // backend derives bus_days/pickup_days/pickup_status from it.
     departure_days:
@@ -629,6 +685,7 @@ export interface UpdateStudentRequest {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   /** Optional free-text reason stamped on today's sick day when marking sick. */
   sick_reason?: string;
@@ -661,6 +718,7 @@ export interface BackendUpdateRequest {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   sick?: boolean;
   sick_reason?: string;
   excused?: boolean;
@@ -715,6 +773,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   // departure_days is the single source of truth (#1610); bus_days/pickup_days
   // are still accepted by the backend for partial legacy updates.
   { source: "departure_days", target: "departure_days" },
+  { source: "allowed_departure_modes", target: "allowed_departure_modes" },
   { source: "bus_days", target: "bus_days" },
   { source: "pickup_days", target: "pickup_days" },
   { source: "sick", target: "sick" },

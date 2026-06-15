@@ -232,8 +232,9 @@ func phaseExportSubtitle(data *enrollmentService.PhaseExport) string {
 // formats list registrations in exactly the same order.
 type exportEntry struct {
 	request   *enrollmentModels.Request
-	child     *enrollmentService.ExportChildRow // nil = registration has no children
-	sortLast  string                            // lower-cased sort key (child surname, or guardian surname when childless)
+	child     *enrollmentService.ExportChildRow   // nil = registration has no children
+	guardians []*enrollmentModels.RequestGuardian // co-guardians of this submission (nil when none)
+	sortLast  string                              // lower-cased sort key (child surname, or guardian surname when childless)
 	sortFirst string
 }
 
@@ -269,6 +270,7 @@ func orderedExportEntries(data *enrollmentService.PhaseExport) []exportEntry {
 		if len(row.Children) == 0 {
 			entries = append(entries, exportEntry{
 				request:   row.Request,
+				guardians: row.Guardians,
 				sortLast:  strings.ToLower(strings.TrimSpace(row.Request.GuardianLastName)),
 				sortFirst: strings.ToLower(strings.TrimSpace(row.Request.GuardianFirstName)),
 			})
@@ -279,6 +281,7 @@ func orderedExportEntries(data *enrollmentService.PhaseExport) []exportEntry {
 			entries = append(entries, exportEntry{
 				request:   row.Request,
 				child:     &ch,
+				guardians: row.Guardians,
 				sortLast:  strings.ToLower(strings.TrimSpace(ch.Child.LastName)),
 				sortFirst: strings.ToLower(strings.TrimSpace(ch.Child.FirstName)),
 			})
@@ -373,9 +376,9 @@ func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childSt
 		for _, e := range group.entries {
 			var record listexport.Record
 			if e.child == nil {
-				record = guardianOnlyRecord(e.request, guardianCustoms)
+				record = guardianOnlyRecord(e.request, e.guardians, guardianCustoms)
 			} else {
-				record = childRecord(e.request, *e.child, guardianCustoms, childCustoms)
+				record = childRecord(e.request, *e.child, e.guardians, guardianCustoms, childCustoms)
 			}
 			groupRecords = append(groupRecords, record)
 			records = append(records, record)
@@ -417,24 +420,72 @@ func guardianBlockFields(req *enrollmentModels.Request, guardianCustoms []enroll
 // fields first (the child is the subject), then the guardian/contact
 // details led by the parent name, repeated on every child so a single
 // block holds everything a supervisor needs offline.
-func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChildRow, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
+func childRecord(req *enrollmentModels.Request, ch enrollmentService.ExportChildRow, guardians []*enrollmentModels.RequestGuardian, guardianCustoms, childCustoms []enrollmentModels.FormField) listexport.Record {
 	rec := listexport.Record{
 		Title:  childFullName(ch.Child),
 		Fields: childFields(ch, childCustoms),
 	}
 	rec.Fields = append(rec.Fields, listexport.Field{Label: "Eltern", Value: guardianFullName(req)})
 	rec.Fields = append(rec.Fields, guardianBlockFields(req, guardianCustoms)...)
+	rec.Fields = append(rec.Fields, additionalGuardianFields(guardians)...)
 	return rec
 }
 
 // guardianOnlyRecord is the fallback block for a registration with no
 // child rows — keeps the guardian (and their answers) in the export
 // rather than dropping the submission entirely.
-func guardianOnlyRecord(req *enrollmentModels.Request, guardianCustoms []enrollmentModels.FormField) listexport.Record {
-	return listexport.Record{
+func guardianOnlyRecord(req *enrollmentModels.Request, guardians []*enrollmentModels.RequestGuardian, guardianCustoms []enrollmentModels.FormField) listexport.Record {
+	rec := listexport.Record{
 		Title:  guardianFullName(req),
 		Fields: guardianBlockFields(req, guardianCustoms),
 	}
+	rec.Fields = append(rec.Fields, additionalGuardianFields(guardians)...)
+	return rec
+}
+
+// additionalGuardianFields renders one label/value line per co-guardian for
+// the PDF/DOCX record, each "Vorname Nachname (E-Mail, Telefon)" with empty
+// contact parts omitted. Empty when the submission had no co-guardians.
+func additionalGuardianFields(guardians []*enrollmentModels.RequestGuardian) []listexport.Field {
+	fields := make([]listexport.Field, 0, len(guardians))
+	for _, g := range guardians {
+		fields = append(fields, listexport.Field{
+			Label: "Weitere Erziehungsberechtigte",
+			Value: formatGuardianContact(g),
+		})
+	}
+	return fields
+}
+
+// formatGuardianContact renders one co-guardian as "Vorname Nachname
+// (E-Mail, Telefon)", dropping whichever contact parts are absent (a
+// co-guardian may be a name+phone-only or name+email-only contact).
+func formatGuardianContact(g *enrollmentModels.RequestGuardian) string {
+	name := strings.TrimSpace(g.FirstName + " " + g.LastName)
+	contact := make([]string, 0, 2)
+	if g.Email != nil && strings.TrimSpace(*g.Email) != "" {
+		contact = append(contact, strings.TrimSpace(*g.Email))
+	}
+	if g.Phone != nil && strings.TrimSpace(*g.Phone) != "" {
+		contact = append(contact, strings.TrimSpace(*g.Phone))
+	}
+	if len(contact) > 0 {
+		return name + " (" + strings.Join(contact, ", ") + ")"
+	}
+	return name
+}
+
+// formatAdditionalGuardians joins every co-guardian into one cell for the
+// XLSX export (one column can't expand per row), separated by "; ".
+func formatAdditionalGuardians(guardians []*enrollmentModels.RequestGuardian) string {
+	if len(guardians) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(guardians))
+	for _, g := range guardians {
+		parts = append(parts, formatGuardianContact(g))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // childFields builds the child's own label/value lines: identity, target
@@ -512,6 +563,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 		listexport.Column{ID: "consent_data_processing", Label: "Zustimmung Datenverarbeitung"},
 		listexport.Column{ID: "consent_email_contact", Label: "Zustimmung E-Mail-Kontakt"},
 		listexport.Column{ID: "consent_photo", Label: "Zustimmung Foto"},
+		listexport.Column{ID: "additional_guardians", Label: "Weitere Erziehungsberechtigte"},
 	)
 
 	// Same ordered entries as the PDF, so the XLSX rows appear in exactly
@@ -521,7 +573,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 	for _, group := range groupedExportEntries(data) {
 		rows = append(rows, listexport.Row{GroupTitle: group.title})
 		for _, e := range group.entries {
-			guardianValues := guardianRowValues(e.request, guardianCustoms)
+			guardianValues := guardianRowValues(e.request, e.guardians, guardianCustoms)
 			if e.child == nil {
 				rows = append(rows, listexport.Row{Values: guardianValues})
 				continue
@@ -541,7 +593,7 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 	}
 }
 
-func guardianRowValues(req *enrollmentModels.Request, guardianCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
+func guardianRowValues(req *enrollmentModels.Request, guardians []*enrollmentModels.RequestGuardian, guardianCustoms []enrollmentModels.FormField) map[listexport.ColumnID]string {
 	values := map[listexport.ColumnID]string{
 		"guardian_last_name":      req.GuardianLastName,
 		"guardian_first_name":     req.GuardianFirstName,
@@ -553,6 +605,7 @@ func guardianRowValues(req *enrollmentModels.Request, guardianCustoms []enrollme
 		"consent_data_processing": consentLabel(req.ConsentFlags, enrollmentModels.ConsentKeyDataProcessing),
 		"consent_email_contact":   consentLabel(req.ConsentFlags, enrollmentModels.ConsentKeyEmailContact),
 		"consent_photo":           consentLabel(req.ConsentFlags, enrollmentModels.ConsentKeyPhoto),
+		"additional_guardians":    formatAdditionalGuardians(guardians),
 	}
 	for _, cf := range guardianCustoms {
 		if v, ok := req.CustomData[cf.Key]; ok {

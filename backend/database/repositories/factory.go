@@ -169,6 +169,7 @@ type Factory struct {
 	FormSchema           enrollmentModels.FormSchemaRepository
 	Request              enrollmentModels.RequestRepository
 	RequestChild         enrollmentModels.RequestChildRepository
+	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
@@ -316,6 +317,7 @@ func NewFactory(db *bun.DB) *Factory {
 		FormSchema:           enrollment.NewFormSchemaRepository(db),
 		Request:              enrollment.NewRequestRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
+		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),

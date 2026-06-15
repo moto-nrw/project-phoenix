@@ -17,6 +17,7 @@ import {
   patchStatus,
   withdrawStatus,
   type StatusChild,
+  type StatusGuardian,
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
@@ -463,6 +464,28 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 {status.guardian_phone ?? t("notProvided")}
               </dd>
             </div>
+            {status.additional_guardians?.map((g: StatusGuardian, i) => (
+              <div
+                key={i}
+                className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
+              >
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  {t("additionalGuardiansLabel")}
+                </dt>
+                <dd className="mt-1 font-semibold text-gray-900">
+                  {g.first_name} {g.last_name}
+                </dd>
+                <dd className="mt-1 text-sm text-gray-600">
+                  {g.email && g.email.trim() !== ""
+                    ? g.email
+                    : t("notProvided")}
+                  {" · "}
+                  {g.phone && g.phone.trim() !== ""
+                    ? g.phone
+                    : t("notProvided")}
+                </dd>
+              </div>
+            ))}
           </dl>
         ) : (
           <form onSubmit={handleEdit} className="space-y-4 text-sm">

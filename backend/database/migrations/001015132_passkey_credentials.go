@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	passkeyCredentialsVersion     = "1.15.130"
+	passkeyCredentialsVersion     = "1.15.132"
 	passkeyCredentialsDescription = "Add WebAuthn passkey credentials and ceremony sessions"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func passkeyCredentialsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.130: Creating passkey credential tables...")
+	fmt.Println("Migration 1.15.132: Creating passkey credential tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -165,7 +165,7 @@ func passkeyCredentialsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func passkeyCredentialsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.130: Dropping passkey credential tables...")
+	fmt.Println("Rolling back migration 1.15.132: Dropping passkey credential tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

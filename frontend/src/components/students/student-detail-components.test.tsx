@@ -640,7 +640,7 @@ describe("PersonalInfoReadOnly", () => {
     // mockStudent has bus_days {mon, fri}; these fold into "Fährt Bus".
     render(<PersonalInfoReadOnly student={mockStudent} />);
     expect(
-      screen.getByText("Mo: Fährt Bus, Fr: Fährt Bus"),
+      screen.getByText("Mo: Fährt Bus; Fr: Fährt Bus"),
     ).toBeInTheDocument();
   });
 
@@ -664,7 +664,7 @@ describe("PersonalInfoReadOnly", () => {
     };
     render(<PersonalInfoReadOnly student={pickedUp} />);
     expect(
-      screen.getByText("Mo: Wird abgeholt, Mi: Wird abgeholt"),
+      screen.getByText("Mo: Wird abgeholt; Mi: Wird abgeholt"),
     ).toBeInTheDocument();
   });
 

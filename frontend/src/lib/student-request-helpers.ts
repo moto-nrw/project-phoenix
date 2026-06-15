@@ -4,6 +4,7 @@
  */
 
 import type {
+  AllowedDepartureModes,
   BusDays,
   DepartureDays,
   PickupDays,
@@ -38,6 +39,7 @@ interface BackendStudentRequest {
   bus_days?: BusDays;
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
+  allowed_departure_modes?: AllowedDepartureModes;
   extra_info?: string;
   birthday?: string;
   health_info?: string;
@@ -180,6 +182,7 @@ export function buildBackendStudentRequest(
     bus_days: backendData.bus_days,
     pickup_days: backendData.pickup_days,
     departure_days: backendData.departure_days,
+    allowed_departure_modes: backendData.allowed_departure_modes,
     extra_info: backendData.extra_info,
     birthday: backendData.birthday,
     health_info: backendData.health_info,

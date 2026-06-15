@@ -141,6 +141,34 @@ func TestWeekdayMode_RequiredHandling(t *testing.T) {
 		"selected departure mode accepted")
 }
 
+func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
+	departure := enrollmentModels.FormField{
+		Key:    "allowed_departure",
+		Type:   enrollmentModels.FormFieldWeekdayMultiMode,
+		Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+	}
+
+	assert.True(t, customAnswerSatisfiesRequiredWeekdayMultiMode(departure, map[string]any{}, map[string]bool{}),
+		"no selected care days means there is no required departure answer yet")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdayMultiMode(departure, map[string]any{}, map[string]bool{"mon": true}),
+		"missing answer fails when a care day exists")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdayMultiMode(
+		departure,
+		map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus"}}},
+		map[string]bool{"mon": true, "tue": true},
+	), "every selected care day needs at least one mode")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdayMultiMode(
+		departure,
+		map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus"}, "fri": []any{"pickup"}}},
+		map[string]bool{"mon": true},
+	), "answers for non-care days are rejected")
+	assert.True(t, customAnswerSatisfiesRequiredWeekdayMultiMode(
+		departure,
+		map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus", "pickup"}, "tue": []any{"alone"}}},
+		map[string]bool{"mon": true, "tue": true},
+	), "selected care days with modes are accepted")
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {
