@@ -23,8 +23,37 @@ type GuardianInvitation struct {
 	EmailError        *string    `bun:"email_error" json:"email_error,omitempty"`
 	EmailRetryCount   int        `bun:"email_retry_count,default:0" json:"email_retry_count"`
 
+	// Parent-initiated invites + staff approval (migration 1.15.120).
+	// StudentID names the child this invite grants access to; lets the accept
+	// flow link an existing account to an additional child (sibling case).
+	StudentID *int64 `bun:"student_id" json:"student_id,omitempty"`
+	// RequestedByAccountID is set when a parent (not staff) initiated the
+	// invite; NULL for staff-initiated invites.
+	RequestedByAccountID *int64 `bun:"requested_by_account_id" json:"requested_by_account_id,omitempty"`
+	// ApprovalStatus is one of the GuardianInvitationApproval* constants.
+	ApprovalStatus string     `bun:"approval_status,notnull,default:'not_required'" json:"approval_status"`
+	ApprovedBy     *int64     `bun:"approved_by" json:"approved_by,omitempty"`
+	ApprovedAt     *time.Time `bun:"approved_at" json:"approved_at,omitempty"`
+	// ProfileCreatedForInvitation is true only when this invite flow created
+	// the guardian profile specifically to back this invitation.
+	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
+
 	// Relations (not stored in database)
 	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
+}
+
+// Approval-status values for GuardianInvitation.ApprovalStatus.
+const (
+	GuardianInvitationApprovalNotRequired = "not_required" // staff invites + parent direct mode
+	GuardianInvitationApprovalPending     = "pending"      // parent invite awaiting staff approval
+	GuardianInvitationApprovalApproved    = "approved"     // staff approved; email dispatched
+	GuardianInvitationApprovalRejected    = "rejected"     // staff rejected; no access granted
+)
+
+// IsPendingApproval reports whether this invite is a parent-initiated request
+// still awaiting staff approval (pure field accessor).
+func (i *GuardianInvitation) IsPendingApproval() bool {
+	return i.ApprovalStatus == GuardianInvitationApprovalPending
 }
 
 // TableName returns the fully-qualified table name

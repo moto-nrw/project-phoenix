@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -158,8 +159,10 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // ChildFeaturesResponse tells the parent UI which write actions the child's
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
-	SickNoteEnabled bool `json:"sick_note_enabled"`
-	NotesEnabled    bool `json:"notes_enabled"`
+	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	NotesEnabled                 bool `json:"notes_enabled"`
+	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
+	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -180,8 +183,10 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
-		SickNoteEnabled: flags.SickNoteEnabled,
-		NotesEnabled:    flags.NotesEnabled,
+		SickNoteEnabled:              flags.SickNoteEnabled,
+		NotesEnabled:                 flags.NotesEnabled,
+		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
+		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 	}, "Child features retrieved")
 }
 
@@ -320,9 +325,21 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrInviteDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "invite_disabled"))
+	case errors.Is(err, parentService.ErrRemoveDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "remove_disabled"))
+	case errors.Is(err, authService.ErrCannotRemovePrimaryGuardian):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "primary_guardian_protected"))
+	case errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
+	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrEmptyNote),
-		errors.Is(err, parentService.ErrNoteTooLong):
+		errors.Is(err, parentService.ErrNoteTooLong),
+		errors.Is(err, parentService.ErrEmailRequired),
+		errors.Is(err, parentService.ErrInvalidInviteInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

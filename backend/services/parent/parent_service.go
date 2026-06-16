@@ -18,9 +18,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -82,6 +84,18 @@ type Service interface {
 	// for the child's tenant, so the UI can hide/disable actions the backend
 	// would reject with 403. Authorization only.
 	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+
+	// ListRelatedAccounts returns every guardian linked to the child with
+	// portal-access status. Authorization only.
+	ListRelatedAccounts(ctx context.Context, accountID, studentID int64) ([]*RelatedAccount, error)
+
+	// InviteRelatedAccount invites a further guardian to the child by email.
+	// Gated by guardians.parent_invite_mode; staff_approval queues the request.
+	InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string) (*InviteRelatedAccountResult, error)
+
+	// RemoveRelatedAccount removes another account's access to the child.
+	// Gated by guardians.parent_can_remove; the primary guardian is protected.
+	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -89,6 +103,12 @@ type Service interface {
 type ChildFeatureFlags struct {
 	SickNoteEnabled bool
 	NotesEnabled    bool
+	// RelatedAccountsInviteEnabled is true when parents may invite further
+	// guardians (guardians.parent_invite_mode != disabled).
+	RelatedAccountsInviteEnabled bool
+	// RelatedAccountsRemoveEnabled is true when parents may remove another
+	// account's access (guardians.parent_can_remove).
+	RelatedAccountsRemoveEnabled bool
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.
@@ -114,6 +134,12 @@ type ServiceConfig struct {
 	Settings      configService.SettingsService
 	Broadcaster   realtime.Broadcaster
 
+	// Related-accounts management (invite/remove further guardians from the
+	// parents portal). The invitation service runs the shared resolve logic.
+	GuardianInvites     authService.GuardianInvitationService
+	GuardianInviteRepo  authModels.GuardianInvitationRepository
+	StudentGuardianRepo usersModels.StudentGuardianRepository
+
 	DB     *bun.DB
 	Logger *slog.Logger
 }
@@ -129,6 +155,10 @@ type service struct {
 	noteRepo      usersModels.StudentParentNoteRepository
 	settings      configService.SettingsService
 	broadcaster   realtime.Broadcaster
+
+	guardianInvites     authService.GuardianInvitationService
+	guardianInviteRepo  authModels.GuardianInvitationRepository
+	studentGuardianRepo usersModels.StudentGuardianRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -150,6 +180,9 @@ func NewService(cfg ServiceConfig) Service {
 		noteRepo:              cfg.NoteRepo,
 		settings:              cfg.Settings,
 		broadcaster:           cfg.Broadcaster,
+		guardianInvites:       cfg.GuardianInvites,
+		guardianInviteRepo:    cfg.GuardianInviteRepo,
+		studentGuardianRepo:   cfg.StudentGuardianRepo,
 		db:                    cfg.DB,
 		logger:                logger,
 	}

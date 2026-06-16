@@ -636,6 +636,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:             repos.Role,
 		PersonRepo:           repos.Person,
 		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		StudentRepo:          repos.Student,
 		SchoolRepo:           repos.School,
 		Mailer:               mailer,
 		Dispatcher:           dispatcher,
@@ -1044,6 +1046,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		NoteRepo:              repos.StudentParentNote,
 		Settings:              settingsService,
 		Broadcaster:           realtimeHub,
+		GuardianInvites:       guardianInvitationService,
+		GuardianInviteRepo:    repos.GuardianInvitation,
+		StudentGuardianRepo:   repos.StudentGuardian,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),
 	})

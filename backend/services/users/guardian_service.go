@@ -782,12 +782,38 @@ func (s *guardianService) GetStudentGuardians(ctx context.Context, studentID int
 		}
 
 		result = append(result, &GuardianWithRelationship{
-			Profile:      profile,
-			Relationship: rel,
+			Profile:           profile,
+			Relationship:      rel,
+			InvitationPending: !profile.HasAccount && s.hasOpenInvitation(ctx, profile.ID),
 		})
 	}
 
 	return result, nil
+}
+
+// hasOpenInvitation reports whether the guardian profile has an invitation that
+// is neither accepted, expired, nor rejected — i.e. an outstanding invite the
+// staff UI should surface as "Einladung offen". Best-effort: a lookup error is
+// treated as "no pending invite" so the guardian list still renders.
+func (s *guardianService) hasOpenInvitation(ctx context.Context, guardianProfileID int64) bool {
+	invitations, err := s.guardianInvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return false
+	}
+	now := time.Now()
+	for _, inv := range invitations {
+		if inv.IsAccepted() {
+			continue
+		}
+		if !inv.ExpiresAt.IsZero() && now.After(inv.ExpiresAt) {
+			continue
+		}
+		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalRejected {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // GetGuardianStudents retrieves all students for a guardian

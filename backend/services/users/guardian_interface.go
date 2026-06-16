@@ -148,6 +148,11 @@ type StudentWithRelationship struct {
 type GuardianWithRelationship struct {
 	Profile      *users.GuardianProfile
 	Relationship *users.StudentGuardian
+	// InvitationPending is true when the guardian has no portal account yet
+	// but an open (not accepted, not expired, not rejected) invitation exists.
+	// Lets the staff UI show "Einladung offen" and offer re-invite instead of
+	// a fresh invite.
+	InvitationPending bool
 }
 
 // GuardianService defines operations for managing guardians

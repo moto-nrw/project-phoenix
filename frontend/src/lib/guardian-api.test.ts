@@ -311,6 +311,7 @@ describe("guardian-api functions", () => {
         canPickup: true,
         pickupNotes: "Can pickup anytime",
         emergencyPriority: 1,
+        accountStatus: "none",
       });
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/guardians/students/123/guardians",

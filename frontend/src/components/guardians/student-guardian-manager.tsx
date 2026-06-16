@@ -26,6 +26,7 @@ import {
   updateGuardianPhoneNumber,
   deleteGuardianPhoneNumber,
   setGuardianPrimaryPhone,
+  inviteGuardianToStudent,
   fetchGuardianDeletePreview,
   GuardianApiError,
 } from "@/lib/guardian-api";
@@ -69,6 +70,9 @@ export default function StudentGuardianManager({
   >([]);
   const [isWarningLoading, setIsWarningLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [invitingGuardianId, setInvitingGuardianId] = useState<string | null>(
+    null,
+  );
   const deletePreviewRequestIdRef = useRef(0);
   const { success: toastSuccess, error: toastError } = useToast();
 
@@ -331,6 +335,35 @@ export default function StudentGuardianManager({
     const existingPrimary = existingPhones.find((p) => p.isPrimary);
     if (existingPrimary?.id !== primaryPhoneId) {
       await setGuardianPrimaryPhone(guardianId, primaryPhoneId);
+    }
+  };
+
+  // Invite an existing guardian (info already on file) to the parents portal.
+  // Uses their on-file email — no re-typing. The backend resolves the existing
+  // profile and either sends an invite or links an account that already exists.
+  const handleInviteGuardian = async (guardian: GuardianWithRelationship) => {
+    if (!guardian.email) return;
+    setInvitingGuardianId(guardian.id);
+    try {
+      const result = await inviteGuardianToStudent(studentId, guardian.email);
+      await loadGuardians();
+      onUpdate?.();
+      const name = getGuardianFullName(guardian);
+      const message =
+        result.outcome === "invited"
+          ? `Einladung an ${guardian.email} gesendet`
+          : result.outcome === "already_linked"
+            ? `${name} ist bereits verbunden`
+            : `${name} wurde mit dem vorhandenen Konto verbunden`;
+      toastSuccess(message);
+    } catch (err) {
+      logger.error("guardian_invite_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      toastError("Fehler beim Einladen der/des Erziehungsberechtigten");
+    } finally {
+      setInvitingGuardianId(null);
     }
   };
 
@@ -617,6 +650,8 @@ export default function StudentGuardianManager({
         <GuardianList
           guardians={guardians}
           onEdit={readOnly ? undefined : handleOpenEditModal}
+          onInvite={readOnly ? undefined : (g) => void handleInviteGuardian(g)}
+          invitingGuardianId={invitingGuardianId}
           readOnly={readOnly}
           showRelationship={true}
         />

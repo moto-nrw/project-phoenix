@@ -486,4 +486,45 @@ func init() {
 		Category:        "elternportal",
 		SortOrder:       61,
 	})
+
+	// Related-accounts management. Whether a parent may invite further
+	// guardians to their own child, and whether they may revoke another
+	// account's access. Sensitive (controls access to child data) -> manage.
+	config.Register(config.Definition{
+		Key:             config.KeyGuardianParentInviteMode,
+		Label:           "Weitere Bezugspersonen einladen (Eltern)",
+		Description:     "Legt fest, ob Eltern über das Elternportal weitere Bezugspersonen zu ihrem Kind einladen dürfen. \"Mit Freigabe\" stellt die Einladung dem Team zur Bestätigung in eine Warteschlange. Das Team kann unabhängig davon immer einladen.",
+		Type:            config.FieldSelect,
+		Default:         config.ParentInviteModeDisabled,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
+				{Label: "Direkt", Value: config.ParentInviteModeDirect},
+				{Label: "Mit Freigabe durch das Team", Value: config.ParentInviteModeStaffApproval},
+			},
+		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyGuardianParentCanRemove,
+		Label:           "Bezugspersonen entfernen (Eltern)",
+		Description:     "Wenn aktiviert, dürfen Eltern den Zugang anderer Konten zu ihrem Kind über das Elternportal entfernen. Die primäre Bezugsperson kann nicht von Eltern entfernt werden. Das Team kann unabhängig davon immer entfernen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyGuardianParentInviteMode,
+			Condition: "neq",
+			Value:     config.ParentInviteModeDisabled,
+		},
+	})
 }

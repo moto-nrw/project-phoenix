@@ -97,6 +97,22 @@ export interface ParentNote {
 export interface ChildFeatures {
   readonly sick_note_enabled: boolean;
   readonly notes_enabled: boolean;
+  readonly related_accounts_invite_enabled: boolean;
+  readonly related_accounts_remove_enabled: boolean;
+}
+
+// A guardian linked to the child, with portal-access status.
+export interface RelatedAccount {
+  readonly guardian_profile_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly email?: string;
+  readonly relationship_type: string;
+  readonly is_primary: boolean;
+  readonly status: "active" | "pending" | "no_account";
+  // Marks the requesting parent's own row. Self-removal is rejected by the
+  // backend, so the panel hides the remove action for it.
+  readonly is_self: boolean;
 }
 
 interface ApiEnvelope<T> {
@@ -354,4 +370,66 @@ export async function addChildNote(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
     { body },
   );
+}
+
+// --- Related accounts (who has parents-app access to the child) ---
+
+/** Lists guardians linked to the child, with portal-access status. */
+export async function listRelatedAccounts(
+  studentId: string,
+): Promise<RelatedAccount[]> {
+  return getJson<RelatedAccount[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
+  );
+}
+
+// Outcome echoed by the invite resolve.
+export interface InviteRelatedAccountResult {
+  readonly outcome: string;
+  readonly guardian_profile_id: string;
+}
+
+/** Invites a further guardian to the child by email. */
+export async function inviteRelatedAccount(
+  studentId: string,
+  email: string,
+  options?: { firstName?: string; lastName?: string },
+): Promise<InviteRelatedAccountResult> {
+  return postJson<InviteRelatedAccountResult>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
+    {
+      email,
+      first_name: options?.firstName ?? "",
+      last_name: options?.lastName ?? "",
+    },
+  );
+}
+
+/** Removes another account's access to the child (not the primary guardian). */
+export async function removeRelatedAccount(
+  studentId: string,
+  guardianProfileId: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts/${encodeURIComponent(guardianProfileId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const body = (await response.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Body was not JSON, keep the generic message.
+    }
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.location.assign("/parents/login");
+    }
+    logger.error("parent_api_request_failed", {
+      url: "remove_related_account",
+      status: response.status,
+      message,
+    });
+    throw new Error(message);
+  }
 }
