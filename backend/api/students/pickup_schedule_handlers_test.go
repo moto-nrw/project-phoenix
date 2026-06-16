@@ -351,6 +351,36 @@ func TestCreateStudentPickupException(t *testing.T) {
 			Exec(context.Background())
 	})
 
+	t.Run("create_response_includes_staff_source_without_refetch", func(t *testing.T) {
+		// Locks the response contract: the immediate 201 body must report
+		// source:staff, so a client never sees source:"" before a refetch. The
+		// handler stamps the source explicitly (and bun also backfills the
+		// column default via RETURNING) — this guards both against regressing.
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionSrc", "Test", "ESRC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ExcTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"exception_date": "2026-03-17",
+			"pickup_time":    "14:30",
+			"reason":         "Source check",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
+			"Immediate create response must carry source:staff, not the unset default. Body: %s", rr.Body.String())
+
+		// Cleanup created exception
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
 	t.Run("success_creates_exception_without_pickup_time_absent", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionAbsent", "Test", "EAT1")
@@ -376,6 +406,127 @@ func TestCreateStudentPickupException(t *testing.T) {
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Where("student_id = ?", student.ID).
 			Exec(context.Background())
+	})
+
+	t.Run("create_over_guardian_row_reclaims_for_staff", func(t *testing.T) {
+		// A guardian set the day from the parents portal, then staff create an
+		// exception for the same day with a stale view (the modal didn't know a
+		// row appeared). The unique (student_id, exception_date) index would make
+		// a second insert fail with a 500; instead the create is folded into a
+		// staff override that reclaims the day for staff.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianPickupExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 17)
+		originalReason := "Parent reason"
+		guardian := &scheduleModel.StudentPickupException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		guardian.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(guardian).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date": "2026-04-17",
+			"pickup_time":    "13:45",
+			"reason":         "Staff created over parent",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created (not a 500 on the unique index). Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "13:45")
+
+		// The day is reclaimed for staff: still a single row (no duplicate),
+		// source flips, the guardian link is dropped.
+		var rowCount int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_pickup_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &rowCount))
+		assert.Equal(t, 1, rowCount, "create-over-existing must not insert a duplicate row")
+
+		var source string
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_pickup_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by_guardian").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Nil(t, createdByGuardian)
+	})
+
+	t.Run("create_over_staff_row_conflicts", func(t *testing.T) {
+		// A different staff member set the day after this client loaded its
+		// (empty) view, so the create races a STAFF-authored row. Unlike the
+		// guardian case it must NOT be silently overwritten — refuse with a 409
+		// so the client reloads and edits through the update path instead.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffPickupExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 18)
+		originalReason := "Other staff reason"
+		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
+		staffRow := &scheduleModel.StudentPickupException{
+			StudentID:     chain.StudentID,
+			ExceptionDate: exceptionDate,
+			PickupTime:    &originalTime,
+			Reason:        &originalReason,
+			Source:        scheduleModel.ExceptionSourceStaff,
+			CreatedBy:     teacher.StaffID,
+		}
+		staffRow.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(staffRow).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date": "2026-04-18",
+			"pickup_time":    "13:45",
+			"reason":         "Staff created over staff",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, rr.Code, "staff-on-staff create must be a 409, not a silent overwrite. Body: %s", rr.Body.String())
+
+		// The other staff member's row is untouched.
+		var source string
+		var createdBy int64
+		var pickupTime *time.Time
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_pickup_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("pickup_time").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdBy, &pickupTime))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Equal(t, teacher.StaffID, createdBy, "existing staff row must keep its author")
+		require.NotNil(t, pickupTime)
+		assert.Equal(t, "08:00", pickupTime.Format("15:04"), "existing staff time must be unchanged")
 	})
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
@@ -538,6 +689,61 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Updated reason", "Should contain updated reason")
 	})
 
+	t.Run("success_reclaims_guardian_exception_for_staff", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianPickupExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 16)
+		originalReason := "Parent reason"
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
+
+		body := map[string]any{
+			"exception_date": "2026-04-16",
+			"pickup_time":    "13:45",
+			"reason":         "Staff adjusted time",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "13:45")
+
+		// A staff edit reclaims the parent-authored day: source flips to staff,
+		// the editing staff becomes the author, and the guardian link is dropped.
+		var source string
+		var createdBy *int64
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_pickup_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("created_by_guardian").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &source, &createdBy, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		require.NotNil(t, createdBy)
+		assert.Positive(t, *createdBy)
+		assert.Nil(t, createdByGuardian)
+	})
+
 	t.Run("forbidden_exception_belongs_to_different_student", func(t *testing.T) {
 		// Create two students
 		student1 := testpkg.CreateTestStudent(t, tc.db, "Student1", "Test", "ST1")
@@ -669,6 +875,48 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
+	})
+
+	t.Run("success_deletes_guardian_exception", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianPickupExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 6, 16)
+		pickupTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 15:30")
+		require.NoError(t, err)
+		originalReason := "Parent pickup delete reason"
+		exception := &scheduleModel.StudentPickupException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			PickupTime:        &pickupTime,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err = tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		var remaining int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_pickup_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &remaining))
+		assert.Zero(t, remaining)
 	})
 
 	t.Run("forbidden_delete_exception_belongs_to_different_student", func(t *testing.T) {

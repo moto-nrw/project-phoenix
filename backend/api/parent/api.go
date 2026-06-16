@@ -133,11 +133,15 @@ func (rs *Resource) Router() chi.Router {
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
 		//   - notes: append / list short messages for the team
+		//   - care-exception: set/clear a one-day pickup & arrival time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		r.Get("/me/children/{studentId}/notes", rs.listNotes)
 		r.Post("/me/children/{studentId}/notes", rs.addNote)
+		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
+		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
+		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
 
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),

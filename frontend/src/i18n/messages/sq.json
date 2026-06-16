@@ -130,8 +130,8 @@
         "description": "Njoftim ditor për këtë fëmijë"
       },
       "pickupTime": {
-        "label": "Ndrysho kohën e marrjes",
-        "description": "Njofto marrjen"
+        "label": "Ndrysho orarin e ardhjes dhe marrjes",
+        "description": "Cakto orarin për një ditë"
       },
       "message": {
         "label": "Shkruaj mesazh",
@@ -207,6 +207,25 @@
       "none": "Asnjë njoftim sëmundjeje",
       "oneDay": "I sëmurë më {date}",
       "range": "I sëmurë {from} – {to}"
+    },
+    "pickup": {
+      "title": "Ndrysho orarin e ardhjes dhe marrjes",
+      "intro": "Caktoni një orar tjetër marrjeje ose ardhjeje për një ditë të vetme. Ndryshimi vlen vetëm për atë ditë.",
+      "dateLabel": "Dita",
+      "pickupLabel": "Ora e marrjes",
+      "arrivalLabel": "Ora e ardhjes",
+      "noTime": "Ju lutemi vendosni të paktën një orar.",
+      "saveError": "Ndryshimi nuk mund të ruhej.",
+      "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
+      "errorDisabled": "Ndryshimi i orarit të marrjes nuk është aktivizuar për këtë institucion.",
+      "errorStaffConflict": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë. Ju lutemi kontaktoni ekipin.",
+      "errorRaced": "Kjo ditë sapo u ndryshua. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
+      "errorPastDate": "Për ditët e kaluara nuk mund të ruhet asnjë ndryshim.",
+      "errorTooFar": "Kjo ditë është shumë larg në të ardhmen. Ju lutemi zgjidhni një ditë brenda dy muajve të ardhshëm.",
+      "staffSet": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë (marrja: {pickup}, ardhja: {arrival}).",
+      "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
+      "reset": "Rivendos",
+      "submit": "Ruaj"
     }
   },
   "parentLogin": {

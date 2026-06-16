@@ -113,6 +113,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
+		"operations.parent_pickup_change_enabled",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
@@ -435,6 +436,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
+		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
 	}
 
 	for _, tc := range tests {
@@ -458,6 +460,18 @@ func TestParentPortalSettings_DefaultOn(t *testing.T) {
 		assert.Equalf(t, true, def.Default, "setting %q should default to true (opt-out)", key)
 		assert.Equalf(t, "operations", def.Tab, "setting %q should be on the operations tab", key)
 	}
+}
+
+// TestParentPickupChangeSetting_DefaultOn guards that the pickup-change toggle
+// defaults to true, in line with the other parents-portal write toggles
+// (sick-note/notes). Schools that do not want parents to alter the care
+// schedule must switch it off deliberately.
+func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
+	def := config.GetDefinition("operations.parent_pickup_change_enabled")
+	require.NotNil(t, def, "operations.parent_pickup_change_enabled should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
+	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
+	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
 }
 
 // TestEnrollmentSettings_AllRegistered_OnEnrollmentTab guards that every
