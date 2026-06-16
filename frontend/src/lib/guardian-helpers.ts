@@ -51,7 +51,7 @@ export const GUARDIAN_ROLE_OPTIONS: Array<{
   { value: "custom", label: "Individuell" },
 ];
 
-export function normalizeGuardianRole(value: unknown): GuardianRole {
+function normalizeGuardianRole(value: unknown): GuardianRole {
   return GUARDIAN_ROLE_OPTIONS.some((option) => option.value === value)
     ? (value as GuardianRole)
     : "custom";
