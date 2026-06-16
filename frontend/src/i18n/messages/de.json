@@ -216,6 +216,7 @@
       "arrivalLabel": "Ankunftszeit",
       "noTime": "Bitte geben Sie mindestens eine Uhrzeit an.",
       "saveError": "Die Änderung konnte nicht gespeichert werden.",
+      "loadError": "Die aktuell hinterlegten Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
       "errorDisabled": "Das Ändern der Abholzeit ist für diese Einrichtung nicht aktiviert.",
       "errorStaffConflict": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt. Bitte wenden Sie sich an das Team.",
       "errorRaced": "Dieser Tag wurde gerade geändert. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",

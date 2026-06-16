@@ -351,6 +351,36 @@ func TestCreateStudentPickupException(t *testing.T) {
 			Exec(context.Background())
 	})
 
+	t.Run("create_response_includes_staff_source_without_refetch", func(t *testing.T) {
+		// Locks the response contract: the immediate 201 body must report
+		// source:staff, so a client never sees source:"" before a refetch. The
+		// handler stamps the source explicitly (and bun also backfills the
+		// column default via RETURNING) — this guards both against regressing.
+		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionSrc", "Test", "ESRC1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ExcTeacher")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		body := map[string]any{
+			"exception_date": "2026-03-17",
+			"pickup_time":    "14:30",
+			"reason":         "Source check",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
+			"Immediate create response must carry source:staff, not the unset default. Body: %s", rr.Body.String())
+
+		// Cleanup created exception
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupException)(nil)).
+			ModelTableExpr("schedule.student_pickup_exceptions").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
+	})
+
 	t.Run("success_creates_exception_without_pickup_time_absent", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionAbsent", "Test", "EAT1")

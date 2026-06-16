@@ -216,6 +216,7 @@
       "arrivalLabel": "Arrival time",
       "noTime": "Please enter at least one time.",
       "saveError": "The change could not be saved.",
+      "loadError": "The currently saved times could not be loaded. Please reload the page and try again.",
       "errorDisabled": "Changing the pickup time is not enabled for this school.",
       "errorStaffConflict": "The school has already set special times for this day. Please contact the team.",
       "errorRaced": "This day was just changed. Please reload the page and try again.",

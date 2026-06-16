@@ -216,6 +216,7 @@
       "arrivalLabel": "Ora e ardhjes",
       "noTime": "Ju lutemi vendosni të paktën një orar.",
       "saveError": "Ndryshimi nuk mund të ruhej.",
+      "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
       "errorDisabled": "Ndryshimi i orarit të marrjes nuk është aktivizuar për këtë institucion.",
       "errorStaffConflict": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë. Ju lutemi kontaktoni ekipin.",
       "errorRaced": "Kjo ditë sapo u ndryshua. Ju lutemi ringarkoni faqen dhe provoni përsëri.",

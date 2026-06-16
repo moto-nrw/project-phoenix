@@ -512,7 +512,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 			ExceptionDate: exceptionDate,
 			PickupTime:    pickupTime,
 			Reason:        req.Reason,
-			CreatedBy:     staffID,
+			// Stamp the source explicitly so the in-memory object the 201
+			// response serializes is correct on its own, and so this mirrors the
+			// reclaim path above. (bun also backfills the column default via
+			// RETURNING for the zero value, but leaning on that ORM behavior for
+			// a response contract is fragile.)
+			Source:    schedule.ExceptionSourceStaff,
+			CreatedBy: staffID,
 		}
 		return rs.PickupScheduleService.CreateStudentPickupException(ctx, exception)
 	}); err != nil {

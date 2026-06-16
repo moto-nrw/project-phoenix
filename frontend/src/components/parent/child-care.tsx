@@ -103,6 +103,12 @@ export interface ChildCare {
   readonly sickDays: StatusDay[];
   readonly notes: ParentNote[];
   readonly careExceptions: CareException[];
+  // Whether the care-exception list actually loaded. A failed fetch leaves
+  // careExceptions empty, which is indistinguishable from "no overrides exist"
+  // — and submitCareException treats an omitted leg as an authoritative clear.
+  // The pickup modal must block saving while this is false so a parent can't
+  // silently wipe an existing override the UI never managed to prefill.
+  readonly careExceptionsLoaded: boolean;
   readonly features: ChildFeatures;
   readonly loading: boolean;
   reportSick(dates: string[], reason: string): Promise<void>;
@@ -119,21 +125,30 @@ export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [notes, setNotes] = useState<ParentNote[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
+  const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Track the care-exception fetch separately: an empty list from a failed
+    // fetch must NOT be treated as "no overrides", or the pickup modal could
+    // clear a leg it never prefilled (see careExceptionsLoaded above).
+    let exceptionsOk = true;
     try {
       const [days, noteList, exceptions, flags] = await Promise.all([
         listSickDays(studentId).catch(() => [] as StatusDay[]),
         listChildNotes(studentId).catch(() => [] as ParentNote[]),
-        listCareExceptions(studentId).catch(() => [] as CareException[]),
+        listCareExceptions(studentId).catch(() => {
+          exceptionsOk = false;
+          return [] as CareException[];
+        }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
       setSickDays(days);
       setNotes(noteList);
       setCareExceptions(exceptions);
+      setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
     } catch (err) {
       logger.warn("child_care_load_failed", {
@@ -204,6 +219,7 @@ export function useChildCare(studentId: string): ChildCare {
     sickDays,
     notes,
     careExceptions,
+    careExceptionsLoaded,
     features,
     loading,
     reportSick,
@@ -493,12 +509,14 @@ export function NotesModal({
 
 export function PickupTimeModal({
   careExceptions,
+  careExceptionsLoaded,
   pickupChangeEnabled,
   onClose,
   onSubmit,
   onRemove,
 }: Readonly<{
   careExceptions: CareException[];
+  careExceptionsLoaded: boolean;
   pickupChangeEnabled: boolean;
   onClose: () => void;
   onSubmit: (params: {
@@ -569,6 +587,13 @@ export function PickupTimeModal({
   }, [existing]);
 
   const handleSubmit = async () => {
+    // Guard: if the existing overrides never loaded we can't trust the
+    // prefilled fields, and a save would send the empty leg as an authoritative
+    // clear. Block until the list is known (the page must be reloaded).
+    if (!careExceptionsLoaded) {
+      setError(t("pickup.loadError"));
+      return;
+    }
     if (!pickupTime && !arrivalTime) {
       setError(t("pickup.noTime"));
       return;
@@ -611,6 +636,11 @@ export function PickupTimeModal({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("pickup.intro")}</p>
+        {!careExceptionsLoaded && (
+          <p className="rounded-lg bg-[#F78C10]/10 px-3 py-2 text-sm text-[#9a5a08]">
+            {t("pickup.loadError")}
+          </p>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("pickup.dateLabel")}
@@ -698,7 +728,12 @@ export function PickupTimeModal({
             <button
               type="button"
               onClick={() => void handleSubmit()}
-              disabled={submitting || staffOwned || !pickupChangeEnabled}
+              disabled={
+                submitting ||
+                staffOwned ||
+                !pickupChangeEnabled ||
+                !careExceptionsLoaded
+              }
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5080D8] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4069b8] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting && (

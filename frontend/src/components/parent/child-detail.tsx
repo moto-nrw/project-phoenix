@@ -317,6 +317,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
       {modal === "pickup" && (
         <PickupTimeModal
           careExceptions={care.careExceptions}
+          careExceptionsLoaded={care.careExceptionsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
           onClose={() => setModal(null)}
           onSubmit={care.saveCareException}
