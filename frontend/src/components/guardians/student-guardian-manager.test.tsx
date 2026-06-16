@@ -155,7 +155,14 @@ vi.mock("./guardian-form-modal", () => ({
                 {
                   id: "test-id",
                   guardianData: { firstName: "Test", lastName: "Guardian" },
-                  relationshipData: { relationshipType: "parent" },
+                  relationshipData: {
+                    relationshipType: "parent",
+                    guardianRole: "legal_guardian",
+                    isPrimary: false,
+                    isEmergencyContact: false,
+                    canPickup: false,
+                    emergencyPriority: 1,
+                  },
                   phoneNumbers: [
                     {
                       phoneNumber: "+49 123 456",
@@ -611,6 +618,11 @@ describe("StudentGuardianManager", () => {
         "rel-1",
         {
           relationshipType: "parent",
+          guardianRole: "legal_guardian",
+          isPrimary: false,
+          isEmergencyContact: false,
+          canPickup: false,
+          emergencyPriority: 1,
         },
       );
 

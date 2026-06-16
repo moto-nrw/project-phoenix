@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -185,4 +186,34 @@ func TestDecodeStructured_RejectsMismatch(t *testing.T) {
 	var out []enrollmentModels.PhoneEntry
 	err := decodeStructured("not a list", &out)
 	require.Error(t, err)
+}
+
+func TestContactGuardianRole(t *testing.T) {
+	tests := []struct {
+		name               string
+		isEmergencyContact bool
+		canPickup          bool
+		want               string
+	}{
+		{
+			name:      "pickup wins",
+			canPickup: true,
+			want:      authorize.GuardianRolePickupOnly,
+		},
+		{
+			name:               "emergency contact",
+			isEmergencyContact: true,
+			want:               authorize.GuardianRoleEmergency,
+		},
+		{
+			name: "no operational role",
+			want: authorize.GuardianRoleCustom,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, contactGuardianRole(tt.isEmergencyContact, tt.canPickup))
+		})
+	}
 }

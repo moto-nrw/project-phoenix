@@ -7,6 +7,7 @@ import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import type {
   GuardianFormData,
   GuardianWithRelationship,
+  GuardianRole,
   PhoneType,
 } from "@/lib/guardian-helpers";
 import {
@@ -14,8 +15,10 @@ import {
   LANGUAGE_PREFERENCES,
 } from "@/lib/guardian-helpers";
 import {
+  GuardianRoleSelect,
   RelationshipTypeSelect,
   RelationshipPermissionsFields,
+  guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
 import { createLogger } from "~/lib/logger";
 
@@ -23,6 +26,7 @@ const logger = createLogger({ component: "GuardianForm" });
 
 export interface RelationshipFormData {
   readonly relationshipType: string;
+  readonly guardianRole: GuardianRole;
   readonly isPrimary: boolean;
   readonly isEmergencyContact: boolean;
   readonly canPickup: boolean;
@@ -49,6 +53,7 @@ export interface GuardianEntry {
   email: string;
   phoneNumbers: PhoneEntry[];
   relationshipType: string;
+  guardianRole: GuardianRole;
   isEmergencyContact: boolean;
   // Relationship flags (preserved in edit mode)
   isPrimary: boolean;
@@ -84,9 +89,10 @@ export function createEmptyEntry(): GuardianEntry {
     email: "",
     phoneNumbers: [createEmptyPhone(true)], // Start with one primary phone
     relationshipType: "parent",
+    guardianRole: "legal_guardian",
     isEmergencyContact: false,
     isPrimary: false,
-    canPickup: true,
+    canPickup: false,
     emergencyPriority: 1,
     addressStreet: "",
     addressCity: "",
@@ -178,6 +184,7 @@ export function toEntry(data: GuardianWithRelationship): GuardianEntry {
     email: data.email ?? "",
     phoneNumbers,
     relationshipType: data.relationshipType ?? "parent",
+    guardianRole: data.guardianRole ?? "custom",
     isEmergencyContact: data.isEmergencyContact ?? false,
     // Preserve relationship flags for edit mode
     isPrimary: data.isPrimary ?? false,
@@ -266,6 +273,15 @@ export default function GuardianFormModal({
     setEntries((prev) =>
       prev.map((entry) =>
         entry.id === id ? { ...entry, [field]: value } : entry,
+      ),
+    );
+  };
+
+  const updateGuardianRole = (id: string, role: GuardianRole) => {
+    const defaults = guardianRoleOperationalDefaults(role);
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === id ? { ...entry, ...defaults, guardianRole: role } : entry,
       ),
     );
   };
@@ -439,6 +455,7 @@ export default function GuardianFormModal({
       },
       relationshipData: {
         relationshipType: entry.relationshipType,
+        guardianRole: entry.guardianRole,
         isPrimary: entry.isPrimary,
         isEmergencyContact: entry.isEmergencyContact,
         canPickup: entry.canPickup,
@@ -607,6 +624,12 @@ export default function GuardianFormModal({
                   onChange={(value) =>
                     updateEntry(entry.id, "relationshipType", value)
                   }
+                  disabled={isLoading}
+                />
+                <GuardianRoleSelect
+                  id={`guardian-role-${entry.id}`}
+                  value={entry.guardianRole}
+                  onChange={(value) => updateGuardianRole(entry.id, value)}
                   disabled={isLoading}
                 />
               </div>

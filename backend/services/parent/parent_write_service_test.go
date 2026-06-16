@@ -149,6 +149,23 @@ func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrSickNoteDisabled)
 }
 
+func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	_, err = svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{timezone.TodayDate()}, "")
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+}
+
 func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -201,6 +218,29 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 	from := timezone.TodayDate()
 	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
 	sick, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	require.NoError(t, err)
+	require.Len(t, sick, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sick[0].Status)
+}
+
+func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	day := timezone.TodayDate().AddDays(2)
+	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "")
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	sick, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, day, day)
 	require.NoError(t, err)
 	require.Len(t, sick, 1)
 	assert.Equal(t, activeModels.StudentStatusDaySick, sick[0].Status)
@@ -272,6 +312,22 @@ func TestAddParentNote_FeatureDisabled(t *testing.T) {
 
 	_, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, "Hallo")
 	require.ErrorIs(t, err, parentService.ErrNotesDisabled)
+}
+
+func TestAddParentNote_MissingGuardianPermission(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	_, err = svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, "Bitte beachten")
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 }
 
 func TestAddParentNote_NotOwned(t *testing.T) {

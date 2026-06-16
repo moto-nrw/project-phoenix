@@ -15,6 +15,7 @@ import type {
   PhoneNumberCreateRequest,
   PhoneNumberUpdateRequest,
   BackendPhoneNumber,
+  GuardianRole,
 } from "./guardian-helpers";
 import {
   mapGuardianResponse,
@@ -195,6 +196,7 @@ function mapGuardianFormToBackend(
 // Partial update request for student-guardian relationship
 interface PartialRelationshipUpdateRequest {
   relationship_type?: string;
+  guardian_role?: GuardianRole;
   is_primary?: boolean;
   is_emergency_contact?: boolean;
   can_pickup?: boolean;
@@ -537,6 +539,7 @@ export interface NewStudentGuardianInput {
   languagePreference?: string;
   notes?: string;
   relationshipType: string;
+  guardianRole?: GuardianRole;
   isPrimary: boolean;
   isEmergencyContact: boolean;
   canPickup: boolean;
@@ -575,6 +578,7 @@ export async function createStudentGuardians(
       language_preference: g.languagePreference,
       notes: g.notes,
       relationship_type: g.relationshipType,
+      guardian_role: g.guardianRole,
       is_primary: g.isPrimary,
       is_emergency_contact: g.isEmergencyContact,
       can_pickup: g.canPickup,
@@ -640,6 +644,9 @@ export async function updateStudentGuardianRelationship(
 
   if (updates.relationshipType !== undefined) {
     backendData.relationship_type = updates.relationshipType;
+  }
+  if (updates.guardianRole !== undefined) {
+    backendData.guardian_role = updates.guardianRole;
   }
   if (updates.isPrimary !== undefined) {
     backendData.is_primary = updates.isPrimary;

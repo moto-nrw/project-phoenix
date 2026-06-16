@@ -49,6 +49,7 @@ type StudentGuardianCreateRequest struct {
 	StudentID          int64
 	GuardianProfileID  int64
 	RelationshipType   string // parent, guardian, relative, other
+	GuardianRole       string
 	IsPrimary          bool
 	IsEmergencyContact bool
 	CanPickup          bool
@@ -59,6 +60,7 @@ type StudentGuardianCreateRequest struct {
 // StudentGuardianUpdateRequest represents data for updating a student-guardian relationship
 type StudentGuardianUpdateRequest struct {
 	RelationshipType   *string
+	GuardianRole       *string
 	IsPrimary          *bool
 	IsEmergencyContact *bool
 	CanPickup          *bool
@@ -88,6 +90,7 @@ type PhoneNumberUpdateRequest struct {
 // internally by AddGuardiansToStudent.
 type StudentGuardianRelationship struct {
 	RelationshipType   string // parent, guardian, relative, other
+	GuardianRole       string
 	IsPrimary          bool
 	IsEmergencyContact bool
 	CanPickup          bool

@@ -103,9 +103,10 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(guardian, {
       relationshipType: "parent",
+      guardianRole: "legal_guardian",
       isPrimary: false,
       isEmergencyContact: false,
-      canPickup: true,
+      canPickup: false,
       emergencyPriority: 1,
     });
   });
@@ -123,7 +124,34 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
 
     expect(onSelect).toHaveBeenCalledWith(
       guardian,
-      expect.objectContaining({ isPrimary: true, canPickup: true }),
+      expect.objectContaining({
+        guardianRole: "legal_guardian",
+        isPrimary: true,
+        canPickup: false,
+      }),
+    );
+  });
+
+  it("applies pickup-only role defaults before confirming", async () => {
+    const onSelect = vi.fn();
+    const guardian = makeGuardian(10);
+    render(<GuardianPickerPanel onSelect={onSelect} onCancel={vi.fn()} />);
+
+    await searchAndPick(guardian);
+
+    fireEvent.change(screen.getByLabelText("Portalrolle"), {
+      target: { value: "pickup_only" },
+    });
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    expect(onSelect).toHaveBeenCalledWith(
+      guardian,
+      expect.objectContaining({
+        guardianRole: "pickup_only",
+        isPrimary: false,
+        isEmergencyContact: false,
+        canPickup: true,
+      }),
     );
   });
 

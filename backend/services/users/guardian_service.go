@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -824,6 +825,11 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		return nil, fmt.Errorf("student not found: %w", err)
 	}
 
+	role := req.GuardianRole
+	if strings.TrimSpace(role) == "" {
+		role = authorize.DefaultStudentGuardianRole(req.RelationshipType, req.IsPrimary, req.IsEmergencyContact, req.CanPickup)
+	}
+
 	// Build the new relationship.
 	relationship := &users.StudentGuardian{
 		StudentID:          req.StudentID,
@@ -835,6 +841,7 @@ func (s *guardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		PickupNotes:        req.PickupNotes,
 		EmergencyPriority:  req.EmergencyPriority,
 	}
+	authorize.ApplyStudentGuardianRole(relationship, role)
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	// Idempotent on an existing link: re-linking a guardian already attached to
@@ -1044,6 +1051,7 @@ func (s *guardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 			StudentID:          studentID,
 			GuardianProfileID:  profileID,
 			RelationshipType:   g.Relationship.RelationshipType,
+			GuardianRole:       g.Relationship.GuardianRole,
 			IsPrimary:          g.Relationship.IsPrimary,
 			IsEmergencyContact: g.Relationship.IsEmergencyContact,
 			CanPickup:          g.Relationship.CanPickup,
@@ -1087,6 +1095,9 @@ func (s *guardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 	// Update fields if provided
 	if req.RelationshipType != nil {
 		relationship.RelationshipType = *req.RelationshipType
+	}
+	if req.GuardianRole != nil {
+		authorize.ApplyStudentGuardianRole(relationship, *req.GuardianRole)
 	}
 	if req.IsPrimary != nil {
 		relationship.IsPrimary = *req.IsPrimary

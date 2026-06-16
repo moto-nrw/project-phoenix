@@ -184,6 +184,24 @@ func TestStudentGuardianPermissionSet(t *testing.T) {
 	}
 }
 
+func TestStudentGuardianGrantPermissions(t *testing.T) {
+	sg := &users.StudentGuardian{}
+
+	StudentGuardianGrantPermissions(sg, GuardianPermissionPortalAccess, "", "  ")
+	StudentGuardianGrantPermissions(nil, GuardianPermissionNotesWrite)
+
+	if !StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
+		t.Fatal("StudentGuardianGrantPermissions() failed to grant portal access")
+	}
+	if StudentGuardianHasPermission(sg, GuardianPermissionNotesWrite) {
+		t.Fatal("StudentGuardianGrantPermissions(nil, ...) should not mutate another guardian")
+	}
+}
+
+func TestApplyStudentGuardianRole_NilIsNoop(t *testing.T) {
+	ApplyStudentGuardianRole(nil, GuardianRolePrimaryGuardian)
+}
+
 func TestDefaultStudentGuardianRole(t *testing.T) {
 	tests := []struct {
 		name               string

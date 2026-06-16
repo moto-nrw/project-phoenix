@@ -11,6 +11,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -60,6 +61,7 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
 		SchoolName    string         `bun:"school_name"`
 		SchoolSlug    string         `bun:"school_slug"`
+		Permissions   map[string]any `bun:"guardian_permissions"`
 	}
 
 	const query = `
@@ -73,7 +75,8 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 			s.enrolled_from  AS enrolled_from,
 			s.enrolled_until AS enrolled_until,
 			COALESCE(sch.name, '')  AS school_name,
-			COALESCE(sch.slug, '')  AS school_slug
+			COALESCE(sch.slug, '')  AS school_slug,
+			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
 		FROM auth.account_tenants AS at
 		JOIN users.guardian_profiles AS gp
 			ON gp.account_id = at.account_id
@@ -92,27 +95,29 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		WHERE at.account_id = ?
 		  AND at.status     = 'active'
 		  AND p.deleted_at IS NULL
+		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		ORDER BY school_name, first_name, last_name
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, authorize.GuardianPermissionPortalAccess).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list children: %w", err)
 	}
 
 	out := make([]*parentModels.ChildSummary, 0, len(rows))
 	for _, rr := range rows {
 		out = append(out, &parentModels.ChildSummary{
-			StudentID:     rr.StudentID,
-			TenantID:      rr.TenantID,
-			FirstName:     rr.FirstName,
-			LastName:      rr.LastName,
-			SchoolClass:   rr.SchoolClass,
-			Status:        rr.Status,
-			EnrolledFrom:  rr.EnrolledFrom,
-			EnrolledUntil: rr.EnrolledUntil,
-			SchoolName:    rr.SchoolName,
-			SchoolSlug:    rr.SchoolSlug,
+			StudentID:           rr.StudentID,
+			TenantID:            rr.TenantID,
+			FirstName:           rr.FirstName,
+			LastName:            rr.LastName,
+			SchoolClass:         rr.SchoolClass,
+			Status:              rr.Status,
+			EnrolledFrom:        rr.EnrolledFrom,
+			EnrolledUntil:       rr.EnrolledUntil,
+			SchoolName:          rr.SchoolName,
+			SchoolSlug:          rr.SchoolSlug,
+			GuardianPermissions: rr.Permissions,
 		})
 	}
 	return out, nil
@@ -144,6 +149,7 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
 		SchoolName    string         `bun:"school_name"`
 		SchoolSlug    string         `bun:"school_slug"`
+		Permissions   map[string]any `bun:"guardian_permissions"`
 	}
 
 	const query = `
@@ -157,7 +163,8 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 			s.enrolled_from  AS enrolled_from,
 			s.enrolled_until AS enrolled_until,
 			COALESCE(sch.name, '')  AS school_name,
-			COALESCE(sch.slug, '')  AS school_slug
+			COALESCE(sch.slug, '')  AS school_slug,
+			COALESCE(sg.permissions, '{}'::jsonb) AS guardian_permissions
 		FROM auth.account_tenants AS at
 		JOIN users.guardian_profiles AS gp
 			ON gp.account_id = at.account_id
@@ -177,11 +184,12 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		  AND s.id          = ?
 		  AND at.status     = 'active'
 		  AND p.deleted_at IS NULL
+		  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
 		LIMIT 1
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, studentID).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(query, accountID, studentID, authorize.GuardianPermissionPortalAccess).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: find child for account: %w", err)
 	}
 	if len(rows) == 0 {
@@ -190,15 +198,16 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 
 	rr := rows[0]
 	return &parentModels.ChildSummary{
-		StudentID:     rr.StudentID,
-		TenantID:      rr.TenantID,
-		FirstName:     rr.FirstName,
-		LastName:      rr.LastName,
-		SchoolClass:   rr.SchoolClass,
-		Status:        rr.Status,
-		EnrolledFrom:  rr.EnrolledFrom,
-		EnrolledUntil: rr.EnrolledUntil,
-		SchoolName:    rr.SchoolName,
-		SchoolSlug:    rr.SchoolSlug,
+		StudentID:           rr.StudentID,
+		TenantID:            rr.TenantID,
+		FirstName:           rr.FirstName,
+		LastName:            rr.LastName,
+		SchoolClass:         rr.SchoolClass,
+		Status:              rr.Status,
+		EnrolledFrom:        rr.EnrolledFrom,
+		EnrolledUntil:       rr.EnrolledUntil,
+		SchoolName:          rr.SchoolName,
+		SchoolSlug:          rr.SchoolSlug,
+		GuardianPermissions: rr.Permissions,
 	}, nil
 }
