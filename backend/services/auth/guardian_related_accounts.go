@@ -320,6 +320,9 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 	if !invitation.IsPendingApproval() {
 		return &AuthError{Op: opGuardianInviteApprove, Err: fmt.Errorf("invitation is not awaiting approval")}
 	}
+	if guardianApprovalExpired(invitation, time.Now()) {
+		return &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationExpired}
+	}
 
 	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
@@ -390,6 +393,9 @@ func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invita
 	if !invitation.IsPendingApproval() {
 		return &AuthError{Op: opGuardianInviteReject, Err: fmt.Errorf("invitation is not awaiting approval")}
 	}
+	if guardianApprovalExpired(invitation, time.Now()) {
+		return &AuthError{Op: opGuardianInviteReject, Err: ErrInvitationExpired}
+	}
 
 	now := time.Now()
 	invitation.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
@@ -421,6 +427,9 @@ func (s *guardianInvitationService) PendingInvitationStudentID(ctx context.Conte
 	}
 	if !invitation.IsPendingApproval() {
 		return 0, &AuthError{Op: opGuardianInviteApprove, Err: fmt.Errorf("invitation is not awaiting approval")}
+	}
+	if guardianApprovalExpired(invitation, time.Now()) {
+		return 0, &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationExpired}
 	}
 	if invitation.StudentID == nil || *invitation.StudentID <= 0 {
 		return 0, &AuthError{Op: opGuardianInviteApprove, Err: fmt.Errorf("invitation is missing student_id")}
@@ -471,6 +480,13 @@ func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, in
 			slog.Int64("guardian_profile_id", guardianProfileID),
 			slog.String("error", err.Error()))
 	}
+}
+
+// guardianApprovalExpired reports whether a pending approval request has passed
+// its expiry. Expired requests must not be approved or rejected into a new
+// state (which would link a child or mutate the row) — cleanup removes them.
+func guardianApprovalExpired(inv *authModels.GuardianInvitation, now time.Time) bool {
+	return !inv.ExpiresAt.IsZero() && !inv.ExpiresAt.After(now)
 }
 
 func guardianInvitationNonFinal(inv *authModels.GuardianInvitation, now time.Time) bool {
@@ -632,6 +648,13 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 		}
 		if profile == nil {
 			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("guardian profile not found")}
+		}
+		// The parent flow manages *another* account's access. A parent must not
+		// be able to revoke their own link to the child (passing their own
+		// guardianProfileId) — that could lock them out. Staff (ByParent=false)
+		// may remove anyone.
+		if profile.AccountID != nil && *profile.AccountID == req.ActorAccountID {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemoveOwnAccess}
 		}
 		if !profile.HasAccount {
 			now := time.Now()
