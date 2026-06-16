@@ -1123,7 +1123,8 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 
 	replace := validSubmission(env.phaseID)
 	replace.GuardianEmail = "ignored@example.com"
-	replace.Children[0].FirstName = "Rollover"
+	replace.GuardianFirstName = "Rollover"
+	replace.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
 	updated, err := env.svc.ReplaceEditable(ctx, target.Request.StatusToken, replace)
 	require.NoError(t, err)
 	require.Len(t, updated.Children, 1)
@@ -1136,6 +1137,8 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 	require.NotNil(t, child.ActivateOn)
 	assert.Equal(t, activateOn, *child.ActivateOn)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+	require.NotNil(t, child.TargetGradeLevel)
+	assert.Equal(t, int16(2), *child.TargetGradeLevel)
 }
 
 func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *testing.T) {
@@ -1175,6 +1178,77 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *test
 	require.NoError(t, err)
 	require.Len(t, children, 1)
 	assert.Equal(t, target.Children[0].ID, children[0].ID)
+}
+
+func TestRequestService_ReplaceEditable_RejectsRolloverChildReorder(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	sourceReq := validSubmission(env.phaseID)
+	sourceReq.GuardianEmail = "source-reorder@example.com"
+	sourceReq.Children = append(sourceReq.Children, enrollmentService.SubmitChild{
+		FirstName:        "Max",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2017, 2, 10),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	source, err := env.svc.Submit(ctx, sourceReq)
+	require.NoError(t, err)
+	require.Len(t, source.Children, 2)
+
+	targetReq := sourceReq
+	targetReq.GuardianEmail = "target-reorder@example.com"
+	target, err := env.svc.Submit(ctx, targetReq)
+	require.NoError(t, err)
+	require.Len(t, target.Children, 2)
+
+	for i := range target.Children {
+		_, err = env.db.NewUpdate().
+			TableExpr("enrollment.request_children").
+			Set("rollover_source_child_id = ?", source.Children[i].ID).
+			Where("id = ?", target.Children[i].ID).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	replace := targetReq
+	replace.Children = []enrollmentService.SubmitChild{
+		targetReq.Children[1],
+		targetReq.Children[0],
+	}
+	_, err = env.svc.ReplaceEditable(ctx, target.Request.StatusToken, replace)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
+}
+
+func TestRequestService_ReplaceEditable_RejectsRolloverChildIdentityChanges(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	sourceReq := validSubmission(env.phaseID)
+	sourceReq.GuardianEmail = "source-identity@example.com"
+	source, err := env.svc.Submit(ctx, sourceReq)
+	require.NoError(t, err)
+
+	targetReq := validSubmission(env.phaseID)
+	targetReq.GuardianEmail = "target-identity@example.com"
+	target, err := env.svc.Submit(ctx, targetReq)
+	require.NoError(t, err)
+
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("rollover_source_child_id = ?", source.Children[0].ID).
+		Where("id = ?", target.Children[0].ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	replace := targetReq
+	replace.Children[0].FirstName = "Andere"
+	_, err = env.svc.ReplaceEditable(ctx, target.Request.StatusToken, replace)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
 }
 
 func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists(t *testing.T) {
@@ -1795,6 +1869,74 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 	require.NotNil(t, res.Request)
 	assert.Nil(t, res.Request.SchemaID,
 		"Basis phase must persist with schema_id=NULL, not silently fall back to the tenant's active schema")
+}
+
+func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSchemaChange(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	basis := &enrollmentModels.Phase{
+		Name:             "basis-edit-" + t.Name(),
+		Kind:             enrollmentModels.PhaseKindSchoolYear,
+		ServiceStartDate: env.phase.ServiceStartDate,
+		ServiceEndDate:   env.phase.ServiceEndDate,
+		IsActive:         true,
+		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
+		FormSchemaID:     nil,
+	}
+	basis.SetTenantID(1)
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.Phase.Create(ctx, basis))
+	defer func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("enrollment.phases").
+			Where("id = ?", basis.ID).
+			Exec(context.Background())
+	}()
+
+	req := validSubmission(basis.ID)
+	req.GuardianEmail = "basis-edit@example.com"
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Nil(t, submitted.Request.SchemaID)
+
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	laterSchema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{
+			Key:       "later_required",
+			Label:     "Später erforderlich",
+			Type:      enrollmentModels.FormFieldText,
+			Required:  true,
+			SortOrder: 0,
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+	basis.FormSchemaID = &laterSchema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, basis))
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.Nil(t, draft.Schema,
+		"schema_id=NULL is the request's Basis schema pin and must not resolve the phase's later schema")
+
+	replace := validSubmission(basis.ID)
+	replace.GuardianFirstName = "BasisEdit"
+	replace.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
+	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
+	require.NoError(t, err,
+		"editing an old Basis request must not require fields from a schema pinned to the phase later")
+	require.Nil(t, updated.Request.SchemaID)
+
+	storedReq, storedChildren, err := env.svc.GetByStatusToken(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	require.Nil(t, storedReq.SchemaID)
+	require.Len(t, storedChildren, 1)
+	require.NotNil(t, storedChildren[0].TargetGradeLevel)
+	assert.Equal(t, int16(2), *storedChildren[0].TargetGradeLevel)
 }
 
 // TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted

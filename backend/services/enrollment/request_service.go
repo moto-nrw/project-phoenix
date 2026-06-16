@@ -1214,8 +1214,10 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				hasRolloverChild = true
 			}
 		}
-		if hasRolloverChild && len(editReq.Children) != len(children) {
-			return ErrEditNotAllowed
+		if hasRolloverChild {
+			if err := validateRolloverEditIdentity(children, editReq.Children); err != nil {
+				return err
+			}
 		}
 		existingLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
 		if err != nil {
@@ -1366,7 +1368,22 @@ func (s *requestService) schemaForEditableRequest(ctx context.Context, req *enro
 	if req != nil && req.SchemaID != nil {
 		return s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
 	}
-	return s.resolveSubmissionSchema(ctx, phase)
+	return nil, nil
+}
+
+func validateRolloverEditIdentity(existing []*enrollmentModels.RequestChild, incoming []SubmitChild) error {
+	if len(incoming) != len(existing) {
+		return ErrEditNotAllowed
+	}
+	for i, child := range existing {
+		next := incoming[i]
+		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
+			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
+			next.DateOfBirth != child.DateOfBirth {
+			return ErrEditNotAllowed
+		}
+	}
+	return nil
 }
 
 func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) (LegalTexts, error) {
