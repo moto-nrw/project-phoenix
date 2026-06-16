@@ -131,7 +131,7 @@
       },
       "pickupTime": {
         "label": "Change pickup time",
-        "description": "Share pickup information"
+        "description": "Set pickup/arrival for a day"
       },
       "message": {
         "label": "Write message",
@@ -207,6 +207,24 @@
       "none": "No sick note",
       "oneDay": "Sick on {date}",
       "range": "Sick {from} – {to}"
+    },
+    "pickup": {
+      "title": "Change pickup time",
+      "intro": "Set a different pickup or arrival time for a single day. The change applies to that day only.",
+      "dateLabel": "Day",
+      "pickupLabel": "Pickup time",
+      "arrivalLabel": "Arrival time",
+      "noTime": "Please enter at least one time.",
+      "saveError": "The change could not be saved.",
+      "errorDisabled": "Changing the pickup time is not enabled for this school.",
+      "errorStaffConflict": "The school has already set special times for this day. Please contact the team.",
+      "errorRaced": "This day was just changed. Please reload the page and try again.",
+      "errorPastDate": "Changes cannot be saved for days in the past.",
+      "errorTooFar": "That day is too far in the future. Please pick a day within the next two months.",
+      "staffSet": "The school has already set special times for this day (pickup: {pickup}, arrival: {arrival}).",
+      "existingHint": "A change is already set for {date}. Saving overwrites it.",
+      "reset": "Reset",
+      "submit": "Save"
     }
   },
   "parentLogin": {

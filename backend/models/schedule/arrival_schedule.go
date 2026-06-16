@@ -99,11 +99,13 @@ type StudentArrivalException struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_exceptions"`
 	base.TenantModel
 
-	StudentID       int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate   timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	ExpectedArrival *time.Time    `bun:"expected_arrival" json:"expected_arrival,omitempty"`
-	Reason          *string       `bun:"reason" json:"reason,omitempty"`
-	CreatedBy       int64         `bun:"created_by,notnull" json:"created_by"`
+	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	ExpectedArrival   *time.Time    `bun:"expected_arrival" json:"expected_arrival,omitempty"`
+	Reason            *string       `bun:"reason" json:"reason,omitempty"`
+	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
 }
 
 func (e *StudentArrivalException) BeforeAppendModel(query any) error {
@@ -132,8 +134,8 @@ func (e *StudentArrivalException) Validate() error {
 	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
-	if e.CreatedBy <= 0 {
-		return errors.New(errMsgArrivalCreatedByRequired)
+	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {
+		return err
 	}
 	return nil
 }

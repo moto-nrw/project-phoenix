@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type React from "react";
@@ -10,11 +16,16 @@ const mocks = vi.hoisted(() => ({
   // mount; stub them so the rendered detail view loads cleanly.
   listSickDays: vi.fn().mockResolvedValue([]),
   listChildNotes: vi.fn().mockResolvedValue([]),
+  listCareExceptions: vi.fn().mockResolvedValue([]),
   submitSickNote: vi.fn().mockResolvedValue([]),
   addChildNote: vi.fn().mockResolvedValue([]),
-  getChildFeatures: vi
-    .fn()
-    .mockResolvedValue({ sick_note_enabled: true, notes_enabled: true }),
+  submitCareException: vi.fn(),
+  deleteCareException: vi.fn(),
+  getChildFeatures: vi.fn().mockResolvedValue({
+    sick_note_enabled: true,
+    notes_enabled: true,
+    pickup_change_enabled: false,
+  }),
   setBreadcrumb: vi.fn(),
 }));
 
@@ -35,8 +46,11 @@ vi.mock("~/lib/parent-api", () => ({
   listMyEnrollments: mocks.listMyEnrollments,
   listSickDays: mocks.listSickDays,
   listChildNotes: mocks.listChildNotes,
+  listCareExceptions: mocks.listCareExceptions,
   submitSickNote: mocks.submitSickNote,
   addChildNote: mocks.addChildNote,
+  submitCareException: mocks.submitCareException,
+  deleteCareException: mocks.deleteCareException,
   getChildFeatures: mocks.getChildFeatures,
 }));
 
@@ -96,6 +110,14 @@ describe("Parent portal components", () => {
   beforeEach(() => {
     mocks.listMyChildren.mockReset();
     mocks.listMyEnrollments.mockReset();
+    mocks.listSickDays.mockResolvedValue([]);
+    mocks.listChildNotes.mockResolvedValue([]);
+    mocks.listCareExceptions.mockResolvedValue([]);
+    mocks.getChildFeatures.mockResolvedValue({
+      sick_note_enabled: true,
+      notes_enabled: true,
+      pickup_change_enabled: false,
+    });
     mocks.setBreadcrumb.mockReset();
   });
 
@@ -164,7 +186,7 @@ describe("Parent portal components", () => {
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Krank melden").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Gehzeit ändern").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Abholzeit ändern").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(mocks.setBreadcrumb).toHaveBeenCalledWith({
         pageTitle: "Lina Muster",
@@ -187,5 +209,43 @@ describe("Parent portal components", () => {
     expect(
       await screen.findByText(/Die Kinderdaten konnten nicht geladen werden/),
     ).toBeInTheDocument();
+  });
+
+  it("keeps existing parent pickup overrides clearable when new changes are disabled", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.getChildFeatures.mockResolvedValueOnce({
+      sick_note_enabled: true,
+      notes_enabled: true,
+      pickup_change_enabled: false,
+    });
+    mocks.listCareExceptions.mockResolvedValueOnce([
+      {
+        date: "2026-06-17",
+        pickup_time: "14:45",
+        source: "guardian",
+        updated_at: "2026-06-16T10:00:00Z",
+      },
+    ]);
+
+    render(<ChildDetail studentId="42" />);
+
+    await screen.findAllByRole("heading", { name: "Lina Muster" });
+    await waitFor(() => expect(mocks.listCareExceptions).toHaveBeenCalled());
+
+    const pickupButtons = screen.getAllByRole("button", {
+      name: /Abholzeit ändern/,
+    });
+    const enabledPickupButton = pickupButtons.find(
+      (button) => !button.hasAttribute("disabled"),
+    );
+    expect(enabledPickupButton).toBeTruthy();
+
+    fireEvent.click(enabledPickupButton!);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Abholzeit ändern" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 });

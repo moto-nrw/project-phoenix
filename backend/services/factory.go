@@ -1006,6 +1006,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StatusDayRepo:         repos.StudentStatusDay,
 		StudentRepo:           repos.Student,
 		NoteRepo:              repos.StudentParentNote,
+		PickupExceptionRepo:   repos.StudentPickupException,
+		ArrivalExceptionRepo:  repos.StudentArrivalException,
 		Settings:              settingsService,
 		Broadcaster:           realtimeHub,
 		DB:                    db,

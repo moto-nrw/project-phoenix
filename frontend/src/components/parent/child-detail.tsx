@@ -14,18 +14,14 @@ import {
   Users,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  type Child,
-  type ChildFeatures,
-  type ParentNote,
-  listMyChildren,
-} from "~/lib/parent-api";
+import { type Child, type ParentNote, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   type ChildCare,
   NotesModal,
   ParentNotesList,
+  PickupTimeModal,
   SickNoteModal,
   SickStatusSummary,
   useChildCare,
@@ -33,17 +29,26 @@ import {
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
-const SUPPORTED_ACTIONS: Record<string, "sick" | "notes"> = {
+const SUPPORTED_ACTIONS: Record<string, "sick" | "notes" | "pickup"> = {
   sick: "sick",
   message: "notes",
+  pickupTime: "pickup",
 };
 
 // An action is usable only when it's wired AND the child's school has the
 // matching feature enabled — otherwise the backend would reject it with 403.
-function isActionEnabled(actionKey: string, features: ChildFeatures): boolean {
+// Pickup changes are the exception: existing guardian-authored rows must stay
+// clearable even after the school disables new parent changes.
+function isActionEnabled(actionKey: string, care: ChildCare): boolean {
   const target = SUPPORTED_ACTIONS[actionKey];
-  if (target === "sick") return features.sick_note_enabled;
-  if (target === "notes") return features.notes_enabled;
+  if (target === "sick") return care.features.sick_note_enabled;
+  if (target === "notes") return care.features.notes_enabled;
+  if (target === "pickup") {
+    return (
+      care.features.pickup_change_enabled ||
+      care.careExceptions.some((entry) => entry.source === "guardian")
+    );
+  }
   return false;
 }
 
@@ -189,14 +194,14 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
   const care = useChildCare(child.student_id);
-  const [modal, setModal] = useState<null | "sick" | "notes">(null);
+  const [modal, setModal] = useState<null | "sick" | "notes" | "pickup">(null);
 
   const openAction = useCallback(
     (actionKey: string) => {
       const target = SUPPORTED_ACTIONS[actionKey];
-      if (target && isActionEnabled(actionKey, care.features)) setModal(target);
+      if (target && isActionEnabled(actionKey, care)) setModal(target);
     },
-    [care.features],
+    [care],
   );
 
   const summaryItems = useMemo(
@@ -248,7 +253,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                     key={action.key}
                     action={action}
                     onClick={
-                      isActionEnabled(action.key, care.features)
+                      isActionEnabled(action.key, care)
                         ? () => openAction(action.key)
                         : undefined
                     }
@@ -301,6 +306,15 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           notes={care.notes}
           onClose={() => setModal(null)}
           onSubmit={care.postNote}
+        />
+      )}
+      {modal === "pickup" && (
+        <PickupTimeModal
+          careExceptions={care.careExceptions}
+          pickupChangeEnabled={care.features.pickup_change_enabled}
+          onClose={() => setModal(null)}
+          onSubmit={care.saveCareException}
+          onRemove={care.removeCareException}
         />
       )}
     </div>
@@ -356,7 +370,7 @@ function MobileChildAppView({
             key={action.key}
             action={action}
             onClick={
-              isActionEnabled(action.key, care.features)
+              isActionEnabled(action.key, care)
                 ? () => onAction(action.key)
                 : undefined
             }

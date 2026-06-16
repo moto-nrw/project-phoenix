@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -82,13 +84,45 @@ type Service interface {
 	// for the child's tenant, so the UI can hide/disable actions the backend
 	// would reject with 403. Authorization only.
 	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+
+	// SubmitCareException sets a guardian-authored, date-specific pickup and/or
+	// arrival time for one day. At least one of pickupTime/arrivalTime must be
+	// non-nil. The change takes effect immediately and broadcasts a student
+	// update so supervisor views refetch. Gated by
+	// operations.parent_pickup_change_enabled. A staff-authored exception for
+	// the same date is never overwritten — it yields ErrCareExceptionConflict.
+	SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time) (*CareException, error)
+
+	// ListCareExceptions returns the merged pickup/arrival exceptions for the
+	// child in [from, to], including staff-authored ones (flagged via Source)
+	// so the portal can show what is already set. Authorization only.
+	ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*CareException, error)
+
+	// DeleteCareException removes the guardian-authored pickup and arrival
+	// exceptions for the given date, reverting the day to the standard weekly
+	// plan. Staff-authored exceptions are left untouched. Authorization only.
+	DeleteCareException(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
-	SickNoteEnabled bool
-	NotesEnabled    bool
+	SickNoteEnabled     bool
+	NotesEnabled        bool
+	PickupChangeEnabled bool
+}
+
+// CareException is the parent-facing projection of a single day's pickup and/or
+// arrival override. PickupTime/ArrivalTime carry the wall-clock instant anchored
+// to the reference date (TIME column); a nil field means that leg has no
+// override for the day. Source is "guardian" for parent-authored entries and
+// "staff" for ones the team set.
+type CareException struct {
+	Date        timezone.Date
+	PickupTime  *time.Time
+	ArrivalTime *time.Time
+	Source      string
+	UpdatedAt   time.Time
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.
@@ -107,12 +141,14 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// Per-child write features (sick notes + parent notes).
-	StatusDayRepo activeModels.StudentStatusDayRepository
-	StudentRepo   usersModels.StudentRepository
-	NoteRepo      usersModels.StudentParentNoteRepository
-	Settings      configService.SettingsService
-	Broadcaster   realtime.Broadcaster
+	// Per-child write features (sick notes + parent notes + care exceptions).
+	StatusDayRepo        activeModels.StudentStatusDayRepository
+	StudentRepo          usersModels.StudentRepository
+	NoteRepo             usersModels.StudentParentNoteRepository
+	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
+	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
+	Settings             configService.SettingsService
+	Broadcaster          realtime.Broadcaster
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -124,11 +160,13 @@ type service struct {
 	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	guardianProfileRepo   usersModels.GuardianProfileRepository
 
-	statusDayRepo activeModels.StudentStatusDayRepository
-	studentRepo   usersModels.StudentRepository
-	noteRepo      usersModels.StudentParentNoteRepository
-	settings      configService.SettingsService
-	broadcaster   realtime.Broadcaster
+	statusDayRepo        activeModels.StudentStatusDayRepository
+	studentRepo          usersModels.StudentRepository
+	noteRepo             usersModels.StudentParentNoteRepository
+	pickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
+	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
+	settings             configService.SettingsService
+	broadcaster          realtime.Broadcaster
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -148,6 +186,8 @@ func NewService(cfg ServiceConfig) Service {
 		statusDayRepo:         cfg.StatusDayRepo,
 		studentRepo:           cfg.StudentRepo,
 		noteRepo:              cfg.NoteRepo,
+		pickupExceptionRepo:   cfg.PickupExceptionRepo,
+		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
 		settings:              cfg.Settings,
 		broadcaster:           cfg.Broadcaster,
 		db:                    cfg.DB,

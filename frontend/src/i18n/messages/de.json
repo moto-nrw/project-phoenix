@@ -130,8 +130,8 @@
         "description": "Tagesmeldung für dieses Kind"
       },
       "pickupTime": {
-        "label": "Gehzeit ändern",
-        "description": "Abholung mitteilen"
+        "label": "Abholzeit ändern",
+        "description": "Ankunfts-/Abholzeit für einen Tag ändern"
       },
       "message": {
         "label": "Nachricht schreiben",
@@ -207,6 +207,24 @@
       "none": "Keine Krankmeldung",
       "oneDay": "Krank am {date}",
       "range": "Krank {from} – {to}"
+    },
+    "pickup": {
+      "title": "Abholzeit ändern",
+      "intro": "Hinterlege für einen einzelnen Tag eine abweichende Abhol- oder Ankunftszeit. Die Änderung gilt nur für diesen Tag.",
+      "dateLabel": "Tag",
+      "pickupLabel": "Abholzeit",
+      "arrivalLabel": "Ankunftszeit",
+      "noTime": "Bitte gib mindestens eine Uhrzeit an.",
+      "saveError": "Die Änderung konnte nicht gespeichert werden.",
+      "errorDisabled": "Das Ändern der Abholzeit ist für diese Einrichtung nicht aktiviert.",
+      "errorStaffConflict": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt. Bitte wende dich an das Team.",
+      "errorRaced": "Dieser Tag wurde gerade geändert. Bitte lade die Seite neu und versuche es erneut.",
+      "errorPastDate": "Für vergangene Tage kann keine Änderung gespeichert werden.",
+      "errorTooFar": "Der Tag liegt zu weit in der Zukunft. Bitte wähle einen Tag innerhalb der nächsten zwei Monate.",
+      "staffSet": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt (Abholzeit: {pickup}, Ankunftszeit: {arrival}).",
+      "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
+      "reset": "Zurücksetzen",
+      "submit": "Speichern"
     }
   },
   "parentLogin": {

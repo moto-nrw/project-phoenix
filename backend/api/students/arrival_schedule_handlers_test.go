@@ -329,6 +329,121 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			Exec(context.Background())
 	})
 
+	t.Run("create_over_guardian_row_reclaims_for_staff", func(t *testing.T) {
+		// Same race as the pickup case: a guardian set the day from the portal,
+		// then staff create over a stale view. The create must fold into a staff
+		// override (reclaim) instead of colliding with the unique index.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 17)
+		originalReason := "Parent arrival reason"
+		guardian := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		guardian.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(guardian).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date":   "2026-04-17",
+			"expected_arrival": "09:45",
+			"reason":           "Staff created over parent",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created (not a 500 on the unique index). Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "09:45")
+
+		var rowCount int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &rowCount))
+		assert.Equal(t, 1, rowCount, "create-over-existing must not insert a duplicate row")
+
+		var source string
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by_guardian").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Nil(t, createdByGuardian)
+	})
+
+	t.Run("create_over_staff_row_conflicts", func(t *testing.T) {
+		// A different staff member set the arrival after this client loaded its
+		// (empty) view. A STAFF-authored row must NOT be silently overwritten —
+		// refuse with a 409 so the client reloads and edits through the update path.
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 18)
+		originalReason := "Other staff arrival reason"
+		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
+		staffRow := &scheduleModel.StudentArrivalException{
+			StudentID:       chain.StudentID,
+			ExceptionDate:   exceptionDate,
+			ExpectedArrival: &originalTime,
+			Reason:          &originalReason,
+			Source:          scheduleModel.ExceptionSourceStaff,
+			CreatedBy:       teacher.StaffID,
+		}
+		staffRow.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(staffRow).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		body := map[string]any{
+			"exception_date":   "2026-04-18",
+			"expected_arrival": "09:45",
+			"reason":           "Staff created over staff",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusConflict, rr.Code, "staff-on-staff create must be a 409, not a silent overwrite. Body: %s", rr.Body.String())
+
+		var source string
+		var createdBy int64
+		var arrival *time.Time
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("expected_arrival").
+			Where("student_id = ?", chain.StudentID).
+			Where("exception_date = ?", exceptionDate).
+			Scan(context.Background(), &source, &createdBy, &arrival))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		assert.Equal(t, teacher.StaffID, createdBy, "existing staff row must keep its author")
+		require.NotNil(t, arrival)
+		assert.Equal(t, "08:00", arrival.Format("15:04"), "existing staff time must be unchanged")
+	})
+
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcNoDate", "Test", "AEND1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -462,6 +577,61 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "Updated reason", "Should contain updated reason")
 	})
 
+	t.Run("success_reclaims_guardian_exception_for_staff", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 4, 16)
+		originalReason := "Parent arrival reason"
+		exception := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err := tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupArrivalExceptionRouter(tc.resource.UpdateStudentArrivalExceptionHandler(), "PUT")
+
+		body := map[string]any{
+			"exception_date":   "2026-04-16",
+			"expected_arrival": "09:45",
+			"reason":           "Staff adjusted arrival",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
+		assert.Contains(t, rr.Body.String(), "09:45")
+
+		// A staff edit reclaims the parent-authored day: source flips to staff,
+		// the editing staff becomes the author, and the guardian link is dropped.
+		var source string
+		var createdBy *int64
+		var createdByGuardian *int64
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("source").
+			ColumnExpr("created_by").
+			ColumnExpr("created_by_guardian").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &source, &createdBy, &createdByGuardian))
+		assert.Equal(t, scheduleModel.ExceptionSourceStaff, source)
+		require.NotNil(t, createdBy)
+		assert.Positive(t, *createdBy)
+		assert.Nil(t, createdByGuardian)
+	})
+
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateInvalid", "Test", "AEUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -549,6 +719,48 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
+	})
+
+	t.Run("success_deletes_guardian_exception", func(t *testing.T) {
+		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianArrivalExc")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+		exceptionDate := timezone.NewDate(2026, 6, 16)
+		arrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 08:15")
+		require.NoError(t, err)
+		originalReason := "Parent arrival delete reason"
+		exception := &scheduleModel.StudentArrivalException{
+			StudentID:         chain.StudentID,
+			ExceptionDate:     exceptionDate,
+			ExpectedArrival:   &arrivalTime,
+			Reason:            &originalReason,
+			Source:            scheduleModel.ExceptionSourceGuardian,
+			CreatedByGuardian: &chain.AccountID,
+		}
+		exception.SetTenantID(chain.TenantID)
+		_, err = tc.db.NewInsert().Model(exception).
+			ModelTableExpr("schedule.student_arrival_exceptions").
+			Returning("id").
+			Exec(context.Background())
+		require.NoError(t, err)
+
+		router := setupArrivalExceptionRouter(tc.resource.DeleteStudentArrivalExceptionHandler(), "DELETE")
+
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), nil)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		var remaining int
+		require.NoError(t, tc.db.NewSelect().
+			TableExpr("schedule.student_arrival_exceptions").
+			ColumnExpr("COUNT(*)").
+			Where("id = ?", exception.ID).
+			Scan(context.Background(), &remaining))
+		assert.Zero(t, remaining)
 	})
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {

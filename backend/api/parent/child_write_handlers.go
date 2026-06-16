@@ -158,8 +158,9 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // ChildFeaturesResponse tells the parent UI which write actions the child's
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
-	SickNoteEnabled bool `json:"sick_note_enabled"`
-	NotesEnabled    bool `json:"notes_enabled"`
+	SickNoteEnabled     bool `json:"sick_note_enabled"`
+	NotesEnabled        bool `json:"notes_enabled"`
+	PickupChangeEnabled bool `json:"pickup_change_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -180,8 +181,9 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
-		SickNoteEnabled: flags.SickNoteEnabled,
-		NotesEnabled:    flags.NotesEnabled,
+		SickNoteEnabled:     flags.SickNoteEnabled,
+		NotesEnabled:        flags.NotesEnabled,
+		PickupChangeEnabled: flags.PickupChangeEnabled,
 	}, "Child features retrieved")
 }
 
@@ -318,6 +320,18 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrPickupChangeDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
+	case errors.Is(err, parentService.ErrCareExceptionConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
+	case errors.Is(err, parentService.ErrCareExceptionRaced):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrNoCareException):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
+	case errors.Is(err, parentService.ErrPastCareDate):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_past_date"))
+	case errors.Is(err, parentService.ErrCareDateTooFar):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_too_far"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong):

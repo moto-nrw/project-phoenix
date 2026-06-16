@@ -28,6 +28,12 @@ type PickupScheduleService interface {
 
 	// Exception operations
 	GetStudentPickupExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentPickupException, error)
+	// GetStudentPickupExceptionForDate returns the pickup exception for a student
+	// on a specific date, or nil when the day has none. The create path uses it
+	// under the day lock to detect a row that already exists (e.g. one a guardian
+	// just authored) and turn the insert into an override instead of colliding
+	// with the unique (student_id, exception_date) index.
+	GetStudentPickupExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentPickupException, error)
 	GetStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	GetUpcomingStudentPickupExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentPickupException, error)
 	CreateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error
@@ -187,6 +193,16 @@ func (s *pickupScheduleService) GetStudentPickupExceptionByID(ctx context.Contex
 	exception, err := s.exceptionRepo.FindByID(ctx, exceptionID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student pickup exception by id", Err: err}
+	}
+	return exception, nil
+}
+
+// GetStudentPickupExceptionForDate returns the pickup exception for a student on
+// a specific date, or nil when none exists.
+func (s *pickupScheduleService) GetStudentPickupExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentPickupException, error) {
+	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get student pickup exception for date", Err: err}
 	}
 	return exception, nil
 }

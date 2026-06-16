@@ -11,6 +11,7 @@ import {
   Loader2,
   SquarePen,
   StickyNote,
+  Users,
   X,
 } from "lucide-react";
 import { CareDayOverrideModal } from "./care-day-override-modal";
@@ -872,6 +873,12 @@ function CareDayCard({
 }) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasStatus = day.status !== null;
+  // A guardian-sourced exception means a parent changed this day's pickup or
+  // arrival time from the parents portal — flag it so staff don't mistake it
+  // for their own edit at the door.
+  const parentChanged =
+    day.pickup.exception?.source === "guardian" ||
+    day.arrival.exception?.source === "guardian";
   const boundaries = getCareBoundaries(day, {
     onEditArrival: () => onEditDay(day.date),
     onEditPickup: () => onEditDay(day.date),
@@ -893,6 +900,12 @@ function CareDayCard({
             </span>
             {day.isToday ? (
               <span className="text-xs font-semibold text-gray-500">Heute</span>
+            ) : null}
+            {parentChanged ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-semibold text-[#3a63b0]">
+                <Users className="h-3 w-3" aria-hidden="true" />
+                Von Eltern
+              </span>
             ) : null}
           </div>
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
