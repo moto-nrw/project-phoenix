@@ -123,6 +123,7 @@ function buildChildOverviewItems(
         )}`,
         status: child.status,
         statusLabel: getEnrollmentOverviewStatus(child.status, t),
+        href: `/parents/enroll/status/${request.status_token}`,
       });
     }
   }

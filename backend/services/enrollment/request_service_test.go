@@ -960,6 +960,112 @@ func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
 }
 
+func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotification(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.com"
+
+	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	originalRequestID := submitted.Request.ID
+	originalToken := submitted.Request.StatusToken
+	originalSubmittedAt := submitted.Request.SubmittedAt
+	originalEmail := submitted.Request.GuardianEmail
+	parentEmailsBefore := len(env.outbox.ByKind("enrollment_submitted"))
+	adminEmailsBefore := len(env.outbox.ByKind("enrollment_admin_notification"))
+
+	guardianPhone := "0211123456"
+	coGuardianEmail := "CO@example.com"
+	replace := validSubmission(env.phaseID)
+	replace.GuardianFirstName = "Anja"
+	replace.GuardianLastName = "Neu"
+	replace.GuardianEmail = "attacker@example.com"
+	replace.GuardianPhone = &guardianPhone
+	replace.AdditionalGuardians = []enrollmentService.SubmitGuardian{
+		{FirstName: "Co", LastName: "Guardian", Email: &coGuardianEmail},
+	}
+	replace.Children = []enrollmentService.SubmitChild{
+		{
+			FirstName:        "Mila",
+			LastName:         "Neu",
+			DateOfBirth:      timezone.NewDate(2018, 5, 20),
+			TargetGradeLevel: testpkg.Int16Ptr(2),
+		},
+		{
+			FirstName:        "Noah",
+			LastName:         "Neu",
+			DateOfBirth:      timezone.NewDate(2019, 7, 9),
+			TargetGradeLevel: testpkg.Int16Ptr(1),
+		},
+	}
+
+	updated, err := env.svc.ReplaceEditable(ctx, originalToken, replace)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Request)
+	require.Len(t, updated.Children, 2)
+
+	assert.Equal(t, originalRequestID, updated.Request.ID)
+	assert.Equal(t, originalToken, updated.Request.StatusToken)
+	assert.Equal(t, originalSubmittedAt, updated.Request.SubmittedAt)
+	assert.Equal(t, originalEmail, updated.Request.GuardianEmail,
+		"guardian email is the token identity and must remain immutable")
+	assert.Equal(t, "Anja", updated.Request.GuardianFirstName)
+	require.NotNil(t, updated.Request.GuardianPhone)
+	assert.Equal(t, guardianPhone, *updated.Request.GuardianPhone)
+	assert.Len(t, env.outbox.ByKind("enrollment_submitted"), parentEmailsBefore,
+		"editing an existing request must not send another parent confirmation")
+	assert.Len(t, env.outbox.ByKind("enrollment_admin_notification"), adminEmailsBefore,
+		"editing an existing request must not notify admins like a fresh submission")
+
+	storedReq, storedChildren, err := env.svc.GetByStatusToken(ctx, originalToken)
+	require.NoError(t, err)
+	assert.Equal(t, originalRequestID, storedReq.ID)
+	assert.Equal(t, originalEmail, storedReq.GuardianEmail)
+	require.Len(t, storedChildren, 2)
+	assert.Equal(t, "Mila", storedChildren[0].FirstName)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, storedChildren[0].Status)
+	assert.Equal(t, "Noah", storedChildren[1].FirstName)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, storedChildren[1].Status)
+
+	guardians, err := env.svc.GuardiansByStatusToken(ctx, originalToken)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+	assert.Equal(t, "Co", guardians[0].FirstName)
+	require.NotNil(t, guardians[0].Email)
+	assert.Equal(t, "co@example.com", *guardians[0].Email)
+}
+
+func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t,
+		repoFactory.RequestChild.UpdateStatus(
+			ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusUnderReview, nil, 0,
+		),
+	)
+
+	replace := validSubmission(env.phaseID)
+	replace.Children[0].FirstName = "Blockiert"
+	_, err = env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
+
+	_, children, err := env.svc.GetByStatusToken(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Equal(t, "Lina", children[0].FirstName,
+		"blocked edit must leave the existing child payload untouched")
+	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, children[0].Status)
+}
+
 // --- Withdraw ---
 
 func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {

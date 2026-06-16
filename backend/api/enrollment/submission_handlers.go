@@ -352,6 +352,55 @@ type StatusChildResponse struct {
 	StatusReason *string `json:"status_reason,omitempty"`
 }
 
+type EditBootstrapResponse struct {
+	Phase                     PublicPhase               `json:"phase"`
+	Schema                    *PublicFormSchemaResponse `json:"schema"`
+	Offerings                 []CareOfferingResponse    `json:"offerings"`
+	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
+	CareRequired              bool                      `json:"care_required"`
+	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
+	Draft                     EditDraftResponse         `json:"draft"`
+}
+
+type EditDraftResponse struct {
+	RequestID           string                      `json:"request_id"`
+	StatusToken         string                      `json:"status_token"`
+	TenantID            string                      `json:"tenant_id"`
+	TenantSlug          string                      `json:"tenant_slug"`
+	PhaseID             string                      `json:"phase_id"`
+	GuardianFirstName   string                      `json:"guardian_first_name"`
+	GuardianLastName    string                      `json:"guardian_last_name"`
+	GuardianEmail       string                      `json:"guardian_email"`
+	GuardianPhone       *string                     `json:"guardian_phone,omitempty"`
+	ConsentFlags        map[string]any              `json:"consent_flags"`
+	CustomData          map[string]any              `json:"custom_data"`
+	AdditionalGuardians []EditDraftGuardianResponse `json:"additional_guardians,omitempty"`
+	Children            []EditDraftChildResponse    `json:"children"`
+}
+
+type EditDraftGuardianResponse struct {
+	FirstName string  `json:"first_name"`
+	LastName  string  `json:"last_name"`
+	Email     *string `json:"email,omitempty"`
+	Phone     *string `json:"phone,omitempty"`
+}
+
+type EditDraftChildResponse struct {
+	ID               string                         `json:"id"`
+	FirstName        string                         `json:"first_name"`
+	LastName         string                         `json:"last_name"`
+	DateOfBirth      string                         `json:"date_of_birth"`
+	TargetGradeLevel *int16                         `json:"target_grade_level,omitempty"`
+	CustomData       map[string]any                 `json:"custom_data"`
+	OfferingIDs      []string                       `json:"offering_ids"`
+	OfferingDays     []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
+}
+
+type EditDraftOfferingDayResponse struct {
+	OfferingID   string   `json:"offering_id"`
+	SelectedDays []string `json:"selected_days"`
+}
+
 // getStatus returns the per-child status for a token-bearing parent.
 // Public route — caller must wrap in admin-tx because there's no JWT.
 func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
@@ -422,6 +471,97 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")
 }
 
+func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
+		return
+	}
+	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
+	if token == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		return
+	}
+
+	draft, err := rs.RequestService.GetEditDraft(r.Context(), token)
+	if err != nil {
+		mapEditError(w, r, err)
+		return
+	}
+
+	offerings := make([]CareOfferingResponse, 0, len(draft.OpenOfferings))
+	for _, o := range draft.OpenOfferings {
+		offerings = append(offerings, toCareOfferingResponse(o))
+	}
+	common.Respond(w, r, http.StatusOK, EditBootstrapResponse{
+		Phase:                     toPublicPhase(draft.Phase),
+		Schema:                    toPublicFormSchemaResponse(draft.Schema),
+		Offerings:                 offerings,
+		CareOfferingSelectionMode: draft.Phase.CareOfferingSelectionMode,
+		CareRequired:              draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		LegalTexts: PublicLegalTextsResponse{
+			AGB:                 draft.LegalTexts.AGB,
+			DSGVO:               draft.LegalTexts.DSGVO,
+			EmailContact:        draft.LegalTexts.EmailContact,
+			Photo:               draft.LegalTexts.Photo,
+			TermsEnabled:        draft.LegalTexts.TermsEnabled,
+			DSGVOEnabled:        draft.LegalTexts.DSGVOEnabled,
+			EmailContactEnabled: draft.LegalTexts.EmailContactEnabled,
+			PhotoEnabled:        draft.LegalTexts.PhotoEnabled,
+			Blocks:              draft.LegalTexts.Blocks,
+		},
+		Draft: toEditDraftResponse(draft),
+	}, "Enrollment edit bootstrap retrieved")
+}
+
+func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
+	resp := EditDraftResponse{
+		RequestID:         strconv.FormatInt(draft.Request.ID, 10),
+		StatusToken:       draft.Request.StatusToken,
+		TenantID:          strconv.FormatInt(draft.Request.GetTenantID(), 10),
+		PhaseID:           strconv.FormatInt(draft.Request.PhaseID, 10),
+		GuardianFirstName: draft.Request.GuardianFirstName,
+		GuardianLastName:  draft.Request.GuardianLastName,
+		GuardianEmail:     draft.Request.GuardianEmail,
+		GuardianPhone:     draft.Request.GuardianPhone,
+		ConsentFlags:      draft.Request.ConsentFlags,
+		CustomData:        draft.Request.CustomData,
+		Children:          make([]EditDraftChildResponse, 0, len(draft.Children)),
+	}
+	if draft.School != nil {
+		resp.TenantSlug = draft.School.Slug
+	}
+	for _, g := range draft.Guardians {
+		resp.AdditionalGuardians = append(resp.AdditionalGuardians, EditDraftGuardianResponse{
+			FirstName: g.FirstName,
+			LastName:  g.LastName,
+			Email:     g.Email,
+			Phone:     g.Phone,
+		})
+	}
+	for _, c := range draft.Children {
+		child := EditDraftChildResponse{
+			ID:               strconv.FormatInt(c.ID, 10),
+			FirstName:        c.FirstName,
+			LastName:         c.LastName,
+			DateOfBirth:      c.DateOfBirth.String(),
+			TargetGradeLevel: c.TargetGradeLevel,
+			CustomData:       c.CustomData,
+			OfferingIDs:      []string{},
+		}
+		for _, link := range draft.OfferingsByChild[c.ID] {
+			child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
+			if len(link.SelectedDays) > 0 {
+				child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
+					OfferingID:   strconv.FormatInt(link.CareOfferingID, 10),
+					SelectedDays: link.SelectedDays,
+				})
+			}
+		}
+		resp.Children = append(resp.Children, child)
+	}
+	return resp
+}
+
 // EditPatchRequest is the wire shape for PATCH /requests/{token}.
 type EditPatchRequest struct {
 	GuardianFirstName *string        `json:"guardian_first_name,omitempty"`
@@ -475,6 +615,48 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "updated"}, "Request updated")
+}
+
+func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
+	if rs.RequestService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
+		return
+	}
+	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
+	if token == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("status token is required")))
+		return
+	}
+	wireReq := &SubmitEnrollmentRequest{}
+	if err := render.Bind(r, wireReq); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	serviceReq, err := buildServiceRequest(wireReq, 0, "")
+	if err != nil {
+		mapSubmitError(w, r, err)
+		return
+	}
+	result, err := rs.RequestService.ReplaceEditable(r.Context(), token, serviceReq)
+	if err != nil {
+		mapEditError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, SubmitEnrollmentResponse{
+		RequestID: strconv.FormatInt(result.Request.ID, 10),
+		StatusURL: result.StatusURL,
+	}, "Request updated")
+}
+
+func mapEditError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, enrollmentService.ErrRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, enrollmentService.ErrEditNotAllowed):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	default:
+		mapSubmitError(w, r, err)
+	}
 }
 
 // WithdrawRequest is the wire shape for POST /requests/{token}/withdraw.

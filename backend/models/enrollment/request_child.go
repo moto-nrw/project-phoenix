@@ -120,6 +120,7 @@ type RequestChildRepository interface {
 	Create(ctx context.Context, child *RequestChild) error
 	FindByID(ctx context.Context, id int64) (*RequestChild, error)
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestChild, error)
+	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*RequestChild, error)
 
 	// ListByRequestIDs is the batched form of ListByRequestID: one
 	// query for every child across the given requests, sorted by
@@ -131,6 +132,7 @@ type RequestChildRepository interface {
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
+	DeleteByRequestID(ctx context.Context, requestID int64) error
 
 	// ListByPhaseAndStatuses returns every child row in the given
 	// phase whose status is in the provided set, sorted by request

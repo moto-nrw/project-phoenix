@@ -90,6 +90,55 @@ export interface SubmitEnrollmentResult {
   status_url: string;
 }
 
+interface EnrollmentEditDraftOfferingDays {
+  offering_id: string;
+  selected_days: string[];
+}
+
+interface EnrollmentEditDraftChild {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  target_grade_level?: number;
+  custom_data?: Record<string, unknown>;
+  offering_ids: string[];
+  offering_days?: EnrollmentEditDraftOfferingDays[];
+}
+
+interface EnrollmentEditDraftGuardian {
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
+export interface EnrollmentEditDraft {
+  request_id: string;
+  status_token: string;
+  tenant_id: string;
+  tenant_slug: string;
+  phase_id: string;
+  guardian_first_name: string;
+  guardian_last_name: string;
+  guardian_email: string;
+  guardian_phone?: string | null;
+  consent_flags: Record<string, unknown>;
+  custom_data: Record<string, unknown>;
+  additional_guardians?: EnrollmentEditDraftGuardian[];
+  children: EnrollmentEditDraftChild[];
+}
+
+export interface EnrollmentEditBootstrap {
+  phase: PublicPhase;
+  schema: PublicFormSchema | null;
+  offerings: PublicCareOffering[];
+  care_offering_selection_mode: CareOfferingSelectionMode;
+  care_required: boolean;
+  legal_texts: PublicLegalTexts;
+  draft: EnrollmentEditDraft;
+}
+
 interface BackendEnvelope<T> {
   status?: string;
   data?: T;
@@ -343,6 +392,40 @@ export async function fetchStatus(
     throw await readError(response, "Status konnte nicht geladen werden");
   }
   return readJSON<StatusResponse>(response);
+}
+
+export async function fetchEnrollmentEditBootstrap(
+  token: string,
+): Promise<EnrollmentEditBootstrap> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/edit-bootstrap`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Anmeldung kann nicht bearbeitet werden");
+  }
+  return readJSON<EnrollmentEditBootstrap>(response);
+}
+
+export async function updateEnrollmentRequest(
+  token: string,
+  payload: SubmitEnrollmentPayload,
+): Promise<SubmitEnrollmentResult> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungen konnten nicht gespeichert werden",
+    );
+  }
+  return readJSON<SubmitEnrollmentResult>(response);
 }
 
 export async function patchStatus(
