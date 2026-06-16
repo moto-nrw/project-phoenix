@@ -95,6 +95,13 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/admin/guardian-approvals",
+    label: "Konto-Anfragen",
+    icon: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
+    activeColor: "text-[#83CD2D]",
+    requiresAdmin: true,
+  },
+  {
     href: "/time-tracking",
     label: "Zeiterfassung",
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",

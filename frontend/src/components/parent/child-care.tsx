@@ -75,6 +75,11 @@ function formatLocaleDateTime(iso: string, locale: string): string {
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
   notes_enabled: true,
+  // Capability flags default to false on fetch failure (least privilege —
+  // hide invite/remove if we can't confirm they're enabled; the backend
+  // enforces the gate regardless).
+  related_accounts_invite_enabled: false,
+  related_accounts_remove_enabled: false,
 };
 
 export interface ChildCare {

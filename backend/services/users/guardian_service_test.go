@@ -682,6 +682,45 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
 		assert.Equal(t, guardian.ID, result[0].Profile.ID)
+		// No account and no invitation → not pending.
+		assert.False(t, result[0].InvitationPending,
+			"guardian without account or invitation must not be pending")
+	})
+
+	t.Run("marks guardian with an open invitation as pending", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-invite")
+		student := testpkg.CreateTestStudent(t, db, "PendingInvite", "Student", "2c")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+
+		// An open invitation: not accepted, not expired, not rejected.
+		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
+		repoFactory := repositories.NewFactory(db)
+		invitation := &authModels.GuardianInvitation{
+			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
+			GuardianProfileID: guardian.ID,
+			CreatedBy:         inviter.ID,
+			ExpiresAt:         time.Now().Add(48 * time.Hour),
+			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+		}
+		invitation.SetTenantID(1)
+		require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, invitation))
+
+		// ACT
+		result, err := service.GetStudentGuardians(ctx, student.ID)
+
+		// ASSERT
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		assert.True(t, result[0].InvitationPending,
+			"guardian with an open invitation must be marked pending")
 	})
 
 	t.Run("returns empty list when no guardians", func(t *testing.T) {
@@ -838,6 +877,348 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "guardian", updated.RelationshipType)
 		assert.True(t, updated.IsPrimary)
+	})
+
+	t.Run("updates every optional relationship field", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-all")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdateAll", "Student", "5b")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:          student.ID,
+			GuardianProfileID:  guardian.ID,
+			RelationshipType:   "parent",
+			IsPrimary:          false,
+			IsEmergencyContact: false,
+			CanPickup:          false,
+			EmergencyPriority:  1,
+		})
+		require.NoError(t, err)
+
+		newType := "relative"
+		isPrimary := true
+		isEmergencyContact := true
+		canPickup := true
+		pickupNotes := "Nur mit Ausweis"
+		emergencyPriority := 3
+
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, users.StudentGuardianUpdateRequest{
+			RelationshipType:   &newType,
+			IsPrimary:          &isPrimary,
+			IsEmergencyContact: &isEmergencyContact,
+			CanPickup:          &canPickup,
+			PickupNotes:        &pickupNotes,
+			EmergencyPriority:  &emergencyPriority,
+		})
+		require.NoError(t, err)
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, newType, updated.RelationshipType)
+		assert.True(t, updated.IsPrimary)
+		assert.True(t, updated.IsEmergencyContact)
+		assert.True(t, updated.CanPickup)
+		require.NotNil(t, updated.PickupNotes)
+		assert.Equal(t, pickupNotes, *updated.PickupNotes)
+		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
+	})
+
+	t.Run("returns error when relationship is missing", func(t *testing.T) {
+		missingID := time.Now().UnixNano()
+		isPrimary := true
+
+		err := service.UpdateStudentGuardianRelationship(ctx, missingID, users.StudentGuardianUpdateRequest{
+			IsPrimary: &isPrimary,
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "relationship not found")
+	})
+}
+
+// =============================================================================
+// New Student Guardian Batch Tests
+// =============================================================================
+
+func validNewStudentGuardian(email string) users.NewStudentGuardian {
+	return users.NewStudentGuardian{
+		Profile: users.GuardianCreateRequest{
+			FirstName:              "Batch",
+			LastName:               "Guardian",
+			Email:                  &email,
+			PreferredContactMethod: "email",
+			LanguagePreference:     "de",
+		},
+		Relationship: users.StudentGuardianRelationship{
+			RelationshipType:  "parent",
+			EmergencyPriority: 1,
+		},
+	}
+}
+
+func TestGuardianService_ValidateNewGuardians(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("accepts existing profile link request", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-existing")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &profile.ID
+		req.Relationship.RelationshipType = "guardian"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.NoError(t, err)
+	})
+
+	t.Run("rejects duplicate emails in one request", func(t *testing.T) {
+		email := fmt.Sprintf("dup-batch-%d@example.com", time.Now().UnixNano())
+		first := validNewStudentGuardian(email)
+		second := validNewStudentGuardian("  " + email + "  ")
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{first, second})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "mehrfach angegeben")
+	})
+
+	t.Run("rejects email already owned by a profile", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-owned")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian(*profile.Email)
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "bereits vergeben")
+	})
+
+	t.Run("rejects invalid existing profile relationship", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-bad-rel")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &profile.ID
+		req.Relationship.RelationshipType = "invalid"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("rejects missing existing profile", func(t *testing.T) {
+		profile := testpkg.CreateTestGuardianProfile(t, db, "validate-missing-existing")
+		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
+
+		missingID := profile.ID + time.Now().UnixNano()
+		req := validNewStudentGuardian("")
+		req.ExistingProfileID = &missingID
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ausgewählte Person nicht gefunden")
+	})
+
+	t.Run("rejects invalid new relationship", func(t *testing.T) {
+		email := fmt.Sprintf("bad-rel-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.Relationship.RelationshipType = "friend"
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("rejects invalid emergency priority", func(t *testing.T) {
+		email := fmt.Sprintf("bad-priority-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.Relationship.EmergencyPriority = 0
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "Notfall-Priorität")
+	})
+
+	t.Run("rejects invalid profile fields", func(t *testing.T) {
+		email := "not-an-email"
+		req := validNewStudentGuardian(email)
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiges E-Mail-Format")
+	})
+
+	t.Run("rejects invalid phone number", func(t *testing.T) {
+		email := fmt.Sprintf("bad-phone-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.PhoneNumbers = []users.PhoneNumberCreateRequest{{
+			PhoneNumber: "12",
+			PhoneType:   "mobile",
+		}}
+
+		err := service.ValidateNewGuardians(ctx, []users.NewStudentGuardian{req})
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "Telefonnummer")
+	})
+}
+
+func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("creates new guardian links student and adds phone", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "BatchAdd", "Student", "7a")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		email := fmt.Sprintf("batch-add-%d@example.com", time.Now().UnixNano())
+		req := validNewStudentGuardian(email)
+		req.PhoneNumbers = []users.PhoneNumberCreateRequest{{
+			PhoneNumber: "+49 221 123456",
+			PhoneType:   "mobile",
+			IsPrimary:   true,
+		}}
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{req})
+		require.NoError(t, err)
+
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1)
+		assert.Equal(t, "Batch", guardians[0].Profile.FirstName)
+		assert.Equal(t, email, *guardians[0].Profile.Email)
+	})
+
+	t.Run("links existing profile once when selected twice", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "ExistingBatch", "Student", "7b")
+		profile := testpkg.CreateTestGuardianProfile(t, db, "existing-batch")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID)
+
+		first := validNewStudentGuardian("")
+		first.ExistingProfileID = &profile.ID
+		second := validNewStudentGuardian("")
+		second.ExistingProfileID = &profile.ID
+		second.Relationship.IsEmergencyContact = true
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{first, second})
+		require.NoError(t, err)
+
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1)
+		assert.Equal(t, profile.ID, guardians[0].Profile.ID)
+		assert.False(t, guardians[0].Relationship.IsEmergencyContact,
+			"duplicate existing-profile links are skipped without updating the first relationship")
+	})
+
+	t.Run("returns validation error before writing invalid guardian", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "InvalidBatch", "Student", "7c")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		req := validNewStudentGuardian(fmt.Sprintf("batch-invalid-%d@example.com", time.Now().UnixNano()))
+		req.Relationship.RelationshipType = "friend"
+
+		err := service.AddGuardiansToStudent(ctx, student.ID, []users.NewStudentGuardian{req})
+
+		require.Error(t, err)
+		var validationErr *users.ValidationError
+		require.ErrorAs(t, err, &validationErr)
+		assert.Contains(t, err.Error(), "ungültiger Beziehungstyp")
+	})
+
+	t.Run("returns link error for missing student", func(t *testing.T) {
+		missingStudentID := time.Now().UnixNano()
+		email := fmt.Sprintf("batch-link-missing-%d@example.com", missingStudentID)
+		req := validNewStudentGuardian(email)
+
+		err := service.AddGuardiansToStudent(ctx, missingStudentID, []users.NewStudentGuardian{req})
+		if created, lookupErr := service.GetGuardianByEmail(ctx, email); lookupErr == nil && created != nil {
+			testpkg.CleanupActivityFixtures(t, db, created.ID)
+		}
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to link guardian at index 0")
+	})
+}
+
+func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("returns matches with linked children", func(t *testing.T) {
+		token := fmt.Sprintf("picker-%d", time.Now().UnixNano())
+		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
+		student := testpkg.CreateTestStudent(t, db, "Picker", "Child", "8a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:          student.ID,
+			GuardianProfileID:  guardian.ID,
+			RelationshipType:   "parent",
+			EmergencyPriority:  1,
+			IsEmergencyContact: true,
+		})
+		require.NoError(t, err)
+
+		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
+		require.Len(t, matches[0].Children, 1)
+		assert.Equal(t, student.ID, matches[0].Children[0].StudentID)
+	})
+
+	t.Run("returns matches without linked children", func(t *testing.T) {
+		token := fmt.Sprintf("picker-unlinked-%d", time.Now().UnixNano())
+		guardian := testpkg.CreateTestGuardianProfile(t, db, token)
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
+
+		matches, err := service.SearchGuardiansForPicker(ctx, token, 10)
+		require.NoError(t, err)
+		require.Len(t, matches, 1)
+		assert.Equal(t, guardian.ID, matches[0].Profile.ID)
+		assert.Empty(t, matches[0].Children)
+	})
+
+	t.Run("returns empty slice for no matches", func(t *testing.T) {
+		matches, err := service.SearchGuardiansForPicker(ctx, fmt.Sprintf("missing-%d", time.Now().UnixNano()), 10)
+		require.NoError(t, err)
+		assert.NotNil(t, matches)
+		assert.Empty(t, matches)
+	})
+
+	t.Run("returns search repository error", func(t *testing.T) {
+		canceledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		matches, err := service.SearchGuardiansForPicker(canceledCtx, "picker", 10)
+
+		require.Error(t, err)
+		assert.Nil(t, matches)
 	})
 }
 
@@ -2359,4 +2740,55 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(db)
+	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
+
+	cases := []struct {
+		name   string
+		mutate func(*authModels.GuardianInvitation)
+	}{
+		{"accepted", func(i *authModels.GuardianInvitation) { now := time.Now(); i.AcceptedAt = &now }},
+		{"expired", func(i *authModels.GuardianInvitation) { i.ExpiresAt = time.Now().Add(-time.Hour) }},
+		{"rejected", func(i *authModels.GuardianInvitation) {
+			i.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			guardian := testpkg.CreateTestGuardianProfile(t, db, "inv-"+c.name)
+			student := testpkg.CreateTestStudent(t, db, "Inv", "State", "1a")
+			defer func() {
+				_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("student_id = ?", student.ID).Exec(ctx)
+				_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", guardian.ID).Exec(ctx)
+			}()
+
+			_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+				StudentID: student.ID, GuardianProfileID: guardian.ID, RelationshipType: "parent",
+			})
+			require.NoError(t, err)
+
+			inv := &authModels.GuardianInvitation{
+				Token:             fmt.Sprintf("state-%s-%d", c.name, time.Now().UnixNano()),
+				GuardianProfileID: guardian.ID,
+				CreatedBy:         inviter.ID,
+				ExpiresAt:         time.Now().Add(48 * time.Hour),
+				ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
+			}
+			c.mutate(inv)
+			inv.SetTenantID(1)
+			require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+
+			res, err := service.GetStudentGuardians(ctx, student.ID)
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			assert.False(t, res[0].InvitationPending, c.name+" invitation must not count as pending")
+		})
+	}
 }

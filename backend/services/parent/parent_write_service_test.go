@@ -41,6 +41,16 @@ func (s stubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key strin
 	}
 }
 
+// ResolveStringForTenant answers the related-accounts invite-mode lookup that
+// ChildFeatures now performs. Defaults to "disabled" so the existing feature
+// tests are unaffected (they predate the invite/remove capability flags).
+func (s stubSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
+	if key == configModels.KeyGuardianParentInviteMode {
+		return configModels.ParentInviteModeDisabled, nil
+	}
+	return "", nil
+}
+
 // captureBroadcaster records tenant broadcasts so tests can assert the SSE
 // fan-out fired after a sick note.
 type captureBroadcaster struct {

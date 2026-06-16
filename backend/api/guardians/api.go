@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -16,6 +17,7 @@ import (
 // Resource defines the guardians API resource
 type Resource struct {
 	GuardianService    guardianSvc.GuardianService
+	InvitationService  authSvc.GuardianInvitationService
 	PersonService      guardianSvc.PersonService
 	EducationService   educationSvc.Service
 	UserContextService userContextSvc.UserContextService
@@ -25,6 +27,7 @@ type Resource struct {
 // NewResource creates a new guardians resource
 func NewResource(
 	guardianService guardianSvc.GuardianService,
+	invitationService authSvc.GuardianInvitationService,
 	personService guardianSvc.PersonService,
 	educationService educationSvc.Service,
 	userContextService userContextSvc.UserContextService,
@@ -32,6 +35,7 @@ func NewResource(
 ) *Resource {
 	return &Resource{
 		GuardianService:    guardianService,
+		InvitationService:  invitationService,
 		PersonService:      personService,
 		EducationService:   educationService,
 		UserContextService: userContextService,
@@ -99,6 +103,19 @@ func (rs *Resource) Router() chi.Router {
 		r.With(withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)
 		r.With(withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
 		r.With(withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+
+		// Related-accounts: invite a further guardian to a child by email
+		// (staff always allowed; resolves existing-account / existing-profile /
+		// new), plus the parent-initiated approval queue.
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
+		// The approval queue exposes tenant-wide guardian/requester emails and
+		// student names, and the UI is admin-only. Gate it with users:manage
+		// (not users:read) so non-admin staff with read access cannot enumerate
+		// pending parent requests via the API. approve/reject keep their stronger
+		// per-student authorization on top of this.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)
 
 		// Phone number management (nested under guardian)
 		r.Route("/{id}/phone-numbers", func(r chi.Router) {

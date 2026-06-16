@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  GuardianAccountStatus,
   GuardianWithRelationship,
   PhoneNumber,
 } from "@/lib/guardian-helpers";
@@ -10,6 +11,7 @@ import {
   getLanguageLabel,
   PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
+import { LOCATION_COLORS, GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { ModernContactActions } from "~/components/simple/student";
 import {
   UserCheck,
@@ -19,11 +21,40 @@ import {
   MapPin,
   Shield,
   Globe,
+  Send,
 } from "lucide-react";
+
+// Account-status pill: a brand-colored dot + neutral label, matching the
+// app's connection-indicator idiom. Routes color through LOCATION_COLORS.
+const ACCOUNT_STATUS_META: Record<
+  GuardianAccountStatus,
+  { label: string; dot: string }
+> = {
+  active: { label: "Konto aktiv", dot: LOCATION_COLORS.GROUP_ROOM },
+  pending: { label: "Einladung offen", dot: LOCATION_COLORS.SICK },
+  none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
+};
+
+function AccountStatusBadge({
+  status,
+}: Readonly<{ status?: GuardianAccountStatus }>) {
+  const meta = ACCOUNT_STATUS_META[status ?? "none"];
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: meta.dot }}
+      />
+      {meta.label}
+    </span>
+  );
+}
 
 interface GuardianListProps {
   readonly guardians: ReadonlyArray<GuardianWithRelationship>;
   readonly onEdit?: (guardian: GuardianWithRelationship) => void;
+  readonly onInvite?: (guardian: GuardianWithRelationship) => void;
+  readonly invitingGuardianId?: string | null;
   readonly readOnly?: boolean;
   readonly showRelationship?: boolean;
 }
@@ -31,6 +62,8 @@ interface GuardianListProps {
 export default function GuardianList({
   guardians,
   onEdit,
+  onInvite,
+  invitingGuardianId,
   readOnly = false,
   showRelationship = true,
 }: GuardianListProps) {
@@ -65,6 +98,7 @@ export default function GuardianList({
                     Primär
                   </span>
                 )}
+                <AccountStatusBadge status={guardian.accountStatus} />
               </h4>
               {showRelationship && (
                 <p className="mt-1 text-xs text-gray-600 sm:text-sm">
@@ -73,13 +107,39 @@ export default function GuardianList({
               )}
             </div>
 
-            {!readOnly && onEdit && (
-              <button
-                onClick={() => onEdit(guardian)}
-                className="flex-shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              >
-                Bearbeiten
-              </button>
+            {!readOnly && (
+              <div className="flex flex-shrink-0 items-center gap-1">
+                {onInvite &&
+                  guardian.accountStatus !== "active" &&
+                  guardian.email && (
+                    <button
+                      onClick={() => onInvite(guardian)}
+                      disabled={invitingGuardianId === guardian.id}
+                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-[#f0f9e4] disabled:opacity-50"
+                      style={{ color: GROUP_ROOM_SHADES.text }}
+                      title={
+                        guardian.accountStatus === "pending"
+                          ? "Einladung erneut senden"
+                          : "Zum Elternportal einladen"
+                      }
+                    >
+                      <Send className="h-4 w-4" />
+                      <span className="hidden sm:inline">
+                        {guardian.accountStatus === "pending"
+                          ? "Erneut einladen"
+                          : "Einladen"}
+                      </span>
+                    </button>
+                  )}
+                {onEdit && (
+                  <button
+                    onClick={() => onEdit(guardian)}
+                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                  >
+                    Bearbeiten
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

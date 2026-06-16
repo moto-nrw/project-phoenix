@@ -203,7 +203,20 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve notes setting: %w", err)
 	}
-	return ChildFeatureFlags{SickNoteEnabled: sick, NotesEnabled: notes}, nil
+	inviteMode, err := s.settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve invite mode: %w", err)
+	}
+	canRemove, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
+	}
+	return ChildFeatureFlags{
+		SickNoteEnabled:              sick,
+		NotesEnabled:                 notes,
+		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
+		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
+	}, nil
 }
 
 // ListSickDays returns the child's active sick days in [from, to].
