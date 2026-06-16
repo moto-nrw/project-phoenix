@@ -25,6 +25,7 @@ const primaryActive: RelatedAccount = {
   relationship_type: "parent",
   is_primary: true,
   status: "active",
+  is_self: false,
 };
 
 const secondaryPending: RelatedAccount = {
@@ -35,6 +36,7 @@ const secondaryPending: RelatedAccount = {
   relationship_type: "guardian",
   is_primary: false,
   status: "pending",
+  is_self: false,
 };
 
 const staffContactNoAccount: RelatedAccount = {
@@ -45,6 +47,7 @@ const staffContactNoAccount: RelatedAccount = {
   relationship_type: "guardian",
   is_primary: false,
   status: "no_account",
+  is_self: false,
 };
 
 describe("RelatedAccountsPanel", () => {
@@ -84,6 +87,27 @@ describe("RelatedAccountsPanel", () => {
       expect(screen.getByText("Clara Kontakt")).toBeInTheDocument(),
     );
     expect(screen.getByText(/Kontakt ohne Konto/)).toBeInTheDocument();
+    expect(screen.queryByTitle("Zugang entfernen")).not.toBeInTheDocument();
+  });
+
+  it("does not offer a remove affordance for the parent's own row", async () => {
+    // A non-primary guardian who is the logged-in parent: self-removal is
+    // rejected by the backend, so the panel must not offer the action.
+    const self: RelatedAccount = {
+      ...secondaryPending,
+      guardian_profile_id: "9",
+      first_name: "Ich",
+      last_name: "Selbst",
+      is_self: true,
+    };
+    mockList.mockResolvedValue([primaryActive, self]);
+    render(
+      <RelatedAccountsPanel studentId="1" canInvite={false} canRemove={true} />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText("Ich Selbst")).toBeInTheDocument(),
+    );
     expect(screen.queryByTitle("Zugang entfernen")).not.toBeInTheDocument();
   });
 

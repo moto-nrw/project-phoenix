@@ -110,6 +110,9 @@ export interface RelatedAccount {
   readonly relationship_type: string;
   readonly is_primary: boolean;
   readonly status: "active" | "pending" | "no_account";
+  // Marks the requesting parent's own row. Self-removal is rejected by the
+  // backend, so the panel hides the remove action for it.
+  readonly is_self: boolean;
 }
 
 interface ApiEnvelope<T> {

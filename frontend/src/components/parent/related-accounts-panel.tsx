@@ -235,6 +235,7 @@ export default function RelatedAccountsPanel({
                 </div>
                 {canRemove &&
                   !acc.is_primary &&
+                  !acc.is_self &&
                   acc.status !== "no_account" &&
                   (confirmingId === acc.guardian_profile_id ? (
                     <div className="flex shrink-0 items-center gap-1">

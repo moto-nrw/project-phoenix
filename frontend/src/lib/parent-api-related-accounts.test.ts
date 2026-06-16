@@ -39,6 +39,7 @@ const sampleAccount: RelatedAccount = {
   relationship_type: "parent",
   is_primary: true,
   status: "active",
+  is_self: false,
 };
 
 const noAccountSample: RelatedAccount = {

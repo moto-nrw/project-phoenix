@@ -20,6 +20,9 @@ type relatedAccountResponse struct {
 	RelationshipType  string `json:"relationship_type"`
 	IsPrimary         bool   `json:"is_primary"`
 	Status            string `json:"status"`
+	// IsSelf marks the requesting parent's own row; the UI hides the remove
+	// action for it since self-removal is rejected by the backend.
+	IsSelf bool `json:"is_self"`
 }
 
 // inviteRelatedAccountRequest is the wire shape for POST
@@ -64,6 +67,7 @@ func (rs *Resource) listRelatedAccounts(w http.ResponseWriter, r *http.Request) 
 			RelationshipType:  a.RelationshipType,
 			IsPrimary:         a.IsPrimary,
 			Status:            string(a.Status),
+			IsSelf:            a.IsSelf,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Related accounts")

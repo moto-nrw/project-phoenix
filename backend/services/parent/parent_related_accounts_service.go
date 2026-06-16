@@ -53,6 +53,10 @@ type RelatedAccount struct {
 	RelationshipType  string
 	IsPrimary         bool
 	Status            RelatedAccountStatus
+	// IsSelf marks the row belonging to the requesting parent's own account.
+	// The backend rejects self-removal (ErrCannotRemoveOwnAccess), so the UI
+	// uses this to hide the remove action on the caller's own row.
+	IsSelf bool
 }
 
 // InviteRelatedAccountResult mirrors the invitation service outcome.
@@ -97,6 +101,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 				RelationshipType:  link.RelationshipType,
 				IsPrimary:         link.IsPrimary,
 				Status:            status,
+				IsSelf:            profile.AccountID != nil && *profile.AccountID == accountID,
 			})
 		}
 		return nil

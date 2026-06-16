@@ -331,6 +331,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "primary_guardian_protected"))
 	case errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
+	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
