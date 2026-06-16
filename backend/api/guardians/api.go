@@ -108,7 +108,12 @@ func (rs *Resource) Router() chi.Router {
 		// (staff always allowed; resolves existing-account / existing-profile /
 		// new), plus the parent-initiated approval queue.
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/students/{studentId}/invite", rs.inviteGuardianToStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
+		// The approval queue exposes tenant-wide guardian/requester emails and
+		// student names, and the UI is admin-only. Gate it with users:manage
+		// (not users:read) so non-admin staff with read access cannot enumerate
+		// pending parent requests via the API. approve/reject keep their stronger
+		// per-student authorization on top of this.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/invitations/pending-approval", rs.listPendingApprovals)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/approve", rs.approveInvitation)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/invitations/{invitationId}/reject", rs.rejectInvitation)
 

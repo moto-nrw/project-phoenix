@@ -133,7 +133,12 @@ func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Conte
 	return invitations, nil
 }
 
-// FindPending retrieves all pending (not accepted, not expired) invitations
+// FindPending retrieves all consumable pending (not accepted, not expired)
+// invitations. Parent-initiated approval-queue rows are excluded: a 'pending'
+// row has no usable token until staff approval and never had an email sent, and
+// a 'rejected' row must not resurface as a live invite. Only 'not_required'
+// (staff invites + parent direct mode) and 'approved' (staff approved; email
+// dispatched) statuses back a real, acceptable invitation.
 func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
@@ -142,6 +147,10 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
 		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
+		Where(`"guardian_invitation".approval_status IN (?)`, bun.In([]string{
+			auth.GuardianInvitationApprovalNotRequired,
+			auth.GuardianInvitationApprovalApproved,
+		})).
 		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 
@@ -154,8 +163,9 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 
 // FindPendingApproval retrieves parent-initiated invitations awaiting staff
 // approval (approval_status = 'pending'), newest first. Backs the staff
-// approval queue. Tenant isolation is enforced by RLS on the ambient tenant
-// transaction.
+// approval queue. Expired requests are excluded so stale rows that cleanup has
+// not yet removed cannot be approved into a live child link. Tenant isolation
+// is enforced by RLS on the ambient tenant transaction.
 func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
 
@@ -164,6 +174,7 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Where(`"guardian_invitation".approval_status = ?`, auth.GuardianInvitationApprovalPending).
 		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
 		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 

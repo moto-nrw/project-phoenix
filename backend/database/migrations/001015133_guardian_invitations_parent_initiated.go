@@ -54,10 +54,15 @@ func guardianInvitationsParentInitiatedUp(ctx context.Context, db *bun.DB) error
 		return fmt.Errorf("error adding parent-initiated columns: %w", err)
 	}
 
+	// student_id uses a tenant-safe COMPOSITE FK (tenant_id, student_id) →
+	// users.students(tenant_id, id) so a write bug can never pair tenant A's
+	// invitation with tenant B's student — the DB rejects the mismatch. NULL
+	// student_id (staff invites with no specific child) is unenforced under
+	// MATCH SIMPLE, which is the intended behaviour.
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
 			ADD CONSTRAINT fk_guardian_invitation_student
-				FOREIGN KEY (student_id) REFERENCES users.students(id) ON DELETE CASCADE,
+				FOREIGN KEY (tenant_id, student_id) REFERENCES users.students(tenant_id, id) ON DELETE CASCADE,
 			ADD CONSTRAINT fk_guardian_invitation_requested_by
 				FOREIGN KEY (requested_by_account_id) REFERENCES auth.accounts(id) ON DELETE SET NULL,
 			ADD CONSTRAINT fk_guardian_invitation_approved_by

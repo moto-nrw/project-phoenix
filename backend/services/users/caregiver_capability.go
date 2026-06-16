@@ -234,7 +234,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	// active.group_supervisors). Concurrent room/supervision writes take row
 	// locks on the same tables in a different order, so a transient deadlock is
 	// possible — retry the whole transaction on 40P01/40001.
-	if err := s.txHandler.RunInTxWithRetry(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	work := func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.lockCaregiverCapabilityBindings(txCtx, tx); err != nil {
 			return err
 		}
@@ -289,11 +289,53 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 			auditModels.EventTypeCaregiverCapabilityDisabled,
 			s.buildCapabilityAuditMetadata(txCtx, state, result, nil),
 		)
-	}); err != nil {
+	}
+
+	// Retry only works when this code owns the transaction it can re-run. On the
+	// production API paths the request already carries an outer tenant
+	// transaction (TenantTxMiddleware / operator WithAdminTx); reusing it would
+	// make RunInTxWithRetry a no-op, because a deadlock aborts the whole outer
+	// transaction and re-running just the inner work is unsound. When an ambient
+	// transaction is present we mask it and open our own retryable tenant
+	// transaction; otherwise (direct service calls) RunInTxWithRetry owns the
+	// transaction and its built-in retry already applies.
+	tenantID := tenant.FromContext(ctx)
+	var err error
+	if _, inTx := modelBase.TxFromContext(ctx); inTx && tenantID > 0 {
+		err = s.runInRetryableTenantTx(ctx, tenantID, work)
+	} else {
+		err = s.txHandler.RunInTxWithRetry(ctx, work)
+	}
+	if err != nil {
 		return nil, err
 	}
 
 	return result, nil
+}
+
+// caregiverDisableTxRetries is the number of additional attempts
+// runInRetryableTenantTx makes after the first on a transient deadlock or
+// serialization failure.
+const caregiverDisableTxRetries = 3
+
+// runInRetryableTenantTx masks any ambient request transaction and runs fn in an
+// independent tenant-scoped transaction (re-establishing the RLS role + tenant
+// config), retrying the whole transaction on transient deadlock/serialization
+// failures. Mirrors the enrollment rate-limiter pattern.
+func (s *caregiverCapabilityService) runInRetryableTenantTx(
+	ctx context.Context,
+	tenantID int64,
+	fn func(ctx context.Context, tx bun.Tx) error,
+) error {
+	baseCtx := modelBase.ContextWithoutTx(ctx)
+	var err error
+	for attempt := 0; attempt <= caregiverDisableTxRetries; attempt++ {
+		err = tenant.WithTenantTx(baseCtx, s.txHandler.DB, tenantID, fn)
+		if err == nil || !modelBase.IsRetryableTxError(err) {
+			return err
+		}
+	}
+	return err
 }
 
 func (s *caregiverCapabilityService) lockCaregiverCapabilityBindings(
