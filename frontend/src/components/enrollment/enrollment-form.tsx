@@ -17,6 +17,7 @@ import {
   type PublicCareOffering,
   type SubmitChildPayload,
   type SubmitGuardianPayload,
+  type EnrollmentEditDraft,
 } from "~/lib/enrollment-submission-api";
 import {
   fetchPublicActiveSchema,
@@ -119,6 +120,9 @@ interface Props {
    * the German catalog, even if a parent locale cookie exists on the browser.
    */
   readonly localizedCopy?: boolean;
+  readonly initialDraft?: EnrollmentEditDraft;
+  readonly lockedGuardianEmail?: boolean;
+  readonly submitLabel?: string;
 }
 
 type TranslationValues = Record<string, string | number | Date>;
@@ -159,6 +163,9 @@ export function EnrollmentForm({
   submitter,
   skipCaptcha,
   localizedCopy = false,
+  initialDraft,
+  lockedGuardianEmail = false,
+  submitLabel,
 }: Props) {
   const intl = useTranslations("enrollmentForm");
   const activeLocale = useLocale();
@@ -212,32 +219,55 @@ export function EnrollmentForm({
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
 
   const [guardianFirstName, setGuardianFirstName] = useState(
-    prefetchedData?.profile?.guardian.first_name ?? "",
+    initialDraft?.guardian_first_name ??
+      prefetchedData?.profile?.guardian.first_name ??
+      "",
   );
   const [guardianLastName, setGuardianLastName] = useState(
-    prefetchedData?.profile?.guardian.last_name ?? "",
+    initialDraft?.guardian_last_name ??
+      prefetchedData?.profile?.guardian.last_name ??
+      "",
   );
   const [guardianEmail, setGuardianEmail] = useState(
-    prefetchedData?.profile?.guardian.email ?? "",
+    initialDraft?.guardian_email ??
+      prefetchedData?.profile?.guardian.email ??
+      "",
   );
   const [guardianPhone, setGuardianPhone] = useState(
-    prefetchedData?.profile?.guardian.phone ?? "",
+    initialDraft?.guardian_phone ??
+      prefetchedData?.profile?.guardian.phone ??
+      "",
   );
   const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
-    {},
+    () => draftConsentFlags(initialDraft),
   );
   const [children, setChildren] = useState<ChildDraft[]>([
-    blankChild(initialRequiredOfferingIDs),
+    ...(initialDraft
+      ? draftChildren(initialDraft, initialRequiredOfferingIDs)
+      : [blankChild(initialRequiredOfferingIDs)]),
   ]);
   // Additional guardians (co-guardians). Start empty — the primary
   // guardian above is always required; co-guardians are opt-in.
   const [additionalGuardians, setAdditionalGuardians] = useState<
     GuardianDraft[]
-  >([]);
+  >(() => draftGuardians(initialDraft));
   // Request-level custom fields (applies_to_child=false). Stored
   // separately from per-child custom data because their values are
   // shared across all children in the submission.
-  const [customData, setCustomData] = useState<Record<string, unknown>>({});
+  const [customData, setCustomData] = useState<Record<string, unknown>>(
+    () => initialDraft?.custom_data ?? {},
+  );
+  useEffect(() => {
+    if (!initialDraft) return;
+    setGuardianFirstName(initialDraft.guardian_first_name);
+    setGuardianLastName(initialDraft.guardian_last_name);
+    setGuardianEmail(initialDraft.guardian_email);
+    setGuardianPhone(initialDraft.guardian_phone ?? "");
+    setLegalConsents(draftConsentFlags(initialDraft));
+    setChildren(draftChildren(initialDraft, requiredOfferingIDs));
+    setAdditionalGuardians(draftGuardians(initialDraft));
+    setCustomData(initialDraft.custom_data ?? {});
+  }, [initialDraft, requiredOfferingIDs]);
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
@@ -982,6 +1012,7 @@ export function EnrollmentForm({
             value={guardianEmail}
             onChange={setGuardianEmail}
             required
+            readOnly={lockedGuardianEmail}
             error={fieldErrors.guardian_email}
           />
           <Input
@@ -1496,7 +1527,7 @@ export function EnrollmentForm({
           ? tr("actions.previewSubmit")
           : submitting
             ? tr("actions.submitting")
-            : tr("actions.submit")}
+            : (submitLabel ?? tr("actions.submit"))}
       </button>
     </form>
   );
@@ -1514,6 +1545,53 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
     offering_days: {},
     custom: {},
   };
+}
+
+function draftChildren(
+  draft: EnrollmentEditDraft,
+  requiredOfferingIDs: readonly string[] = [],
+): ChildDraft[] {
+  if (draft.children.length === 0) return [blankChild(requiredOfferingIDs)];
+  return draft.children.map((child) => {
+    const offeringIDs = new Set<string>([
+      ...requiredOfferingIDs,
+      ...(child.offering_ids ?? []),
+    ]);
+    const offeringDays: Record<string, Set<string>> = {};
+    for (const row of child.offering_days ?? []) {
+      offeringDays[row.offering_id] = new Set(row.selected_days);
+    }
+    return {
+      first_name: child.first_name,
+      last_name: child.last_name,
+      date_of_birth: child.date_of_birth,
+      target_grade_level: child.target_grade_level?.toString() ?? "",
+      offering_ids: offeringIDs,
+      offering_days: offeringDays,
+      custom: child.custom_data ?? {},
+    };
+  });
+}
+
+function draftGuardians(draft?: EnrollmentEditDraft): GuardianDraft[] {
+  return (
+    draft?.additional_guardians?.map((guardian) => ({
+      first_name: guardian.first_name,
+      last_name: guardian.last_name,
+      email: guardian.email ?? "",
+      phone: guardian.phone ?? "",
+    })) ?? []
+  );
+}
+
+function draftConsentFlags(
+  draft?: EnrollmentEditDraft,
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(draft?.consent_flags ?? {})) {
+    out[key] = value === true;
+  }
+  return out;
 }
 
 const GERMAN_ENROLLMENT_FORM_MESSAGES = deMessages.enrollmentForm as Record<
@@ -1830,6 +1908,7 @@ function Input({
   required = false,
   autoComplete,
   inputMode,
+  readOnly = false,
   error,
 }: {
   readonly label: string;
@@ -1840,6 +1919,7 @@ function Input({
   readonly required?: boolean;
   readonly autoComplete?: string;
   readonly inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  readonly readOnly?: boolean;
   readonly error?: string;
 }) {
   const id = `enrollment-${name}`;
@@ -1856,11 +1936,14 @@ function Input({
         aria-invalid={error ? true : undefined}
         autoComplete={autoComplete}
         inputMode={inputMode}
+        readOnly={readOnly}
         spellCheck={type === "email" ? false : undefined}
         className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           error
             ? "border-[#FF3130] bg-[#FF3130]/5"
-            : "moto-content-surface hover:border-gray-300"
+            : readOnly
+              ? "border-gray-200 bg-gray-50 text-gray-500"
+              : "moto-content-surface hover:border-gray-300"
         }`}
       />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}

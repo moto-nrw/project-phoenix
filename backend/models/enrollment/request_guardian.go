@@ -44,6 +44,7 @@ func (g *RequestGuardian) TableName() string {
 type RequestGuardianRepository interface {
 	Create(ctx context.Context, guardian *RequestGuardian) error
 	ListByRequestID(ctx context.Context, requestID int64) ([]*RequestGuardian, error)
+	DeleteByRequestID(ctx context.Context, requestID int64) error
 
 	// ListByRequestIDs returns every co-guardian across the given requests
 	// in a single query, so the phase export can attach co-guardians

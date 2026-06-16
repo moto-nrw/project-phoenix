@@ -152,6 +152,20 @@ type SubmitResult struct {
 	StatusURL string
 }
 
+// EditDraft is the complete persisted request shape needed to reopen the
+// public enrollment form for a submitted request.
+type EditDraft struct {
+	Request          *enrollmentModels.Request
+	Children         []*enrollmentModels.RequestChild
+	Guardians        []*enrollmentModels.RequestGuardian
+	OfferingsByChild map[int64][]*enrollmentModels.RequestChildOffering
+	Phase            *enrollmentModels.Phase
+	School           *platformModels.School
+	Schema           *enrollmentModels.FormSchema
+	OpenOfferings    []*enrollmentModels.CareOffering
+	LegalTexts       LegalTexts
+}
+
 // EditPatch carries the fields the parent can edit between submission
 // and the first admin decision. Pointer fields = "leave alone unless
 // set"; map fields replace wholesale.
@@ -169,6 +183,8 @@ type EditPatch struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
+	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
+	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	// GuardiansByStatusToken returns the additional guardians (co-guardians)
 	// for the request behind a public status token. Kept separate from
 	// GetByStatusToken so the edit/withdraw callers stay untouched.
@@ -482,7 +498,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		createdRequest  *enrollmentModels.Request
 		createdChildren []*enrollmentModels.RequestChild
 	)
-	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
 		// Serialize concurrent submits for the same (phase, guardian
 		// email) so two parallel requests can't both pass the dedup
 		// check and then both insert. The lock auto-releases at tx
@@ -491,7 +507,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		// takes two int4s OR one int8.
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 		emailHash := fnvHash64(emailLC)
-		if _, err := tx.ExecContext(txCtx, `SELECT pg_advisory_xact_lock(?, ?)`, int32(phase.ID&0x7fffffff), int32(emailHash&0x7fffffff)); err != nil {
+		if err := s.requestRepo.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
 			return fmt.Errorf("submit: acquire dedup lock: %w", err)
 		}
 
@@ -940,6 +956,457 @@ func (s *requestService) statusReasonVisibleToParent(ctx context.Context, phaseI
 	return phase.ShowStatusReasonToParent
 }
 
+// GetEditDraft loads the full persisted request needed to reopen the public
+// enrollment form. It is token-gated like GetByStatusToken, but also enforces
+// the edit window up front so a locked request never leaks a stale editable
+// draft to the client.
+func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditDraft, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrRequestNotFound
+	}
+
+	var (
+		req       *enrollmentModels.Request
+		children  []*enrollmentModels.RequestChild
+		guardians []*enrollmentModels.RequestGuardian
+		links     []*enrollmentModels.RequestChildOffering
+		school    *platformModels.School
+	)
+	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		loadedReq, err := s.requestRepo.FindByStatusToken(adminCtx, token)
+		if err != nil {
+			return ErrRequestNotFound
+		}
+		if loadedReq.StatusTokenExpires != nil && time.Now().After(*loadedReq.StatusTokenExpires) {
+			return ErrRequestNotFound
+		}
+		req = loadedReq
+
+		tenantCtx := tenant.WithTenantID(adminCtx, req.GetTenantID())
+		loadedChildren, err := s.requestChildRepo.ListByRequestID(tenantCtx, req.ID)
+		if err != nil {
+			return fmt.Errorf("edit draft: list children: %w", err)
+		}
+		children = loadedChildren
+		if s.requestGuardianRepo != nil {
+			loadedGuardians, err := s.requestGuardianRepo.ListByRequestID(tenantCtx, req.ID)
+			if err != nil {
+				return fmt.Errorf("edit draft: list guardians: %w", err)
+			}
+			guardians = loadedGuardians
+		}
+		childIDs := make([]int64, 0, len(children))
+		for _, c := range children {
+			childIDs = append(childIDs, c.ID)
+		}
+		loadedLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(tenantCtx, childIDs)
+		if err != nil {
+			return fmt.Errorf("edit draft: list child offerings: %w", err)
+		}
+		links = loadedLinks
+		if s.schoolRepo != nil {
+			loadedSchool, err := s.schoolRepo.FindByID(adminCtx, req.GetTenantID())
+			if err != nil {
+				return fmt.Errorf("edit draft: load school: %w", err)
+			}
+			school = loadedSchool
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
+	for _, link := range links {
+		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
+	}
+
+	var (
+		phase         *enrollmentModels.Phase
+		schema        *enrollmentModels.FormSchema
+		openOfferings []*enrollmentModels.CareOffering
+		legalTexts    LegalTexts
+	)
+	if err := tenant.WithTenantTx(ctx, s.db, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
+			return err
+		}
+		loadedPhase, err := s.loadPhaseForEditableRequest(txCtx, req.PhaseID)
+		if err != nil {
+			return err
+		}
+		phase = loadedPhase
+		loadedSchema, err := s.schemaForEditableRequest(txCtx, req, phase)
+		if err != nil {
+			return err
+		}
+		schema = loadedSchema
+		list, err := s.careOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
+		if err != nil {
+			return fmt.Errorf("edit draft: list active offerings: %w", err)
+		}
+		openOfferings = list
+		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
+		for _, offering := range openOfferings {
+			openByID[offering.ID] = offering
+		}
+		for _, link := range links {
+			if _, ok := openByID[link.CareOfferingID]; !ok {
+				return ErrEditNotAllowed
+			}
+		}
+		texts, err := s.legalTextsForEditableRequest(txCtx, schema)
+		if err != nil {
+			return err
+		}
+		legalTexts = texts
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &EditDraft{
+		Request:          req,
+		Children:         children,
+		Guardians:        guardians,
+		OfferingsByChild: linksByChild,
+		Phase:            phase,
+		School:           school,
+		Schema:           schema,
+		OpenOfferings:    openOfferings,
+		LegalTexts:       legalTexts,
+	}, nil
+}
+
+// ReplaceEditable rewrites the editable payload of an existing request while
+// preserving the request id, status token, guardian account link, and original
+// submitted_at timestamp. It only runs while every child is still submitted.
+func (s *requestService) ReplaceEditable(ctx context.Context, token string, incoming SubmitRequest) (*SubmitResult, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrRequestNotFound
+	}
+
+	var tenantID int64
+	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		req, err := s.requestRepo.FindByStatusToken(adminCtx, token)
+		if err != nil {
+			return ErrRequestNotFound
+		}
+		if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
+			return ErrRequestNotFound
+		}
+		tenantID = req.GetTenantID()
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	var (
+		updatedRequest  *enrollmentModels.Request
+		createdChildren []*enrollmentModels.RequestChild
+	)
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		req, err := s.requestRepo.FindByStatusTokenForUpdate(txCtx, token)
+		if err != nil {
+			return ErrRequestNotFound
+		}
+		if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
+			return ErrRequestNotFound
+		}
+		children, err := s.requestChildRepo.ListByRequestIDForUpdate(txCtx, req.ID)
+		if err != nil {
+			return fmt.Errorf("edit replace: lock children: %w", err)
+		}
+		if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
+			return err
+		}
+
+		editReq := incoming
+		editReq.TenantID = tenantID
+		editReq.PhaseID = req.PhaseID
+		editReq.GuardianEmail = req.GuardianEmail
+		editReq.GuardianAccountID = req.GuardianAccountID
+		if editReq.ConsentFlags == nil {
+			editReq.ConsentFlags = map[string]any{}
+		}
+		if editReq.CustomData == nil {
+			editReq.CustomData = map[string]any{}
+		}
+		if editReq.Children == nil {
+			editReq.Children = []SubmitChild{}
+		}
+
+		phase, err := s.loadPhaseForEditableRequest(txCtx, req.PhaseID)
+		if err != nil {
+			return err
+		}
+		openOfferings, err := s.careOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
+		if err != nil {
+			return fmt.Errorf("edit replace: load phase offerings: %w", err)
+		}
+		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
+		for _, o := range openOfferings {
+			openByID[o.ID] = o
+		}
+		if err := validateOfferingSelections(editReq.Children, openByID); err != nil {
+			return err
+		}
+		if err := validateOfferingGroupRules(editReq.Children, openByID); err != nil {
+			return err
+		}
+		if err := validateRequiredOfferings(editReq.Children, openByID); err != nil {
+			return err
+		}
+		if err := validateCareOfferingSelectionMode(editReq.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
+			return err
+		}
+
+		schema, err := s.schemaForEditableRequest(txCtx, req, phase)
+		if err != nil {
+			return err
+		}
+		legalBlocks, err := s.legalBlocksForEditableRequest(txCtx, schema)
+		if err != nil {
+			return err
+		}
+		if err := normalizeAdditionalGuardians(&editReq); err != nil {
+			return err
+		}
+		if err := s.validateSubmission(txCtx, editReq, legalBlocks); err != nil {
+			return err
+		}
+		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
+		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
+			return err
+		}
+		if schema != nil {
+			byKey := buildFieldsByKey(schema)
+			rawGuardian := editReq.CustomData
+			for i := range editReq.Children {
+				childCtx := fieldVisibilityContext{
+					guardianAnswers: rawGuardian,
+					childAnswers:    editReq.Children[i].CustomData,
+					gradeLevel:      editReq.Children[i].TargetGradeLevel,
+					offeringNames:   selectedOfferingNames(editReq.Children[i], openByID),
+					fieldsByKey:     byKey,
+				}
+				editReq.Children[i].CustomData = sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
+			}
+			editReq.CustomData = sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{
+				guardianAnswers: rawGuardian,
+				fieldsByKey:     byKey,
+			})
+		}
+
+		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
+		emailHash := fnvHash64(emailLC)
+		if err := s.requestRepo.AcquireSubmissionDedupLock(txCtx, phase.ID, emailHash); err != nil {
+			return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
+		}
+
+		existingChildIDs := make([]int64, 0, len(children))
+		hasRolloverChild := false
+		for _, child := range children {
+			existingChildIDs = append(existingChildIDs, child.ID)
+			if child.RolloverSourceChildID != nil {
+				hasRolloverChild = true
+			}
+		}
+		if hasRolloverChild {
+			if err := validateRolloverEditIdentity(children, editReq.Children); err != nil {
+				return err
+			}
+		}
+		existingLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		if err != nil {
+			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
+		}
+		preservedClaims := make(map[int64]int, len(existingLinks))
+		for _, link := range existingLinks {
+			preservedClaims[link.CareOfferingID]++
+		}
+
+		if s.requestGuardianRepo != nil {
+			if err := s.requestGuardianRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
+				return err
+			}
+		}
+		if err := s.requestChildRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
+			return err
+		}
+
+		dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(editReq.Children))
+		for _, c := range editReq.Children {
+			dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{FirstName: c.FirstName, LastName: c.LastName})
+		}
+		dupes, dupErr := s.requestRepo.FindActiveDuplicate(txCtx, phase.ID, req.GuardianEmail, dupKeys)
+		if dupErr != nil {
+			return fmt.Errorf("edit replace: duplicate check: %w", dupErr)
+		}
+		if len(dupes) > 0 {
+			return ErrDuplicateEnrollment
+		}
+
+		childStatusOverrides, err := s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
+		if err != nil {
+			return err
+		}
+
+		req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
+		req.GuardianLastName = strings.TrimSpace(editReq.GuardianLastName)
+		req.GuardianPhone = editReq.GuardianPhone
+		req.ConsentFlags = editReq.ConsentFlags
+		req.CustomData = editReq.CustomData
+		if err := s.requestRepo.UpdateGuardianData(txCtx, req); err != nil {
+			return err
+		}
+		if s.requestGuardianRepo != nil {
+			for i, g := range editReq.AdditionalGuardians {
+				row := &enrollmentModels.RequestGuardian{
+					RequestID: req.ID,
+					FirstName: g.FirstName,
+					LastName:  g.LastName,
+					Email:     g.Email,
+					Phone:     g.Phone,
+					SortOrder: i,
+				}
+				if err := s.requestGuardianRepo.Create(txCtx, row); err != nil {
+					return fmt.Errorf("edit replace: create request guardian %d: %w", i, err)
+				}
+			}
+		}
+
+		for i, child := range editReq.Children {
+			status := enrollmentModels.ChildStatusSubmitted
+			if override, ok := childStatusOverrides[i]; ok {
+				status = override
+			}
+			row := &enrollmentModels.RequestChild{
+				RequestID:        req.ID,
+				FirstName:        strings.TrimSpace(child.FirstName),
+				LastName:         strings.TrimSpace(child.LastName),
+				DateOfBirth:      child.DateOfBirth,
+				TargetGradeLevel: child.TargetGradeLevel,
+				CustomData:       child.CustomData,
+				Status:           status,
+				ActivationMode:   enrollmentModels.ChildActivationScheduled,
+				SortOrder:        i,
+			}
+			if i < len(children) {
+				row.ActivationMode = children[i].ActivationMode
+				row.ActivateOn = children[i].ActivateOn
+				row.RolloverSourceChildID = children[i].RolloverSourceChildID
+				row.ReviewReason = children[i].ReviewReason
+			}
+			if err := s.requestChildRepo.Create(txCtx, row); err != nil {
+				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
+			}
+			daysByOffering := make(map[int64][]string, len(child.OfferingDays))
+			for _, row := range child.OfferingDays {
+				daysByOffering[row.OfferingID] = row.SelectedDays
+			}
+			for _, offeringID := range child.OfferingIDs {
+				offering, ok := openByID[offeringID]
+				if !ok {
+					return fmt.Errorf("edit replace: offering %d disappeared mid-submit", offeringID)
+				}
+				selected, err := resolveSelectedDays(offering, daysByOffering[offeringID])
+				if err != nil {
+					return fmt.Errorf("edit replace: offering %d: %w", offeringID, err)
+				}
+				link := &enrollmentModels.RequestChildOffering{
+					RequestChildID: row.ID,
+					CareOfferingID: offeringID,
+					SelectedDays:   selected,
+				}
+				if err := s.requestChildOfferingRepo.Create(txCtx, link); err != nil {
+					return fmt.Errorf("edit replace: create child-offering link: %w", err)
+				}
+			}
+			createdChildren = append(createdChildren, row)
+		}
+		updatedRequest = req
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("enrollment request edited by parent",
+		slog.Int64("request_id", updatedRequest.ID),
+		slog.Int64("tenant_id", tenantID),
+		slog.Int("children", len(createdChildren)))
+
+	return &SubmitResult{
+		Request:   updatedRequest,
+		Children:  createdChildren,
+		StatusURL: s.statusURL(updatedRequest.StatusToken),
+	}, nil
+}
+
+func (s *requestService) ensureRequestEditable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
+	if req == nil || req.WithdrawnAt != nil {
+		return ErrEditNotAllowed
+	}
+	if !s.allowSubmissionEdit(ctx) {
+		return ErrEditNotAllowed
+	}
+	if len(children) == 0 {
+		return ErrEditNotAllowed
+	}
+	for _, c := range children {
+		if c.Status != enrollmentModels.ChildStatusSubmitted {
+			return ErrEditNotAllowed
+		}
+	}
+	return nil
+}
+
+func (s *requestService) schemaForEditableRequest(ctx context.Context, req *enrollmentModels.Request, phase *enrollmentModels.Phase) (*enrollmentModels.FormSchema, error) {
+	if req != nil && req.SchemaID != nil {
+		return s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+	}
+	return nil, nil
+}
+
+func validateRolloverEditIdentity(existing []*enrollmentModels.RequestChild, incoming []SubmitChild) error {
+	if len(incoming) != len(existing) {
+		return ErrEditNotAllowed
+	}
+	for i, child := range existing {
+		next := incoming[i]
+		if strings.TrimSpace(next.FirstName) != strings.TrimSpace(child.FirstName) ||
+			strings.TrimSpace(next.LastName) != strings.TrimSpace(child.LastName) ||
+			next.DateOfBirth != child.DateOfBirth {
+			return ErrEditNotAllowed
+		}
+	}
+	return nil
+}
+
+func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) (LegalTexts, error) {
+	texts, err := s.LegalTexts(ctx)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	if schema != nil && len(schema.LegalBlocks) > 0 {
+		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
+			texts.Blocks = blocks
+		}
+	}
+	return texts, nil
+}
+
+func (s *requestService) legalBlocksForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
+	texts, err := s.legalTextsForEditableRequest(ctx, schema)
+	if err != nil {
+		return nil, fmt.Errorf("edit replace: resolve legal blocks: %w", err)
+	}
+	return texts.Blocks, nil
+}
+
 // Edit applies the patch only when every child is still `submitted`.
 // PR 7 ships a minimal in-place mutation via raw bun on the tenant
 // transaction; PR 8's admin update path may extend the repo with a
@@ -1335,10 +1802,7 @@ func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) 
 // LoadOpenPublicPhase implements the shared public phase gate documented
 // on the RequestService interface.
 func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
-	if !s.isEnrollmentEnabled(ctx) {
-		return nil, ErrEnrollmentDisabled
-	}
-	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -1346,6 +1810,13 @@ func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64,
 		return nil, ErrEnrollmentWindowClosed
 	}
 	return phase, nil
+}
+
+func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+	if !s.isEnrollmentEnabled(ctx) {
+		return nil, ErrEnrollmentDisabled
+	}
+	return s.loadPhaseForSubmission(ctx, phaseID)
 }
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
@@ -1609,6 +2080,16 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
+	return s.applyCapacityOverflowWithPreservedClaims(ctx, phase, children, openByID, nil)
+}
+
+func (s *requestService) applyCapacityOverflowWithPreservedClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if s.requestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
@@ -1622,9 +2103,10 @@ func (s *requestService) applyCapacityOverflow(
 	// Cache per-offering current count + capacity. Avoid hitting the DB
 	// once per (child, offering) pair when one offering is shared.
 	type slot struct {
-		capacity *int // nil = unlimited
-		current  int  // pre-existing claimants (DB)
-		queued   int  // count from earlier children in this submission
+		capacity  *int // nil = unlimited
+		current   int  // pre-existing claimants (DB)
+		preserved int  // claims this edit already held before replacement
+		queued    int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
 
@@ -1641,7 +2123,11 @@ func (s *requestService) applyCapacityOverflow(
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		s := &slot{capacity: offering.Capacity, current: count}
+		s := &slot{
+			capacity:  offering.Capacity,
+			current:   count,
+			preserved: preservedClaims[offeringID],
+		}
 		slots[offeringID] = s
 		return s, nil
 	}
@@ -1654,6 +2140,11 @@ func (s *requestService) applyCapacityOverflow(
 				return nil, err
 			}
 			if sl.capacity == nil {
+				sl.queued++
+				continue
+			}
+			if sl.preserved > 0 {
+				sl.preserved--
 				sl.queued++
 				continue
 			}

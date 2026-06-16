@@ -90,7 +90,9 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/legal/{tenantSlug}", rs.publicLegalTexts)
 	r.Post("/{tenantSlug}/submit", rs.submitEnrollment)
 	r.Get("/requests/{statusToken}", rs.getStatus)
+	r.Get("/requests/{statusToken}/edit-bootstrap", rs.getEditBootstrap)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
+	r.Put("/requests/{statusToken}", rs.replaceStatus)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
