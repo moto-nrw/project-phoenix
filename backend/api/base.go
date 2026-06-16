@@ -348,6 +348,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
+	api.Auth.SetPasskeyService(api.Services.Passkey)
 	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    api.Services.Facilities,
@@ -388,7 +389,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                      db,
 	})
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
-	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
+	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
@@ -456,6 +457,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AuthService:                api.Services.OperatorAuth,
+		PasskeyService:             api.Services.OperatorPasskey,
 		MFAService:                 api.Services.OperatorMFA,
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,

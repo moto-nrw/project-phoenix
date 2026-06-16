@@ -142,6 +142,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+
+		// Related accounts — see who has access to the child, invite a
+		// further guardian by email (gated by guardians.parent_invite_mode),
+		// and remove an account's access (gated by guardians.parent_can_remove;
+		// the primary guardian is protected). Ownership of {studentId} is
+		// verified in the service against the calling account's guardian links.
+		r.Get("/me/children/{studentId}/related-accounts", rs.listRelatedAccounts)
+		r.Post("/me/children/{studentId}/related-accounts", rs.inviteRelatedAccount)
+		r.Delete("/me/children/{studentId}/related-accounts/{guardianProfileId}", rs.removeRelatedAccount)
 	})
 
 	return r

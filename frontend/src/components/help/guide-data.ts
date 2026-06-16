@@ -157,6 +157,26 @@ export const setupChapters: readonly GuideChapter[] = [
         image: "/help/screens/konto-erstellen.webp",
       },
       {
+        id: "passkey-einrichten",
+        title: "Passkey einrichten",
+        summary:
+          "Nach der ersten Anmeldung kann ein Passkey für die Anmeldung ohne Passwort hinterlegt werden.",
+        steps: [
+          "`Profil` öffnen.",
+          "In der Sektion `Passkeys` auf `Hinzufügen` klicken.",
+          "Den Hinweis prüfen und `E-Mail senden` wählen.",
+          "Das E-Mail-Postfach öffnen, den Code eingeben und einen Namen für das Gerät vergeben.",
+          "Den Passkey mit der Gerätefreigabe speichern.",
+          "Bei der nächsten Anmeldung `Mit Passkey anmelden` wählen.",
+        ],
+        callout: {
+          title: "Gilt für Team- und Operator-Zugänge",
+          body: "Passkeys stehen für normale Nutzerkonten und moto-Operatoren zur Verfügung. Elternkonten nutzen weiterhin den Elternbereich.",
+          tone: "blue",
+        },
+        screenshot: "Profilseite mit der Sektion Passkeys.",
+      },
+      {
         id: "mitarbeitende-anlegen",
         title: "Mitarbeitende anlegen und einladen",
         summary:
@@ -389,7 +409,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
           "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
-          "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen.",
+          "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
         ],
@@ -401,6 +421,38 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
         image: "/help/screens/kinderdetailansicht.webp",
+      },
+      {
+        id: "eltern-konten-verbinden",
+        title: "Eltern-Konten verbinden",
+        icon: Users,
+        summary:
+          "Steuern Sie, wer Zugriff auf ein Kind im Elternportal hat. Sie können weitere Bezugspersonen einladen und bestehende Zugänge wieder trennen – pro Kind sind oft mehrere Konten sinnvoll (zweiter Elternteil, Großeltern).",
+        steps: [
+          "Im Tab `Erziehungsberechtigte` eines Kindes am Status erkennen, wer bereits ein Konto hat (`Konto aktiv`), eingeladen ist (`Einladung offen`) oder noch keinen Zugang hat (`Kein Konto`).",
+          "Mit `Einladen` neben einer Person eine Einladung zum Elternportal an deren hinterlegte E-Mail-Adresse senden. Die Person legt sich darüber selbst ein Passwort an.",
+          "Einen bestehenden Zugang über `Bearbeiten` -> `Entfernen` wieder trennen – die Person sieht das Kind danach nicht mehr im Elternportal.",
+          "Ob Eltern selbst weitere Bezugspersonen einladen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal` (`Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`).",
+        ],
+        callout: {
+          title: "Konto-Anfragen freigeben",
+          body: "Ist `Mit Freigabe durch das Team` gewählt, landen von Eltern angestoßene Einladungen unter `Konto-Anfragen` (nur für Admins). Dort sehen Sie, wer für welches Kind angefragt wurde, und geben die Anfrage mit `Freigeben` frei oder lehnen sie mit `Ablehnen` ab. Erst nach der Freigabe wird der Zugang gewährt.",
+          tone: "green",
+        },
+        screenshot:
+          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und Einladen-Schaltflächen sowie die Admin-Seite Konto-Anfragen mit Freigeben- und Ablehnen-Aktionen.",
+        gallery: [
+          {
+            image: "/help/screens/erziehungsberechtigte-konten.webp",
+            caption:
+              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus (Konto aktiv / Kein Konto) und die Schaltfläche „Einladen“.",
+          },
+          {
+            image: "/help/screens/konto-anfragen.webp",
+            caption:
+              "Seite „Konto-Anfragen“: von Eltern angestoßene Einladungen mit „Freigeben“ bestätigen oder mit „Ablehnen“ abweisen.",
+          },
+        ],
       },
       {
         id: "meine-gruppen",

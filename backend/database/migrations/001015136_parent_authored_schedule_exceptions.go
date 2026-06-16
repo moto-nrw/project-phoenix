@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	parentAuthoredExceptionsVersion     = "1.15.134"
+	parentAuthoredExceptionsVersion     = "1.15.136"
 	parentAuthoredExceptionsDescription = "Allow guardian-authored pickup/arrival exceptions (source + created_by_guardian, FK SET NULL)"
 )
 
@@ -46,7 +46,7 @@ var parentAuthoredExceptionsTables = []string{
 }
 
 func parentAuthoredExceptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.134: Adding source + created_by_guardian to schedule exception tables...")
+	fmt.Println("Migration 1.15.136: Adding source + created_by_guardian to schedule exception tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -108,7 +108,7 @@ func parentAuthoredExceptionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentAuthoredExceptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.134: Removing source + created_by_guardian from schedule exception tables...")
+	fmt.Println("Rolling back migration 1.15.136: Removing source + created_by_guardian from schedule exception tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

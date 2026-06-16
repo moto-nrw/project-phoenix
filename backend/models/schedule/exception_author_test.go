@@ -10,7 +10,7 @@ import (
 )
 
 // TestStudentPickupException_Validate_Author exercises the source/author
-// invariant that migration 1.15.134 introduced: a guardian-authored row is
+// invariant that migration 1.15.136 introduced: a guardian-authored row is
 // keyed by created_by_guardian (not created_by), and an unknown source is
 // rejected. The staff-author branches are covered by the original
 // TestStudentPickupException_Validate cases; these add the guardian + invalid

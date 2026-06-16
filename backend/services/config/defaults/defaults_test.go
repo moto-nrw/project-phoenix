@@ -114,6 +114,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
 		"operations.parent_pickup_change_enabled",
+		// Related-accounts management.
+		"guardians.parent_invite_mode",
+		"guardians.parent_can_remove",
 	}
 
 	for _, key := range expectedKeys {
@@ -141,6 +144,35 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestGuardianRelatedAccountsSettings(t *testing.T) {
+	inviteDef := config.GetDefinition(config.KeyGuardianParentInviteMode)
+	require.NotNil(t, inviteDef, "guardians.parent_invite_mode should be registered")
+	assert.Equal(t, config.FieldSelect, inviteDef.Type)
+	assert.Equal(t, config.ParentInviteModeDisabled, inviteDef.Default, "default must be disabled (least privilege)")
+	assert.Equal(t, "config:manage", inviteDef.WritePermission, "controls access to child data -> manage")
+	assert.Equal(t, "operations", inviteDef.Tab)
+	require.NotNil(t, inviteDef.Options)
+	require.Len(t, inviteDef.Options.Static, 3)
+	values := []any{
+		inviteDef.Options.Static[0].Value,
+		inviteDef.Options.Static[1].Value,
+		inviteDef.Options.Static[2].Value,
+	}
+	assert.Contains(t, values, config.ParentInviteModeDisabled)
+	assert.Contains(t, values, config.ParentInviteModeDirect)
+	assert.Contains(t, values, config.ParentInviteModeStaffApproval)
+
+	removeDef := config.GetDefinition(config.KeyGuardianParentCanRemove)
+	require.NotNil(t, removeDef, "guardians.parent_can_remove should be registered")
+	assert.Equal(t, config.FieldBoolean, removeDef.Type)
+	assert.Equal(t, false, removeDef.Default, "default must be false (least privilege)")
+	assert.Equal(t, "config:manage", removeDef.WritePermission)
+	require.NotNil(t, removeDef.DependsOn, "parent_can_remove should be hidden when invites are disabled")
+	assert.Equal(t, config.KeyGuardianParentInviteMode, removeDef.DependsOn.Key)
+	assert.Equal(t, "neq", removeDef.DependsOn.Condition)
+	assert.Equal(t, config.ParentInviteModeDisabled, removeDef.DependsOn.Value)
 }
 
 func TestWebCheckinAccessSetting(t *testing.T) {

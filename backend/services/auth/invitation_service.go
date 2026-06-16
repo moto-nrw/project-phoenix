@@ -1006,6 +1006,9 @@ func isNotFoundError(err error) bool {
 	if errors.Is(err, sql.ErrNoRows) {
 		return true
 	}
+	if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+		return true
+	}
 
 	var dbErr *modelBase.DatabaseError
 	if errors.As(err, &dbErr) {

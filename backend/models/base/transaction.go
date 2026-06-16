@@ -2,8 +2,10 @@ package base
 
 import (
 	"context"
+	"errors"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // txKey is the context key for storing a transaction
@@ -118,4 +120,48 @@ func (h *TxHandler) RunInTx(ctx context.Context, fn func(ctx context.Context, tx
 	}
 
 	return nil
+}
+
+// defaultTxRetries is the number of additional attempts RunInTxWithRetry makes
+// after the first when a transaction aborts on a transient serialization or
+// deadlock failure.
+const defaultTxRetries = 3
+
+// IsRetryableTxError reports whether err is a transient PostgreSQL transaction
+// failure that is safe to retry by re-running the whole transaction:
+// deadlock_detected (40P01) or serialization_failure (40001). These are not
+// data errors — Postgres aborts one victim transaction and expects the caller
+// to retry. errors.As unwraps service/repo error wrappers down to the driver
+// error.
+func IsRetryableTxError(err error) bool {
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	switch pgErr.Field('C') {
+	case "40P01", "40001": // deadlock_detected, serialization_failure
+		return true
+	default:
+		return false
+	}
+}
+
+// RunInTxWithRetry runs fn in a transaction, retrying the entire transaction on
+// transient deadlock/serialization failures (up to defaultTxRetries extra
+// attempts). Retry is only applied when this handler owns the transaction —
+// when the caller already supplied a transaction via context, a deadlock aborts
+// that outer transaction, so re-running just the inner fn would be unsound; in
+// that case it behaves exactly like RunInTx.
+func (h *TxHandler) RunInTxWithRetry(ctx context.Context, fn func(ctx context.Context, tx bun.Tx) error) error {
+	if _, ok := TxFromContext(ctx); ok {
+		return h.RunInTx(ctx, fn)
+	}
+	var err error
+	for attempt := 0; attempt <= defaultTxRetries; attempt++ {
+		err = h.RunInTx(ctx, fn)
+		if err == nil || !IsRetryableTxError(err) {
+			return err
+		}
+	}
+	return err
 }

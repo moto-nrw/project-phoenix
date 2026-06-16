@@ -68,6 +68,15 @@ func (f *fakeParentService) ListParentNotes(context.Context, int64, int64, int) 
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
 }
+func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
+	return nil, nil
+}
+func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, string, string, string) (*parentService.InviteRelatedAccountResult, error) {
+	return nil, nil
+}
+func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, int64) error {
+	return nil
+}
 
 func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
 	return nil, nil

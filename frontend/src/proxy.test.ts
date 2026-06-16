@@ -58,6 +58,20 @@ describe("proxy env validation", () => {
 });
 
 describe("proxy", () => {
+  it("preserves x-forwarded-host as the original request host", () => {
+    const req = new NextRequest(
+      "http://next-internal:3000/api/auth/passkeys/login/options",
+    );
+    req.headers.set("host", "next-internal:3000");
+    req.headers.set("x-forwarded-host", "school.localhost:3000");
+
+    const res = proxy(req);
+
+    expect(getForwardedRequestHeader(res, "x-moto-original-host")).toBe(
+      "school.localhost:3000",
+    );
+  });
+
   describe("operator subdomain", () => {
     it("rewrites / to /operator", () => {
       const res = proxy(

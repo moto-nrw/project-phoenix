@@ -189,6 +189,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/common/trusted_device_dto_test.go",                  // Pure DTO-mapper unit tests against stack-allocated TrustedDeviceRow values; int64 literals are sentinel IDs in in-memory structs, not DB rows
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
+		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -295,6 +296,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newScenario",                    // E2E timetable flows — shared_setup.go wraps SetupAPITest
 		"setupRolloverTest",              // services/enrollment rollover integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
+		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
 	}
 

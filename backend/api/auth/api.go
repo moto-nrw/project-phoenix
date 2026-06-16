@@ -63,6 +63,7 @@ type Resource struct {
 	// crash. Once Phase 7 lands the login-flow integration this will become
 	// effectively mandatory.
 	MFAService      authService.MFAService
+	PasskeyService  authService.PasskeyService
 	db              *bun.DB
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -77,6 +78,10 @@ func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 // backward-compatible while phases roll in.
 func (rs *Resource) SetMFAService(svc authService.MFAService) {
 	rs.MFAService = svc
+}
+
+func (rs *Resource) SetPasskeyService(svc authService.PasskeyService) {
+	rs.PasskeyService = svc
 }
 
 // SetGuardianInvitationService injects the guardian invitation service.
@@ -120,6 +125,8 @@ func (rs *Resource) Router() chi.Router {
 		// token yet.
 		r.Post("/mfa/verify", rs.mfaVerify)
 		r.Post("/mfa/resend", rs.mfaResend)
+		r.Post("/passkeys/login/options", rs.passkeyLoginOptions)
+		r.Post("/passkeys/login/verify", rs.passkeyLoginVerify)
 	})
 
 	// Public routes (no rate limiting — these are read-only lookups)
@@ -176,6 +183,13 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/mfa", func(r chi.Router) {
 			r.Get("/trusted-devices", rs.mfaListTrustedDevices)
 			r.Delete("/trusted-devices/{deviceId}", rs.mfaRevokeTrustedDevice)
+		})
+		r.Route("/passkeys", func(r chi.Router) {
+			r.Get("/", rs.passkeyList)
+			r.Post("/enrollment/challenge", rs.passkeyEnrollmentChallenge)
+			r.Post("/register/options", rs.passkeyRegisterOptions)
+			r.Post("/register/verify", rs.passkeyRegisterVerify)
+			r.Delete("/{passkeyId}", rs.passkeyRevoke)
 		})
 
 		// Admin routes - require admin role or specific permissions
@@ -679,6 +693,8 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
 		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+		case errors.Is(authErr.Err, authService.ErrParentMustUseParentPortal):
+			common.RenderError(w, r, common.ErrorForbidden(authService.ErrParentMustUseParentPortal))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too

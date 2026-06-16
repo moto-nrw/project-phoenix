@@ -171,7 +171,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	// The load-bearing assertion: a guardian row stores created_by as NULL
 	// (nullzero) and references the account via created_by_guardian. NULL is
 	// what lets the row past the single-column created_by → users.staff(id) FK,
-	// which migration 1.15.134 made nullable for exactly this case.
+	// which migration 1.15.136 made nullable for exactly this case.
 	var createdBy *int64
 	var createdByGuardian *int64
 	var source string
@@ -389,7 +389,7 @@ func TestListAndDeleteCareException(t *testing.T) {
 	assert.Empty(t, after, "delete must revert the day to the standard plan")
 }
 
-// TestGuardianExceptionSurvivesAccountDeletion guards migration 1.15.134: a
+// TestGuardianExceptionSurvivesAccountDeletion guards migration 1.15.136: a
 // parent-authored exception must NOT vanish when the guardian account is deleted
 // (the old ON DELETE CASCADE silently erased future care instructions). The FK
 // is now ON DELETE SET NULL and chk_exception_author tolerates the orphaned

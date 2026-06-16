@@ -17,12 +17,18 @@ const INTERNAL_REFRESH_JWT =
 // { id: 1, first_name: "John", email: "john@example.com" } (no last_name, no roles)
 const TEACHER_JWT_MINIMAL =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZmlyc3RfbmFtZSI6IkpvaG4iLCJlbWFpbCI6ImpvaG5AZXhhbXBsZS5jb20ifQ.test";
-// { id: 45, first_name: "Op", email: "op@example.com", is_admin: true }
+// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], permissions: [], scope: "platform", is_admin: false }
 const OPERATOR_JWT =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20iLCJpc19hZG1pbiI6dHJ1ZX0.test";
-// { id: 45, first_name: "Op", email: "op@example.com" } (no is_admin)
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInBlcm1pc3Npb25zIjpbXSwic2NvcGUiOiJwbGF0Zm9ybSIsImlzX2FkbWluIjpmYWxzZX0.test";
+// { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
 const OPERATOR_JWT_MINIMAL =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsImZpcnN0X25hbWUiOiJPcCIsImVtYWlsIjoib3BAZXhhbXBsZS5jb20ifQ.test";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInNjb3BlIjoicGxhdGZvcm0ifQ.test";
+// { id: 45, sub: "operator:45", email: "legacy-op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_EMAIL_ONLY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZW1haWwiOiJsZWdhY3ktb3BAZXhhbXBsZS5jb20iLCJmaXJzdF9uYW1lIjoiT3AiLCJyb2xlcyI6WyJvcGVyYXRvciJdLCJzY29wZSI6InBsYXRmb3JtIn0.test";
+// { id: 45, sub: "operator:45", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_NO_EMAIL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZmlyc3RfbmFtZSI6Ik9wIiwicm9sZXMiOlsib3BlcmF0b3IiXSwic2NvcGUiOiJwbGF0Zm9ybSJ9.test";
 
 // Mock ~/env
 vi.mock("~/env", () => ({
@@ -1535,6 +1541,41 @@ describe("authConfig", () => {
       expect(result).not.toBeNull();
       expect(result?.scope).toBe("platform");
       expect(result?.roles).toEqual(["operator"]);
+      expect(result?.email).toBe("op@example.com");
+      expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to email claim for legacy operator internal refresh tokens", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_EMAIL_ONLY,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("legacy-op@example.com");
+      expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should not use operator subject as email when internal refresh token has no email claims", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_NO_EMAIL,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("");
       expect(mockFetch).not.toHaveBeenCalled();
     });
 

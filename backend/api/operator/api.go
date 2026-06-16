@@ -20,6 +20,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	authResource            *AuthResource
+	passkeyService          platformSvc.OperatorPasskeyService
 	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
@@ -37,6 +38,7 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AuthService                platformSvc.OperatorAuthService
+	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
@@ -107,6 +109,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 
 	resource := &Resource{
 		authResource:          NewAuthResource(cfg.AuthService),
+		passkeyService:        cfg.PasskeyService,
 		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
 		suggestionsResource:   NewSuggestionsResource(cfg.SuggestionsService),
@@ -147,6 +150,8 @@ func (rs *Resource) Router() chi.Router {
 			// token yet.
 			r.Post("/mfa/verify", rs.mfaResource.Verify)
 			r.Post("/mfa/resend", rs.mfaResource.Resend)
+			r.Post("/passkeys/login/options", rs.PasskeyLoginOptions)
+			r.Post("/passkeys/login/verify", rs.PasskeyLoginVerify)
 		})
 		r.Group(func(r chi.Router) {
 			limiter := rs.emailConfirmRateLimiter
@@ -196,6 +201,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+
+		r.Route("/auth/passkeys", func(r chi.Router) {
+			r.Get("/", rs.PasskeyList)
+			r.Post("/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
+			r.Post("/register/options", rs.PasskeyRegisterOptions)
+			r.Post("/register/verify", rs.PasskeyRegisterVerify)
+			r.Delete("/{passkeyId}", rs.PasskeyRevoke)
+		})
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
 		r.Get("/roles", rs.provisioningResource.ListSystemRoles)

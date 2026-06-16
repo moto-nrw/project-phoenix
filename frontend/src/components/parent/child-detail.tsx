@@ -26,6 +26,7 @@ import {
   SickStatusSummary,
   useChildCare,
 } from "~/components/parent/child-care";
+import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
@@ -291,6 +292,11 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             onCompose={() => setModal("notes")}
           />
           <PickupPeoplePanel people={pickupPeople} />
+          <RelatedAccountsPanel
+            studentId={child.student_id}
+            canInvite={care.features.related_accounts_invite_enabled}
+            canRemove={care.features.related_accounts_remove_enabled}
+          />
           <NewsPanel />
         </div>
       </div>
@@ -423,6 +429,13 @@ function MobileChildAppView({
           </button>
         </div>
       </section>
+
+      <RelatedAccountsPanel
+        studentId={child.student_id}
+        canInvite={care.features.related_accounts_invite_enabled}
+        canRemove={care.features.related_accounts_remove_enabled}
+        mobile
+      />
 
       <NewsPanel mobile />
 
