@@ -30,9 +30,9 @@ type phaseExportRequest struct {
 	ChildStatus string            `json:"child_status"`
 }
 
-// exportConfidentialityNote is stamped on printed phase exports because
-// the files contain full guardian and child PII.
-const exportConfidentialityNote = "Vertraulich, nur für berechtigte Personen. Nach Gebrauch sicher vernichten."
+// exportConfidentialityNote is stamped on enrollment exports because the
+// files contain child data and, for phase exports, guardian contact data.
+const exportConfidentialityNote = "Enthält personenbezogene Daten. Bitte nur intern verwenden."
 
 // exportPhaseRegistrations streams a compact export of every
 // registration in the phase. config:manage gated because one call bundles
