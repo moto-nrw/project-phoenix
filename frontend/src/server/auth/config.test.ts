@@ -23,6 +23,12 @@ const OPERATOR_JWT =
 // { id: 45, sub: "operator:45", username: "op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
 const OPERATOR_JWT_MINIMAL =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwidXNlcm5hbWUiOiJvcEBleGFtcGxlLmNvbSIsImZpcnN0X25hbWUiOiJPcCIsInJvbGVzIjpbIm9wZXJhdG9yIl0sInNjb3BlIjoicGxhdGZvcm0ifQ.test";
+// { id: 45, sub: "operator:45", email: "legacy-op@example.com", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_EMAIL_ONLY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZW1haWwiOiJsZWdhY3ktb3BAZXhhbXBsZS5jb20iLCJmaXJzdF9uYW1lIjoiT3AiLCJyb2xlcyI6WyJvcGVyYXRvciJdLCJzY29wZSI6InBsYXRmb3JtIn0.test";
+// { id: 45, sub: "operator:45", first_name: "Op", roles: ["operator"], scope: "platform" }
+const OPERATOR_JWT_NO_EMAIL =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NDUsInN1YiI6Im9wZXJhdG9yOjQ1IiwiZmlyc3RfbmFtZSI6Ik9wIiwicm9sZXMiOlsib3BlcmF0b3IiXSwic2NvcGUiOiJwbGF0Zm9ybSJ9.test";
 
 // Mock ~/env
 vi.mock("~/env", () => ({
@@ -1537,6 +1543,39 @@ describe("authConfig", () => {
       expect(result?.roles).toEqual(["operator"]);
       expect(result?.email).toBe("op@example.com");
       expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should fall back to email claim for legacy operator internal refresh tokens", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_EMAIL_ONLY,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("legacy-op@example.com");
+      expect(result?.email).not.toBe("operator:45");
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("should not use operator subject as email when internal refresh token has no email claims", async () => {
+      const authorize = getOperatorAuthorize();
+      const result = await authorize(
+        {
+          internalRefresh: "true",
+          token: OPERATOR_JWT_NO_EMAIL,
+          refreshToken: "op-refresh",
+        },
+        new Request("http://localhost:3000"),
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.email).toBe("");
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
