@@ -1032,7 +1032,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
 			return err
 		}
-		loadedPhase, err := s.LoadOpenPublicPhase(txCtx, req.PhaseID, time.Now())
+		loadedPhase, err := s.loadPhaseForEditableRequest(txCtx, req.PhaseID)
 		if err != nil {
 			return err
 		}
@@ -1138,7 +1138,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			editReq.Children = []SubmitChild{}
 		}
 
-		phase, err := s.LoadOpenPublicPhase(txCtx, req.PhaseID, time.Now())
+		phase, err := s.loadPhaseForEditableRequest(txCtx, req.PhaseID)
 		if err != nil {
 			return err
 		}
@@ -1206,6 +1206,26 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
 		}
 
+		existingChildIDs := make([]int64, 0, len(children))
+		hasRolloverChild := false
+		for _, child := range children {
+			existingChildIDs = append(existingChildIDs, child.ID)
+			if child.RolloverSourceChildID != nil {
+				hasRolloverChild = true
+			}
+		}
+		if hasRolloverChild && len(editReq.Children) != len(children) {
+			return ErrEditNotAllowed
+		}
+		existingLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(txCtx, existingChildIDs)
+		if err != nil {
+			return fmt.Errorf("edit replace: load existing child offerings: %w", err)
+		}
+		preservedClaims := make(map[int64]int, len(existingLinks))
+		for _, link := range existingLinks {
+			preservedClaims[link.CareOfferingID]++
+		}
+
 		if s.requestGuardianRepo != nil {
 			if err := s.requestGuardianRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
 				return err
@@ -1227,7 +1247,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			return ErrDuplicateEnrollment
 		}
 
-		childStatusOverrides, err := s.applyCapacityOverflow(txCtx, phase, editReq.Children, openByID)
+		childStatusOverrides, err := s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
 		if err != nil {
 			return err
 		}
@@ -1271,6 +1291,12 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				Status:           status,
 				ActivationMode:   enrollmentModels.ChildActivationScheduled,
 				SortOrder:        i,
+			}
+			if i < len(children) {
+				row.ActivationMode = children[i].ActivationMode
+				row.ActivateOn = children[i].ActivateOn
+				row.RolloverSourceChildID = children[i].RolloverSourceChildID
+				row.ReviewReason = children[i].ReviewReason
 			}
 			if err := s.requestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
@@ -1759,10 +1785,7 @@ func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) 
 // LoadOpenPublicPhase implements the shared public phase gate documented
 // on the RequestService interface.
 func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
-	if !s.isEnrollmentEnabled(ctx) {
-		return nil, ErrEnrollmentDisabled
-	}
-	phase, err := s.loadPhaseForSubmission(ctx, phaseID)
+	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -1770,6 +1793,13 @@ func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64,
 		return nil, ErrEnrollmentWindowClosed
 	}
 	return phase, nil
+}
+
+func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+	if !s.isEnrollmentEnabled(ctx) {
+		return nil, ErrEnrollmentDisabled
+	}
+	return s.loadPhaseForSubmission(ctx, phaseID)
 }
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
@@ -2033,6 +2063,16 @@ func (s *requestService) applyCapacityOverflow(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
+	return s.applyCapacityOverflowWithPreservedClaims(ctx, phase, children, openByID, nil)
+}
+
+func (s *requestService) applyCapacityOverflowWithPreservedClaims(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	preservedClaims map[int64]int,
+) (map[int]string, error) {
 	overrides := make(map[int]string)
 	if s.requestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
@@ -2046,9 +2086,10 @@ func (s *requestService) applyCapacityOverflow(
 	// Cache per-offering current count + capacity. Avoid hitting the DB
 	// once per (child, offering) pair when one offering is shared.
 	type slot struct {
-		capacity *int // nil = unlimited
-		current  int  // pre-existing claimants (DB)
-		queued   int  // count from earlier children in this submission
+		capacity  *int // nil = unlimited
+		current   int  // pre-existing claimants (DB)
+		preserved int  // claims this edit already held before replacement
+		queued    int  // count from earlier children in this submission
 	}
 	slots := make(map[int64]*slot)
 
@@ -2065,7 +2106,11 @@ func (s *requestService) applyCapacityOverflow(
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
-		s := &slot{capacity: offering.Capacity, current: count}
+		s := &slot{
+			capacity:  offering.Capacity,
+			current:   count,
+			preserved: preservedClaims[offeringID],
+		}
 		slots[offeringID] = s
 		return s, nil
 	}
@@ -2078,6 +2123,11 @@ func (s *requestService) applyCapacityOverflow(
 				return nil, err
 			}
 			if sl.capacity == nil {
+				sl.queued++
+				continue
+			}
+			if sl.preserved > 0 {
+				sl.preserved--
 				sl.queued++
 				continue
 			}

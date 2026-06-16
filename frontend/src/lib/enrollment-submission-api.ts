@@ -396,13 +396,14 @@ export async function fetchStatus(
 
 export async function fetchEnrollmentEditBootstrap(
   token: string,
+  fallback = "Anmeldung kann nicht bearbeitet werden",
 ): Promise<EnrollmentEditBootstrap> {
   const response = await fetch(
     `/api/enrollment/requests/${encodeURIComponent(token)}/edit-bootstrap`,
     { cache: "no-store" },
   );
   if (!response.ok) {
-    throw await readError(response, "Anmeldung kann nicht bearbeitet werden");
+    throw await readError(response, fallback);
   }
   return readJSON<EnrollmentEditBootstrap>(response);
 }
@@ -410,6 +411,7 @@ export async function fetchEnrollmentEditBootstrap(
 export async function updateEnrollmentRequest(
   token: string,
   payload: SubmitEnrollmentPayload,
+  fallback = "Änderungen konnten nicht gespeichert werden",
 ): Promise<SubmitEnrollmentResult> {
   const response = await fetch(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
@@ -420,10 +422,7 @@ export async function updateEnrollmentRequest(
     },
   );
   if (!response.ok) {
-    throw await readError(
-      response,
-      "Änderungen konnten nicht gespeichert werden",
-    );
+    throw await readError(response, fallback);
   }
   return readJSON<SubmitEnrollmentResult>(response);
 }

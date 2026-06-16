@@ -5,5 +5,5 @@ interface PageProps {
 }
 
 export default function ParentEnrollmentEditRoute({ params }: PageProps) {
-  return <EnrollmentEditPage params={params} backLabel="Zurück zum Status" />;
+  return <EnrollmentEditPage params={params} />;
 }

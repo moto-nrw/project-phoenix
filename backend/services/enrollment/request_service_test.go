@@ -1066,6 +1066,173 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, children[0].Status)
 }
 
+func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+
+	pastStart := time.Now().AddDate(0, 0, -14)
+	pastEnd := time.Now().AddDate(0, 0, -1)
+	env.phase.EnrollmentOpenAt = &pastStart
+	env.phase.EnrollmentCloseAt = &pastEnd
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	require.Equal(t, submitted.Request.ID, draft.Request.ID)
+
+	replace := validSubmission(env.phaseID)
+	replace.Children[0].FirstName = "Nachfrist"
+	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 1)
+	assert.Equal(t, "Nachfrist", updated.Children[0].FirstName)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, updated.Children[0].Status)
+}
+
+func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	sourceReq := validSubmission(env.phaseID)
+	sourceReq.GuardianEmail = "source@example.com"
+	source, err := env.svc.Submit(ctx, sourceReq)
+	require.NoError(t, err)
+
+	targetReq := validSubmission(env.phaseID)
+	targetReq.GuardianEmail = "target@example.com"
+	target, err := env.svc.Submit(ctx, targetReq)
+	require.NoError(t, err)
+
+	reason := enrollmentModels.ReviewReasonGradeAboveMax
+	activateOn := timezone.NewDate(2026, 9, 1)
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("rollover_source_child_id = ?", source.Children[0].ID).
+		Set("review_reason = ?", reason).
+		Set("activation_mode = ?", enrollmentModels.ChildActivationImmediate).
+		Set("activate_on = ?", activateOn).
+		Where("id = ?", target.Children[0].ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	replace := validSubmission(env.phaseID)
+	replace.GuardianEmail = "ignored@example.com"
+	replace.Children[0].FirstName = "Rollover"
+	updated, err := env.svc.ReplaceEditable(ctx, target.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 1)
+	child := updated.Children[0]
+	require.NotNil(t, child.RolloverSourceChildID)
+	assert.Equal(t, source.Children[0].ID, *child.RolloverSourceChildID)
+	require.NotNil(t, child.ReviewReason)
+	assert.Equal(t, reason, *child.ReviewReason)
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+	assert.Equal(t, activateOn, *child.ActivateOn)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, child.Status)
+}
+
+func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	sourceReq := validSubmission(env.phaseID)
+	sourceReq.GuardianEmail = "source@example.com"
+	source, err := env.svc.Submit(ctx, sourceReq)
+	require.NoError(t, err)
+
+	targetReq := validSubmission(env.phaseID)
+	targetReq.GuardianEmail = "target@example.com"
+	target, err := env.svc.Submit(ctx, targetReq)
+	require.NoError(t, err)
+
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("rollover_source_child_id = ?", source.Children[0].ID).
+		Where("id = ?", target.Children[0].ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	replace := validSubmission(env.phaseID)
+	replace.Children = append(replace.Children, enrollmentService.SubmitChild{
+		FirstName:        "Neu",
+		LastName:         "Kind",
+		DateOfBirth:      timezone.NewDate(2019, 3, 3),
+		TargetGradeLevel: testpkg.Int16Ptr(1),
+	})
+	_, err = env.svc.ReplaceEditable(ctx, target.Request.StatusToken, replace)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
+
+	_, children, err := env.svc.GetByStatusToken(ctx, target.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	assert.Equal(t, target.Children[0].ID, children[0].ID)
+}
+
+func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	req1 := validSubmission(env.phaseID)
+	req1.GuardianEmail = "holder@example.com"
+	req1.Children[0].OfferingIDs = []int64{offering.ID}
+	holder, err := env.svc.Submit(ctx, req1)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusSubmitted, holder.Children[0].Status)
+
+	req2 := validSubmission(env.phaseID)
+	req2.GuardianEmail = "waitlisted@example.com"
+	req2.Children[0].OfferingIDs = []int64{offering.ID}
+	waitlisted, err := env.svc.Submit(ctx, req2)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusWaitlisted, waitlisted.Children[0].Status)
+
+	replace := validSubmission(env.phaseID)
+	replace.Children[0].OfferingIDs = []int64{offering.ID}
+	updated, err := env.svc.ReplaceEditable(ctx, holder.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, updated.Children[0].Status)
+}
+
+func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holderReq := validSubmission(env.phaseID)
+	holderReq.GuardianEmail = "holder@example.com"
+	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holderReq)
+	require.NoError(t, err)
+
+	editorReq := validSubmission(env.phaseID)
+	editorReq.GuardianEmail = "editor@example.com"
+	editor, err := env.svc.Submit(ctx, editorReq)
+	require.NoError(t, err)
+
+	replace := validSubmission(env.phaseID)
+	replace.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err = env.svc.ReplaceEditable(ctx, editor.Request.StatusToken, replace)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull))
+}
+
 // --- Withdraw ---
 
 func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
