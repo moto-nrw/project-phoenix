@@ -97,6 +97,26 @@ func TestValidateServeConfig_RejectsRandomJWTSecret(t *testing.T) {
 	assert.Contains(t, err.Error(), "AUTH_JWT_SECRET=random")
 }
 
+func TestValidateServeConfig_SentryDSNRequiresEnvironment(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("sentry_dsn", "https://example@sentry.io/123")
+
+	err := validateServeConfig()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SENTRY_ENVIRONMENT")
+}
+
+func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
+	resetServeConfig(t)
+	setValidServeConfig()
+	viper.Set("sentry_dsn", "https://example@sentry.io/123")
+	viper.Set("sentry_environment", "staging")
+
+	require.NoError(t, validateServeConfig())
+}
+
 func resetServeConfig(t *testing.T) {
 	t.Helper()
 	viper.Reset()

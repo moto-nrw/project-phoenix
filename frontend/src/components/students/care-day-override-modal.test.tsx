@@ -35,6 +35,38 @@ vi.mock("~/components/ui/form-modal", () => ({
     ) : null,
 }));
 
+vi.mock("~/components/ui/modal", () => ({
+  ConfirmationModal: ({
+    isOpen,
+    title,
+    children,
+    onConfirm,
+    onClose,
+    confirmText,
+    cancelText,
+  }: {
+    isOpen: boolean;
+    title: string;
+    children: React.ReactNode;
+    onConfirm: () => void;
+    onClose: () => void;
+    confirmText: string;
+    cancelText: string;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label={title}>
+        <h2>{title}</h2>
+        {children}
+        <button type="button" onClick={onClose}>
+          {cancelText}
+        </button>
+        <button type="button" onClick={onConfirm}>
+          {confirmText}
+        </button>
+      </div>
+    ) : null,
+}));
+
 const baseArrivalDay: ArrivalDayData = {
   date: new Date("2026-05-25T00:00:00"),
   weekday: 1,
@@ -104,6 +136,24 @@ const basePickupDay: PickupDayData = {
       updatedAt: "2026-05-01T00:00:00Z",
     },
   ],
+};
+
+// A pickup day whose exception was authored by a parent in the portal.
+const guardianPickupDay: PickupDayData = {
+  ...basePickupDay,
+  exception: {
+    id: "99",
+    studentId: "42",
+    exceptionDate: "2026-05-25",
+    pickupTime: "15:00",
+    reason: "Arzttermin",
+    source: "guardian",
+    createdBy: "0",
+    createdAt: "2026-05-20T00:00:00Z",
+    updatedAt: "2026-05-20T00:00:00Z",
+  },
+  effectiveTime: "15:00",
+  isException: true,
 };
 
 function renderModal(
@@ -226,5 +276,160 @@ describe("CareDayOverrideModal", () => {
       expect(screen.getByText("Speichern fehlgeschlagen")).toBeInTheDocument();
     });
     expect(toastError).toHaveBeenCalledWith("Speichern fehlgeschlagen");
+  });
+
+  it("zeigt einen Hinweis, wenn die Zeiten von den Eltern stammen", () => {
+    renderModal({ pickupDay: guardianPickupDay });
+
+    expect(
+      screen.getByText(/von den Eltern über das Elternportal gesetzt/i),
+    ).toBeInTheDocument();
+  });
+
+  it("verlangt eine Bestätigung, bevor eine Eltern-Zeit überschrieben wird", async () => {
+    const onSavePickupException = vi.fn().mockResolvedValue(undefined);
+
+    renderModal({ pickupDay: guardianPickupDay, onSavePickupException });
+
+    // The parent set 15:00; staff change it to 16:00.
+    fireEvent.change(screen.getByLabelText("Uhrzeit"), {
+      target: { value: "16:00" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tagesänderung speichern" }),
+    );
+
+    // Save is gated behind the confirmation, and the form steps aside instead of
+    // stacking the two dialogs.
+    expect(onSavePickupException).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Eltern-Angabe überschreiben?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Tagesänderung speichern" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem überschreiben" }),
+    );
+
+    await waitFor(() => {
+      expect(onSavePickupException).toHaveBeenCalledWith({
+        pickupTime: "16:00",
+        reason: "Arzttermin",
+      });
+    });
+  });
+
+  it("kehrt zum Änderungsformular zurück, wenn das Überschreiben abgebrochen wird", () => {
+    const onSavePickupException = vi.fn().mockResolvedValue(undefined);
+
+    renderModal({ pickupDay: guardianPickupDay, onSavePickupException });
+
+    fireEvent.change(screen.getByLabelText("Uhrzeit"), {
+      target: { value: "16:00" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tagesänderung speichern" }),
+    );
+
+    // Confirmation is up, form is hidden.
+    expect(
+      screen.getByText("Eltern-Angabe überschreiben?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    // The form is back with its edits intact; nothing was saved.
+    expect(
+      screen.queryByText("Eltern-Angabe überschreiben?"),
+    ).not.toBeInTheDocument();
+    const timeField = screen.getByLabelText("Uhrzeit") as HTMLInputElement;
+    expect(timeField.value).toBe("16:00");
+    expect(onSavePickupException).not.toHaveBeenCalled();
+  });
+
+  it("fragt nicht nach, wenn nur eine Notiz ergänzt wird", async () => {
+    const onSavePickupException = vi.fn().mockResolvedValue(undefined);
+    const onCreatePickupNote = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+
+    renderModal({
+      pickupDay: guardianPickupDay,
+      onSavePickupException,
+      onCreatePickupNote,
+      onClose,
+    });
+
+    // Touch only the note, leave the parent's 15:00 untouched.
+    fireEvent.change(screen.getByLabelText("Neue Notiz"), {
+      target: { value: "Bitte anrufen" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tagesänderung speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(onCreatePickupNote).toHaveBeenCalledWith("Bitte anrufen");
+    });
+    expect(
+      screen.queryByText("Eltern-Angabe überschreiben?"),
+    ).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("übernimmt eine unveränderte Eltern-Zeit nicht, wenn nur eine Notiz ergänzt wird", async () => {
+    const onSavePickupException = vi.fn().mockResolvedValue(undefined);
+    const onCreatePickupNote = vi.fn().mockResolvedValue(undefined);
+
+    renderModal({
+      pickupDay: guardianPickupDay,
+      onSavePickupException,
+      onCreatePickupNote,
+    });
+
+    // Add only a note; the parent's 15:00 stays as loaded. Re-saving the
+    // exception would reclaim the guardian row to staff, so it must not fire.
+    fireEvent.change(screen.getByLabelText("Neue Notiz"), {
+      target: { value: "Bitte anrufen" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tagesänderung speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(onCreatePickupNote).toHaveBeenCalledWith("Bitte anrufen");
+    });
+    expect(onSavePickupException).not.toHaveBeenCalled();
+  });
+
+  it("verlangt eine Bestätigung, wenn nur der Grund einer Eltern-Zeit geändert wird", async () => {
+    const onSavePickupException = vi.fn().mockResolvedValue(undefined);
+
+    renderModal({ pickupDay: guardianPickupDay, onSavePickupException });
+
+    // Keep the parent's 15:00 but change the reason. Touching the parent's
+    // exception at all is an overwrite and must be confirmed.
+    const reasonField = screen.getByLabelText("Grund") as HTMLInputElement;
+    fireEvent.change(reasonField, { target: { value: "Zahnarzt" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Tagesänderung speichern" }),
+    );
+
+    expect(onSavePickupException).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Eltern-Angabe überschreiben?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem überschreiben" }),
+    );
+
+    await waitFor(() => {
+      expect(onSavePickupException).toHaveBeenCalledWith({
+        pickupTime: "15:00",
+        reason: "Zahnarzt",
+      });
+    });
   });
 });

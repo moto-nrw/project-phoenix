@@ -17,7 +17,7 @@ func Migrate() {
 	}
 	defer func() { _ = db.Close() }()
 
-	migrator := migrate.NewMigrator(db, Migrations)
+	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
 	// Initialize migration tables
 	if err := migrator.Init(context.Background()); err != nil {
@@ -54,7 +54,7 @@ func MigrateStatus() {
 	}
 	defer func() { _ = db.Close() }()
 
-	migrator := migrate.NewMigrator(db, Migrations)
+	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
 	// Initialize migration tables
 	if err := migrator.Init(context.Background()); err != nil {
@@ -110,7 +110,7 @@ func Reset() {
 	defer func() { _ = db.Close() }()
 
 	// Initialize new migrator
-	migrator := migrate.NewMigrator(db, Migrations)
+	migrator := migrate.NewMigrator(db, Migrations, migrate.WithMarkAppliedOnSuccess(true))
 
 	if err := migrator.Init(context.Background()); err != nil {
 		log.Fatal(err)

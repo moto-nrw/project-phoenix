@@ -87,6 +87,11 @@ export interface BackendGuardianPickerResponse {
 
 // Backend Student-Guardian Relationship
 
+// Portal-access state of a guardian, surfaced in the staff guardian list:
+// "active" = has a login account · "pending" = invited, not yet accepted ·
+// "none" = info on file, no account (can be invited).
+export type GuardianAccountStatus = "active" | "pending" | "none";
+
 // Guardian with Relationship (for student detail view)
 export interface GuardianWithRelationship extends Guardian {
   relationshipId: string;
@@ -96,6 +101,10 @@ export interface GuardianWithRelationship extends Guardian {
   canPickup: boolean;
   pickupNotes?: string;
   emergencyPriority: number;
+  // Optional: present on data mapped from the backend (always set by
+  // mapGuardianWithRelationshipResponse), but omittable in test fixtures and
+  // older payloads. Consumers default a missing value to "none".
+  accountStatus?: GuardianAccountStatus;
 }
 
 // Backend Guardian with Relationship
@@ -108,6 +117,7 @@ export interface BackendGuardianWithRelationship {
   can_pickup: boolean;
   pickup_notes?: string;
   emergency_priority: number;
+  account_status?: GuardianAccountStatus;
 }
 
 // Guardian Create/Update Request
@@ -260,6 +270,10 @@ export function mapGuardianWithRelationshipResponse(
     canPickup: data.can_pickup,
     pickupNotes: data.pickup_notes,
     emergencyPriority: data.emergency_priority,
+    // Fall back to deriving from has_account if the backend omits the field
+    // (older builds): account → active, otherwise none.
+    accountStatus:
+      data.account_status ?? (data.guardian.has_account ? "active" : "none"),
   };
 }
 

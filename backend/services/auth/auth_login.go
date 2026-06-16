@@ -131,6 +131,11 @@ func (s *Service) LoginWithMFAGate(
 		return nil, err
 	}
 
+	if IsGuardianOnlyForTenant(metadata.roleNames) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
+		return nil, &AuthError{Op: "login", Err: ErrParentMustUseParentPortal}
+	}
+
 	// Hydrate roles on the account so MFAService.IsRequired can use
 	// account.HasRole("admin") without re-querying. We're projecting just
 	// names; the full Role objects aren't needed for this check.
@@ -283,6 +288,10 @@ func (s *Service) IssueTokensForAuthenticatedAccount(
 	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {
 		return "", "", err
+	}
+	if IsGuardianOnlyForTenant(metadata.roleNames) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant token issue")
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrParentMustUseParentPortal}
 	}
 
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)

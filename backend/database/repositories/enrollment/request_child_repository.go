@@ -53,13 +53,24 @@ func (r *RequestChildRepository) FindByID(ctx context.Context, id int64) (*enrol
 
 // ListByRequestID returns all children for a request, sorted by sort_order.
 func (r *RequestChildRepository) ListByRequestID(ctx context.Context, requestID int64) ([]*enrollment.RequestChild, error) {
+	return r.listByRequestID(ctx, requestID, "")
+}
+
+func (r *RequestChildRepository) ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*enrollment.RequestChild, error) {
+	return r.listByRequestID(ctx, requestID, "UPDATE")
+}
+
+func (r *RequestChildRepository) listByRequestID(ctx context.Context, requestID int64, lockClause string) ([]*enrollment.RequestChild, error) {
 	var children []*enrollment.RequestChild
-	err := base.GetDB(ctx, r.db).NewSelect().
+	q := base.GetDB(ctx, r.db).NewSelect().
 		Model(&children).
 		ModelTableExpr(requestChildTableExpr).
 		Where(`"request_child".request_id = ?`, requestID).
-		OrderExpr(`"request_child".sort_order, "request_child".id`).
-		Scan(ctx)
+		OrderExpr(`"request_child".sort_order, "request_child".id`)
+	if lockClause != "" {
+		q = q.For(lockClause)
+	}
+	err := q.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request children: %w", err)
 	}
@@ -157,6 +168,25 @@ func (r *RequestChildRepository) UpdateActivationPlan(ctx context.Context, reque
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
+// DeleteByRequestID removes every child row under the request. The
+// request_child_offerings FK is ON DELETE CASCADE, so per-child offering links
+// are removed in the same statement. Used by the parent edit replace flow
+// after it has locked and verified the children are still editable.
+func (r *RequestChildRepository) DeleteByRequestID(ctx context.Context, requestID int64) error {
+	if requestID <= 0 {
+		return fmt.Errorf("request id must be positive")
+	}
+	_, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.RequestChild)(nil)).
+		ModelTableExpr(requestChildTableExpr).
+		Where(`"request_child".request_id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete request children: %w", err)
 	}
 	return nil
 }

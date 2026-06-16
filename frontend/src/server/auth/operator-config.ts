@@ -54,7 +54,7 @@ export const operatorAuthConfig = {
           const payload = parseJwtPayload(creds.token);
           if (!payload) return null;
 
-          const email = payload.email ?? payload.sub ?? "";
+          const email = payload.username ?? payload.email ?? "";
           return buildAuthUser(
             payload,
             creds.token,

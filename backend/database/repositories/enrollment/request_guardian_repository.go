@@ -50,6 +50,24 @@ func (r *RequestGuardianRepository) ListByRequestID(ctx context.Context, request
 	return guardians, nil
 }
 
+// DeleteByRequestID removes every co-guardian row under the request. It is
+// only used before any child has left submitted, so no materialized guardian
+// profiles are discarded.
+func (r *RequestGuardianRepository) DeleteByRequestID(ctx context.Context, requestID int64) error {
+	if requestID <= 0 {
+		return fmt.Errorf("request id must be positive")
+	}
+	_, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.RequestGuardian)(nil)).
+		ModelTableExpr(requestGuardianTableExpr).
+		Where(`"request_guardian".request_id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete request guardians: %w", err)
+	}
+	return nil
+}
+
 // ListByRequestIDs returns every co-guardian across the given requests in
 // a single query, sorted by request_id, sort_order, id so the caller can
 // group rows by request without re-sorting. Tenant-scoped via RLS. Empty

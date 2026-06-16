@@ -205,6 +205,7 @@ describe("guardian-helpers", () => {
         canPickup: true,
         pickupNotes: "Usually picks up at 15:00",
         emergencyPriority: 1,
+        accountStatus: "active",
       });
     });
 

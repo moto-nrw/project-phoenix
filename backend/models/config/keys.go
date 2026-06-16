@@ -125,6 +125,7 @@ const (
 	KeyCareConcept                    = "operations.care_concept"
 	KeyParentSickNoteEnabled          = "operations.parent_sick_note_enabled"
 	KeyParentNotesEnabled             = "operations.parent_notes_enabled"
+	KeyParentPickupChangeEnabled      = "operations.parent_pickup_change_enabled"
 	KeyTimeTrackingAccountStartDate   = "operations.time_tracking_account_start_date"
 )
 
@@ -162,6 +163,21 @@ const (
 // Invitations settings (auth flows).
 const (
 	KeyGuardianInvitationTokenExpiryHours = "invitations.guardian_token_expiry_hours"
+)
+
+// Guardian / related-accounts settings. Control whether parents may invite
+// further guardians to their own child and whether they may revoke another
+// account's access. Staff capabilities are always-on (permission-gated).
+const (
+	KeyGuardianParentInviteMode = "guardians.parent_invite_mode"
+	KeyGuardianParentCanRemove  = "guardians.parent_can_remove"
+)
+
+// ParentInviteMode option values for KeyGuardianParentInviteMode.
+const (
+	ParentInviteModeDisabled      = "disabled"       // parents cannot invite
+	ParentInviteModeDirect        = "direct"         // invite sent immediately
+	ParentInviteModeStaffApproval = "staff_approval" // invite queued for staff approval
 )
 
 // Parent-enrollment settings. Tenant-wide behavioural toggles only -
