@@ -186,7 +186,9 @@ describe("Parent portal components", () => {
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Krank melden").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abholzeit ändern").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Ankunfts- und Abholzeit ändern").length,
+    ).toBeGreaterThan(0);
     await waitFor(() => {
       expect(mocks.setBreadcrumb).toHaveBeenCalledWith({
         pageTitle: "Lina Muster",
@@ -233,7 +235,7 @@ describe("Parent portal components", () => {
     await waitFor(() => expect(mocks.listCareExceptions).toHaveBeenCalled());
 
     const pickupButtons = screen.getAllByRole("button", {
-      name: /Abholzeit ändern/,
+      name: /Ankunfts- und Abholzeit ändern/,
     });
     const enabledPickupButton = pickupButtons.find(
       (button) => !button.hasAttribute("disabled"),
@@ -243,7 +245,9 @@ describe("Parent portal components", () => {
     fireEvent.click(enabledPickupButton!);
 
     expect(
-      await screen.findByRole("dialog", { name: "Abholzeit ändern" }),
+      await screen.findByRole("dialog", {
+        name: "Ankunfts- und Abholzeit ändern",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();

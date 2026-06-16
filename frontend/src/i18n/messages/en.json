@@ -130,7 +130,7 @@
         "description": "Daily note for this child"
       },
       "pickupTime": {
-        "label": "Change pickup time",
+        "label": "Change arrival & pickup time",
         "description": "Set pickup/arrival for a day"
       },
       "message": {
@@ -209,7 +209,7 @@
       "range": "Sick {from} – {to}"
     },
     "pickup": {
-      "title": "Change pickup time",
+      "title": "Change arrival & pickup time",
       "intro": "Set a different pickup or arrival time for a single day. The change applies to that day only.",
       "dateLabel": "Day",
       "pickupLabel": "Pickup time",

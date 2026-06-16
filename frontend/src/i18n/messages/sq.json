@@ -130,7 +130,7 @@
         "description": "Njoftim ditor për këtë fëmijë"
       },
       "pickupTime": {
-        "label": "Ndrysho orarin",
+        "label": "Ndrysho orarin e ardhjes dhe marrjes",
         "description": "Cakto orarin për një ditë"
       },
       "message": {
@@ -209,8 +209,8 @@
       "range": "I sëmurë {from} – {to}"
     },
     "pickup": {
-      "title": "Ndrysho orarin e marrjes",
-      "intro": "Cakto një orar tjetër marrjeje ose ardhjeje për një ditë të vetme. Ndryshimi vlen vetëm për atë ditë.",
+      "title": "Ndrysho orarin e ardhjes dhe marrjes",
+      "intro": "Caktoni një orar tjetër marrjeje ose ardhjeje për një ditë të vetme. Ndryshimi vlen vetëm për atë ditë.",
       "dateLabel": "Dita",
       "pickupLabel": "Ora e marrjes",
       "arrivalLabel": "Ora e ardhjes",
