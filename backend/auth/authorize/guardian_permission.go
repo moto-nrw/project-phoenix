@@ -113,6 +113,9 @@ func ApplyStudentGuardianRole(sg *users.StudentGuardian, role string) {
 	}
 	normalized := NormalizeGuardianRole(role)
 	sg.GuardianRole = normalized
+	if normalized == GuardianRoleCustom {
+		return
+	}
 	sg.Permissions = StudentGuardianPermissionSet(normalized)
 }
 

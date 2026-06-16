@@ -202,6 +202,32 @@ func TestApplyStudentGuardianRole_NilIsNoop(t *testing.T) {
 	ApplyStudentGuardianRole(nil, GuardianRolePrimaryGuardian)
 }
 
+func TestApplyStudentGuardianRole_CustomPreservesPermissions(t *testing.T) {
+	sg := &users.StudentGuardian{
+		GuardianRole: GuardianRoleLegalGuardian,
+		Permissions: map[string]interface{}{
+			GuardianPermissionPortalAccess:     true,
+			GuardianPermissionSickNoteSubmit:   true,
+			GuardianPermissionEnrollmentSubmit: false,
+		},
+	}
+
+	ApplyStudentGuardianRole(sg, GuardianRoleCustom)
+
+	if sg.GuardianRole != GuardianRoleCustom {
+		t.Fatalf("ApplyStudentGuardianRole() role = %q, want %q", sg.GuardianRole, GuardianRoleCustom)
+	}
+	if !StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
+		t.Fatal("ApplyStudentGuardianRole(custom) should preserve existing portal access")
+	}
+	if !StudentGuardianHasPermission(sg, GuardianPermissionSickNoteSubmit) {
+		t.Fatal("ApplyStudentGuardianRole(custom) should preserve existing sick-note permission")
+	}
+	if StudentGuardianHasPermission(sg, GuardianPermissionEnrollmentSubmit) {
+		t.Fatal("false stored permissions must stay false")
+	}
+}
+
 func TestDefaultStudentGuardianRole(t *testing.T) {
 	tests := []struct {
 		name               string

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -404,6 +405,38 @@ func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
 	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.SickNoteEnabled)
+	assert.False(t, flags.NotesEnabled)
+}
+
+func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = ?::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, portalAndSick, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.SickNoteEnabled)
+	assert.False(t, flags.NotesEnabled)
+
+	portalOnly := `{"` + authorize.GuardianPermissionPortalAccess + `": true}`
+	_, err = db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = ?::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, portalOnly, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	flags, err = svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
 }
 

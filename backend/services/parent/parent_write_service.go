@@ -77,7 +77,10 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 		if requiredPermission != "" && !childHasPermission(child, requiredPermission) {
 			return ErrGuardianPermissionDenied
 		}
-		resolved = &parentChild{tenantID: child.TenantID}
+		resolved = &parentChild{
+			tenantID:            child.TenantID,
+			guardianPermissions: child.GuardianPermissions,
+		}
 		return nil
 	})
 	if err != nil {
@@ -97,7 +100,17 @@ func childHasPermission(child *parentModels.ChildSummary, permission string) boo
 
 // parentChild is the minimal resolved context a per-child write needs.
 type parentChild struct {
-	tenantID int64
+	tenantID            int64
+	guardianPermissions map[string]interface{}
+}
+
+func (c *parentChild) hasPermission(permission string) bool {
+	if c == nil {
+		return false
+	}
+	return authorize.StudentGuardianHasPermission(&usersModels.StudentGuardian{
+		Permissions: c.guardianPermissions,
+	}, permission)
 }
 
 // SubmitSickNote reports the child sick for the given dates.
@@ -224,7 +237,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve notes setting: %w", err)
 	}
-	return ChildFeatureFlags{SickNoteEnabled: sick, NotesEnabled: notes}, nil
+	return ChildFeatureFlags{
+		SickNoteEnabled: sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		NotesEnabled:    notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
+	}, nil
 }
 
 // ListSickDays returns the child's active sick days in [from, to].
