@@ -10,8 +10,20 @@ import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 
+interface OperatorProfile {
+  id: number;
+  email: string;
+  display_name: string;
+}
+
+function isEmail(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.includes("@");
+}
+
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
+  const sessionName = session?.user?.name ?? "";
+  const sessionEmail = session?.user?.email ?? "";
 
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -24,6 +36,7 @@ function OperatorSettingsContent() {
     displayName: "",
     email: "",
   });
+  const [profileData, setProfileData] = useState<OperatorProfile | null>(null);
 
   // Email change state
   const [showEmailChangeDialog, setShowEmailChangeDialog] = useState(false);
@@ -41,13 +54,46 @@ function OperatorSettingsContent() {
   }, []);
 
   useEffect(() => {
-    if (session?.user) {
-      setFormData({
-        displayName: session.user.name ?? "",
-        email: session.user.email ?? "",
-      });
+    if (status !== "authenticated") {
+      return;
     }
-  }, [session]);
+
+    let ignore = false;
+    const sessionFallback = {
+      displayName: sessionName,
+      email: isEmail(sessionEmail) ? sessionEmail : "",
+    };
+
+    setFormData(sessionFallback);
+
+    const loadProfile = async () => {
+      try {
+        const response = await sessionFetch("/api/operator/profile", {
+          method: "GET",
+        });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as { data?: OperatorProfile };
+        const profile = data.data;
+        if (!profile || ignore) return;
+
+        setProfileData(profile);
+        setFormData({
+          displayName: profile.display_name,
+          email: profile.email,
+        });
+      } catch {
+        // Keep the safe session fallback. The profile form should not surface
+        // token subjects like "operator:2" as an email address.
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      ignore = true;
+    };
+  }, [status, sessionName, sessionEmail]);
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -65,7 +111,21 @@ function OperatorSettingsContent() {
         );
       }
 
-      await updateSession({ name: formData.displayName });
+      const data = (await response.json()) as { data?: OperatorProfile };
+      const updatedProfile = data.data;
+      const nextDisplayName =
+        updatedProfile?.display_name ?? formData.displayName;
+      const nextEmail = updatedProfile?.email ?? formData.email;
+
+      if (updatedProfile) {
+        setProfileData(updatedProfile);
+      }
+      setFormData({
+        displayName: nextDisplayName,
+        email: nextEmail,
+      });
+
+      await updateSession({ name: nextDisplayName, email: nextEmail });
 
       setIsEditing(false);
       setAlertMessage("Profil erfolgreich aktualisiert");
@@ -225,10 +285,15 @@ function OperatorSettingsContent() {
                 <button
                   onClick={() => {
                     setIsEditing(false);
-                    if (session?.user) {
+                    if (profileData) {
                       setFormData({
-                        displayName: session.user.name ?? "",
-                        email: session.user.email ?? "",
+                        displayName: profileData.display_name,
+                        email: profileData.email,
+                      });
+                    } else if (status === "authenticated") {
+                      setFormData({
+                        displayName: sessionName,
+                        email: isEmail(sessionEmail) ? sessionEmail : "",
                       });
                     }
                   }}
