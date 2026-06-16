@@ -28,13 +28,16 @@ import (
 // for when the second consumer shows up.
 type mockDecisionService struct {
 	// List
-	listFilters  enrollmentService.RequestFilters
-	listResult   []*enrollmentService.RequestSummary
-	listErr      error
-	listCalls    int
-	getRequestID int64
-	getResult    *enrollmentService.RequestSummary
-	getErr       error
+	listFilters       enrollmentService.RequestFilters
+	listResult        []*enrollmentService.RequestSummary
+	listErr           error
+	listCalls         int
+	listStudentID     int64
+	listStudentResult []*enrollmentService.RequestSummary
+	listStudentErr    error
+	getRequestID      int64
+	getResult         *enrollmentService.RequestSummary
+	getErr            error
 
 	listChildOffResult map[int64][]enrollmentService.ChildOfferingRow
 	listChildOffErr    error
@@ -46,20 +49,28 @@ type mockDecisionService struct {
 	// ExportPhase: records the args the handler forwards (so a handler
 	// test can assert the format + actor were threaded through) and
 	// replays a canned payload/error.
-	exportPhaseID     int64
-	exportActorID     int64
-	exportActorRole   string
-	exportFormat      string
-	exportChildStatus string
-	exportCalls       int
-	exportResult      *enrollmentService.PhaseExport
-	exportErr         error
+	exportPhaseID       int64
+	exportActorID       int64
+	exportActorRole     string
+	exportFormat        string
+	exportChildStatus   string
+	exportCalls         int
+	exportResult        *enrollmentService.PhaseExport
+	exportErr           error
+	exportStudentID     int64
+	exportStudentResult *enrollmentService.StudentEnrollmentExport
+	exportStudentErr    error
 }
 
 func (m *mockDecisionService) List(_ context.Context, f enrollmentService.RequestFilters) ([]*enrollmentService.RequestSummary, error) {
 	m.listFilters = f
 	m.listCalls++
 	return m.listResult, m.listErr
+}
+
+func (m *mockDecisionService) ListByStudent(_ context.Context, studentID int64) ([]*enrollmentService.RequestSummary, error) {
+	m.listStudentID = studentID
+	return m.listStudentResult, m.listStudentErr
 }
 
 func (m *mockDecisionService) Get(_ context.Context, id int64) (*enrollmentService.RequestSummary, error) {
@@ -86,6 +97,14 @@ func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccou
 	return m.exportResult, m.exportErr
 }
 
+func (m *mockDecisionService) ExportStudent(_ context.Context, studentID, actorAccountID int64, actorRole, format string) (*enrollmentService.StudentEnrollmentExport, error) {
+	m.exportStudentID = studentID
+	m.exportActorID = actorAccountID
+	m.exportActorRole = actorRole
+	m.exportFormat = format
+	return m.exportStudentResult, m.exportStudentErr
+}
+
 func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *enrollmentModels.Phase, _, _ string, _, _ int) error {
 	return nil
 }
@@ -99,6 +118,8 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/admin/requests", rs.listAdminRequests)
 	r.Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
+	r.Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
+	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	r.Post("/enrollment/admin/requests/{id}/children/{childId}/decide", rs.decideAdminChild)
 	return r
 }
