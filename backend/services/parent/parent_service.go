@@ -16,7 +16,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -53,10 +52,6 @@ type Service interface {
 	// surface in-progress / decided submissions without the parent
 	// having to dig out the email-link status URL.
 	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
-
-	// CanSubmitEnrollmentForTenant reports whether the account has an active
-	// guardian relationship in the tenant with enrollment-submit permission.
-	CanSubmitEnrollmentForTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 
 	GetProfile(ctx context.Context, accountID int64) (*Profile, error)
 
@@ -413,36 +408,4 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		slog.Int("count", len(requests)),
 	)
 	return requests, nil
-}
-
-// CanSubmitEnrollmentForTenant gates parent-authored enrollment submissions on
-// the explicit relationship permission. The repository query is cross-tenant,
-// so this method wraps it in an admin transaction like the other parent portal
-// lookups.
-func (s *service) CanSubmitEnrollmentForTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	if accountID <= 0 {
-		return false, fmt.Errorf("parent: account_id must be positive")
-	}
-	if tenantID <= 0 {
-		return false, fmt.Errorf("parent: tenant_id must be positive")
-	}
-	if s.childRepo == nil {
-		return false, fmt.Errorf("parent: child repo not wired")
-	}
-
-	var allowed bool
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		var checkErr error
-		allowed, checkErr = s.childRepo.HasGuardianPermissionForTenant(
-			adminCtx,
-			accountID,
-			tenantID,
-			authorize.GuardianPermissionEnrollmentSubmit,
-		)
-		return checkErr
-	})
-	if err != nil {
-		return false, fmt.Errorf("parent: check enrollment submit permission: %w", err)
-	}
-	return allowed, nil
 }

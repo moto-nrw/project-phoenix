@@ -43,10 +43,9 @@ func studentGuardianRolesUp(ctx context.Context, db *bun.DB) error {
 		UPDATE users.students_guardians
 		SET guardian_role = CASE
 			WHEN is_primary = TRUE THEN 'primary_guardian'
-			WHEN is_emergency_contact = TRUE AND can_pickup = TRUE THEN 'pickup_only'
-			WHEN is_emergency_contact = TRUE THEN 'emergency_contact'
 			WHEN relationship_type IN ('parent', 'guardian') THEN 'legal_guardian'
 			WHEN can_pickup = TRUE AND relationship_type IN ('relative', 'other') THEN 'pickup_only'
+			WHEN is_emergency_contact = TRUE AND relationship_type IN ('relative', 'other') THEN 'emergency_contact'
 			ELSE 'custom'
 		END
 		WHERE guardian_role IS NULL OR guardian_role = 'custom';

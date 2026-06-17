@@ -77,6 +77,28 @@ func insertEnrollment(t *testing.T, db *bun.DB, row enrollmentRow) int64 {
 	return requestID
 }
 
+func insertEnrollmentChild(
+	t *testing.T,
+	db *bun.DB,
+	tenantID, requestID int64,
+	firstName, lastName string,
+	sortOrder int,
+	createdStudentID *int64,
+) {
+	t.Helper()
+	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
+		_, e := tx.NewRaw(`
+			INSERT INTO enrollment.request_children
+			  (tenant_id, request_id, first_name, last_name, date_of_birth,
+			   status, activation_mode, sort_order, custom_data, created_student_id)
+			VALUES (?, ?, ?, ?, '2018-04-15', 'submitted',
+			        'scheduled', ?, '{}'::jsonb, ?)
+		`, tenantID, requestID, firstName, lastName, sortOrder, createdStudentID).Exec(ctx)
+		return e
+	})
+	require.NoError(t, err)
+}
+
 // insertTestPhase inserts a minimal phase row directly. Returns the new
 // phase id. The repo test only needs phase_id + name + service date
 // columns to exist, so we skip the enrollment-service constructor.
@@ -395,6 +417,54 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	assert.Empty(t, results)
 }
 
+func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMaterializedRequest(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	account := testpkg.CreateTestAccount(t, db, "parentlist-mixed-permission")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-mixed-permission")
+	visible := testpkg.CreateTestStudent(t, db, "Visible", "Child", "1a")
+	hidden := testpkg.CreateTestStudent(t, db, "Hidden", "Child", "1b")
+	defer func() {
+		testpkg.CleanupActivityFixtures(t, db, visible.ID, profile.ID)
+		testpkg.CleanupActivityFixtures(t, db, hidden.ID, profile.ID)
+		testpkg.CleanupAccount(t, db, account.ID)
+	}()
+
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	relationship := &usersModels.StudentGuardian{
+		StudentID:         visible.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "parent",
+		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		Permissions: map[string]interface{}{
+			authorize.GuardianPermissionEnrollmentsView: true,
+		},
+	}
+	relationship.SetTenantID(1)
+	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+
+	phaseID := insertTestPhase(t, db, 1, "phase-list-mixed-permission-"+t.Name())
+	defer cleanupEnrollmentRows(t, db, 1)
+	requestID := insertEnrollment(t, db, enrollmentRow{
+		tenantID:          1,
+		phaseID:           phaseID,
+		guardianAccountID: &account.ID,
+		guardianEmail:     "anna@example.com",
+		statusToken:       fmt.Sprintf("tok-mixed-perm-%d", time.Now().UnixNano()),
+		childFirstName:    "Visible",
+		childLastName:     "Child",
+		createdStudentID:  &visible.ID,
+	})
+	insertEnrollmentChild(t, db, 1, requestID, "Hidden", "Child", 1, &hidden.ID)
+
+	results := listByAccount(t, db, account.ID)
+	assert.Empty(t, results, "a shared request must not expose siblings when any materialized child lacks view permission")
+}
+
 func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { require.NoError(t, db.Close()) }()
@@ -433,18 +503,7 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 		childFirstName:    "First",
 		childLastName:     "Child",
 	})
-	// Insert a second child row directly attached to the same request.
-	err := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
-		_, e := tx.NewRaw(`
-			INSERT INTO enrollment.request_children
-			  (tenant_id, request_id, first_name, last_name, date_of_birth,
-			   status, activation_mode, sort_order, custom_data)
-			VALUES (?, ?, 'Second', 'Child', '2018-04-15', 'submitted',
-			        'scheduled', 1, '{}'::jsonb)
-		`, 1, requestID).Exec(ctx)
-		return e
-	})
-	require.NoError(t, err)
+	insertEnrollmentChild(t, db, 1, requestID, "Second", "Child", 1, nil)
 
 	results := listByAccount(t, db, account.ID)
 	require.Len(t, results, 1)

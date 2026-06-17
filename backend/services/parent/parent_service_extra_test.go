@@ -20,13 +20,8 @@ import (
 // these tests need a real *bun.DB to compile.
 type stubChildRepo struct {
 	gotAccountID int64
-	gotTenantID  int64
-	gotPerm      string
 	result       []*parentModels.ChildSummary
 	err          error
-
-	permissionAllowed bool
-	permissionErr     error
 }
 
 func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
@@ -48,16 +43,6 @@ func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID i
 		}
 	}
 	return nil, nil
-}
-
-func (s *stubChildRepo) HasGuardianPermissionForTenant(_ context.Context, accountID, tenantID int64, permission string) (bool, error) {
-	s.gotAccountID = accountID
-	s.gotTenantID = tenantID
-	s.gotPerm = permission
-	if s.permissionErr != nil {
-		return false, s.permissionErr
-	}
-	return s.permissionAllowed, nil
 }
 
 type stubEnrollableRepo struct {
@@ -146,42 +131,6 @@ func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, got)
 	assert.Empty(t, got)
-}
-
-func TestService_CanSubmitEnrollmentForTenant_ForwardsPermissionCheck(t *testing.T) {
-	repo := &stubChildRepo{permissionAllowed: true}
-	svc := newSvcWithChild(t, repo)
-
-	allowed, err := svc.CanSubmitEnrollmentForTenant(context.Background(), 77, 88)
-	require.NoError(t, err)
-	assert.True(t, allowed)
-	assert.Equal(t, int64(77), repo.gotAccountID)
-	assert.Equal(t, int64(88), repo.gotTenantID)
-	assert.Equal(t, "parent_portal.enrollment.submit", repo.gotPerm)
-}
-
-func TestService_CanSubmitEnrollmentForTenant_RejectsInvalidInput(t *testing.T) {
-	repo := &stubChildRepo{}
-	svc := newSvcWithChild(t, repo)
-
-	_, err := svc.CanSubmitEnrollmentForTenant(context.Background(), 0, 88)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "account_id must be positive")
-
-	_, err = svc.CanSubmitEnrollmentForTenant(context.Background(), 77, 0)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "tenant_id must be positive")
-	assert.Equal(t, int64(0), repo.gotAccountID)
-}
-
-func TestService_CanSubmitEnrollmentForTenant_PropagatesRepoError(t *testing.T) {
-	want := errors.New("synthetic permission failure")
-	repo := &stubChildRepo{permissionErr: want}
-	svc := newSvcWithChild(t, repo)
-
-	_, err := svc.CanSubmitEnrollmentForTenant(context.Background(), 77, 88)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, want)
 }
 
 // --- ListEnrollableForAccount --------------------------------------------

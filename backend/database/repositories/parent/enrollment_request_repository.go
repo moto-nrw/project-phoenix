@@ -89,27 +89,22 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		    )
 		  )
 		  AND sch.deleted_at IS NULL
-		  AND (
-		    NOT EXISTS (
-		      SELECT 1
-		      FROM enrollment.request_children AS rc_created
-		      WHERE rc_created.request_id = req.id
-		        AND rc_created.created_student_id IS NOT NULL
-		    )
-		    OR EXISTS (
-		      SELECT 1
-		      FROM enrollment.request_children AS rc_perm
-		      JOIN users.students_guardians AS sg
-		        ON sg.student_id = rc_perm.created_student_id
-		       AND sg.tenant_id = req.tenant_id
-		      JOIN users.guardian_profiles AS gp
-		        ON gp.id = sg.guardian_profile_id
-		       AND gp.tenant_id = sg.tenant_id
-		      WHERE rc_perm.request_id = req.id
-		        AND rc_perm.created_student_id IS NOT NULL
-		        AND gp.account_id = ?
-		        AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		    )
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM enrollment.request_children AS rc_created
+		    WHERE rc_created.request_id = req.id
+		      AND rc_created.created_student_id IS NOT NULL
+		      AND NOT EXISTS (
+		        SELECT 1
+		        FROM users.students_guardians AS sg
+		        JOIN users.guardian_profiles AS gp
+		          ON gp.id = sg.guardian_profile_id
+		         AND gp.tenant_id = sg.tenant_id
+		        WHERE sg.student_id = rc_created.created_student_id
+		          AND sg.tenant_id = req.tenant_id
+		          AND gp.account_id = ?
+		          AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+		      )
 		  )
 		ORDER BY req.submitted_at DESC, req.id DESC
 	`

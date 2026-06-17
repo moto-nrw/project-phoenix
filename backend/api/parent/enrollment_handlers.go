@@ -240,10 +240,6 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: account tenant repo missing")))
 		return
 	}
-	if rs.ParentService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent submit: parent service missing")))
-		return
-	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
@@ -293,14 +289,6 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 			return fmt.Errorf("verify tenant membership: %w", mapErr)
 		}
 		if !mapped {
-			forbidden = true
-			return nil
-		}
-		canSubmit, permErr := rs.ParentService.CanSubmitEnrollmentForTenant(r.Context(), accountID, school.ID)
-		if permErr != nil {
-			return fmt.Errorf("verify enrollment submit permission: %w", permErr)
-		}
-		if !canSubmit {
 			forbidden = true
 			return nil
 		}
