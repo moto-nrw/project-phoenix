@@ -1080,6 +1080,48 @@ describe("EnrollmentFormEditor", () => {
 
     expect(await screen.findByText("Speichern kaputt")).toBeInTheDocument();
   });
+
+  it("keeps a half-filled pickup-time row visible while editing", async () => {
+    // The allowed-time rows are committed up to the field (deduped, non-empty)
+    // and echo back through field.allowed_times. The reset effect now also
+    // watches field.allowed_times so a schema/template switch refreshes the
+    // rows, but it must NOT reset on the row's own commit — otherwise a freshly
+    // added empty row (or a row mid-edit) would be wiped on every keystroke.
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Abholzeiten\b/,
+      }),
+    );
+
+    // Adding a row leaves an empty time input on screen (it is not yet a
+    // committed allowed_time, so a naive reset would drop it).
+    fireEvent.click(screen.getByRole("button", { name: "Zeit hinzufügen" }));
+    const firstRow = await screen.findByLabelText("Auswahlzeit 1");
+    expect(firstRow).toBeInTheDocument();
+    expect((firstRow as HTMLInputElement).value).toBe("");
+
+    fireEvent.change(firstRow, { target: { value: "14:45" } });
+    expect(
+      (screen.getByLabelText("Auswahlzeit 1") as HTMLInputElement).value,
+    ).toBe("14:45");
+
+    // A second empty row coexists with the committed first one.
+    fireEvent.click(screen.getByRole("button", { name: "Zeit hinzufügen" }));
+    expect(
+      (screen.getByLabelText("Auswahlzeit 1") as HTMLInputElement).value,
+    ).toBe("14:45");
+    expect(
+      (screen.getByLabelText("Auswahlzeit 2") as HTMLInputElement).value,
+    ).toBe("");
+  });
 });
 
 describe("prepareFieldsForSave — fixed pickup times", () => {

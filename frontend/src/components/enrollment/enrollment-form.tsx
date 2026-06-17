@@ -937,10 +937,19 @@ export function EnrollmentForm({
       if (code === "enrollment.pickup_time_not_allowed") {
         // The backend rejected a pickup time outside the field's configured
         // fixed list. The server doesn't say which field/child, so derive it
-        // locally (same approach as the care-offering case above): mark every
-        // constrained pickup-schedule field whose answer has an off-list time
-        // so the offending dropdown turns red and the scroll lands on it.
-        const offending: Record<string, string> = {};
+        // locally (same approach as the care-offering case above). Two passes:
+        //   - offList: a time the *client's* known list already rejects — a
+        //     stale saved value the form still shows flagged "nicht mehr
+        //     verfügbar".
+        //   - answered: any constrained pickup field that has a time at all.
+        //     Used as a fallback when offList is empty: that happens when the
+        //     admin removed a time *after* the form loaded, so the client list
+        //     is stale and the submitted value still looks valid here. Marking
+        //     every answered constrained field keeps the rejection from being
+        //     silently swallowed (the offending field turns red and the scroll
+        //     lands on it). The backend rejected it regardless — this is UX.
+        const offList: Record<string, string> = {};
+        const answered: Record<string, string> = {};
         for (const f of schema?.fields ?? []) {
           if (
             f.target !== "schedule.pickup" ||
@@ -949,22 +958,25 @@ export function EnrollmentForm({
           ) {
             continue;
           }
-          const hasOffListTime = (answer: unknown): boolean => {
-            const sched = asScheduleObject(answer);
-            return Object.values(sched).some(
-              (time) => Boolean(time) && !f.allowed_times!.includes(time),
+          const mark = (answer: unknown, key: string): void => {
+            const times = Object.values(asScheduleObject(answer)).filter(
+              Boolean,
             );
+            if (times.length === 0) return;
+            answered[key] = message;
+            if (times.some((time) => !f.allowed_times!.includes(time))) {
+              offList[key] = message;
+            }
           };
           if (f.applies_to_child) {
-            children.forEach((c, i) => {
-              if (hasOffListTime(c.custom[f.key])) {
-                offending[`children_${i}_custom_${f.key}`] = message;
-              }
-            });
-          } else if (hasOffListTime(customData[f.key])) {
-            offending[`custom_${f.key}`] = message;
+            children.forEach((c, i) =>
+              mark(c.custom[f.key], `children_${i}_custom_${f.key}`),
+            );
+          } else {
+            mark(customData[f.key], `custom_${f.key}`);
           }
         }
+        const offending = Object.keys(offList).length > 0 ? offList : answered;
         if (Object.keys(offending).length > 0) {
           setFieldErrors((prev) => ({ ...prev, ...offending }));
         }

@@ -1397,4 +1397,31 @@ describe("EnrollmentForm — fixed pickup times", () => {
       expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
     );
   });
+
+  it("marks a constrained pickup field even when the rejected time still looks valid client-side", async () => {
+    // Stale client schema: the admin removed 14:45 from the allowed list AFTER
+    // this form loaded, so the client still considers 14:45 valid (it is in
+    // allowed_times and the dropdown offers it). The backend validates against
+    // the latest phase and rejects it. The precise off-list pass finds nothing,
+    // so without the conservative fallback the rejection would be swallowed to
+    // a banner-only message and no field would turn red.
+    const message =
+      "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste.";
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      Object.assign(new Error(message), {
+        code: "enrollment.pickup_time_not_allowed",
+      }),
+    );
+
+    // 14:45 is in the client's allowed list — the precise pass cannot flag it.
+    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
+    );
+  });
 });

@@ -2576,17 +2576,33 @@ function FieldEditorRow({
   const [allowedTimesRows, setAllowedTimesRows] = useState<string[]>(
     () => field.allowed_times ?? [],
   );
+  // Signature of the allowed_times we last pushed up via onChange. Used to
+  // tell an *external* change (a schema/template switch reusing this row at
+  // the same index — the row is keyed by index, not field identity, so the
+  // component instance is not remounted) from a *self-induced* one (our own
+  // commit echoing back through field.allowed_times). Only the former resets
+  // the local rows; the latter must not, or a half-filled empty row would be
+  // wiped on every keystroke.
+  const lastCommittedSig = useRef<string>(
+    (field.allowed_times ?? []).join("\n"),
+  );
 
   useEffect(() => {
-    setAllowedTimesRows(field.allowed_times ?? []);
+    const incoming = field.allowed_times ?? [];
+    const incomingSig = incoming.join("\n");
+    if (incomingSig !== lastCommittedSig.current) {
+      lastCommittedSig.current = incomingSig;
+      setAllowedTimesRows(incoming);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [field.key, field.type]);
+  }, [field.key, field.type, field.allowed_times]);
 
   const commitAllowedTimes = (rows: string[]) => {
     setAllowedTimesRows(rows);
     const allowed_times = Array.from(
       new Set(rows.map((time) => time.trim()).filter(Boolean)),
     );
+    lastCommittedSig.current = allowed_times.join("\n");
     onChange({ allowed_times });
   };
 
