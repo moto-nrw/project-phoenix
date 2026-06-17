@@ -365,7 +365,7 @@ export default function StudentsPage() {
   }, [filteredStudents]);
 
   const canShowDetail = !loading && filteredStudents.length > 0;
-  const canViewEnrollments = hasPermission(session, "config:read");
+  const canViewEnrollments = hasPermission(session, "config:manage");
 
   const detailActions = selectedStudent ? (
     <button
