@@ -67,6 +67,12 @@ type ChildRepository interface {
 	// treat that as a 403/404, never trusting the studentID alone. This
 	// is the authorization gate for every per-child parent write.
 	FindForAccount(ctx context.Context, accountID, studentID int64) (*ChildSummary, error)
+
+	// HasGuardianPermissionForTenant reports whether the account has at
+	// least one active guardian relationship in the tenant carrying the
+	// requested permission. Used for tenant-level parent actions such as
+	// enrollment submission that do not yet have a child id.
+	HasGuardianPermissionForTenant(ctx context.Context, accountID, tenantID int64, permission string) (bool, error)
 }
 
 // EnrollablePhase is one row in the parent's enrollment picker —

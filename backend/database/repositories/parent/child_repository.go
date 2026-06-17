@@ -211,3 +211,40 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 		GuardianPermissions: rr.Permissions,
 	}, nil
 }
+
+// HasGuardianPermissionForTenant checks tenant-level guardian permissions for
+// actions that are not tied to an existing child id, such as submitting a new
+// enrollment request. MUST run inside a tenant.WithAdminTx.
+func (r *ChildRepository) HasGuardianPermissionForTenant(ctx context.Context, accountID, tenantID int64, permission string) (bool, error) {
+	if accountID <= 0 {
+		return false, fmt.Errorf("parent: account_id must be positive")
+	}
+	if tenantID <= 0 {
+		return false, fmt.Errorf("parent: tenant_id must be positive")
+	}
+	if permission == "" {
+		return false, fmt.Errorf("parent: permission must not be empty")
+	}
+
+	var allowed bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM auth.account_tenants AS at
+			JOIN users.guardian_profiles AS gp
+			  ON gp.account_id = at.account_id
+			 AND gp.tenant_id = at.tenant_id
+			JOIN users.students_guardians AS sg
+			  ON sg.guardian_profile_id = gp.id
+			 AND sg.tenant_id = gp.tenant_id
+			WHERE at.account_id = ?
+			  AND at.tenant_id = ?
+			  AND at.status = 'active'
+			  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+		)
+	`, accountID, tenantID, permission).Scan(ctx, &allowed)
+	if err != nil {
+		return false, fmt.Errorf("parent: check guardian permission: %w", err)
+	}
+	return allowed, nil
+}

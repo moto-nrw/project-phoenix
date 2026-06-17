@@ -478,3 +478,58 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 	assert.Nil(t, findChild(t, db, account.ID, student.ID),
 		"an inactive tenant mapping must drop the child")
 }
+
+// --- HasGuardianPermissionForTenant -----------------------------------
+
+func TestChildRepository_HasGuardianPermissionForTenant_RejectsInvalidInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repo := parentRepo.NewChildRepository(db)
+
+	_, err := repo.HasGuardianPermissionForTenant(context.Background(), 0, 1, authorize.GuardianPermissionEnrollmentSubmit)
+	require.Error(t, err)
+	_, err = repo.HasGuardianPermissionForTenant(context.Background(), 1, 0, authorize.GuardianPermissionEnrollmentSubmit)
+	require.Error(t, err)
+	_, err = repo.HasGuardianPermissionForTenant(context.Background(), 1, 1, "")
+	require.Error(t, err)
+}
+
+func TestChildRepository_HasGuardianPermissionForTenant_RequiresMatchingPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	var tenantID int64 = 1
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	account := testpkg.CreateTestAccount(t, db, "tenant-permission")
+	t.Cleanup(func() {
+		cleanupParentChild(t, db, account.ID, tenantID)
+		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	})
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Perm", "Child", "1a")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().Table("users.students").Where("id = ?", student.ID).Exec(context.Background())
+		_, _ = db.NewDelete().Table("users.persons").Where("id = ?", student.PersonID).Exec(context.Background())
+	})
+	linkChildToAccountWithPermissions(t, db, account.ID, tenantID, student.ID, map[string]bool{
+		authorize.GuardianPermissionPortalAccess:     true,
+		authorize.GuardianPermissionEnrollmentSubmit: true,
+	})
+
+	repo := parentRepo.NewChildRepository(db)
+	var allowed bool
+	err := runAsAdmin(t, db, func(ctx context.Context) error {
+		var checkErr error
+		allowed, checkErr = repo.HasGuardianPermissionForTenant(ctx, account.ID, tenantID, authorize.GuardianPermissionEnrollmentSubmit)
+		return checkErr
+	})
+	require.NoError(t, err)
+	assert.True(t, allowed)
+
+	err = runAsAdmin(t, db, func(ctx context.Context) error {
+		var checkErr error
+		allowed, checkErr = repo.HasGuardianPermissionForTenant(ctx, account.ID, tenantID, authorize.GuardianPermissionNotesWrite)
+		return checkErr
+	})
+	require.NoError(t, err)
+	assert.False(t, allowed)
+}
