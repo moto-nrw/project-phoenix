@@ -213,6 +213,9 @@ export function Header() {
                 displayAvatar={displayAvatar}
                 userEmail={userEmail}
                 profileUrl={profileUrl}
+                profileLabel={
+                  mode === "operator" ? "Profileinstellungen" : undefined
+                }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}
               />

@@ -1316,7 +1316,7 @@ describe("Sidebar", () => {
         mode: "operator",
         homeUrl: "/operator/suggestions",
 
-        profileUrl: null,
+        profileUrl: "/operator/settings",
       });
       mockUsePathname.mockReturnValue("/operator/suggestions");
     });
@@ -1326,7 +1326,7 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
-      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+      expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
 
     it("does not render teacher-specific items", () => {
@@ -1345,11 +1345,10 @@ describe("Sidebar", () => {
       expect(aside).toHaveClass("op-class");
     });
 
-    it("renders bottom pinned settings item", () => {
+    it("does not render settings in operator navigation", () => {
       render(<Sidebar />);
 
-      const settingsLink = screen.getByText("Einstellungen").closest("a");
-      expect(settingsLink).toHaveAttribute("href", "/operator/settings");
+      expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
   });
 
