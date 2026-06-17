@@ -113,10 +113,15 @@ func ApplyStudentGuardianRole(sg *users.StudentGuardian, role string) {
 	}
 	normalized := NormalizeGuardianRole(role)
 	sg.GuardianRole = normalized
-	if normalized == GuardianRoleCustom {
+	sg.Permissions = StudentGuardianPermissionSet(normalized)
+}
+
+func ApplyDefaultStudentGuardianRole(sg *users.StudentGuardian) {
+	if sg == nil {
 		return
 	}
-	sg.Permissions = StudentGuardianPermissionSet(normalized)
+	role := DefaultStudentGuardianRole(sg.RelationshipType, sg.IsPrimary, sg.IsEmergencyContact, sg.CanPickup)
+	ApplyStudentGuardianRole(sg, role)
 }
 
 // PersonGuardianHasPermission reports whether the guardian relationship grants

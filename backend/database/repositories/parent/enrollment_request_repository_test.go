@@ -12,8 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -32,6 +35,7 @@ type enrollmentRow struct {
 	childFirstName    string
 	childLastName     string
 	childStatus       string
+	createdStudentID  *int64
 }
 
 // insertEnrollment inserts one enrollment.requests row and one
@@ -64,9 +68,9 @@ func insertEnrollment(t *testing.T, db *bun.DB, row enrollmentRow) int64 {
 		_, err := tx.NewRaw(`
 			INSERT INTO enrollment.request_children
 			  (tenant_id, request_id, first_name, last_name, date_of_birth,
-			   status, activation_mode, sort_order, custom_data)
-			VALUES (?, ?, ?, ?, '2018-04-15', ?, 'scheduled', 0, '{}'::jsonb)
-		`, row.tenantID, requestID, row.childFirstName, row.childLastName, row.childStatus).Exec(ctx)
+			   status, activation_mode, sort_order, custom_data, created_student_id)
+			VALUES (?, ?, ?, ?, '2018-04-15', ?, 'scheduled', 0, '{}'::jsonb, ?)
+		`, row.tenantID, requestID, row.childFirstName, row.childLastName, row.childStatus, row.createdStudentID).Exec(ctx)
 		return err
 	})
 	require.NoError(t, err)
@@ -346,6 +350,49 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 	require.Len(t, results, 1)
 	require.Len(t, results[0].Children, 1)
 	assert.Equal(t, "Mine", results[0].Children[0].FirstName)
+}
+
+func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWithoutEnrollmentPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	account := testpkg.CreateTestAccount(t, db, "parentlist-permission")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
+	student := testpkg.CreateTestStudent(t, db, "Materialized", "Child", "1a")
+	defer func() {
+		testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID)
+		testpkg.CleanupAccount(t, db, account.ID)
+	}()
+
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+	relationship := &usersModels.StudentGuardian{
+		StudentID:         student.ID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "other",
+		GuardianRole:      authorize.GuardianRolePickupOnly,
+		Permissions:       map[string]interface{}{},
+	}
+	relationship.SetTenantID(1)
+	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+
+	phaseID := insertTestPhase(t, db, 1, "phase-list-permission-"+t.Name())
+	defer cleanupEnrollmentRows(t, db, 1)
+	insertEnrollment(t, db, enrollmentRow{
+		tenantID:          1,
+		phaseID:           phaseID,
+		guardianAccountID: &account.ID,
+		guardianEmail:     "anna@example.com",
+		statusToken:       fmt.Sprintf("tok-perm-%d", time.Now().UnixNano()),
+		childFirstName:    "Materialized",
+		childLastName:     "Child",
+		createdStudentID:  &student.ID,
+	})
+
+	results := listByAccount(t, db, account.ID)
+	assert.Empty(t, results)
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *testing.T) {

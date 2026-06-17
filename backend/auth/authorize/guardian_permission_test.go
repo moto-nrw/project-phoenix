@@ -202,7 +202,7 @@ func TestApplyStudentGuardianRole_NilIsNoop(t *testing.T) {
 	ApplyStudentGuardianRole(nil, GuardianRolePrimaryGuardian)
 }
 
-func TestApplyStudentGuardianRole_CustomPreservesPermissions(t *testing.T) {
+func TestApplyStudentGuardianRole_CustomClearsPermissions(t *testing.T) {
 	sg := &users.StudentGuardian{
 		GuardianRole: GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
@@ -217,14 +217,29 @@ func TestApplyStudentGuardianRole_CustomPreservesPermissions(t *testing.T) {
 	if sg.GuardianRole != GuardianRoleCustom {
 		t.Fatalf("ApplyStudentGuardianRole() role = %q, want %q", sg.GuardianRole, GuardianRoleCustom)
 	}
-	if !StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
-		t.Fatal("ApplyStudentGuardianRole(custom) should preserve existing portal access")
+	if StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
+		t.Fatal("ApplyStudentGuardianRole(custom) should clear existing portal access")
 	}
-	if !StudentGuardianHasPermission(sg, GuardianPermissionSickNoteSubmit) {
-		t.Fatal("ApplyStudentGuardianRole(custom) should preserve existing sick-note permission")
+	if StudentGuardianHasPermission(sg, GuardianPermissionSickNoteSubmit) {
+		t.Fatal("ApplyStudentGuardianRole(custom) should clear existing sick-note permission")
 	}
 	if StudentGuardianHasPermission(sg, GuardianPermissionEnrollmentSubmit) {
-		t.Fatal("false stored permissions must stay false")
+		t.Fatal("ApplyStudentGuardianRole(custom) should not grant enrollment submit")
+	}
+}
+
+func TestApplyDefaultStudentGuardianRole(t *testing.T) {
+	sg := &users.StudentGuardian{
+		RelationshipType: "parent",
+	}
+
+	ApplyDefaultStudentGuardianRole(sg)
+
+	if sg.GuardianRole != GuardianRoleLegalGuardian {
+		t.Fatalf("ApplyDefaultStudentGuardianRole() role = %q, want %q", sg.GuardianRole, GuardianRoleLegalGuardian)
+	}
+	if !StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
+		t.Fatal("parent default should grant portal access")
 	}
 }
 

@@ -11,6 +11,7 @@ import {
   GuardianRoleSelect,
   RelationshipTypeSelect,
   RelationshipPermissionsFields,
+  defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
   type RelationshipFlag,
 } from "~/components/guardians/guardian-relationship-fields";
@@ -135,6 +136,18 @@ export default function GuardianPickerPanel({
     setRelationship((prev) => ({ ...prev, ...defaults, guardianRole: role }));
   };
 
+  const updateRelationshipType = (relationshipType: string) => {
+    const guardianRole =
+      defaultGuardianRoleForRelationshipType(relationshipType);
+    const defaults = guardianRoleOperationalDefaults(guardianRole);
+    setRelationship((prev) => ({
+      ...prev,
+      ...defaults,
+      relationshipType,
+      guardianRole,
+    }));
+  };
+
   const handleConfirm = () => {
     if (!selected) return;
     onSelect(selected, relationship);
@@ -199,9 +212,7 @@ export default function GuardianPickerPanel({
           <RelationshipTypeSelect
             id="picker-relationship-type"
             value={relationship.relationshipType}
-            onChange={(value) =>
-              setRelationship((prev) => ({ ...prev, relationshipType: value }))
-            }
+            onChange={updateRelationshipType}
           />
           <GuardianRoleSelect
             id="picker-guardian-role"

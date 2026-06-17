@@ -145,6 +145,18 @@ export function guardianRoleOperationalDefaults(
 
 export type RelationshipFlag = "isPrimary" | "canPickup" | "isEmergencyContact";
 
+export function defaultGuardianRoleForRelationshipType(
+  relationshipType: string,
+): GuardianRole {
+  switch (relationshipType.trim().toLowerCase()) {
+    case "parent":
+    case "guardian":
+      return "legal_guardian";
+    default:
+      return "custom";
+  }
+}
+
 interface RelationshipPermissionsFieldsProps {
   readonly isPrimary: boolean;
   readonly canPickup: boolean;

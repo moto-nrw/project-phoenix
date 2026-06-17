@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -274,7 +275,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		submitErr error
 		forbidden bool
 	)
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, tx bun.Tx) error {
 		school, err := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if err != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
@@ -289,6 +290,20 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 			return fmt.Errorf("verify tenant membership: %w", mapErr)
 		}
 		if !mapped {
+			forbidden = true
+			return nil
+		}
+		canSubmit, permErr := accountHasGuardianPermission(
+			adminCtx,
+			tx,
+			accountID,
+			school.ID,
+			authorize.GuardianPermissionEnrollmentSubmit,
+		)
+		if permErr != nil {
+			return fmt.Errorf("verify enrollment submit permission: %w", permErr)
+		}
+		if !canSubmit {
 			forbidden = true
 			return nil
 		}
@@ -326,6 +341,26 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		StatusURL: result.StatusURL,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
+}
+
+func accountHasGuardianPermission(ctx context.Context, db bun.IDB, accountID, tenantID int64, permission string) (bool, error) {
+	var allowed bool
+	err := db.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM users.guardian_profiles AS gp
+			JOIN users.students_guardians AS sg
+			  ON sg.guardian_profile_id = gp.id
+			 AND sg.tenant_id = gp.tenant_id
+			WHERE gp.account_id = ?
+			  AND gp.tenant_id = ?
+			  AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+		)
+	`, accountID, tenantID, permission).Scan(ctx, &allowed)
+	if err != nil {
+		return false, err
+	}
+	return allowed, nil
 }
 
 // buildParentServiceRequest converts the wire request to the

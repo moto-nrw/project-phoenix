@@ -18,6 +18,7 @@ import {
   GuardianRoleSelect,
   RelationshipTypeSelect,
   RelationshipPermissionsFields,
+  defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "~/components/guardians/guardian-relationship-fields";
 import { createLogger } from "~/lib/logger";
@@ -282,6 +283,19 @@ export default function GuardianFormModal({
     setEntries((prev) =>
       prev.map((entry) =>
         entry.id === id ? { ...entry, ...defaults, guardianRole: role } : entry,
+      ),
+    );
+  };
+
+  const updateRelationshipType = (id: string, relationshipType: string) => {
+    const guardianRole =
+      defaultGuardianRoleForRelationshipType(relationshipType);
+    const defaults = guardianRoleOperationalDefaults(guardianRole);
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.id === id
+          ? { ...entry, ...defaults, relationshipType, guardianRole }
+          : entry,
       ),
     );
   };
@@ -621,9 +635,7 @@ export default function GuardianFormModal({
                 <RelationshipTypeSelect
                   id={`guardian-relationship-type-${entry.id}`}
                   value={entry.relationshipType}
-                  onChange={(value) =>
-                    updateEntry(entry.id, "relationshipType", value)
-                  }
+                  onChange={(value) => updateRelationshipType(entry.id, value)}
                   disabled={isLoading}
                 />
                 <GuardianRoleSelect

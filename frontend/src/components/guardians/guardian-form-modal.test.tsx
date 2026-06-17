@@ -863,6 +863,23 @@ describe("GuardianFormModal", () => {
     ).not.toBeChecked();
   });
 
+  it("resets portal role when relationship type changes to non-parent", () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Beziehung zum Kind"), {
+      target: { value: "relative" },
+    });
+
+    expect(screen.getByLabelText("Portalrolle")).toHaveValue("custom");
+  });
+
   it("shows loading state during submission", async () => {
     // Make onSubmit slow
     mockOnSubmit.mockImplementation(

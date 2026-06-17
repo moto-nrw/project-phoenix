@@ -155,6 +155,27 @@ describe("GuardianPickerPanel select-and-confirm flow", () => {
     );
   });
 
+  it("resets portal role when relationship type changes to non-parent", async () => {
+    const onSelect = vi.fn();
+    const guardian = makeGuardian(11);
+    render(<GuardianPickerPanel onSelect={onSelect} onCancel={vi.fn()} />);
+
+    await searchAndPick(guardian);
+
+    fireEvent.change(screen.getByLabelText("Beziehung zum Kind"), {
+      target: { value: "relative" },
+    });
+    fireEvent.click(screen.getByText("Hinzufügen"));
+
+    expect(onSelect).toHaveBeenCalledWith(
+      guardian,
+      expect.objectContaining({
+        relationshipType: "relative",
+        guardianRole: "custom",
+      }),
+    );
+  });
+
   it("returns to the result list via 'Andere wählen' without confirming", async () => {
     const onSelect = vi.fn();
     const guardian = makeGuardian(9);

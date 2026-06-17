@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   GuardianRoleSelect,
   RelationshipTypeSelect,
+  defaultGuardianRoleForRelationshipType,
   guardianRoleOperationalDefaults,
 } from "./guardian-relationship-fields";
 
@@ -76,5 +77,18 @@ describe("guardianRoleOperationalDefaults", () => {
     ["custom", {}],
   ] as const)("returns defaults for %s", (role, expected) => {
     expect(guardianRoleOperationalDefaults(role)).toEqual(expected);
+  });
+});
+
+describe("defaultGuardianRoleForRelationshipType", () => {
+  it.each([
+    ["parent", "legal_guardian"],
+    ["guardian", "legal_guardian"],
+    ["relative", "custom"],
+    ["other", "custom"],
+  ] as const)("maps %s to %s", (relationshipType, expected) => {
+    expect(defaultGuardianRoleForRelationshipType(relationshipType)).toBe(
+      expected,
+    );
   });
 });

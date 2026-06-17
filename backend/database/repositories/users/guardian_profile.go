@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -489,6 +490,7 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		Join(`INNER JOIN users.students AS "s" ON "s".id = "sg".student_id`).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"sg".guardian_profile_id = ?`, profile.ID).
+		Where(`COALESCE(("sg".permissions ->> ?)::boolean, false) = TRUE`, authorize.GuardianPermissionPortalAccess).
 		Where(`"s".status <> ?`, "alumnus").
 		OrderExpr(`"p".last_name ASC, "p".first_name ASC`).
 		Scan(ctx, &rows)
