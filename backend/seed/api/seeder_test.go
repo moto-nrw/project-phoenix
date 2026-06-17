@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,45 @@ func TestGenerateSeedPassword(t *testing.T) {
 		assert.Regexp(t, `[0-9]`, password, "must contain digit")
 		assert.Regexp(t, `[^a-zA-Z0-9]`, password, "must contain special char")
 	}
+}
+
+func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
+	seen := make(map[string]any)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPut, r.Method)
+
+		var body struct {
+			Value any `json:"value"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		seen[strings.TrimPrefix(r.URL.Path, "/api/settings/values/")] = body.Value
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+	}))
+	defer srv.Close()
+
+	rt := &Runtime{Client: NewClient(srv.URL, false)}
+	step := parentEnrollmentSeedStep{}
+
+	settings, err := step.seedSettings(rt, phoenixapi.AuthRef{})
+	require.NoError(t, err)
+
+	assert.Equal(t, false, settings[configModels.KeyEnrollmentRequireCaptcha])
+	assert.Equal(t, false, seen[configModels.KeyEnrollmentRequireCaptcha])
+}
+
+func TestParentEnrollmentParentPassword(t *testing.T) {
+	step := parentEnrollmentSeedStep{seeder: &Seeder{}}
+
+	password, err := step.parentPassword()
+	require.NoError(t, err)
+	assert.Equal(t, defaultSeedParentPassword, password)
+
+	step = parentEnrollmentSeedStep{seeder: &Seeder{options: SeedOptions{StaffPassword: "SharedPass1!"}}}
+	password, err = step.parentPassword()
+	require.NoError(t, err)
+	assert.Equal(t, "SharedPass1!", password)
 }
 
 func TestWrapConflictError(t *testing.T) {

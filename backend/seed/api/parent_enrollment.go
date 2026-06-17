@@ -76,6 +76,7 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth phoenixapi.Auth
 		configModels.KeyParentPickupChangeEnabled: true,
 		configModels.KeyGuardianParentInviteMode:  configModels.ParentInviteModeDirect,
 		configModels.KeyGuardianParentCanRemove:   true,
+		configModels.KeyEnrollmentRequireCaptcha:  false,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
@@ -141,7 +142,7 @@ func (s parentEnrollmentSeedStep) parentPassword() (string, error) {
 	if strings.TrimSpace(s.seeder.options.StaffPassword) != "" {
 		return s.seeder.options.StaffPassword, nil
 	}
-	return generateSeedPassword()
+	return defaultSeedParentPassword, nil
 }
 
 func (s parentEnrollmentSeedStep) inviteGuardian(rt *Runtime, auth phoenixapi.AuthRef, guardianID int64) (string, error) {

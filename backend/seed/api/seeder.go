@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 )
 
 const (
@@ -19,7 +20,8 @@ const (
 	defaultSeedSchoolName       = "Demo School"
 	defaultSeedSchoolSlug       = "demo-school"
 	defaultSeedSchoolSubdomain  = "demo-school"
-	seedTokenHeader             = "X-Phoenix-Seed-Token"
+	seedTokenHeader             = seedtoken.Header
+	defaultSeedParentPassword   = "ParentSeed1234%"
 	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
 	seedPasswordLength          = 12
 )

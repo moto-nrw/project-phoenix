@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -28,7 +29,6 @@ const (
 	errInvalidPhoneID       = "invalid phone ID"
 	errPhoneNotFound        = "phone number not found"
 	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
-	seedTokenHeader         = "X-Phoenix-Seed-Token"
 )
 
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
@@ -1008,10 +1008,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
-		return false
-	}
-	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) != "production"
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations
