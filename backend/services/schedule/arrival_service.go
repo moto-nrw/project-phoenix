@@ -31,6 +31,11 @@ type ArrivalScheduleService interface {
 
 	// Exception operations
 	GetStudentArrivalExceptionByID(ctx context.Context, exceptionID int64) (*schedule.StudentArrivalException, error)
+	// GetStudentArrivalExceptionForDate returns the arrival exception for a
+	// student on a specific date, or nil when the day has none. The create path
+	// uses it under the day lock to turn an insert that would collide with an
+	// existing row (e.g. a guardian-authored one) into an override.
+	GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentArrivalException, error)
 	GetStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error)
 	GetUpcomingStudentArrivalExceptions(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalException, error)
 	CreateStudentArrivalException(ctx context.Context, exception *schedule.StudentArrivalException) error
@@ -235,6 +240,16 @@ func (s *arrivalScheduleService) GetStudentArrivalExceptionByID(ctx context.Cont
 	exception, err := s.exceptionRepo.FindByID(ctx, exceptionID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get student arrival exception by id", Err: err}
+	}
+	return exception, nil
+}
+
+// GetStudentArrivalExceptionForDate returns the arrival exception for a student
+// on a specific date, or nil when none exists.
+func (s *arrivalScheduleService) GetStudentArrivalExceptionForDate(ctx context.Context, studentID int64, date timezone.Date) (*schedule.StudentArrivalException, error) {
+	exception, err := s.exceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get student arrival exception for date", Err: err}
 	}
 	return exception, nil
 }

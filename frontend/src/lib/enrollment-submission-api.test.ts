@@ -3,12 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   confirmRenewal,
   fetchMyEnrollmentProfile,
+  fetchEnrollmentEditBootstrap,
   fetchPublicCareOfferings,
   fetchPublicEnrollmentBootstrap,
   fetchPublicPhases,
   fetchStatus,
   patchStatus,
   submitEnrollment,
+  updateEnrollmentRequest,
   withdrawStatus,
   type SubmitEnrollmentPayload,
 } from "./enrollment-submission-api";
@@ -76,6 +78,15 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
+    });
+
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ data: { offerings: [], care_required: true } }),
+    );
+    await expect(fetchPublicCareOfferings("tenant", "5")).resolves.toEqual({
+      offerings: [],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
     });
   });
 
@@ -165,6 +176,36 @@ describe("enrollment-submission-api", () => {
     await expect(fetchMyEnrollmentProfile()).resolves.toBeNull();
   });
 
+  it("loads the authenticated enrollment profile", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        guardian: {
+          first_name: "Mara",
+          last_name: "Muster",
+          email: "mara@example.test",
+          phone: "+491234",
+        },
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            school_class: "2a",
+            grade_level: 2,
+          },
+        ],
+      }),
+    );
+
+    await expect(fetchMyEnrollmentProfile()).resolves.toMatchObject({
+      guardian: { email: "mara@example.test" },
+      children: [{ id: "7", school_class: "2a" }],
+    });
+    expect(mockFetch).toHaveBeenCalledWith("/api/enrollment/me/profile", {
+      cache: "no-store",
+    });
+  });
+
   it("submits enrollment payloads and unwraps the response", async () => {
     const payload: SubmitEnrollmentPayload = {
       phase_id: 5,
@@ -248,6 +289,86 @@ describe("enrollment-submission-api", () => {
     await expect(fetchStatus("missing")).resolves.toBeNull();
   });
 
+  it("loads and updates enrollment edit drafts", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          phase: {
+            id: "5",
+            name: "2026",
+            kind: "school_year",
+            service_start_date: "2026-08-01",
+            service_end_date: "2027-07-31",
+            show_status_reason_to_parent: true,
+            care_offering_selection_mode: "optional",
+          },
+          schema: null,
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          care_required: false,
+          legal_texts: { blocks: [] },
+          draft: {
+            request_id: "99",
+            status_token: "tok/en",
+            tenant_id: "1",
+            tenant_slug: "demo",
+            phase_id: "5",
+            guardian_first_name: "Mara",
+            guardian_last_name: "Muster",
+            guardian_email: "mara@example.test",
+            consent_flags: {},
+            custom_data: {},
+            children: [],
+          },
+        },
+      }),
+    );
+
+    await expect(fetchEnrollmentEditBootstrap("tok/en")).resolves.toMatchObject(
+      {
+        draft: { request_id: "99", status_token: "tok/en" },
+        phase: { id: "5" },
+      },
+    );
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/enrollment/requests/tok%2Fen/edit-bootstrap",
+      { cache: "no-store" },
+    );
+
+    const payload: SubmitEnrollmentPayload = {
+      phase_id: 5,
+      guardian_first_name: "Mara",
+      guardian_last_name: "Muster",
+      guardian_email: "mara@example.test",
+      children: [
+        {
+          first_name: "Lina",
+          last_name: "Muster",
+          date_of_birth: "2018-04-15",
+          target_grade_level: 2,
+        },
+      ],
+    };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({ request_id: "99", status_url: "/status/tok" }),
+    } as Response);
+
+    await expect(updateEnrollmentRequest("tok/en", payload)).resolves.toEqual({
+      request_id: "99",
+      status_url: "/status/tok",
+    });
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/enrollment/requests/tok%2Fen",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+  });
+
   it("confirms renewals and defaults missing counters to zero", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ confirmed: 3 }));
     await expect(confirmRenewal("tok")).resolves.toBe(3);
@@ -257,6 +378,31 @@ describe("enrollment-submission-api", () => {
   });
 
   it("surfaces fallback messages when status mutations fail", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
+    await expect(fetchStatus("tok")).rejects.toThrow(
+      "Status konnte nicht geladen werden",
+    );
+
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ message: "Bearbeitung gesperrt" }, { status: 423 }),
+    );
+    await expect(fetchEnrollmentEditBootstrap("tok")).rejects.toThrow(
+      "Anmeldung kann nicht bearbeitet werden",
+    );
+
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ error: "Speichern gesperrt" }, { status: 423 }),
+    );
+    await expect(
+      updateEnrollmentRequest("tok", {
+        phase_id: 5,
+        guardian_first_name: "Mara",
+        guardian_last_name: "Muster",
+        guardian_email: "mara@example.test",
+        children: [],
+      }),
+    ).rejects.toThrow("Änderungen konnten nicht gespeichert werden");
+
     mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
     await expect(
       patchStatus("tok", { guardian_first_name: "Mara" }),

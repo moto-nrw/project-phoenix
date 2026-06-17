@@ -202,13 +202,16 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
 
-		r.Route("/auth/passkeys", func(r chi.Router) {
-			r.Get("/", rs.PasskeyList)
-			r.Post("/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
-			r.Post("/register/options", rs.PasskeyRegisterOptions)
-			r.Post("/register/verify", rs.PasskeyRegisterVerify)
-			r.Delete("/{passkeyId}", rs.PasskeyRevoke)
-		})
+		// Passkey management for the currently-authenticated operator.
+		// Keep these as individual leaves instead of r.Route("/auth/passkeys", ...)
+		// because public passkey login also lives under /auth/passkeys/login/*.
+		// A protected subtree on /auth/passkeys shadows those public login
+		// routes in chi and makes anonymous passkey login fail with 401.
+		r.Get("/auth/passkeys/", rs.PasskeyList)
+		r.Post("/auth/passkeys/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
+		r.Post("/auth/passkeys/register/options", rs.PasskeyRegisterOptions)
+		r.Post("/auth/passkeys/register/verify", rs.PasskeyRegisterVerify)
+		r.Delete("/auth/passkeys/{passkeyId}", rs.PasskeyRevoke)
 
 		r.Get("/accounts", rs.provisioningResource.ListAllAccounts)
 		r.Get("/roles", rs.provisioningResource.ListSystemRoles)

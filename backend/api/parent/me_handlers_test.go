@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,18 @@ func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, 
 	return nil, nil
 }
 func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, int64) error {
+	return nil
+}
+
+func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*parentService.CareException, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) DeleteCareException(context.Context, int64, int64, timezone.Date) error {
 	return nil
 }
 

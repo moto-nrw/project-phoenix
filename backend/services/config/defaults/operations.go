@@ -527,4 +527,17 @@ func init() {
 			Value:     config.ParentInviteModeDisabled,
 		},
 	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentPickupChangeEnabled,
+		Label:           "Abholzeit über Elternportal ändern",
+		Description:     "Wenn aktiviert, können Eltern über das Elternportal für einen einzelnen Tag eine abweichende Abhol- und Bringzeit hinterlegen. Die Änderung gilt nur für diesen Tag und erscheint im Betreuungsplan als von den Eltern geändert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       64,
+	})
 }

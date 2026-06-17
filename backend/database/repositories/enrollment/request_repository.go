@@ -209,12 +209,35 @@ func (r *RequestRepository) ExistsBySchemaID(ctx context.Context, schemaID int64
 // public status/edit page (PR 7). Public route — caller must wrap in
 // WithAdminTx because the token is the only auth signal.
 func (r *RequestRepository) FindByStatusToken(ctx context.Context, token string) (*enrollment.Request, error) {
+	return r.findByStatusToken(ctx, token, "")
+}
+
+func (r *RequestRepository) FindByStatusTokenForUpdate(ctx context.Context, token string) (*enrollment.Request, error) {
+	return r.findByStatusToken(ctx, token, "UPDATE")
+}
+
+// AcquireSubmissionDedupLock serializes concurrent writes for the same
+// (phase, guardian email hash) pair inside the caller's transaction.
+func (r *RequestRepository) AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error {
+	_, err := base.GetDB(ctx, r.db).
+		NewRaw(`SELECT pg_advisory_xact_lock(?, ?)`, int32(phaseID&0x7fffffff), int32(emailHash&0x7fffffff)).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire enrollment submission dedup lock: %w", err)
+	}
+	return nil
+}
+
+func (r *RequestRepository) findByStatusToken(ctx context.Context, token, lockClause string) (*enrollment.Request, error) {
 	req := new(enrollment.Request)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	q := base.GetDB(ctx, r.db).NewSelect().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
-		Where(`"request".status_token = ?`, token).
-		Scan(ctx)
+		Where(`"request".status_token = ?`, token)
+	if lockClause != "" {
+		q = q.For(lockClause)
+	}
+	err := q.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("enrollment request with token not found")

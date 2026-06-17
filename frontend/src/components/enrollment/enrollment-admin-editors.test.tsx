@@ -329,7 +329,7 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
-    fireEvent.change(inputByName("name"), {
+    fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Mittagessen" },
     });
     fireEvent.change(inputByName("capacity"), { target: { value: "30" } });

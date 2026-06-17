@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   Check,
@@ -53,6 +55,7 @@ interface Props {
 export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const t = useTranslations("enrollmentStatus");
   const locale = useLocale();
+  const pathname = usePathname();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -100,6 +103,9 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     !status.withdrawn_at &&
     status.children.length > 0 &&
     status.children.every((c) => c.status === "submitted");
+  const editHref = pathname?.startsWith("/parents")
+    ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
+    : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,6 +250,17 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 ? t("submittedDescription")
                 : t("statusDescription", { date: submittedDate })}
             </p>
+            {allEditable && (
+              <div className="mt-6">
+                <Link
+                  href={editHref}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  {t("editFull")}
+                </Link>
+              </div>
+            )}
           </div>
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
             <h2 className="text-lg font-semibold text-gray-900">

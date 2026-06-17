@@ -35,6 +35,7 @@ export interface PickupException {
   exceptionDate: string; // YYYY-MM-DD format
   pickupTime?: string; // HH:MM format, null = no pickup (absent)
   reason?: string;
+  source?: string; // "staff" or "guardian" (parent-set)
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +48,7 @@ export interface BackendPickupException {
   exception_date: string; // YYYY-MM-DD format
   pickup_time?: string; // HH:MM format
   reason?: string;
+  source?: string; // "staff" or "guardian"
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -165,6 +167,7 @@ export function mapPickupExceptionResponse(
     exceptionDate: data.exception_date,
     pickupTime: data.pickup_time,
     reason: data.reason,
+    source: data.source,
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,

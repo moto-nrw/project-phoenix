@@ -161,6 +161,7 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	NotesEnabled                 bool `json:"notes_enabled"`
+	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 }
@@ -185,6 +186,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		NotesEnabled:                 flags.NotesEnabled,
+		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 	}, "Child features retrieved")
@@ -325,6 +327,18 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrPickupChangeDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
+	case errors.Is(err, parentService.ErrCareExceptionConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
+	case errors.Is(err, parentService.ErrCareExceptionRaced):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrNoCareException):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
+	case errors.Is(err, parentService.ErrPastCareDate):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_past_date"))
+	case errors.Is(err, parentService.ErrCareDateTooFar):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_too_far"))
 	case errors.Is(err, parentService.ErrInviteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "invite_disabled"))
 	case errors.Is(err, parentService.ErrRemoveDisabled):

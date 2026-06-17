@@ -97,8 +97,20 @@ export interface ParentNote {
 export interface ChildFeatures {
   readonly sick_note_enabled: boolean;
   readonly notes_enabled: boolean;
+  readonly pickup_change_enabled: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
+}
+
+// One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.
+// Times are "HH:MM" wall-clock strings; a missing leg has no override that day.
+// `source` is "guardian" for parent-set entries, "staff" for ones the team set.
+export interface CareException {
+  readonly date: string;
+  readonly pickup_time?: string;
+  readonly arrival_time?: string;
+  readonly source: string;
+  readonly updated_at: string;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -132,34 +144,61 @@ function unwrapEnvelope<T>(json: ApiEnvelope<T>): T {
   return json as unknown as T;
 }
 
+/**
+ * A failed parents-portal API call. Carries the HTTP status and the backend's
+ * stable error `code` (e.g. "care_exception_conflict") so callers can map to a
+ * localized message instead of showing the raw English error string. Extends
+ * `Error`, so existing `err instanceof Error ? err.message` handling still works.
+ */
+export class ParentApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ParentApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
+ * Reads the backend error message + code off a failed response, logs it, and
+ * (on 401) bounces the user to the parents login. Shared by
+ * getJson/postJson/deleteJson so the error/redirect/logging path lives in
+ * exactly one place. Always throws a ParentApiError.
+ */
+async function throwResponseError(
+  url: string,
+  response: Response,
+): Promise<never> {
+  let message = `Request failed (${response.status})`;
+  let code: string | undefined;
+  try {
+    const body = (await response.json()) as { error?: string; code?: string };
+    if (body.error) message = body.error;
+    if (body.code) code = body.code;
+  } catch {
+    // Body was not JSON, keep the generic message.
+  }
+  const context = { url, status: response.status, message, code };
+  if (response.status === 401) {
+    logger.warn("parent_api_request_failed", context);
+    if (typeof window !== "undefined") {
+      window.location.assign("/parents/login");
+    }
+  } else {
+    logger.error("parent_api_request_failed", context);
+  }
+  throw new ParentApiError(message, response.status, code);
+}
+
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
   });
-
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    const context = { url, status: response.status, message };
-    if (response.status === 401) {
-      logger.warn("parent_api_request_failed", context);
-      if (typeof window !== "undefined") {
-        window.location.assign("/parents/login");
-      }
-    } else {
-      logger.error("parent_api_request_failed", context);
-    }
-    throw new Error(message);
-  }
-
-  const json = (await response.json()) as ApiEnvelope<T>;
-  return unwrapEnvelope(json);
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -168,31 +207,17 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
+}
 
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try {
-      const errBody = (await response.json()) as { error?: string };
-      if (errBody.error) message = errBody.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.location.assign("/parents/login");
-    }
-    logger.error("parent_api_request_failed", {
-      url,
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
-  }
-
-  const json = (await response.json()) as ApiEnvelope<T>;
-  if (json && typeof json === "object" && "data" in json) {
-    return json.data as T;
-  }
-  return json as unknown as T;
+async function deleteJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
 /**
@@ -372,6 +397,28 @@ export async function addChildNote(
   );
 }
 
+/**
+ * Sets a one-day pickup and/or arrival override for the child. The two times
+ * are the COMPLETE override for the day: a "HH:MM" string sets that leg, an
+ * omitted leg (sent as null) clears it. At least one must be present — clearing
+ * the whole day goes through deleteCareException. Returns the merged override
+ * for the day. The backend verifies guardianship, the feature gate, and refuses
+ * to overwrite a staff-set exception (surfaced as a thrown error).
+ */
+export async function submitCareException(
+  studentId: string,
+  params: { date: string; pickupTime?: string; arrivalTime?: string },
+): Promise<CareException> {
+  return postJson<CareException>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+    {
+      date: params.date,
+      pickup_time: params.pickupTime ?? null,
+      arrival_time: params.arrivalTime ?? null,
+    },
+  );
+}
+
 // --- Related accounts (who has parents-app access to the child) ---
 
 /** Lists guardians linked to the child, with portal-access status. */
@@ -402,6 +449,28 @@ export async function inviteRelatedAccount(
       first_name: options?.firstName ?? "",
       last_name: options?.lastName ?? "",
     },
+  );
+}
+
+/**
+ * Fetches the child's pickup/arrival overrides (today .. +2 months by default),
+ * staff- and parent-set alike, so the modal can show what is already in place.
+ */
+export async function listCareExceptions(
+  studentId: string,
+): Promise<CareException[]> {
+  return getJson<CareException[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+  );
+}
+
+/** Removes the parent-set override for a single date (YYYY-MM-DD). */
+export async function deleteCareException(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  await deleteJson<null>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception?date=${encodeURIComponent(date)}`,
   );
 }
 

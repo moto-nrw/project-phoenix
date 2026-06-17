@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	studentGuardianRolesVersion     = "1.15.136"
+	studentGuardianRolesVersion     = "1.15.137"
 	studentGuardianRolesDescription = "Add role presets and parent portal permissions to student guardians"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     studentGuardianRolesVersion,
 		Description: studentGuardianRolesDescription,
-		DependsOn:   []string{guardianInvitationProfileOriginVersion, passkeyCredentialsVersion, guardianFKRestrictVersion},
+		DependsOn:   []string{parentAuthoredExceptionsVersion, guardianInvitationProfileOriginVersion, passkeyCredentialsVersion, guardianFKRestrictVersion},
 	})
 
 	Migrations.MustRegister(
@@ -30,7 +30,7 @@ func init() {
 }
 
 func studentGuardianRolesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.136: Adding guardian role presets to users.students_guardians...")
+	fmt.Println("Migration 1.15.137: Adding guardian role presets to users.students_guardians...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students_guardians
@@ -72,7 +72,7 @@ func studentGuardianRolesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentGuardianRolesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.136: Removing guardian role presets from users.students_guardians...")
+	fmt.Println("Rolling back migration 1.15.137: Removing guardian role presets from users.students_guardians...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students_guardians
 		DROP COLUMN IF EXISTS guardian_role;
