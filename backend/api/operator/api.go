@@ -207,6 +207,14 @@ func (rs *Resource) Router() chi.Router {
 		// because public passkey login also lives under /auth/passkeys/login/*.
 		// A protected subtree on /auth/passkeys shadows those public login
 		// routes in chi and makes anonymous passkey login fail with 401.
+		//
+		// Register the list endpoint under BOTH the no-slash and trailing-slash
+		// forms: chi treats "/auth/passkeys" and "/auth/passkeys/" as distinct
+		// patterns (no RedirectSlashes on this router), and the old
+		// r.Route("/auth/passkeys").Get("/") form answered both. The proxy
+		// sends the slash form, but direct authenticated operator clients hit
+		// the no-slash form, so dropping it 404s them.
+		r.Get("/auth/passkeys", rs.PasskeyList)
 		r.Get("/auth/passkeys/", rs.PasskeyList)
 		r.Post("/auth/passkeys/enrollment/challenge", rs.PasskeyEnrollmentChallenge)
 		r.Post("/auth/passkeys/register/options", rs.PasskeyRegisterOptions)
