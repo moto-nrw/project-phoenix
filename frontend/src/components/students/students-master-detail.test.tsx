@@ -160,6 +160,10 @@ vi.mock("./student-historie-tab", () => ({
   StudentHistorieTab: () => <div data-testid="historie-tab" />,
 }));
 
+vi.mock("./student-enrollments-tab", () => ({
+  StudentEnrollmentsTab: () => <div data-testid="enrollments-tab" />,
+}));
+
 vi.mock("~/components/database/database-list-item", () => ({
   DatabaseListItem: (props: {
     title: string;
@@ -407,6 +411,35 @@ describe("StudentsMasterDetail", () => {
       "",
     );
     expect(screen.getByTestId("tab-content-master-data")).toBeInTheDocument();
+  });
+
+  it("shows Anmeldungen tab only when allowed", () => {
+    const { rerender } = render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1")]}
+        selectedId="1"
+        grouping="none"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    expect(screen.queryByText("Anmeldungen")).not.toBeInTheDocument();
+
+    rerender(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1")]}
+        selectedId="1"
+        grouping="none"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+        canViewEnrollments
+      />,
+    );
+
+    expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
   });
 
   it("shows warning in header when student has no arrival", () => {

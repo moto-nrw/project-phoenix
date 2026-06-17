@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -28,13 +30,16 @@ import (
 // for when the second consumer shows up.
 type mockDecisionService struct {
 	// List
-	listFilters  enrollmentService.RequestFilters
-	listResult   []*enrollmentService.RequestSummary
-	listErr      error
-	listCalls    int
-	getRequestID int64
-	getResult    *enrollmentService.RequestSummary
-	getErr       error
+	listFilters       enrollmentService.RequestFilters
+	listResult        []*enrollmentService.RequestSummary
+	listErr           error
+	listCalls         int
+	listStudentID     int64
+	listStudentResult []*enrollmentService.RequestSummary
+	listStudentErr    error
+	getRequestID      int64
+	getResult         *enrollmentService.RequestSummary
+	getErr            error
 
 	listChildOffResult map[int64][]enrollmentService.ChildOfferingRow
 	listChildOffErr    error
@@ -46,20 +51,28 @@ type mockDecisionService struct {
 	// ExportPhase: records the args the handler forwards (so a handler
 	// test can assert the format + actor were threaded through) and
 	// replays a canned payload/error.
-	exportPhaseID     int64
-	exportActorID     int64
-	exportActorRole   string
-	exportFormat      string
-	exportChildStatus string
-	exportCalls       int
-	exportResult      *enrollmentService.PhaseExport
-	exportErr         error
+	exportPhaseID       int64
+	exportActorID       int64
+	exportActorRole     string
+	exportFormat        string
+	exportChildStatus   string
+	exportCalls         int
+	exportResult        *enrollmentService.PhaseExport
+	exportErr           error
+	exportStudentID     int64
+	exportStudentResult *enrollmentService.StudentEnrollmentExport
+	exportStudentErr    error
 }
 
 func (m *mockDecisionService) List(_ context.Context, f enrollmentService.RequestFilters) ([]*enrollmentService.RequestSummary, error) {
 	m.listFilters = f
 	m.listCalls++
 	return m.listResult, m.listErr
+}
+
+func (m *mockDecisionService) ListByStudent(_ context.Context, studentID int64) ([]*enrollmentService.RequestSummary, error) {
+	m.listStudentID = studentID
+	return m.listStudentResult, m.listStudentErr
 }
 
 func (m *mockDecisionService) Get(_ context.Context, id int64) (*enrollmentService.RequestSummary, error) {
@@ -86,6 +99,14 @@ func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccou
 	return m.exportResult, m.exportErr
 }
 
+func (m *mockDecisionService) ExportStudent(_ context.Context, studentID, actorAccountID int64, actorRole, format string) (*enrollmentService.StudentEnrollmentExport, error) {
+	m.exportStudentID = studentID
+	m.exportActorID = actorAccountID
+	m.exportActorRole = actorRole
+	m.exportFormat = format
+	return m.exportStudentResult, m.exportStudentErr
+}
+
 func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64, _ string, _ *enrollmentModels.Phase, _, _ string, _, _ int) error {
 	return nil
 }
@@ -99,7 +120,22 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/admin/requests", rs.listAdminRequests)
 	r.Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
+	r.Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
+	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	r.Post("/enrollment/admin/requests/{id}/children/{childId}/decide", rs.decideAdminChild)
+	return r
+}
+
+func buildProtectedAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router {
+	rs := &Resource{
+		DecisionService: svc,
+		// db nil → runInTenantTx short-circuits straight to the closure.
+	}
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.With(authorize.RequiresPermission("config:read")).Get("/enrollment/admin/requests", rs.listAdminRequests)
+	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
+	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
 	return r
 }
 
@@ -114,6 +150,15 @@ func executeAdminJSON(t *testing.T, router chi.Router, method, path string, body
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, path string, permissions []string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxPermissions, permissions))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
@@ -168,6 +213,34 @@ func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"id":"1234"`,
 		"int64 ID must be stringified per CLAUDE rule 4")
 	assert.Contains(t, w.Body.String(), `"phase_name":"Schuljahr 2026"`)
+}
+
+func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
+	mock := &mockDecisionService{
+		listResult: []*enrollmentService.RequestSummary{
+			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		},
+		getResult: makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		listStudentResult: []*enrollmentService.RequestSummary{
+			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		},
+	}
+	router := buildProtectedAdminDecisionRouter(mock)
+
+	listReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests", []string{"config:read"})
+	assert.Equal(t, http.StatusOK, listReadOnly.Code)
+
+	requestDetailReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests/1234", []string{"config:read"})
+	assert.Equal(t, http.StatusForbidden, requestDetailReadOnly.Code)
+
+	studentDetailReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/students/777/requests", []string{"config:read"})
+	assert.Equal(t, http.StatusForbidden, studentDetailReadOnly.Code)
+
+	requestDetailManage := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests/1234", []string{"config:manage"})
+	assert.Equal(t, http.StatusOK, requestDetailManage.Code)
+
+	studentDetailManage := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/students/777/requests", []string{"config:manage"})
+	assert.Equal(t, http.StatusOK, studentDetailManage.Code)
 }
 
 func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {
