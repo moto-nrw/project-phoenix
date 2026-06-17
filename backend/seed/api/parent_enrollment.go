@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -207,12 +208,13 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 	}
 	state.Offerings = offerings
 
-	submissions := []struct {
+	type enrollmentSubmission struct {
 		source string
 		body   map[string]any
 		auth   phoenixapi.AuthRef
 		path   string
-	}{
+	}
+	submissions := []enrollmentSubmission{
 		{
 			source: "public",
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
@@ -240,12 +242,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 	}
 	if len(parents) > 1 {
 		parent := parents[1]
-		submissions = append(submissions, struct {
-			source string
-			body   map[string]any
-			auth   phoenixapi.AuthRef
-			path   string
-		}{
+		submissions = append(submissions, enrollmentSubmission{
 			source: "parent",
 			auth:   parentAuths[parent.Email],
 			path:   "/parent/enrollments/" + rt.Bootstrap.TenantSlug + "/submit",
@@ -395,13 +392,13 @@ func (s parentEnrollmentSeedStep) enrollmentSubmission(phaseID int64, offerings 
 	phone := "+49 221 555 990"
 	additionalEmail := strings.ReplaceAll(strings.ToLower(guardianFirstName+"."+guardianLastName), " ", ".") + ".2@example.test"
 	offeringDays := []map[string]any{}
-	if containsInt64(offeringIDs, offerings["ogs-ganztag"]) {
+	if slices.Contains(offeringIDs, offerings["ogs-ganztag"]) {
 		offeringDays = append(offeringDays, map[string]any{
 			"offering_id":   offerings["ogs-ganztag"],
 			"selected_days": []string{"mon", "wed", "fri"},
 		})
 	}
-	if containsInt64(offeringIDs, offerings["ogs-kurz"]) {
+	if slices.Contains(offeringIDs, offerings["ogs-kurz"]) {
 		offeringDays = append(offeringDays, map[string]any{
 			"offering_id":   offerings["ogs-kurz"],
 			"selected_days": []string{"tue", "thu"},
@@ -615,13 +612,4 @@ func statusTokenFromURL(raw string) string {
 
 func intPtr(v int) *int {
 	return &v
-}
-
-func containsInt64(values []int64, needle int64) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
 }

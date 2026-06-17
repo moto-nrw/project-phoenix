@@ -454,7 +454,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 			fmt.Printf("  Enrollment phase: %d\n", state.Enrollment.PhaseID)
 		}
 		if len(state.Enrollment.Offerings) > 0 {
-			fmt.Printf("  Care offerings:   %d (%s)\n", len(state.Enrollment.Offerings), formatSeedIDMap(state.Enrollment.Offerings))
+			fmt.Printf("  Care offerings:   %d (%s)\n", len(state.Enrollment.Offerings), formatSortedCountMap(state.Enrollment.Offerings))
 		}
 		if len(state.Enrollment.Requests) > 0 {
 			fmt.Printf("  Enroll. requests: %d (%s)\n", len(state.Enrollment.Requests), formatEnrollmentStatusCounts(state.Enrollment.Requests))
@@ -482,7 +482,27 @@ func formatSeedIDList(ids []int64) string {
 	return strings.Join(parts, ", ")
 }
 
-func formatSeedIDMap(values map[string]int64) string {
+func formatEnrollmentStatusCounts(requests []SeedEnrollmentRequest) string {
+	return formatSortedCountMap(countBy(requests, func(request SeedEnrollmentRequest) string {
+		if status := strings.TrimSpace(request.Status); status != "" {
+			return status
+		}
+		return "submitted"
+	}))
+}
+
+func formatParentActionCounts(actions []SeedParentPortalAction) string {
+	return formatSortedCountMap(countBy(actions, func(action SeedParentPortalAction) string {
+		if actionType := strings.TrimSpace(action.Type); actionType != "" {
+			return actionType
+		}
+		return "unknown"
+	}))
+}
+
+// formatSortedCountMap renders a string->number map as "key=value" pairs sorted
+// by key, or "-" when empty.
+func formatSortedCountMap[V int | int64](values map[string]V) string {
 	if len(values) == 0 {
 		return "-"
 	}
@@ -498,45 +518,11 @@ func formatSeedIDMap(values map[string]int64) string {
 	return strings.Join(parts, ", ")
 }
 
-func formatEnrollmentStatusCounts(requests []SeedEnrollmentRequest) string {
-	if len(requests) == 0 {
-		return "-"
-	}
+// countBy tallies items by the string key derived from each element.
+func countBy[T any](items []T, key func(T) string) map[string]int {
 	counts := make(map[string]int)
-	for _, request := range requests {
-		status := strings.TrimSpace(request.Status)
-		if status == "" {
-			status = "submitted"
-		}
-		counts[status]++
+	for _, item := range items {
+		counts[key(item)]++
 	}
-	return formatSeedCountMap(counts)
-}
-
-func formatParentActionCounts(actions []SeedParentPortalAction) string {
-	if len(actions) == 0 {
-		return "-"
-	}
-	counts := make(map[string]int)
-	for _, action := range actions {
-		actionType := strings.TrimSpace(action.Type)
-		if actionType == "" {
-			actionType = "unknown"
-		}
-		counts[actionType]++
-	}
-	return formatSeedCountMap(counts)
-}
-
-func formatSeedCountMap(counts map[string]int) string {
-	keys := make([]string, 0, len(counts))
-	for key := range counts {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, key := range keys {
-		parts = append(parts, fmt.Sprintf("%s=%d", key, counts[key]))
-	}
-	return strings.Join(parts, ", ")
+	return counts
 }
