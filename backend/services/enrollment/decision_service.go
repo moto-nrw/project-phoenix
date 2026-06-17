@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ const guardianRoleName = "guardian"
 var (
 	ErrDecisionRequestNotFound = errors.New("enrollment request not found")
 	ErrDecisionChildNotFound   = errors.New("request child not found")
+	ErrDecisionStudentNotFound = errors.New("student not found")
 	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
 	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
 	// ErrDecisionInvalidData marks an approval that failed because the
@@ -680,6 +682,15 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: export student: student_id required")
 	}
+	if s.studentRepo == nil {
+		return nil, fmt.Errorf("decision: export student: student repo not configured")
+	}
+	if _, err := s.studentRepo.FindByID(ctx, studentID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, ErrDecisionStudentNotFound)
+		}
+		return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, err)
+	}
 
 	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
 	if err != nil {
@@ -747,11 +758,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	for phaseID := range phaseIDs {
 		phase, err := s.phaseRepo.FindByID(ctx, phaseID)
 		if err != nil {
-			s.logger.Warn("decision: student export phase lookup failed",
-				slog.Int64("student_id", studentID),
-				slog.Int64("phase_id", phaseID),
-				slog.String("error", err.Error()))
-			continue
+			return nil, fmt.Errorf("decision: export student load phase %d: %w", phaseID, err)
 		}
 		phases[phaseID] = phase
 	}

@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -124,6 +126,19 @@ func buildAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router 
 	return r
 }
 
+func buildProtectedAdminDecisionRouter(svc enrollmentService.DecisionService) chi.Router {
+	rs := &Resource{
+		DecisionService: svc,
+		// db nil → runInTenantTx short-circuits straight to the closure.
+	}
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.With(authorize.RequiresPermission("config:read")).Get("/enrollment/admin/requests", rs.listAdminRequests)
+	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/requests/{id}", rs.getAdminRequest)
+	r.With(authorize.RequiresPermission("config:manage")).Get("/enrollment/admin/students/{studentId}/requests", rs.listAdminRequestsByStudent)
+	return r
+}
+
 func executeAdminJSON(t *testing.T, router chi.Router, method, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	var req *http.Request
@@ -135,6 +150,15 @@ func executeAdminJSON(t *testing.T, router chi.Router, method, path string, body
 	} else {
 		req = httptest.NewRequest(method, path, nil)
 	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func executeAdminJSONWithPermissions(t *testing.T, router chi.Router, method, path string, permissions []string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, path, nil)
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxPermissions, permissions))
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
@@ -189,6 +213,34 @@ func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"id":"1234"`,
 		"int64 ID must be stringified per CLAUDE rule 4")
 	assert.Contains(t, w.Body.String(), `"phase_name":"Schuljahr 2026"`)
+}
+
+func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
+	mock := &mockDecisionService{
+		listResult: []*enrollmentService.RequestSummary{
+			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		},
+		getResult: makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		listStudentResult: []*enrollmentService.RequestSummary{
+			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", enrollmentModels.ChildStatusSubmitted)),
+		},
+	}
+	router := buildProtectedAdminDecisionRouter(mock)
+
+	listReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests", []string{"config:read"})
+	assert.Equal(t, http.StatusOK, listReadOnly.Code)
+
+	requestDetailReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests/1234", []string{"config:read"})
+	assert.Equal(t, http.StatusForbidden, requestDetailReadOnly.Code)
+
+	studentDetailReadOnly := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/students/777/requests", []string{"config:read"})
+	assert.Equal(t, http.StatusForbidden, studentDetailReadOnly.Code)
+
+	requestDetailManage := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests/1234", []string{"config:manage"})
+	assert.Equal(t, http.StatusOK, requestDetailManage.Code)
+
+	studentDetailManage := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/students/777/requests", []string{"config:manage"})
+	assert.Equal(t, http.StatusOK, studentDetailManage.Code)
 }
 
 func TestListAdminRequestsHandler_PhaseFilterParsed(t *testing.T) {

@@ -124,6 +124,22 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 }
 
+func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport {
+	data := sampleExport()
+	phase := data.Phase
+	phase.ID = 7801
+	data.Rows[0].Request.PhaseID = phase.ID
+	withdrawnAt := time.Date(2026, 6, 2, 9, 30, 0, 0, time.UTC)
+	data.Rows[0].Request.WithdrawnAt = &withdrawnAt
+
+	return &enrollmentService.StudentEnrollmentExport{
+		StudentID: 8801,
+		Schemas:   data.Schemas,
+		Phases:    map[int64]*enrollmentModels.Phase{phase.ID: phase},
+		Rows:      data.Rows,
+	}
+}
+
 func columnLabels(doc listexport.Document) map[listexport.ColumnID]string {
 	out := make(map[listexport.ColumnID]string, len(doc.Columns))
 	for _, c := range doc.Columns {
@@ -181,6 +197,23 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 	}
 	if !strings.Contains(v["child_offerings"], "Kernzeit") {
 		t.Errorf("child_offerings = %q, want it to contain Kernzeit", v["child_offerings"])
+	}
+}
+
+func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
+	doc := buildStudentEnrollmentExportTable(sampleStudentEnrollmentExport(), "Anmeldungen Kind")
+
+	labels := columnLabels(doc)
+	if labels["withdrawn_at"] != "Zurückgezogen am" {
+		t.Fatalf("withdrawn_at column label = %q, want Zurückgezogen am", labels["withdrawn_at"])
+	}
+
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["withdrawn_at"]; got != "02.06.2026 09:30" {
+		t.Errorf("withdrawn_at = %q, want 02.06.2026 09:30", got)
 	}
 }
 
@@ -647,6 +680,7 @@ func buildExportRouter(rs *Resource, claims jwt.AppClaims) chi.Router {
 		})
 	})
 	r.Post("/enrollment/phases/{id}/export", rs.exportPhaseRegistrations)
+	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	return r
 }
 
@@ -811,6 +845,26 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 	// surface as 5xx so no file is served without a recorded disclosure.
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
+	mock := &mockDecisionService{exportStudentErr: enrollmentService.ErrDecisionStudentNotFound}
+	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/admin/students/777/requests/export", strings.NewReader(`{"format":"pdf"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (body: %s)", w.Code, w.Body.String())
+	}
+	if mock.exportStudentID != 777 {
+		t.Errorf("student id = %d, want 777", mock.exportStudentID)
 	}
 }
 

@@ -217,6 +217,10 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrDecisionStudentNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
 		if errors.Is(err, enrollmentService.ErrExportTooLarge) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(enrollmentService.ErrExportTooLarge))
 			return
@@ -332,6 +336,7 @@ func buildStudentEnrollmentExportTable(data *enrollmentService.StudentEnrollment
 	cols := []listexport.Column{
 		{ID: "phase", Label: "Anmeldung"},
 		{ID: "submitted_at", Label: "Eingereicht am"},
+		{ID: "withdrawn_at", Label: "Zurückgezogen am"},
 		{ID: "child_last_name", Label: "Kind Nachname"},
 		{ID: "child_first_name", Label: "Kind Vorname"},
 		{ID: "child_dob", Label: "Geburtsdatum"},
