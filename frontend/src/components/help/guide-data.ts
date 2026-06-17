@@ -819,6 +819,28 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/anmeldeformulare.webp",
       },
       {
+        id: "nachrichten",
+        title: "Nachrichten",
+        icon: MessageSquare,
+        summary:
+          "Der zentrale Posteingang für die Kommunikation mit den Eltern - wie ein Mail-Postfach. Jede Unterhaltung läuft mit einer Bezugsperson zu einem Kind und hat einen Betreff; so wird die E-Mail-Kommunikation überflüssig.",
+        steps: [
+          "In der Seitenleiste `Nachrichten` öffnen. Ein rotes Abzeichen zeigt ungelesene Eltern-Nachrichten an.",
+          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und den Betreff. Über `Nur ungelesen` lässt sich die Liste eingrenzen.",
+          "Eine Zeile öffnet das Chat-Fenster mit dem kompletten Verlauf. Über `Zum Kinderprofil` gelangst du von dort zur Kinderdetailansicht.",
+          "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
+          "Über `Neue Nachricht` selbst eine Unterhaltung beginnen: Kind suchen, Bezugsperson wählen, Betreff und Nachricht eingeben. Mit einer Person sind mehrere Unterhaltungen zu unterschiedlichen Themen möglich.",
+          "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson.",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Eltern-OGS-Nachrichten` aktiviert sein. Jede Bezugsperson sieht nur ihre eigenen Unterhaltungen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Nachrichten-Posteingang als Thread-Liste mit Bezugsperson, Beziehung, Betreff und Ungelesen-Abzeichen.",
+      },
+      {
         id: "feedback",
         title: "Feedback",
         icon: MessageSquare,

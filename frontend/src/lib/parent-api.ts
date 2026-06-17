@@ -397,6 +397,88 @@ export async function addChildNote(
   );
 }
 
+// --- Parent <-> OGS messaging (email-like threads) ---
+//
+// A thread is one conversation between the OGS and the guardian about one
+// child, identified by a subject. A guardian can have several threads, even
+// about the same child.
+
+// One message in a thread. `sender_kind` is "guardian" for the parent's own
+// messages, "staff" for replies from the team.
+export interface ParentMessage {
+  readonly id: string;
+  readonly sender_kind: "guardian" | "staff";
+  readonly sender_name: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+// One row on the messages landing page: a thread (mailbox-style), with the
+// guardian's unread (staff-sent) count and last-activity metadata.
+export interface ThreadSummary {
+  readonly thread_id: string;
+  readonly subject: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_sender_kind?: "guardian" | "staff";
+  readonly last_message_body?: string;
+  readonly unread: number;
+}
+
+// A full conversation thread (messages oldest-first).
+export interface ThreadView {
+  readonly thread_id: string;
+  readonly subject: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly messages: ParentMessage[];
+}
+
+/** Lists the parent's threads (mailbox), each with an unread count. */
+export async function listMessageThreads(): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+}
+
+/** Fetches the full conversation thread (oldest-first). */
+export async function getMessageThread(threadId: string): Promise<ThreadView> {
+  return getJson<ThreadView>(
+    `/api/parent/me/messages/threads/${encodeURIComponent(threadId)}`,
+  );
+}
+
+/** Appends a guardian message to a thread and returns the full updated thread. */
+export async function postThreadMessage(
+  threadId: string,
+  body: string,
+): Promise<ThreadView> {
+  return postJson<ThreadView>(
+    `/api/parent/me/messages/threads/${encodeURIComponent(threadId)}`,
+    { body },
+  );
+}
+
+/** Starts a new thread (subject + first message) about one child. */
+export async function startThread(input: {
+  studentId: string;
+  subject: string;
+  body: string;
+}): Promise<ThreadView> {
+  return postJson<ThreadView>("/api/parent/me/messages/threads", {
+    student_id: input.studentId,
+    subject: input.subject,
+    body: input.body,
+  });
+}
+
+/** Advances the guardian's read cursor for the thread. */
+export async function markThreadRead(threadId: string): Promise<void> {
+  await postJson<{ ok: boolean }>(
+    `/api/parent/me/messages/threads/${encodeURIComponent(threadId)}/read`,
+    {},
+  );
+}
+
 /**
  * Sets a one-day pickup and/or arrival override for the child. The two times
  * are the COMPLETE override for the day: a "HH:MM" string sets that leg, an

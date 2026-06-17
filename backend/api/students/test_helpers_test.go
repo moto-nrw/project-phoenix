@@ -42,6 +42,8 @@ func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtim
 	return nil
 }
 
+func (b *recordingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	b.events = append(b.events, event)
 	return nil

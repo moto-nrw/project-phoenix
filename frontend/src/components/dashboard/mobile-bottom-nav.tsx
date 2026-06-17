@@ -239,12 +239,11 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
   tKey: string;
 })[] = [
   {
-    href: "#",
+    href: "/parents/messages",
     label: "Nachrichten",
     tKey: "messages",
     iconKey: "chat",
     alwaysShow: true,
-    comingSoon: true,
   },
   {
     href: "#",
@@ -326,14 +325,13 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "settings",
     requiresAdmin: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
+    href: "/messages",
     label: "Nachrichten",
     iconKey: "chat",
     alwaysShow: true,
-    comingSoon: true,
   },
+  // Coming soon features - shown to all users
   {
     href: "#",
     label: "Mittagessen",

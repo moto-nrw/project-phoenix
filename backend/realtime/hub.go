@@ -14,6 +14,11 @@ type Client struct {
 	UserID           int64           // User ID for audit logging
 	TenantID         int64           // Tenant ID for multi-tenancy isolation
 	SubscribedGroups map[string]bool // composite key (tenantID:groupID) -> subscribed
+	// IsParent marks a guardian-portal connection. Parent clients are
+	// cross-tenant and routed by their own account id (UserID): they never
+	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
+	// their guardian account.
+	IsParent bool
 }
 
 // tenantGroupKey builds a composite map key for tenant-isolated group lookups.
@@ -68,6 +73,24 @@ func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) 
 		slog.Int("total_clients", len(h.clients)),
 	)
 	observability.RecordSSEConnection(tenantID, "connected")
+}
+
+// RegisterParent adds a guardian-portal client. It is identified by its own
+// account id (Client.UserID) and woken only by BroadcastParentMessage
+// addressed to that guardian account. TenantID stays 0 so tenant/group
+// broadcasts never reach it.
+func (h *Hub) RegisterParent(client *Client) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	client.IsParent = true
+	h.clients[client] = true
+
+	h.getLogger().Info("SSE parent client connected",
+		slog.Int64("user_id", client.UserID),
+		slog.Int("total_clients", len(h.clients)),
+	)
+	observability.RecordSSEConnection(0, "connected")
 }
 
 // Unregister removes a client from the hub and all group subscriptions
@@ -193,6 +216,52 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.Int("recipient_count", recipients),
 	)
 	observability.RecordSSEBroadcast(tenantID, string(event.Type), "tenant", droppedCount)
+	return nil
+}
+
+// BroadcastParentMessage routes a parent-OGS messaging trigger by recipient:
+// the addressed guardian's portal client (matched on account id) is woken so
+// only that one family sees the activity, while staff clients in the tenant are
+// woken so their access-filtered inbox refreshes (staff visibility spans admins
+// / all-staff / supervisors, so a tenant-wide staff wake is the correct,
+// no-miss granularity — the refetch is server-side access-filtered).
+// Fire-and-forget, same drop semantics as the other broadcasts.
+func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for client := range h.clients {
+		var deliver bool
+		if client.IsParent {
+			deliver = client.UserID == guardianAccountID
+		} else {
+			deliver = client.TenantID == tenantID
+		}
+		if !deliver {
+			continue
+		}
+		recipients++
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping parent-message broadcast",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("guardian_account_id", guardianAccountID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	h.getLogger().Debug("SSE parent-message broadcast",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("guardian_account_id", guardianAccountID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "parent_message", droppedCount)
 	return nil
 }
 

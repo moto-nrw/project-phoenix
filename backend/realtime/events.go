@@ -65,6 +65,11 @@ const (
 	// field carries the setting key so log review (and future selective
 	// invalidation) can distinguish writers without parsing the payload.
 	EventTenantSettingsChanged EventType = "tenant_settings_changed"
+
+	// EventParentMessage signals that a parent sent a new message to the OGS
+	// (or staff replied), so staff inbox / parent thread views refetch their
+	// list and unread badge. Trigger only — clients refetch via the API.
+	EventParentMessage EventType = "parent_message"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients

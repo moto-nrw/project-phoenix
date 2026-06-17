@@ -393,6 +393,18 @@ export function useGlobalSSE(): SSEHookState {
           scheduleFlush();
           break;
         }
+
+        case "parent_message": {
+          // A parent sent a message (or staff replied elsewhere). The inbox /
+          // thread pages refetch off their own useSSE handlers; this global
+          // handler exists so the sidebar unread badge refreshes app-wide.
+          // useMessagesUnread listens for this window event and clears its
+          // cache before refetching.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+          }
+          break;
+        }
       }
     },
     [scheduleFlush],

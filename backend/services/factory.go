@@ -36,6 +36,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -129,6 +130,9 @@ type Factory struct {
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
+
+	// Messaging (staff-side parent-OGS inbox / threads)
+	Messaging messaging.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -1051,8 +1055,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianInvites:       guardianInvitationService,
 		GuardianInviteRepo:    repos.GuardianInvitation,
 		StudentGuardianRepo:   repos.StudentGuardian,
+		MessageThreadRepo:     repos.ParentMessageThread,
+		MessageRepo:           repos.ParentMessage,
+		MessageReadRepo:       repos.ParentMessageRead,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),
+	})
+
+	messagingService := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     usersService,
+		UserContext: userContextService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "messaging"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -1188,7 +1207,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentDecision:     enrollmentDecisionService,
 		EnrollmentRollover:     enrollmentRolloverService,
 
-		Parent: parentService,
+		Parent:    parentService,
+		Messaging: messagingService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

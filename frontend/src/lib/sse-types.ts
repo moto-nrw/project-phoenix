@@ -21,7 +21,11 @@ type SSEEventType =
   | "instance_started"
   | "instance_completed"
   | "instance_cancelled"
-  | "instance_overdue";
+  | "instance_overdue"
+  // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
+  // for the staff inbox / child thread / parent thread to refetch and update
+  // the unread badge. See backend/realtime/events.go EventParentMessage.
+  | "parent_message";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";

@@ -48,6 +48,8 @@ func (b *spyBroadcaster) BroadcastToGroup(_ int64, _ string, e realtime.Event) e
 	}
 	return nil
 }
+func (b *spyBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (b *spyBroadcaster) BroadcastToTenant(_ int64, e realtime.Event) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

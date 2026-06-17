@@ -39,6 +39,7 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
+import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { ParentNotesCard } from "~/components/students/parent-notes-card";
 import {
   StudentCheckoutSection,
@@ -1283,6 +1284,18 @@ function FullAccessView({
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
+          {studentId && (
+            <div className="mt-4">
+              <ParentMessagesCard
+                studentId={studentId}
+                studentName={student?.name}
+              />
+            </div>
+          )}
+          {/* Parent notes remain a separate one-way channel: notes submitted
+              through the parents portal land in users.student_parent_notes,
+              not in messaging threads, so staff still need this card to see
+              them. */}
           {studentId && (
             <div className="mt-4">
               <ParentNotesCard studentId={studentId} />

@@ -78,6 +78,26 @@ func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, 
 	return nil
 }
 
+func (f *fakeParentService) ListMessageThreads(context.Context, int64) ([]*userModels.InboxThread, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetMessageThread(context.Context, int64, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) PostThreadMessage(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) StartThread(context.Context, int64, int64, string, string) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) MarkMessageThreadRead(context.Context, int64, int64) error {
+	return nil
+}
+
 func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
 	return nil, nil
 }

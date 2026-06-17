@@ -182,6 +182,11 @@ type Factory struct {
 
 	// Parent-submitted notes (tenant-scoped; read by parents + staff)
 	StudentParentNote userModels.StudentParentNoteRepository
+
+	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+	ParentMessageThread userModels.ParentMessageThreadRepository
+	ParentMessage       userModels.ParentMessageRepository
+	ParentMessageRead   userModels.ParentMessageReadRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -330,5 +335,10 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Parent-submitted notes (tenant-scoped; read by parents + staff)
 		StudentParentNote: users.NewStudentParentNoteRepository(db),
+
+		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+		ParentMessageThread: users.NewParentMessageThreadRepository(db),
+		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageRead:   users.NewParentMessageReadRepository(db),
 	}
 }

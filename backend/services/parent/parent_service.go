@@ -116,6 +116,27 @@ type Service interface {
 	// RemoveRelatedAccount removes another account's access to the child.
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
+
+	// ListMessageThreads returns every conversation the guardian owns across
+	// all their children's schools (newest activity first), with the unread
+	// staff-message count. Cross-tenant.
+	ListMessageThreads(ctx context.Context, accountID int64) ([]*usersModels.InboxThread, error)
+
+	// GetMessageThread returns one owned conversation (oldest-first) and marks
+	// it read. Authorization only.
+	GetMessageThread(ctx context.Context, accountID, threadID int64) (*MessageThreadView, error)
+
+	// PostThreadMessage appends a guardian message to an owned thread and
+	// notifies the OGS. Gated by operations.parent_notes_enabled.
+	PostThreadMessage(ctx context.Context, accountID, threadID int64, body string) (*MessageThreadView, error)
+
+	// StartThread opens a new conversation about an owned child with a subject
+	// and first message. Gated by operations.parent_notes_enabled.
+	StartThread(ctx context.Context, accountID, studentID int64, subject, body string) (*MessageThreadView, error)
+
+	// MarkMessageThreadRead advances the guardian's read cursor for an owned
+	// thread. Authorization only.
+	MarkMessageThreadRead(ctx context.Context, accountID, threadID int64) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -170,6 +191,11 @@ type ServiceConfig struct {
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
 
+	// Parent-OGS messaging.
+	MessageThreadRepo usersModels.ParentMessageThreadRepository
+	MessageRepo       usersModels.ParentMessageRepository
+	MessageReadRepo   usersModels.ParentMessageReadRepository
+
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
@@ -193,6 +219,10 @@ type service struct {
 	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
+
+	messageThreadRepo usersModels.ParentMessageThreadRepository
+	messageRepo       usersModels.ParentMessageRepository
+	messageReadRepo   usersModels.ParentMessageReadRepository
 
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
@@ -220,6 +250,9 @@ func NewService(cfg ServiceConfig) Service {
 		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
 		settings:              cfg.Settings,
 		broadcaster:           cfg.Broadcaster,
+		messageThreadRepo:     cfg.MessageThreadRepo,
+		messageRepo:           cfg.MessageRepo,
+		messageReadRepo:       cfg.MessageReadRepo,
 		guardianInvites:       cfg.GuardianInvites,
 		guardianInviteRepo:    cfg.GuardianInviteRepo,
 		studentGuardianRepo:   cfg.StudentGuardianRepo,

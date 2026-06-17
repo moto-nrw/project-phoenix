@@ -139,6 +139,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		r.Get("/me/children/{studentId}/notes", rs.listNotes)
 		r.Post("/me/children/{studentId}/notes", rs.addNote)
+
+		// Parent-OGS messaging — email-like threads. A thread is one
+		// conversation with the OGS about one child (subject + messages). The
+		// list aggregates the guardian's threads across all their children;
+		// the per-thread routes read/post/mark-read; POST /threads starts a
+		// new conversation. Sending is gated by operations.parent_notes_enabled.
+		r.Get("/me/messages", rs.listMessageThreads)
+		r.Post("/me/messages/threads", rs.startThread)
+		r.Get("/me/messages/threads/{threadId}", rs.getMessageThread)
+		r.Post("/me/messages/threads/{threadId}", rs.postThreadMessage)
+		r.Post("/me/messages/threads/{threadId}/read", rs.markMessageThreadRead)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
