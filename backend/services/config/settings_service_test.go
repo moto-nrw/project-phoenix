@@ -429,9 +429,12 @@ func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
 	assert.False(t, item.IsDefault, "override differing from default must not report is_default")
 }
 
-// JSONB numbers unmarshal as float64 while registry defaults are typically int.
-// The comparison must be type-correct (JSON-based), not a naive == (issue #1680).
-func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_JSONBRoundtrip(t *testing.T) {
+// Resettable settings (here: a number) keep override-existence semantics even
+// when the override value equals the registry default. The value-based check is
+// boolean-only (issue #1680): for everything else the reset button must stay
+// available to clear an explicit override, so is_default has to report false
+// while a row exists — regardless of whether the value matches the default.
+func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_StaysResettable(t *testing.T) {
 	setupTest(t)
 	registerTestSetting("test.timeout", config.FieldNumber, 30)
 
@@ -448,7 +451,7 @@ func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_JSONBRoundtrip(t *testi
 	require.NoError(t, err)
 	item := findSchemaItem(schema, "test.timeout")
 	require.NotNil(t, item)
-	assert.True(t, item.IsDefault, "float64(30) override must equal int(30) default")
+	assert.False(t, item.IsDefault, "a number override must stay resettable even when it equals the default")
 }
 
 func TestGetSchema_FiltersByPermission(t *testing.T) {

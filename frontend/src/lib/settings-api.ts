@@ -139,11 +139,15 @@ export function applyOptimisticSchemaUpdate(
         ...cat,
         items: cat.items.map((item) => {
           const optimisticValue = item.type === "password" ? "••••••" : value;
-          // Match the backend's value-based is_default (issue #1680): a value
-          // equal to the registry default still counts as "default", so the
-          // "Standard" badge reappears without a refetch flicker.
+          // Mirror the backend's is_default semantics (issue #1680): boolean
+          // toggles are value-based (no reset button, so toggling back to the
+          // default must restore the "Standard" badge without a refetch). All
+          // other types just got an override row written, so is_default is
+          // false and the reset button stays available.
           const optimisticIsDefault =
-            JSON.stringify(value) === JSON.stringify(item.default);
+            item.type === "boolean"
+              ? JSON.stringify(value) === JSON.stringify(item.default)
+              : false;
           const updated =
             item.key === key
               ? {
