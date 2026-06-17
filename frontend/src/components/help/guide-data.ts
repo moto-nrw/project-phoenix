@@ -807,6 +807,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Erlaubte Heimwege` wählen Eltern pro Betreuungstag alle zulässigen Wege aus, zum Beispiel zu Fuß, Bus oder Abholung; mehrere Optionen pro Tag sind möglich.",
+          "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
           "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",

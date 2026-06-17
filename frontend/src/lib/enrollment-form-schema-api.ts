@@ -487,18 +487,27 @@ export async function createSchema(
  * name. Older versions stay in place for historical submissions, and
  * phases using an older version of this template are moved to the new
  * schema_id.
+ *
+ * Pass `newName` to rename the whole lineage AND publish the new version
+ * in ONE backend transaction (a combined "rename + edit" save). A failed
+ * publish rolls the rename back, so there is no partial "renamed but
+ * content unchanged" state. A 409 (`enrollment.schema_name_exists`) is
+ * raised when the new name already identifies a different schema.
  */
 export async function updateSchema(
   id: string,
   fields: FormField[],
   coreRequirements?: CoreRequirements,
   legalBlocks?: FormLegalBlock[],
+  newName?: string,
 ): Promise<FormSchema> {
   const body: {
+    name?: string;
     fields: FormField[];
     core_requirements?: CoreRequirements;
     legal_blocks?: FormLegalBlock[];
   } = { fields };
+  if (newName !== undefined) body.name = newName;
   if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
   if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
@@ -512,6 +521,33 @@ export async function updateSchema(
       "Formularvorlage konnte nicht gespeichert werden",
       logger,
       "schema_update_failed",
+    );
+  }
+  return readJSON<FormSchema>(response);
+}
+
+/**
+ * Renames a logical schema. Every version row sharing the source's name
+ * is renamed atomically, so the whole version lineage keeps one shared
+ * name. This publishes no new version and leaves the form fields
+ * untouched. The backend rejects (409) a name already used by a
+ * different schema.
+ */
+export async function renameSchema(
+  id: string,
+  name: string,
+): Promise<FormSchema> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht umbenannt werden",
+      logger,
+      "schema_rename_failed",
     );
   }
   return readJSON<FormSchema>(response);

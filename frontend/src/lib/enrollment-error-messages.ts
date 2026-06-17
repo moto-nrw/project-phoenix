@@ -34,6 +34,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":
     "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
+  "enrollment.schema_name_exists":
+    "Es gibt bereits ein Formular mit diesem Namen.",
   "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
   "rollover.invalid_request":
     "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",
