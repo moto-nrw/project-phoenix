@@ -183,8 +183,11 @@ export function SettingsField({
     ? categoryItems.find((item) => item.key === legalActivationTextKey)
     : undefined;
   const isEnrollmentLegalTextSetting = isEnrollmentLegalTextKey(setting.key);
+  const isAGBLegalContext =
+    setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY ||
+    legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY;
   const legalDocumentSetting =
-    setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
+    isAGBLegalContext
       ? categoryItems.find(
           (item) => item.key === ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY,
         )

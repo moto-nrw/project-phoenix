@@ -456,6 +456,155 @@ describe("SettingsField", () => {
     });
   });
 
+  it("shows the current AGB source and keeps the PDF open action inside the edit modal", () => {
+    const { getByRole, getByText, queryByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_agb_text",
+          label: "AGB / Teilnahmebedingungen",
+          type: "textarea",
+          value: "Gespeicherter AGB-Text",
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_agb_document_url",
+            type: "text",
+            value: "/uploads/enrollment-legal-documents/terms.pdf",
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_display_mode",
+            type: "select",
+            value: "pdf",
+          }),
+        ]}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(
+      getByText((_, element) => element?.textContent === "Quelle: PDF-Datei"),
+    ).toBeDefined();
+    expect(queryByRole("link", { name: "Öffnen" })).toBeNull();
+
+    fireEvent.click(getByRole("button", { name: "AGB überarbeiten" }));
+
+    expect(getByRole("link", { name: "Öffnen" })).toHaveAttribute(
+      "href",
+      "/api/public/enrollment-legal-documents/terms.pdf",
+    );
+  });
+
+  it("enables AGB terms with an existing PDF source without saving empty text", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_terms_enabled",
+          label: "AGB / Teilnahmebedingungen im Anmeldeformular anzeigen",
+          type: "boolean",
+          value: false,
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_agb_text",
+            type: "textarea",
+            value: "",
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_document_url",
+            type: "text",
+            value: "/uploads/enrollment-legal-documents/terms.pdf",
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_display_mode",
+            type: "select",
+            value: "text",
+          }),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("switch"));
+    expect(
+      getByRole("heading", {
+        name: "AGB / Teilnahmebedingungen aktivieren",
+      }),
+    ).toBeDefined();
+    expect(getByRole("button", { name: "Aktivieren" })).toBeDisabled();
+
+    fireEvent.click(getByRole("button", { name: /PDF-Datei hochladen/ }));
+    expect(getByRole("button", { name: "Aktivieren" })).not.toBeDisabled();
+    fireEvent.click(getByRole("button", { name: "Aktivieren" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenNthCalledWith(
+        1,
+        "enrollment.legal_agb_display_mode",
+        "pdf",
+      );
+      expect(onSave).toHaveBeenNthCalledWith(
+        2,
+        "enrollment.legal_terms_enabled",
+        true,
+      );
+    });
+    expect(onSave).not.toHaveBeenCalledWith(
+      "enrollment.legal_agb_text",
+      "",
+    );
+  });
+
+  it("switches AGB editing from PDF source back to text and saves both settings", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, getByLabelText } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_agb_text",
+          label: "AGB / Teilnahmebedingungen",
+          type: "textarea",
+          value: "Alter AGB-Text",
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_agb_document_url",
+            type: "text",
+            value: "/uploads/enrollment-legal-documents/terms.pdf",
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_display_mode",
+            type: "select",
+            value: "pdf",
+          }),
+        ]}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "AGB überarbeiten" }));
+    fireEvent.click(getByRole("button", { name: /Text eingeben/ }));
+    fireEvent.change(getByLabelText("AGB-Text"), {
+      target: { value: "Neuer AGB-Text" },
+    });
+    fireEvent.click(getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenNthCalledWith(
+        1,
+        "enrollment.legal_agb_display_mode",
+        "text",
+      );
+      expect(onSave).toHaveBeenNthCalledWith(
+        2,
+        "enrollment.legal_agb_text",
+        "Neuer AGB-Text",
+      );
+    });
+  });
+
   it("renders a text field as fallback for unknown type", () => {
     const { container } = renderWithProviders(
       <SettingsField
