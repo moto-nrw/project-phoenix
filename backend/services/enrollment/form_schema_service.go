@@ -163,12 +163,18 @@ func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentMode
 const defaultSchemaName = "Standardformular"
 
 func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
+	}
 	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy, firstCoreRequirements(coreRequirements), nil)
 }
 
 func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if name == "" {
 		return nil, fmt.Errorf("schema name is required")
+	}
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
 	}
 	// Refuse to overload an existing name. The admin should use
 	// UpdateSchema to add a new version instead. The
@@ -187,6 +193,9 @@ func (s *formSchemaService) CreateSchemaWithLegal(ctx context.Context, name stri
 	if name == "" {
 		return nil, fmt.Errorf("schema name is required")
 	}
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
+	}
 	existing, err := s.repo.NextVersionForName(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("check existing name: %w", err)
@@ -200,6 +209,12 @@ func (s *formSchemaService) CreateSchemaWithLegal(ctx context.Context, name stri
 func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("schema id must be positive")
+	}
+	// Lock the lineage before reading its name: a concurrent rename must not
+	// move the lineage between this read and the new version's insert, or the
+	// new row is born under the stale name and splits the lineage.
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
 	}
 	source, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -215,6 +230,10 @@ func (s *formSchemaService) UpdateSchema(ctx context.Context, id int64, fields [
 func (s *formSchemaService) UpdateSchemaWithLegal(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error) {
 	if id <= 0 {
 		return nil, fmt.Errorf("schema id must be positive")
+	}
+	// Lock the lineage before reading its name (see UpdateSchema).
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
 	}
 	source, err := s.repo.FindByID(ctx, id)
 	if err != nil {
@@ -238,6 +257,13 @@ func (s *formSchemaService) RenameSchema(ctx context.Context, id int64, newName 
 	newName = strings.TrimSpace(newName)
 	if newName == "" {
 		return nil, fmt.Errorf("schema name is required")
+	}
+
+	// Serialize against concurrent publishes of the same lineage: hold the
+	// lock across the load, the collision check, and the rename so a publish
+	// can't insert a new version under the old name mid-rename.
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return nil, err
 	}
 
 	source, err := s.repo.FindByID(ctx, id)
@@ -292,6 +318,13 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 	}
 	if s.phaseRepo == nil || s.requestRepo == nil {
 		return fmt.Errorf("schema delete dependencies not configured")
+	}
+
+	// Serialize against a concurrent publish: deleting a lineage while a new
+	// version is being inserted under the same name would otherwise leave an
+	// orphan row behind.
+	if err := s.repo.LockLineages(ctx); err != nil {
+		return err
 	}
 
 	source, err := s.repo.FindByID(ctx, id)

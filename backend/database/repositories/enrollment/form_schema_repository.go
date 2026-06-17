@@ -227,6 +227,24 @@ func (r *FormSchemaRepository) RenameByName(ctx context.Context, oldName, newNam
 	return nil
 }
 
+// LockLineages takes the per-tenant, transaction-scoped advisory lock that
+// serializes form-schema lineage mutations (publish, rename, delete) against
+// one another. Without it a rename and a concurrent version-publish can split
+// a lineage: the publish reads the pre-rename name and inserts a new row under
+// it while the rename moves the existing rows to the new name, leaving the
+// lineage's name no longer shared (migration 1.15.74's whole-lineage
+// invariant). Callers must already be inside the request's tenant transaction
+// (runInTenantTx / WithTenantTx); the lock releases automatically at
+// COMMIT/ROLLBACK. The key is namespaced per tenant so it never collides with
+// other advisory locks.
+func (r *FormSchemaRepository) LockLineages(ctx context.Context) error {
+	key := fmt.Sprintf("enrollment.form_schema_lineage:%d", tenant.FromContext(ctx))
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return fmt.Errorf("failed to lock form schema lineages: %w", err)
+	}
+	return nil
+}
+
 // DeleteByName removes every version of a logical schema. Callers must
 // check phase and request references first.
 func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) error {

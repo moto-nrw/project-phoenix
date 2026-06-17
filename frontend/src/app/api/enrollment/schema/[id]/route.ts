@@ -70,6 +70,7 @@ export async function PUT(
   }
   try {
     const body = (await request.json()) as {
+      name?: unknown;
       fields?: unknown;
       core_requirements?: unknown;
       legal_blocks?: unknown;
@@ -86,6 +87,9 @@ export async function PUT(
         // "absent = preserve existing" semantics still hold; sending it
         // makes the admin's guardian-phone-required toggle stick.
         body: JSON.stringify({
+          // name is present only for a combined "rename + edit" save; the
+          // backend renames the lineage and publishes in one transaction.
+          ...(body.name === undefined ? {} : { name: body.name }),
           fields: body.fields ?? [],
           ...(body.core_requirements === undefined
             ? {}

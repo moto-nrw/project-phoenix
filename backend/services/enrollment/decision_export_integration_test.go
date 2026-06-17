@@ -52,6 +52,11 @@ func (failingSchemaRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels
 	return nil, errors.New("schema read failed")
 }
 
+// LockLineages is a no-op so this stub works when constructed with a nil
+// embedded repo (failingSchemaRepo{}); the lineage lock is irrelevant to the
+// FindByID-fault behavior the tests exercise.
+func (failingSchemaRepo) LockLineages(_ context.Context) error { return nil }
+
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
 // but swaps in a FormSchema repo whose FindByID always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.

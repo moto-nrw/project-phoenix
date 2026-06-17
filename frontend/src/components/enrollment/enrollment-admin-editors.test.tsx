@@ -626,6 +626,8 @@ describe("EnrollmentFormEditor", () => {
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
         {},
         defaultLegalBlocksForSave,
+        // Content-only edit: no rename name rides along on the save.
+        undefined,
       );
     });
 
@@ -747,10 +749,9 @@ describe("EnrollmentFormEditor", () => {
     expect(mocks.updateSchema).not.toHaveBeenCalled();
   });
 
-  it("renames AND publishes a version when name and content both change", async () => {
+  it("renames AND publishes in one atomic request when name and content both change", async () => {
     mocks.listSchemas.mockResolvedValue([schema()]);
     mocks.listPhases.mockResolvedValue([]);
-    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
     mocks.updateSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
 
     render(<EnrollmentFormEditor />);
@@ -766,8 +767,10 @@ describe("EnrollmentFormEditor", () => {
       await screen.findByRole("menuitem", { name: "Bearbeiten" }),
     );
 
-    // Change the name AND a base-field requirement: the name-only fast path
-    // must not swallow the content change, so both requests fire.
+    // Change the name AND a base-field requirement: the new name rides along
+    // on the single updateSchema request so the backend renames + publishes in
+    // one transaction. No separate rename round-trip the publish could leave
+    // half-applied on failure.
     fireEvent.change(
       await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
       { target: { value: "Ferienprogramm" } },
@@ -782,12 +785,60 @@ describe("EnrollmentFormEditor", () => {
     );
 
     await waitFor(() => {
-      expect(mocks.renameSchema).toHaveBeenCalledWith(
+      expect(mocks.updateSchema).toHaveBeenCalledWith(
         "schema-1",
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
         "Ferienprogramm",
       );
     });
-    expect(mocks.updateSchema).toHaveBeenCalled();
+    // The combined save must NOT fire a separate rename request — that is the
+    // non-atomic path the backend transaction replaced.
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
+  });
+
+  it("does not rename separately when the combined save fails", async () => {
+    // Regression guard for the partial-save bug: a failed publish must not
+    // leave the lineage renamed. Because the rename now rides inside the
+    // single updateSchema transaction, the editor never calls renameSchema on
+    // its own, so a rejected updateSchema commits nothing.
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockRejectedValue(
+      new Error("Formularvorlage konnte nicht gespeichert werden"),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalled();
+    });
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
   });
 
   it("does not rename when the builder name is left unchanged", async () => {

@@ -91,9 +91,14 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 }
 
 // UpdateSchemaRequest is the wire shape PUT /schema/{id} accepts.
-// Only the fields are mutable — name is inherited from the source
-// schema so all versions of a logical schema share the same name.
+// Name is optional: when present and different from the lineage's current
+// name, the handler renames the whole lineage AND publishes the new version
+// in one transaction (a combined "rename + edit" save), so a failed publish
+// rolls the rename back. When Name is absent, only the fields change and the
+// name is inherited from the source schema, keeping every version of a
+// logical schema under one shared name.
 type UpdateSchemaRequest struct {
+	Name             *string                            `json:"name,omitempty"`
 	Fields           []enrollmentModels.FormField       `json:"fields"`
 	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
 	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
@@ -532,6 +537,18 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *enrollmentModels.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		// Combined "rename + edit" save: rename the lineage first, in the
+		// SAME transaction as the publish below. If the publish fails the
+		// whole tx rolls back, so the rename never commits on its own — no
+		// partial "renamed but content unchanged" state. RenameSchema is a
+		// no-op when the name is unchanged. A blank name is ignored (the
+		// dedicated PATCH route owns blank-name rejection).
+		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+			if _, renameErr := rs.FormSchemaService.RenameSchema(ctx, id, *req.Name); renameErr != nil {
+				return renameErr
+			}
+		}
+
 		var (
 			s        *enrollmentModels.FormSchema
 			innerErr error
@@ -547,6 +564,16 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return innerErr
 	})
 	if txErr != nil {
+		// A rename onto an existing name surfaces as a 409 with a stable code
+		// so the frontend shows "name already taken", same as the PATCH route.
+		switch {
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNameExists):
+			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
+			return
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(txErr))
 		return
 	}

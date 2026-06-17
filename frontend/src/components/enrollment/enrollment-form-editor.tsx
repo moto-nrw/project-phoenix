@@ -601,21 +601,21 @@ export function EnrollmentFormEditor() {
         // matches the standalone "Umbenennen" dialog's semantics.
         result = await renameSchema(selectedKey, name.trim());
       } else {
-        // Rename and field-publish are two requests, not one transaction.
-        // Rename runs first because that order is retry-safe: if the rename
-        // throws (e.g. name already taken) we never publish, and if the
-        // publish fails after a successful rename, a retry re-runs the
-        // rename as a no-op and publishes exactly one new version. The
-        // reverse order would publish a redundant version on every retry.
-        // The new version is therefore always born under the new name.
-        if (isRenameOf(currentSchema, name)) {
-          await renameSchema(selectedKey, name.trim());
-        }
+        // Combined "rename + edit" save: pass the new name to updateSchema so
+        // the backend renames the lineage AND publishes the new version in ONE
+        // transaction. A failed publish rolls the rename back, so there is no
+        // partial "renamed but content unchanged" state and the local baseline
+        // can never drift from the database. renameTo is undefined when only
+        // the content changed, leaving the lineage name untouched.
+        const renameTo = isRenameOf(currentSchema, name)
+          ? name.trim()
+          : undefined;
         result = await updateSchema(
           selectedKey,
           fieldsForSave,
           coreRequirements,
           legalBlocksForSave,
+          renameTo,
         );
       }
       const refreshed = await loadAll();

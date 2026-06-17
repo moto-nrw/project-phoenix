@@ -511,6 +511,69 @@ func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestUpdateSchemaHandler_WithNameRenamesThenPublishes(t *testing.T) {
+	// Combined "rename + edit" save: a name in the PUT body renames the
+	// lineage AND publishes the new version in one request, so the two are
+	// atomic (no separate rename round-trip the frontend has to undo on
+	// failure).
+	mock := &mockFormSchemaService{
+		renameResult: makeFormSchema(1234, "Ferienprogramm", 2),
+		updateResult: makeFormSchema(1234, "Ferienprogramm", 3),
+	}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Ferienprogramm",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, int64(1234), mock.renameID, "the rename must target the same lineage id")
+	assert.Equal(t, "Ferienprogramm", mock.renameName)
+	assert.Equal(t, int64(1234), mock.updateID, "the publish must run after the rename")
+}
+
+func TestUpdateSchemaHandler_BlankNameSkipsRename(t *testing.T) {
+	// A blank name in the PUT body is ignored (the dedicated PATCH route
+	// owns blank-name rejection); the publish still runs.
+	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "   ",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, int64(0), mock.renameID, "a blank name must not trigger a rename")
+	assert.Equal(t, int64(1234), mock.updateID)
+}
+
+func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T) {
+	// The rename half fails on a name already used by another lineage; the
+	// publish must NOT run and the response is the same 409 + stable code the
+	// PATCH route returns, so the frontend shows "name already taken".
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Schon vergeben",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists)
+	assert.Equal(t, int64(0), mock.updateID, "a failed rename must abort before the publish")
+}
+
+func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Neuer Name",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
 // --- deleteSchema -----------------------------------------------------
 
 func TestDeleteSchemaHandler_NilServiceReturns500(t *testing.T) {

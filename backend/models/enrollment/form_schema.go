@@ -848,6 +848,11 @@ type FormSchemaRepository interface {
 	// Callers must guard against colliding with an existing name first.
 	RenameByName(ctx context.Context, oldName, newName string) error
 	DeleteByName(ctx context.Context, name string) error
+	// LockLineages serializes lineage mutations (publish, rename, delete)
+	// for the tenant in context against one another, so a rename and a
+	// concurrent publish cannot split a version lineage. Transaction-scoped;
+	// the caller must already be inside the request's tenant transaction.
+	LockLineages(ctx context.Context) error
 }
 
 // SubmissionData is the reduced shape used by the legacy schema-service

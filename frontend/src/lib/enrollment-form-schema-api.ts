@@ -487,18 +487,27 @@ export async function createSchema(
  * name. Older versions stay in place for historical submissions, and
  * phases using an older version of this template are moved to the new
  * schema_id.
+ *
+ * Pass `newName` to rename the whole lineage AND publish the new version
+ * in ONE backend transaction (a combined "rename + edit" save). A failed
+ * publish rolls the rename back, so there is no partial "renamed but
+ * content unchanged" state. A 409 (`enrollment.schema_name_exists`) is
+ * raised when the new name already identifies a different schema.
  */
 export async function updateSchema(
   id: string,
   fields: FormField[],
   coreRequirements?: CoreRequirements,
   legalBlocks?: FormLegalBlock[],
+  newName?: string,
 ): Promise<FormSchema> {
   const body: {
+    name?: string;
     fields: FormField[];
     core_requirements?: CoreRequirements;
     legal_blocks?: FormLegalBlock[];
   } = { fields };
+  if (newName !== undefined) body.name = newName;
   if (coreRequirements !== undefined) body.core_requirements = coreRequirements;
   if (legalBlocks !== undefined) body.legal_blocks = legalBlocks;
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {

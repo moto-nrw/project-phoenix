@@ -512,6 +512,42 @@ describe("updateSchema", () => {
     expect(seenURL).toContain("a%2Fb");
   });
 
+  it("includes name for a combined rename + edit save", async () => {
+    // Passing newName sends the name on the PUT so the backend renames the
+    // lineage and publishes in one transaction.
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse(
+        { data: mkSchema("1234", "Ferienprogramm", 3, "x") },
+        { status: 201 },
+      );
+    });
+    await updateSchema(
+      "1234",
+      [blankField(0)],
+      {},
+      undefined,
+      "Ferienprogramm",
+    );
+    expect(seenBody).toContain(`"name":"Ferienprogramm"`);
+    expect(seenBody).toContain(`"fields":[`);
+  });
+
+  it("translates the name-collision code to a German message", async () => {
+    // A combined save that collides on the new name comes back as the same
+    // 409 + code the standalone rename returns.
+    mockFetch(async () =>
+      jsonResponse(
+        { error: "name exists", code: "enrollment.schema_name_exists" },
+        { status: 409 },
+      ),
+    );
+    await expect(
+      updateSchema("1234", [], {}, undefined, "Schon vergeben"),
+    ).rejects.toThrow(/bereits ein Formular mit diesem Namen/);
+  });
+
   it("translates schema validation errors on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse({ error: "invalid schema" }, { status: 400 }),

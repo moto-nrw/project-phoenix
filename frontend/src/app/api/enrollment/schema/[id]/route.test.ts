@@ -93,6 +93,31 @@ describe("PUT /api/enrollment/schema/[id]", () => {
     >;
     expect("legal_blocks" in forwarded).toBe(false);
   });
+
+  it("forwards name for a combined rename + edit save", async () => {
+    // The name rides along on the PUT so the backend renames + publishes in
+    // one transaction; the proxy must not drop it.
+    await PUT(putRequest({ name: "Ferienprogramm", fields: [] }), context());
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const forwarded = JSON.parse(init.body as string) as Record<
+      string,
+      unknown
+    >;
+    expect(forwarded.name).toBe("Ferienprogramm");
+  });
+
+  it("omits name on a content-only save", async () => {
+    // Absent name = pure content edit; the backend keeps the lineage name.
+    await PUT(putRequest({ fields: [] }), context());
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const forwarded = JSON.parse(init.body as string) as Record<
+      string,
+      unknown
+    >;
+    expect("name" in forwarded).toBe(false);
+  });
 });
 
 describe("PATCH /api/enrollment/schema/[id]", () => {
