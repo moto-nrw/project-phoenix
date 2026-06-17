@@ -277,6 +277,21 @@ describe("applyOptimisticSchemaUpdate", () => {
     expect(items[1]!.is_default).toBe(true);
   });
 
+  it("keeps is_default when the new value equals the registry default", () => {
+    // Boolean toggled away from default (false) to true, then back to false.
+    // Toggling back to the default must restore the "Standard" badge without
+    // waiting for a refetch (issue #1680).
+    const schema = makeSchema([
+      makeItem("a", { type: "boolean", value: true }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", false);
+
+    const item = next.tabs[0]!.categories[0]!.items[0]!;
+    expect(item.value).toBe(false);
+    expect(item.is_default).toBe(true);
+  });
+
   it("masks password fields with bullets instead of leaking the cleartext", () => {
     const schema = makeSchema([
       makeItem("pw", { type: "password", value: "" }),

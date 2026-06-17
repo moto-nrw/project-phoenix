@@ -60,9 +60,14 @@ func buildSchemaWithScope(
 			continue
 		}
 
-		// Determine if this is using the default (no tenant DB override exists)
+		// Determine if this is using the default. A setting is "default" when no
+		// tenant override exists OR the override happens to equal the registry
+		// default. The value-based check matters for boolean toggles: they have
+		// no reset button, so toggling back to the default value would otherwise
+		// leave is_default false forever (issue #1680). jsonValuesEqual handles
+		// the JSONB roundtrip (float64 vs int) and type-correct comparison.
 		hasOverride, _ := svc.HasTenantOverride(ctx, key)
-		isDefault := !hasOverride
+		isDefault := !hasOverride || jsonValuesEqual(value, def.Default)
 
 		// Mask password values (only when actually set, not empty defaults)
 		displayValue := value

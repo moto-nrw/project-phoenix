@@ -139,9 +139,18 @@ export function applyOptimisticSchemaUpdate(
         ...cat,
         items: cat.items.map((item) => {
           const optimisticValue = item.type === "password" ? "••••••" : value;
+          // Match the backend's value-based is_default (issue #1680): a value
+          // equal to the registry default still counts as "default", so the
+          // "Standard" badge reappears without a refetch flicker.
+          const optimisticIsDefault =
+            JSON.stringify(value) === JSON.stringify(item.default);
           const updated =
             item.key === key
-              ? { ...item, value: optimisticValue, is_default: false }
+              ? {
+                  ...item,
+                  value: optimisticValue,
+                  is_default: optimisticIsDefault,
+                }
               : item;
           return { ...updated, visible: evaluateVisibility(updated) };
         }),

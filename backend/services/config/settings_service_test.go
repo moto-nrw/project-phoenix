@@ -359,6 +359,98 @@ func TestGetSchema_ReturnsGroupedSettings(t *testing.T) {
 	assert.Len(t, schema.Tabs[0].Categories[0].Items, 2)
 }
 
+// findSchemaItem returns the resolved setting with the given key, or nil.
+func findSchemaItem(schema *configSvc.SettingsSchema, key string) *configSvc.ResolvedSetting {
+	for _, tab := range schema.Tabs {
+		for _, cat := range tab.Categories {
+			for _, item := range cat.Items {
+				if item.Key == key {
+					return item
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// is_default must be value-based, not just override-existence-based (issue
+// #1680). Boolean toggles have no reset button, so an override row equal to the
+// registry default has to still report is_default=true.
+func TestGetSchema_IsDefault_NoOverride(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	svc := createService(newMockValueRepo(), &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.True(t, item.IsDefault, "no override should be default")
+}
+
+func TestGetSchema_IsDefault_BooleanOverrideEqualsDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.flag"] = &config.SettingValue{
+		SettingKey: "test.flag",
+		Value:      json.RawMessage(`false`),
+	}
+	repo.values["1:test.flag"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.True(t, item.IsDefault, "override equal to default must report is_default")
+}
+
+func TestGetSchema_IsDefault_BooleanOverrideDiffersFromDefault(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.flag", config.FieldBoolean, false)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.flag"] = &config.SettingValue{
+		SettingKey: "test.flag",
+		Value:      json.RawMessage(`true`),
+	}
+	repo.values["1:test.flag"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.flag")
+	require.NotNil(t, item)
+	assert.False(t, item.IsDefault, "override differing from default must not report is_default")
+}
+
+// JSONB numbers unmarshal as float64 while registry defaults are typically int.
+// The comparison must be type-correct (JSON-based), not a naive == (issue #1680).
+func TestGetSchema_IsDefault_NumberOverrideEqualsDefault_JSONBRoundtrip(t *testing.T) {
+	setupTest(t)
+	registerTestSetting("test.timeout", config.FieldNumber, 30)
+
+	repo := newMockValueRepo()
+	repo.values["1:test.timeout"] = &config.SettingValue{
+		SettingKey: "test.timeout",
+		Value:      json.RawMessage(`30`),
+	}
+	repo.values["1:test.timeout"].TenantID = 1
+
+	svc := createService(repo, &mockAuditRepo{})
+
+	schema, err := svc.GetSchema(tenantCtx(1), nil)
+	require.NoError(t, err)
+	item := findSchemaItem(schema, "test.timeout")
+	require.NotNil(t, item)
+	assert.True(t, item.IsDefault, "float64(30) override must equal int(30) default")
+}
+
 func TestGetSchema_FiltersByPermission(t *testing.T) {
 	setupTest(t)
 
