@@ -137,6 +137,7 @@ interface ProfileDropdownMenuProps {
   readonly onClose: () => void;
   readonly onLogout: () => void;
   readonly profileUrl?: string | null;
+  readonly profileLabel?: string;
 }
 
 export function ProfileDropdownMenu({
@@ -147,6 +148,7 @@ export function ProfileDropdownMenu({
   onClose,
   onLogout,
   profileUrl,
+  profileLabel,
 }: ProfileDropdownMenuProps) {
   // parentNav carries German values in the staff/operator shells (via
   // ShellNavIntlProvider), so those portals render unchanged; only the parents
@@ -206,7 +208,7 @@ export function ProfileDropdownMenu({
               className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
             >
               <ProfileIcon />
-              {t("profile")}
+              {profileLabel ?? t("profile")}
             </Link>
           )}
 
