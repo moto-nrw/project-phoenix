@@ -437,7 +437,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Alternativ kann eine PDF-Datei hinterlegt werden. Wird nur angezeigt, wenn der Schalter aktiv ist und Text oder Datei vorhanden ist.",
+		Description:     "Lege fest, ob Eltern die AGB als Text im Formular lesen oder als PDF öffnen. Über „AGB überarbeiten“ kannst du die Quelle wechseln, den Text bearbeiten oder die PDF-Datei austauschen. Wenn „Text eingeben“ gewählt ist, wird dieser Text im Formular angezeigt.",
 		Type:            config.FieldTextarea,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -451,7 +451,7 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBDocumentURL,
 		Label:           "AGB-Datei (Anmeldeformular)",
-		Description:     "Öffentlich abrufbare PDF-Datei mit AGB, Teilnahmebedingungen oder Ganztag Info-Brief. Wird über den Datei-Upload im AGB-Textfeld gepflegt.",
+		Description:     "Öffentlich abrufbare PDF-Datei mit AGB, Teilnahmebedingungen oder Ganztag Info-Brief. Wird angezeigt, wenn als Quelle PDF gewählt ist.",
 		Type:            config.FieldText,
 		Default:         "",
 		ReadPermission:  "config:read",
@@ -460,6 +460,26 @@ func registerEnrollmentLegalTexts() {
 		Category:        "rechtstexte",
 		SortOrder:       80,
 		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalAGBDisplayMode,
+		Label:           "AGB-Quelle (Anmeldeformular)",
+		Description:     "Legt fest, ob im Anmeldeformular der eingegebene AGB-Text oder ein PDF-Link angezeigt wird.",
+		Type:            config.FieldSelect,
+		Default:         config.EnrollmentLegalAGBDisplayModeText,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       80,
+		DependsOn:       dependsOnEnabled,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Text eingeben", Value: config.EnrollmentLegalAGBDisplayModeText},
+				{Label: "PDF-Datei hochladen", Value: config.EnrollmentLegalAGBDisplayModePDF},
+			},
+		},
 	})
 
 	config.Register(config.Definition{

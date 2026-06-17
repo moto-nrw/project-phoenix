@@ -20,6 +20,7 @@ import (
 type PublicLegalTextsResponse struct {
 	AGB            string `json:"agb"`
 	AGBDocumentURL string `json:"agb_document_url"`
+	AGBDisplayMode string `json:"agb_display_mode"`
 	DSGVO          string `json:"dsgvo"`
 	EmailContact   string `json:"email_contact"`
 	Photo          string `json:"photo"`
@@ -90,6 +91,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 			}
 			out.AGB = texts.AGB
 			out.AGBDocumentURL = texts.AGBDocumentURL
+			out.AGBDisplayMode = texts.AGBDisplayMode
 			out.DSGVO = texts.DSGVO
 			out.EmailContact = texts.EmailContact
 			out.Photo = texts.Photo

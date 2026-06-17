@@ -2122,6 +2122,7 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
   return {
     agb: blocks.find((block) => block.key === "agb")?.text ?? "",
     agb_document_url: "",
+    agb_display_mode: "text",
     dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
     email_contact:
       blocks.find((block) => block.key === "email_contact")?.text ?? "",

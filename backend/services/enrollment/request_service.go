@@ -241,6 +241,7 @@ type RequestService interface {
 type LegalTexts struct {
 	AGB                 string
 	AGBDocumentURL      string
+	AGBDisplayMode      string
 	DSGVO               string
 	EmailContact        string
 	Photo               string
@@ -1736,6 +1737,10 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve AGB legal document: %w", err)
 	}
+	agbDisplayMode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDisplayMode)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve AGB legal display mode: %w", err)
+	}
 	dsgvo, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalDSGVOText)
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve DSGVO legal text: %w", err)
@@ -1767,6 +1772,7 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	texts := LegalTexts{
 		AGB:                 strings.TrimSpace(agb),
 		AGBDocumentURL:      strings.TrimSpace(agbDocumentURL),
+		AGBDisplayMode:      legalAGBDisplayMode(strings.TrimSpace(agbDisplayMode)),
 		DSGVO:               strings.TrimSpace(dsgvo),
 		EmailContact:        strings.TrimSpace(emailContact),
 		Photo:               strings.TrimSpace(photo),
@@ -1827,10 +1833,7 @@ func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseI
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	blocks := make([]LegalBlock, 0, 4)
-	agbText := texts.AGB
-	if agbText == "" && texts.AGBDocumentURL != "" {
-		agbText = fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
-	}
+	agbText := legalAGBBlockText(texts)
 	if texts.TermsEnabled && agbText != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyAGB,
@@ -1880,6 +1883,25 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 		})
 	}
 	return blocks
+}
+
+func legalAGBDisplayMode(mode string) string {
+	if mode == configModel.EnrollmentLegalAGBDisplayModePDF {
+		return configModel.EnrollmentLegalAGBDisplayModePDF
+	}
+	return configModel.EnrollmentLegalAGBDisplayModeText
+}
+
+func legalAGBBlockText(texts LegalTexts) string {
+	switch legalAGBDisplayMode(texts.AGBDisplayMode) {
+	case configModel.EnrollmentLegalAGBDisplayModePDF:
+		if texts.AGBDocumentURL == "" {
+			return ""
+		}
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
+	default:
+		return texts.AGB
+	}
 }
 
 func publicEnrollmentLegalDocumentURL(storedURL string) string {

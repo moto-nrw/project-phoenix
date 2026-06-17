@@ -106,6 +106,35 @@ func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing
 	assert.Equal(t, enrollmentModels.ConsentKeyAGB, blocks[0].Key)
 }
 
+func TestBuildLegalBlocks_DefaultAGBSourceUsesTextWhenDocumentExists(t *testing.T) {
+	texts := LegalTexts{
+		AGB:            "AGB Text",
+		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
+		TermsEnabled:   true,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 1)
+	assert.Equal(t, "AGB Text", blocks[0].Text)
+}
+
+func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
+	texts := LegalTexts{
+		AGB:            "AGB Text",
+		AGBDocumentURL: "/uploads/enrollment-legal-documents/tenant-1.pdf",
+		AGBDisplayMode: configModel.EnrollmentLegalAGBDisplayModePDF,
+		TermsEnabled:   true,
+	}
+
+	blocks := buildLegalBlocks(texts)
+
+	require.Len(t, blocks, 1)
+	assert.NotContains(t, blocks[0].Text, "AGB Text")
+	assert.Contains(t, blocks[0].Text, "AGB-Dokument öffnen")
+	assert.Contains(t, blocks[0].Text, "/api/public/enrollment-legal-documents/tenant-1.pdf")
+}
+
 func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
 	texts := LegalTexts{
 		AGB:                 "AGB Text",

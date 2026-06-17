@@ -24,6 +24,7 @@ const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
 
 const HIDDEN_COMPANION_SETTINGS = new Set([
   "enrollment.legal_agb_document_url",
+  "enrollment.legal_agb_display_mode",
 ]);
 
 function shouldShowCategoryItem(

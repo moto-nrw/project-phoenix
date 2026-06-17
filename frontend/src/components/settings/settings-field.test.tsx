@@ -345,7 +345,7 @@ describe("SettingsField", () => {
 
     expect(
       getByText(
-        "Wird erst im Anmeldeformular angezeigt, wenn der passende Text oder eine PDF-Datei hinterlegt ist.",
+        "Wird erst im Anmeldeformular angezeigt, wenn der passende Text hinterlegt ist.",
       ),
     ).toBeDefined();
   });
