@@ -387,6 +387,7 @@ export interface PublicLegalBlock {
  */
 export interface PublicLegalTexts {
   agb: string;
+  agb_document_url?: string;
   dsgvo: string;
   email_contact: string;
   photo: string;

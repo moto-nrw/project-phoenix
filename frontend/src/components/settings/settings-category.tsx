@@ -22,11 +22,17 @@ const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
     "enrollment.legal_email_contact_enabled",
 };
 
+const HIDDEN_COMPANION_SETTINGS = new Set([
+  "enrollment.legal_agb_document_url",
+]);
+
 function shouldShowCategoryItem(
   item: ResolvedSetting,
   items: ResolvedSetting[],
 ): boolean {
   if (!item.visible) return false;
+  if (HIDDEN_COMPANION_SETTINGS.has(item.key)) return false;
+  if (item.key === "enrollment.legal_agb_text") return true;
   const toggleKey = ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY[item.key];
   if (!toggleKey) return true;
   const toggle = items.find((candidate) => candidate.key === toggleKey);
@@ -38,6 +44,7 @@ interface SettingsCategoryProps {
   readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSchemaRefresh?: () => void;
   // audience identifies who is viewing the settings page. Controls the
   // "auch von {other side} änderbar" hint on shared settings. Defaults
   // to "admin" for the tenant settings page; the operator page passes
@@ -54,6 +61,7 @@ export function SettingsCategory({
   highlightKey,
   onSave,
   onReset,
+  onSchemaRefresh,
   audience = "admin",
   revealFn,
 }: SettingsCategoryProps) {
@@ -79,6 +87,7 @@ export function SettingsCategory({
             highlighted={setting.key === highlightKey}
             onSave={onSave}
             onReset={onReset}
+            onSchemaRefresh={onSchemaRefresh}
             audience={audience}
             revealFn={revealFn}
           />

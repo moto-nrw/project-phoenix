@@ -240,6 +240,7 @@ type RequestService interface {
 // and the matching text is non-empty.
 type LegalTexts struct {
 	AGB                 string
+	AGBDocumentURL      string
 	DSGVO               string
 	EmailContact        string
 	Photo               string
@@ -1731,6 +1732,10 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve AGB legal text: %w", err)
 	}
+	agbDocumentURL, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve AGB legal document: %w", err)
+	}
 	dsgvo, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalDSGVOText)
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve DSGVO legal text: %w", err)
@@ -1761,6 +1766,7 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	}
 	texts := LegalTexts{
 		AGB:                 strings.TrimSpace(agb),
+		AGBDocumentURL:      strings.TrimSpace(agbDocumentURL),
 		DSGVO:               strings.TrimSpace(dsgvo),
 		EmailContact:        strings.TrimSpace(emailContact),
 		Photo:               strings.TrimSpace(photo),
@@ -1821,13 +1827,17 @@ func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseI
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	blocks := make([]LegalBlock, 0, 4)
-	if texts.TermsEnabled && texts.AGB != "" {
+	agbText := texts.AGB
+	if agbText == "" && texts.AGBDocumentURL != "" {
+		agbText = fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
+	}
+	if texts.TermsEnabled && agbText != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyAGB,
 			Kind:      "terms",
 			Title:     "AGB / Teilnahmebedingungen",
 			Label:     "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-			Text:      texts.AGB,
+			Text:      agbText,
 			Required:  true,
 			SortOrder: 10,
 			Source:    enrollmentModels.LegalBlockSourceStandard,
@@ -1870,6 +1880,15 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 		})
 	}
 	return blocks
+}
+
+func publicEnrollmentLegalDocumentURL(storedURL string) string {
+	const uploadPrefix = "/uploads/enrollment-legal-documents/"
+	const publicPrefix = "/api/public/enrollment-legal-documents/"
+	if strings.HasPrefix(storedURL, uploadPrefix) {
+		return publicPrefix + strings.TrimPrefix(storedURL, uploadPrefix)
+	}
+	return storedURL
 }
 
 func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []LegalBlock {

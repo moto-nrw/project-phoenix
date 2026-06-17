@@ -437,8 +437,22 @@ func registerEnrollmentLegalTexts() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalAGBText,
 		Label:           "AGB-Text (Anmeldeformular)",
-		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Wird nur angezeigt, wenn der Schalter aktiv ist und hier ein Text steht.",
+		Description:     "Allgemeine Geschäftsbedingungen, Teilnahmebedingungen oder Ganztag Info-Brief, denen Eltern beim Anmelden zustimmen. Markdown wird unterstützt (Überschriften, Fettdruck, Listen, Links). Alternativ kann eine PDF-Datei hinterlegt werden. Wird nur angezeigt, wenn der Schalter aktiv ist und Text oder Datei vorhanden ist.",
 		Type:            config.FieldTextarea,
+		Default:         "",
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "rechtstexte",
+		SortOrder:       80,
+		DependsOn:       dependsOnEnabled,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentLegalAGBDocumentURL,
+		Label:           "AGB-Datei (Anmeldeformular)",
+		Description:     "Öffentlich abrufbare PDF-Datei mit AGB, Teilnahmebedingungen oder Ganztag Info-Brief. Wird über den Datei-Upload im AGB-Textfeld gepflegt.",
+		Type:            config.FieldText,
 		Default:         "",
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",

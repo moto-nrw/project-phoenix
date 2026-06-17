@@ -547,6 +547,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
 	})
 
+	// Public enrollment legal document serving (no auth - parents read it before submitting).
+	a.Router.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
+	})
+
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 
 	// Mount API resources

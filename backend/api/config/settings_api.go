@@ -29,6 +29,11 @@ const (
 	// so files at exactly the advertised limit are not rejected.
 	maxLoginImageBody = maxLoginImageSize + 1024
 	loginImageDir     = "public/uploads/login-images"
+
+	maxLegalAGBDocumentSize = 10 * 1024 * 1024 // 10MB — legal PDFs can be longer than image assets
+	maxLegalAGBDocumentBody = maxLegalAGBDocumentSize + 4096
+	legalAGBDocumentDir     = "public/uploads/enrollment-legal-documents"
+	legalAGBDocumentPrefix  = "/uploads/enrollment-legal-documents/"
 )
 
 // errOperatorOnlyForTenant explains why a tenant admin may not read/write an
@@ -138,6 +143,12 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		r.With(settingsReadOrWrite, withTx).Get("/login-image", rs.getLoginImage)
 		r.With(settingsWrite).Post("/login-image", rs.uploadLoginImage)
 		r.With(settingsWrite).Delete("/login-image", rs.deleteLoginImage)
+
+		// AGB document writes manage a file-system side effect. Like login-image
+		// writes, they open their own tenant tx so file cleanup only runs after
+		// the DB write has committed.
+		r.With(settingsWrite).Post("/enrollment/legal-agb-document", rs.uploadEnrollmentLegalAGBDocument)
+		r.With(settingsWrite).Delete("/enrollment/legal-agb-document", rs.deleteEnrollmentLegalAGBDocument)
 	})
 
 	return r
@@ -386,6 +397,105 @@ func (rs *SettingsResource) deleteLoginImage(w http.ResponseWriter, r *http.Requ
 	common.RespondNoContent(w, r)
 }
 
+// --- Enrollment legal document handlers ---
+
+type legalAGBDocumentResponse struct {
+	DocumentURL string `json:"document_url"`
+}
+
+func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
+	uploaded, err := common.ParsePDFWithLimits(w, r, "document", maxLegalAGBDocumentSize, maxLegalAGBDocumentBody)
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	defer common.CloseFile(uploaded.File)
+
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	filePath, err := common.SavePDF(uploaded.File, legalAGBDocumentDir, fmt.Sprintf("%d", tenantID))
+	if err != nil {
+		render.Status(r, http.StatusInternalServerError)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	documentURL := legalAGBDocumentPrefix + filepath.Base(filePath)
+	claims := jwt.ClaimsFromCtx(r.Context())
+	changedBy := int64(claims.ID)
+	var oldURL string
+
+	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		resolvedOldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		oldURL = resolvedOldURL
+		if setErr := rs.settingsService.SetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, claims.Permissions); setErr != nil {
+			return setErr
+		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		return nil
+	})
+	if err != nil {
+		common.RemoveImage(filePath)
+		renderSettingsError(w, r, err)
+		return
+	}
+
+	if oldURL != "" {
+		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, legalAGBDocumentPrefix); resolveErr == nil {
+			common.RemoveImage(oldPath)
+		}
+	}
+
+	common.Respond(w, r, http.StatusOK, legalAGBDocumentResponse{DocumentURL: documentURL}, "AGB document uploaded successfully")
+}
+
+func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
+	tenantID := tenant.FromContext(r.Context())
+	if tenantID <= 0 {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	changedBy := int64(claims.ID)
+	var oldURL string
+
+	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		resolvedOldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
+		oldURL = resolvedOldURL
+		if resetErr := rs.settingsService.ResetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, claims.Permissions); resetErr != nil {
+			return resetErr
+		}
+		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		return nil
+	})
+	if err != nil {
+		renderSettingsError(w, r, err)
+		return
+	}
+
+	if oldURL != "" {
+		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, legalAGBDocumentPrefix); resolveErr == nil {
+			common.RemoveImage(oldPath)
+		}
+	}
+
+	common.RespondNoContent(w, r)
+}
+
 // --- Handler accessors for testing ---
 
 // GetSchema returns the getSchema handler for external test access.
@@ -408,6 +518,16 @@ func (rs *SettingsResource) UploadLoginImage() http.HandlerFunc { return rs.uplo
 
 // DeleteLoginImage returns the deleteLoginImage handler for external test access.
 func (rs *SettingsResource) DeleteLoginImage() http.HandlerFunc { return rs.deleteLoginImage }
+
+// UploadEnrollmentLegalAGBDocument returns the AGB document upload handler for external test access.
+func (rs *SettingsResource) UploadEnrollmentLegalAGBDocument() http.HandlerFunc {
+	return rs.uploadEnrollmentLegalAGBDocument
+}
+
+// DeleteEnrollmentLegalAGBDocument returns the AGB document delete handler for external test access.
+func (rs *SettingsResource) DeleteEnrollmentLegalAGBDocument() http.HandlerFunc {
+	return rs.deleteEnrollmentLegalAGBDocument
+}
 
 // --- Error rendering ---
 

@@ -345,7 +345,7 @@ describe("SettingsField", () => {
 
     expect(
       getByText(
-        "Wird erst im Anmeldeformular angezeigt, wenn der passende Text eingetragen ist.",
+        "Wird erst im Anmeldeformular angezeigt, wenn der passende Text oder eine PDF-Datei hinterlegt ist.",
       ),
     ).toBeDefined();
   });
@@ -382,7 +382,7 @@ describe("SettingsField", () => {
     fireEvent.change(textarea, { target: { value: "" } });
     expect(getByRole("button", { name: "Speichern" })).toBeDisabled();
     expect(document.body.textContent).toContain(
-      "Dieser Text ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.",
+      "Dieser Text oder eine PDF-Datei ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.",
     );
     expect(onSave).not.toHaveBeenCalled();
 

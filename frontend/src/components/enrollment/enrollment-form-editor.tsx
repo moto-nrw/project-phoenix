@@ -3816,7 +3816,11 @@ function standardLegalBlockEnabled(
   if (!legalTexts) return false;
   switch (key) {
     case "agb":
-      return legalTexts.terms_enabled && legalTexts.agb.trim() !== "";
+      return (
+        legalTexts.terms_enabled &&
+        (legalTexts.agb.trim() !== "" ||
+          (legalTexts.agb_document_url ?? "").trim() !== "")
+      );
     case "data_processing":
       return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
     case "photo":

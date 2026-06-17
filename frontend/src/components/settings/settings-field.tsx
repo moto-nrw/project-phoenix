@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Pencil } from "lucide-react";
+import { ExternalLink, FileUp, Pencil, Trash2 } from "lucide-react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -46,10 +46,14 @@ function toStr(v: unknown): string {
 }
 
 const REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR =
-  "Dieser Text ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.";
+  "Dieser Text oder eine PDF-Datei ist erforderlich, solange der Block im Anmeldeformular angezeigt wird.";
+
+const ENROLLMENT_LEGAL_AGB_TEXT_KEY = "enrollment.legal_agb_text";
+const ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY =
+  "enrollment.legal_agb_document_url";
 
 const ENROLLMENT_LEGAL_TEXT_KEYS = new Set([
-  "enrollment.legal_agb_text",
+  ENROLLMENT_LEGAL_AGB_TEXT_KEY,
   "enrollment.legal_dsgvo_text",
   "enrollment.legal_photo_text",
   "enrollment.legal_email_contact_text",
@@ -60,7 +64,7 @@ function isEnrollmentLegalTextKey(key: string) {
 }
 
 const ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY: Record<string, string> = {
-  "enrollment.legal_terms_enabled": "enrollment.legal_agb_text",
+  "enrollment.legal_terms_enabled": ENROLLMENT_LEGAL_AGB_TEXT_KEY,
   "enrollment.legal_dsgvo_enabled": "enrollment.legal_dsgvo_text",
   "enrollment.legal_photo_enabled": "enrollment.legal_photo_text",
   "enrollment.legal_email_contact_enabled":
@@ -68,7 +72,7 @@ const ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY: Record<string, string> = {
 };
 
 const ENROLLMENT_LEGAL_TEXT_TO_TOGGLE_KEY: Record<string, string> = {
-  "enrollment.legal_agb_text": "enrollment.legal_terms_enabled",
+  [ENROLLMENT_LEGAL_AGB_TEXT_KEY]: "enrollment.legal_terms_enabled",
   "enrollment.legal_dsgvo_text": "enrollment.legal_dsgvo_enabled",
   "enrollment.legal_photo_text": "enrollment.legal_photo_enabled",
   "enrollment.legal_email_contact_text":
@@ -85,7 +89,10 @@ function validateLocally(
     const toggleSetting = categoryItems.find(
       (item) => item.key === legalToggleKey,
     );
-    if (toggleSetting?.value === true && toStr(value).trim() === "") {
+    if (
+      toggleSetting?.value === true &&
+      !hasEnrollmentLegalContent(setting.key, value, categoryItems)
+    ) {
       return REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR;
     }
   }
@@ -113,6 +120,7 @@ interface SettingsFieldProps {
   readonly highlighted?: boolean;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSchemaRefresh?: () => void;
   // audience controls the "auch von {other side} änderbar" hint shown
   // on shared settings. Defaults to "admin" (tenant settings page).
   readonly audience?: "admin" | "operator";
@@ -128,6 +136,7 @@ export function SettingsField({
   highlighted = false,
   onSave,
   onReset,
+  onSchemaRefresh,
   audience = "admin",
   revealFn,
 }: SettingsFieldProps) {
@@ -149,12 +158,23 @@ export function SettingsField({
   const [legalTextEditError, setLegalTextEditError] = useState<string | null>(
     null,
   );
+  const [legalDocumentSaving, setLegalDocumentSaving] = useState(false);
+  const [legalDocumentError, setLegalDocumentError] = useState<string | null>(
+    null,
+  );
   const legalActivationTextKey =
     ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
   const legalActivationTextSetting = legalActivationTextKey
     ? categoryItems.find((item) => item.key === legalActivationTextKey)
     : undefined;
   const isEnrollmentLegalTextSetting = isEnrollmentLegalTextKey(setting.key);
+  const legalDocumentSetting =
+    setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
+      ? categoryItems.find(
+          (item) => item.key === ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY,
+        )
+      : undefined;
+  const legalDocumentURL = toStr(legalDocumentSetting?.value).trim();
   const legalTextWarning = getEnrollmentLegalTextWarning(
     setting,
     categoryItems,
@@ -228,7 +248,7 @@ export function SettingsField({
 
   const handleLegalTextEditConfirm = useCallback(async () => {
     const trimmedText = legalTextEditDraft.trim();
-    if (trimmedText === "") {
+    if (!hasEnrollmentLegalContent(setting.key, trimmedText, categoryItems)) {
       setLegalTextEditError(REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR);
       return;
     }
@@ -245,7 +265,7 @@ export function SettingsField({
     } finally {
       setLegalTextEditSaving(false);
     }
-  }, [doSave, legalTextEditDraft]);
+  }, [categoryItems, doSave, legalTextEditDraft, setting.key]);
 
   // Immediate save — for booleans and selects.
   // If the setting requires confirmation on enable OR disable (some
@@ -294,17 +314,27 @@ export function SettingsField({
   const handleLegalActivationConfirm = useCallback(async () => {
     if (!legalActivationTextKey) return;
     const trimmedText = legalActivationText.trim();
-    if (trimmedText === "") {
-      setLegalActivationError("Bitte tragen Sie zuerst einen Text ein.");
+    if (
+      !hasEnrollmentLegalContent(
+        legalActivationTextKey,
+        trimmedText,
+        categoryItems,
+      )
+    ) {
+      setLegalActivationError(
+        "Bitte tragen Sie zuerst einen Text ein oder hinterlegen Sie eine PDF-Datei.",
+      );
       return;
     }
     setLegalActivationSaving(true);
     try {
-      const textError = await onSave(legalActivationTextKey, trimmedText);
-      if (textError) {
-        setLegalActivationError(textError);
-        toastError(textError);
-        return;
+      if (trimmedText !== "") {
+        const textError = await onSave(legalActivationTextKey, trimmedText);
+        if (textError) {
+          setLegalActivationError(textError);
+          toastError(textError);
+          return;
+        }
       }
       const toggleError = await doSave(true);
       if (toggleError) {
@@ -316,7 +346,56 @@ export function SettingsField({
     } finally {
       setLegalActivationSaving(false);
     }
-  }, [doSave, legalActivationText, legalActivationTextKey, onSave, toastError]);
+  }, [
+    categoryItems,
+    doSave,
+    legalActivationText,
+    legalActivationTextKey,
+    onSave,
+    toastError,
+  ]);
+
+  const handleLegalDocumentUpload = useCallback(
+    async (file: File | null) => {
+      if (!file) return;
+      setLegalDocumentSaving(true);
+      setLegalDocumentError(null);
+      try {
+        await uploadEnrollmentLegalAGBDocument(file);
+        toastSuccess("AGB-Datei gespeichert");
+        onSchemaRefresh?.();
+      } catch (uploadError) {
+        const message =
+          uploadError instanceof Error
+            ? uploadError.message
+            : "AGB-Datei konnte nicht hochgeladen werden.";
+        setLegalDocumentError(message);
+        toastError(message);
+      } finally {
+        setLegalDocumentSaving(false);
+      }
+    },
+    [onSchemaRefresh, toastError, toastSuccess],
+  );
+
+  const handleLegalDocumentDelete = useCallback(async () => {
+    setLegalDocumentSaving(true);
+    setLegalDocumentError(null);
+    try {
+      await deleteEnrollmentLegalAGBDocument();
+      toastSuccess("AGB-Datei entfernt");
+      onSchemaRefresh?.();
+    } catch (deleteError) {
+      const message =
+        deleteError instanceof Error
+          ? deleteError.message
+          : "AGB-Datei konnte nicht entfernt werden.";
+      setLegalDocumentError(message);
+      toastError(message);
+    } finally {
+      setLegalDocumentSaving(false);
+    }
+  }, [onSchemaRefresh, toastError, toastSuccess]);
 
   const handleConfirm = useCallback(async () => {
     setConfirmOpen(false);
@@ -438,6 +517,11 @@ export function SettingsField({
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {legalDocumentError && (
+          <p className="mt-1 text-xs font-medium text-red-600">
+            {legalDocumentError}
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
@@ -446,6 +530,11 @@ export function SettingsField({
               localValue,
               setting.writable,
               handleOpenLegalTextEdit,
+              setting.key,
+              legalDocumentURL,
+              legalDocumentSaving,
+              handleLegalDocumentUpload,
+              handleLegalDocumentDelete,
             )
           : renderField(
               setting,
@@ -523,12 +612,18 @@ export function SettingsField({
         confirmText="Aktivieren"
         cancelText="Abbrechen"
         isConfirmLoading={legalActivationSaving}
-        isConfirmDisabled={legalActivationText.trim() === ""}
+        isConfirmDisabled={
+          !hasEnrollmentLegalContent(
+            legalActivationTextKey ?? "",
+            legalActivationText,
+            categoryItems,
+          )
+        }
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-600">
             Dieser Block erscheint im Anmeldeformular, sobald er aktiviert ist
-            und ein Text hinterlegt wurde.
+            und ein Text oder eine PDF-Datei hinterlegt wurde.
           </p>
           <label className="block">
             <span className="text-sm font-medium text-gray-800">
@@ -566,7 +661,13 @@ export function SettingsField({
         confirmText="Speichern"
         cancelText="Abbrechen"
         isConfirmLoading={legalTextEditSaving}
-        isConfirmDisabled={legalTextEditDraft.trim() === ""}
+        isConfirmDisabled={
+          !hasEnrollmentLegalContent(
+            setting.key,
+            legalTextEditDraft,
+            categoryItems,
+          )
+        }
       >
         <div className="space-y-3">
           <label className="block">
@@ -583,7 +684,12 @@ export function SettingsField({
               className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
             />
           </label>
-          {(legalTextEditDraft.trim() === "" || legalTextEditError) && (
+          {(!hasEnrollmentLegalContent(
+            setting.key,
+            legalTextEditDraft,
+            categoryItems,
+          ) ||
+            legalTextEditError) && (
             <p className="text-xs font-medium text-red-600">
               {legalTextEditError ?? REQUIRED_ENROLLMENT_LEGAL_TEXT_ERROR}
             </p>
@@ -604,6 +710,32 @@ function legalActivationTitle(label: string) {
     .replace(" anzeigen", "")} aktivieren`;
 }
 
+function legalDocumentURLFromItems(categoryItems: ResolvedSetting[]): string {
+  return toStr(
+    categoryItems.find(
+      (item) => item.key === ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY,
+    )?.value,
+  ).trim();
+}
+
+function hasEnrollmentLegalContent(
+  textKey: string,
+  textValue: unknown,
+  categoryItems: ResolvedSetting[],
+): boolean {
+  if (toStr(textValue).trim() !== "") return true;
+  if (textKey !== ENROLLMENT_LEGAL_AGB_TEXT_KEY) return false;
+  return legalDocumentURLFromItems(categoryItems) !== "";
+}
+
+function publicLegalDocumentURL(storedURL: string): string {
+  const prefix = "/uploads/enrollment-legal-documents/";
+  if (storedURL.startsWith(prefix)) {
+    return `/api/public/enrollment-legal-documents/${storedURL.slice(prefix.length)}`;
+  }
+  return storedURL;
+}
+
 function getEnrollmentLegalTextWarning(
   setting: ResolvedSetting,
   categoryItems: ResolvedSetting[],
@@ -612,8 +744,10 @@ function getEnrollmentLegalTextWarning(
   const textKey = ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key];
   if (!textKey) return null;
   const textSetting = categoryItems.find((item) => item.key === textKey);
-  if (toStr(textSetting?.value).trim() !== "") return null;
-  return "Wird erst im Anmeldeformular angezeigt, wenn der passende Text eingetragen ist.";
+  if (hasEnrollmentLegalContent(textKey, textSetting?.value, categoryItems)) {
+    return null;
+  }
+  return "Wird erst im Anmeldeformular angezeigt, wenn der passende Text oder eine PDF-Datei hinterlegt ist.";
 }
 
 function getEnrollmentLegalStoredTextStatus(
@@ -624,21 +758,33 @@ function getEnrollmentLegalStoredTextStatus(
   const textKey = ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key];
   if (!textKey) return null;
   const textSetting = categoryItems.find((item) => item.key === textKey);
-  if (toStr(textSetting?.value).trim() === "") return null;
-  return "Text ist gespeichert, wird aber nicht angezeigt.";
+  if (!hasEnrollmentLegalContent(textKey, textSetting?.value, categoryItems)) {
+    return null;
+  }
+  return textKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY
+    ? "Text oder Datei ist gespeichert, wird aber nicht angezeigt."
+    : "Text ist gespeichert, wird aber nicht angezeigt.";
 }
 
 function renderEnrollmentLegalTextEditor(
   value: unknown,
   writable: boolean,
   onEdit: () => void,
+  settingKey: string,
+  documentURL: string,
+  documentSaving: boolean,
+  onDocumentUpload: (file: File | null) => void,
+  onDocumentDelete: () => void,
 ) {
   const preview = toStr(value).trim();
+  const isAGB = settingKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY;
+  const hasDocument = documentURL !== "";
+  const hasContent = preview !== "" || hasDocument;
   return (
-    <div className="w-full sm:w-96">
+    <div className="w-full space-y-2 sm:w-96">
       <div
         className={`relative min-h-24 overflow-hidden rounded-lg border text-sm leading-6 ${
-          preview
+          hasContent
             ? "border-gray-100 bg-gray-50 text-gray-700"
             : "border-amber-200 bg-amber-50 text-amber-800"
         }`}
@@ -657,12 +803,115 @@ function renderEnrollmentLegalTextEditor(
           <p className="max-h-40 overflow-y-auto py-2 pr-12 pl-3 whitespace-pre-wrap">
             {preview}
           </p>
+        ) : hasDocument ? (
+          <p className="py-2 pr-12 pl-3">
+            PDF-Datei hinterlegt. Optional kann zusätzlich ein Text eingetragen
+            werden.
+          </p>
         ) : (
           <p className="py-2 pr-12 pl-3">Noch kein Text hinterlegt.</p>
         )}
       </div>
+      {isAGB && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <label
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-[#5080D8]/5 px-2.5 py-1.5 font-medium text-[#4070C8] transition-colors hover:bg-[#5080D8]/10 ${
+              !writable || documentSaving
+                ? "pointer-events-none opacity-50"
+                : ""
+            }`}
+          >
+            <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              disabled={!writable || documentSaving}
+              onChange={(event) => {
+                onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
+          {hasDocument && (
+            <a
+              href={publicLegalDocumentURL(documentURL)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Öffnen</span>
+            </a>
+          )}
+          {hasDocument && writable && (
+            <button
+              type="button"
+              onClick={onDocumentDelete}
+              disabled={documentSaving}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 px-2.5 py-1.5 font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Entfernen</span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+async function uploadEnrollmentLegalAGBDocument(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("document", file);
+
+  const response = await fetch("/api/settings/enrollment/legal-agb-document", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await legalDocumentErrorMessage(response));
+  }
+
+  const result = (await response.json()) as {
+    data?: { document_url?: string };
+  };
+  const documentURL = result.data?.document_url;
+  if (!documentURL) {
+    throw new Error("AGB-Datei konnte nicht hochgeladen werden.");
+  }
+  return documentURL;
+}
+
+async function deleteEnrollmentLegalAGBDocument(): Promise<void> {
+  const response = await fetch("/api/settings/enrollment/legal-agb-document", {
+    method: "DELETE",
+  });
+
+  if (!response.ok && response.status !== 204) {
+    throw new Error(await legalDocumentErrorMessage(response));
+  }
+}
+
+async function legalDocumentErrorMessage(response: Response): Promise<string> {
+  if (response.status === 413) {
+    return "Die PDF-Datei darf maximal 10 MB groß sein.";
+  }
+  if (response.status === 415) {
+    return "Bitte eine PDF-Datei hochladen.";
+  }
+  if (response.status === 403) {
+    return "Für AGB-Dateien ist die Berechtigung für rechtliche Einstellungen erforderlich.";
+  }
+  try {
+    const body = (await response.json()) as { error?: string };
+    if (body.error) return body.error;
+  } catch {
+    // Fall through to generic copy.
+  }
+  return "AGB-Datei konnte nicht gespeichert werden.";
 }
 
 function renderField(
