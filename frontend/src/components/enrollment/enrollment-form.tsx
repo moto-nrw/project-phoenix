@@ -35,7 +35,7 @@ import {
   type ConditionContext,
 } from "~/lib/enrollment-field-visibility";
 import ReactMarkdown, { type Components } from "react-markdown";
-import { Modal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
@@ -56,6 +56,12 @@ const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 
 interface ChildDraft {
+  // Stable, client-only identity for React list keys. Never sent to the
+  // backend (payload mapping picks fields explicitly). Without it the
+  // children list keyed by array index would leak a card's local view state
+  // (uniform toggle, expanded days) onto a different child when a slot is
+  // removed from the middle of the list.
+  clientId: string;
   first_name: string;
   last_name: string;
   date_of_birth: string;
@@ -1173,7 +1179,7 @@ export function EnrollmentForm({
 
         {children.map((child, i) => (
           <div
-            key={i}
+            key={child.clientId}
             className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
           >
             <div className="flex items-center justify-between gap-3">
@@ -1533,8 +1539,21 @@ export function EnrollmentForm({
   );
 }
 
+// Monotonic source for brand-new ChildDraft.clientId values. Saved edit-draft
+// children derive their keys from the persisted child id so rebuilding the
+// same draft after offerings load does not remount each card.
+let childDraftSeq = 0;
+function nextChildClientId(): string {
+  return `child-${childDraftSeq++}`;
+}
+
+function savedChildClientId(childID: string): string {
+  return `draft-child:${childID}`;
+}
+
 function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
   return {
+    clientId: nextChildClientId(),
     first_name: "",
     last_name: "",
     date_of_birth: "",
@@ -1562,6 +1581,7 @@ function draftChildren(
       offeringDays[row.offering_id] = new Set(row.selected_days);
     }
     return {
+      clientId: savedChildClientId(child.id),
       first_name: child.first_name,
       last_name: child.last_name,
       date_of_birth: child.date_of_birth,
@@ -3041,6 +3061,22 @@ function WeekdayMultiModeInput({
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
   );
+  // Opt-in convenience: pick the allowed ways home once and apply them to
+  // every care day. The stored value stays per-day (each day gets the same
+  // array), so backend, validation, and pruning are untouched. Always starts
+  // in the per-day view; the parent flips it on explicitly via the toggle.
+  const [uniform, setUniform] = useState(false);
+  // The shared selection while uniform is on. This is the source of truth for
+  // the uniform block (rather than re-deriving it from the per-day payload),
+  // so the choice survives even when the entire care-day set is swapped out
+  // from under it -- a payload-derived value would read empty once its source
+  // days disappear and silently reset to nothing.
+  const [uniformSelection, setUniformSelection] = useState<
+    DepartureModeValue[]
+  >([]);
+  // Open only when enabling uniform mode would discard divergent per-day
+  // choices (see toggleUniform).
+  const [confirmUniformOpen, setConfirmUniformOpen] = useState(false);
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
   const activeDays = daysToRender.filter(
@@ -3069,6 +3105,81 @@ function WeekdayMultiModeInput({
     };
     onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
   };
+  // The payload-derived shared selection: the first *populated* day's modes.
+  // Used only to decide whether enabling uniform is lossless and, if so, to
+  // seed the uniform state from the existing per-day data. The live uniform
+  // block reads `uniformSelection` (state), not this.
+  const payloadModes =
+    daysToRender.map((day) => modes[day]).find((m) => m && m.length > 0) ?? [];
+  // Switching into uniform mode is lossless only when every care day already
+  // holds the identical selection (including all-empty); the shared block then
+  // simply adopts that selection. join keys compare the pruned arrays.
+  const allDaysIdentical = daysToRender.every(
+    (day) => (modes[day] ?? []).join(",") === payloadModes.join(","),
+  );
+  // Fan the shared selection across the current care days whenever the payload
+  // falls out of sync with it -- e.g. a care day is added/removed elsewhere on
+  // the form after uniform was enabled. A newly added day starts empty, so
+  // without this the uniform block would claim coverage the payload doesn't
+  // have. Driven by string-signature deps (not the fresh-every-render `modes`
+  // /`daysToRender`/`onChange` references), so it fires only on a real change
+  // -- the selection, the day set, or the payload -- never on every render.
+  // The needsSync guard keeps it idempotent and self-terminating.
+  const uniformKey = uniformSelection.join(",");
+  const daysKey = daysToRender.join(",");
+  const modesKey = daysToRender
+    .map((day) => `${day}:${(modes[day] ?? []).join("|")}`)
+    .join(";");
+  useEffect(() => {
+    if (!uniform) return;
+    const needsSync = daysToRender.some(
+      (day) => (modes[day] ?? []).join(",") !== uniformKey,
+    );
+    if (!needsSync) return;
+    const nextRaw: Record<string, DepartureModeValue[]> = {};
+    for (const day of daysToRender) nextRaw[day] = uniformSelection;
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    // String-signature deps keep the effect from re-running every render while
+    // still reacting to every meaningful change. `modes`/`daysToRender`/
+    // `onChange`/`uniformSelection` are read from the current render's closure;
+    // they change identity every render, so depending on them directly would
+    // defeat the point of the signatures.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uniform, uniformKey, daysKey, modesKey]);
+  const enableUniform = () => {
+    setExpandedDays(new Set());
+    setUniformSelection([]);
+    setUniform(true);
+    // Clear divergent per-day data so the parent makes one fresh selection;
+    // the shared block then fans it out to every day via updateUniform.
+    onChange({});
+  };
+  const toggleUniform = (next: boolean) => {
+    if (!next) {
+      setUniform(false);
+      return;
+    }
+    // Enabling over already-uniform data is lossless: adopt the existing
+    // selection as the shared state and flip the view.
+    if (allDaysIdentical) {
+      setUniformSelection(payloadModes);
+      setUniform(true);
+      return;
+    }
+    // Enabling over divergent per-day choices would discard them silently;
+    // confirm first, then wipe in enableUniform.
+    setConfirmUniformOpen(true);
+  };
+  const updateUniform = (mode: DepartureModeValue) => {
+    const current = new Set(uniformSelection);
+    if (current.has(mode)) current.delete(mode);
+    else current.add(mode);
+    const arr = DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m));
+    setUniformSelection(arr);
+    const nextRaw: Record<string, DepartureModeValue[]> = {};
+    for (const day of daysToRender) nextRaw[day] = arr;
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+  };
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -3088,66 +3199,126 @@ function WeekdayMultiModeInput({
       </p>
       <div className="mt-3">
         {daysToRender.length > 0 ? (
-          <div className="grid grid-cols-5 gap-2">
-            {daysToRender.map((day) => {
-              const active = activeDays.includes(day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleDay(day)}
-                  className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
-                    active
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  {weekdayLabels[day] ?? day}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <label
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
+                uniform
+                  ? "border-gray-900 text-gray-900"
+                  : "border-gray-200 text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <Checkbox
+                checked={uniform}
+                onChange={(e) => toggleUniform(e.target.checked)}
+              />
+              <span>{tr("structured.weekdayMultiModeUniform")}</span>
+            </label>
+            {uniform ? (
+              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
+                <p className="mb-2 text-xs text-gray-500">
+                  {tr("structured.weekdayMultiModeUniformHint")}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                    const checked = uniformSelection.includes(mode);
+                    return (
+                      <label
+                        key={mode}
+                        className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
+                          checked
+                            ? "border-gray-900 text-gray-900"
+                            : "border-gray-200 text-gray-700 hover:border-gray-300"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onChange={() => updateUniform(mode)}
+                        />
+                        <span>{departureModeLabels[mode] ?? mode}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="mt-3 grid grid-cols-5 gap-2">
+                  {daysToRender.map((day) => {
+                    const active = activeDays.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleDay(day)}
+                        className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
+                          active
+                            ? "border-gray-900 bg-gray-900 text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {weekdayLabels[day] ?? day}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {activeDays.map((day) => (
+                    <div
+                      key={day}
+                      className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+                    >
+                      <div className="mb-2 text-xs font-semibold text-gray-700">
+                        {weekdayLabels[day] ?? day}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                          const checked = modes[day]?.includes(mode) ?? false;
+                          return (
+                            <label
+                              key={mode}
+                              className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
+                                checked
+                                  ? "border-gray-900 text-gray-900"
+                                  : "border-gray-200 text-gray-700 hover:border-gray-300"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onChange={() => updateDay(day, mode)}
+                              />
+                              <span>{departureModeLabels[mode] ?? mode}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         ) : (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
             {tr("structured.weekdayMultiModeNoDays")}
           </p>
         )}
-        <div className="mt-3 space-y-2">
-          {activeDays.map((day) => (
-            <div
-              key={day}
-              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-            >
-              <div className="mb-2 text-xs font-semibold text-gray-700">
-                {weekdayLabels[day] ?? day}
-              </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
-                  const checked = modes[day]?.includes(mode) ?? false;
-                  return (
-                    <label
-                      key={mode}
-                      className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                        checked
-                          ? "border-gray-900 text-gray-900"
-                          : "border-gray-200 text-gray-700 hover:border-gray-300"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onChange={() => updateDay(day, mode)}
-                      />
-                      <span>{departureModeLabels[mode] ?? mode}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
+      <ConfirmationModal
+        isOpen={confirmUniformOpen}
+        onClose={() => setConfirmUniformOpen(false)}
+        onConfirm={() => {
+          setConfirmUniformOpen(false);
+          enableUniform();
+        }}
+        title={tr("structured.weekdayMultiModeUniformConfirmTitle")}
+        confirmText={tr("structured.weekdayMultiModeUniformConfirmCta")}
+        cancelText={tr("structured.weekdayMultiModeUniformConfirmCancel")}
+        confirmButtonClass="bg-[#FF3130] hover:bg-[#FF3130]/90"
+      >
+        {tr("structured.weekdayMultiModeUniformConfirmBody")}
+      </ConfirmationModal>
     </fieldset>
   );
 }

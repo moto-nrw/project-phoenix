@@ -484,6 +484,12 @@
       "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Walks home”.",
       "weekdayMultiModeHelp": "Choose every way home that is allowed for your child on each care day.",
       "weekdayMultiModeNoDays": "Choose the care days first.",
+      "weekdayMultiModeUniform": "Same ways home for all care days",
+      "weekdayMultiModeUniformHint": "Make the selection once; it applies to every care day.",
+      "weekdayMultiModeUniformConfirmTitle": "Use one selection for all days?",
+      "weekdayMultiModeUniformConfirmBody": "You have chosen different ways home for individual care days. Turning on a shared selection deletes those per-day entries and you make the selection again.",
+      "weekdayMultiModeUniformConfirmCta": "Delete and continue",
+      "weekdayMultiModeUniformConfirmCancel": "Cancel",
       "departureModes": {
         "alone": "Walks home",
         "bus": "Bus",

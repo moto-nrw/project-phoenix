@@ -55,7 +55,23 @@ vi.mock("next-intl", async () => {
     string,
     unknown
   >;
-  const catalogs: Record<string, Record<string, unknown>> = { de, en };
+  // A German catalog with the weekday/departure label maps removed, exposed as
+  // a pseudo-locale. Selecting it via mockIntlLocale lets a test render with
+  // missing labels so the component's `labels[key] ?? key` fallbacks show the
+  // raw keys. Uses the same locale-switching path as the real "en" catalog.
+  const deNoLabels = structuredClone(de) as Record<string, unknown>;
+  const deNoLabelsEnrollment = deNoLabels.enrollmentForm as Record<
+    string,
+    unknown
+  >;
+  delete deNoLabelsEnrollment.weekdaysShort;
+  delete (deNoLabelsEnrollment.structured as Record<string, unknown>)
+    .departureModes;
+  const catalogs: Record<string, Record<string, unknown>> = {
+    de,
+    en,
+    "de-no-labels": deNoLabels,
+  };
   const currentCatalog = (): Record<string, unknown> =>
     catalogs[mockIntlLocale.value] ?? de;
   const resolve = (catalog: Record<string, unknown>, path: string): unknown =>
@@ -112,6 +128,7 @@ import type {
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import type {
+  EnrollmentEditDraft,
   MeProfileResponse,
   PublicCareOffering,
   SubmitEnrollmentPayload,
@@ -267,6 +284,32 @@ function offerings(): PublicCareOffering[] {
       capacity: 20,
     },
   ];
+}
+
+function editDraft(
+  children: { id: string; first_name: string; last_name: string }[],
+): EnrollmentEditDraft {
+  return {
+    request_id: "req-1",
+    status_token: "tok-1",
+    tenant_id: "1",
+    tenant_slug: "demo",
+    phase_id: "5",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Muster",
+    guardian_email: "mara@example.test",
+    guardian_phone: "+49 221 1234567",
+    consent_flags: {},
+    custom_data: {},
+    children: children.map((child) => ({
+      ...child,
+      date_of_birth: "2018-04-15",
+      target_grade_level: 2,
+      // A fixed Tue/Thu offering gives each child care days so the
+      // weekday_multi_mode field renders its controls.
+      offering_ids: ["12"],
+    })),
+  };
 }
 
 function profile(): MeProfileResponse {
@@ -923,13 +966,554 @@ describe("EnrollmentForm", () => {
     ).not.toBeInTheDocument();
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
     expect(within(group).getAllByRole("button")).toHaveLength(5);
-    expect(within(group).queryAllByRole("checkbox")).toHaveLength(0);
+    // Only the "same ways home" toggle is present up front; no per-day mode
+    // checkboxes appear until a day is expanded.
+    expect(
+      within(group).queryByRole("checkbox", { name: "Bus" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
 
-    expect(within(group).getAllByRole("checkbox")).toHaveLength(3);
+    expect(
+      within(group).getByRole("checkbox", { name: "Geht zu Fuß" }),
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByRole("checkbox", { name: "Bus" }),
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    ).toBeInTheDocument();
     fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
     expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+  });
+
+  it("applies one selection to every care day when 'same ways home' is on", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformToggle = within(group).getByRole("checkbox", {
+      name: "Gleiche Heimwege für alle Betreuungstage",
+    });
+
+    // Turn the uniform switch on: the per-day weekday buttons disappear in
+    // favour of a single shared selection block.
+    fireEvent.click(uniformToggle);
+    expect(
+      within(group).queryByRole("button", { name: "Mo" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+
+    // Switch back to per-day to confirm the choice fanned out to all five days.
+    fireEvent.click(
+      within(group).getByRole("checkbox", {
+        name: "Gleiche Heimwege für alle Betreuungstage",
+      }),
+    );
+    const busBoxes = within(group).getAllByRole("checkbox", { name: "Bus" });
+    expect(busBoxes).toHaveLength(5);
+    busBoxes.forEach((box) => expect(box).toBeChecked());
+  });
+
+  it("deselecting a uniform mode clears it from every care day", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+
+    const bus = () => within(group).getByRole("checkbox", { name: "Bus" });
+    fireEvent.click(bus());
+    expect(bus()).toBeChecked();
+    // Toggle the same mode off: it must drop out of the shared selection.
+    fireEvent.click(bus());
+    expect(bus()).not.toBeChecked();
+
+    // Back in per-day view the cleared selection leaves no active care day.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      within(group).queryByRole("checkbox", { name: "Bus" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("confirms before discarding divergent per-day choices when enabling uniform", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    // Give a single day a selection so the days now diverge (Mo=Bus, rest none).
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+
+    // Enabling uniform must NOT switch immediately; it prompts first and the
+    // per-day weekday buttons stay visible.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      screen.getByText("Auswahl für alle Tage übernehmen?"),
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByRole("button", { name: "Mo" }),
+    ).toBeInTheDocument();
+
+    // Confirm: switch to the shared block with a clean slate (Bus unchecked).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Löschen und fortfahren" }),
+    );
+    expect(
+      within(group).queryByRole("button", { name: "Mo" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(group).getByRole("checkbox", { name: "Bus" }),
+    ).not.toBeChecked();
+
+    // Back in per-day view the prior Monday selection is gone.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      within(group).queryByRole("checkbox", { name: "Bus" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps per-day choices when the uniform confirmation is cancelled", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    // Cancel: stay in per-day view with Monday's selection intact.
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      within(group).getByRole("button", { name: "Mo" }),
+    ).toBeInTheDocument();
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+  });
+
+  it("toggling uniform adopts the selection when every day already matches", async () => {
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    // Spread Bus to every day via uniform, then drop back to per-day so all
+    // five days share the identical selection.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      within(group).getAllByRole("checkbox", { name: "Bus" }),
+    ).toHaveLength(5);
+
+    // Re-enabling uniform is lossless here, so no confirmation appears and the
+    // shared Bus selection is adopted as-is.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      screen.queryByText("Auswahl für alle Tage übernehmen?"),
+    ).not.toBeInTheDocument();
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+  });
+
+  it("prompts to pick care days before showing the home-route options", async () => {
+    // Real (non-preview) flow: offerings load but the child has selected none,
+    // so there are no care days and the field shows the placeholder instead of
+    // the uniform toggle or weekday buttons.
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm();
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(
+      within(group).getByText("Wählen Sie zuerst die Betreuungstage aus."),
+    ).toBeInTheDocument();
+    expect(within(group).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(within(group).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("fans the uniform selection onto a care day added after uniform was enabled", async () => {
+    // Real flow: the set of care days is driven by the selected offerings and
+    // can grow AFTER uniform was switched on. A newly added day starts empty,
+    // so without the sync effect the uniform block would claim coverage the
+    // payload doesn't have. Critically the new day ("Mo") sorts BEFORE the
+    // existing ones ("Di"/"Do"), which would make a naive "first day is the
+    // source of truth" implementation wipe the existing selection instead.
+    // Two fixed-day offerings drive the care days directly (no day picker).
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Block Di Do",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["tue", "thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    // Select the Di/Do block so the home-route field has two care days.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Di Do/ }));
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    // Turn uniform on (lossless: both days are empty) and choose Bus.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+
+    // Add the Mo block: "mon" sorts before the existing Di/Do and starts empty.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    // The uniform block still shows Bus (existing selection preserved, not
+    // wiped by the empty new day becoming the would-be "first day").
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+
+    // Switch back to per-day: Bus must now cover all three days (Mo/Di/Do).
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    const busBoxes = within(group).getAllByRole("checkbox", { name: "Bus" });
+    expect(busBoxes).toHaveLength(3);
+    busBoxes.forEach((box) => expect(box).toBeChecked());
+  });
+
+  it("keeps the uniform selection when the entire care-day set is swapped out", async () => {
+    // Real flow, harder than the "day added" case: every source day is removed
+    // and a disjoint new day appears (Di/Do -> Mo) while uniform is on. The
+    // shared selection lives in component state, not derived from the per-day
+    // payload, so it survives even though no source day remains to read it from
+    // -- a payload-derived value would read empty mid-swap and silently reset.
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Block Di Do",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["tue", "thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Di Do/ }));
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+
+    // Drop the source days FIRST (no care days at all), THEN add the disjoint
+    // Mo block. The selection has no per-day payload to be re-derived from at
+    // any point during the swap.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Di Do/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    // The shared Bus selection is intact and fanned onto the new day.
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    const busBoxes = within(group).getAllByRole("checkbox", { name: "Bus" });
+    expect(busBoxes).toHaveLength(1);
+    busBoxes.forEach((box) => expect(box).toBeChecked());
+  });
+
+  it("falls back to raw weekday and mode keys when the locale lacks labels", async () => {
+    // Render with a catalog missing the weekday/departure label maps so the
+    // component's `labels[key] ?? key` fallbacks render the raw keys in both
+    // the uniform and per-day views. `localizedCopy` routes the component
+    // through next-intl (the mocked catalog) instead of its bundled German
+    // copy, so the stripped pseudo-locale takes effect.
+    mockIntlLocale.value = "de-no-labels";
+
+    const previewSchema = schema();
+    previewSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+
+    renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema,
+      localizedCopy: true,
+    });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+
+    // Uniform view: mode checkbox falls back to the raw mode key.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    expect(
+      within(group).getByRole("checkbox", { name: "bus" }),
+    ).toBeInTheDocument();
+
+    // Per-day view: weekday button, day header, and mode checkbox fall back.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: uniformLabel }),
+    );
+    fireEvent.click(within(group).getByRole("button", { name: "mon" }));
+    expect(
+      within(group).getByRole("button", { name: "mon" }),
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByRole("checkbox", { name: "bus" }),
+    ).toBeInTheDocument();
+  });
+
+  it("prefills every child from an edit draft", async () => {
+    // Exercises the draftChildren rebuild path (initialDraft -> ChildDraft[]):
+    // each saved child must reappear with its own controlled values, and each
+    // gets a deterministic clientId so the cards don't share identity.
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+        { id: "c-2", first_name: "Berta", last_name: "Bach" },
+      ]),
+    });
+    await waitForLoaded();
+
+    // Index 0 is the guardian's own name field; the two children follow.
+    const firstNames = screen.getAllByLabelText("Vorname *");
+    const lastNames = screen.getAllByLabelText("Nachname *");
+    expect(firstNames).toHaveLength(3);
+    expect((firstNames[1] as HTMLInputElement).value).toBe("Anton");
+    expect((lastNames[1] as HTMLInputElement).value).toBe("Alster");
+    expect((firstNames[2] as HTMLInputElement).value).toBe("Berta");
+    expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
+  });
+
+  it("keeps each child's card state bound to that child when a sibling is removed", async () => {
+    // Regression for the array-index key bug: the per-child WeekdayMultiModeInput
+    // holds local-only state (the "same ways home" toggle). With index keys,
+    // removing the first child would shift the survivor onto the removed slot's
+    // React subtree and leak its toggle state. The stable clientId keeps each
+    // card's local state with its own child.
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "allowed_departure_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+        { id: "c-2", first_name: "Berta", last_name: "Bach" },
+      ]),
+    });
+    await waitForLoaded();
+
+    const uniformLabel = "Gleiche Heimwege für alle Betreuungstage";
+    let toggles = screen.getAllByRole("checkbox", { name: uniformLabel });
+    expect(toggles).toHaveLength(2);
+
+    // Turn uniform on for the SECOND child (Berta) only.
+    fireEvent.click(toggles[1]!);
+    toggles = screen.getAllByRole("checkbox", { name: uniformLabel });
+    expect(toggles[0]).not.toBeChecked();
+    expect(toggles[1]).toBeChecked();
+
+    // Remove the FIRST child (Anton). Berta becomes the only card.
+    fireEvent.click(screen.getAllByRole("button", { name: "Entfernen" })[0]!);
+
+    // Berta survived (index 0 is the guardian, index 1 the single remaining
+    // child) and her uniform toggle is still on -- it did not leak onto Anton's
+    // old slot and Anton's off-state did not bleed onto Berta.
+    const remaining = screen.getAllByLabelText("Vorname *");
+    expect(remaining).toHaveLength(2);
+    expect((remaining[1] as HTMLInputElement).value).toBe("Berta");
+    expect(screen.getByRole("checkbox", { name: uniformLabel })).toBeChecked();
   });
 
   it("uses injected submitter and skips captcha for authenticated parent paths", async () => {

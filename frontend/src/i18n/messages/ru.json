@@ -487,6 +487,12 @@
       "departureModeHelp": "Выберите для каждого дня недели, как ребёнок идет домой. По умолчанию: идет пешком.",
       "weekdayMultiModeHelp": "Выберите все разрешенные способы ухода домой для каждого дня посещения.",
       "weekdayMultiModeNoDays": "Сначала выберите дни посещения.",
+      "weekdayMultiModeUniform": "Одинаковые способы возвращения домой для всех дней посещения",
+      "weekdayMultiModeUniformHint": "Сделайте выбор один раз — он применится ко всем дням посещения.",
+      "weekdayMultiModeUniformConfirmTitle": "Применить один выбор ко всем дням?",
+      "weekdayMultiModeUniformConfirmBody": "Вы выбрали разные способы возвращения домой для отдельных дней посещения. Если включить общий выбор, эти данные по дням будут удалены, и вы сделаете выбор заново.",
+      "weekdayMultiModeUniformConfirmCta": "Удалить и продолжить",
+      "weekdayMultiModeUniformConfirmCancel": "Отмена",
       "departureModes": {
         "alone": "Идет пешком",
         "bus": "Автобус",
