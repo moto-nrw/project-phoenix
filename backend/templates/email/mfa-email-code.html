@@ -2,9 +2,7 @@
 {{template "header" .}}
 
 <div class="email-body">
-    <div class="brand">
-        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
-    </div>
+    {{template "moto-brand" .}}
     <h1>Ihr Anmeldecode</h1>
     <p>Hallo,</p>
     <p>jemand hat sich gerade mit Ihrer E-Mail-Adresse bei moto angemeldet und einen Bestätigungscode angefordert. Bitte geben Sie den folgenden Code in der moto-Anmeldemaske ein, um den Login abzuschließen:</p>
