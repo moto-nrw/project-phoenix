@@ -2569,6 +2569,38 @@ function FieldEditorRow({
     onChange({ options });
   };
 
+  // Local editing rows for the fixed pickup times: each row is one HH:MM
+  // time picker. Kept separate from field.allowed_times so a half-filled
+  // (empty) row can stay on screen while the admin picks a time; only the
+  // trimmed, de-duplicated, non-empty values are pushed up to the field.
+  const [allowedTimesRows, setAllowedTimesRows] = useState<string[]>(
+    () => field.allowed_times ?? [],
+  );
+
+  useEffect(() => {
+    setAllowedTimesRows(field.allowed_times ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.key, field.type]);
+
+  const commitAllowedTimes = (rows: string[]) => {
+    setAllowedTimesRows(rows);
+    const allowed_times = Array.from(
+      new Set(rows.map((time) => time.trim()).filter(Boolean)),
+    );
+    onChange({ allowed_times });
+  };
+
+  const updateAllowedTime = (index: number, value: string) => {
+    const rows = [...allowedTimesRows];
+    rows[index] = value;
+    commitAllowedTimes(rows);
+  };
+
+  const addAllowedTime = () => commitAllowedTimes([...allowedTimesRows, ""]);
+
+  const removeAllowedTime = (index: number) =>
+    commitAllowedTimes(allowedTimesRows.filter((_, i) => i !== index));
+
   return (
     <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start gap-3">
@@ -2802,6 +2834,55 @@ function FieldEditorRow({
                     className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   />
                 </label>
+              ) : null}
+
+              {field.target === "schedule.pickup" ? (
+                <div>
+                  <span className="text-xs font-medium text-gray-700">
+                    Feste Auswahlzeiten (optional)
+                  </span>
+                  <p className="mt-1 text-xs leading-5 text-gray-500">
+                    Ohne Zeiten geben Eltern die Uhrzeit frei ein. Sobald Zeiten
+                    hinterlegt sind, wählen Eltern pro Wochentag nur aus dieser
+                    Liste.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={addAllowedTime}
+                    disabled={disabled}
+                    className="mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Zeit hinzufügen
+                  </button>
+                  {allowedTimesRows.length > 0 ? (
+                    <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {allowedTimesRows.map((time, index) => (
+                        <li key={index} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={time}
+                            onChange={(event) =>
+                              updateAllowedTime(index, event.target.value)
+                            }
+                            disabled={disabled}
+                            aria-label={`Auswahlzeit ${index + 1}`}
+                            className="h-10 w-full min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeAllowedTime(index)}
+                            disabled={disabled}
+                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label={`Auswahlzeit ${index + 1} entfernen`}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -3716,7 +3797,7 @@ function getTargetOptions(
   return [];
 }
 
-function prepareFieldsForSave(fields: FormField[]): FormField[] {
+export function prepareFieldsForSave(fields: FormField[]): FormField[] {
   return fields.map((field, index) => {
     if (field.target) {
       // Suggested field: type/options/scope are fixed by the spec, but
@@ -3729,6 +3810,13 @@ function prepareFieldsForSave(fields: FormField[]): FormField[] {
         help_text: field.help_text?.trim() ?? "",
         required: Boolean(field.required),
         visible_when: field.visible_when ?? undefined,
+        // Carry the admin-configured fixed pickup times through; the
+        // rebuilt base field drops them otherwise. Only the pickup-times
+        // field may carry this (arrival stays free-entry, and the backend
+        // rejects allowed_times on any other target), so anything else is
+        // forced to undefined and omitted on serialize.
+        allowed_times:
+          field.target === "schedule.pickup" ? field.allowed_times : undefined,
       };
     }
     if (field.type === "information") {

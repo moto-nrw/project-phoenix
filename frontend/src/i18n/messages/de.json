@@ -464,6 +464,8 @@
       "removeNumber": "Nummer entfernen",
       "addPhone": "Telefonnummer hinzufügen",
       "emptySchedule": "Leere Felder bedeuten: an diesem Tag keine Angabe.",
+      "selectTime": "Bitte wählen",
+      "timeUnavailable": "nicht mehr verfügbar",
       "noneContact": "Noch kein zusätzlicher Kontakt eingetragen.",
       "relationship": "Beziehung (z. B. Oma, Onkel, Nachbarin)",
       "optionalEmail": "E-Mail (optional)",

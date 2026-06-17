@@ -146,6 +146,30 @@ func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentInvalidPhone)
 }
 
+func TestMapSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
+	// ErrPickupTimeNotAllowed wraps ErrInvalidSubmission, so its case must
+	// win over the generic branch to attach the stable code the parent form
+	// reads to localize the off-list pickup message.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapSubmitError(w, r, enrollmentService.ErrPickupTimeNotAllowed)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentPickupTimeNotAllowed)
+}
+
+func TestMapSubmitError_WrappedPickupTimeNotAllowed400WithCode(t *testing.T) {
+	// The service never returns the bare sentinel — it wraps it with the
+	// offending child index and field key. The mapper must still resolve the
+	// code via errors.Is traversal, not an identity check.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	wrapped := fmt.Errorf("%w: child 0 field %q: off-list",
+		enrollmentService.ErrPickupTimeNotAllowed, "schedule_pickup")
+	mapSubmitError(w, r, wrapped)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentPickupTimeNotAllowed)
+}
+
 func TestMapSubmitError_CareOfferingClosed400(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)

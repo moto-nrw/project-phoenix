@@ -121,10 +121,13 @@ vi.mock("~/lib/timetable-api", () => ({
 }));
 
 import { CareOfferingsEditor } from "./care-offerings-editor";
-import { EnrollmentFormEditor } from "./enrollment-form-editor";
+import {
+  EnrollmentFormEditor,
+  prepareFieldsForSave,
+} from "./enrollment-form-editor";
 import { PhasesEditor } from "./phases-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
-import type { FormSchema } from "~/lib/enrollment-form-schema-api";
+import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
@@ -1076,5 +1079,30 @@ describe("EnrollmentFormEditor", () => {
     );
 
     expect(await screen.findByText("Speichern kaputt")).toBeInTheDocument();
+  });
+});
+
+describe("prepareFieldsForSave — fixed pickup times", () => {
+  const pickupField = (overrides: Partial<FormField> = {}): FormField => ({
+    key: "schedule_pickup",
+    label: "Abholzeiten",
+    type: "weekday_schedule",
+    target: "schedule.pickup",
+    applies_to_child: true,
+    sort_order: 0,
+    ...overrides,
+  });
+
+  it("keeps allowed_times on the rebuilt pickup target field", () => {
+    const [out] = prepareFieldsForSave([
+      pickupField({ allowed_times: ["14:45", "16:00"] }),
+    ]);
+    expect(out?.allowed_times).toEqual(["14:45", "16:00"]);
+    expect(out?.target).toBe("schedule.pickup");
+  });
+
+  it("leaves allowed_times undefined when none configured", () => {
+    const [out] = prepareFieldsForSave([pickupField()]);
+    expect(out?.allowed_times).toBeUndefined();
   });
 });

@@ -466,6 +466,8 @@
       "removeNumber": "Remove number",
       "addPhone": "Add phone number",
       "emptySchedule": "Empty fields mean: no information for this day.",
+      "selectTime": "Please select",
+      "timeUnavailable": "no longer available",
       "noneContact": "No additional contact entered yet.",
       "relationship": "Relationship (e.g. grandma, uncle, neighbor)",
       "optionalEmail": "Email (optional)",

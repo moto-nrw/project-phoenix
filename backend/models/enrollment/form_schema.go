@@ -198,18 +198,24 @@ func (c *VisibilityCondition) Validate(appliesToChild bool) error {
 // row, additional students_guardians row, etc.). Type is constrained by
 // Target — see ReservedTargets for the allowed (target, type) pairs.
 type FormField struct {
-	Key         string               `json:"key"`
-	Label       string               `json:"label"`
-	Type        FormFieldType        `json:"type"`
-	Required    bool                 `json:"required,omitempty"`
-	HelpText    string               `json:"help_text,omitempty"`
-	Content     string               `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
-	Options     []FormFieldOption    `json:"options,omitempty"`
-	Validation  *FormFieldValidation `json:"validation,omitempty"`
-	SortOrder   int                  `json:"sort_order"`
-	AppliesToCh bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
-	Target      string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
-	VisibleWhen *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
+	Key      string            `json:"key"`
+	Label    string            `json:"label"`
+	Type     FormFieldType     `json:"type"`
+	Required bool              `json:"required,omitempty"`
+	HelpText string            `json:"help_text,omitempty"`
+	Content  string            `json:"content,omitempty"` // body text for FormFieldInfo blocks (plain text, newlines preserved); empty for all other types
+	Options  []FormFieldOption `json:"options,omitempty"`
+	// AllowedTimes constrains a FormFieldWeekdaySchedule field to a fixed
+	// list of HH:MM pickup times. Empty/absent = free time entry (the
+	// historical behaviour). When set, every per-weekday time a parent
+	// submits must be a member of this list. Only valid on a
+	// weekday_schedule field; rejected on every other type.
+	AllowedTimes []string             `json:"allowed_times,omitempty"`
+	Validation   *FormFieldValidation `json:"validation,omitempty"`
+	SortOrder    int                  `json:"sort_order"`
+	AppliesToCh  bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
+	Target       string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets
+	VisibleWhen  *VisibilityCondition `json:"visible_when,omitempty"`     // nil = always visible; otherwise show only when the condition matches
 }
 
 const CoreRequirementGuardianPhone = "guardian_phone"
@@ -385,6 +391,9 @@ func (f *FormField) validateInfo() error {
 	if f.Validation != nil {
 		return fmt.Errorf("information field %q must not declare validation", f.Key)
 	}
+	if len(f.AllowedTimes) > 0 {
+		return fmt.Errorf("information field %q must not declare allowed_times", f.Key)
+	}
 	return nil
 }
 
@@ -403,6 +412,32 @@ func (f *FormField) validateQuestion() error {
 	}
 	if f.Type != FormFieldSelect && len(f.Options) > 0 {
 		return fmt.Errorf("non-select field %q must not declare options", f.Key)
+	}
+
+	// AllowedTimes (fixed pickup times) is only meaningful on the pickup
+	// schedule field; everywhere else it would silently do nothing, so
+	// reject it. In particular the arrival schedule (schedule.arrival)
+	// stays free-entry by design. Each entry must be a unique HH:MM
+	// value; normalize (trim) in place so the stored schema is canonical.
+	if len(f.AllowedTimes) > 0 {
+		if f.Target != TargetSchedulePickup {
+			return fmt.Errorf("field %q: allowed_times is only valid on the pickup-times field", f.Key)
+		}
+		seen := make(map[string]bool, len(f.AllowedTimes))
+		for i, t := range f.AllowedTimes {
+			t = strings.TrimSpace(t)
+			if t == "" {
+				return fmt.Errorf("field %q: allowed_times must not contain empty entries", f.Key)
+			}
+			if _, err := time.Parse("15:04", t); err != nil {
+				return fmt.Errorf("field %q: allowed_times entry %q must be HH:MM", f.Key, t)
+			}
+			if seen[t] {
+				return fmt.Errorf("field %q: duplicate allowed_times entry %q", f.Key, t)
+			}
+			seen[t] = true
+			f.AllowedTimes[i] = t
+		}
 	}
 
 	// Structured types are only meaningful when paired with their
@@ -566,6 +601,32 @@ func (w WeekdaySchedule) Validate() error {
 		}
 		if _, err := time.Parse("15:04", hhmm); err != nil {
 			return fmt.Errorf("weekday %q time %q must be HH:MM", day, hhmm)
+		}
+	}
+	return nil
+}
+
+// ValidateAllowed checks the schedule is well-formed AND every set time is a
+// member of allowed (the field's configured fixed pickup times). Empty days
+// stay valid ("kein fester Eintrag"). Callers must skip this when allowed is
+// empty — an empty allowed list means "no restriction", not "nothing
+// permitted". Backs the server-side enforcement so a scripted client can't
+// bypass the fixed-times dropdown the public form renders.
+func (w WeekdaySchedule) ValidateAllowed(allowed []string) error {
+	if err := w.Validate(); err != nil {
+		return err
+	}
+	set := make(map[string]bool, len(allowed))
+	for _, t := range allowed {
+		set[strings.TrimSpace(t)] = true
+	}
+	for day, hhmm := range w {
+		hhmm = strings.TrimSpace(hhmm)
+		if hhmm == "" {
+			continue
+		}
+		if !set[hhmm] {
+			return fmt.Errorf("weekday %q time %q is not an allowed pickup time", day, hhmm)
 		}
 	}
 	return nil

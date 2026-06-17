@@ -532,3 +532,87 @@ func TestSanitizeVisibleAnswers_NilSchemaReturnsEmpty(t *testing.T) {
 	out := sanitizeVisibleAnswers(nil, false, map[string]any{"x": "y"}, fieldVisibilityContext{})
 	assert.Empty(t, out)
 }
+
+// ---- validateConstrainedSchedules ---------------------------------------
+
+func pickupSchedField() enrollmentModels.FormField {
+	return enrollmentModels.FormField{
+		Key: "pickup_times", Label: "Abholzeiten",
+		Type:        enrollmentModels.FormFieldWeekdaySchedule,
+		AppliesToCh: true, Target: enrollmentModels.TargetSchedulePickup,
+		AllowedTimes: []string{"14:45", "16:00"},
+	}
+}
+
+func TestValidateConstrainedSchedules_NilSchema(t *testing.T) {
+	s := &requestService{}
+	assert.NoError(t, s.validateConstrainedSchedules(nil, SubmitRequest{}, nil))
+}
+
+func TestValidateConstrainedSchedules_AcceptsListedTimes(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	req := SubmitRequest{Children: []SubmitChild{
+		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "14:45", "fri": "16:00"}}},
+	}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_RejectsOffListTime(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	req := SubmitRequest{Children: []SubmitChild{
+		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
+	}}
+	err := s.validateConstrainedSchedules(schema, req, nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrInvalidSubmission))
+	assert.Contains(t, err.Error(), "child 0")
+	assert.Contains(t, err.Error(), "not an allowed pickup time")
+}
+
+func TestValidateConstrainedSchedules_OffListWrapsPickupSentinel(t *testing.T) {
+	// The off-list rejection must carry the specific ErrPickupTimeNotAllowed
+	// identity (so the handler can attach a stable code) while still being
+	// part of the broad ErrInvalidSubmission category.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+	req := SubmitRequest{Children: []SubmitChild{
+		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
+	}}
+	err := s.validateConstrainedSchedules(schema, req, nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrPickupTimeNotAllowed))
+	assert.True(t, errors.Is(err, ErrInvalidSubmission))
+}
+
+func TestValidateConstrainedSchedules_NoRestrictionSkips(t *testing.T) {
+	// AllowedTimes empty → free entry → any well-formed time passes.
+	s := &requestService{}
+	field := pickupSchedField()
+	field.AllowedTimes = nil
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{field}}
+	req := SubmitRequest{Children: []SubmitChild{
+		{CustomData: map[string]any{"pickup_times": map[string]any{"mon": "15:00"}}},
+	}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
+	// A field hidden by its show-if condition is skipped — its answer is
+	// dropped before persistence, so an off-list value must not block submit.
+	s := &requestService{}
+	field := pickupSchedField()
+	field.VisibleWhen = &enrollmentModels.VisibilityCondition{
+		Source: enrollmentModels.ConditionSourceField, Field: "needs_pickup",
+		Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "needs_pickup", Label: "Wird abgeholt?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true},
+		field,
+	}}
+	req := SubmitRequest{Children: []SubmitChild{
+		{CustomData: map[string]any{"needs_pickup": false, "pickup_times": map[string]any{"mon": "15:00"}}},
+	}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
