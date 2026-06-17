@@ -34,6 +34,7 @@ import type { Student } from "@/lib/api";
 import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
+import { hasPermission } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -81,7 +82,7 @@ export default function StudentsPage() {
 
   const { success: toastSuccess, error: toastError } = useToast();
 
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
@@ -364,6 +365,7 @@ export default function StudentsPage() {
   }, [filteredStudents]);
 
   const canShowDetail = !loading && filteredStudents.length > 0;
+  const canViewEnrollments = hasPermission(session, "config:manage");
 
   const detailActions = selectedStudent ? (
     <button
@@ -445,6 +447,7 @@ export default function StudentsPage() {
             onArrivalDataChanged={handleArrivalChanged}
             groups={allGroups}
             onUpdateStudent={handleUpdateStudent}
+            canViewEnrollments={canViewEnrollments}
             detailActions={detailActions}
           />
         </div>

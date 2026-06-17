@@ -402,7 +402,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Kinderdetailansicht",
         icon: FileText,
         summary:
-          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen vier Tabs.",
+          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen die Tabs zur Kartei.",
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
@@ -412,6 +412,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
+          "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Die Angaben können dort auch exportiert werden.",
         ],
         callout: {
           title: "Krankmeldungen von Eltern",
@@ -419,7 +420,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten, Historie und Anmeldungen.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -807,6 +808,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Erlaubte Heimwege` wählen Eltern pro Betreuungstag alle zulässigen Wege aus, zum Beispiel zu Fuß, Bus oder Abholung; mehrere Optionen pro Tag sind möglich.",
           "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
+          "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
           "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",

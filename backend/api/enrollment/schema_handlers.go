@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -90,9 +91,14 @@ func (req *PublishSchemaRequest) Bind(_ *http.Request) error {
 }
 
 // UpdateSchemaRequest is the wire shape PUT /schema/{id} accepts.
-// Only the fields are mutable — name is inherited from the source
-// schema so all versions of a logical schema share the same name.
+// Name is optional: when present and different from the lineage's current
+// name, the handler renames the whole lineage AND publishes the new version
+// in one transaction (a combined "rename + edit" save), so a failed publish
+// rolls the rename back. When Name is absent, only the fields change and the
+// name is inherited from the source schema, keeping every version of a
+// logical schema under one shared name.
 type UpdateSchemaRequest struct {
+	Name             *string                            `json:"name,omitempty"`
 	Fields           []enrollmentModels.FormField       `json:"fields"`
 	CoreRequirements *enrollmentModels.CoreRequirements `json:"core_requirements,omitempty"`
 	LegalBlocks      *[]enrollmentModels.FormLegalBlock `json:"legal_blocks,omitempty"`
@@ -101,6 +107,21 @@ type UpdateSchemaRequest struct {
 func (req *UpdateSchemaRequest) Bind(_ *http.Request) error {
 	if req.Fields == nil {
 		req.Fields = []enrollmentModels.FormField{}
+	}
+	return nil
+}
+
+// RenameSchemaRequest is the wire shape PATCH /schema/{id} accepts. It
+// only renames the logical schema (all versions share one name) and
+// never publishes a new version or touches the form fields.
+type RenameSchemaRequest struct {
+	Name string `json:"name"`
+}
+
+func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		return errors.New("name is required")
 	}
 	return nil
 }
@@ -487,6 +508,17 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema published")
 }
 
+// renameFailure tags an error as originating from the lineage-rename step of
+// a combined rename+publish save (PUT /schema/{id}). It lets the handler map
+// a rename *infrastructure* failure (lock/read/exec) to a 5xx — matching the
+// dedicated PATCH rename handler — instead of letting it fall through to the
+// publish path's 400 contract. It unwraps so errors.Is still matches the
+// rename sentinels (name-exists, not-found).
+type renameFailure struct{ err error }
+
+func (e renameFailure) Error() string { return e.err.Error() }
+func (e renameFailure) Unwrap() error { return e.err }
+
 // updateSchema publishes a new version of an existing named schema.
 // PUT /schema/{id} — id refers to any prior version of the schema;
 // the new row inherits its name and is written with version+1.
@@ -516,6 +548,18 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 
 	var schema *enrollmentModels.FormSchema
 	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		// Combined "rename + edit" save: rename the lineage first, in the
+		// SAME transaction as the publish below. If the publish fails the
+		// whole tx rolls back, so the rename never commits on its own — no
+		// partial "renamed but content unchanged" state. RenameSchema is a
+		// no-op when the name is unchanged. A blank name is ignored (the
+		// dedicated PATCH route owns blank-name rejection).
+		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
+			if _, renameErr := rs.FormSchemaService.RenameSchema(ctx, id, *req.Name); renameErr != nil {
+				return renameFailure{err: renameErr}
+			}
+		}
+
 		var (
 			s        *enrollmentModels.FormSchema
 			innerErr error
@@ -531,6 +575,26 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return innerErr
 	})
 	if txErr != nil {
+		// A rename onto an existing name surfaces as a 409 with a stable code
+		// so the frontend shows "name already taken"; a missing lineage as a
+		// 404 — same as the PATCH route, regardless of which step raised it.
+		switch {
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNameExists):
+			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
+			return
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
+		// A rename failure beyond those sentinels is infrastructure (lock/read/
+		// exec), not a client error: map it to 5xx like the PATCH handler so it
+		// takes the normal error-logging/Sentry path. Publish errors keep the
+		// existing 400 contract (validation; shared with POST /schema).
+		var rf renameFailure
+		if errors.As(txErr, &rf) {
+			common.RenderError(w, r, common.ErrorInternalServer(txErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(txErr))
 		return
 	}
@@ -542,6 +606,52 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		slog.Int64("actor_account_id", int64(claims.ID)))
 
 	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema version added")
+}
+
+// renameSchema renames a logical schema (every version row sharing the
+// source's name) in place. PATCH /schema/{id} — id refers to any
+// version of the schema. Unlike updateSchema this publishes no new
+// version and leaves the form fields untouched.
+func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
+	if rs.FormSchemaService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))
+		return
+	}
+
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+		return
+	}
+
+	req := &RenameSchemaRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	var schema *enrollmentModels.FormSchema
+	txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		s, innerErr := rs.FormSchemaService.RenameSchema(ctx, id, req.Name)
+		schema = s
+		return innerErr
+	})
+	if txErr != nil {
+		switch {
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNameExists):
+			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
+			return
+		case errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(txErr))
+		return
+	}
+
+	// The service already logs the rename (old + new name) via its
+	// injected logger; no duplicate handler-level log here.
+	common.Respond(w, r, http.StatusOK, toFormSchemaResponse(schema), "Form schema renamed")
 }
 
 func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
@@ -580,6 +690,7 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 const (
 	ErrCodeSchemaHasPhases   = "enrollment.schema_has_phases"
 	ErrCodeSchemaHasRequests = "enrollment.schema_has_requests"
+	ErrCodeSchemaNameExists  = "enrollment.schema_name_exists"
 )
 
 // runInTenantTx wraps the request's tenant context in a tenant

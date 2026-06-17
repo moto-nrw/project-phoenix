@@ -15,6 +15,9 @@ const (
 	// the temporal span of the disclosed data — and metadata carries
 	// phase_id, format, request_count and child_count.
 	ResourceTypeEnrollmentPhaseExport = "enrollment_phase_export"
+	// ResourceTypeEnrollmentStudentExport records an export of enrollment
+	// answers attached to one student profile.
+	ResourceTypeEnrollmentStudentExport = "enrollment_student_export"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

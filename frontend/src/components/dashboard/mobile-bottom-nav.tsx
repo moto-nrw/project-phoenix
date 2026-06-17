@@ -163,10 +163,10 @@ interface AdditionalNavItem {
 }
 
 // Operator-mode overflow items, everything reachable from the sidebar on
-// desktop that isn't already a main bottom-nav slot. The 4 sibling Verwaltung
-// pages (Schulen/Konten/Geräte/Personen) belong here since the bottom nav has
-// only one "Verwaltung" slot that lands on /operator/organizations, and
-// Einstellungen is otherwise unreachable on mobile.
+// desktop that isn't already a main bottom-nav slot. The 5 sibling Verwaltung
+// pages (Schulen/Konten/Geräte/Personen/Unbekannte RFID) belong here since
+// the bottom nav has only one "Verwaltung" slot that lands on
+// /operator/organizations.
 const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   {
     href: "/operator/schools",
@@ -196,12 +196,6 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     href: "/operator/unregistered-tags",
     label: "Unbekannte RFID",
     iconKey: "security",
-    alwaysShow: true,
-  },
-  {
-    href: "/operator/settings",
-    label: "Einstellungen",
-    iconKey: "settings",
     alwaysShow: true,
   },
 ];

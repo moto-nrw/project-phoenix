@@ -898,9 +898,22 @@ type FormSchemaRepository interface {
 	ListByTenant(ctx context.Context) ([]*FormSchema, error)
 	NextVersion(ctx context.Context) (int, error)
 	NextVersionForName(ctx context.Context, name string) (int, error)
+	// ExistsByName reports whether any version row already carries name
+	// for the tenant in context. Used to reject a rename onto an existing
+	// logical schema before touching the unique index.
+	ExistsByName(ctx context.Context, name string) (bool, error)
 	DeactivatePrevious(ctx context.Context) error
 	UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error
+	// RenameByName renames every version of a logical schema in one
+	// atomic update, so the whole version lineage keeps a shared name.
+	// Callers must guard against colliding with an existing name first.
+	RenameByName(ctx context.Context, oldName, newName string) error
 	DeleteByName(ctx context.Context, name string) error
+	// LockLineages serializes lineage mutations (publish, rename, delete)
+	// for the tenant in context against one another, so a rename and a
+	// concurrent publish cannot split a version lineage. Transaction-scoped;
+	// the caller must already be inside the request's tenant transaction.
+	LockLineages(ctx context.Context) error
 }
 
 // SubmissionData is the reduced shape used by the legacy schema-service

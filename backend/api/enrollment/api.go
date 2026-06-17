@@ -110,6 +110,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
+			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
 
@@ -168,15 +169,20 @@ func (rs *Resource) Router() chi.Router {
 		// the frontend can still cleanly render the form.
 		r.Get("/me/profile", rs.getMyProfile)
 
-		// PR 8 admin review surface. config:read for browse,
-		// config:manage to apply decisions. Decision writes audit
+		// PR 8 admin review surface. config:read for queue browse;
+		// config:manage for detail, export and decisions because those
+		// expose or mutate full enrollment PII. Decision writes audit
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
 			})
+		})
+		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportStudentEnrollmentRequests)
 		})
 	})
 

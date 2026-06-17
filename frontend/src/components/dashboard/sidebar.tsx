@@ -270,15 +270,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   },
 ];
 
-const OPERATOR_BOTTOM_ITEM: NavItem = {
-  href: "/operator/settings",
-  label: "Einstellungen",
-  icon: navigationIcons.settings,
-  activeColor: "text-gray-500",
-  bottomPinned: true,
-  alwaysShow: true,
-};
-
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
   { href: "/database/students", label: "Kinder" },
@@ -797,13 +788,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       })),
     [],
   );
-  const resolvedOperatorBottomItem = useMemo(
-    () => ({
-      ...OPERATOR_BOTTOM_ITEM,
-      href: operatorPath(OPERATOR_BOTTOM_ITEM.href),
-    }),
-    [],
-  );
   const operatorSuggestionsHref = useMemo(
     () => operatorPath("/operator/suggestions"),
     [],
@@ -860,10 +844,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            {renderOperatorItem(resolvedOperatorBottomItem)}
           </nav>
         </div>
       </aside>
