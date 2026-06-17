@@ -27,10 +27,14 @@ import {
   Pencil,
   Plus,
   ShieldCheck,
+  TextCursorInput,
   Trash2,
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { FormModal } from "~/components/ui/form-modal";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
@@ -41,6 +45,7 @@ import {
   fetchPublicLegalTexts,
   latestSchemasByName,
   listSchemas,
+  renameSchema,
   updateSchema,
   RESERVED_TARGETS,
   type ConditionOperator,
@@ -296,6 +301,17 @@ const CORE_FIELDS: ReadonlyArray<CoreField> = [
   },
 ];
 
+// True when newName is a non-empty rename of schema's current name. The
+// single source of truth for "is this a rename?" shared by both entry
+// points: the builder's inline name field and the standalone rename dialog.
+function isRenameOf(
+  schema: FormSchema | null | undefined,
+  newName: string,
+): boolean {
+  const trimmed = newName.trim();
+  return Boolean(schema) && trimmed.length > 0 && trimmed !== schema?.name;
+}
+
 export function EnrollmentFormEditor() {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
@@ -321,6 +337,7 @@ export function EnrollmentFormEditor() {
     useState<PendingNavigation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FormSchema | null>(null);
   const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<FormSchema | null>(null);
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -402,6 +419,25 @@ export function EnrollmentFormEditor() {
     } finally {
       setDeletingSchemaId(null);
     }
+  };
+
+  const requestRenameSchema = (schema: FormSchema) => {
+    setRenameTarget(schema);
+  };
+
+  // Rename touches every version row of the lineage in one PATCH; it
+  // does NOT publish a new version. Throws on failure so the dialog can
+  // surface the backend message (e.g. a name already in use).
+  const confirmRenameSchema = async (newName: string) => {
+    if (!renameTarget) return;
+    const updated = await renameSchema(renameTarget.id, newName);
+    await loadAll();
+    // Keep the builder's name field in sync if this template is open.
+    if (selectedKey === renameTarget.id) {
+      setName(updated.name);
+    }
+    toast.success(`Vorlage in „${updated.name}" umbenannt.`);
+    setRenameTarget(null);
   };
 
   const startNew = () => {
@@ -508,6 +544,15 @@ export function EnrollmentFormEditor() {
     () => legalBlocksSignature(standardLegalBlocks),
     [standardLegalBlocks],
   );
+  // Split the edit-mode dirty check into its two independent axes so the
+  // save path can tell a pure rename (name only) from a content change.
+  // A name-only edit must rename in place without publishing a redundant
+  // new version (which is what updateSchema does).
+  const editNameChanged = name.trim() !== (currentSchema?.name ?? "");
+  const editContentChanged =
+    currentFieldSignature !== savedFieldSignature ||
+    savedCoreRequirementSignature !== currentCoreRequirementSignature ||
+    savedLegalBlocksSignature !== currentLegalBlocksSignature;
   const hasUnsavedChanges =
     mode === "builder" &&
     (isCreating
@@ -515,13 +560,10 @@ export function EnrollmentFormEditor() {
         fields.length > 0 ||
         currentCoreRequirementSignature !== "{}" ||
         currentLegalBlocksSignature !== standardLegalBlocksSignature
-      : currentFieldSignature !== savedFieldSignature ||
-        savedCoreRequirementSignature !== currentCoreRequirementSignature ||
-        savedLegalBlocksSignature !== currentLegalBlocksSignature);
+      : editNameChanged || editContentChanged);
   const saveBlockedMessage = getSchemaDraftValidationMessage({
     fields,
     legalBlocks,
-    isCreating,
     name,
   });
 
@@ -534,7 +576,6 @@ export function EnrollmentFormEditor() {
       const validationMessage = getSchemaDraftValidationMessage({
         fields,
         legalBlocks,
-        isCreating,
         name,
       });
       if (validationMessage) {
@@ -553,7 +594,23 @@ export function EnrollmentFormEditor() {
           coreRequirements,
           legalBlocksForSave,
         );
+      } else if (isRenameOf(currentSchema, name) && !editContentChanged) {
+        // Name-only change: rename the lineage in place. We deliberately
+        // skip updateSchema here so a pure rename doesn't publish a
+        // redundant identical version (and re-point bound phases). This
+        // matches the standalone "Umbenennen" dialog's semantics.
+        result = await renameSchema(selectedKey, name.trim());
       } else {
+        // Rename and field-publish are two requests, not one transaction.
+        // Rename runs first because that order is retry-safe: if the rename
+        // throws (e.g. name already taken) we never publish, and if the
+        // publish fails after a successful rename, a retry re-runs the
+        // rename as a no-op and publishes exactly one new version. The
+        // reverse order would publish a redundant version on every retry.
+        // The new version is therefore always born under the new name.
+        if (isRenameOf(currentSchema, name)) {
+          await renameSchema(selectedKey, name.trim());
+        }
         result = await updateSchema(
           selectedKey,
           fieldsForSave,
@@ -677,6 +734,7 @@ export function EnrollmentFormEditor() {
           onCreate={startNew}
           onEdit={editSchema}
           onPreview={previewSchema}
+          onRename={requestRenameSchema}
           onDelete={requestRemoveSchema}
           error={error}
         />
@@ -685,6 +743,11 @@ export function EnrollmentFormEditor() {
           deleting={deletingSchemaId === deleteTarget?.id}
           onClose={() => setDeleteTarget(null)}
           onConfirm={confirmRemoveSchema}
+        />
+        <RenameSchemaDialog
+          schema={renameTarget}
+          onClose={() => setRenameTarget(null)}
+          onConfirm={confirmRenameSchema}
         />
       </>
     );
@@ -879,6 +942,7 @@ function EnrollmentFormsOverview({
   onCreate,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
   error,
 }: Readonly<{
@@ -887,6 +951,7 @@ function EnrollmentFormsOverview({
   onCreate: () => void;
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onRename: (schema: FormSchema) => void;
   onDelete: (schema: FormSchema) => void;
   error: string | null;
 }>) {
@@ -948,6 +1013,7 @@ function EnrollmentFormsOverview({
                 phases={phases}
                 onEdit={onEdit}
                 onPreview={onPreview}
+                onRename={onRename}
                 onDelete={onDelete}
               />
             </section>
@@ -970,12 +1036,14 @@ function TemplateOverviewList({
   phases,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
 }: Readonly<{
   templates: FormSchema[];
   phases: Phase[];
   onEdit: (schema: FormSchema) => void;
   onPreview: (schema: FormSchema) => void;
+  onRename: (schema: FormSchema) => void;
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
@@ -988,6 +1056,7 @@ function TemplateOverviewList({
             schema={schema}
             onEdit={() => onEdit(schema)}
             onPreview={() => onPreview(schema)}
+            onRename={() => onRename(schema)}
             onDelete={() => onDelete(schema)}
             isAssigned={phases.some(
               (phase) => phase.form_schema_id === schema.id,
@@ -1042,12 +1111,14 @@ function TemplateOverviewRow({
   schema,
   onEdit,
   onPreview,
+  onRename,
   onDelete,
   isAssigned,
 }: Readonly<{
   schema: FormSchema;
   onEdit: () => void;
   onPreview: () => void;
+  onRename: () => void;
   onDelete: () => void;
   isAssigned: boolean;
 }>) {
@@ -1104,6 +1175,11 @@ function TemplateOverviewRow({
               label: "Bearbeiten",
               icon: <Pencil className="h-4 w-4" aria-hidden />,
               onClick: onEdit,
+            },
+            {
+              label: "Umbenennen",
+              icon: <TextCursorInput className="h-4 w-4" aria-hidden />,
+              onClick: onRename,
             },
             {
               label: "Löschen",
@@ -1590,6 +1666,103 @@ function DeleteSchemaDialog({
   );
 }
 
+function RenameSchemaDialog({
+  schema,
+  onClose,
+  onConfirm,
+}: Readonly<{
+  schema: FormSchema | null;
+  onClose: () => void;
+  onConfirm: (newName: string) => Promise<void>;
+}>) {
+  const [value, setValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset the field to the current name each time the dialog opens for a
+  // schema so the admin edits from the existing value.
+  useEffect(() => {
+    if (schema) {
+      setValue(schema.name);
+      setError(null);
+      setSubmitting(false);
+    }
+  }, [schema]);
+
+  const isOpen = schema !== null;
+  const trimmed = value.trim();
+  const canSubmit = isRenameOf(schema, value) && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onConfirm(trimmed);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Umbenennen fehlgeschlagen",
+      );
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Formular umbenennen"
+      size="sm"
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            disabled={submitting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void submit()}
+            disabled={!canSubmit}
+            isLoading={submitting}
+          >
+            Speichern
+          </Button>
+        </div>
+      }
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+        className="space-y-3"
+      >
+        <Input
+          name="schema-name"
+          label="Name"
+          type="text"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="z. B. Ferienbetreuung Sommer 2026"
+          error={error ?? undefined}
+          autoFocus
+        />
+        <p className="text-xs leading-5 text-gray-500">
+          Der neue Name gilt für alle Versionen dieser Vorlage. Bereits
+          abgeschickte Anmeldungen bleiben unverändert.
+        </p>
+      </form>
+    </FormModal>
+  );
+}
+
 function UnsavedChangesDialog({
   pendingNavigation,
   saving,
@@ -1774,11 +1947,11 @@ function BuilderTemplateSummary({
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
               ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Pflichtangaben und Zusatzfragen festlegen."
-              : "Beim Speichern bleiben bestehende Anmeldungen nachvollziehbar."}
+              : "Der Name lässt sich hier ändern und gilt für alle Versionen. Bestehende Anmeldungen bleiben nachvollziehbar."}
           </p>
         </div>
 
-        {isCreating ? (
+        <div className="space-y-3">
           <label className="block">
             <span className="text-xs font-medium text-gray-700">
               Name der Vorlage
@@ -1792,19 +1965,20 @@ function BuilderTemplateSummary({
               className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
             />
           </label>
-        ) : (
-          <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {fields.length} Zusatzfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {requiredCount} Pflicht-Zusatzfragen
-            </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-              {childFieldCount} pro Kind
-            </span>
-          </div>
-        )}
+          {!isCreating ? (
+            <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {fields.length} Zusatzfragen
+              </span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {requiredCount} Pflicht-Zusatzfragen
+              </span>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                {childFieldCount} pro Kind
+              </span>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {currentSchema ? (
@@ -3914,15 +4088,13 @@ function getRequiredHint(field: FormField): string {
 function getSchemaDraftValidationMessage({
   fields,
   legalBlocks,
-  isCreating,
   name,
 }: Readonly<{
   fields: FormField[];
   legalBlocks: FormLegalBlock[];
-  isCreating: boolean;
   name: string;
 }>): string | null {
-  if (isCreating && name.trim() === "") {
+  if (name.trim() === "") {
     return "Bitte gib zuerst einen Namen für die Vorlage ein.";
   }
 

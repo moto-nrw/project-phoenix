@@ -111,6 +111,48 @@ export async function PUT(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  context: {
+    params: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  const id = await resolveId(context);
+  if (!id) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  const authHeader = await bearerHeader();
+  if (!authHeader) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  try {
+    const body = (await request.json()) as { name?: unknown };
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/schema/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        // Forward the name verbatim; the backend is the single source of
+        // truth for validation (it rejects a blank name with 400).
+        body: JSON.stringify({ name: body.name }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("schema_rename_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function DELETE(
   _request: NextRequest,
   context: {

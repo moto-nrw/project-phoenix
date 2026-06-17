@@ -140,6 +140,25 @@ func (r *FormSchemaRepository) NextVersionForName(ctx context.Context, name stri
 	return maxVersion + 1, nil
 }
 
+// ExistsByName reports whether any version row already carries name for
+// the tenant in context. RenameSchema uses it to reject a rename onto an
+// existing logical schema before touching the (tenant_id, name, version)
+// unique index.
+func (r *FormSchemaRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*enrollment.FormSchema)(nil)).
+		ModelTableExpr(formSchemaTableExpr).
+		Where(`"form_schema".name = ?`, name)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	exists, err := query.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to check form schema name %q: %w", name, err)
+	}
+	return exists, nil
+}
+
 // DeactivatePrevious flips is_active=false on every schema for the tenant
 // in context. Used by the schema service before activating a new version.
 // The partial unique index uq_form_schemas_one_active_per_tenant enforces
@@ -178,6 +197,32 @@ func (r *FormSchemaRepository) UpdateActiveFlag(ctx context.Context, id int64, i
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
 		return fmt.Errorf("form schema %d not found", id)
+	}
+	return nil
+}
+
+// RenameByName updates the name on every version row of a logical
+// schema for the tenant in context, keeping the whole version lineage
+// under one shared name. The service guarantees newName doesn't collide
+// with another lineage before calling this, so the
+// (tenant_id, name, version) unique index is never violated.
+func (r *FormSchemaRepository) RenameByName(ctx context.Context, oldName, newName string) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*enrollment.FormSchema)(nil)).
+		ModelTableExpr(formSchemaTableExpr).
+		Set("name = ?", newName).
+		Set("updated_at = NOW()").
+		Where(`"form_schema".name = ?`, oldName)
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"form_schema".tenant_id = ?`, tenantID)
+	}
+	res, err := query.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to rename form schema %q to %q: %w", oldName, newName, err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("form schema %q not found", oldName)
 	}
 	return nil
 }

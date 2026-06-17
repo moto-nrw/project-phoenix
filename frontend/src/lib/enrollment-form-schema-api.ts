@@ -517,6 +517,33 @@ export async function updateSchema(
   return readJSON<FormSchema>(response);
 }
 
+/**
+ * Renames a logical schema. Every version row sharing the source's name
+ * is renamed atomically, so the whole version lineage keeps one shared
+ * name. This publishes no new version and leaves the form fields
+ * untouched. The backend rejects (409) a name already used by a
+ * different schema.
+ */
+export async function renameSchema(
+  id: string,
+  name: string,
+): Promise<FormSchema> {
+  const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    throw await readEnrollmentError(
+      response,
+      "Formularvorlage konnte nicht umbenannt werden",
+      logger,
+      "schema_rename_failed",
+    );
+  }
+  return readJSON<FormSchema>(response);
+}
+
 export async function deleteSchema(id: string): Promise<void> {
   const response = await fetch(`${SCHEMA_PATH}/${encodeURIComponent(id)}`, {
     method: "DELETE",

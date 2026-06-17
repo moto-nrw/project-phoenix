@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
+  renameSchema: vi.fn(),
   updateCareOffering: vi.fn(),
   updatePhase: vi.fn(),
   updateSchema: vi.fn(),
@@ -95,6 +96,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
     deleteSchema: mocks.deleteSchema,
     fetchPublicLegalTexts: mocks.fetchPublicLegalTexts,
     listSchemas: mocks.listSchemas,
+    renameSchema: mocks.renameSchema,
     updateSchema: mocks.updateSchema,
   };
 });
@@ -241,6 +243,7 @@ beforeEach(() => {
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
+  mocks.renameSchema.mockReset();
   mocks.updateCareOffering.mockReset();
   mocks.updatePhase.mockReset();
   mocks.updateSchema.mockReset();
@@ -638,6 +641,188 @@ describe("EnrollmentFormEditor", () => {
     await waitFor(() => {
       expect(mocks.deleteSchema).toHaveBeenCalledWith("schema-1");
     });
+  });
+
+  it("renames a schema via the actions menu", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Umbenennen" }),
+    );
+
+    const input = await screen.findByLabelText("Name");
+    fireEvent.change(input, { target: { value: "  Ferienprogramm  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      // The trimmed name reaches the API; the lineage id (latest version)
+      // identifies which schema to rename.
+      expect(mocks.renameSchema).toHaveBeenCalledWith(
+        "schema-1",
+        "Ferienprogramm",
+      );
+    });
+  });
+
+  it("keeps the rename dialog open and shows the error when the name is taken", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockRejectedValue(
+      new Error("Es gibt bereits ein Formular mit diesem Namen."),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Umbenennen" }),
+    );
+
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Ferienprogramm" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Es gibt bereits ein Formular mit diesem Namen."),
+    ).toBeInTheDocument();
+    // Dialog stays open so the admin can correct the name.
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+  });
+
+  it("renames via the builder name field when saving an edited template", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // The name input is now editable in the builder header (not only on
+    // create). Changing ONLY the name and saving renames the lineage in
+    // place; it must NOT publish a redundant identical version, matching
+    // the standalone "Umbenennen" dialog's semantics.
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.renameSchema).toHaveBeenCalledWith(
+        "schema-1",
+        "Ferienprogramm",
+      );
+    });
+    expect(mocks.updateSchema).not.toHaveBeenCalled();
+  });
+
+  it("renames AND publishes a version when name and content both change", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // Change the name AND a base-field requirement: the name-only fast path
+    // must not swallow the content change, so both requests fire.
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.renameSchema).toHaveBeenCalledWith(
+        "schema-1",
+        "Ferienprogramm",
+      );
+    });
+    expect(mocks.updateSchema).toHaveBeenCalled();
+  });
+
+  it("does not rename when the builder name is left unchanged", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema());
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // Toggle a base-field requirement so there is something to save without
+    // touching the name.
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalled();
+    });
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
   });
 
   it("activates a standard legal block when an admin enters legal text", async () => {

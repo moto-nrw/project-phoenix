@@ -477,6 +477,76 @@ func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+// --- RenameByName -------------------------------------------------------
+
+func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	oldName := uniqueSchemaName("renall")
+	for i := 1; i <= 3; i++ {
+		s := &enrollmentModels.FormSchema{
+			Name:      oldName,
+			Version:   i,
+			Fields:    validFields(),
+			IsActive:  i == 3,
+			CreatedBy: creator,
+		}
+		require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+			return repo.Create(ctx, s)
+		}))
+	}
+	// A row under a different name must keep its name untouched.
+	survivor := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("keep"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, survivor)
+	}))
+
+	newName := uniqueSchemaName("renamed")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.RenameByName(ctx, oldName, newName)
+	}))
+
+	// All three versions now carry the new name; old name is gone.
+	count, err := db.NewSelect().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND name = ?", tenantID, newName).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, count, "RenameByName must rename every version of the lineage")
+
+	count, err = db.NewSelect().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND name = ?", tenantID, oldName).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "no row may keep the old name")
+
+	// Survivor under a different name is unaffected.
+	count, err = db.NewSelect().
+		TableExpr("enrollment.form_schemas").
+		Where("tenant_id = ? AND name = ?", tenantID, survivor.Name).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "rows under other names must not be touched")
+}
+
+func TestFormSchemaRepository_RenameByName_UnknownNameErrors(t *testing.T) {
+	db, repo, tenantID, _ := setupSchemaRepoTest(t)
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.RenameByName(ctx, "no-such-schema-name-"+t.Name(), "whatever")
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
 // --- Tenant isolation ---------------------------------------------------
 
 func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {

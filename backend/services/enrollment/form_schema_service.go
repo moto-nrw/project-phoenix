@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -21,7 +22,16 @@ var (
 	ErrFormSchemaNotFound    = errors.New("form schema not found")
 	ErrFormSchemaHasPhases   = errors.New("form schema has enrollment phases")
 	ErrFormSchemaHasRequests = errors.New("form schema has enrollment requests")
+	// ErrFormSchemaNameExists is returned by RenameSchema when the target
+	// name already identifies a different logical schema for the tenant.
+	ErrFormSchemaNameExists = errors.New("a form schema with this name already exists")
 )
+
+// formSchemaNameVersionUniqueIndex is the Postgres unique index from
+// migration 1.15.74 (tenant_id, name, version). Kept as a string
+// constant — the migration declares it inline — so RenameSchema can
+// translate a 23505 race into ErrFormSchemaNameExists.
+const formSchemaNameVersionUniqueIndex = "uq_form_schemas_tenant_name_version"
 
 // FormSchemaService manages form-schema versioning. GetActive feeds the public
 // form renderer and admin pre-fill; PublishVersion creates a new active version
@@ -69,6 +79,13 @@ type FormSchemaService interface {
 	// schema reference intact.
 	UpdateSchema(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 	UpdateSchemaWithLegal(ctx context.Context, id int64, fields []enrollmentModels.FormField, updatedBy int64, coreRequirements *enrollmentModels.CoreRequirements, legalBlocks *[]enrollmentModels.FormLegalBlock) (*enrollmentModels.FormSchema, error)
+
+	// RenameSchema renames the logical schema selected by id. All version
+	// rows sharing the source's name are renamed atomically so the version
+	// lineage stays intact. Renaming to a name already used by a different
+	// schema returns ErrFormSchemaNameExists. The returned schema is the
+	// row identified by id with its updated name.
+	RenameSchema(ctx context.Context, id int64, newName string) (*enrollmentModels.FormSchema, error)
 
 	// DeleteSchema removes every version of the logical schema selected
 	// by id. It refuses deletion when any version is used by a phase or
@@ -212,6 +229,61 @@ func (s *formSchemaService) UpdateSchemaWithLegal(ctx context.Context, id int64,
 		nextLegalBlocks = *legalBlocks
 	}
 	return s.createOrVersion(ctx, source.Name, fields, updatedBy, nextCoreRequirements, nextLegalBlocks)
+}
+
+func (s *formSchemaService) RenameSchema(ctx context.Context, id int64, newName string) (*enrollmentModels.FormSchema, error) {
+	if id <= 0 {
+		return nil, ErrFormSchemaNotFound
+	}
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return nil, fmt.Errorf("schema name is required")
+	}
+
+	source, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: %w", ErrFormSchemaNotFound, err)
+		}
+		return nil, fmt.Errorf("load source schema: %w", err)
+	}
+
+	// Renaming to the current name is a no-op; return the source unchanged
+	// so callers don't trip the collision check against the schema itself.
+	if source.Name == newName {
+		return source, nil
+	}
+
+	// Reject collisions with another logical schema before we touch the
+	// unique index. The same-name early return above means any hit here is
+	// a different lineage.
+	exists, err := s.repo.ExistsByName(ctx, newName)
+	if err != nil {
+		return nil, fmt.Errorf("check existing name: %w", err)
+	}
+	if exists {
+		return nil, ErrFormSchemaNameExists
+	}
+
+	oldName := source.Name
+	if err := s.repo.RenameByName(ctx, oldName, newName); err != nil {
+		// Race-safe fallback: if a concurrent rename claimed newName
+		// between the check above and this update, the unique index
+		// (tenant_id, name, version) raises 23505. Translate it to the
+		// sentinel so the handler still returns 409, not a generic 400.
+		if isUniqueViolationOn(err, formSchemaNameVersionUniqueIndex) {
+			return nil, ErrFormSchemaNameExists
+		}
+		return nil, fmt.Errorf("rename schema: %w", err)
+	}
+
+	s.logger.Info("form schema renamed",
+		slog.String("old_name", oldName),
+		slog.String("new_name", newName),
+		slog.Int64("schema_id", id))
+
+	source.Name = newName
+	return source, nil
 }
 
 func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {

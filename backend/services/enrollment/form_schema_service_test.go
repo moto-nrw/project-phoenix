@@ -148,3 +148,179 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 	assert.True(t, list[1].IsActive)
 	assert.True(t, list[2].IsActive)
 }
+
+func TestFormSchemaService_RenameSchema_RenamesWholeLineage(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	created, err := svc.CreateSchema(ctx, "Ferienbetreuung", field, creatorID)
+	require.NoError(t, err)
+	// Add a second version so we can assert the rename hits every row.
+	v2, err := svc.UpdateSchema(ctx, created.ID, field, creatorID)
+	require.NoError(t, err)
+	require.Equal(t, 2, v2.Version)
+
+	renamed, err := svc.RenameSchema(ctx, created.ID, "  Ferienprogramm  ")
+	require.NoError(t, err)
+	assert.Equal(t, "Ferienprogramm", renamed.Name, "service must trim the name")
+
+	list, err := svc.ListVersions(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	for _, s := range list {
+		assert.Equal(t, "Ferienprogramm", s.Name,
+			"every version of the lineage must carry the new name")
+	}
+}
+
+func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	a, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	require.NoError(t, err)
+	_, err = svc.CreateSchema(ctx, "Ferien", field, creatorID)
+	require.NoError(t, err)
+
+	_, err = svc.RenameSchema(ctx, a.ID, "Ferien")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+		"renaming onto an existing schema name must be refused, not split the lineage")
+}
+
+func TestFormSchemaService_RenameSchema_SameNameIsNoOp(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	created, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	require.NoError(t, err)
+
+	// Renaming to the unchanged name must not trip the collision check
+	// against the schema's own rows.
+	renamed, err := svc.RenameSchema(ctx, created.ID, "Schuljahr")
+	require.NoError(t, err)
+	assert.Equal(t, "Schuljahr", renamed.Name)
+}
+
+func TestFormSchemaService_RenameSchema_RejectsEmptyName(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	_, err = svc.RenameSchema(ctx, created.ID, "   ")
+	require.Error(t, err, "a blank name must be rejected")
+}
+
+func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
+	_, svc, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	_, err := svc.RenameSchema(ctx, 0, "Egal")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
+		"a non-positive id can never identify a schema")
+}
+
+func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.T) {
+	_, svc, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// No row carries this id, so FindByID returns sql.ErrNoRows wrapped in a
+	// DatabaseError; the service must map that to the typed not-found sentinel.
+	_, err := svc.RenameSchema(ctx, 999999999, "Egal")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound)
+}
+
+// newSchemaServiceWithRepo builds a service around an arbitrary repo so a
+// test can inject failures into a single repository method. Mirrors the
+// minimal config setupSchemaTest uses (RenameSchema only touches s.repo).
+func newSchemaServiceWithRepo(repo enrollmentModels.FormSchemaRepository) enrollmentService.FormSchemaService {
+	return enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repo,
+		Logger: slog.Default(),
+	})
+}
+
+// existsCheckFailsRepo delegates to a real repo (so FindByID returns the
+// source row) but fails the name-existence probe, exercising RenameSchema's
+// "check existing name" error branch.
+type existsCheckFailsRepo struct {
+	enrollmentModels.FormSchemaRepository
+}
+
+func (existsCheckFailsRepo) ExistsByName(context.Context, string) (bool, error) {
+	return false, errors.New("exists probe boom")
+}
+
+// renameExecFailsRepo reports no collision but fails the actual rename with a
+// plain (non-23505) error, exercising the generic rename error branch. The
+// 23505 race fallback needs a real concurrent unique-violation and is left to
+// the repository-level tests.
+type renameExecFailsRepo struct {
+	enrollmentModels.FormSchemaRepository
+}
+
+func (renameExecFailsRepo) ExistsByName(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (renameExecFailsRepo) RenameByName(context.Context, string, string) error {
+	return errors.New("rename exec boom")
+}
+
+func TestFormSchemaService_RenameSchema_LoadErrorIsServerFault(t *testing.T) {
+	_, _, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// failingSchemaRepo (decision_export_integration_test.go) makes FindByID
+	// fail with a non-ErrNoRows error — a transient read fault, not a 404.
+	svc := newSchemaServiceWithRepo(failingSchemaRepo{})
+	_, err := svc.RenameSchema(ctx, 42, "Egal")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
+		"a read fault must not be flattened into not-found")
+	assert.Contains(t, err.Error(), "load source schema")
+}
+
+func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	wrapped := newSchemaServiceWithRepo(existsCheckFailsRepo{repositories.NewFactory(db).FormSchema})
+	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "check existing name")
+}
+
+func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	wrapped := newSchemaServiceWithRepo(renameExecFailsRepo{repositories.NewFactory(db).FormSchema})
+	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+		"a plain rename failure is not a name collision")
+	assert.Contains(t, err.Error(), "rename schema")
+}
