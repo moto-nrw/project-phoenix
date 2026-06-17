@@ -75,6 +75,16 @@ func (c *Client) LoginOperator(email, password string) error {
 	return nil
 }
 
+// LoginParent authenticates with the parents portal API and stores the JWT token.
+func (c *Client) LoginParent(email, password string) error {
+	auth, err := c.adapter.LoginParent(context.Background(), email, password)
+	if err != nil {
+		return err
+	}
+	c.BindAuth(auth)
+	return nil
+}
+
 // Post makes an authenticated POST request
 func (c *Client) Post(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, nil)
@@ -88,6 +98,22 @@ func (c *Client) PostPublic(path string, body any) ([]byte, error) {
 // PostWithHeaders makes an authenticated POST request with extra headers.
 func (c *Client) PostWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, headers)
+}
+
+func (c *Client) GetWithAuth(auth phoenixapi.AuthRef, path string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("GET", path, nil, auth, nil)
+}
+
+func (c *Client) PostWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("POST", path, body, auth, nil)
+}
+
+func (c *Client) PutWithAuth(auth phoenixapi.AuthRef, path string, body any) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("PUT", path, body, auth, nil)
+}
+
+func (c *Client) PostWithAuthAndHeaders(auth phoenixapi.AuthRef, path string, body any, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithExplicitAuth("POST", path, body, auth, headers)
 }
 
 // Get makes an authenticated GET request
@@ -112,6 +138,10 @@ func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, 
 			}
 		}
 	}
+	return c.doRequestWithExplicitAuth(method, path, body, authRef, headers)
+}
+
+func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef phoenixapi.AuthRef, headers map[string]string) ([]byte, error) {
 	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
 	if err != nil {
 		return nil, err

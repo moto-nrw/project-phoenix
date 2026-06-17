@@ -27,6 +27,7 @@ const (
 	errInvalidPhoneID       = "invalid phone ID"
 	errPhoneNotFound        = "phone number not found"
 	errPhoneNotBelongsGuard = "phone number does not belong to this guardian"
+	seedTokenHeader         = "X-Phoenix-Seed-Token"
 )
 
 // Note: "log" import kept for non-RenderError logging (e.g., line 741)
@@ -997,6 +998,9 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		"guardian_profile_id": invitation.GuardianProfileID,
 		"expires_at":          invitation.ExpiresAt,
 		"email_sent":          invitation.EmailSentAt != nil,
+	}
+	if strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
+		response["token"] = invitation.Token
 	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")

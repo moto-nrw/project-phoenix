@@ -259,12 +259,19 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 	}
 
 	var loginResp struct {
+		Data struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.Unmarshal(respBody, &loginResp); err != nil {
 		return AuthRef{}, fmt.Errorf("parse login response: %w", err)
 	}
-	if loginResp.AccessToken == "" {
+	token := loginResp.Data.AccessToken
+	if token == "" {
+		token = loginResp.AccessToken
+	}
+	if token == "" {
 		return AuthRef{}, fmt.Errorf("no access token in login response")
 	}
 
@@ -275,7 +282,42 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 	return AuthRef{
 		Kind:  AuthBearer,
 		Label: label,
-		Token: loginResp.AccessToken,
+		Token: token,
+	}, nil
+}
+
+func (a *Adapter) LoginParent(ctx context.Context, email, password string) (AuthRef, error) {
+	body := map[string]string{
+		"email":    email,
+		"password": password,
+	}
+
+	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/parent/auth/login", body, nil)
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("parent login request failed: %w", err)
+	}
+
+	var loginResp struct {
+		Data struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(respBody, &loginResp); err != nil {
+		return AuthRef{}, fmt.Errorf("parse parent login response: %w", err)
+	}
+	token := loginResp.Data.AccessToken
+	if token == "" {
+		token = loginResp.AccessToken
+	}
+	if token == "" {
+		return AuthRef{}, fmt.Errorf("no access token in parent login response")
+	}
+
+	return AuthRef{
+		Kind:  AuthBearer,
+		Label: "parent",
+		Token: token,
 	}, nil
 }
 
