@@ -508,6 +508,17 @@ func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, toFormSchemaResponse(schema), "Form schema published")
 }
 
+// renameFailure tags an error as originating from the lineage-rename step of
+// a combined rename+publish save (PUT /schema/{id}). It lets the handler map
+// a rename *infrastructure* failure (lock/read/exec) to a 5xx — matching the
+// dedicated PATCH rename handler — instead of letting it fall through to the
+// publish path's 400 contract. It unwraps so errors.Is still matches the
+// rename sentinels (name-exists, not-found).
+type renameFailure struct{ err error }
+
+func (e renameFailure) Error() string { return e.err.Error() }
+func (e renameFailure) Unwrap() error { return e.err }
+
 // updateSchema publishes a new version of an existing named schema.
 // PUT /schema/{id} — id refers to any prior version of the schema;
 // the new row inherits its name and is written with version+1.
@@ -545,7 +556,7 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		// dedicated PATCH route owns blank-name rejection).
 		if req.Name != nil && strings.TrimSpace(*req.Name) != "" {
 			if _, renameErr := rs.FormSchemaService.RenameSchema(ctx, id, *req.Name); renameErr != nil {
-				return renameErr
+				return renameFailure{err: renameErr}
 			}
 		}
 
@@ -565,13 +576,23 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 	})
 	if txErr != nil {
 		// A rename onto an existing name surfaces as a 409 with a stable code
-		// so the frontend shows "name already taken", same as the PATCH route.
+		// so the frontend shows "name already taken"; a missing lineage as a
+		// 404 — same as the PATCH route, regardless of which step raised it.
 		switch {
 		case errors.Is(txErr, enrollmentService.ErrFormSchemaNameExists):
 			common.RenderError(w, r, common.ErrorConflictWithCode(txErr, ErrCodeSchemaNameExists))
 			return
 		case errors.Is(txErr, enrollmentService.ErrFormSchemaNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(txErr))
+			return
+		}
+		// A rename failure beyond those sentinels is infrastructure (lock/read/
+		// exec), not a client error: map it to 5xx like the PATCH handler so it
+		// takes the normal error-logging/Sentry path. Publish errors keep the
+		// existing 400 contract (validation; shared with POST /schema).
+		var rf renameFailure
+		if errors.As(txErr, &rf) {
+			common.RenderError(w, r, common.ErrorInternalServer(txErr))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInvalidRequest(txErr))
