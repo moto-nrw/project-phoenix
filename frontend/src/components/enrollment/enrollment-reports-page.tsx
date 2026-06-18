@@ -1,16 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
-import {
-  BarChart3,
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Filter,
-  Search,
-  type LucideIcon,
-} from "lucide-react";
+import type { ReactNode } from "react";
+import { Download, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import {
   exportCareUsageReport,
@@ -26,7 +18,6 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "EnrollmentReportsPage" });
 
@@ -71,11 +62,6 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 const ALL_VALUE = "all";
-
-const STAT_ICON_STYLE = {
-  backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}1A`,
-  color: LOCATION_COLORS.GROUP_ROOM,
-} satisfies CSSProperties;
 
 export function EnrollmentReportsPage() {
   const toast = useToast();
@@ -457,16 +443,14 @@ function ReportStats({
 }: Readonly<{ report: CareUsageReport | null; loading: boolean }>) {
   const totals = report?.totals;
   return (
-    <section className="relative z-0 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+    <section className="relative z-0 grid gap-2 md:grid-cols-3 xl:grid-cols-6">
       <StatCard
-        icon={BarChart3}
         label="Kinder"
         value={loading ? "..." : String(totals?.children ?? 0)}
       />
       {[1, 2, 3, 4, 5].map((count) => (
         <StatCard
           key={count}
-          icon={Filter}
           label={count === 1 ? "1 Tag" : `${count} Tage`}
           value={
             loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
@@ -478,27 +462,19 @@ function ReportStats({
 }
 
 function StatCard({
-  icon: Icon,
   label,
   value,
 }: Readonly<{
-  icon: LucideIcon;
   label: string;
   value: string;
 }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium text-gray-500">{label}</p>
-          <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
-        </div>
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={STAT_ICON_STYLE}
-        >
-          <Icon className="h-5 w-5" aria-hidden />
-        </span>
+    <div className="moto-content-surface rounded-xl border px-3 py-2.5 shadow-sm backdrop-blur-md">
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-gray-500">{label}</p>
+        <p className="mt-1 text-lg leading-none font-semibold text-gray-900">
+          {value}
+        </p>
       </div>
     </div>
   );
