@@ -9,6 +9,7 @@ package parent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -116,6 +117,19 @@ type Service interface {
 	// RemoveRelatedAccount removes another account's access to the child.
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
+
+	// GetChildMasterData returns the structured Stammdaten view for the child:
+	// the child's person + student fields and the calling guardian's own
+	// contact data, plus any pending Track B change requests. Authorization
+	// only (GuardianPermissionPortalAccess).
+	GetChildMasterData(ctx context.Context, accountID, studentID int64) (*ChildMasterData, error)
+
+	// UpdateMasterDataField applies a Track A direct edit to a single field and
+	// returns the refreshed Stammdaten view. The edit is written to the live
+	// record immediately and recorded as an auto_applied audit row. Gated by
+	// operations.parent_master_data_edit_enabled and
+	// GuardianPermissionMasterDataEdit.
+	UpdateMasterDataField(ctx context.Context, accountID, studentID int64, target, fieldKey string, value json.RawMessage) (*ChildMasterData, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -130,6 +144,12 @@ type ChildFeatureFlags struct {
 	// RelatedAccountsRemoveEnabled is true when parents may remove another
 	// account's access (guardians.parent_can_remove).
 	RelatedAccountsRemoveEnabled bool
+	// MasterDataEditEnabled is true when parents may directly edit the
+	// Track A Stammdaten fields (setting AND the relationship permission).
+	MasterDataEditEnabled bool
+	// MasterDataRequestEnabled is true when parents may submit Track B
+	// change requests for approval (setting AND the relationship permission).
+	MasterDataRequestEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -170,6 +190,11 @@ type ServiceConfig struct {
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
 
+	// Stammdaten view + change flow (Track A direct edit, Track B requests).
+	PersonRepo        usersModels.PersonRepository
+	GuardianPhoneRepo usersModels.GuardianPhoneNumberRepository
+	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
@@ -193,6 +218,10 @@ type service struct {
 	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
+
+	personRepo        usersModels.PersonRepository
+	guardianPhoneRepo usersModels.GuardianPhoneNumberRepository
+	changeRequestRepo usersModels.StudentDataChangeRequestRepository
 
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
@@ -220,6 +249,9 @@ func NewService(cfg ServiceConfig) Service {
 		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
 		settings:              cfg.Settings,
 		broadcaster:           cfg.Broadcaster,
+		personRepo:            cfg.PersonRepo,
+		guardianPhoneRepo:     cfg.GuardianPhoneRepo,
+		changeRequestRepo:     cfg.ChangeRequestRepo,
 		guardianInvites:       cfg.GuardianInvites,
 		guardianInviteRepo:    cfg.GuardianInviteRepo,
 		studentGuardianRepo:   cfg.StudentGuardianRepo,

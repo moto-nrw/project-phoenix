@@ -90,6 +90,14 @@ func (f *fakeParentService) DeleteCareException(context.Context, int64, int64, t
 	return nil
 }
 
+func (f *fakeParentService) GetChildMasterData(context.Context, int64, int64) (*parentService.ChildMasterData, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateMasterDataField(context.Context, int64, int64, string, string, json.RawMessage) (*parentService.ChildMasterData, error) {
+	return nil, nil
+}
+
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {

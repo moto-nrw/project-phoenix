@@ -2995,6 +2995,8 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 		}
 	}
 	exec(`DELETE FROM users.student_parent_notes WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.student_data_change_requests WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, c.GuardianProfileID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
