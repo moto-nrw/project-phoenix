@@ -269,7 +269,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
   });
 
-  it("renders dynamic day-count buckets and preserves a zero-day filter", async () => {
+  it("ignores infeasible day-count buckets and preserves a zero-day filter", async () => {
     mocks.getCareUsageReport.mockImplementation(async (filters) =>
       report({
         filters,
@@ -309,10 +309,16 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     expect(screen.getByText("0 Betreuungstage")).toBeVisible();
-    expect(screen.getByText("6 Tage")).toBeVisible();
-    expect(screen.getByText("7 Tage")).toBeVisible();
+    expect(screen.queryByText("6 Tage")).not.toBeInTheDocument();
+    expect(screen.queryByText("7 Tage")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Tagesanzahl" }));
+    expect(
+      screen.queryByRole("option", { name: "6 Tage" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "7 Tage" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("option", { name: "0 Tage" }));
 
     await waitFor(() => {

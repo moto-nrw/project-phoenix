@@ -63,7 +63,7 @@ const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
-const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
+const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
 
 const STATUS_LABELS: Record<ChildStatus, string> = {
   submitted: "Eingegangen",
@@ -723,17 +723,13 @@ function ReportStats({
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
   const totals = report?.totals;
-  const dayCountBuckets = useMemo(
-    () => dayCountBucketsForTotals(totals?.by_day_count),
-    [totals?.by_day_count],
-  );
   return (
-    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
+    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
       <ReportStatCard
         label="Kinder"
         value={loading ? "..." : String(totals?.children ?? 0)}
       />
-      {dayCountBuckets.map((count) => (
+      {DAY_COUNT_OPTIONS.map((count) => (
         <ReportStatCard
           key={count}
           label={formatDayCountLabel(count)}
@@ -755,7 +751,7 @@ function ReportStatCard({
   value: string;
 }>) {
   return (
-    <div className="moto-content-surface rounded-xl border px-3 py-2.5 shadow-sm backdrop-blur-md">
+    <div className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
       <p className="truncate text-xs font-medium text-gray-500">{label}</p>
       <p className="mt-1 text-lg leading-none font-semibold text-gray-900">
         {value}
@@ -779,7 +775,7 @@ function ReportExportCard({
 
   return (
     <div
-      className="moto-content-surface relative overflow-visible rounded-xl border px-3 py-2.5 shadow-sm backdrop-blur-md"
+      className="moto-content-surface relative overflow-visible rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
       ref={containerRef}
     >
       <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
@@ -865,16 +861,6 @@ function formatDays(days: string[]): string {
 
 function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
-}
-
-function dayCountBucketsForTotals(
-  totals: Record<string, number> | undefined,
-): number[] {
-  if (!totals) return [...DAY_COUNT_OPTIONS];
-  return Object.keys(totals)
-    .map((key) => Number(key))
-    .filter((count) => Number.isInteger(count))
-    .sort((a, b) => a - b);
 }
 
 function ExportMenu({
