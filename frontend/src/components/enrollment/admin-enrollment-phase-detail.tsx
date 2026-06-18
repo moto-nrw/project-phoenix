@@ -225,10 +225,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const reportFilters = useMemo<CareUsageFilters>(
     () => ({
-      phase_id: Number(phaseId),
+      phase_id: phaseId,
       status: statusFilter,
-      care_offering_id:
-        offeringId === ALL_VALUE ? undefined : Number(offeringId),
+      care_offering_id: offeringId === ALL_VALUE ? undefined : offeringId,
       day_count: dayCount === ALL_VALUE ? undefined : Number(dayCount),
       grade_level: gradeLevel === ALL_VALUE ? undefined : Number(gradeLevel),
       search: search.trim() || undefined,
@@ -240,6 +239,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     async (filters: CareUsageFilters, isCancelled?: () => boolean) => {
       setReportLoading(true);
       setReportError(null);
+      setReport(null);
       try {
         const data = await getCareUsageReport(filters);
         if (isCancelled?.()) return;
@@ -344,14 +344,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const handleQuickDecision = useCallback(
     async (row: CareUsageRow, status: DecisionStatus) => {
-      setBusyChildId(String(row.child_id));
+      setBusyChildId(row.child_id);
       setError(null);
       try {
-        await decideAdminChild(
-          String(row.request_id),
-          String(row.child_id),
-          status,
-        );
+        await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
           `Entscheidung gespeichert: ${STATUS_LABELS[status as ChildStatus]}`,
         );
@@ -450,8 +446,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         render: (row) => (
           <PhaseChildActions
             row={row}
-            href={requestHref(String(row.request_id))}
-            busy={busyChildId === String(row.child_id)}
+            href={requestHref(row.request_id)}
+            busy={busyChildId === row.child_id}
             onDecide={(status) => void handleQuickDecision(row, status)}
           />
         ),
@@ -602,7 +598,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 options={[
                   { value: ALL_VALUE, label: "Alle Angebote" },
                   ...(report?.filter_options.offerings ?? []).map((item) => ({
-                    value: String(item.id),
+                    value: item.id,
                     label: item.name,
                   })),
                 ]}

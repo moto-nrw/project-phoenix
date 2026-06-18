@@ -8,9 +8,9 @@ export type EnrollmentReportStatus = ChildStatus | "all";
 export type EnrollmentReportFormat = "pdf" | "docx" | "xlsx";
 
 export interface CareUsageFilters {
-  phase_id: number;
+  phase_id: string;
   status?: EnrollmentReportStatus;
-  care_offering_id?: number;
+  care_offering_id?: string;
   day_count?: number;
   grade_level?: number;
   search?: string;
@@ -18,13 +18,13 @@ export interface CareUsageFilters {
 
 export interface CareUsageReport {
   phase: {
-    id: number;
+    id: string;
     name: string;
   };
   filters: {
-    phase_id: number;
+    phase_id: string;
     status: EnrollmentReportStatus;
-    care_offering_id?: number;
+    care_offering_id?: string;
     day_count?: number;
     grade_level?: number;
     search?: string;
@@ -42,20 +42,20 @@ export interface CareUsageReport {
 }
 
 interface CareUsageOfferingOption {
-  id: number;
+  id: string;
   name: string;
 }
 
 interface CareUsageOfferingStat {
-  offering_id: number;
+  offering_id: string;
   offering_name: string;
   children: number;
   by_day_count: Record<string, number>;
 }
 
 export interface CareUsageRow {
-  request_id: number;
-  child_id: number;
+  request_id: string;
+  child_id: string;
   child_first_name: string;
   child_last_name: string;
   date_of_birth: string;
@@ -72,7 +72,7 @@ export interface CareUsageRow {
 }
 
 interface CareUsageRowOffering {
-  id: number;
+  id: string;
   name: string;
   days: string[];
   days_source: "selected" | "available";

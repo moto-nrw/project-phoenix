@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -600,7 +601,7 @@ func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
 func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "docx",
-		"filters": {"phase_id": 42, "status": "all"}
+		"filters": {"phase_id": "42", "status": "all", "care_offering_id": "9007199254740993"}
 	}`))
 
 	format, filters, err := parseCareUsageExportRequest(req)
@@ -612,6 +613,69 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 	}
 	if filters.PhaseID != 42 {
 		t.Fatalf("phase_id = %d, want 42", filters.PhaseID)
+	}
+	if filters.CareOfferingID != 9007199254740993 {
+		t.Fatalf("care_offering_id = %d, want 9007199254740993", filters.CareOfferingID)
+	}
+}
+
+func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{
+			PhaseID:        9007199254740993,
+			Status:         "all",
+			CareOfferingID: 9007199254740995,
+		},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   1,
+			ByDayCount: map[string]int{"1": 1},
+		},
+		ByOffering: []enrollmentService.CareUsageOfferingStat{
+			{OfferingID: 9007199254740995, OfferingName: "OGS", Children: 1, ByDayCount: map[string]int{"1": 1}},
+		},
+		FilterOptions: enrollmentService.CareUsageFilterOptions{
+			Offerings: []enrollmentService.CareUsageOfferingOption{
+				{ID: 9007199254740995, Name: "OGS"},
+			},
+		},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         9007199254740997,
+				ChildID:           9007199254740999,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     []string{"mon"},
+				DayCount:          1,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{ID: 9007199254740995, Name: "OGS", Days: []string{"mon"}, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{
+		`"id":"9007199254740993"`,
+		`"phase_id":"9007199254740993"`,
+		`"care_offering_id":"9007199254740995"`,
+		`"offering_id":"9007199254740995"`,
+		`"request_id":"9007199254740997"`,
+		`"child_id":"9007199254740999"`,
+	} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
 	}
 }
 

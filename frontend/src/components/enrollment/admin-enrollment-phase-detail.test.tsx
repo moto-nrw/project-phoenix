@@ -113,8 +113,8 @@ const requests = [
 
 function report(overrides: Record<string, unknown> = {}) {
   return {
-    phase: { id: 1, name: phase.name },
-    filters: { phase_id: 1, status: "all" },
+    phase: { id: "1", name: phase.name },
+    filters: { phase_id: "1", status: "all" },
     totals: {
       children: 2,
       by_day_count: { "1": 1, "2": 0, "3": 1, "4": 0, "5": 0 },
@@ -122,15 +122,15 @@ function report(overrides: Record<string, unknown> = {}) {
     by_offering: [],
     filter_options: {
       offerings: [
-        { id: 1, name: "Kurzbetreuung" },
-        { id: 2, name: "OGS Ganztag" },
+        { id: "1", name: "Kurzbetreuung" },
+        { id: "2", name: "OGS Ganztag" },
       ],
       grade_levels: [1, 2],
     },
     rows: [
       {
-        request_id: 10,
-        child_id: 20,
+        request_id: "10",
+        child_id: "20",
         child_first_name: "Lina",
         child_last_name: "Muster",
         date_of_birth: "2019-01-01",
@@ -138,7 +138,7 @@ function report(overrides: Record<string, unknown> = {}) {
         status: "submitted",
         offerings: [
           {
-            id: 2,
+            id: "2",
             name: "OGS Ganztag",
             days: ["mon", "wed", "fri"],
             days_source: "selected",
@@ -153,8 +153,8 @@ function report(overrides: Record<string, unknown> = {}) {
         submitted_at: "2026-06-18T11:15:00Z",
       },
       {
-        request_id: 10,
-        child_id: 21,
+        request_id: "10",
+        child_id: "21",
         child_first_name: "Tom",
         child_last_name: "Muster",
         date_of_birth: "2018-01-01",
@@ -162,7 +162,7 @@ function report(overrides: Record<string, unknown> = {}) {
         status: "approved",
         offerings: [
           {
-            id: 1,
+            id: "1",
             name: "Kurzbetreuung",
             days: ["tue"],
             days_source: "selected",
@@ -207,7 +207,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     expect(mocks.getCareUsageReport).toHaveBeenCalledWith(
-      expect.objectContaining({ phase_id: 1, status: "all" }),
+      expect.objectContaining({ phase_id: "1", status: "all" }),
     );
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
       "Alle",
@@ -228,7 +228,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
-        expect.objectContaining({ care_offering_id: 2 }),
+        expect.objectContaining({ care_offering_id: "2" }),
       );
     });
 
@@ -245,7 +245,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
-        expect.objectContaining({ care_offering_id: 2, status: "all" }),
+        expect.objectContaining({ care_offering_id: "2", status: "all" }),
         "xlsx",
       );
     });
@@ -267,6 +267,28 @@ describe("AdminEnrollmentPhaseDetail", () => {
         "docx",
       );
     });
+  });
+
+  it("does not leave stale report rows visible after a failed filtered reload", async () => {
+    await renderPhase();
+    expect(screen.getByText("Lina Muster")).toBeVisible();
+
+    mocks.getCareUsageReport.mockRejectedValueOnce(
+      new Error("Auswertung konnte nicht geladen werden"),
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Betreuungsangebot" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "OGS Ganztag" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Auswertung konnte nicht geladen werden"),
+      ).toBeVisible();
+    });
+    expect(screen.queryByText("Lina Muster")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tom Muster")).not.toBeInTheDocument();
   });
 
   it("keeps quick decisions on non-terminal rows", async () => {

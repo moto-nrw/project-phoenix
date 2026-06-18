@@ -18,8 +18,83 @@ import (
 )
 
 type careUsageExportRequest struct {
-	Format  listexport.Format                  `json:"format"`
-	Filters enrollmentService.CareUsageFilters `json:"filters"`
+	Format  listexport.Format             `json:"format"`
+	Filters careUsageExportFiltersRequest `json:"filters"`
+}
+
+type careUsageExportFiltersRequest struct {
+	PhaseID        string `json:"phase_id"`
+	Status         string `json:"status,omitempty"`
+	CareOfferingID string `json:"care_offering_id,omitempty"`
+	DayCount       int    `json:"day_count,omitempty"`
+	GradeLevel     *int16 `json:"grade_level,omitempty"`
+	Search         string `json:"search,omitempty"`
+}
+
+type careUsageReportResponse struct {
+	Phase         careUsagePhaseResponse            `json:"phase"`
+	Filters       careUsageAppliedFiltersResponse   `json:"filters"`
+	Totals        enrollmentService.CareUsageTotals `json:"totals"`
+	ByOffering    []careUsageOfferingStatResponse   `json:"by_offering"`
+	FilterOptions careUsageFilterOptionsResponse    `json:"filter_options"`
+	Rows          []careUsageRowResponse            `json:"rows"`
+}
+
+type careUsagePhaseResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type careUsageAppliedFiltersResponse struct {
+	PhaseID        string `json:"phase_id"`
+	Status         string `json:"status"`
+	CareOfferingID string `json:"care_offering_id,omitempty"`
+	DayCount       int    `json:"day_count,omitempty"`
+	GradeLevel     *int16 `json:"grade_level,omitempty"`
+	Search         string `json:"search,omitempty"`
+}
+
+type careUsageOfferingStatResponse struct {
+	OfferingID   string         `json:"offering_id"`
+	OfferingName string         `json:"offering_name"`
+	Children     int            `json:"children"`
+	ByDayCount   map[string]int `json:"by_day_count"`
+}
+
+type careUsageFilterOptionsResponse struct {
+	Offerings   []careUsageOfferingOptionResponse `json:"offerings"`
+	GradeLevels []int16                           `json:"grade_levels"`
+}
+
+type careUsageOfferingOptionResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type careUsageRowResponse struct {
+	RequestID         string                         `json:"request_id"`
+	ChildID           string                         `json:"child_id"`
+	ChildFirstName    string                         `json:"child_first_name"`
+	ChildLastName     string                         `json:"child_last_name"`
+	DateOfBirth       string                         `json:"date_of_birth"`
+	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
+	Status            string                         `json:"status"`
+	Offerings         []careUsageRowOfferingResponse `json:"offerings"`
+	EffectiveDays     []string                       `json:"effective_days"`
+	DayCount          int                            `json:"day_count"`
+	GuardianFirstName string                         `json:"guardian_first_name"`
+	GuardianLastName  string                         `json:"guardian_last_name"`
+	GuardianEmail     string                         `json:"guardian_email"`
+	GuardianPhone     *string                        `json:"guardian_phone,omitempty"`
+	SubmittedAt       time.Time                      `json:"submitted_at"`
+}
+
+type careUsageRowOfferingResponse struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	Days           []string `json:"days"`
+	DaysSource     string   `json:"days_source"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
 }
 
 func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +132,7 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, report, "Care usage report retrieved")
+	common.Respond(w, r, http.StatusOK, toCareUsageReportResponse(report), "Care usage report retrieved")
 }
 
 func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request) {
@@ -171,10 +246,121 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollment
 	default:
 		return "", enrollmentService.CareUsageFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
 	}
-	if body.Filters.PhaseID <= 0 {
+	filters, err := body.Filters.toServiceFilters()
+	if err != nil {
+		return "", enrollmentService.CareUsageFilters{}, err
+	}
+	if filters.PhaseID <= 0 {
 		return "", enrollmentService.CareUsageFilters{}, errors.New("filters.phase_id is required")
 	}
-	return format, body.Filters, nil
+	return format, filters, nil
+}
+
+func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.CareUsageFilters, error) {
+	phaseID, err := parseRequiredPositiveInt64(req.PhaseID, "filters.phase_id")
+	if err != nil {
+		return enrollmentService.CareUsageFilters{}, err
+	}
+	filters := enrollmentService.CareUsageFilters{
+		PhaseID:    phaseID,
+		Status:     req.Status,
+		DayCount:   req.DayCount,
+		GradeLevel: req.GradeLevel,
+		Search:     req.Search,
+	}
+	if strings.TrimSpace(req.CareOfferingID) != "" {
+		careOfferingID, err := parseRequiredPositiveInt64(req.CareOfferingID, "filters.care_offering_id")
+		if err != nil {
+			return enrollmentService.CareUsageFilters{}, err
+		}
+		filters.CareOfferingID = careOfferingID
+	}
+	return filters, nil
+}
+
+func parseRequiredPositiveInt64(raw, field string) (int64, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, fmt.Errorf("%s is required", field)
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("%s must be positive", field)
+	}
+	return id, nil
+}
+
+func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careUsageReportResponse {
+	if report == nil {
+		return nil
+	}
+	out := &careUsageReportResponse{
+		Phase: careUsagePhaseResponse{
+			ID:   strconv.FormatInt(report.Phase.ID, 10),
+			Name: report.Phase.Name,
+		},
+		Filters: careUsageAppliedFiltersResponse{
+			PhaseID:    strconv.FormatInt(report.Filters.PhaseID, 10),
+			Status:     report.Filters.Status,
+			DayCount:   report.Filters.DayCount,
+			GradeLevel: report.Filters.GradeLevel,
+			Search:     report.Filters.Search,
+		},
+		Totals: report.Totals,
+		FilterOptions: careUsageFilterOptionsResponse{
+			GradeLevels: report.FilterOptions.GradeLevels,
+		},
+		Rows: make([]careUsageRowResponse, 0, len(report.Rows)),
+	}
+	if report.Filters.CareOfferingID > 0 {
+		out.Filters.CareOfferingID = strconv.FormatInt(report.Filters.CareOfferingID, 10)
+	}
+	out.ByOffering = make([]careUsageOfferingStatResponse, 0, len(report.ByOffering))
+	for _, stat := range report.ByOffering {
+		out.ByOffering = append(out.ByOffering, careUsageOfferingStatResponse{
+			OfferingID:   strconv.FormatInt(stat.OfferingID, 10),
+			OfferingName: stat.OfferingName,
+			Children:     stat.Children,
+			ByDayCount:   stat.ByDayCount,
+		})
+	}
+	out.FilterOptions.Offerings = make([]careUsageOfferingOptionResponse, 0, len(report.FilterOptions.Offerings))
+	for _, option := range report.FilterOptions.Offerings {
+		out.FilterOptions.Offerings = append(out.FilterOptions.Offerings, careUsageOfferingOptionResponse{
+			ID:   strconv.FormatInt(option.ID, 10),
+			Name: option.Name,
+		})
+	}
+	for _, row := range report.Rows {
+		rowOut := careUsageRowResponse{
+			RequestID:         strconv.FormatInt(row.RequestID, 10),
+			ChildID:           strconv.FormatInt(row.ChildID, 10),
+			ChildFirstName:    row.ChildFirstName,
+			ChildLastName:     row.ChildLastName,
+			DateOfBirth:       row.DateOfBirth,
+			TargetGradeLevel:  row.TargetGradeLevel,
+			Status:            row.Status,
+			EffectiveDays:     row.EffectiveDays,
+			DayCount:          row.DayCount,
+			GuardianFirstName: row.GuardianFirstName,
+			GuardianLastName:  row.GuardianLastName,
+			GuardianEmail:     row.GuardianEmail,
+			GuardianPhone:     row.GuardianPhone,
+			SubmittedAt:       row.SubmittedAt,
+			Offerings:         make([]careUsageRowOfferingResponse, 0, len(row.Offerings)),
+		}
+		for _, offering := range row.Offerings {
+			rowOut.Offerings = append(rowOut.Offerings, careUsageRowOfferingResponse{
+				ID:             strconv.FormatInt(offering.ID, 10),
+				Name:           offering.Name,
+				Days:           offering.Days,
+				DaysSource:     offering.DaysSource,
+				DaysOfWeekMode: offering.DaysOfWeekMode,
+			})
+		}
+		out.Rows = append(out.Rows, rowOut)
+	}
+	return out
 }
 
 func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
