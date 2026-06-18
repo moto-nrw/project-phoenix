@@ -1447,8 +1447,8 @@ func (s *decisionService) linkAdditionalGuardians(
 		if err := rel.Validate(); err != nil {
 			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
-			return fmt.Errorf("create co-guardian student_guardian: %w", err)
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
+			return fmt.Errorf("link co-guardian student_guardian: %w", err)
 		}
 		// Persist the co-guardian's phone number, mirroring the primary
 		// guardian. A co-guardian can be a phone-only contact (no email),
@@ -2487,7 +2487,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		if c.EmergencyPriority > 0 {
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
 			return fmt.Errorf("link contact to student: %w", err)
 		}
 	}
