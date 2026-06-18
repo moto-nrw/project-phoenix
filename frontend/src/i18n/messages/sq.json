@@ -487,6 +487,12 @@
       "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon në këmbë.",
       "weekdayMultiModeHelp": "Zgjidhni të gjitha mënyrat e kthimit që lejohen për fëmijën tuaj në çdo ditë kujdesi.",
       "weekdayMultiModeNoDays": "Së pari zgjidhni ditët e kujdesit.",
+      "weekdayMultiModeUniform": "Të njëjtat mënyra kthimi për të gjitha ditët e kujdesit",
+      "weekdayMultiModeUniformHint": "Bëni zgjedhjen një herë; vlen për çdo ditë kujdesi.",
+      "weekdayMultiModeUniformConfirmTitle": "Të zbatohet një zgjedhje për të gjitha ditët?",
+      "weekdayMultiModeUniformConfirmBody": "Keni zgjedhur mënyra të ndryshme kthimi për ditë të veçanta kujdesi. Nëse aktivizoni një zgjedhje të përbashkët, këto të dhëna sipas ditëve fshihen dhe e bëni zgjedhjen nga e para.",
+      "weekdayMultiModeUniformConfirmCta": "Fshi dhe vazhdo",
+      "weekdayMultiModeUniformConfirmCancel": "Anulo",
       "departureModes": {
         "alone": "Shkon në këmbë",
         "bus": "Autobus",
