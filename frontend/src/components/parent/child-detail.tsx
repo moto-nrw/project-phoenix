@@ -191,6 +191,7 @@ export function ChildDetail({ studentId }: Props) {
 
 function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const t = useTranslations("parentChildDetail");
+  const tMd = useTranslations("parentMasterData");
   const locale = useLocale();
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
@@ -283,6 +284,14 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               <InfoRow key={item.label} label={item.label} value={item.value} />
             ))}
           </dl>
+          <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
+            <Link
+              href={`/parents/children/${child.student_id}/stammdaten`}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+            >
+              {tMd("openLink")}
+            </Link>
+          </div>
         </section>
 
         <div className="grid gap-6 max-lg:hidden">
@@ -340,6 +349,7 @@ function MobileChildAppView({
   onAction: (actionKey: string) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tMd = useTranslations("parentMasterData");
   const locale = useLocale();
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
   const pickupPeople = getPickupPeople(t);
@@ -454,6 +464,12 @@ function MobileChildAppView({
             value={child.school_class || t("notSet")}
           />
         </dl>
+        <Link
+          href={`/parents/children/${child.student_id}/stammdaten`}
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#83CD2D] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#74b827]"
+        >
+          {tMd("openLink")}
+        </Link>
       </section>
     </div>
   );

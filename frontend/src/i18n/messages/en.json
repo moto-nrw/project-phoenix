@@ -618,5 +618,60 @@
       "auto_renewed": "Preselected",
       "pending_admin_review": "Under review"
     }
+  },
+  "parentMasterData": {
+    "title": "Master data",
+    "subtitle": "Here you can see the data stored for your child. You can change most fields directly; some changes are reviewed by the team first.",
+    "back": "Back",
+    "loadError": "The master data could not be loaded. Please refresh the page.",
+    "saved": "Saved",
+    "saveError": "The change could not be saved.",
+    "openLink": "View & change master data",
+    "editableHint": "Changes are saved automatically.",
+    "readonlyHint": "This information is maintained by the OGS.",
+    "requestHint": "These changes are reviewed by the team before they are applied.",
+    "requestButton": "Request change",
+    "requestSubmitted": "Request sent. The team will review your change.",
+    "requestError": "The request could not be sent.",
+    "noChanges": "There are no changes to submit.",
+    "pendingBadge": "Under review",
+    "pendingNotice": "A change to this field is awaiting confirmation by the team.",
+    "editDisabled": "Editing master data is disabled for this OGS.",
+    "requestDisabled": "Change requests are disabled for this OGS.",
+    "notSet": "Not provided",
+    "sections": {
+      "child": "Child details",
+      "health": "Health",
+      "contact": "Your contact details",
+      "departure": "Permanent ways home"
+    },
+    "fields": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "birthday": "Date of birth",
+      "schoolClass": "Class",
+      "status": "Status",
+      "carePeriod": "Care period",
+      "healthInfo": "Health notes / allergies",
+      "email": "Email address",
+      "addressStreet": "Street and number",
+      "addressCity": "City",
+      "addressPostalCode": "Postal code",
+      "contactMethod": "Preferred contact method",
+      "language": "Language",
+      "phone": "Phone number"
+    },
+    "contactMethods": {
+      "email": "Email",
+      "phone": "Phone",
+      "mobile": "Mobile",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Picked up",
+      "bus": "Bus",
+      "alone": "Goes alone",
+      "none": "Not specified"
+    }
   }
 }

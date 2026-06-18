@@ -1,0 +1,553 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { AlertCircle, ArrowLeft, Check, Clock, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
+import { createLogger } from "~/lib/logger";
+import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import {
+  type ChildFeatures,
+  type ChildMasterData,
+  type MasterDataChange,
+  type MasterDataChangeInput,
+  getChildFeatures,
+  getChildMasterData,
+  submitMasterDataRequest,
+  updateMasterDataField,
+} from "~/lib/parent-api";
+
+const logger = createLogger({ component: "ChildMasterData" });
+
+const AUTO_SAVE_DELAY_MS = 1500;
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+interface Props {
+  readonly studentId: string;
+}
+
+export function ChildMasterDataView({ studentId }: Props) {
+  const t = useTranslations("parentMasterData");
+  const [data, setData] = useState<ChildMasterData | null>(null);
+  const [features, setFeatures] = useState<ChildFeatures | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useSetBreadcrumb({ pageTitle: t("title") });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [md, feats] = await Promise.all([
+        getChildMasterData(studentId),
+        getChildFeatures(studentId),
+      ]);
+      setData(md);
+      setFeatures(feats);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("child_master_data_load_failed", {
+        error: message,
+        student_id: studentId,
+      });
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [studentId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-4">
+        <div className="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
+        <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
+      </div>
+    );
+  }
+
+  if (error || !data || !features) {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <BackBar studentId={studentId} />
+        <div className="mt-4 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
+          {t("loadError")}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ChildMasterDataContent
+      studentId={studentId}
+      data={data}
+      features={features}
+      onApplied={setData}
+    />
+  );
+}
+
+function ChildMasterDataContent({
+  studentId,
+  data,
+  features,
+  onApplied,
+}: Readonly<{
+  studentId: string;
+  data: ChildMasterData;
+  features: ChildFeatures;
+  onApplied: (next: ChildMasterData) => void;
+}>) {
+  const t = useTranslations("parentMasterData");
+
+  const pendingByField = useMemo(() => {
+    const map = new Map<string, MasterDataChange>();
+    for (const c of data.pending_changes) {
+      if (c.status === "pending") map.set(`${c.target}/${c.field_key}`, c);
+    }
+    return map;
+  }, [data.pending_changes]);
+
+  const saveField = useCallback(
+    async (target: string, field: string, value: string) => {
+      const next = await updateMasterDataField(studentId, target, field, value);
+      onApplied(next);
+    },
+    [studentId, onApplied],
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <BackBar studentId={studentId} />
+        <div className="p-5 sm:p-6">
+          <h1 className="text-2xl font-semibold text-gray-900">{t("title")}</h1>
+          <p className="mt-1 text-sm leading-6 text-gray-600">
+            {t("subtitle")}
+          </p>
+        </div>
+      </div>
+
+      {/* Track B — child identity (approval required) */}
+      <IdentitySection
+        studentId={studentId}
+        data={data}
+        features={features}
+        pendingByField={pendingByField}
+        onApplied={onApplied}
+      />
+
+      {/* Track A — health (direct edit) */}
+      <Section title={t("sections.health")} hint={t("editableHint")}>
+        <AutoSaveField
+          label={t("fields.healthInfo")}
+          value={data.health_info ?? ""}
+          disabled={!features.master_data_edit_enabled}
+          onSave={(v) => saveField("student", "health_info", v)}
+        />
+      </Section>
+
+      {/* Track A — guardian contact (direct edit) */}
+      <Section title={t("sections.contact")} hint={t("editableHint")}>
+        <AutoSaveField
+          label={t("fields.email")}
+          type="email"
+          value={data.email ?? ""}
+          disabled={!features.master_data_edit_enabled}
+          onSave={(v) => saveField("guardian_profile", "email", v)}
+        />
+        <AutoSaveField
+          label={t("fields.phone")}
+          value={data.primary_phone ?? ""}
+          disabled={!features.master_data_edit_enabled}
+          onSave={(v) => saveField("guardian_phone", "primary", v)}
+        />
+        <AutoSaveField
+          label={t("fields.addressStreet")}
+          value={data.address_street ?? ""}
+          disabled={!features.master_data_edit_enabled}
+          onSave={(v) => saveField("guardian_profile", "address_street", v)}
+        />
+        <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+          <AutoSaveField
+            label={t("fields.addressPostalCode")}
+            value={data.address_postal_code ?? ""}
+            disabled={!features.master_data_edit_enabled}
+            onSave={(v) =>
+              saveField("guardian_profile", "address_postal_code", v)
+            }
+          />
+          <AutoSaveField
+            label={t("fields.addressCity")}
+            value={data.address_city ?? ""}
+            disabled={!features.master_data_edit_enabled}
+            onSave={(v) => saveField("guardian_profile", "address_city", v)}
+          />
+        </div>
+        {!features.master_data_edit_enabled && (
+          <p className="text-xs text-gray-500">{t("editDisabled")}</p>
+        )}
+      </Section>
+
+      {/* Read-only — school-controlled + permanent departure */}
+      <Section title={t("sections.departure")} hint={t("readonlyHint")}>
+        <DepartureSummary modes={data.allowed_departure_modes} />
+      </Section>
+    </div>
+  );
+}
+
+function IdentitySection({
+  studentId,
+  data,
+  features,
+  pendingByField,
+  onApplied,
+}: Readonly<{
+  studentId: string;
+  data: ChildMasterData;
+  features: ChildFeatures;
+  pendingByField: Map<string, MasterDataChange>;
+  onApplied: (next: ChildMasterData) => void;
+}>) {
+  const t = useTranslations("parentMasterData");
+  const [firstName, setFirstName] = useState(data.first_name);
+  const [lastName, setLastName] = useState(data.last_name);
+  const [birthday, setBirthday] = useState(data.birthday ?? "");
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  const requestable = features.master_data_request_enabled;
+
+  const changes = useMemo<MasterDataChangeInput[]>(() => {
+    const out: MasterDataChangeInput[] = [];
+    if (firstName.trim() && firstName !== data.first_name) {
+      out.push({ target: "person", field_key: "first_name", value: firstName });
+    }
+    if (lastName.trim() && lastName !== data.last_name) {
+      out.push({ target: "person", field_key: "last_name", value: lastName });
+    }
+    if (birthday && birthday !== (data.birthday ?? "")) {
+      out.push({ target: "person", field_key: "birthday", value: birthday });
+    }
+    return out;
+  }, [firstName, lastName, birthday, data]);
+
+  const submit = useCallback(async () => {
+    if (changes.length === 0) return;
+    setStatus("saving");
+    setMessage(null);
+    try {
+      await submitMasterDataRequest(studentId, changes);
+      setStatus("saved");
+      setMessage(t("requestSubmitted"));
+      // Refresh so the new pending rows show their badges.
+      const next = await getChildMasterData(studentId);
+      onApplied(next);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      logger.warn("master_data_request_failed", {
+        error: text,
+        student_id: studentId,
+      });
+      setStatus("error");
+      setMessage(t("requestError"));
+    }
+  }, [changes, studentId, onApplied, t]);
+
+  return (
+    <Section title={t("sections.child")} hint={t("requestHint")}>
+      <RequestField
+        label={t("fields.firstName")}
+        value={firstName}
+        onChange={setFirstName}
+        disabled={!requestable}
+        pending={pendingByField.get("person/first_name")}
+      />
+      <RequestField
+        label={t("fields.lastName")}
+        value={lastName}
+        onChange={setLastName}
+        disabled={!requestable}
+        pending={pendingByField.get("person/last_name")}
+      />
+      <RequestField
+        label={t("fields.birthday")}
+        type="date"
+        value={birthday}
+        onChange={setBirthday}
+        disabled={!requestable}
+        pending={pendingByField.get("person/birthday")}
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <ReadField label={t("fields.schoolClass")} value={data.school_class} />
+      </div>
+
+      {requestable ? (
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={changes.length === 0 || status === "saving"}
+            onClick={() => void submit()}
+          >
+            {t("requestButton")}
+          </Button>
+          {message && (
+            <span
+              className={
+                status === "error"
+                  ? "text-sm text-[#CC2626]"
+                  : "text-sm text-[#4A7A15]"
+              }
+            >
+              {message}
+            </span>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
+      )}
+    </Section>
+  );
+}
+
+function Section({
+  title,
+  hint,
+  children,
+}: Readonly<{ title: string; hint: string; children: React.ReactNode }>) {
+  return (
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+      <header className="mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <p className="mt-0.5 text-xs text-gray-500">{hint}</p>
+      </header>
+      <div className="space-y-4">{children}</div>
+    </section>
+  );
+}
+
+function AutoSaveField({
+  label,
+  value,
+  type = "text",
+  disabled = false,
+  onSave,
+}: Readonly<{
+  label: string;
+  value: string;
+  type?: string;
+  disabled?: boolean;
+  onSave: (value: string) => Promise<void>;
+}>) {
+  const [local, setLocal] = useState(value);
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setLocal(value);
+  }, [value]);
+
+  const doSave = useCallback(
+    async (next: string) => {
+      if (next === value) {
+        setStatus("idle");
+        return;
+      }
+      setStatus("saving");
+      try {
+        await onSave(next);
+        setStatus("saved");
+      } catch {
+        setStatus("error");
+      }
+    },
+    [onSave, value],
+  );
+
+  const handleChange = (next: string) => {
+    setLocal(next);
+    setStatus("idle");
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void doSave(next), AUTO_SAVE_DELAY_MS);
+  };
+
+  const handleBlur = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (local !== value) void doSave(local);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {label}
+        </span>
+        <SaveIndicator status={status} />
+      </div>
+      <div className="mt-1">
+        <Input
+          type={type}
+          value={local}
+          disabled={disabled}
+          onChange={(e) => handleChange(e.target.value)}
+          onBlur={handleBlur}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RequestField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  disabled = false,
+  pending,
+}: Readonly<{
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  disabled?: boolean;
+  pending?: MasterDataChange;
+}>) {
+  const t = useTranslations("parentMasterData");
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {label}
+        </span>
+        {pending && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            {t("pendingBadge")}
+          </span>
+        )}
+      </div>
+      <div className="mt-1">
+        <Input
+          type={type}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+      {pending && (
+        <p className="mt-1 text-xs text-gray-500">{t("pendingNotice")}</p>
+      )}
+    </div>
+  );
+}
+
+function ReadField({
+  label,
+  value,
+}: Readonly<{ label: string; value: string }>) {
+  const t = useTranslations("parentMasterData");
+  return (
+    <div className="min-w-0">
+      <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        {label}
+      </span>
+      <p className="mt-1 text-sm font-medium text-gray-900">
+        {value || t("notSet")}
+      </p>
+    </div>
+  );
+}
+
+function DepartureSummary({
+  modes,
+}: Readonly<{ modes?: Record<string, string[]> }>) {
+  const t = useTranslations("parentMasterData");
+  const order = ["mon", "tue", "wed", "thu", "fri"];
+  const labels: Record<string, string> = {
+    mon: "Mo",
+    tue: "Di",
+    wed: "Mi",
+    thu: "Do",
+    fri: "Fr",
+  };
+  return (
+    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      {order.map((day) => {
+        const dayModes = modes?.[day] ?? [];
+        const text =
+          dayModes.length > 0
+            ? dayModes.map((m) => t(`departureModes.${m}`)).join(", ")
+            : t("departureModes.none");
+        return (
+          <div
+            key={day}
+            className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+          >
+            <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              {labels[day]}
+            </dt>
+            <dd className="mt-1 text-sm font-medium text-gray-900">{text}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
+function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
+  const t = useTranslations("parentMasterData");
+  if (status === "saving") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+      </span>
+    );
+  }
+  if (status === "saved") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#4A7A15]">
+        <Check className="h-3 w-3" aria-hidden="true" />
+        {t("saved")}
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#CC2626]">
+        <AlertCircle className="h-3 w-3" aria-hidden="true" />
+        {t("saveError")}
+      </span>
+    );
+  }
+  return null;
+}
+
+function BackBar({ studentId }: Readonly<{ studentId: string }>) {
+  const t = useTranslations("parentMasterData");
+  return (
+    <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+      <Link
+        href={`/parents/children/${studentId}`}
+        className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        {t("back")}
+      </Link>
+    </div>
+  );
+}

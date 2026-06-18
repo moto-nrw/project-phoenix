@@ -618,5 +618,60 @@
       "auto_renewed": "Предварительно записано",
       "pending_admin_review": "На проверке"
     }
+  },
+  "parentMasterData": {
+    "title": "Stammdaten",
+    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "back": "Zurück",
+    "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+    "saved": "Gespeichert",
+    "saveError": "Die Änderung konnte nicht gespeichert werden.",
+    "openLink": "Stammdaten ansehen & ändern",
+    "editableHint": "Änderungen werden automatisch gespeichert.",
+    "readonlyHint": "Diese Angaben pflegt die OGS.",
+    "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
+    "requestButton": "Änderung anfragen",
+    "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+    "requestError": "Die Anfrage konnte nicht gesendet werden.",
+    "noChanges": "Es gibt keine Änderungen zum Senden.",
+    "pendingBadge": "In Prüfung",
+    "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
+    "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+    "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+    "notSet": "Nicht angegeben",
+    "sections": {
+      "child": "Angaben zum Kind",
+      "health": "Gesundheit",
+      "contact": "Ihre Kontaktdaten",
+      "departure": "Dauerhafte Gehzeiten"
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "birthday": "Geburtsdatum",
+      "schoolClass": "Klasse",
+      "status": "Status",
+      "carePeriod": "Betreuungszeitraum",
+      "healthInfo": "Gesundheitshinweise / Allergien",
+      "email": "E-Mail-Adresse",
+      "addressStreet": "Straße und Hausnummer",
+      "addressCity": "Ort",
+      "addressPostalCode": "PLZ",
+      "contactMethod": "Bevorzugter Kontaktweg",
+      "language": "Sprache",
+      "phone": "Telefonnummer"
+    },
+    "contactMethods": {
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "mobile": "Mobil",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Wird abgeholt",
+      "bus": "Bus",
+      "alone": "Geht allein",
+      "none": "Keine Angabe"
+    }
   }
 }

@@ -97,6 +97,8 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // enforces the gate regardless).
   related_accounts_invite_enabled: false,
   related_accounts_remove_enabled: false,
+  master_data_edit_enabled: false,
+  master_data_request_enabled: false,
 };
 
 export interface ChildCare {
