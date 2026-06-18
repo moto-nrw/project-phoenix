@@ -36,6 +36,11 @@ const (
 	legalAGBDocumentPrefix  = "/uploads/enrollment-legal-documents/"
 )
 
+var (
+	errLegalAGBDocumentManagedByUpload = errors.New("AGB document URL is managed by the file upload endpoint")
+	errCannotDeleteActiveLegalAGBPDF   = errors.New("AGB-PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden")
+)
+
 // errOperatorOnlyForTenant explains why a tenant admin may not read/write an
 // AccessOperatorOnly setting. Surfaced as HTTP 403. The UI already hides these
 // settings; this is belt-and-braces defence against direct API calls.
@@ -54,6 +59,14 @@ func guardTenantAccess(w http.ResponseWriter, r *http.Request, key string) bool 
 		return true
 	}
 	return false
+}
+
+func guardDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
+		return false
+	}
+	common.RenderError(w, r, common.ErrorForbidden(errLegalAGBDocumentManagedByUpload))
+	return true
 }
 
 // ValueSetCallback runs in the same tenant transaction as the setting
@@ -211,6 +224,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 	if guardTenantAccess(w, r, key) {
 		return
 	}
+	if guardDirectManagedSettingWrite(w, r, key) {
+		return
+	}
 
 	var req setValueRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -254,6 +270,9 @@ func (rs *SettingsResource) setValue(w http.ResponseWriter, r *http.Request) {
 func (rs *SettingsResource) resetValue(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	if guardTenantAccess(w, r, key) {
+		return
+	}
+	if guardDirectManagedSettingWrite(w, r, key) {
 		return
 	}
 
@@ -403,6 +422,11 @@ type legalAGBDocumentResponse struct {
 	DocumentURL string `json:"document_url"`
 }
 
+type enrollmentLegalAGBDeleteSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
 	uploaded, err := common.ParsePDFWithLimits(w, r, "document", maxLegalAGBDocumentSize, maxLegalAGBDocumentBody)
 	if err != nil {
@@ -429,14 +453,8 @@ func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWrit
 	documentURL := legalAGBDocumentPrefix + filepath.Base(filePath)
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
-	var oldURL string
 
 	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		resolvedOldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		oldURL = resolvedOldURL
 		if setErr := rs.settingsService.SetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, claims.Permissions); setErr != nil {
 			return setErr
 		}
@@ -447,12 +465,6 @@ func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWrit
 		common.RemoveImage(filePath)
 		renderSettingsError(w, r, err)
 		return
-	}
-
-	if oldURL != "" {
-		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, legalAGBDocumentPrefix); resolveErr == nil {
-			common.RemoveImage(oldPath)
-		}
 	}
 
 	common.Respond(w, r, http.StatusOK, legalAGBDocumentResponse{DocumentURL: documentURL}, "AGB document uploaded successfully")
@@ -468,14 +480,11 @@ func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWrit
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
-	var oldURL string
 
 	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		resolvedOldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
-		if resolveErr != nil {
-			return resolveErr
+		if guardErr := canDeleteEnrollmentLegalAGBDocument(ctx, rs.settingsService); guardErr != nil {
+			return guardErr
 		}
-		oldURL = resolvedOldURL
 		if resetErr := rs.settingsService.ResetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, claims.Permissions); resetErr != nil {
 			return resetErr
 		}
@@ -483,17 +492,31 @@ func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWrit
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errCannotDeleteActiveLegalAGBPDF) {
+			render.Status(r, http.StatusBadRequest)
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		renderSettingsError(w, r, err)
 		return
 	}
 
-	if oldURL != "" {
-		if oldPath, resolveErr := common.ResolveStoredPath("public", oldURL, legalAGBDocumentPrefix); resolveErr == nil {
-			common.RemoveImage(oldPath)
-		}
-	}
-
 	common.RespondNoContent(w, r)
+}
+
+func canDeleteEnrollmentLegalAGBDocument(ctx context.Context, settingsService enrollmentLegalAGBDeleteSettings) error {
+	termsEnabled, err := settingsService.ResolveBool(ctx, configModel.KeyEnrollmentLegalTermsEnabled)
+	if err != nil {
+		return err
+	}
+	displayMode, err := settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDisplayMode)
+	if err != nil {
+		return err
+	}
+	if termsEnabled && displayMode == configModel.EnrollmentLegalAGBDisplayModePDF {
+		return errCannotDeleteActiveLegalAGBPDF
+	}
+	return nil
 }
 
 // --- Handler accessors for testing ---

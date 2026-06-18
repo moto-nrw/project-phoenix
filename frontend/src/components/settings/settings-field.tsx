@@ -186,14 +186,24 @@ export function SettingsField({
   const isAGBLegalContext =
     setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY ||
     legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY;
-  const legalDocumentSetting =
-    isAGBLegalContext
-      ? categoryItems.find(
-          (item) => item.key === ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY,
-        )
-      : undefined;
+  const legalDocumentSetting = isAGBLegalContext
+    ? categoryItems.find(
+        (item) => item.key === ENROLLMENT_LEGAL_AGB_DOCUMENT_URL_KEY,
+      )
+    : undefined;
   const legalDocumentURL = toStr(legalDocumentSetting?.value).trim();
   const legalAGBDisplayMode = legalAGBDisplayModeFromItems(categoryItems);
+  const legalTermsEnabled = legalTermsEnabledFromItems(setting, categoryItems);
+  const legalDocumentManagementDisabledReason =
+    audience === "operator"
+      ? "PDF-Dateien können nur im Schulportal hochgeladen oder entfernt werden."
+      : undefined;
+  const legalDocumentDeleteDisabledReason =
+    audience !== "operator" &&
+    legalTermsEnabled &&
+    legalAGBDisplayMode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
+      ? "Diese PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden. Wechsle zuerst auf Text oder deaktiviere den Block."
+      : undefined;
   const legalTextWarning = getEnrollmentLegalTextWarning(
     setting,
     categoryItems,
@@ -752,6 +762,9 @@ export function SettingsField({
               documentURL: legalActivationDocumentURL,
               documentSaving: legalDocumentSaving,
               writable: setting.writable,
+              documentManagementDisabledReason:
+                legalDocumentManagementDisabledReason,
+              documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
             })
@@ -823,6 +836,9 @@ export function SettingsField({
               documentURL: legalDocumentDraftURL,
               documentSaving: legalDocumentSaving,
               writable: setting.writable,
+              documentManagementDisabledReason:
+                legalDocumentManagementDisabledReason,
+              documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
             })
@@ -894,6 +910,19 @@ function legalAGBDisplayModeFromItems(
     : ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT;
 }
 
+function legalTermsEnabledFromItems(
+  setting: ResolvedSetting,
+  categoryItems: ResolvedSetting[],
+): boolean {
+  if (setting.key === "enrollment.legal_terms_enabled") {
+    return setting.value === true;
+  }
+  return (
+    categoryItems.find((item) => item.key === "enrollment.legal_terms_enabled")
+      ?.value === true
+  );
+}
+
 function hasEnrollmentLegalContent(
   textKey: string,
   textValue: unknown,
@@ -946,6 +975,8 @@ interface AGBSourceEditorProps {
   readonly documentURL: string;
   readonly documentSaving: boolean;
   readonly writable: boolean;
+  readonly documentManagementDisabledReason?: string;
+  readonly documentDeleteDisabledReason?: string;
   readonly onDocumentUpload: (file: File | null) => void;
   readonly onDocumentDelete: () => void;
 }
@@ -958,11 +989,15 @@ function renderAGBSourceEditor({
   documentURL,
   documentSaving,
   writable,
+  documentManagementDisabledReason,
+  documentDeleteDisabledReason,
   onDocumentUpload,
   onDocumentDelete,
 }: AGBSourceEditorProps) {
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
+  const canManageDocument =
+    writable && documentManagementDisabledReason == null;
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -1015,9 +1050,7 @@ function renderAGBSourceEditor({
       {mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT ? (
         <div className="space-y-2">
           <label className="block">
-            <span className="text-sm font-medium text-gray-800">
-              AGB-Text
-            </span>
+            <span className="text-sm font-medium text-gray-800">AGB-Text</span>
             <textarea
               value={textValue}
               onChange={(event) => onTextChange(event.target.value)}
@@ -1043,26 +1076,28 @@ function renderAGBSourceEditor({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label
-                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
-                  !writable || documentSaving
-                    ? "pointer-events-none opacity-50"
-                    : ""
-                }`}
-              >
-                <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  className="sr-only"
-                  disabled={!writable || documentSaving}
-                  onChange={(event) => {
-                    onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
+              {documentManagementDisabledReason == null && (
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
+                    !canManageDocument || documentSaving
+                      ? "pointer-events-none opacity-50"
+                      : ""
+                  }`}
+                >
+                  <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="sr-only"
+                    disabled={!canManageDocument || documentSaving}
+                    onChange={(event) => {
+                      onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              )}
               {hasDocument && (
                 <a
                   href={publicLegalDocumentURL(documentURL)}
@@ -1074,19 +1109,31 @@ function renderAGBSourceEditor({
                   <span>Öffnen</span>
                 </a>
               )}
-              {hasDocument && writable && (
-                <button
-                  type="button"
-                  onClick={onDocumentDelete}
-                  disabled={documentSaving}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/5 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Entfernen</span>
-                </button>
-              )}
+              {hasDocument &&
+                canManageDocument &&
+                documentDeleteDisabledReason == null && (
+                  <button
+                    type="button"
+                    onClick={onDocumentDelete}
+                    disabled={documentSaving}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Entfernen</span>
+                  </button>
+                )}
             </div>
           </div>
+          {documentManagementDisabledReason && (
+            <p className="mt-2 text-xs font-medium text-gray-600">
+              {documentManagementDisabledReason}
+            </p>
+          )}
+          {hasDocument && documentDeleteDisabledReason && (
+            <p className="mt-2 text-xs font-medium text-gray-600">
+              {documentDeleteDisabledReason}
+            </p>
+          )}
           {hasText && (
             <p className="mt-2 text-xs text-gray-500">
               Ein Text ist gespeichert, wird aber aktuell nicht angezeigt.

@@ -493,6 +493,93 @@ describe("SettingsField", () => {
       "href",
       "/api/public/enrollment-legal-documents/terms.pdf",
     );
+    expect(getByText("PDF ersetzen")).toBeDefined();
+    expect(getByRole("button", { name: "Entfernen" })).toBeDefined();
+  });
+
+  it("hides AGB PDF upload and delete controls for operator settings", () => {
+    const { getByRole, getByText, queryByText, queryByRole } =
+      renderWithProviders(
+        <SettingsField
+          setting={makeSetting({
+            key: "enrollment.legal_agb_text",
+            label: "AGB / Teilnahmebedingungen",
+            type: "textarea",
+            value: "Gespeicherter AGB-Text",
+          })}
+          categoryItems={[
+            makeSetting({
+              key: "enrollment.legal_agb_document_url",
+              type: "text",
+              value: "/uploads/enrollment-legal-documents/terms.pdf",
+            }),
+            makeSetting({
+              key: "enrollment.legal_agb_display_mode",
+              type: "select",
+              value: "pdf",
+            }),
+          ]}
+          onSave={vi.fn().mockResolvedValue(null)}
+          onReset={vi.fn().mockResolvedValue(null)}
+          audience="operator"
+        />,
+      );
+
+    fireEvent.click(getByRole("button", { name: "AGB überarbeiten" }));
+
+    expect(getByRole("link", { name: "Öffnen" })).toHaveAttribute(
+      "href",
+      "/api/public/enrollment-legal-documents/terms.pdf",
+    );
+    expect(queryByText("PDF ersetzen")).toBeNull();
+    expect(queryByRole("button", { name: "Entfernen" })).toBeNull();
+    expect(
+      getByText(
+        "PDF-Dateien können nur im Schulportal hochgeladen oder entfernt werden.",
+      ),
+    ).toBeDefined();
+  });
+
+  it("hides only the delete control when active AGB terms use PDF mode", () => {
+    const { getByRole, getByText, queryByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_agb_text",
+          label: "AGB / Teilnahmebedingungen",
+          type: "textarea",
+          value: "Gespeicherter AGB-Text",
+        })}
+        categoryItems={[
+          makeSetting({
+            key: "enrollment.legal_terms_enabled",
+            type: "boolean",
+            value: true,
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_document_url",
+            type: "text",
+            value: "/uploads/enrollment-legal-documents/terms.pdf",
+          }),
+          makeSetting({
+            key: "enrollment.legal_agb_display_mode",
+            type: "select",
+            value: "pdf",
+          }),
+        ]}
+        onSave={vi.fn().mockResolvedValue(null)}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "AGB überarbeiten" }));
+
+    expect(getByText("PDF ersetzen")).toBeDefined();
+    expect(queryByRole("button", { name: "Entfernen" })).toBeNull();
+    expect(
+      getByText(
+        "Diese PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden. Wechsle zuerst auf Text oder deaktiviere den Block.",
+      ),
+    ).toBeDefined();
   });
 
   it("enables AGB terms with an existing PDF source without saving empty text", async () => {
@@ -551,10 +638,7 @@ describe("SettingsField", () => {
         true,
       );
     });
-    expect(onSave).not.toHaveBeenCalledWith(
-      "enrollment.legal_agb_text",
-      "",
-    );
+    expect(onSave).not.toHaveBeenCalledWith("enrollment.legal_agb_text", "");
   });
 
   it("switches AGB editing from PDF source back to text and saves both settings", async () => {
