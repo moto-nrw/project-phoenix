@@ -304,6 +304,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Neues Kind anlegen.",
           "`Vorname`, `Nachname`, `Klasse` und `OGS Gruppe` eintragen.",
           "Optional im Abschnitt `Erziehungsberechtigte` mit `Neu anlegen` eine Bezugsperson erfassen oder mit `Vorhandene/n suchen` eine bereits angelegte Person verknüpfen.",
+          "Bei jeder Bezugsperson die `Portalrolle` prüfen: Eltern bzw. gesetzliche Vertretungen erhalten Elternportal-Zugriff, Abhol- oder Notfallkontakte nicht automatisch.",
           "Optional im Abschnitt `Betreuungszeiten` auf `Wochenplan hinzufügen` klicken und die regelmäßigen `Ankunft`- und `Abholung`-Zeiten je Wochentag eintragen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
           "Auf `Erstellen` klicken. Erziehungsberechtigte und Betreuungszeiten werden zusammen mit dem Kind gespeichert.",

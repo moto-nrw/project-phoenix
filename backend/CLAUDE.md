@@ -103,6 +103,24 @@ Per-school config resolves tenant DB override → registry default; the service 
 - All deletions logged in `audit.data_deletions`
 - **Logging: no student names at Info level or above** (IDs only; names at Debug)
 
+### Guardian Parent-Portal Permissions
+
+Parent portal guardian permissions are relationship-scoped, not normal tenant
+account permissions. Staff/admin authorization still uses `auth.roles`,
+`auth.permissions`, JWT permissions, and `authorize.RequiresPermission`, but
+parents app access for a child must be decided from the matching
+`users.students_guardians` row.
+
+Never authorize parent portal child visibility or writes only from
+`auth.account_tenants`, `guardian_profiles.account_id`, or the existence of a
+guardian link. Those facts prove membership/relationship only; they do not prove
+permission. Operational fields such as `can_pickup`, `is_emergency_contact`,
+`relationship_type`, and `is_primary` may inform defaults but must not replace
+explicit `parent_portal.*` permission checks.
+
+Detailed rule and implementation guidance:
+`.claude/rules/guardian-parent-permissions.md`.
+
 ## Migration System
 
 One file per migration, named with the **zero-padded numeric version prefix** — `001015124_my_feature.go` for version `1.15.124` (the collision scanner in `00_migrations.go` only recognizes `000`/`001`-prefixed filenames; never use the dotted version in the filename):

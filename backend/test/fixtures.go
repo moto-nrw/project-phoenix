@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -2950,11 +2951,12 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 		StudentID:          student.ID,
 		GuardianProfileID:  profile.ID,
 		RelationshipType:   "parent",
-		IsPrimary:          true,
 		IsEmergencyContact: true,
 		CanPickup:          true,
 		EmergencyPriority:  1,
 	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
+	link.IsPrimary = true
 	link.SetTenantID(1)
 	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create students_guardians link")

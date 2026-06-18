@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -646,6 +647,49 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 		assert.Nil(t, result)
 		assert.Contains(t, err.Error(), "student")
 	})
+
+	t.Run("applies explicit pickup-only role without portal permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-pickup-only")
+		student := testpkg.CreateTestStudent(t, db, "PickupOnly", "Student", "4a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "relative",
+			GuardianRole:      authorize.GuardianRolePickupOnly,
+			CanPickup:         true,
+			EmergencyPriority: 1,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, authorize.GuardianRolePickupOnly, result.GuardianRole)
+		assert.True(t, result.CanPickup)
+		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+	})
+
+	t.Run("defaults primary relationship to full portal permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "link-primary-role")
+		student := testpkg.CreateTestStudent(t, db, "PrimaryRole", "Student", "4a")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		result, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			IsPrimary:         true,
+			EmergencyPriority: 1,
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, authorize.GuardianRolePrimaryGuardian, result.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionNotesWrite))
+	})
 }
 
 // =============================================================================
@@ -861,9 +905,17 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		// Update
 		newType := "guardian"
 		isPrimary := true
+		isEmergencyContact := true
+		canPickup := true
+		pickupNotes := "Nur mit Ausweis"
+		emergencyPriority := 2
 		updateReq := users.StudentGuardianUpdateRequest{
-			RelationshipType: &newType,
-			IsPrimary:        &isPrimary,
+			RelationshipType:   &newType,
+			IsPrimary:          &isPrimary,
+			IsEmergencyContact: &isEmergencyContact,
+			CanPickup:          &canPickup,
+			PickupNotes:        &pickupNotes,
+			EmergencyPriority:  &emergencyPriority,
 		}
 
 		// ACT
@@ -877,6 +929,39 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "guardian", updated.RelationshipType)
 		assert.True(t, updated.IsPrimary)
+		assert.True(t, updated.IsEmergencyContact)
+		assert.True(t, updated.CanPickup)
+		require.NotNil(t, updated.PickupNotes)
+		assert.Equal(t, pickupNotes, *updated.PickupNotes)
+		assert.Equal(t, emergencyPriority, updated.EmergencyPriority)
+	})
+
+	t.Run("updates role and derived permissions", func(t *testing.T) {
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "rel-update-role")
+		student := testpkg.CreateTestStudent(t, db, "RelUpdateRole", "Student", "5b")
+		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID, student.ID)
+
+		created, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+			GuardianRole:      authorize.GuardianRoleLegalGuardian,
+			EmergencyPriority: 1,
+		})
+		require.NoError(t, err)
+		require.True(t, authorize.StudentGuardianHasPermission(created, authorize.GuardianPermissionPortalAccess))
+
+		role := authorize.GuardianRoleEmergency
+		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, users.StudentGuardianUpdateRequest{
+			GuardianRole: &role,
+		})
+		require.NoError(t, err)
+
+		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
+		require.NoError(t, err)
+		assert.Equal(t, authorize.GuardianRoleEmergency, updated.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionNotesWrite))
 	})
 
 	t.Run("updates every optional relationship field", func(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -403,6 +404,13 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, student)
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, authorize.GuardianRolePrimaryGuardian, links[0].GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionPortalAccess))
+	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionEnrollmentSubmit))
 }
 
 // TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
@@ -446,9 +454,16 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	for _, l := range links {
 		if l.IsPrimary {
 			primaryCount++
+			assert.Equal(t, authorize.GuardianRolePrimaryGuardian, l.GuardianRole)
+			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
+			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
+			continue
 		}
 		assert.True(t, l.IsEmergencyContact, "co-guardians mapped like primary: emergency contact")
 		assert.True(t, l.CanPickup, "co-guardians mapped like primary: can pick up")
+		assert.Equal(t, authorize.GuardianRoleEmergency, l.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
 	}
 	assert.Equal(t, 1, primaryCount, "exactly one primary guardian")
 

@@ -321,6 +321,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		// Don't reveal whether the student exists elsewhere — treat an
 		// unowned child as forbidden.
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "child_not_linked"))
+	case errors.Is(err, parentService.ErrGuardianPermissionDenied):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_permission_denied"))
 	case errors.Is(err, parentService.ErrSickNoteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):

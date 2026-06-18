@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -707,6 +708,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
 	}
+	authorize.ApplyDefaultStudentGuardianRole(relationship)
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.relationRepo.Create(ctx, relationship); err != nil {

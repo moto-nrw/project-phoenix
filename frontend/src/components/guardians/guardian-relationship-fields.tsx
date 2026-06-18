@@ -1,6 +1,10 @@
 "use client";
 
-import { RELATIONSHIP_TYPES } from "@/lib/guardian-helpers";
+import {
+  GUARDIAN_ROLE_OPTIONS,
+  RELATIONSHIP_TYPES,
+  type GuardianRole,
+} from "@/lib/guardian-helpers";
 
 // Shared relationship UI used by BOTH the multi-guardian form (create/edit) and
 // the existing-guardian picker (#1513). Extracting these blocks keeps the two
@@ -64,7 +68,94 @@ export function RelationshipTypeSelect({
   );
 }
 
+interface GuardianRoleSelectProps {
+  readonly id: string;
+  readonly value: GuardianRole;
+  readonly onChange: (value: GuardianRole) => void;
+  readonly disabled?: boolean;
+}
+
+export function GuardianRoleSelect({
+  id,
+  value,
+  onChange,
+  disabled = false,
+}: GuardianRoleSelectProps) {
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-1 block text-xs font-medium text-gray-700"
+      >
+        Portalrolle
+      </label>
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value as GuardianRole)}
+          className="block w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-10 text-sm transition-colors focus:border-[#5080D8] focus:ring-1 focus:ring-[#5080D8]"
+          disabled={disabled}
+        >
+          {GUARDIAN_ROLE_OPTIONS.map((role) => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function guardianRoleOperationalDefaults(
+  role: GuardianRole,
+): Partial<Record<RelationshipFlag, boolean>> {
+  switch (role) {
+    case "primary_guardian":
+      return { isPrimary: true, canPickup: false, isEmergencyContact: false };
+    case "legal_guardian":
+    case "co_guardian":
+      return { isPrimary: false, canPickup: false, isEmergencyContact: false };
+    case "emergency_contact":
+      return { isPrimary: false, canPickup: false, isEmergencyContact: true };
+    case "pickup_only":
+      return { isPrimary: false, canPickup: true, isEmergencyContact: false };
+    case "social_worker":
+      return { isPrimary: false, canPickup: false, isEmergencyContact: false };
+    case "custom":
+      return {};
+  }
+}
+
 export type RelationshipFlag = "isPrimary" | "canPickup" | "isEmergencyContact";
+
+export function defaultGuardianRoleForRelationshipType(
+  relationshipType: string,
+): GuardianRole {
+  switch (relationshipType.trim().toLowerCase()) {
+    case "parent":
+    case "guardian":
+      return "legal_guardian";
+    default:
+      return "custom";
+  }
+}
 
 interface RelationshipPermissionsFieldsProps {
   readonly isPrimary: boolean;
