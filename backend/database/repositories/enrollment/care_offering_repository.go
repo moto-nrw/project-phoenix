@@ -150,6 +150,26 @@ func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64)
 	return offerings, nil
 }
 
+// ListByIDs returns the exact care offerings referenced by ids. It is not
+// phase-scoped because rollover request children can intentionally carry
+// source-phase offering IDs into the target phase.
+func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
+	if len(ids) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"care_offering".sort_order, "care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offerings by ids: %w", err)
+	}
+	return offerings, nil
+}
+
 // CountByPhaseID returns how many care offerings belong to the phase.
 // Powers the phase-delete confirmation modal ("Y Betreuungsangebote
 // werden gelöscht"). Tenant-scoped via RLS.

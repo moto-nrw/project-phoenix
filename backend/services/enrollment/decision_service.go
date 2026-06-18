@@ -1447,8 +1447,8 @@ func (s *decisionService) linkAdditionalGuardians(
 		if err := rel.Validate(); err != nil {
 			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
-			return fmt.Errorf("create co-guardian student_guardian: %w", err)
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
+			return fmt.Errorf("link co-guardian student_guardian: %w", err)
 		}
 		// Persist the co-guardian's phone number, mirroring the primary
 		// guardian. A co-guardian can be a phone-only contact (no email),
@@ -1591,6 +1591,26 @@ func (s *decisionService) materializeEnrollments(
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
+	if len(links) == 0 {
+		return nil
+	}
+	offeringIDs := make([]int64, 0, len(links))
+	seenOfferingIDs := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link.CareOfferingID <= 0 || seenOfferingIDs[link.CareOfferingID] {
+			continue
+		}
+		seenOfferingIDs[link.CareOfferingID] = true
+		offeringIDs = append(offeringIDs, link.CareOfferingID)
+	}
+	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list linked care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		offeringByID[offering.ID] = offering
+	}
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
@@ -1603,8 +1623,8 @@ func (s *decisionService) materializeEnrollments(
 	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
-		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
-		if err != nil || offering == nil {
+		offering := offeringByID[link.CareOfferingID]
+		if offering == nil {
 			s.logger.Warn("decision: care offering missing for child link",
 				slog.Int64("request_child_id", requestChildID),
 				slog.Int64("care_offering_id", link.CareOfferingID))
@@ -2467,7 +2487,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		if c.EmergencyPriority > 0 {
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
 			return fmt.Errorf("link contact to student: %w", err)
 		}
 	}

@@ -369,19 +369,46 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	reviewedBy := int64(claims.ID)
 
 	var outcome *enrollmentService.DecideOutcome
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
-			RequestID:  requestID,
-			ChildID:    childID,
-			Status:     enrollmentService.DecisionStatus(body.Status),
-			Reason:     body.Reason,
-			ReviewedBy: reviewedBy,
+	for attempt := 0; attempt < 2; attempt++ {
+		outcome = nil
+		decisionBodySucceeded := false
+		err = rs.runInTenantTx(r, func(ctx context.Context) error {
+			out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
+				RequestID:  requestID,
+				ChildID:    childID,
+				Status:     enrollmentService.DecisionStatus(body.Status),
+				Reason:     body.Reason,
+				ReviewedBy: reviewedBy,
+			})
+			if e != nil {
+				return e
+			}
+			outcome = out
+			decisionBodySucceeded = true
+			return nil
 		})
-		outcome = out
-		return e
-	})
+		if err == nil {
+			break
+		}
+		if reqErr := r.Context().Err(); reqErr != nil {
+			err = reqErr
+			break
+		}
+		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
+			break
+		}
+		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
+			slog.Int64("request_id", requestID),
+			slog.Int64("child_id", childID),
+			slog.String("error", err.Error()),
+		)
+	}
 	if err != nil {
 		switch {
+		case errors.Is(err, context.Canceled):
+			common.RenderError(w, r, common.ErrorClientClosed(err))
+		case errors.Is(err, context.DeadlineExceeded):
+			common.RenderError(w, r, common.ErrorRequestTimeout(err))
 		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
 			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
@@ -389,6 +416,8 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
 			errors.Is(err, enrollmentService.ErrDecisionInvalidData):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		case common.IsTransientDatabaseError(err):
+			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

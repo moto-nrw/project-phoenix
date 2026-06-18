@@ -2357,6 +2357,33 @@ describe("TimeTrackingPage", () => {
       expect(saveBtn).not.toBeDisabled();
     });
 
+    it("blocks saving when end time is not after start time", async () => {
+      await openEditModal(makePastSession());
+      vi.mocked(timeTrackingService.updateSession).mockClear();
+
+      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      fireEvent.change(screen.getByLabelText("Start"), {
+        target: { value: "12:30" },
+      });
+      fireEvent.change(screen.getByLabelText("Ende"), {
+        target: { value: "12:00" },
+      });
+
+      expect(
+        screen.getByText("Ende muss nach Start liegen."),
+      ).toBeInTheDocument();
+
+      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = saveButtons[saveButtons.length - 1]!;
+      expect(saveBtn).toBeDisabled();
+
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+
+      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
+    });
+
     it("calls onSave with correct data when saved without individual breaks", async () => {
       const mockToast = {
         success: vi.fn(),

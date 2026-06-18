@@ -4,6 +4,9 @@
 package enrollment
 
 import (
+	"context"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -33,8 +36,9 @@ type Resource struct {
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService listexport.Service
-	db                *bun.DB
+	ListExportService    listexport.Service
+	db                   *bun.DB
+	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
