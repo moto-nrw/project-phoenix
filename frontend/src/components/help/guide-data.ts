@@ -721,15 +721,22 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen prüfen",
         icon: LayoutDashboard,
         summary:
-          "Eingegangene Anmeldungen öffnen, Angaben prüfen und die passende Entscheidung setzen.",
+          "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
+          "Mit `Status`, `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
+        callout: {
+          title: "So zählt moto Betreuungstage",
+          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal.",
+          tone: "blue",
+        },
         screenshot:
-          "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
+          "Anmeldephase mit Eingangsliste, Filtern, Kennzahlen nach Tagesanzahl und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
       },
       {
@@ -744,6 +751,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
+          "Für eine Statistik nach Betreuungsangeboten oder Tagesanzahl nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",

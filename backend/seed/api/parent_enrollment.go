@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -214,32 +213,171 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		body   map[string]any
 		auth   phoenixapi.AuthRef
 		path   string
+		status string
+		reason string
+	}
+	seedSubmission := func(source, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, seedSource string, offeringKeys []string, selectedDays map[string][]string, status, reason string) enrollmentSubmission {
+		offeringIDs := make([]int64, 0, len(offeringKeys))
+		selectedDaysByID := make(map[int64][]string, len(selectedDays))
+		for _, key := range offeringKeys {
+			id := offerings[key]
+			offeringIDs = append(offeringIDs, id)
+			if days, ok := selectedDays[key]; ok {
+				selectedDaysByID[id] = days
+			}
+		}
+		return enrollmentSubmission{
+			source: source,
+			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
+			body: s.enrollmentSubmissionWithDays(phaseID, offerings, childFirstName, childLastName, dob, grade,
+				guardianFirstName, guardianLastName, guardianEmail, seedSource, offeringIDs, selectedDaysByID,
+			),
+			status: status,
+			reason: reason,
+		}
 	}
 	submissions := []enrollmentSubmission{
+		seedSubmission("public", "Lea", "Sommer", "2019-04-18", 1,
+			"Daniela", "Sommer", "daniela.sommer@example.test", "approved-3-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "wed", "fri"},
+				"mittagessen": {"mon", "wed", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+		seedSubmission("public", "Emma", "Klein", "2019-01-11", 1,
+			"Katharina", "Klein", "katharina.klein@example.test", "approved-1-day",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"mon"},
+				"mittagessen": {"mon"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+		seedSubmission("public", "Oskar", "Wolf", "2018-09-29", 1,
+			"Martin", "Wolf", "martin.wolf@example.test", "approved-1-day",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"fri"},
+				"mittagessen": {"fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+		seedSubmission("public", "Mia", "Berger", "2018-05-17", 2,
+			"Julia", "Berger", "julia.berger@example.test", "approved-1-day",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"tue"},
+				"mittagessen": {"tue"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: ein Betreuungstag"),
+		seedSubmission("public", "Ben", "Hartmann", "2018-12-02", 1,
+			"Nadine", "Hartmann", "nadine.hartmann@example.test", "approved-2-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"tue", "thu"},
+				"mittagessen": {"tue", "thu"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+		seedSubmission("public", "Clara", "Neumann", "2017-10-09", 2,
+			"Sven", "Neumann", "sven.neumann@example.test", "approved-2-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "wed"},
+				"mittagessen": {"mon", "wed"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+		seedSubmission("public", "Paul", "Seidel", "2017-03-27", 3,
+			"Anja", "Seidel", "anja.seidel@example.test", "approved-2-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"mon", "fri"},
+				"mittagessen": {"mon", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: zwei Betreuungstage"),
+		seedSubmission("public", "Jonas", "Krueger", "2017-08-15", 2,
+			"Petra", "Krueger", "petra.krueger@example.test", "approved-3-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"mon", "wed", "fri"},
+				"mittagessen": {"mon", "wed", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+		seedSubmission("public", "Amelie", "Vogt", "2016-11-20", 3,
+			"Jan", "Vogt", "jan.vogt@example.test", "approved-3-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"tue", "thu", "fri"},
+				"mittagessen": {"tue", "thu", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+		seedSubmission("public", "Felix", "Braun", "2016-02-06", 4,
+			"Birgit", "Braun", "birgit.braun.eltern@example.test", "approved-3-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"mon", "tue", "wed"},
+				"mittagessen": {"mon", "tue", "wed"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: drei Betreuungstage"),
+		seedSubmission("public", "Hannah", "Schmitz", "2017-06-30", 2,
+			"Carsten", "Schmitz", "carsten.schmitz@example.test", "approved-4-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "tue", "wed", "fri"},
+				"mittagessen": {"mon", "tue", "wed", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: vier Betreuungstage"),
+		seedSubmission("public", "David", "Keller", "2016-04-03", 4,
+			"Verena", "Keller", "verena.keller@example.test", "approved-4-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"tue", "wed", "thu", "fri"},
+				"mittagessen": {"tue", "wed", "thu", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: vier Betreuungstage"),
+		seedSubmission("public", "Elias", "Sommerfeld", "2019-07-08", 1,
+			"Marco", "Sommerfeld", "marco.sommerfeld@example.test", "approved-5-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
+				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fuenf Betreuungstage"),
+		seedSubmission("public", "Sophie", "Adler", "2016-12-19", 3,
+			"Florian", "Adler", "florian.adler@example.test", "approved-5-days-holiday",
+			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
+				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: Ferienbetreuung"),
+		seedSubmission("public", "Marie", "Busch", "2017-05-24", 3,
+			"Silke", "Busch", "silke.busch@example.test", "approved-5-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
+				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
+			}, enrollmentModels.ChildStatusApproved, "Demo-Zusage: fuenf Betreuungstage"),
+		seedSubmission("public", "Mika", "Winter", "2018-11-03", 2,
+			"Robert", "Winter", "robert.winter@example.test", "waitlisted-holiday",
+			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
+				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
+			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste wegen begrenzter Plaetze"),
+		seedSubmission("public", "Tom", "Ahrens", "2017-09-13", 2,
+			"Melanie", "Ahrens", "melanie.ahrens@example.test", "waitlisted-3-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "wed", "fri"},
+				"mittagessen": {"mon", "wed", "fri"},
+			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste: drei Betreuungstage"),
+		seedSubmission("public", "Ella", "Franke", "2019-03-01", 1,
+			"Steffen", "Franke", "steffen.franke@example.test", "waitlisted-2-days",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"tue", "thu"},
+				"mittagessen": {"tue", "thu"},
+			}, enrollmentModels.ChildStatusWaitlisted, "Demo-Warteliste: zwei Betreuungstage"),
+		seedSubmission("public", "Nora", "Brandt", "2017-07-22", 3,
+			"Elena", "Brandt", "elena.brandt@example.test", "public-reject",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"tue", "thu"},
+				"mittagessen": {"tue", "thu"},
+			}, enrollmentModels.ChildStatusRejected, "Demo-Absage fuer Testdaten"),
+		seedSubmission("public", "Mats", "Hoffmann", "2018-01-26", 1,
+			"Kerstin", "Hoffmann", "kerstin.hoffmann@example.test", "rejected-3-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "wed", "fri"},
+				"mittagessen": {"mon", "wed", "fri"},
+			}, enrollmentModels.ChildStatusRejected, "Demo-Absage: drei Betreuungstage"),
 		{
 			source: "public",
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmission(phaseID, offerings, "Lea", "Sommer", "2019-04-18", 1,
-				"Daniela", "Sommer", "daniela.sommer@example.test", "public-new-child",
-				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]},
+			body: s.enrollmentSubmissionWithDays(phaseID, offerings, "Jan", "Peters", "2016-10-16", 3,
+				"Andrea", "Peters", "andrea.peters@example.test", "submitted-5-days",
+				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]}, map[int64][]string{
+					offerings["ogs-ganztag"]: {"mon", "tue", "wed", "thu", "fri"},
+					offerings["mittagessen"]: {"mon", "tue", "wed", "thu", "fri"},
+				},
 			),
 		},
-		{
-			source: "public",
-			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmission(phaseID, offerings, "Mika", "Winter", "2018-11-03", 2,
-				"Robert", "Winter", "robert.winter@example.test", "public-waitlist",
-				[]int64{offerings["ferienbetreuung"], offerings["mittagessen"]},
-			),
-		},
-		{
-			source: "public",
-			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmission(phaseID, offerings, "Nora", "Brandt", "2017-07-22", 3,
-				"Elena", "Brandt", "elena.brandt@example.test", "public-reject",
-				[]int64{offerings["ogs-kurz"], offerings["mittagessen"]},
-			),
-		},
+		seedSubmission("public", "Lara", "Simon", "2018-06-04", 2,
+			"Oliver", "Simon", "oliver.simon@example.test", "submitted-1-day",
+			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
+				"ogs-kurz":    {"mon"},
+				"mittagessen": {"mon"},
+			}, "", ""),
+		seedSubmission("public", "Emil", "Graf", "2016-08-21", 4,
+			"Susanne", "Graf", "susanne.graf@example.test", "submitted-4-days",
+			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+				"ogs-ganztag": {"mon", "tue", "wed", "thu"},
+				"mittagessen": {"mon", "tue", "wed", "thu"},
+			}, "", ""),
 	}
 	if len(parents) > 1 {
 		parent := parents[1]
@@ -247,14 +385,19 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 			source: "parent",
 			auth:   parentAuths[parent.Email],
 			path:   "/parent/enrollments/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmission(phaseID, offerings, "Lina", "Richter", "2019-02-14", 1,
+			body: s.enrollmentSubmissionWithDays(phaseID, offerings, "Lina", "Richter", "2019-02-14", 1,
 				"Thomas", "Richter", parent.Email, "parent-authenticated",
-				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]},
+				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]}, map[int64][]string{
+					offerings["ogs-ganztag"]: {"mon", "tue", "wed", "thu"},
+					offerings["mittagessen"]: {"mon", "tue", "wed", "thu"},
+				},
 			),
+			status: enrollmentModels.ChildStatusApproved,
+			reason: "Demo-Zusage: vier Betreuungstage",
 		})
 	}
 
-	for _, submission := range submissions {
+	for index, submission := range submissions {
 		if submission.source == "parent" {
 			if _, err := rt.Client.GetWithAuth(submission.auth, "/parent/enrollments/"+rt.Bootstrap.TenantSlug+"/profile"); err != nil {
 				return state, fmt.Errorf("load parent enrollment profile before submit: %w", err)
@@ -266,7 +409,11 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		if submission.source == "parent" {
 			respBody, submitErr = rt.Client.PostWithAuth(submission.auth, submission.path, submission.body)
 		} else {
-			respBody, submitErr = rt.Client.PostPublic(submission.path, submission.body)
+			respBody, submitErr = rt.Client.PostPublicWithHeaders(
+				submission.path,
+				submission.body,
+				publicEnrollmentSeedHeaders(index),
+			)
 		}
 		if submitErr != nil {
 			return state, fmt.Errorf("submit %s enrollment: %w", submission.source, submitErr)
@@ -282,29 +429,24 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		request.StatusToken = detail.StatusToken
 		request.ChildIDs = detail.ChildIDs
 		state.Requests = append(state.Requests, request)
-	}
-
-	decisions := []struct {
-		index  int
-		status string
-		reason string
-	}{
-		{index: 0, status: enrollmentModels.ChildStatusApproved, reason: "Demo-Zusage fuer die Elternapp"},
-		{index: 1, status: enrollmentModels.ChildStatusWaitlisted, reason: "Demo-Warteliste wegen begrenzter Plaetze"},
-		{index: 2, status: enrollmentModels.ChildStatusRejected, reason: "Demo-Absage fuer Testdaten"},
-	}
-	for _, decision := range decisions {
-		if decision.index >= len(state.Requests) || len(state.Requests[decision.index].ChildIDs) == 0 {
-			continue
+		if submission.status != "" {
+			if len(request.ChildIDs) == 0 {
+				return state, fmt.Errorf("submitted enrollment request %d has no child ids", request.RequestID)
+			}
+			childID := request.ChildIDs[0]
+			if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, submission.status, submission.reason); err != nil {
+				return state, err
+			}
+			state.Requests[len(state.Requests)-1].Status = submission.status
 		}
-		request := &state.Requests[decision.index]
-		childID := request.ChildIDs[0]
-		if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, decision.status, decision.reason); err != nil {
-			return state, err
-		}
-		request.Status = decision.status
 	}
 	return state, nil
+}
+
+func publicEnrollmentSeedHeaders(index int) map[string]string {
+	return map[string]string{
+		"X-Forwarded-For": fmt.Sprintf("198.51.100.%d", 10+index),
+	}
 }
 
 func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoenixapi.AuthRef) (int64, error) {
@@ -351,7 +493,7 @@ func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixa
 	}{
 		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10},
 		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20},
-		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
+		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
 		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plaetze fuer die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40},
 	}
 
@@ -389,20 +531,21 @@ func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixa
 	return created, nil
 }
 
-func (s parentEnrollmentSeedStep) enrollmentSubmission(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64) map[string]any {
+func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64, selectedDaysByOffering map[int64][]string) map[string]any {
 	phone := "+49 221 555 990"
 	additionalEmail := strings.ReplaceAll(strings.ToLower(guardianFirstName+"."+guardianLastName), " ", ".") + ".2@example.test"
 	offeringDays := []map[string]any{}
-	if slices.Contains(offeringIDs, offerings["ogs-ganztag"]) {
+	for _, offeringID := range offeringIDs {
+		days, ok := selectedDaysByOffering[offeringID]
+		if !ok {
+			days = defaultSeedSelectedDays(offerings, offeringID)
+		}
+		if len(days) == 0 {
+			continue
+		}
 		offeringDays = append(offeringDays, map[string]any{
-			"offering_id":   offerings["ogs-ganztag"],
-			"selected_days": []string{"mon", "wed", "fri"},
-		})
-	}
-	if slices.Contains(offeringIDs, offerings["ogs-kurz"]) {
-		offeringDays = append(offeringDays, map[string]any{
-			"offering_id":   offerings["ogs-kurz"],
-			"selected_days": []string{"tue", "thu"},
+			"offering_id":   offeringID,
+			"selected_days": days,
 		})
 	}
 	return map[string]any{
@@ -439,6 +582,19 @@ func (s parentEnrollmentSeedStep) enrollmentSubmission(phaseID int64, offerings 
 				},
 			},
 		},
+	}
+}
+
+func defaultSeedSelectedDays(offerings map[string]int64, offeringID int64) []string {
+	switch offeringID {
+	case offerings["ogs-ganztag"]:
+		return []string{"mon", "wed", "fri"}
+	case offerings["ogs-kurz"]:
+		return []string{"tue", "thu"}
+	case offerings["mittagessen"]:
+		return []string{"mon", "wed", "fri"}
+	default:
+		return nil
 	}
 }
 
