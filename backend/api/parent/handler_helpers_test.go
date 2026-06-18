@@ -1,17 +1,26 @@
 package parent
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- parseLeadingGrade ---------------------------------------------------
@@ -134,6 +143,83 @@ func TestBuildParentServiceRequest_TargetGradeLevelPassesThrough(t *testing.T) {
 	assert.Equal(t, int16(2), *out.Children[0].TargetGradeLevel)
 }
 
+// --- submitParentEnrollment ----------------------------------------------
+
+type parentSubmitAuthStub struct {
+	authService.AuthService
+	mapped bool
+}
+
+func (s *parentSubmitAuthStub) VerifyAccountTenantMembership(context.Context, int64, int64) (bool, error) {
+	return s.mapped, nil
+}
+
+type parentSubmitSchoolStub struct {
+	platformSvc.SchoolService
+	school *platformModels.School
+}
+
+func (s *parentSubmitSchoolStub) GetSchoolBySlug(context.Context, string) (*platformModels.School, error) {
+	return s.school, nil
+}
+
+type parentSubmitRequestStub struct {
+	enrollmentService.RequestService
+	called bool
+	got    enrollmentService.SubmitRequest
+}
+
+func (s *parentSubmitRequestStub) Submit(_ context.Context, req enrollmentService.SubmitRequest) (*enrollmentService.SubmitResult, error) {
+	s.called = true
+	s.got = req
+	request := &enrollmentModels.Request{StatusToken: "status-token"}
+	request.ID = 99001
+	return &enrollmentService.SubmitResult{Request: request, StatusURL: "/status/status-token"}, nil
+}
+
+func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	var tenantID int64 = 1
+	school := &platformModels.School{Name: "Testschule", Slug: "testschule"}
+	school.ID = tenantID
+	requestSvc := &parentSubmitRequestStub{}
+	rs := &Resource{
+		AuthService:    &parentSubmitAuthStub{mapped: true},
+		RequestService: requestSvc,
+		SchoolService:  &parentSubmitSchoolStub{school: school},
+		db:             db,
+	}
+
+	body, err := json.Marshal(submitParentEnrollmentRequest{
+		PhaseID:           4242,
+		GuardianFirstName: "Anna",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     "anna@example.test",
+		Children: []submitParentChildRequest{
+			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
+		},
+	})
+	require.NoError(t, err)
+
+	router := chi.NewRouter()
+	router.Post("/parent/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	req := withClaims(
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/submit", strings.NewReader(string(body))),
+		7777,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, requestSvc.called, "mapped parent submissions must reach RequestService before any student_guardian row exists")
+	require.NotNil(t, requestSvc.got.GuardianAccountID)
+	assert.Equal(t, int64(7777), *requestSvc.got.GuardianAccountID)
+	assert.Equal(t, tenantID, requestSvc.got.TenantID)
+}
+
 // --- mapParentSubmitError ------------------------------------------------
 
 func TestMapParentSubmitError_EnrollmentDisabled403(t *testing.T) {
@@ -181,6 +267,18 @@ func TestMapParentSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
 	mapParentSubmitError(w, r, enrollmentService.ErrInvalidGuardianEmail)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "enrollment.invalid_email")
+}
+
+// An off-list pickup time must map to 400 with the stable code (mirroring
+// the public path) so the shared EnrollmentForm renders the same German
+// message on the parents portal. ErrPickupTimeNotAllowed wraps
+// ErrInvalidSubmission, so the explicit case must precede the generic branch.
+func TestMapParentSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrPickupTimeNotAllowed)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.pickup_time_not_allowed")
 }
 
 func TestMapParentSubmitError_CareOfferingFull409WithCode(t *testing.T) {

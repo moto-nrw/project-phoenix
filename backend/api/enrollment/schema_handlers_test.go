@@ -72,6 +72,10 @@ type mockFormSchemaService struct {
 	updateErr        error
 	deleteID         int64
 	deleteErr        error
+	renameID         int64
+	renameName       string
+	renameResult     *enrollmentModels.FormSchema
+	renameErr        error
 	publishVResult   *enrollmentModels.FormSchema
 	publishVErr      error
 	publishVFields   []enrollmentModels.FormField
@@ -139,6 +143,11 @@ func (m *mockFormSchemaService) DeleteSchema(_ context.Context, id int64) error 
 	m.deleteID = id
 	return m.deleteErr
 }
+func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newName string) (*enrollmentModels.FormSchema, error) {
+	m.renameID = id
+	m.renameName = newName
+	return m.renameResult, m.renameErr
+}
 func (m *mockFormSchemaService) PublishVersion(_ context.Context, fields []enrollmentModels.FormField, createdBy int64, _ ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	m.publishVFields = fields
 	m.publishVCreated = createdBy
@@ -161,6 +170,7 @@ func buildSchemaRouter(svc enrollmentService.FormSchemaService) chi.Router {
 	r.Get("/enrollment/schema/{id}", rs.getSchemaByID)
 	r.Post("/enrollment/schema", rs.publishSchema)
 	r.Put("/enrollment/schema/{id}", rs.updateSchema)
+	r.Patch("/enrollment/schema/{id}", rs.renameSchema)
 	r.Delete("/enrollment/schema/{id}", rs.deleteSchema)
 	return r
 }
@@ -501,6 +511,85 @@ func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestUpdateSchemaHandler_WithNameRenamesThenPublishes(t *testing.T) {
+	// Combined "rename + edit" save: a name in the PUT body renames the
+	// lineage AND publishes the new version in one request, so the two are
+	// atomic (no separate rename round-trip the frontend has to undo on
+	// failure).
+	mock := &mockFormSchemaService{
+		renameResult: makeFormSchema(1234, "Ferienprogramm", 2),
+		updateResult: makeFormSchema(1234, "Ferienprogramm", 3),
+	}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Ferienprogramm",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, int64(1234), mock.renameID, "the rename must target the same lineage id")
+	assert.Equal(t, "Ferienprogramm", mock.renameName)
+	assert.Equal(t, int64(1234), mock.updateID, "the publish must run after the rename")
+}
+
+func TestUpdateSchemaHandler_BlankNameSkipsRename(t *testing.T) {
+	// A blank name in the PUT body is ignored (the dedicated PATCH route
+	// owns blank-name rejection); the publish still runs.
+	mock := &mockFormSchemaService{updateResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "   ",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, int64(0), mock.renameID, "a blank name must not trigger a rename")
+	assert.Equal(t, int64(1234), mock.updateID)
+}
+
+func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T) {
+	// The rename half fails on a name already used by another lineage; the
+	// publish must NOT run and the response is the same 409 + stable code the
+	// PATCH route returns, so the frontend shows "name already taken".
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Schon vergeben",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	require.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists)
+	assert.Equal(t, int64(0), mock.updateID, "a failed rename must abort before the publish")
+}
+
+func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Neuer Name",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUpdateSchemaHandler_RenameInfraErrorReturns500(t *testing.T) {
+	// A rename failure that is neither a name collision nor a missing lineage
+	// (a DB/lock/read fault) is infrastructure, not a client error. The
+	// combined save must surface it as a 5xx — matching the PATCH handler — so
+	// it takes the normal error-logging path, NOT the publish path's 400.
+	mock := &mockFormSchemaService{renameErr: errors.New("lineage lock failed")}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
+		map[string]any{
+			"name":   "Neuer Name",
+			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
+		})
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, int64(0), mock.updateID, "a failed rename must abort before the publish")
+}
+
 // --- deleteSchema -----------------------------------------------------
 
 func TestDeleteSchemaHandler_NilServiceReturns500(t *testing.T) {
@@ -545,6 +634,69 @@ func TestDeleteSchemaHandler_NotFoundReturns404(t *testing.T) {
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- renameSchema -----------------------------------------------------
+
+func TestRenameSchemaHandler_NilServiceReturns500(t *testing.T) {
+	router := buildSchemaRouter(nil)
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "Neuer Name"})
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestRenameSchemaHandler_InvalidIDRejected(t *testing.T) {
+	router := buildSchemaRouter(&mockFormSchemaService{})
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/notanumber",
+		map[string]any{"name": "Neuer Name"})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestRenameSchemaHandler_EmptyNameRejected(t *testing.T) {
+	router := buildSchemaRouter(&mockFormSchemaService{})
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "   "})
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"a blank name must be rejected before reaching the service")
+}
+
+func TestRenameSchemaHandler_HappyPath(t *testing.T) {
+	mock := &mockFormSchemaService{renameResult: makeFormSchema(1234, "Ferienprogramm", 3)}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "  Ferienprogramm  "})
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(1234), mock.renameID)
+	assert.Equal(t, "Ferienprogramm", mock.renameName,
+		"the handler must trim the name before handing it to the service")
+	assert.Contains(t, w.Body.String(), "Ferienprogramm")
+}
+
+func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "Schon vergeben"})
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeSchemaNameExists,
+		"a name collision must surface as a stable error code for the frontend")
+}
+
+func TestRenameSchemaHandler_NotFoundReturns404(t *testing.T) {
+	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "Neuer Name"})
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRenameSchemaHandler_GenericErrorReturns500(t *testing.T) {
+	mock := &mockFormSchemaService{renameErr: errors.New("synthetic boom")}
+	router := buildSchemaRouter(mock)
+	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
+		map[string]any{"name": "Neuer Name"})
+	assert.Equal(t, http.StatusInternalServerError, w.Code,
+		"an unmapped error is a server fault, not a bad request")
 }
 
 func TestDeleteSchemaHandler_GenericErrorReturns500(t *testing.T) {

@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -51,6 +53,9 @@ func NewStudentGuardianRepository(db *bun.DB) users.StudentGuardianRepository {
 func (r *StudentGuardianRepository) LinkIfNotExists(ctx context.Context, rel *users.StudentGuardian) (bool, error) {
 	if rel == nil {
 		return false, fmt.Errorf("student guardian cannot be nil")
+	}
+	if strings.TrimSpace(rel.GuardianRole) == "" && len(rel.Permissions) == 0 {
+		authorize.ApplyDefaultStudentGuardianRole(rel)
 	}
 	if err := rel.Validate(); err != nil {
 		return false, err

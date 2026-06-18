@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
+import { useSession } from "next-auth/react";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -145,6 +146,7 @@ vi.mock("@/components/students/students-master-detail", () => ({
     onSelect,
     onUpdateStudent,
     detailActions,
+    canViewEnrollments,
   }: {
     students: Array<{
       id: string;
@@ -160,8 +162,12 @@ vi.mock("@/components/students/students-master-detail", () => ({
       data: { first_name: string; second_name: string },
     ) => Promise<void>;
     detailActions?: ReactNode;
+    canViewEnrollments?: boolean;
   }) => (
-    <div data-testid="students-master-detail">
+    <div
+      data-testid="students-master-detail"
+      data-can-view-enrollments={String(Boolean(canViewEnrollments))}
+    >
       {students.map((s) => (
         <div key={s.id} data-testid={`student-entry-${s.id}`}>
           <button
@@ -274,6 +280,16 @@ vi.mock("~/components/ui/modal", () => ({
 // Import mocked modules
 import { useSWRAuth } from "~/lib/swr";
 
+function mockSessionWithPermissions(permissions: string[]) {
+  vi.mocked(useSession).mockReturnValue({
+    data: {
+      user: { id: "1", token: "test-token", permissions },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  } as ReturnType<typeof useSession>);
+}
+
 const mockStudents = [
   {
     id: "1",
@@ -312,6 +328,7 @@ describe("StudentsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setSelectedStudent(null);
+    mockSessionWithPermissions(["config:manage"]);
 
     // Default SWR mock - returns students data
     vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -349,6 +366,32 @@ describe("StudentsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Max Mustermann")).toBeInTheDocument();
       expect(screen.getByText("Anna Schmidt")).toBeInTheDocument();
+    });
+  });
+
+  it("does not expose enrollment tab access for config read-only users", async () => {
+    mockSessionWithPermissions(["config:read"]);
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
+        "data-can-view-enrollments",
+        "false",
+      );
+    });
+  });
+
+  it("exposes enrollment tab access for config manage users", async () => {
+    mockSessionWithPermissions(["config:manage"]);
+
+    render(<StudentsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("students-master-detail")).toHaveAttribute(
+        "data-can-view-enrollments",
+        "true",
+      );
     });
   });
 

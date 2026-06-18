@@ -116,6 +116,52 @@ func TestOperatorPasskeyLoginHandlers(t *testing.T) {
 	assert.JSONEq(t, `{"status":"authenticated","access_token":"operator-access","refresh_token":"operator-refresh"}`, w.Body.String())
 }
 
+func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
+	tokenAuth, err := jwt.NewTokenAuth()
+	require.NoError(t, err)
+
+	svc := &operatorPasskeyServiceStub{}
+	router := NewResource(ResourceConfig{
+		PasskeyService: svc,
+		TokenAuth:      tokenAuth,
+	}).Router()
+
+	req := operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`)
+	req.Header.Set(headerOperatorFrontendOrigin, "https://operator.localhost")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "https://operator.localhost", svc.beginLoginOrigin)
+	assert.JSONEq(t, `{"session_id":"operator-login","options":{"challenge":"login"}}`, w.Body.String())
+}
+
+// TestOperatorPasskeyListRouteAcceptsBothSlashForms pins the compatibility
+// fix: GET /auth/passkeys (no slash) and GET /auth/passkeys/ (slash) must both
+// be routed to PasskeyList. chi has no RedirectSlashes on this router, so the
+// two are distinct patterns; an UNregistered path 404s before any middleware
+// runs, while a registered protected path reaches the auth middleware and 401s
+// without a token. Asserting 401 (not 404) for both forms proves both are
+// registered. Regression guard for the route dropped in PR #1690.
+func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
+	tokenAuth, err := jwt.NewTokenAuth()
+	require.NoError(t, err)
+
+	router := NewResource(ResourceConfig{
+		PasskeyService: &operatorPasskeyServiceStub{},
+		TokenAuth:      tokenAuth,
+	}).Router()
+
+	for _, path := range []string{"/auth/passkeys", "/auth/passkeys/"} {
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		require.NotEqual(t, http.StatusNotFound, w.Code,
+			"GET %s must be a registered route, not 404", path)
+		assert.Equal(t, http.StatusUnauthorized, w.Code,
+			"GET %s is protected, so an unauthenticated request must 401", path)
+	}
+}
+
 func TestOperatorPasskeyAuthenticatedHandlers(t *testing.T) {
 	svc := &operatorPasskeyServiceStub{}
 	rs := &Resource{passkeyService: svc}

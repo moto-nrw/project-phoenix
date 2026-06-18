@@ -37,6 +37,7 @@ func newExportDecisionService(env *decisionTestEnv, auditRepo auditModels.DataAc
 		PhaseRepo:                env.repos.Phase,
 		FormSchemaRepo:           env.repos.FormSchema,
 		DataAccessLogRepo:        auditRepo,
+		StudentRepo:              env.repos.Student,
 		Logger:                   slog.Default(),
 	})
 }
@@ -52,6 +53,19 @@ func (failingSchemaRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels
 	return nil, errors.New("schema read failed")
 }
 
+// LockLineages is a no-op so this stub works when constructed with a nil
+// embedded repo (failingSchemaRepo{}); the lineage lock is irrelevant to the
+// FindByID-fault behavior the tests exercise.
+func (failingSchemaRepo) LockLineages(_ context.Context) error { return nil }
+
+type failingPhaseRepo struct {
+	enrollmentModels.PhaseRepository
+}
+
+func (failingPhaseRepo) FindByID(_ context.Context, _ int64) (*enrollmentModels.Phase, error) {
+	return nil, errors.New("phase read failed")
+}
+
 // newExportDecisionServiceFailingSchema mirrors newExportDecisionService
 // but swaps in a FormSchema repo whose FindByID always errors, so a test
 // can prove the export fails closed when a pinned schema cannot be loaded.
@@ -64,8 +78,38 @@ func newExportDecisionServiceFailingSchema(env *decisionTestEnv, auditRepo audit
 		PhaseRepo:                env.repos.Phase,
 		FormSchemaRepo:           failingSchemaRepo{env.repos.FormSchema},
 		DataAccessLogRepo:        auditRepo,
+		StudentRepo:              env.repos.Student,
 		Logger:                   slog.Default(),
 	})
+}
+
+func newExportDecisionServiceFailingPhase(env *decisionTestEnv, auditRepo auditModels.DataAccessLogRepository) enrollmentService.DecisionService {
+	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+		RequestRepo:              env.repos.Request,
+		RequestChildRepo:         env.repos.RequestChild,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		CareOfferingRepo:         env.repos.CareOffering,
+		PhaseRepo:                failingPhaseRepo{env.repos.Phase},
+		FormSchemaRepo:           env.repos.FormSchema,
+		DataAccessLogRepo:        auditRepo,
+		StudentRepo:              env.repos.Student,
+		Logger:                   slog.Default(),
+	})
+}
+
+func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstName, lastName string) int64 {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	reqID, childID := submitOneChild(t, env, email, firstName, lastName)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	return *outcome.Child.CreatedStudentID
 }
 
 // A pinned schema that cannot be loaded must fail the whole export, not
@@ -190,4 +234,79 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 	rReq, rChild := rejected.Counts()
 	assert.Equal(t, 0, rReq, "no request has a rejected child")
 	assert.Equal(t, 0, rChild)
+}
+
+func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	studentID := approveOneChildForExport(t, env, "student-export@example.com", "Sina", "Export")
+	audit := &stubAccessLogRepo{}
+
+	data, err := newExportDecisionService(env, audit).
+		ExportStudent(ctx, studentID, 4242, "admin", "xlsx")
+	require.NoError(t, err)
+	require.NotNil(t, data)
+	assert.Equal(t, studentID, data.StudentID)
+	require.Len(t, data.Rows, 1)
+	require.Len(t, data.Rows[0].Children, 1)
+	assert.Equal(t, "Sina", data.Rows[0].Children[0].Child.FirstName)
+
+	require.Len(t, audit.entries, 1)
+	entry := audit.entries[0]
+	assert.Equal(t, auditModels.ResourceTypeEnrollmentStudentExport, entry.ResourceType)
+	require.NotNil(t, entry.StudentID)
+	assert.Equal(t, studentID, *entry.StudentID)
+	md := entry.GetMetadata()
+	assert.Equal(t, "xlsx", md["format"])
+	assert.Equal(t, 1, md["request_count"])
+	assert.Equal(t, 1, md["child_count"])
+}
+
+func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	audit := &stubAccessLogRepo{}
+
+	data, err := newExportDecisionService(env, audit).
+		ExportStudent(ctx, 99_999_999, 4242, "admin", "pdf")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrDecisionStudentNotFound))
+	assert.Nil(t, data)
+	assert.Empty(t, audit.entries)
+}
+
+func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	const foreignTenantID = int64(9902)
+	testpkg.EnsureTestTenant(t, env.db, foreignTenantID)
+	defer testpkg.CleanupTenantTestData(t, env.db, foreignTenantID)
+
+	foreign := testpkg.CreateTestStudentForTenant(t, env.db, foreignTenantID, "Foreign", "Student", "1a")
+	audit := &stubAccessLogRepo{}
+
+	data, err := newExportDecisionService(env, audit).
+		ExportStudent(testpkg.TenantContext(1), foreign.ID, 4242, "admin", "pdf")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrDecisionStudentNotFound))
+	assert.Nil(t, data)
+	assert.Empty(t, audit.entries)
+}
+
+func TestDecisionService_ExportStudent_PhaseLoadFailureBlocksDisclosure(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	studentID := approveOneChildForExport(t, env, "student-phasefail@example.com", "Paula", "PhaseFail")
+	audit := &stubAccessLogRepo{}
+
+	data, err := newExportDecisionServiceFailingPhase(env, audit).
+		ExportStudent(ctx, studentID, 4242, "admin", "pdf")
+	require.Error(t, err)
+	assert.Nil(t, data)
+	assert.Empty(t, audit.entries)
 }

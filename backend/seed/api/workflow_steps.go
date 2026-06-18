@@ -105,6 +105,10 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	state.Topology.Mode = "full-demo"
 	state.Scenarios.DefaultPlayer = "pyreportal"
 	state.Scenarios.DefaultMode = "hybrid"
+	state.Parents = append([]ParentCredentials(nil), rt.Parents...)
+	state.Credentials.Parents = append([]ParentCredentials(nil), rt.Parents...)
+	state.Enrollment = cloneEnrollmentState(rt.Enrollment)
+	state.Entities.Enrollment = cloneEnrollmentState(rt.Enrollment)
 	state.Normalize()
 
 	rt.State = state
@@ -145,7 +149,7 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.Result == nil {
 		return fmt.Errorf("seed result not available")
 	}
-	s.seeder.printSuccessSummary(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Result)
+	s.seeder.printSuccessSummary(rt.Bootstrap.AdminEmail, rt.Bootstrap.AdminPassword, rt.Result, rt.State)
 	return nil
 }
 
@@ -162,6 +166,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedAnnouncementsStep{},
 			seedSuggestionsStep{},
 			seedTimeTrackingHistoryStep{},
+			parentEnrollmentSeedStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			writeSimulatorConfigStep{},
 			printSummaryStep{seeder: seeder},

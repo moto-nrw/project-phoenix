@@ -68,6 +68,9 @@ func (r *RequestRepository) ListAdmin(ctx context.Context, filters enrollment.Re
 	if filters.ChildStatus != "" {
 		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.status = ?)`, filters.ChildStatus)
 	}
+	if filters.CreatedStudentID > 0 {
+		q = q.Where(`EXISTS (SELECT 1 FROM enrollment.request_children rc WHERE rc.request_id = "request".id AND rc.created_student_id = ?)`, filters.CreatedStudentID)
+	}
 	q = q.OrderExpr(`"request".submitted_at DESC, "request".id DESC`)
 
 	if err := q.Scan(ctx); err != nil {

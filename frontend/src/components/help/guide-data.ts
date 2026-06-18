@@ -304,6 +304,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Neues Kind anlegen.",
           "`Vorname`, `Nachname`, `Klasse` und `OGS Gruppe` eintragen.",
           "Optional im Abschnitt `Erziehungsberechtigte` mit `Neu anlegen` eine Bezugsperson erfassen oder mit `Vorhandene/n suchen` eine bereits angelegte Person verknüpfen.",
+          "Bei jeder Bezugsperson die `Portalrolle` prüfen: Eltern bzw. gesetzliche Vertretungen erhalten Elternportal-Zugriff, Abhol- oder Notfallkontakte nicht automatisch.",
           "Optional im Abschnitt `Betreuungszeiten` auf `Wochenplan hinzufügen` klicken und die regelmäßigen `Ankunft`- und `Abholung`-Zeiten je Wochentag eintragen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
           "Auf `Erstellen` klicken. Erziehungsberechtigte und Betreuungszeiten werden zusammen mit dem Kind gespeichert.",
@@ -402,7 +403,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Kinderdetailansicht",
         icon: FileText,
         summary:
-          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen vier Tabs.",
+          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen die Tabs zur Kartei.",
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
@@ -412,6 +413,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
+          "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Die Angaben können dort auch exportiert werden.",
         ],
         callout: {
           title: "Krankmeldungen von Eltern",
@@ -419,7 +421,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten und Historie.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten, Historie und Anmeldungen.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -719,15 +721,22 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen prüfen",
         icon: LayoutDashboard,
         summary:
-          "Eingegangene Anmeldungen öffnen, Angaben prüfen und die passende Entscheidung setzen.",
+          "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
+          "Mit `Status`, `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
+        callout: {
+          title: "So zählt moto Betreuungstage",
+          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal.",
+          tone: "blue",
+        },
         screenshot:
-          "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
+          "Anmeldephase mit Eingangsliste, Filtern, Kennzahlen nach Tagesanzahl und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
       },
       {
@@ -742,6 +751,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
+          "Für eine Statistik nach Betreuungsangeboten oder Tagesanzahl nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -806,6 +816,8 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Erlaubte Heimwege` wählen Eltern pro Betreuungstag alle zulässigen Wege aus, zum Beispiel zu Fuß, Bus oder Abholung; mehrere Optionen pro Tag sind möglich.",
+          "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
+          "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
           "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",
           "Mit `Vorschau` prüfen, wie das Formular für Eltern aussieht.",
           "Die Vorlage wirkt erst, wenn du sie in einer `Anmeldephase` als Formular auswählst.",

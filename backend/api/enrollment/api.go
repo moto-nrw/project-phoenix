@@ -4,6 +4,9 @@
 package enrollment
 
 import (
+	"context"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -26,6 +29,7 @@ type Resource struct {
 	CaptchaService            enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
+	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     usersService.GuardianProfileLoader
@@ -33,8 +37,9 @@ type Resource struct {
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService listexport.Service
-	db                *bun.DB
+	ListExportService    listexport.Service
+	db                   *bun.DB
+	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
@@ -50,6 +55,7 @@ func NewResource(
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
@@ -63,6 +69,7 @@ func NewResource(
 		CaptchaService:            captchaSvc,
 		PhaseService:              phaseSvc,
 		DecisionService:           decisionSvc,
+		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
@@ -110,6 +117,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/{id}", rs.getSchemaByID)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.publishSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Put("/{id}", rs.updateSchema)
+			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
 
@@ -168,15 +176,24 @@ func (rs *Resource) Router() chi.Router {
 		// the frontend can still cleanly render the form.
 		r.Get("/me/profile", rs.getMyProfile)
 
-		// PR 8 admin review surface. config:read for browse,
-		// config:manage to apply decisions. Decision writes audit
+		// PR 8 admin review surface. config:read for queue browse;
+		// config:manage for detail, export and decisions because those
+		// expose or mutate full enrollment PII. Decision writes audit
 		// reviewed_by/reviewed_at on each child row.
 		r.Route("/admin/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
 			})
+		})
+		r.Route("/admin/reports", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
+		})
+		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/export", rs.exportStudentEnrollmentRequests)
 		})
 	})
 

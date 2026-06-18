@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -33,6 +35,7 @@ const guardianRoleName = "guardian"
 var (
 	ErrDecisionRequestNotFound = errors.New("enrollment request not found")
 	ErrDecisionChildNotFound   = errors.New("request child not found")
+	ErrDecisionStudentNotFound = errors.New("student not found")
 	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
 	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
 	// ErrDecisionInvalidData marks an approval that failed because the
@@ -139,6 +142,7 @@ type RequestFilters struct {
 // post-commit.
 type DecisionService interface {
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
+	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
 
@@ -163,6 +167,7 @@ type DecisionService interface {
 	// mirroring the admin list's per-child status dropdown. Empty means
 	// "all". The audit row's counts reflect the filtered (disclosed) set.
 	ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error)
+	ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error)
 
 	// RecordPhaseExportAudit appends one append-only row to
 	// audit.data_access_log recording that an admin exported the full
@@ -191,6 +196,23 @@ type PhaseExport struct {
 // of truth for both the audit row's metadata (ExportPhase) and the
 // rendered document subtitle (the export handler).
 func (e *PhaseExport) Counts() (requests, children int) {
+	for _, row := range e.Rows {
+		children += len(row.Children)
+	}
+	return len(e.Rows), children
+}
+
+// StudentEnrollmentExport is the fully-assembled payload for exports from
+// one student's kartei tab. Rows contain only the matching request_child row,
+// even when the original parent submission included siblings.
+type StudentEnrollmentExport struct {
+	StudentID int64
+	Schemas   map[int64]*enrollmentModels.FormSchema
+	Phases    map[int64]*enrollmentModels.Phase
+	Rows      []ExportRequestRow
+}
+
+func (e *StudentEnrollmentExport) Counts() (requests, children int) {
 	for _, row := range e.Rows {
 		children += len(row.Children)
 	}
@@ -349,8 +371,9 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
 	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
-		PhaseID:     filters.PhaseID,
-		ChildStatus: filters.ChildStatus,
+		PhaseID:          filters.PhaseID,
+		ChildStatus:      filters.ChildStatus,
+		CreatedStudentID: 0,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("decision: list requests: %w", err)
@@ -365,6 +388,44 @@ func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*
 		out = append(out, summary)
 	}
 	return out, nil
+}
+
+func (s *decisionService) ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("decision: student_id required")
+	}
+	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+		CreatedStudentID: studentID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("decision: list requests by student: %w", err)
+	}
+
+	out := make([]*RequestSummary, 0, len(requests))
+	for _, req := range requests {
+		summary, err := s.assemble(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		filterRequestSummaryChildren(summary, studentID)
+		if len(summary.Children) > 0 {
+			out = append(out, summary)
+		}
+	}
+	return out, nil
+}
+
+func filterRequestSummaryChildren(summary *RequestSummary, studentID int64) {
+	if summary == nil || studentID <= 0 {
+		return
+	}
+	children := summary.Children[:0]
+	for _, child := range summary.Children {
+		if child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID == studentID {
+			children = append(children, child)
+		}
+	}
+	summary.Children = children
 }
 
 func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSummary, error) {
@@ -450,6 +511,18 @@ func (s *decisionService) ExportPhase(ctx context.Context, phaseID, actorAccount
 	}
 	requestCount, childCount := data.Counts()
 	if err := s.RecordPhaseExportAudit(ctx, actorAccountID, actorRole, data.Phase, format, childStatusFilter, requestCount, childCount); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (s *decisionService) ExportStudent(ctx context.Context, studentID, actorAccountID int64, actorRole, format string) (*StudentEnrollmentExport, error) {
+	data, err := s.exportStudentData(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	requestCount, childCount := data.Counts()
+	if err := s.recordStudentExportAudit(ctx, actorAccountID, actorRole, data, format, requestCount, childCount); err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -606,6 +679,132 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	return &PhaseExport{Phase: phase, Schemas: schemas, Rows: rows}, nil
 }
 
+func (s *decisionService) exportStudentData(ctx context.Context, studentID int64) (*StudentEnrollmentExport, error) {
+	if studentID <= 0 {
+		return nil, fmt.Errorf("decision: export student: student_id required")
+	}
+	if s.studentRepo == nil {
+		return nil, fmt.Errorf("decision: export student: student repo not configured")
+	}
+	if _, err := s.studentRepo.FindByID(ctx, studentID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, ErrDecisionStudentNotFound)
+		}
+		return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, err)
+	}
+
+	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student list requests: %w", err)
+	}
+	if len(requests) > maxExportRequests {
+		return nil, fmt.Errorf("decision: export student %d has %d requests (max %d): %w",
+			studentID, len(requests), maxExportRequests, ErrExportTooLarge)
+	}
+
+	reqIDs := make([]int64, 0, len(requests))
+	phaseIDs := make(map[int64]struct{}, len(requests))
+	for _, req := range requests {
+		reqIDs = append(reqIDs, req.ID)
+		phaseIDs[req.PhaseID] = struct{}{}
+	}
+
+	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load children: %w", err)
+	}
+	filteredChildren := make([]*enrollmentModels.RequestChild, 0, len(children))
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child.CreatedStudentID == nil || *child.CreatedStudentID != studentID {
+			continue
+		}
+		filteredChildren = append(filteredChildren, child)
+		childIDs = append(childIDs, child.ID)
+	}
+
+	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
+	}
+
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering)
+	for phaseID := range phaseIDs {
+		offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load care offerings: %w", err)
+		}
+		for _, off := range offerings {
+			offeringByID[off.ID] = off
+		}
+	}
+
+	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
+	for _, link := range links {
+		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		if off := offeringByID[link.CareOfferingID]; off != nil {
+			row.OfferingName = off.Name
+			row.DaysOfWeekMode = off.DaysOfWeekMode
+			row.AvailableDays = off.AvailableDays
+		}
+		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
+	}
+
+	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(reqIDs))
+	for _, child := range filteredChildren {
+		childrenByRequest[child.RequestID] = append(childrenByRequest[child.RequestID], child)
+	}
+
+	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
+	for phaseID := range phaseIDs {
+		phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load phase %d: %w", phaseID, err)
+		}
+		phases[phaseID] = phase
+	}
+
+	schemas := make(map[int64]*enrollmentModels.FormSchema)
+	for _, req := range requests {
+		if req.SchemaID == nil {
+			continue
+		}
+		if _, ok := schemas[*req.SchemaID]; ok {
+			continue
+		}
+		if s.formSchemaRepo == nil {
+			return nil, fmt.Errorf("decision: export student schema repo not configured")
+		}
+		schema, err := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		if err != nil {
+			return nil, fmt.Errorf("decision: export student load schema %d: %w", *req.SchemaID, err)
+		}
+		schemas[*req.SchemaID] = schema
+	}
+
+	rows := make([]ExportRequestRow, 0, len(requests))
+	for _, req := range requests {
+		childRows := make([]ExportChildRow, 0, len(childrenByRequest[req.ID]))
+		for _, child := range childrenByRequest[req.ID] {
+			childRows = append(childRows, ExportChildRow{
+				Child:     child,
+				Offerings: offeringsByChild[child.ID],
+			})
+		}
+		if len(childRows) == 0 {
+			continue
+		}
+		rows = append(rows, ExportRequestRow{Request: req, Children: childRows})
+	}
+
+	return &StudentEnrollmentExport{
+		StudentID: studentID,
+		Schemas:   schemas,
+		Phases:    phases,
+		Rows:      rows,
+	}, nil
+}
+
 // RecordPhaseExportAudit writes the GDPR access-log row for a phase
 // export. Synchronous and blocking: the caller refuses to serve the
 // file when this errors. The DataAccessLog repo populates tenant_id
@@ -648,6 +847,56 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 
 	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("decision: export audit write: %w", err)
+	}
+	return nil
+}
+
+func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *StudentEnrollmentExport, format string, requestCount, childCount int) error {
+	if s.dataAccessLogRepo == nil {
+		return fmt.Errorf("decision: student export audit: data access log repo not configured")
+	}
+	if data == nil || data.StudentID <= 0 {
+		return fmt.Errorf("decision: student export audit: student required")
+	}
+	if actorAccountID <= 0 {
+		return fmt.Errorf("decision: student export audit: actor account id required")
+	}
+	if strings.TrimSpace(actorRole) == "" {
+		actorRole = "unknown"
+	}
+
+	now := time.Now()
+	rangeStart := now
+	rangeEnd := now
+	for _, phase := range data.Phases {
+		if phase == nil {
+			continue
+		}
+		start := phase.ServiceStartDate.BerlinMidnight()
+		end := phase.ServiceEndDate.EndOfDay()
+		if rangeStart.Equal(now) || start.Before(rangeStart) {
+			rangeStart = start
+		}
+		if rangeEnd.Equal(now) || end.After(rangeEnd) {
+			rangeEnd = end
+		}
+	}
+
+	entry := &auditModels.DataAccessLog{
+		ActorAccountID: actorAccountID,
+		ActorRole:      actorRole,
+		ResourceType:   auditModels.ResourceTypeEnrollmentStudentExport,
+		StudentID:      &data.StudentID,
+		RangeStart:     rangeStart,
+		RangeEnd:       rangeEnd,
+		AccessedAt:     now,
+	}
+	entry.SetMetadata("format", format)
+	entry.SetMetadata("request_count", requestCount)
+	entry.SetMetadata("child_count", childCount)
+
+	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+		return fmt.Errorf("decision: student export audit write: %w", err)
 	}
 	return nil
 }
@@ -959,6 +1208,7 @@ func (s *decisionService) applyApproval(
 		IsEmergencyContact: true,
 		CanPickup:          true,
 	}
+	authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRolePrimaryGuardian)
 	if err := rel.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student_guardian: %w", err)
 	}
@@ -1193,11 +1443,12 @@ func (s *decisionService) linkAdditionalGuardians(
 			IsEmergencyContact: true,
 			CanPickup:          true,
 		}
+		authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRoleEmergency)
 		if err := rel.Validate(); err != nil {
 			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
-			return fmt.Errorf("create co-guardian student_guardian: %w", err)
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
+			return fmt.Errorf("link co-guardian student_guardian: %w", err)
 		}
 		// Persist the co-guardian's phone number, mirroring the primary
 		// guardian. A co-guardian can be a phone-only contact (no email),
@@ -1340,6 +1591,26 @@ func (s *decisionService) materializeEnrollments(
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
+	if len(links) == 0 {
+		return nil
+	}
+	offeringIDs := make([]int64, 0, len(links))
+	seenOfferingIDs := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link.CareOfferingID <= 0 || seenOfferingIDs[link.CareOfferingID] {
+			continue
+		}
+		seenOfferingIDs[link.CareOfferingID] = true
+		offeringIDs = append(offeringIDs, link.CareOfferingID)
+	}
+	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list linked care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		offeringByID[offering.ID] = offering
+	}
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
@@ -1352,8 +1623,8 @@ func (s *decisionService) materializeEnrollments(
 	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
-		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
-		if err != nil || offering == nil {
+		offering := offeringByID[link.CareOfferingID]
+		if offering == nil {
 			s.logger.Warn("decision: care offering missing for child link",
 				slog.Int64("request_child_id", requestChildID),
 				slog.Int64("care_offering_id", link.CareOfferingID))
@@ -2134,6 +2405,16 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 // links it to the student via users.students_guardians, and inserts
 // any submitted phone numbers. Mirrors the dedup-by-email behaviour
 // of the CSV importer at services/import/student_import_config.go.
+func contactGuardianRole(isEmergencyContact, canPickup bool) string {
+	if canPickup {
+		return authorize.GuardianRolePickupOnly
+	}
+	if isEmergencyContact {
+		return authorize.GuardianRoleEmergency
+	}
+	return authorize.GuardianRoleCustom
+}
+
 func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) error {
 	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
 		return nil
@@ -2202,10 +2483,11 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			IsEmergencyContact: c.IsEmergencyContact,
 			CanPickup:          c.CanPickup,
 		}
+		authorize.ApplyStudentGuardianRole(rel, contactGuardianRole(c.IsEmergencyContact, c.CanPickup))
 		if c.EmergencyPriority > 0 {
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
-		if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
 			return fmt.Errorf("link contact to student: %w", err)
 		}
 	}

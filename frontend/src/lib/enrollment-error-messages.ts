@@ -30,10 +30,14 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Die Anmeldefrist für diese Anmeldephase ist abgelaufen oder noch nicht geöffnet. Bitte wende dich an die Schule.",
   "enrollment.invalid_phone": "Bitte gib eine gültige Telefonnummer ein.",
   "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
+  "enrollment.pickup_time_not_allowed":
+    "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste. Die markierte Zeit ist nicht mehr verfügbar.",
   "enrollment.schema_has_phases":
     "Diese Formularvorlage wird noch in einer Anmeldephase verwendet.",
   "enrollment.schema_has_requests":
     "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
+  "enrollment.schema_name_exists":
+    "Es gibt bereits ein Formular mit diesem Namen.",
   "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
   "rollover.invalid_request":
     "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",

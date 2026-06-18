@@ -139,9 +139,22 @@ export function applyOptimisticSchemaUpdate(
         ...cat,
         items: cat.items.map((item) => {
           const optimisticValue = item.type === "password" ? "••••••" : value;
+          // Mirror the backend's is_default semantics (issue #1680): boolean
+          // toggles are value-based (no reset button, so toggling back to the
+          // default must restore the "Standard" badge without a refetch). All
+          // other types just got an override row written, so is_default is
+          // false and the reset button stays available.
+          const optimisticIsDefault =
+            item.type === "boolean"
+              ? JSON.stringify(value) === JSON.stringify(item.default)
+              : false;
           const updated =
             item.key === key
-              ? { ...item, value: optimisticValue, is_default: false }
+              ? {
+                  ...item,
+                  value: optimisticValue,
+                  is_default: optimisticIsDefault,
+                }
               : item;
           return { ...updated, visible: evaluateVisibility(updated) };
         }),
