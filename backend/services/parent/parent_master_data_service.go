@@ -291,10 +291,11 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantI
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	existing, err := s.guardianPhoneRepo.GetPrimary(ctx, profile.ID)
+	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	existing := pickPrimaryPhone(phones)
 
 	var oldRaw json.RawMessage = json.RawMessage("null")
 	if existing != nil {
@@ -395,9 +396,11 @@ func (s *service) loadMasterData(ctx context.Context, accountID, studentID int64
 		AllowedDepartureModes:  student.AllowedDepartureModes,
 	}
 
-	if primary, err := s.guardianPhoneRepo.GetPrimary(ctx, profile.ID); err != nil {
+	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
+	if err != nil {
 		return nil, err
-	} else if primary != nil {
+	}
+	if primary := pickPrimaryPhone(phones); primary != nil {
 		out.PrimaryPhone = &primary.PhoneNumber
 		out.PrimaryPhoneID = &primary.ID
 	}
@@ -409,6 +412,22 @@ func (s *service) loadMasterData(ctx context.Context, accountID, studentID int64
 	out.PendingChanges = pending
 
 	return out, nil
+}
+
+// pickPrimaryPhone returns the guardian's primary phone, or the first one when
+// none is flagged primary, or nil when the guardian has no phone numbers.
+// FindByGuardianID already orders is_primary DESC, so the first row is the best
+// candidate — but we still prefer an explicit primary defensively.
+func pickPrimaryPhone(phones []*usersModels.GuardianPhoneNumber) *usersModels.GuardianPhoneNumber {
+	for _, p := range phones {
+		if p.IsPrimary {
+			return p
+		}
+	}
+	if len(phones) > 0 {
+		return phones[0]
+	}
+	return nil
 }
 
 // --- small value helpers ---
