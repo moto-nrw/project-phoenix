@@ -1,0 +1,22 @@
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler } from "~/lib/route-wrapper.server";
+
+interface DecideBody {
+  approve: boolean;
+  reason?: string;
+}
+
+/**
+ * Proxy POST /api/students/master-data-change-requests/{requestId}/decide →
+ * backend. Approves (and applies) or rejects one change request.
+ */
+export const POST = createPostHandler<unknown, DecideBody>(
+  async (_request, body, token, params) => {
+    const requestId = String(params.requestId);
+    return apiPost<unknown, DecideBody>(
+      `/api/students/master-data-change-requests/${encodeURIComponent(requestId)}/decide`,
+      token,
+      body,
+    );
+  },
+);

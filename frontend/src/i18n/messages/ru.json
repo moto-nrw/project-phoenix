@@ -673,5 +673,39 @@
       "alone": "Geht allein",
       "none": "Keine Angabe"
     }
+  },
+  "staffMasterDataReview": {
+    "title": "Änderungsanfragen",
+    "subtitle": "Von Eltern eingereichte Änderungen an Stammdaten, die eine Freigabe benötigen.",
+    "loadError": "Die Änderungsanfragen konnten nicht geladen werden.",
+    "empty": "Keine offenen Änderungsanfragen.",
+    "columns": {
+      "child": "Kind",
+      "field": "Feld",
+      "change": "Änderung",
+      "submitted": "Eingereicht",
+      "actions": "Aktion"
+    },
+    "fields": {
+      "first_name": "Vorname",
+      "last_name": "Nachname",
+      "birthday": "Geburtsdatum",
+      "health_info": "Gesundheitshinweise",
+      "email": "E-Mail",
+      "primary": "Telefonnummer",
+      "address_street": "Straße",
+      "address_city": "Ort",
+      "address_postal_code": "PLZ",
+      "preferred_contact_method": "Kontaktweg",
+      "language_preference": "Sprache",
+      "allowed_departure_modes": "Dauerhafte Gehzeiten"
+    },
+    "empty_value": "—",
+    "approve": "Freigeben",
+    "reject": "Ablehnen",
+    "reason": "Begründung (optional)",
+    "approved": "Änderung übernommen",
+    "rejected": "Änderung abgelehnt",
+    "decideError": "Die Entscheidung konnte nicht gespeichert werden."
   }
 }
