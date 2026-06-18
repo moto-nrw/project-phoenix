@@ -840,6 +840,7 @@ type FormSchemaRepository interface {
 	DeactivatePrevious(ctx context.Context) error
 	UpdateActiveFlag(ctx context.Context, id int64, isActive bool) error
 	DeleteByName(ctx context.Context, name string) error
+	HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error)
 }
 
 // SubmissionData is the reduced shape used by the legacy schema-service

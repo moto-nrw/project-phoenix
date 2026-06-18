@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -83,10 +82,11 @@ type ValueSetCallback func(ctx context.Context, tenantID int64, key string, valu
 
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
-	settingsService configSvc.SettingsService
-	db              *bun.DB
-	broadcaster     realtime.Broadcaster
-	onValueSet      ValueSetCallback
+	settingsService   configSvc.SettingsService
+	legalDocumentRefs legalAGBDocumentReferenceRepository
+	db                *bun.DB
+	broadcaster       realtime.Broadcaster
+	onValueSet        ValueSetCallback
 }
 
 // OnValueSet registers a callback that runs after a setting value change is
@@ -121,12 +121,16 @@ func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenan
 // cross-origin operator/tenant pairs) invalidate their settings caches.
 // Same-origin tabs are already covered by the BroadcastChannel ping the
 // frontend fires; this closes the cross-origin loop.
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster) *SettingsResource {
-	return &SettingsResource{
+func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, legalDocumentRefs ...legalAGBDocumentReferenceRepository) *SettingsResource {
+	rs := &SettingsResource{
 		settingsService: svc,
 		db:              db,
 		broadcaster:     broadcaster,
 	}
+	if len(legalDocumentRefs) > 0 {
+		rs.legalDocumentRefs = legalDocumentRefs[0]
+	}
+	return rs
 }
 
 // SettingsRouter returns a configured router for settings endpoints.
@@ -429,6 +433,10 @@ type enrollmentLegalAGBDeleteSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
+type legalAGBDocumentReferenceRepository interface {
+	HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error)
+}
+
 type legalAGBDocumentReferenceFunc func(context.Context, string) (bool, error)
 type legalAGBDocumentPathResolver func(string, string, string) (string, error)
 type legalAGBDocumentRemover func(string)
@@ -596,31 +604,12 @@ func legalAGBDocumentBelongsToTenant(storedURL string, tenantID int64) bool {
 }
 
 func (rs *SettingsResource) enrollmentLegalAGBDocumentReferenced(ctx context.Context, storedURL string) (bool, error) {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return false, errors.New("no tenant context")
+	if rs.legalDocumentRefs == nil {
+		return false, errors.New("legal document reference repository is not configured")
 	}
 	publicURL := publicEnrollmentLegalDocumentURL(storedURL)
 
-	var referenced bool
-	err := base.GetDB(ctx, rs.db).NewRaw(`
-		SELECT EXISTS (
-			SELECT 1
-			FROM enrollment.form_schemas AS "form_schema"
-			CROSS JOIN LATERAL jsonb_array_elements(
-				CASE
-					WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
-					THEN "form_schema".legal_blocks
-					ELSE '[]'::jsonb
-				END
-			) AS block(elem)
-			WHERE "form_schema".tenant_id = ?
-				AND (
-					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
-					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
-				)
-		)
-	`, tenantID, storedURL, publicURL).Scan(ctx, &referenced)
+	referenced, err := rs.legalDocumentRefs.HasLegalDocumentReference(ctx, storedURL, publicURL)
 	if err != nil {
 		return false, fmt.Errorf("check AGB document references: %w", err)
 	}
