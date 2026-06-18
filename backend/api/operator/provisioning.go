@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -22,7 +23,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const seedTokenHeader = "X-Phoenix-Seed-Token"
+const seedTokenHeader = seedtoken.Header
 
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
@@ -888,8 +889,5 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 }
 
 func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	if !strings.EqualFold(strings.TrimSpace(r.Header.Get(seedTokenHeader)), "true") {
-		return false
-	}
-	return strings.ToLower(strings.TrimSpace(viper.GetString("app_env"))) != "production"
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }

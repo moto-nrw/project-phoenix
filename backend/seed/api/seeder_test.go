@@ -8,9 +8,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +32,45 @@ func TestGenerateSeedPassword(t *testing.T) {
 		assert.Regexp(t, `[0-9]`, password, "must contain digit")
 		assert.Regexp(t, `[^a-zA-Z0-9]`, password, "must contain special char")
 	}
+}
+
+func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
+	seen := make(map[string]any)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPut, r.Method)
+
+		var body struct {
+			Value any `json:"value"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		seen[strings.TrimPrefix(r.URL.Path, "/api/settings/values/")] = body.Value
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+	}))
+	defer srv.Close()
+
+	rt := &Runtime{Client: NewClient(srv.URL, false)}
+	step := parentEnrollmentSeedStep{}
+
+	settings, err := step.seedSettings(rt, phoenixapi.AuthRef{})
+	require.NoError(t, err)
+
+	assert.Equal(t, false, settings[configModels.KeyEnrollmentRequireCaptcha])
+	assert.Equal(t, false, seen[configModels.KeyEnrollmentRequireCaptcha])
+}
+
+func TestParentEnrollmentParentPassword(t *testing.T) {
+	step := parentEnrollmentSeedStep{seeder: &Seeder{}}
+
+	password, err := step.parentPassword()
+	require.NoError(t, err)
+	assert.Equal(t, defaultSeedParentPassword, password)
+
+	step = parentEnrollmentSeedStep{seeder: &Seeder{options: SeedOptions{StaffPassword: "SharedPass1!"}}}
+	password, err = step.parentPassword()
+	require.NoError(t, err)
+	assert.Equal(t, "SharedPass1!", password)
 }
 
 func TestWrapConflictError(t *testing.T) {
@@ -354,7 +395,23 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 		},
 	}
 	// Should not panic
-	s.printSuccessSummary("admin@test.de", "generated-password", result)
+	state := &SeedState{
+		Parents: []ParentCredentials{
+			{Email: "parent@example.test", Password: "pass1", Name: "Demo Parent", StudentIDs: []int64{42}},
+		},
+		Enrollment: SeedEnrollmentState{
+			PhaseID:   1,
+			Offerings: map[string]int64{"ogs-ganztag": 2},
+			Requests: []SeedEnrollmentRequest{
+				{RequestID: 1, Source: "public", Status: "approved", ChildIDs: []int64{7}},
+				{RequestID: 2, Source: "parent", ChildIDs: []int64{8}},
+			},
+			ParentActions: []SeedParentPortalAction{
+				{ParentEmail: "parent@example.test", StudentID: 42, Type: "note"},
+			},
+		},
+	}
+	s.printSuccessSummary("admin@test.de", "generated-password", result, state)
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
@@ -366,6 +423,55 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+
+		if strings.HasPrefix(r.URL.Path, "/api/guardians/") && strings.HasSuffix(r.URL.Path, "/invite") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":                  idCounter,
+					"guardian_profile_id": idCounter,
+					"token":               fmt.Sprintf("guardian-invite-%d", idCounter),
+					"email_sent":          true,
+				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/auth/guardian-invitations/") && strings.HasSuffix(r.URL.Path, "/accept") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"account_id": idCounter,
+					"email":      "parent@example.test",
+				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/enrollment/admin/requests/") && strings.Contains(r.URL.Path, "/children/") && strings.HasSuffix(r.URL.Path, "/decide") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":            fmt.Sprintf("%d", idCounter),
+					"first_name":    "Demo",
+					"last_name":     "Child",
+					"date_of_birth": "2019-01-01",
+					"status":        "approved",
+				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/enrollment/admin/requests/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id":           fmt.Sprintf("%d", idCounter),
+					"status_token": fmt.Sprintf("status-token-%d", idCounter),
+					"children": []map[string]any{
+						{"id": fmt.Sprintf("%d", idCounter+1000)},
+					},
+				},
+			})
+			return
+		}
 
 		switch r.URL.Path {
 		case "/health":
@@ -428,6 +534,15 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 				"refresh_token": "refresh",
 			})
 
+		case "/parent/auth/login":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"access_token":  "parent-token",
+					"refresh_token": "parent-refresh",
+				},
+			})
+
 		case "/auth/roles":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -453,6 +568,31 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   []any{},
+			})
+
+		case "/api/enrollment/phases":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": "1001",
+				},
+			})
+
+		case "/api/enrollment/care-offerings":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": fmt.Sprintf("%d", idCounter),
+				},
+			})
+
+		case "/api/enrollment/demo-school/submit", "/parent/enrollments/demo-school/submit":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"request_id": fmt.Sprintf("%d", idCounter),
+					"status_url": fmt.Sprintf("https://parents.example.test/status/status-token-%d", idCounter),
+				},
 			})
 
 		default:

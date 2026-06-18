@@ -13,11 +13,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -1003,8 +1005,15 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		"expires_at":          invitation.ExpiresAt,
 		"email_sent":          invitation.EmailSentAt != nil,
 	}
+	if shouldExposeSeedInvitationToken(r) {
+		response["token"] = invitation.Token
+	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
+}
+
+func shouldExposeSeedInvitationToken(r *http.Request) bool {
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations

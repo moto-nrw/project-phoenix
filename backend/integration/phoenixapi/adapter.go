@@ -258,13 +258,11 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 		return AuthRef{}, fmt.Errorf("login request failed: %w", err)
 	}
 
-	var loginResp struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(respBody, &loginResp); err != nil {
+	token, err := parseLoginToken(respBody)
+	if err != nil {
 		return AuthRef{}, fmt.Errorf("parse login response: %w", err)
 	}
-	if loginResp.AccessToken == "" {
+	if token == "" {
 		return AuthRef{}, fmt.Errorf("no access token in login response")
 	}
 
@@ -275,8 +273,54 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 	return AuthRef{
 		Kind:  AuthBearer,
 		Label: label,
-		Token: loginResp.AccessToken,
+		Token: token,
 	}, nil
+}
+
+func (a *Adapter) LoginParent(ctx context.Context, email, password string) (AuthRef, error) {
+	body := map[string]string{
+		"email":    email,
+		"password": password,
+	}
+
+	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/parent/auth/login", body, nil)
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("parent login request failed: %w", err)
+	}
+
+	token, err := parseLoginToken(respBody)
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("parse parent login response: %w", err)
+	}
+	if token == "" {
+		return AuthRef{}, fmt.Errorf("no access token in parent login response")
+	}
+
+	return AuthRef{
+		Kind:  AuthBearer,
+		Label: "parent",
+		Token: token,
+	}, nil
+}
+
+// parseLoginToken pulls the access token from a login response, tolerating both
+// the enveloped ({"data":{"access_token":...}}) and flat shapes. An empty
+// string (without an error) means no token was present.
+func parseLoginToken(respBody []byte) (string, error) {
+	var loginResp struct {
+		Data struct {
+			AccessToken string `json:"access_token"`
+		} `json:"data"`
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(respBody, &loginResp); err != nil {
+		return "", err
+	}
+	token := loginResp.Data.AccessToken
+	if token == "" {
+		token = loginResp.AccessToken
+	}
+	return token, nil
 }
 
 func DeviceAuth(apiKey, pin, label string) AuthRef {

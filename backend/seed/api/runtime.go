@@ -17,6 +17,8 @@ type Runtime struct {
 	FixedSeeder      *FixedSeeder
 	Result           *SeedResult
 	State            *SeedState
+	Parents          []ParentCredentials
+	Enrollment       SeedEnrollmentState
 	Values           map[string]any
 }
 
