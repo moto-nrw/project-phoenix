@@ -158,6 +158,13 @@ export interface FormField {
    */
   content?: string;
   options?: FormFieldOption[];
+  /**
+   * Fixed pickup times for a `weekday_schedule` field. When non-empty,
+   * the public form renders a dropdown limited to these `HH:MM` values
+   * per weekday instead of a free time input, and the backend rejects
+   * any off-list time. Empty/undefined = free time entry.
+   */
+  allowed_times?: string[];
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;

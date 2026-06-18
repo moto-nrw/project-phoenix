@@ -230,6 +230,84 @@ func (s *requestService) validateRequiredCustomFields(
 	return nil
 }
 
+// validateConstrainedSchedules enforces a weekday_schedule field's fixed
+// pickup times (FormField.AllowedTimes) server-side. The public form renders a
+// dropdown limited to these times, but a scripted or stale client could POST
+// an off-list time, so every *visible* schedule answer is re-checked here.
+// Empty AllowedTimes means "no restriction" (free time entry) and such fields
+// are skipped. Hidden fields are skipped to match validateRequiredCustomFields
+// — their answers are dropped before persistence anyway, so rejecting them
+// would block an otherwise valid submit.
+func (s *requestService) validateConstrainedSchedules(
+	schema *enrollmentModels.FormSchema,
+	req SubmitRequest,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) error {
+	if schema == nil {
+		return nil
+	}
+	byKey := buildFieldsByKey(schema)
+
+	check := func(f *enrollmentModels.FormField, answers map[string]any, childIdx int) error {
+		raw, ok := answers[f.Key]
+		if !ok || raw == nil {
+			return nil
+		}
+		var sched enrollmentModels.WeekdaySchedule
+		if err := decodeStructured(raw, &sched); err != nil {
+			if childIdx >= 0 {
+				return fmt.Errorf("%w: child %d field %q: invalid schedule", ErrInvalidSubmission, childIdx, f.Key)
+			}
+			return fmt.Errorf("%w: field %q: invalid schedule", ErrInvalidSubmission, f.Key)
+		}
+		if err := sched.ValidateAllowed(f.AllowedTimes); err != nil {
+			if childIdx >= 0 {
+				return fmt.Errorf("%w: child %d field %q: %v", ErrPickupTimeNotAllowed, childIdx, f.Key, err)
+			}
+			return fmt.Errorf("%w: field %q: %v", ErrPickupTimeNotAllowed, f.Key, err)
+		}
+		return nil
+	}
+
+	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || f.AppliesToCh {
+			continue
+		}
+		if !fieldVisible(f, guardianCtx) {
+			continue
+		}
+		if err := check(f, req.CustomData, -1); err != nil {
+			return err
+		}
+	}
+
+	for idx := range req.Children {
+		child := req.Children[idx]
+		childCtx := fieldVisibilityContext{
+			guardianAnswers: req.CustomData,
+			childAnswers:    child.CustomData,
+			gradeLevel:      child.TargetGradeLevel,
+			offeringNames:   selectedOfferingNames(child, openByID),
+			fieldsByKey:     byKey,
+		}
+		for i := range schema.Fields {
+			f := &schema.Fields[i]
+			if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || !f.AppliesToCh {
+				continue
+			}
+			if !fieldVisible(f, childCtx) {
+				continue
+			}
+			if err := check(f, child.CustomData, idx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // customAnswerSatisfiesRequired reports whether a required field is answered,
 // pulling the value out of the answer map so it can distinguish a *missing*
 // key from a present-but-empty value. This matters only for the pickup target:

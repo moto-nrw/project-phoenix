@@ -269,6 +269,18 @@ func TestMapParentSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "enrollment.invalid_email")
 }
 
+// An off-list pickup time must map to 400 with the stable code (mirroring
+// the public path) so the shared EnrollmentForm renders the same German
+// message on the parents portal. ErrPickupTimeNotAllowed wraps
+// ErrInvalidSubmission, so the explicit case must precede the generic branch.
+func TestMapParentSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrPickupTimeNotAllowed)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.pickup_time_not_allowed")
+}
+
 func TestMapParentSubmitError_CareOfferingFull409WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)

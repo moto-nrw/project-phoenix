@@ -940,6 +940,53 @@ export function EnrollmentForm({
         );
         setChildOfferingErrors(empties);
       }
+      if (code === "enrollment.pickup_time_not_allowed") {
+        // The backend rejected a pickup time outside the field's configured
+        // fixed list. The server doesn't say which field/child, so derive it
+        // locally (same approach as the care-offering case above). Two passes:
+        //   - offList: a time the *client's* known list already rejects — a
+        //     stale saved value the form still shows flagged "nicht mehr
+        //     verfügbar".
+        //   - answered: any constrained pickup field that has a time at all.
+        //     Used as a fallback when offList is empty: that happens when the
+        //     admin removed a time *after* the form loaded, so the client list
+        //     is stale and the submitted value still looks valid here. Marking
+        //     every answered constrained field keeps the rejection from being
+        //     silently swallowed (the offending field turns red and the scroll
+        //     lands on it). The backend rejected it regardless — this is UX.
+        const offList: Record<string, string> = {};
+        const answered: Record<string, string> = {};
+        for (const f of schema?.fields ?? []) {
+          if (
+            f.target !== "schedule.pickup" ||
+            !f.allowed_times?.length ||
+            f.type !== "weekday_schedule"
+          ) {
+            continue;
+          }
+          const mark = (answer: unknown, key: string): void => {
+            const times = Object.values(asScheduleObject(answer)).filter(
+              Boolean,
+            );
+            if (times.length === 0) return;
+            answered[key] = message;
+            if (times.some((time) => !f.allowed_times!.includes(time))) {
+              offList[key] = message;
+            }
+          };
+          if (f.applies_to_child) {
+            children.forEach((c, i) =>
+              mark(c.custom[f.key], `children_${i}_custom_${f.key}`),
+            );
+          } else {
+            mark(customData[f.key], `custom_${f.key}`);
+          }
+        }
+        const offending = Object.keys(offList).length > 0 ? offList : answered;
+        if (Object.keys(offending).length > 0) {
+          setFieldErrors((prev) => ({ ...prev, ...offending }));
+        }
+      }
       setError(message);
       // A server-side rejection resolves after the synchronous attempt bump
       // above, so bump again to scroll the late-arriving error into view.
@@ -2882,6 +2929,10 @@ function WeekdayScheduleInput({
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdays"));
+  // When the field configures fixed pickup times, parents pick from a
+  // dropdown limited to those values per weekday instead of a free time
+  // input. Empty list = free entry (the historical behaviour).
+  const allowedTimes = field.allowed_times ?? [];
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -2898,21 +2949,59 @@ function WeekdayScheduleInput({
       )}
       <p className="text-xs text-gray-500">{tr("structured.emptySchedule")}</p>
       <div className="mt-2 grid gap-2 sm:grid-cols-5">
-        {WEEKDAYS.map((weekday) => (
-          <label key={weekday} className="block text-xs">
-            <span className="block text-gray-600">
-              {weekdayLabels[weekday] ?? weekday}
-            </span>
-            <input
-              type="time"
-              value={sched[weekday] ?? ""}
-              onChange={(e) =>
-                onChange({ ...sched, [weekday]: e.target.value })
-              }
-              className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
-            />
-          </label>
-        ))}
+        {WEEKDAYS.map((weekday) => {
+          const current = sched[weekday] ?? "";
+          // A previously saved value that is no longer in the configured
+          // list (admin changed the times after the draft was saved) must
+          // still be shown, otherwise the dropdown silently blanks it and
+          // the parent never sees that their time was dropped. It is
+          // flagged "nicht mehr verfügbar" so the parent notices it has to
+          // be re-picked before submit — the backend rejects it anyway.
+          const isStale = Boolean(current) && !allowedTimes.includes(current);
+          return (
+            <label key={weekday} className="block text-xs">
+              <span className="block text-gray-600">
+                {weekdayLabels[weekday] ?? weekday}
+              </span>
+              {allowedTimes.length > 0 ? (
+                <CustomSelect
+                  value={current}
+                  onChange={(selected) =>
+                    onChange({ ...sched, [weekday]: selected })
+                  }
+                  ariaLabel={`${weekdayLabels[weekday] ?? weekday} – ${field.label}`}
+                  placeholder={tr("structured.selectTime")}
+                  invalid={Boolean(error) || isStale}
+                  className="mt-1 border-gray-200 bg-white"
+                  options={[
+                    { value: "", label: tr("structured.selectTime") },
+                    ...allowedTimes.map((time) => ({
+                      value: time,
+                      label: time,
+                    })),
+                    ...(isStale
+                      ? [
+                          {
+                            value: current,
+                            label: `${current} (${tr("structured.timeUnavailable")})`,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+              ) : (
+                <input
+                  type="time"
+                  value={current}
+                  onChange={(e) =>
+                    onChange({ ...sched, [weekday]: e.target.value })
+                  }
+                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                />
+              )}
+            </label>
+          );
+        })}
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
