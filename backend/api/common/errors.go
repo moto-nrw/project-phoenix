@@ -1,9 +1,12 @@
 package common
 
 import (
+	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 
@@ -264,6 +267,33 @@ func ErrorTooManyRequests(err error) render.Renderer {
 // the request without globally locking other callers out.
 func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
+}
+
+// IsTransientDatabaseError reports whether err represents a temporary database
+// connectivity failure rather than a domain validation error. Callers can use
+// this to retry a whole transaction once or return 503 after retry exhaustion.
+func IsTransientDatabaseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, driver.ErrBadConn) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		code := pgErr.Field('C')
+		return len(code) >= 2 && code[:2] == "08"
+	}
+
+	return strings.Contains(err.Error(), "driver: bad connection")
 }
 
 // IsConstraintViolation checks if an error is a PostgreSQL constraint violation

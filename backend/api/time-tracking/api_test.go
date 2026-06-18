@@ -1617,6 +1617,7 @@ func TestClassifyServiceError(t *testing.T) {
 		{"forbidden - own sessions", "can only update own sessions", http.StatusForbidden},
 		{"bad request - status", "status must be present or home_office", http.StatusBadRequest},
 		{"bad request - break minutes", "break minutes cannot be negative", http.StatusBadRequest},
+		{"bad request - invalid session data", "invalid session data: check-in time must be before check-out time", http.StatusBadRequest},
 		{"internal server - unknown", "some unknown error", http.StatusInternalServerError},
 	}
 

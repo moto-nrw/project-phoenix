@@ -2,6 +2,7 @@ package common_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -540,6 +541,18 @@ func TestErrorInternalServerWrap(t *testing.T) {
 	wrapped, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 	assert.ErrorIs(t, wrapped.Err, cause)
+}
+
+func TestIsTransientDatabaseError_DetectsBadConnection(t *testing.T) {
+	err := fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn)
+
+	assert.True(t, common.IsTransientDatabaseError(err))
+}
+
+func TestIsTransientDatabaseError_IgnoresDomainValidation(t *testing.T) {
+	err := errors.New("invalid session data: check-in time must be before check-out time")
+
+	assert.False(t, common.IsTransientDatabaseError(err))
 }
 
 // =============================================================================

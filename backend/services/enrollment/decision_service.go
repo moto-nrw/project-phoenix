@@ -1591,6 +1591,17 @@ func (s *decisionService) materializeEnrollments(
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
+	if len(links) == 0 {
+		return nil
+	}
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phase.ID)
+	if err != nil {
+		return fmt.Errorf("decision: list phase care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		offeringByID[offering.ID] = offering
+	}
 
 	validFrom := phase.ServiceStartDate
 	validUntil := phase.ServiceEndDate
@@ -1603,8 +1614,8 @@ func (s *decisionService) materializeEnrollments(
 	drafts := make(map[int64]*enrollmentDraft)
 
 	for _, link := range links {
-		offering, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID)
-		if err != nil || offering == nil {
+		offering := offeringByID[link.CareOfferingID]
+		if offering == nil {
 			s.logger.Warn("decision: care offering missing for child link",
 				slog.Int64("request_child_id", requestChildID),
 				slog.Int64("care_offering_id", link.CareOfferingID))
