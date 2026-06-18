@@ -95,6 +95,11 @@ func (c *Client) PostPublic(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, false, nil)
 }
 
+// PostPublicWithHeaders makes an unauthenticated POST request with extra headers.
+func (c *Client) PostPublicWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
+	return c.doRequestWithHeaders("POST", path, body, false, headers)
+}
+
 // PostWithHeaders makes an authenticated POST request with extra headers.
 func (c *Client) PostWithHeaders(path string, body any, headers map[string]string) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, headers)

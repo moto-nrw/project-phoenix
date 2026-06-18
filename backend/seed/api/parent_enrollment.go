@@ -397,7 +397,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		})
 	}
 
-	for _, submission := range submissions {
+	for index, submission := range submissions {
 		if submission.source == "parent" {
 			if _, err := rt.Client.GetWithAuth(submission.auth, "/parent/enrollments/"+rt.Bootstrap.TenantSlug+"/profile"); err != nil {
 				return state, fmt.Errorf("load parent enrollment profile before submit: %w", err)
@@ -409,7 +409,11 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		if submission.source == "parent" {
 			respBody, submitErr = rt.Client.PostWithAuth(submission.auth, submission.path, submission.body)
 		} else {
-			respBody, submitErr = rt.Client.PostPublic(submission.path, submission.body)
+			respBody, submitErr = rt.Client.PostPublicWithHeaders(
+				submission.path,
+				submission.body,
+				publicEnrollmentSeedHeaders(index),
+			)
 		}
 		if submitErr != nil {
 			return state, fmt.Errorf("submit %s enrollment: %w", submission.source, submitErr)
@@ -437,6 +441,12 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth phoenixa
 		}
 	}
 	return state, nil
+}
+
+func publicEnrollmentSeedHeaders(index int) map[string]string {
+	return map[string]string{
+		"X-Forwarded-For": fmt.Sprintf("198.51.100.%d", 10+index),
+	}
 }
 
 func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoenixapi.AuthRef) (int64, error) {

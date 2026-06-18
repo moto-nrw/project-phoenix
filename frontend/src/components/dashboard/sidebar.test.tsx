@@ -317,6 +317,19 @@ describe("Sidebar", () => {
       const dashboardLink = screen.getByText("Home").closest("a");
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
+
+    it("highlights only Auswertung on enrollment reports", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments/reports");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const overviewLink = screen.getByText("Überblick").closest("a");
+      const reportsLink = screen.getByText("Auswertung").closest("a");
+      expect(overviewLink).not.toHaveClass("bg-gray-100");
+      expect(reportsLink).toHaveClass("bg-gray-100");
+    });
   });
 
   describe("student detail page active link detection", () => {

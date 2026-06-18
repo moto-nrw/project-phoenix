@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   BarChart3,
   Download,
@@ -26,6 +26,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 
 const logger = createLogger({ component: "EnrollmentReportsPage" });
 
@@ -70,6 +71,11 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 const ALL_VALUE = "all";
+
+const STAT_ICON_STYLE = {
+  backgroundColor: `${LOCATION_COLORS.GROUP_ROOM}1A`,
+  color: LOCATION_COLORS.GROUP_ROOM,
+} satisfies CSSProperties;
 
 export function EnrollmentReportsPage() {
   const toast = useToast();
@@ -313,7 +319,7 @@ export function EnrollmentReportsPage() {
         </div>
       </section>
 
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+      <section className="moto-content-surface relative z-20 overflow-visible rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="grid gap-3 lg:grid-cols-[minmax(12rem,1.2fr)_repeat(4,minmax(9rem,1fr))]">
           <SelectField label="Anmeldephase" id="report-phase">
             <CustomSelect
@@ -451,7 +457,7 @@ function ReportStats({
 }: Readonly<{ report: CareUsageReport | null; loading: boolean }>) {
   const totals = report?.totals;
   return (
-    <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+    <section className="relative z-0 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
       <StatCard
         icon={BarChart3}
         label="Kinder"
@@ -487,7 +493,10 @@ function StatCard({
           <p className="text-xs font-medium text-gray-500">{label}</p>
           <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5080D8]/10 text-[#5080D8]">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          style={STAT_ICON_STYLE}
+        >
           <Icon className="h-5 w-5" aria-hidden />
         </span>
       </div>
