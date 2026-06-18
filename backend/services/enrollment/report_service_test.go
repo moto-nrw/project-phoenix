@@ -52,13 +52,56 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 	assert.Equal(t, "selected", row.Offerings[1].DaysSource)
 }
 
+func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
+	req := &enrollmentModels.Request{
+		Model:             baseModels.Model{ID: 10},
+		GuardianFirstName: "Eva",
+		GuardianLastName:  "Muster",
+		GuardianEmail:     "eva@example.test",
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:     baseModels.Model{ID: 20},
+		RequestID: 10,
+		FirstName: "Lina",
+		LastName:  "Muster",
+		Status:    enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Regelbetreuung",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 20, CareOfferingID: 1},
+	}
+
+	row := careUsageRow(req, child, links, offerings)
+
+	require.Len(t, row.Offerings, 1)
+	assert.Empty(t, row.Offerings[0].Days)
+	assert.NotNil(t, row.Offerings[0].Days)
+	assert.Equal(t, "selected", row.Offerings[0].DaysSource)
+	assert.Empty(t, row.EffectiveDays)
+	assert.NotNil(t, row.EffectiveDays)
+	assert.Equal(t, 0, row.DayCount)
+}
+
 func TestSortedDayCodesDedupesAndOrdersWeekdays(t *testing.T) {
 	got := sortedDayCodes([]string{"fri", "mon", "mon", "wed", "tue"})
 	assert.Equal(t, []string{"mon", "tue", "wed", "fri"}, got)
 }
 
+func TestSortedDayCodesReturnsEmptySliceForEmptyInput(t *testing.T) {
+	got := sortedDayCodes(nil)
+	assert.Empty(t, got)
+	assert.NotNil(t, got)
+}
+
 func TestCareUsageRowMatchesFilters(t *testing.T) {
 	grade := int16(2)
+	dayCount := 3
 	row := CareUsageRow{
 		ChildFirstName:   "Lina",
 		ChildLastName:    "Muster",
@@ -77,16 +120,28 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
 		Status:         enrollmentModels.ChildStatusApproved,
 		CareOfferingID: 10,
-		DayCount:       3,
+		DayCount:       &dayCount,
 		GradeLevel:     &grade,
 		Search:         "eva@example",
 	}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all"}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", CareOfferingID: 11}))
-	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: 4}))
+	otherDayCount := 4
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
 
 	otherGrade := int16(3)
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Search: "unbekannt"}))
+}
+
+func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
+	zero := 0
+	row := CareUsageRow{
+		Status:        enrollmentModels.ChildStatusApproved,
+		EffectiveDays: []string{},
+		DayCount:      0,
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &zero}))
 }

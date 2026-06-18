@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,7 +27,7 @@ type careUsageExportFiltersRequest struct {
 	PhaseID        string `json:"phase_id"`
 	Status         string `json:"status,omitempty"`
 	CareOfferingID string `json:"care_offering_id,omitempty"`
-	DayCount       int    `json:"day_count,omitempty"`
+	DayCount       *int   `json:"day_count,omitempty"`
 	GradeLevel     *int16 `json:"grade_level,omitempty"`
 	Search         string `json:"search,omitempty"`
 }
@@ -49,7 +50,7 @@ type careUsageAppliedFiltersResponse struct {
 	PhaseID        string `json:"phase_id"`
 	Status         string `json:"status"`
 	CareOfferingID string `json:"care_offering_id,omitempty"`
-	DayCount       int    `json:"day_count,omitempty"`
+	DayCount       *int   `json:"day_count,omitempty"`
 	GradeLevel     *int16 `json:"grade_level,omitempty"`
 	Search         string `json:"search,omitempty"`
 }
@@ -211,10 +212,10 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	}
 	if raw := q.Get("day_count"); raw != "" {
 		count, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || count <= 0 {
-			return filters, errors.New("day_count must be positive")
+		if parseErr != nil || count < 0 || count > 7 {
+			return filters, errors.New("day_count must be between 0 and 7")
 		}
-		filters.DayCount = count
+		filters.DayCount = &count
 	}
 	if raw := q.Get("grade_level"); raw != "" {
 		grade, parseErr := strconv.ParseInt(raw, 10, 16)
@@ -340,7 +341,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			DateOfBirth:       row.DateOfBirth,
 			TargetGradeLevel:  row.TargetGradeLevel,
 			Status:            row.Status,
-			EffectiveDays:     row.EffectiveDays,
+			EffectiveDays:     nonNilStringSlice(row.EffectiveDays),
 			DayCount:          row.DayCount,
 			GuardianFirstName: row.GuardianFirstName,
 			GuardianLastName:  row.GuardianLastName,
@@ -353,7 +354,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			rowOut.Offerings = append(rowOut.Offerings, careUsageRowOfferingResponse{
 				ID:             strconv.FormatInt(offering.ID, 10),
 				Name:           offering.Name,
-				Days:           offering.Days,
+				Days:           nonNilStringSlice(offering.Days),
 				DaysSource:     offering.DaysSource,
 				DaysOfWeekMode: offering.DaysOfWeekMode,
 			})
@@ -424,15 +425,8 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) listexport.RecordDocument {
 	records := make([]listexport.Record, 0, len(report.Rows)+1)
 	records = append(records, listexport.Record{
-		Title: "Statistik",
-		Fields: []listexport.Field{
-			{Label: "Kinder", Value: strconv.Itoa(report.Totals.Children)},
-			{Label: "1 Tag", Value: strconv.Itoa(report.Totals.ByDayCount["1"])},
-			{Label: "2 Tage", Value: strconv.Itoa(report.Totals.ByDayCount["2"])},
-			{Label: "3 Tage", Value: strconv.Itoa(report.Totals.ByDayCount["3"])},
-			{Label: "4 Tage", Value: strconv.Itoa(report.Totals.ByDayCount["4"])},
-			{Label: "5 Tage", Value: strconv.Itoa(report.Totals.ByDayCount["5"])},
-		},
+		Title:  "Statistik",
+		Fields: careUsageDayCountFields(report),
 	})
 	for _, row := range report.Rows {
 		records = append(records, listexport.Record{
@@ -488,8 +482,8 @@ func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
 	if report.Filters.CareOfferingID > 0 {
 		labels = append(labels, "Betreuungsangebot: "+careUsageOfferingNameByID(report, report.Filters.CareOfferingID))
 	}
-	if report.Filters.DayCount > 0 {
-		labels = append(labels, fmt.Sprintf("Tage: %d", report.Filters.DayCount))
+	if report.Filters.DayCount != nil {
+		labels = append(labels, fmt.Sprintf("Tage: %d", *report.Filters.DayCount))
 	}
 	if report.Filters.GradeLevel != nil {
 		labels = append(labels, fmt.Sprintf("Zielklasse: %d", *report.Filters.GradeLevel))
@@ -528,4 +522,44 @@ func careUsageOfferingDayDetails(offerings []enrollmentService.CareUsageRowOffer
 		parts = append(parts, offering.Name+" ("+days+")")
 	}
 	return strings.Join(parts, "; ")
+}
+
+func careUsageDayCountFields(report *enrollmentService.CareUsageReport) []listexport.Field {
+	fields := []listexport.Field{{Label: "Kinder", Value: strconv.Itoa(report.Totals.Children)}}
+	for _, count := range sortedDayCountKeys(report.Totals.ByDayCount) {
+		fields = append(fields, listexport.Field{
+			Label: dayCountLabelDE(count),
+			Value: strconv.Itoa(report.Totals.ByDayCount[strconv.Itoa(count)]),
+		})
+	}
+	return fields
+}
+
+func sortedDayCountKeys(counts map[string]int) []int {
+	out := make([]int, 0, len(counts))
+	seen := make(map[int]bool, len(counts))
+	for raw := range counts {
+		count, err := strconv.Atoi(raw)
+		if err != nil || seen[count] {
+			continue
+		}
+		seen[count] = true
+		out = append(out, count)
+	}
+	sort.Ints(out)
+	return out
+}
+
+func dayCountLabelDE(count int) string {
+	if count == 1 {
+		return "1 Tag"
+	}
+	return fmt.Sprintf("%d Tage", count)
+}
+
+func nonNilStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
 }

@@ -269,6 +269,73 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
   });
 
+  it("renders dynamic day-count buckets and preserves a zero-day filter", async () => {
+    mocks.getCareUsageReport.mockImplementation(async (filters) =>
+      report({
+        filters,
+        totals: {
+          children: 1,
+          by_day_count: { "0": 1, "6": 2, "7": 3 },
+        },
+        rows: [
+          {
+            request_id: "10",
+            child_id: "20",
+            child_first_name: "Lina",
+            child_last_name: "Muster",
+            date_of_birth: "2019-01-01",
+            target_grade_level: 1,
+            status: "submitted",
+            offerings: [
+              {
+                id: "2",
+                name: "OGS Ganztag",
+                days: [],
+                days_source: "selected",
+                days_of_week_mode: "parent_choice",
+              },
+            ],
+            effective_days: [],
+            day_count: 0,
+            guardian_first_name: "Eva",
+            guardian_last_name: "Muster",
+            guardian_email: "eva@example.test",
+            submitted_at: "2026-06-18T11:15:00Z",
+          },
+        ],
+      }),
+    );
+
+    await renderPhase();
+
+    expect(screen.getByText("0 Betreuungstage")).toBeVisible();
+    expect(screen.getByText("6 Tage")).toBeVisible();
+    expect(screen.getByText("7 Tage")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Tagesanzahl" }));
+    fireEvent.click(screen.getByRole("option", { name: "0 Tage" }));
+
+    await waitFor(() => {
+      expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ day_count: 0 }),
+      );
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auswertung exportieren" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
+        expect.objectContaining({ day_count: 0 }),
+        "xlsx",
+      );
+    });
+  });
+
   it("does not leave stale report rows visible after a failed filtered reload", async () => {
     await renderPhase();
     expect(screen.getByText("Lina Muster")).toBeVisible();

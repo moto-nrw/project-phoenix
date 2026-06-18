@@ -63,6 +63,7 @@ const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
+const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
 const STATUS_LABELS: Record<ChildStatus, string> = {
   submitted: "Eingegangen",
@@ -611,9 +612,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 onChange={setDayCount}
                 options={[
                   { value: ALL_VALUE, label: "Alle" },
-                  ...[1, 2, 3, 4, 5].map((count) => ({
+                  ...DAY_COUNT_OPTIONS.map((count) => ({
                     value: String(count),
-                    label: count === 1 ? "1 Tag" : `${count} Tage`,
+                    label: formatDayCountLabel(count),
                   })),
                 ]}
               />
@@ -722,16 +723,20 @@ function ReportStats({
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
   const totals = report?.totals;
+  const dayCountBuckets = useMemo(
+    () => dayCountBucketsForTotals(totals?.by_day_count),
+    [totals?.by_day_count],
+  );
   return (
-    <section className="relative z-10 grid gap-2 md:grid-cols-4 xl:grid-cols-7">
+    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-5">
       <ReportStatCard
         label="Kinder"
         value={loading ? "..." : String(totals?.children ?? 0)}
       />
-      {[1, 2, 3, 4, 5].map((count) => (
+      {dayCountBuckets.map((count) => (
         <ReportStatCard
           key={count}
-          label={count === 1 ? "1 Tag" : `${count} Tage`}
+          label={formatDayCountLabel(count)}
           value={
             loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
           }
@@ -856,6 +861,20 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
 
 function formatDays(days: string[]): string {
   return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+}
+
+function formatDayCountLabel(count: number): string {
+  return count === 1 ? "1 Tag" : `${count} Tage`;
+}
+
+function dayCountBucketsForTotals(
+  totals: Record<string, number> | undefined,
+): number[] {
+  if (!totals) return [...DAY_COUNT_OPTIONS];
+  return Object.keys(totals)
+    .map((key) => Number(key))
+    .filter((count) => Number.isInteger(count))
+    .sort((a, b) => a - b);
 }
 
 function ExportMenu({

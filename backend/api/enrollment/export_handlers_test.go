@@ -619,6 +619,33 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 	}
 }
 
+func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
+	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&day_count=0", nil)
+
+	filters, err := parseCareUsageFiltersFromQuery(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageFiltersFromQuery: %v", err)
+	}
+	if filters.DayCount == nil || *filters.DayCount != 0 {
+		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
+func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "xlsx",
+		"filters": {"phase_id": "42", "status": "all", "day_count": 0}
+	}`))
+
+	_, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if filters.DayCount == nil || *filters.DayCount != 0 {
+		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
 func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
@@ -675,6 +702,73 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	} {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{
+			PhaseID: 42,
+			Status:  "all",
+		},
+		Totals: enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         10,
+				ChildID:           20,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     nil,
+				DayCount:          0,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{ID: 1, Name: "OGS", Days: nil, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{`"effective_days":[]`, `"days":[]`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestBuildCareUsageRecordDocumentUsesDynamicDayCountBuckets(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   3,
+			ByDayCount: map[string]int{"0": 1, "6": 1, "7": 1},
+		},
+	}
+
+	doc := buildCareUsageRecordDocument(report)
+	if len(doc.Records) == 0 {
+		t.Fatal("expected stats record")
+	}
+	fields := doc.Records[0].Fields
+	got := make([]string, 0, len(fields))
+	for _, field := range fields {
+		got = append(got, field.Label+"="+field.Value)
+	}
+	for _, want := range []string{"Kinder=3", "0 Tage=1", "6 Tage=1", "7 Tage=1"} {
+		if !strings.Contains(strings.Join(got, ";"), want) {
+			t.Fatalf("stats fields = %#v, missing %s", got, want)
 		}
 	}
 }

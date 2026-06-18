@@ -25,7 +25,7 @@ type CareUsageFilters struct {
 	PhaseID        int64  `json:"phase_id"`
 	Status         string `json:"status,omitempty"`
 	CareOfferingID int64  `json:"care_offering_id,omitempty"`
-	DayCount       int    `json:"day_count,omitempty"`
+	DayCount       *int   `json:"day_count,omitempty"`
 	GradeLevel     *int16 `json:"grade_level,omitempty"`
 	Search         string `json:"search,omitempty"`
 }
@@ -48,7 +48,7 @@ type CareUsageAppliedFilters struct {
 	PhaseID        int64  `json:"phase_id"`
 	Status         string `json:"status"`
 	CareOfferingID int64  `json:"care_offering_id,omitempty"`
-	DayCount       int    `json:"day_count,omitempty"`
+	DayCount       *int   `json:"day_count,omitempty"`
 	GradeLevel     *int16 `json:"grade_level,omitempty"`
 	Search         string `json:"search,omitempty"`
 }
@@ -270,8 +270,8 @@ func validateCareUsageFilters(filters CareUsageFilters) error {
 			return fmt.Errorf("%w: unsupported status %q", ErrReportInvalidFilter, filters.Status)
 		}
 	}
-	if filters.DayCount < 0 || filters.DayCount > 7 {
-		return fmt.Errorf("%w: day_count must be between 1 and 7", ErrReportInvalidFilter)
+	if filters.DayCount != nil && (*filters.DayCount < 0 || *filters.DayCount > 7) {
+		return fmt.Errorf("%w: day_count must be between 0 and 7", ErrReportInvalidFilter)
 	}
 	return nil
 }
@@ -304,7 +304,7 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 		if offering != nil {
 			name = offering.Name
 			daysOfWeekMode = offering.DaysOfWeekMode
-			if len(days) == 0 {
+			if len(days) == 0 && offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
 				days = offering.AvailableDays
 				source = "available"
 			}
@@ -364,7 +364,7 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 			return false
 		}
 	}
-	if filters.DayCount > 0 && row.DayCount != filters.DayCount {
+	if filters.DayCount != nil && row.DayCount != *filters.DayCount {
 		return false
 	}
 	if filters.GradeLevel != nil {
@@ -422,7 +422,7 @@ func careUsageGradeOptions(seen map[int16]bool) []int16 {
 }
 
 func initDayCountMap() map[string]int {
-	return map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+	return map[string]int{"0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0}
 }
 
 var dayOrder = map[string]int{
@@ -437,7 +437,7 @@ var dayOrder = map[string]int{
 
 func sortedDayCodes(days []string) []string {
 	if len(days) == 0 {
-		return nil
+		return []string{}
 	}
 	seen := make(map[string]bool, len(days))
 	out := make([]string, 0, len(days))
@@ -493,7 +493,11 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("format", format)
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("care_offering_id", report.Filters.CareOfferingID)
-	entry.SetMetadata("day_count", report.Filters.DayCount)
+	if report.Filters.DayCount != nil {
+		entry.SetMetadata("day_count", *report.Filters.DayCount)
+	} else {
+		entry.SetMetadata("day_count", nil)
+	}
 	entry.SetMetadata("grade_level", report.Filters.GradeLevel)
 	entry.SetMetadata("search", report.Filters.Search)
 	entry.SetMetadata("child_count", report.Totals.Children)

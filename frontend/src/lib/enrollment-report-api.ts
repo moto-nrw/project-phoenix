@@ -161,7 +161,7 @@ function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   if (filters.care_offering_id) {
     url.searchParams.set("care_offering_id", String(filters.care_offering_id));
   }
-  if (filters.day_count) {
+  if (filters.day_count !== undefined) {
     url.searchParams.set("day_count", String(filters.day_count));
   }
   if (filters.grade_level) {
