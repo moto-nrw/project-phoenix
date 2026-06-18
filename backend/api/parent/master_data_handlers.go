@@ -162,3 +162,82 @@ func (rs *Resource) updateMasterDataField(w http.ResponseWriter, r *http.Request
 	}
 	common.Respond(w, r, http.StatusOK, toMasterDataResponse(data), "Master data updated")
 }
+
+// MasterDataChangeRequestBody is the wire shape for POST .../master-data/requests.
+type MasterDataChangeRequestBody struct {
+	Changes []MasterDataChangeInput `json:"changes"`
+}
+
+// MasterDataChangeInput is one proposed Track B field change.
+type MasterDataChangeInput struct {
+	Target   string          `json:"target"`
+	FieldKey string          `json:"field_key"`
+	Value    json.RawMessage `json:"value"`
+}
+
+func toMasterDataChangeResponses(rows []*usersModels.StudentDataChangeRequest) []MasterDataChangeResponse {
+	out := make([]MasterDataChangeResponse, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, MasterDataChangeResponse{
+			ID:        strconv.FormatInt(c.ID, 10),
+			Target:    c.Target,
+			FieldKey:  c.FieldKey,
+			OldValue:  c.OldValue,
+			NewValue:  c.NewValue,
+			Status:    c.Status,
+			CreatedAt: c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	return out
+}
+
+// submitMasterDataRequest records pending Track B change requests for approval.
+func (rs *Resource) submitMasterDataRequest(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	var body MasterDataChangeRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	changes := make([]parentService.MasterDataFieldChange, 0, len(body.Changes))
+	for _, c := range body.Changes {
+		changes = append(changes, parentService.MasterDataFieldChange{
+			Target:   c.Target,
+			FieldKey: c.FieldKey,
+			Value:    c.Value,
+		})
+	}
+
+	rows, err := rs.ParentService.SubmitMasterDataChangeRequest(r.Context(), accountID, studentID, changes)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, toMasterDataChangeResponses(rows), "Change request submitted")
+}
+
+// listMasterDataRequests returns the child's change requests (any status).
+func (rs *Resource) listMasterDataRequests(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	rows, err := rs.ParentService.ListMyMasterDataRequests(r.Context(), accountID, studentID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toMasterDataChangeResponses(rows), "Change requests retrieved")
+}

@@ -380,6 +380,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		InstanceService:         api.Services.Instance,
 		SchoolService:           api.Services.Schools,
 		SettingsService:         api.Services.Settings,
+		MasterDataReviewService: api.Services.MasterDataReview,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
 		Broadcaster:             api.Services.RealtimeHub,

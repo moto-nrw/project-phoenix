@@ -98,6 +98,14 @@ func (f *fakeParentService) UpdateMasterDataField(context.Context, int64, int64,
 	return nil, nil
 }
 
+func (f *fakeParentService) SubmitMasterDataChangeRequest(context.Context, int64, int64, []parentService.MasterDataFieldChange) ([]*userModels.StudentDataChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*userModels.StudentDataChangeRequest, error) {
+	return nil, nil
+}
+
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {

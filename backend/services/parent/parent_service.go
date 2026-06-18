@@ -130,6 +130,17 @@ type Service interface {
 	// operations.parent_master_data_edit_enabled and
 	// GuardianPermissionMasterDataEdit.
 	UpdateMasterDataField(ctx context.Context, accountID, studentID int64, target, fieldKey string, value json.RawMessage) (*ChildMasterData, error)
+
+	// SubmitMasterDataChangeRequest records pending Track B change requests
+	// (name, birthday, permanent Gehzeit) for staff approval. Unchanged or
+	// already-pending fields are skipped/rejected. Gated by
+	// operations.parent_master_data_request_enabled and
+	// GuardianPermissionMasterDataRequest.
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListMyMasterDataRequests returns the child's change requests (any status),
+	// newest-first. Authorization only.
+	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

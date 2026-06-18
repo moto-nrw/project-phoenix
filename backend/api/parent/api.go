@@ -149,6 +149,8 @@ func (rs *Resource) Router() chi.Router {
 		// birthday, permanent Gehzeit) are added in a later step.
 		r.Get("/me/children/{studentId}/master-data", rs.getMasterData)
 		r.Patch("/me/children/{studentId}/master-data/{target}/{field}", rs.updateMasterDataField)
+		r.Get("/me/children/{studentId}/master-data/requests", rs.listMasterDataRequests)
+		r.Post("/me/children/{studentId}/master-data/requests", rs.submitMasterDataRequest)
 
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),

@@ -56,6 +56,7 @@ type Resource struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	Broadcaster             realtime.Broadcaster
@@ -81,6 +82,7 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	Broadcaster             realtime.Broadcaster
@@ -111,6 +113,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SchoolService:           cfg.SchoolService,
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
+		MasterDataReviewService: cfg.MasterDataReviewService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
 		Broadcaster:             cfg.Broadcaster,
@@ -148,6 +151,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
+
+		// Parent Stammdaten change-request review queue (Track B). Listing is
+		// users:read; applying a decision writes to the student/person record,
+		// so it requires users:update. Static paths take precedence over the
+		// /{id} param route in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
