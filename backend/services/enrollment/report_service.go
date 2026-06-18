@@ -1,0 +1,504 @@
+package enrollment
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+)
+
+var (
+	ErrReportPhaseNotFound  = errors.New("enrollment report phase not found")
+	ErrReportExportTooLarge = errors.New("enrollment report has too many rows for a single export")
+	ErrReportInvalidFilter  = errors.New("enrollment report filter is invalid")
+)
+
+const maxReportRows = 10000
+
+type CareUsageFilters struct {
+	PhaseID        int64  `json:"phase_id"`
+	Status         string `json:"status,omitempty"`
+	CareOfferingID int64  `json:"care_offering_id,omitempty"`
+	DayCount       int    `json:"day_count,omitempty"`
+	GradeLevel     *int16 `json:"grade_level,omitempty"`
+	Search         string `json:"search,omitempty"`
+}
+
+type CareUsageReport struct {
+	Phase         CareUsagePhase          `json:"phase"`
+	Filters       CareUsageAppliedFilters `json:"filters"`
+	Totals        CareUsageTotals         `json:"totals"`
+	ByOffering    []CareUsageOfferingStat `json:"by_offering"`
+	FilterOptions CareUsageFilterOptions  `json:"filter_options"`
+	Rows          []CareUsageRow          `json:"rows"`
+}
+
+type CareUsagePhase struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type CareUsageAppliedFilters struct {
+	PhaseID        int64  `json:"phase_id"`
+	Status         string `json:"status"`
+	CareOfferingID int64  `json:"care_offering_id,omitempty"`
+	DayCount       int    `json:"day_count,omitempty"`
+	GradeLevel     *int16 `json:"grade_level,omitempty"`
+	Search         string `json:"search,omitempty"`
+}
+
+type CareUsageTotals struct {
+	Children   int            `json:"children"`
+	ByDayCount map[string]int `json:"by_day_count"`
+}
+
+type CareUsageOfferingStat struct {
+	OfferingID   int64          `json:"offering_id"`
+	OfferingName string         `json:"offering_name"`
+	Children     int            `json:"children"`
+	ByDayCount   map[string]int `json:"by_day_count"`
+}
+
+type CareUsageFilterOptions struct {
+	Offerings   []CareUsageOfferingOption `json:"offerings"`
+	GradeLevels []int16                   `json:"grade_levels"`
+}
+
+type CareUsageOfferingOption struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+type CareUsageRow struct {
+	RequestID         int64                  `json:"request_id"`
+	ChildID           int64                  `json:"child_id"`
+	ChildFirstName    string                 `json:"child_first_name"`
+	ChildLastName     string                 `json:"child_last_name"`
+	DateOfBirth       string                 `json:"date_of_birth"`
+	TargetGradeLevel  *int16                 `json:"target_grade_level,omitempty"`
+	Status            string                 `json:"status"`
+	Offerings         []CareUsageRowOffering `json:"offerings"`
+	EffectiveDays     []string               `json:"effective_days"`
+	DayCount          int                    `json:"day_count"`
+	GuardianFirstName string                 `json:"guardian_first_name"`
+	GuardianLastName  string                 `json:"guardian_last_name"`
+	GuardianEmail     string                 `json:"guardian_email"`
+	GuardianPhone     *string                `json:"guardian_phone,omitempty"`
+	SubmittedAt       time.Time              `json:"submitted_at"`
+}
+
+type CareUsageRowOffering struct {
+	ID             int64    `json:"id"`
+	Name           string   `json:"name"`
+	Days           []string `json:"days"`
+	DaysSource     string   `json:"days_source"`
+	DaysOfWeekMode string   `json:"days_of_week_mode"`
+}
+
+type ReportService interface {
+	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
+	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
+}
+
+type ReportServiceConfig struct {
+	RequestRepo              enrollmentModels.RequestRepository
+	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	PhaseRepo                enrollmentModels.PhaseRepository
+	DataAccessLogRepo        auditModels.DataAccessLogRepository
+}
+
+type reportService struct {
+	requestRepo              enrollmentModels.RequestRepository
+	requestChildRepo         enrollmentModels.RequestChildRepository
+	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	careOfferingRepo         enrollmentModels.CareOfferingRepository
+	phaseRepo                enrollmentModels.PhaseRepository
+	dataAccessLogRepo        auditModels.DataAccessLogRepository
+}
+
+func NewReportService(cfg ReportServiceConfig) ReportService {
+	return &reportService{
+		requestRepo:              cfg.RequestRepo,
+		requestChildRepo:         cfg.RequestChildRepo,
+		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
+		careOfferingRepo:         cfg.CareOfferingRepo,
+		phaseRepo:                cfg.PhaseRepo,
+		dataAccessLogRepo:        cfg.DataAccessLogRepo,
+	}
+}
+
+func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error) {
+	filters = normalizeCareUsageFilters(filters)
+	if err := validateCareUsageFilters(filters); err != nil {
+		return nil, err
+	}
+	if filters.PhaseID <= 0 {
+		return nil, fmt.Errorf("care usage report: phase_id required")
+	}
+
+	phase, err := s.phaseRepo.FindByID(ctx, filters.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
+	}
+	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: list requests: %w", err)
+	}
+	if len(requests) > maxExportRequests {
+		return nil, fmt.Errorf("care usage report: %d requests: %w", len(requests), ErrReportExportTooLarge)
+	}
+
+	reqIDs := make([]int64, 0, len(requests))
+	requestByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, req := range requests {
+		reqIDs = append(reqIDs, req.ID)
+		requestByID[req.ID] = req
+	}
+	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: list children: %w", err)
+	}
+	if len(children) > maxReportRows {
+		return nil, fmt.Errorf("care usage report: %d children: %w", len(children), ErrReportExportTooLarge)
+	}
+
+	childIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		childIDs = append(childIDs, child.ID)
+	}
+	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
+	}
+	offerings, err := s.careOfferingRepo.ListByPhase(ctx, filters.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: list offerings: %w", err)
+	}
+
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		offeringByID[offering.ID] = offering
+	}
+	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(childIDs))
+	for _, link := range links {
+		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
+	}
+
+	report := &CareUsageReport{
+		Phase:   CareUsagePhase{ID: phase.ID, Name: phase.Name},
+		Filters: careUsageAppliedFilters(filters),
+		Totals:  CareUsageTotals{ByDayCount: initDayCountMap()},
+		FilterOptions: CareUsageFilterOptions{
+			Offerings: careUsageOfferingOptions(offerings),
+		},
+	}
+	gradeSeen := map[int16]bool{}
+	offeringStats := make(map[int64]*CareUsageOfferingStat, len(offerings))
+
+	for _, child := range children {
+		req := requestByID[child.RequestID]
+		if req == nil {
+			continue
+		}
+		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID)
+		if child.TargetGradeLevel != nil {
+			gradeSeen[*child.TargetGradeLevel] = true
+		}
+		if !careUsageRowMatches(row, filters) {
+			continue
+		}
+		report.Rows = append(report.Rows, row)
+		report.Totals.Children++
+		report.Totals.ByDayCount[strconv.Itoa(row.DayCount)]++
+		for _, offering := range row.Offerings {
+			stat := offeringStats[offering.ID]
+			if stat == nil {
+				stat = &CareUsageOfferingStat{
+					OfferingID:   offering.ID,
+					OfferingName: offering.Name,
+					ByDayCount:   initDayCountMap(),
+				}
+				offeringStats[offering.ID] = stat
+			}
+			stat.Children++
+			stat.ByDayCount[strconv.Itoa(row.DayCount)]++
+		}
+	}
+
+	sort.SliceStable(report.Rows, func(i, j int) bool {
+		if report.Rows[i].ChildLastName != report.Rows[j].ChildLastName {
+			return strings.ToLower(report.Rows[i].ChildLastName) < strings.ToLower(report.Rows[j].ChildLastName)
+		}
+		return strings.ToLower(report.Rows[i].ChildFirstName) < strings.ToLower(report.Rows[j].ChildFirstName)
+	})
+	report.ByOffering = careUsageOfferingStats(offeringStats)
+	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
+	return report, nil
+}
+
+func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error) {
+	report, err := s.CareUsage(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.recordCareUsageExportAudit(ctx, report, actorAccountID, actorRole, format); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+func normalizeCareUsageFilters(filters CareUsageFilters) CareUsageFilters {
+	filters.Status = strings.ToLower(strings.TrimSpace(filters.Status))
+	if filters.Status == "" {
+		filters.Status = enrollmentModels.ChildStatusApproved
+	}
+	filters.Search = strings.TrimSpace(filters.Search)
+	return filters
+}
+
+func validateCareUsageFilters(filters CareUsageFilters) error {
+	if filters.Status != "all" {
+		if _, ok := validChildStatusFilters[filters.Status]; !ok {
+			return fmt.Errorf("%w: unsupported status %q", ErrReportInvalidFilter, filters.Status)
+		}
+	}
+	if filters.DayCount < 0 || filters.DayCount > 7 {
+		return fmt.Errorf("%w: day_count must be between 1 and 7", ErrReportInvalidFilter)
+	}
+	return nil
+}
+
+var validChildStatusFilters = map[string]bool{
+	enrollmentModels.ChildStatusSubmitted:          true,
+	enrollmentModels.ChildStatusUnderReview:        true,
+	enrollmentModels.ChildStatusApproved:           true,
+	enrollmentModels.ChildStatusWaitlisted:         true,
+	enrollmentModels.ChildStatusRejected:           true,
+	enrollmentModels.ChildStatusWithdrawn:          true,
+	enrollmentModels.ChildStatusPendingRenewal:     true,
+	enrollmentModels.ChildStatusAutoRenewed:        true,
+	enrollmentModels.ChildStatusPendingAdminReview: true,
+}
+
+func careUsageAppliedFilters(filters CareUsageFilters) CareUsageAppliedFilters {
+	return CareUsageAppliedFilters(filters)
+}
+
+func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering) CareUsageRow {
+	daySet := map[string]bool{}
+	rowOfferings := make([]CareUsageRowOffering, 0, len(links))
+	for _, link := range links {
+		offering := offeringByID[link.CareOfferingID]
+		name := "Angebot #" + strconv.FormatInt(link.CareOfferingID, 10)
+		daysOfWeekMode := ""
+		days := link.SelectedDays
+		source := "selected"
+		if offering != nil {
+			name = offering.Name
+			daysOfWeekMode = offering.DaysOfWeekMode
+			if len(days) == 0 {
+				days = offering.AvailableDays
+				source = "available"
+			}
+		}
+		days = sortedDayCodes(days)
+		for _, day := range days {
+			daySet[day] = true
+		}
+		rowOfferings = append(rowOfferings, CareUsageRowOffering{
+			ID:             link.CareOfferingID,
+			Name:           name,
+			Days:           days,
+			DaysSource:     source,
+			DaysOfWeekMode: daysOfWeekMode,
+		})
+	}
+	sort.SliceStable(rowOfferings, func(i, j int) bool {
+		return rowOfferings[i].Name < rowOfferings[j].Name
+	})
+	effectiveDays := make([]string, 0, len(daySet))
+	for day := range daySet {
+		effectiveDays = append(effectiveDays, day)
+	}
+	effectiveDays = sortedDayCodes(effectiveDays)
+	return CareUsageRow{
+		RequestID:         req.ID,
+		ChildID:           child.ID,
+		ChildFirstName:    child.FirstName,
+		ChildLastName:     child.LastName,
+		DateOfBirth:       child.DateOfBirth.Format("2006-01-02"),
+		TargetGradeLevel:  child.TargetGradeLevel,
+		Status:            child.Status,
+		Offerings:         rowOfferings,
+		EffectiveDays:     effectiveDays,
+		DayCount:          len(effectiveDays),
+		GuardianFirstName: req.GuardianFirstName,
+		GuardianLastName:  req.GuardianLastName,
+		GuardianEmail:     req.GuardianEmail,
+		GuardianPhone:     req.GuardianPhone,
+		SubmittedAt:       req.SubmittedAt,
+	}
+}
+
+func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
+	if filters.Status != "all" && row.Status != filters.Status {
+		return false
+	}
+	if filters.CareOfferingID > 0 {
+		found := false
+		for _, offering := range row.Offerings {
+			if offering.ID == filters.CareOfferingID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	if filters.DayCount > 0 && row.DayCount != filters.DayCount {
+		return false
+	}
+	if filters.GradeLevel != nil {
+		if row.TargetGradeLevel == nil || *row.TargetGradeLevel != *filters.GradeLevel {
+			return false
+		}
+	}
+	if filters.Search != "" {
+		haystack := strings.ToLower(strings.Join([]string{
+			row.ChildFirstName,
+			row.ChildLastName,
+			row.GuardianFirstName,
+			row.GuardianLastName,
+			row.GuardianEmail,
+		}, " "))
+		if !strings.Contains(haystack, strings.ToLower(filters.Search)) {
+			return false
+		}
+	}
+	return true
+}
+
+func careUsageOfferingOptions(offerings []*enrollmentModels.CareOffering) []CareUsageOfferingOption {
+	options := make([]CareUsageOfferingOption, 0, len(offerings))
+	for _, offering := range offerings {
+		options = append(options, CareUsageOfferingOption{ID: offering.ID, Name: offering.Name})
+	}
+	sort.SliceStable(options, func(i, j int) bool {
+		return options[i].Name < options[j].Name
+	})
+	return options
+}
+
+func careUsageOfferingStats(stats map[int64]*CareUsageOfferingStat) []CareUsageOfferingStat {
+	out := make([]CareUsageOfferingStat, 0, len(stats))
+	for _, stat := range stats {
+		out = append(out, *stat)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Children != out[j].Children {
+			return out[i].Children > out[j].Children
+		}
+		return out[i].OfferingName < out[j].OfferingName
+	})
+	return out
+}
+
+func careUsageGradeOptions(seen map[int16]bool) []int16 {
+	out := make([]int16, 0, len(seen))
+	for grade := range seen {
+		out = append(out, grade)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func initDayCountMap() map[string]int {
+	return map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0}
+}
+
+var dayOrder = map[string]int{
+	"mon": 1,
+	"tue": 2,
+	"wed": 3,
+	"thu": 4,
+	"fri": 5,
+	"sat": 6,
+	"sun": 7,
+}
+
+func sortedDayCodes(days []string) []string {
+	if len(days) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(days))
+	out := make([]string, 0, len(days))
+	for _, day := range days {
+		canonical := strings.ToLower(strings.TrimSpace(day))
+		if canonical == "" || seen[canonical] {
+			continue
+		}
+		seen[canonical] = true
+		out = append(out, canonical)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		oi, okI := dayOrder[out[i]]
+		oj, okJ := dayOrder[out[j]]
+		if okI && okJ {
+			return oi < oj
+		}
+		if okI != okJ {
+			return okI
+		}
+		return out[i] < out[j]
+	})
+	return out
+}
+
+func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string) error {
+	if s.dataAccessLogRepo == nil {
+		return fmt.Errorf("care usage report export audit: data access log repo not configured")
+	}
+	if report == nil {
+		return fmt.Errorf("care usage report export audit: report required")
+	}
+	if actorAccountID <= 0 {
+		return fmt.Errorf("care usage report export audit: actor account id required")
+	}
+	if strings.TrimSpace(actorRole) == "" {
+		actorRole = "unknown"
+	}
+	phase, err := s.phaseRepo.FindByID(ctx, report.Phase.ID)
+	if err != nil {
+		return fmt.Errorf("care usage report export audit: phase %d: %w", report.Phase.ID, err)
+	}
+	entry := &auditModels.DataAccessLog{
+		ActorAccountID: actorAccountID,
+		ActorRole:      actorRole,
+		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
+		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
+		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
+		AccessedAt:     time.Now(),
+	}
+	entry.SetMetadata("phase_id", report.Phase.ID)
+	entry.SetMetadata("report", "care_usage")
+	entry.SetMetadata("format", format)
+	entry.SetMetadata("status_filter", report.Filters.Status)
+	entry.SetMetadata("care_offering_id", report.Filters.CareOfferingID)
+	entry.SetMetadata("day_count", report.Filters.DayCount)
+	entry.SetMetadata("grade_level", report.Filters.GradeLevel)
+	entry.SetMetadata("search", report.Filters.Search)
+	entry.SetMetadata("child_count", report.Totals.Children)
+	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+		return fmt.Errorf("care usage report export audit write: %w", err)
+	}
+	return nil
+}

@@ -26,6 +26,7 @@ type Resource struct {
 	CaptchaService            enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
+	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     usersService.GuardianProfileLoader
@@ -50,6 +51,7 @@ func NewResource(
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
@@ -63,6 +65,7 @@ func NewResource(
 		CaptchaService:            captchaSvc,
 		PhaseService:              phaseSvc,
 		DecisionService:           decisionSvc,
+		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
@@ -179,6 +182,10 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
 			})
+		})
+		r.Route("/admin/reports", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
 		})
 		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)

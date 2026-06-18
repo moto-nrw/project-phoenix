@@ -1,0 +1,179 @@
+import { createLogger } from "~/lib/logger";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type { ChildStatus } from "~/lib/enrollment-admin-api";
+
+const logger = createLogger({ component: "EnrollmentReportAPI" });
+
+export type EnrollmentReportStatus = ChildStatus | "all";
+export type EnrollmentReportFormat = "pdf" | "xlsx";
+
+export interface CareUsageFilters {
+  phase_id: number;
+  status?: EnrollmentReportStatus;
+  care_offering_id?: number;
+  day_count?: number;
+  grade_level?: number;
+  search?: string;
+}
+
+export interface CareUsageReport {
+  phase: {
+    id: number;
+    name: string;
+  };
+  filters: {
+    phase_id: number;
+    status: EnrollmentReportStatus;
+    care_offering_id?: number;
+    day_count?: number;
+    grade_level?: number;
+    search?: string;
+  };
+  totals: {
+    children: number;
+    by_day_count: Record<string, number>;
+  };
+  by_offering: CareUsageOfferingStat[];
+  filter_options: {
+    offerings: CareUsageOfferingOption[];
+    grade_levels: number[];
+  };
+  rows: CareUsageRow[];
+}
+
+interface CareUsageOfferingOption {
+  id: number;
+  name: string;
+}
+
+interface CareUsageOfferingStat {
+  offering_id: number;
+  offering_name: string;
+  children: number;
+  by_day_count: Record<string, number>;
+}
+
+export interface CareUsageRow {
+  request_id: number;
+  child_id: number;
+  child_first_name: string;
+  child_last_name: string;
+  date_of_birth: string;
+  target_grade_level?: number;
+  status: ChildStatus;
+  offerings: CareUsageRowOffering[];
+  effective_days: string[];
+  day_count: number;
+  guardian_first_name: string;
+  guardian_last_name: string;
+  guardian_email: string;
+  guardian_phone?: string | null;
+  submitted_at: string;
+}
+
+interface CareUsageRowOffering {
+  id: number;
+  name: string;
+  days: string[];
+  days_source: "selected" | "available";
+  days_of_week_mode: string;
+}
+
+interface BackendEnvelope<T> {
+  status?: string;
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+async function readJSON<T>(response: Response): Promise<T> {
+  const raw = (await response.json()) as BackendEnvelope<T>;
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "data" in raw &&
+    raw.data !== undefined
+  ) {
+    return raw.data as T;
+  }
+  return raw as unknown as T;
+}
+
+async function readError(response: Response, fallback: string): Promise<Error> {
+  return readEnrollmentError(
+    response,
+    fallback,
+    logger,
+    "enrollment_report_request_failed",
+  );
+}
+
+export async function getCareUsageReport(
+  filters: CareUsageFilters,
+): Promise<CareUsageReport> {
+  const url = new URL(
+    "/api/enrollment/admin/reports/care-usage",
+    globalThis.window?.location.origin ?? "http://localhost",
+  );
+  appendCareUsageParams(url, filters);
+  const response = await fetch(`${url.pathname}${url.search}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Auswertung konnte nicht geladen werden");
+  }
+  return readJSON<CareUsageReport>(response);
+}
+
+export async function exportCareUsageReport(
+  filters: CareUsageFilters,
+  format: EnrollmentReportFormat,
+): Promise<void> {
+  const response = await fetch(
+    "/api/enrollment/admin/reports/care-usage/export",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format, filters }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Auswertung konnte nicht exportiert werden",
+    );
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download =
+    filenameFromDisposition(response) ?? `anmelde-auswertung.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
+  url.searchParams.set("phase_id", String(filters.phase_id));
+  if (filters.status) url.searchParams.set("status", filters.status);
+  if (filters.care_offering_id) {
+    url.searchParams.set("care_offering_id", String(filters.care_offering_id));
+  }
+  if (filters.day_count) {
+    url.searchParams.set("day_count", String(filters.day_count));
+  }
+  if (filters.grade_level) {
+    url.searchParams.set("grade_level", String(filters.grade_level));
+  }
+  if (filters.search?.trim()) {
+    url.searchParams.set("search", filters.search.trim());
+  }
+}
+
+function filenameFromDisposition(response: Response): string | null {
+  const disposition = response.headers.get("content-disposition");
+  const match = /filename="([^"]+)"/.exec(disposition ?? "");
+  return match?.[1] ?? null;
+}

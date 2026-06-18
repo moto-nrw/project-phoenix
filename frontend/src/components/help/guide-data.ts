@@ -702,7 +702,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in fünf Unterseiten den Ablauf einrichten und auswerten - `Überblick`, `Auswertung`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
@@ -752,6 +752,27 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
+      },
+      {
+        id: "anmeldungen-auswerten",
+        title: "Anmeldungen auswerten",
+        icon: ClipboardList,
+        summary:
+          "Betreuungsangebote und Betreuungstage einer Anmeldephase prüfen, filtern und als PDF oder Excel-Datei exportieren.",
+        steps: [
+          "`Anmeldungen` -> `Auswertung` öffnen.",
+          "Die passende `Anmeldephase` wählen. Standardmäßig werden bestätigte Kinder ausgewertet; über `Status` kannst du alle Eingänge oder einzelne Status anzeigen.",
+          "Nach `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder Name/E-Mail filtern.",
+          "Die Kennzahlen zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
+          "`Excel` oder `PDF` exportiert genau die aktuelle Filterung.",
+        ],
+        callout: {
+          title: "So zählt moto Betreuungstage",
+          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal. In der Tabelle bleibt sichtbar, aus welchen Angeboten und Tagen sich die Zahl zusammensetzt.",
+          tone: "blue",
+        },
+        screenshot:
+          "Auswertung mit Phasenauswahl, Filtern, Kennzahlen nach Tagesanzahl und Kinderliste.",
       },
       {
         id: "anmeldephasen",
