@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -427,6 +429,10 @@ type enrollmentLegalAGBDeleteSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
+type legalAGBDocumentReferenceFunc func(context.Context, string) (bool, error)
+type legalAGBDocumentPathResolver func(string, string, string) (string, error)
+type legalAGBDocumentRemover func(string)
+
 func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWriter, r *http.Request) {
 	uploaded, err := common.ParsePDFWithLimits(w, r, "document", maxLegalAGBDocumentSize, maxLegalAGBDocumentBody)
 	if err != nil {
@@ -455,8 +461,15 @@ func (rs *SettingsResource) uploadEnrollmentLegalAGBDocument(w http.ResponseWrit
 	changedBy := int64(claims.ID)
 
 	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		oldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
 		if setErr := rs.settingsService.SetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, documentURL, &changedBy, claims.Permissions); setErr != nil {
 			return setErr
+		}
+		if cleanupErr := rs.scheduleEnrollmentLegalAGBDocumentCleanup(ctx, oldURL, documentURL); cleanupErr != nil {
+			return cleanupErr
 		}
 		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
 		return nil
@@ -485,8 +498,15 @@ func (rs *SettingsResource) deleteEnrollmentLegalAGBDocument(w http.ResponseWrit
 		if guardErr := canDeleteEnrollmentLegalAGBDocument(ctx, rs.settingsService); guardErr != nil {
 			return guardErr
 		}
+		oldURL, resolveErr := rs.settingsService.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+		if resolveErr != nil {
+			return resolveErr
+		}
 		if resetErr := rs.settingsService.ResetValue(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL, &changedBy, claims.Permissions); resetErr != nil {
 			return resetErr
+		}
+		if cleanupErr := rs.scheduleEnrollmentLegalAGBDocumentCleanup(ctx, oldURL, ""); cleanupErr != nil {
+			return cleanupErr
 		}
 		rs.scheduleSettingsBroadcast(ctx, tenantID, configModel.KeyEnrollmentLegalAGBDocumentURL)
 		return nil
@@ -517,6 +537,101 @@ func canDeleteEnrollmentLegalAGBDocument(ctx context.Context, settingsService en
 		return errCannotDeleteActiveLegalAGBPDF
 	}
 	return nil
+}
+
+func (rs *SettingsResource) scheduleEnrollmentLegalAGBDocumentCleanup(ctx context.Context, oldURL, newURL string) error {
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		ctx,
+		tenant.FromContext(ctx),
+		oldURL,
+		newURL,
+		rs.enrollmentLegalAGBDocumentReferenced,
+		common.ResolveStoredPath,
+		common.RemoveImage,
+	)
+	if err != nil {
+		return err
+	}
+	tenant.RegisterAfterCommit(ctx, cleanup)
+	return nil
+}
+
+func prepareEnrollmentLegalAGBDocumentCleanup(
+	ctx context.Context,
+	tenantID int64,
+	oldURL string,
+	newURL string,
+	isReferenced legalAGBDocumentReferenceFunc,
+	resolvePath legalAGBDocumentPathResolver,
+	removeFile legalAGBDocumentRemover,
+) (func(), error) {
+	if oldURL == "" || oldURL == newURL {
+		return nil, nil
+	}
+	if !legalAGBDocumentBelongsToTenant(oldURL, tenantID) {
+		return nil, nil
+	}
+	oldPath, err := resolvePath("public", oldURL, legalAGBDocumentPrefix)
+	if err != nil {
+		return nil, nil
+	}
+	referenced, err := isReferenced(ctx, oldURL)
+	if err != nil {
+		return nil, err
+	}
+	if referenced {
+		return nil, nil
+	}
+	return func() {
+		removeFile(oldPath)
+	}, nil
+}
+
+func legalAGBDocumentBelongsToTenant(storedURL string, tenantID int64) bool {
+	if tenantID <= 0 || !strings.HasPrefix(storedURL, legalAGBDocumentPrefix) {
+		return false
+	}
+	filename := strings.TrimPrefix(storedURL, legalAGBDocumentPrefix)
+	return strings.HasPrefix(filename, fmt.Sprintf("%d_", tenantID))
+}
+
+func (rs *SettingsResource) enrollmentLegalAGBDocumentReferenced(ctx context.Context, storedURL string) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, errors.New("no tenant context")
+	}
+	publicURL := publicEnrollmentLegalDocumentURL(storedURL)
+
+	var referenced bool
+	err := base.GetDB(ctx, rs.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM enrollment.form_schemas AS "form_schema"
+			CROSS JOIN LATERAL jsonb_array_elements(
+				CASE
+					WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
+					THEN "form_schema".legal_blocks
+					ELSE '[]'::jsonb
+				END
+			) AS block(elem)
+			WHERE "form_schema".tenant_id = ?
+				AND (
+					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+				)
+		)
+	`, tenantID, storedURL, publicURL).Scan(ctx, &referenced)
+	if err != nil {
+		return false, fmt.Errorf("check AGB document references: %w", err)
+	}
+	return referenced, nil
+}
+
+func publicEnrollmentLegalDocumentURL(storedURL string) string {
+	if strings.HasPrefix(storedURL, legalAGBDocumentPrefix) {
+		return "/api/public/enrollment-legal-documents/" + strings.TrimPrefix(storedURL, legalAGBDocumentPrefix)
+	}
+	return storedURL
 }
 
 // --- Handler accessors for testing ---

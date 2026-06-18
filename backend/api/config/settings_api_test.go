@@ -9,6 +9,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -155,6 +156,175 @@ func TestCanDeleteEnrollmentLegalAGBDocument_AllowsTextMode(t *testing.T) {
 	err := canDeleteEnrollmentLegalAGBDocument(context.Background(), settings)
 
 	require.NoError(t, err)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_ReplacementDeletesUnreferencedAfterCommit(t *testing.T) {
+	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
+	newURL := legalAGBDocumentPrefix + "1_new.pdf"
+	var removedPath string
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		ctx,
+		1,
+		oldURL,
+		newURL,
+		func(_ context.Context, gotURL string) (bool, error) {
+			assert.Equal(t, oldURL, gotURL)
+			return false, nil
+		},
+		func(publicDir, urlPath, requiredPrefix string) (string, error) {
+			assert.Equal(t, "public", publicDir)
+			assert.Equal(t, oldURL, urlPath)
+			assert.Equal(t, legalAGBDocumentPrefix, requiredPrefix)
+			return "/tmp/tenant-1-old.pdf", nil
+		},
+		func(path string) {
+			removedPath = path
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, cleanup)
+	tenant.RegisterAfterCommit(ctx, cleanup)
+	assert.Empty(t, removedPath)
+
+	drain()
+
+	assert.Equal(t, "/tmp/tenant-1-old.pdf", removedPath)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_DeleteDeletesUnreferencedAfterCommit(t *testing.T) {
+	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
+	removed := false
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		ctx,
+		1,
+		oldURL,
+		"",
+		func(context.Context, string) (bool, error) { return false, nil },
+		func(string, string, string) (string, error) { return "/tmp/tenant-1-old.pdf", nil },
+		func(string) { removed = true },
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, cleanup)
+	tenant.RegisterAfterCommit(ctx, cleanup)
+
+	drain()
+
+	assert.True(t, removed)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_KeepsReferencedDocument(t *testing.T) {
+	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
+	removeCalled := false
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		context.Background(),
+		1,
+		oldURL,
+		legalAGBDocumentPrefix+"1_new.pdf",
+		func(context.Context, string) (bool, error) { return true, nil },
+		func(string, string, string) (string, error) { return "/tmp/tenant-1-old.pdf", nil },
+		func(string) { removeCalled = true },
+	)
+
+	require.NoError(t, err)
+	assert.Nil(t, cleanup)
+	assert.False(t, removeCalled)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_RollbackDoesNotRemoveDocument(t *testing.T) {
+	ctx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
+	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
+	removeCalled := false
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		ctx,
+		1,
+		oldURL,
+		legalAGBDocumentPrefix+"1_new.pdf",
+		func(context.Context, string) (bool, error) { return false, nil },
+		func(string, string, string) (string, error) { return "/tmp/tenant-1-old.pdf", nil },
+		func(string) { removeCalled = true },
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, cleanup)
+	tenant.RegisterAfterCommit(ctx, cleanup)
+
+	assert.False(t, removeCalled)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresInvalidStoredURL(t *testing.T) {
+	referenceChecked := false
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		context.Background(),
+		1,
+		"/uploads/not-legal/tenant-1-old.pdf",
+		"",
+		func(context.Context, string) (bool, error) {
+			referenceChecked = true
+			return false, nil
+		},
+		func(string, string, string) (string, error) { return "", errors.New("invalid path") },
+		func(string) { t.Fatal("remove must not be called") },
+	)
+
+	require.NoError(t, err)
+	assert.Nil(t, cleanup)
+	assert.False(t, referenceChecked)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresOtherTenantDocument(t *testing.T) {
+	referenceChecked := false
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		context.Background(),
+		1,
+		legalAGBDocumentPrefix+"2_old.pdf",
+		"",
+		func(context.Context, string) (bool, error) {
+			referenceChecked = true
+			return false, nil
+		},
+		func(string, string, string) (string, error) {
+			t.Fatal("resolve must not be called for another tenant document")
+			return "", nil
+		},
+		func(string) { t.Fatal("remove must not be called") },
+	)
+
+	require.NoError(t, err)
+	assert.Nil(t, cleanup)
+	assert.False(t, referenceChecked)
+}
+
+func TestPrepareEnrollmentLegalAGBDocumentCleanup_PropagatesReferenceCheckError(t *testing.T) {
+	expected := errors.New("db failed")
+
+	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
+		context.Background(),
+		1,
+		legalAGBDocumentPrefix+"1_old.pdf",
+		"",
+		func(context.Context, string) (bool, error) { return false, expected },
+		func(string, string, string) (string, error) { return "/tmp/tenant-1-old.pdf", nil },
+		func(string) { t.Fatal("remove must not be called") },
+	)
+
+	require.ErrorIs(t, err, expected)
+	assert.Nil(t, cleanup)
+}
+
+func TestPublicEnrollmentLegalDocumentURL_RewritesStoredUploadURL(t *testing.T) {
+	got := publicEnrollmentLegalDocumentURL(legalAGBDocumentPrefix + "tenant-1.pdf")
+
+	assert.Equal(t, "/api/public/enrollment-legal-documents/tenant-1.pdf", got)
 }
 
 type legalAGBDeleteSettingsStub struct {
