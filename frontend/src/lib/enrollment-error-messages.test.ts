@@ -53,6 +53,15 @@ describe("enrollment-error-messages", () => {
     );
   });
 
+  it("maps the off-list pickup time code to a German message", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        'invalid submission: child 0 field "pickup_times": weekday "mon" time "15:00" is not an allowed pickup time',
+        "enrollment.pickup_time_not_allowed",
+      ),
+    ).toContain("vorgegebenen Liste");
+  });
+
   it("keeps already-German backend messages", () => {
     expect(
       translateEnrollmentErrorMessage("Bitte prüfe die eingegebenen Daten."),

@@ -641,6 +641,10 @@ func (f *fakeApproveDecisionService) List(_ context.Context, _ enrollmentService
 	return nil, nil
 }
 
+func (f *fakeApproveDecisionService) ListByStudent(_ context.Context, _ int64) ([]*enrollmentService.RequestSummary, error) {
+	return nil, nil
+}
+
 func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmentService.RequestSummary, error) {
 	return nil, nil
 }
@@ -650,6 +654,10 @@ func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int
 }
 
 func (f *fakeApproveDecisionService) ExportPhase(_ context.Context, _, _ int64, _, _, _ string) (*enrollmentService.PhaseExport, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) ExportStudent(_ context.Context, _, _ int64, _, _ string) (*enrollmentService.StudentEnrollmentExport, error) {
 	return nil, nil
 }
 

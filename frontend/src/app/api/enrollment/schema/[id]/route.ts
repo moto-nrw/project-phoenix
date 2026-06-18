@@ -70,6 +70,7 @@ export async function PUT(
   }
   try {
     const body = (await request.json()) as {
+      name?: unknown;
       fields?: unknown;
       core_requirements?: unknown;
       legal_blocks?: unknown;
@@ -86,6 +87,9 @@ export async function PUT(
         // "absent = preserve existing" semantics still hold; sending it
         // makes the admin's guardian-phone-required toggle stick.
         body: JSON.stringify({
+          // name is present only for a combined "rename + edit" save; the
+          // backend renames the lineage and publishes in one transaction.
+          ...(body.name === undefined ? {} : { name: body.name }),
           fields: body.fields ?? [],
           ...(body.core_requirements === undefined
             ? {}
@@ -102,6 +106,48 @@ export async function PUT(
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {
     logger.error("schema_put_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  context: {
+    params: Promise<Record<string, string | string[] | undefined>>;
+  },
+) {
+  const id = await resolveId(context);
+  if (!id) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  const authHeader = await bearerHeader();
+  if (!authHeader) {
+    return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  }
+  try {
+    const body = (await request.json()) as { name?: unknown };
+    const response = await fetch(
+      `${getServerApiUrl()}/api/enrollment/schema/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        // Forward the name verbatim; the backend is the single source of
+        // truth for validation (it rejects a blank name with 400).
+        body: JSON.stringify({ name: body.name }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    return NextResponse.json(payload, { status: response.status });
+  } catch (error) {
+    logger.error("schema_rename_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     return NextResponse.json(

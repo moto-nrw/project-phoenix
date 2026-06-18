@@ -59,6 +59,13 @@ var (
 	// the broad category keep working, while the HTTP layer maps the specific
 	// case to a stable code (enrollment.invalid_email) for per-field marking.
 	ErrInvalidGuardianEmail = fmt.Errorf("%w: guardian email has an invalid format", ErrInvalidSubmission)
+	// ErrPickupTimeNotAllowed wraps ErrInvalidSubmission (so the HTTP layer
+	// still maps it to 400) and is returned when a submitted weekday_schedule
+	// time falls outside the field's configured fixed pickup times. The
+	// specific identity lets the handler attach a stable code
+	// (enrollment.pickup_time_not_allowed) so the parent form can localize the
+	// message and highlight the offending schedule field.
+	ErrPickupTimeNotAllowed = fmt.Errorf("%w: pickup time not allowed", ErrInvalidSubmission)
 	ErrEditNotAllowed       = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
@@ -457,6 +464,12 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// exempting fields hidden by a visibility condition. A field hidden by
 	// its show-if condition must never block an otherwise valid submit.
 	if err := s.validateRequiredCustomFields(schema, req, openByID); err != nil {
+		return nil, err
+	}
+	// Reject any pickup time outside a weekday_schedule field's fixed
+	// AllowedTimes list (defense-in-depth behind the dropdown the public
+	// form renders). No-op when no schedule field constrains its times.
+	if err := s.validateConstrainedSchedules(schema, req, openByID); err != nil {
 		return nil, err
 	}
 
@@ -1181,6 +1194,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
+			return err
+		}
+		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
 			return err
 		}
 		if schema != nil {

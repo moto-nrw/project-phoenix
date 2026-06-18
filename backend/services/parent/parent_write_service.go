@@ -13,10 +13,12 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -35,6 +37,9 @@ var (
 	// student. Handlers MUST map this to 403/404 and never leak whether
 	// the student exists at another school.
 	ErrChildNotLinked = errors.New("parent: child not linked to account")
+	// ErrGuardianPermissionDenied means the account is linked to the child but
+	// the relationship does not grant the requested parent-portal action.
+	ErrGuardianPermissionDenied = errors.New("parent: guardian relationship lacks required permission")
 	// ErrSickNoteDisabled means operations.parent_sick_note_enabled is
 	// off for the child's tenant.
 	ErrSickNoteDisabled = errors.New("parent: sick notes disabled for this school")
@@ -72,6 +77,10 @@ var (
 // an admin tx; a nil child becomes ErrChildNotLinked so the caller never
 // trusts a studentID it can't prove ownership of.
 func (s *service) resolveOwnedChild(ctx context.Context, accountID, studentID int64) (*parentChild, error) {
+	return s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+}
+
+func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, requiredPermission string) (*parentChild, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -88,7 +97,13 @@ func (s *service) resolveOwnedChild(ctx context.Context, accountID, studentID in
 		if child == nil {
 			return ErrChildNotLinked
 		}
-		resolved = &parentChild{tenantID: child.TenantID}
+		if requiredPermission != "" && !childHasPermission(child, requiredPermission) {
+			return ErrGuardianPermissionDenied
+		}
+		resolved = &parentChild{
+			tenantID:            child.TenantID,
+			guardianPermissions: child.GuardianPermissions,
+		}
 		return nil
 	})
 	if err != nil {
@@ -97,9 +112,28 @@ func (s *service) resolveOwnedChild(ctx context.Context, accountID, studentID in
 	return resolved, nil
 }
 
+func childHasPermission(child *parentModels.ChildSummary, permission string) bool {
+	if child == nil {
+		return false
+	}
+	return authorize.StudentGuardianHasPermission(&usersModels.StudentGuardian{
+		Permissions: child.GuardianPermissions,
+	}, permission)
+}
+
 // parentChild is the minimal resolved context a per-child write needs.
 type parentChild struct {
-	tenantID int64
+	tenantID            int64
+	guardianPermissions map[string]interface{}
+}
+
+func (c *parentChild) hasPermission(permission string) bool {
+	if c == nil {
+		return false
+	}
+	return authorize.StudentGuardianHasPermission(&usersModels.StudentGuardian{
+		Permissions: c.guardianPermissions,
+	}, permission)
 }
 
 // SubmitSickNote reports the child sick for the given dates.
@@ -108,7 +142,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, ErrNoDates
 	}
 
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +273,8 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
 	return ChildFeatureFlags{
-		SickNoteEnabled:              sick,
-		NotesEnabled:                 notes,
+		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		PickupChangeEnabled:          pickupChange,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
 		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
@@ -249,7 +283,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 
 // ListSickDays returns the child's active sick days in [from, to].
 func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +320,7 @@ func (s *service) AddParentNote(ctx context.Context, accountID, studentID int64,
 		return nil, ErrNoteTooLong
 	}
 
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionNotesWrite)
 	if err != nil {
 		return nil, err
 	}

@@ -835,6 +835,7 @@ func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuard
 			},
 			Relationship: userService.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
+				GuardianRole:       in.GuardianRole,
 				IsPrimary:          in.IsPrimary,
 				IsEmergencyContact: in.IsEmergencyContact,
 				CanPickup:          in.CanPickup,

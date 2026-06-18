@@ -250,7 +250,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   );
 }
 
-function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
+export function StatusBadge({ status }: Readonly<{ status: ChildStatus }>) {
   const styles = STATUS_COLORS[status];
   return (
     <span
@@ -640,14 +640,14 @@ function summarizeChildren(children: AdminRequestChild[]) {
   return { open, approved };
 }
 
-function formatDateTime(
+export function formatDateTime(
   value: string,
   options?: Intl.DateTimeFormatOptions,
 ): string {
   return new Date(value).toLocaleString("de-DE", options);
 }
 
-function formatPlainDate(value: string): string {
+export function formatPlainDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
     day: "2-digit",
     month: "2-digit",
@@ -662,7 +662,7 @@ const CONSENT_LABELS: Record<string, string> = {
   photo: "Fotos bei Schulveranstaltungen",
 };
 
-function RequestExtraSection({
+export function RequestExtraSection({
   request,
 }: Readonly<{ request: AdminRequestSummary }>) {
   const guardianFields = (request.schema_fields ?? []).filter(
@@ -759,7 +759,7 @@ const DAY_LABEL_DE: Record<string, string> = {
   sun: "So",
 };
 
-function ChildOfferings({
+export function ChildOfferings({
   offerings,
 }: Readonly<{ offerings?: AdminRequestChildOffering[] }>) {
   if (!offerings || offerings.length === 0) return null;
@@ -800,7 +800,7 @@ function ChildOfferings({
   );
 }
 
-function ChildExtraFields({
+export function ChildExtraFields({
   child,
   schemaFields,
 }: Readonly<{

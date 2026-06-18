@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -1218,6 +1219,42 @@ func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
 	rr := testutil.ExecuteRequest(router, req)
 
 	testutil.AssertUnauthorized(t, rr)
+}
+
+func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	prevEnv := viper.GetString("app_env")
+	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
+
+	router := chi.NewRouter()
+	router.Post("/guardians/{id}/invite", ctx.resource.SendInvitationHandler())
+
+	for _, appEnv := range []string{"production", "staging", "preview", "developement", ""} {
+		t.Run(fmt.Sprintf("app_env=%q", appEnv), func(t *testing.T) {
+			viper.Set("app_env", appEnv)
+
+			guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "invite-"+appEnv)
+			defer cleanupGuardian(t, ctx.db, guardian.ID)
+
+			req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/guardians/%d/invite", guardian.ID), nil,
+				testutil.WithClaims(testutil.DefaultTestClaims()),
+				testutil.WithPermissions("users:create"),
+			)
+			req.Header.Set("X-Phoenix-Seed-Token", "true")
+
+			rr := testutil.ExecuteRequest(router, req)
+
+			testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+
+			response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+			data, ok := response["data"].(map[string]any)
+			require.True(t, ok, "Expected data to be an object")
+			assert.NotZero(t, data["id"])
+			assert.NotContains(t, data, "token")
+		})
+	}
 }
 
 // =============================================================================

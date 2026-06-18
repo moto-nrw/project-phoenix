@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -124,6 +125,22 @@ func sampleExport() *enrollmentService.PhaseExport {
 	}
 }
 
+func sampleStudentEnrollmentExport() *enrollmentService.StudentEnrollmentExport {
+	data := sampleExport()
+	phase := data.Phase
+	phase.ID = 7801
+	data.Rows[0].Request.PhaseID = phase.ID
+	withdrawnAt := time.Date(2026, 6, 2, 9, 30, 0, 0, time.UTC)
+	data.Rows[0].Request.WithdrawnAt = &withdrawnAt
+
+	return &enrollmentService.StudentEnrollmentExport{
+		StudentID: 8801,
+		Schemas:   data.Schemas,
+		Phases:    map[int64]*enrollmentModels.Phase{phase.ID: phase},
+		Rows:      data.Rows,
+	}
+}
+
 func columnLabels(doc listexport.Document) map[listexport.ColumnID]string {
 	out := make(map[listexport.ColumnID]string, len(doc.Columns))
 	for _, c := range doc.Columns {
@@ -181,6 +198,23 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 	}
 	if !strings.Contains(v["child_offerings"], "Kernzeit") {
 		t.Errorf("child_offerings = %q, want it to contain Kernzeit", v["child_offerings"])
+	}
+}
+
+func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
+	doc := buildStudentEnrollmentExportTable(sampleStudentEnrollmentExport(), "Anmeldungen Kind")
+
+	labels := columnLabels(doc)
+	if labels["withdrawn_at"] != "Zurückgezogen am" {
+		t.Fatalf("withdrawn_at column label = %q, want Zurückgezogen am", labels["withdrawn_at"])
+	}
+
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["withdrawn_at"]; got != "02.06.2026 09:30" {
+		t.Errorf("withdrawn_at = %q, want 02.06.2026 09:30", got)
 	}
 }
 
@@ -260,7 +294,7 @@ func TestBuildPhaseExportRecords_ChildIsPrimaryWithGuardianRepeated(t *testing.T
 	if len(rec.Subs) != 0 {
 		t.Errorf("subs = %d, want 0 (child blocks are flat, not nested)", len(rec.Subs))
 	}
-	if !strings.Contains(doc.Footer, "Vertraulich") {
+	if !strings.Contains(doc.Footer, "personenbezogene Daten") {
 		t.Errorf("footer = %q, want confidentiality handling note", doc.Footer)
 	}
 	if !strings.Contains(doc.Subtitle, "1 Anmeldungen") {
@@ -564,6 +598,203 @@ func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
 	}
 }
 
+func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "docx",
+		"filters": {"phase_id": "42", "status": "all", "care_offering_id": "9007199254740993"}
+	}`))
+
+	format, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if format != listexport.FormatDOCX {
+		t.Fatalf("format = %q, want %q", format, listexport.FormatDOCX)
+	}
+	if filters.PhaseID != 42 {
+		t.Fatalf("phase_id = %d, want 42", filters.PhaseID)
+	}
+	if filters.CareOfferingID != 9007199254740993 {
+		t.Fatalf("care_offering_id = %d, want 9007199254740993", filters.CareOfferingID)
+	}
+}
+
+func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
+	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&day_count=0", nil)
+
+	filters, err := parseCareUsageFiltersFromQuery(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageFiltersFromQuery: %v", err)
+	}
+	if filters.DayCount == nil || *filters.DayCount != 0 {
+		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
+func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "xlsx",
+		"filters": {"phase_id": "42", "status": "all", "day_count": 0}
+	}`))
+
+	_, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if filters.DayCount == nil || *filters.DayCount != 0 {
+		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
+func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{
+			PhaseID:        9007199254740993,
+			Status:         "all",
+			CareOfferingID: 9007199254740995,
+		},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   1,
+			ByDayCount: map[string]int{"1": 1},
+		},
+		ByOffering: []enrollmentService.CareUsageOfferingStat{
+			{OfferingID: 9007199254740995, OfferingName: "OGS", Children: 1, ByDayCount: map[string]int{"1": 1}},
+		},
+		FilterOptions: enrollmentService.CareUsageFilterOptions{
+			Offerings: []enrollmentService.CareUsageOfferingOption{
+				{ID: 9007199254740995, Name: "OGS"},
+			},
+		},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         9007199254740997,
+				ChildID:           9007199254740999,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     []string{"mon"},
+				DayCount:          1,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{ID: 9007199254740995, Name: "OGS", Days: []string{"mon"}, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{
+		`"id":"9007199254740993"`,
+		`"phase_id":"9007199254740993"`,
+		`"care_offering_id":"9007199254740995"`,
+		`"offering_id":"9007199254740995"`,
+		`"request_id":"9007199254740997"`,
+		`"child_id":"9007199254740999"`,
+	} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{
+			PhaseID: 42,
+			Status:  "all",
+		},
+		Totals: enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         10,
+				ChildID:           20,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     nil,
+				DayCount:          0,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{ID: 1, Name: "OGS", Days: nil, DaysSource: "selected", DaysOfWeekMode: "parent_choice"},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{`"effective_days":[]`, `"days":[]`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestBuildCareUsageRecordDocumentUsesDynamicDayCountBuckets(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   3,
+			ByDayCount: map[string]int{"0": 1, "6": 1, "7": 1},
+		},
+	}
+
+	doc := buildCareUsageRecordDocument(report)
+	if len(doc.Records) == 0 {
+		t.Fatal("expected stats record")
+	}
+	fields := doc.Records[0].Fields
+	got := make([]string, 0, len(fields))
+	for _, field := range fields {
+		got = append(got, field.Label+"="+field.Value)
+	}
+	for _, want := range []string{"Kinder=3", "0 Tage=1", "6 Tage=1", "7 Tage=1"} {
+		if !strings.Contains(strings.Join(got, ";"), want) {
+			t.Fatalf("stats fields = %#v, missing %s", got, want)
+		}
+	}
+}
+
+func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   0,
+			ByDayCount: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+		},
+	}
+
+	file, err := buildCareUsageExportFile(listexport.NewService(), report, listexport.FormatDOCX)
+	if err != nil {
+		t.Fatalf("buildCareUsageExportFile: %v", err)
+	}
+	if !strings.HasSuffix(file.Filename, ".docx") {
+		t.Fatalf("filename = %q, want .docx suffix", file.Filename)
+	}
+	if len(file.Data) == 0 {
+		t.Fatal("expected non-empty docx data")
+	}
+}
+
 // --- Composite reserved field rendering --------------------------------
 //
 // These fields arrive as jsonb (map[string]any / []any) in custom_data.
@@ -647,6 +878,7 @@ func buildExportRouter(rs *Resource, claims jwt.AppClaims) chi.Router {
 		})
 	})
 	r.Post("/enrollment/phases/{id}/export", rs.exportPhaseRegistrations)
+	r.Post("/enrollment/admin/students/{studentId}/requests/export", rs.exportStudentEnrollmentRequests)
 	return r
 }
 
@@ -811,6 +1043,26 @@ func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {
 	// surface as 5xx so no file is served without a recorded disclosure.
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500", w.Code)
+	}
+}
+
+func TestExportStudentEnrollmentRequests_StudentNotFoundIs404(t *testing.T) {
+	mock := &mockDecisionService{exportStudentErr: enrollmentService.ErrDecisionStudentNotFound}
+	rs := &Resource{DecisionService: mock, ListExportService: listexport.NewService()}
+	router := buildExportRouter(rs, jwt.AppClaims{
+		ID:    exportTestActorID,
+		Roles: []string{"admin"},
+	})
+
+	req := httptest.NewRequest("POST", "/enrollment/admin/students/777/requests/export", strings.NewReader(`{"format":"pdf"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (body: %s)", w.Code, w.Body.String())
+	}
+	if mock.exportStudentID != 777 {
+		t.Errorf("student id = %d, want 777", mock.exportStudentID)
 	}
 }
 

@@ -8,12 +8,14 @@ const {
   mockRegisterPasskey,
   mockRevokePasskey,
   mockStartPasskeyEnrollment,
+  mockSuggestCurrentDeviceLabel,
 } = vi.hoisted(() => ({
   mockIsPasskeySupported: vi.fn(),
   mockListPasskeys: vi.fn(),
   mockRegisterPasskey: vi.fn(),
   mockRevokePasskey: vi.fn(),
   mockStartPasskeyEnrollment: vi.fn(),
+  mockSuggestCurrentDeviceLabel: vi.fn(),
 }));
 
 vi.mock("~/lib/passkey-api", () => ({
@@ -24,10 +26,15 @@ vi.mock("~/lib/passkey-api", () => ({
   startPasskeyEnrollment: mockStartPasskeyEnrollment,
 }));
 
+vi.mock("~/lib/device-label", () => ({
+  suggestCurrentDeviceLabel: mockSuggestCurrentDeviceLabel,
+}));
+
 describe("PasskeySettingsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsPasskeySupported.mockReturnValue(true);
+    mockSuggestCurrentDeviceLabel.mockReturnValue("Chrome auf macOS");
     mockListPasskeys.mockResolvedValue([]);
     mockStartPasskeyEnrollment.mockResolvedValue({
       challenge_token: "challenge-token",
@@ -35,7 +42,7 @@ describe("PasskeySettingsSection", () => {
     });
     mockRegisterPasskey.mockResolvedValue({
       id: "2",
-      name: "Dieses Gerät",
+      name: "Chrome auf macOS",
       created_at: "2026-06-15T10:00:00Z",
     });
     mockRevokePasskey.mockResolvedValue(undefined);
@@ -114,7 +121,7 @@ describe("PasskeySettingsSection", () => {
     expect(
       screen.getByText("Code gesendet an m***@example.test"),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("Dieses Gerät");
+    expect(screen.getByLabelText("Name")).toHaveValue("Chrome auf macOS");
 
     fireEvent.change(screen.getByLabelText("Code"), {
       target: { value: "123456" },

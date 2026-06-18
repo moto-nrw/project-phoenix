@@ -1617,6 +1617,10 @@ func TestClassifyServiceError(t *testing.T) {
 		{"forbidden - own sessions", "can only update own sessions", http.StatusForbidden},
 		{"bad request - status", "status must be present or home_office", http.StatusBadRequest},
 		{"bad request - break minutes", "break minutes cannot be negative", http.StatusBadRequest},
+		{"bad request - invalid session data", "invalid session data: check-in time must be before check-out time", http.StatusBadRequest},
+		{"bad request - admin create time range", "check_out_time must be after check_in_time", http.StatusBadRequest},
+		{"internal server - invalid session missing creator", "invalid session data: created_by is required", http.StatusInternalServerError},
+		{"internal server - invalid session missing staff", "invalid session data: staff ID is required", http.StatusInternalServerError},
 		{"internal server - unknown", "some unknown error", http.StatusInternalServerError},
 	}
 

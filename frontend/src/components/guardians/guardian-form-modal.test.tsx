@@ -88,6 +88,7 @@ describe("createEmptyEntry", () => {
       "email",
       "phoneNumbers",
       "relationshipType",
+      "guardianRole",
       "isEmergencyContact",
       "isPrimary",
       "canPickup",
@@ -103,7 +104,8 @@ describe("createEmptyEntry", () => {
     const entry = createEmptyEntry();
 
     expect(entry.isPrimary).toBe(false);
-    expect(entry.canPickup).toBe(true);
+    expect(entry.guardianRole).toBe("legal_guardian");
+    expect(entry.canPickup).toBe(false);
     expect(entry.emergencyPriority).toBe(1);
   });
 });
@@ -838,6 +840,44 @@ describe("GuardianFormModal", () => {
 
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
+  });
+
+  it("applies pickup-only role defaults in visible relationship flags", () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Portalrolle"), {
+      target: { value: "pickup_only" },
+    });
+
+    expect(screen.getByLabelText("Hauptansprechpartner")).not.toBeChecked();
+    expect(screen.getByLabelText("Abholberechtigt")).toBeChecked();
+    expect(
+      screen.getByLabelText("Als Notfallkontakt markieren"),
+    ).not.toBeChecked();
+  });
+
+  it("resets portal role when relationship type changes to non-parent", () => {
+    render(
+      <GuardianFormModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        mode="create"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Beziehung zum Kind"), {
+      target: { value: "relative" },
+    });
+
+    expect(screen.getByLabelText("Portalrolle")).toHaveValue("custom");
   });
 
   it("shows loading state during submission", async () => {

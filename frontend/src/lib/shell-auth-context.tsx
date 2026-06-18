@@ -170,7 +170,7 @@ export function OperatorShellProvider({
       },
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),
-      profileUrl: null,
+      profileUrl: operatorPath("/operator/settings"),
     };
   }, [session, sessionStatus]);
 

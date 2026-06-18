@@ -2,9 +2,7 @@
 {{template "header" .}}
 
 <div class="email-body">
-    <div class="brand">
-        <img src="{{.LogoURL}}" alt="moto Logo" style="max-width: 180px; height: auto; display: block; margin: 0 auto;" />
-    </div>
+    {{template "moto-brand" .}}
     <h1>E-Mail-Adresse wurde geändert</h1>
     <p>Hallo {{.DisplayName}},</p>
     <p>die E-Mail-Adresse deines moto-Operator-Kontos wurde soeben erfolgreich geändert. Diese Adresse wird nicht mehr für die Anmeldung verwendet.</p>

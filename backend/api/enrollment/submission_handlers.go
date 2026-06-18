@@ -246,6 +246,7 @@ const (
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
+	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -267,6 +268,10 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidEmail))
+	// Must precede the generic ErrInvalidSubmission case below: the pickup
+	// error wraps ErrInvalidSubmission, so the specific match has to win.
+	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

@@ -270,15 +270,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   },
 ];
 
-const OPERATOR_BOTTOM_ITEM: NavItem = {
-  href: "/operator/settings",
-  label: "Einstellungen",
-  icon: navigationIcons.settings,
-  activeColor: "text-gray-500",
-  bottomPinned: true,
-  alwaysShow: true,
-};
-
 // Static sub-pages for Datenverwaltung accordion
 const DATABASE_SUB_PAGES = [
   { href: "/database/students", label: "Kinder" },
@@ -304,6 +295,18 @@ const ENROLLMENTS_SUB_PAGES = [
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },
 ];
+
+function matchesEnrollmentSubPage(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getActiveEnrollmentSubPageHref(pathname: string): string | null {
+  return (
+    ENROLLMENTS_SUB_PAGES.filter((page) =>
+      matchesEnrollmentSubPage(pathname, page.href),
+    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  );
+}
 
 // `tKey` is the parentNav catalog key; the German `label` is the fallback used
 // only when the preview list is rendered outside an intl context. Mapping on a
@@ -756,17 +759,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
-  const isOnEnrollmentsPage = ENROLLMENTS_SUB_PAGES.some((p) =>
-    pathname.startsWith(p.href),
-  );
+  const activeEnrollmentSubPageHref = getActiveEnrollmentSubPageHref(pathname);
+  const isOnEnrollmentsPage = activeEnrollmentSubPageHref !== null;
 
   const handleEnrollmentsToggle = useCallback(() => {
     // Hub = the request review queue. Mirrors handleDatabaseToggle's
     // navigate-on-expand behavior so clicking the section label always
     // ends up on a useful page rather than just toggling chevrons.
-    const onSection = ENROLLMENTS_SUB_PAGES.some((p) =>
-      pathname.startsWith(p.href),
-    );
+    const onSection = getActiveEnrollmentSubPageHref(pathname) !== null;
     if (!onSection) {
       toggle("enrollments");
       router.push("/admin/enrollments");
@@ -795,13 +795,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
           href: operatorPath(item.href),
         })),
       })),
-    [],
-  );
-  const resolvedOperatorBottomItem = useMemo(
-    () => ({
-      ...OPERATOR_BOTTOM_ITEM,
-      href: operatorPath(OPERATOR_BOTTOM_ITEM.href),
-    }),
     [],
   );
   const operatorSuggestionsHref = useMemo(
@@ -860,10 +853,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            {renderOperatorItem(resolvedOperatorBottomItem)}
           </nav>
         </div>
       </aside>
@@ -1116,7 +1105,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   key={page.href}
                   href={page.href}
                   label={page.label}
-                  isActive={pathname.startsWith(page.href)}
+                  isActive={activeEnrollmentSubPageHref === page.href}
                 />
               ))}
             </SidebarAccordionSection>

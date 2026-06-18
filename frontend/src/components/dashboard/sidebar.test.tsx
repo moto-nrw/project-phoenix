@@ -317,6 +317,18 @@ describe("Sidebar", () => {
       const dashboardLink = screen.getByText("Home").closest("a");
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
+
+    it("does not render the removed enrollment reports subpage", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const overviewLink = screen.getByText("Überblick").closest("a");
+      expect(overviewLink).toHaveClass("bg-gray-100");
+      expect(screen.queryByText("Auswertung")).not.toBeInTheDocument();
+    });
   });
 
   describe("student detail page active link detection", () => {
@@ -1316,7 +1328,7 @@ describe("Sidebar", () => {
         mode: "operator",
         homeUrl: "/operator/suggestions",
 
-        profileUrl: null,
+        profileUrl: "/operator/settings",
       });
       mockUsePathname.mockReturnValue("/operator/suggestions");
     });
@@ -1326,7 +1338,7 @@ describe("Sidebar", () => {
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
-      expect(screen.getByText("Einstellungen")).toBeInTheDocument();
+      expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
 
     it("does not render teacher-specific items", () => {
@@ -1345,11 +1357,10 @@ describe("Sidebar", () => {
       expect(aside).toHaveClass("op-class");
     });
 
-    it("renders bottom pinned settings item", () => {
+    it("does not render settings in operator navigation", () => {
       render(<Sidebar />);
 
-      const settingsLink = screen.getByText("Einstellungen").closest("a");
-      expect(settingsLink).toHaveAttribute("href", "/operator/settings");
+      expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });
   });
 

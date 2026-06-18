@@ -216,58 +216,13 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var summary *enrollmentService.RequestSummary
-	var schemaFields []AdminRequestSchemaField
-	var schemaLegalBlocks []AdminRequestSchemaLegalBlock
-	var childOfferings map[int64][]enrollmentService.ChildOfferingRow
+	var detail AdminRequestSummary
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
 			return e
 		}
-		summary = s
-		// Per-child offerings — best-effort; failure here doesn't kill
-		// the detail response, the admin just sees no Betreuungsangebote
-		// section.
-		if off, oerr := rs.DecisionService.ListChildOfferings(ctx, id); oerr == nil {
-			childOfferings = off
-		}
-		// Pull the form schema so the response can carry labels +
-		// targets alongside the raw custom_data values. Best-effort:
-		// a missing schema falls back to rendering raw keys on the
-		// frontend.
-		if rs.FormSchemaService != nil && s.Request != nil && s.Request.SchemaID != nil {
-			fs, ferr := rs.FormSchemaService.GetByID(ctx, *s.Request.SchemaID)
-			if ferr == nil && fs != nil {
-				schemaFields = make([]AdminRequestSchemaField, 0, len(fs.Fields))
-				for _, f := range fs.Fields {
-					// Information blocks collect no answer — omit them
-					// from the admin's per-submission field list.
-					if f.Type == enrollmentModels.FormFieldInfo {
-						continue
-					}
-					opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
-					for _, o := range f.Options {
-						opts = append(opts, AdminRequestSchemaFieldOption{Label: o.Label, Value: o.Value})
-					}
-					schemaFields = append(schemaFields, AdminRequestSchemaField{
-						Key:            f.Key,
-						Label:          f.Label,
-						Type:           string(f.Type),
-						AppliesToChild: f.AppliesToCh,
-						Target:         f.Target,
-						Options:        opts,
-					})
-				}
-				schemaLegalBlocks = make([]AdminRequestSchemaLegalBlock, 0, len(fs.LegalBlocks))
-				for _, b := range fs.LegalBlocks {
-					schemaLegalBlocks = append(schemaLegalBlocks, AdminRequestSchemaLegalBlock{
-						Key:   b.Key,
-						Title: b.Title,
-					})
-				}
-			}
-		}
+		detail = rs.toAdminRequestDetail(ctx, s)
 		return nil
 	})
 	if err != nil {
@@ -278,36 +233,107 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	common.Respond(w, r, http.StatusOK, detail, "Admin request retrieved")
+}
+
+func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
+	if err != nil || studentID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid studentId")))
+		return
+	}
+
+	var out []AdminRequestSummary
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		summaries, listErr := rs.DecisionService.ListByStudent(ctx, studentID)
+		if listErr != nil {
+			return listErr
+		}
+		out = make([]AdminRequestSummary, 0, len(summaries))
+		for _, summary := range summaries {
+			out = append(out, rs.toAdminRequestDetail(ctx, summary))
+		}
+		return nil
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, out, "Student admin requests retrieved")
+}
+
+func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestSummary {
 	detail := toAdminRequestSummary(summary)
+	if summary == nil || summary.Request == nil {
+		return detail
+	}
 	detail.CustomData = summary.Request.CustomData
 	detail.ConsentFlags = summary.Request.ConsentFlags
-	detail.SchemaFields = schemaFields
-	detail.SchemaLegalBlocks = schemaLegalBlocks
-	// Stitch per-child offerings onto the detail-response children.
-	// childOfferings is keyed by request_child.id as a raw int64; the
-	// summary's children carry their id as the original int64 too —
-	// just need to format it the same way the DTO stringifies the id.
-	if childOfferings != nil {
-		for i := range detail.Children {
-			cid := summary.Children[i].ID
-			rows := childOfferings[cid]
-			if len(rows) == 0 {
-				continue
-			}
-			out := make([]AdminRequestChildOffering, 0, len(rows))
-			for _, row := range rows {
-				out = append(out, AdminRequestChildOffering{
-					OfferingID:     strconv.FormatInt(row.OfferingID, 10),
-					OfferingName:   row.OfferingName,
-					DaysOfWeekMode: row.DaysOfWeekMode,
-					SelectedDays:   row.SelectedDays,
-					AvailableDays:  row.AvailableDays,
-				})
-			}
-			detail.Children[i].Offerings = out
+
+	if rs.FormSchemaService != nil && summary.Request.SchemaID != nil {
+		if fs, err := rs.FormSchemaService.GetByID(ctx, *summary.Request.SchemaID); err == nil && fs != nil {
+			detail.SchemaFields, detail.SchemaLegalBlocks = toAdminSchemaMetadata(fs)
 		}
 	}
-	common.Respond(w, r, http.StatusOK, detail, "Admin request retrieved")
+
+	if rs.DecisionService != nil {
+		if childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID); err == nil {
+			for i := range detail.Children {
+				if i >= len(summary.Children) {
+					continue
+				}
+				rows := childOfferings[summary.Children[i].ID]
+				if len(rows) == 0 {
+					continue
+				}
+				out := make([]AdminRequestChildOffering, 0, len(rows))
+				for _, row := range rows {
+					out = append(out, AdminRequestChildOffering{
+						OfferingID:     strconv.FormatInt(row.OfferingID, 10),
+						OfferingName:   row.OfferingName,
+						DaysOfWeekMode: row.DaysOfWeekMode,
+						SelectedDays:   row.SelectedDays,
+						AvailableDays:  row.AvailableDays,
+					})
+				}
+				detail.Children[i].Offerings = out
+			}
+		}
+	}
+	return detail
+}
+
+func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
+	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
+	for _, f := range fs.Fields {
+		if f.Type == enrollmentModels.FormFieldInfo {
+			continue
+		}
+		opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
+		for _, o := range f.Options {
+			opts = append(opts, AdminRequestSchemaFieldOption{Label: o.Label, Value: o.Value})
+		}
+		schemaFields = append(schemaFields, AdminRequestSchemaField{
+			Key:            f.Key,
+			Label:          f.Label,
+			Type:           string(f.Type),
+			AppliesToChild: f.AppliesToCh,
+			Target:         f.Target,
+			Options:        opts,
+		})
+	}
+	schemaLegalBlocks := make([]AdminRequestSchemaLegalBlock, 0, len(fs.LegalBlocks))
+	for _, b := range fs.LegalBlocks {
+		schemaLegalBlocks = append(schemaLegalBlocks, AdminRequestSchemaLegalBlock{
+			Key:   b.Key,
+			Title: b.Title,
+		})
+	}
+	return schemaFields, schemaLegalBlocks
 }
 
 // AdminDecideRequest is the body of POST .../children/{childId}/decide.
@@ -343,19 +369,46 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	reviewedBy := int64(claims.ID)
 
 	var outcome *enrollmentService.DecideOutcome
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
-			RequestID:  requestID,
-			ChildID:    childID,
-			Status:     enrollmentService.DecisionStatus(body.Status),
-			Reason:     body.Reason,
-			ReviewedBy: reviewedBy,
+	for attempt := 0; attempt < 2; attempt++ {
+		outcome = nil
+		decisionBodySucceeded := false
+		err = rs.runInTenantTx(r, func(ctx context.Context) error {
+			out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
+				RequestID:  requestID,
+				ChildID:    childID,
+				Status:     enrollmentService.DecisionStatus(body.Status),
+				Reason:     body.Reason,
+				ReviewedBy: reviewedBy,
+			})
+			if e != nil {
+				return e
+			}
+			outcome = out
+			decisionBodySucceeded = true
+			return nil
 		})
-		outcome = out
-		return e
-	})
+		if err == nil {
+			break
+		}
+		if reqErr := r.Context().Err(); reqErr != nil {
+			err = reqErr
+			break
+		}
+		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
+			break
+		}
+		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
+			slog.Int64("request_id", requestID),
+			slog.Int64("child_id", childID),
+			slog.String("error", err.Error()),
+		)
+	}
 	if err != nil {
 		switch {
+		case errors.Is(err, context.Canceled):
+			common.RenderError(w, r, common.ErrorClientClosed(err))
+		case errors.Is(err, context.DeadlineExceeded):
+			common.RenderError(w, r, common.ErrorRequestTimeout(err))
 		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
 			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))
@@ -363,6 +416,8 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
 			errors.Is(err, enrollmentService.ErrDecisionInvalidData):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		case common.IsTransientDatabaseError(err):
+			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}

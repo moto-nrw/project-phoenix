@@ -5,6 +5,7 @@ import { KeyRound, Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
   isPasskeySupported,
   listPasskeys,
@@ -63,7 +64,7 @@ export function PasskeySettingsSection({
     try {
       const challenge = await startPasskeyEnrollment(scope);
       setMaskedEmail(challenge.masked_email);
-      setName("Dieses Gerät");
+      setName(suggestCurrentDeviceLabel());
       setCode("");
       setConfirmingEnrollment(false);
       setEnrolling(true);

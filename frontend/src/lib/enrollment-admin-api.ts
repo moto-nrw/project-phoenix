@@ -20,6 +20,8 @@ export type DecisionStatus =
   | "rejected"
   | "under_review";
 
+export type EnrollmentRequestExportFormat = "pdf" | "docx" | "xlsx";
+
 export interface AdminRequestChildOffering {
   offering_id: string;
   offering_name: string;
@@ -178,6 +180,48 @@ export async function getAdminRequest(
   return readJSON<AdminRequestSummary>(response);
 }
 
+export async function listStudentEnrollmentRequests(
+  studentId: string,
+): Promise<AdminRequestSummary[]> {
+  const response = await fetch(
+    `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Anmeldungen konnten nicht geladen werden");
+  }
+  const list = await readJSON<AdminRequestSummary[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function exportStudentEnrollmentRequests(
+  studentId: string,
+  format: EnrollmentRequestExportFormat,
+): Promise<void> {
+  const response = await fetch(
+    `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests/export`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format }),
+    },
+  );
+
+  if (!response.ok) {
+    throw await readError(response, "Export konnte nicht erstellt werden");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filenameFromDisposition(response) ?? `anmeldungen.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function decideAdminChild(
   requestId: string,
   childId: string,
@@ -205,4 +249,10 @@ export async function decideAdminChild(
     );
   }
   return readJSON<AdminRequestChild>(response);
+}
+
+function filenameFromDisposition(response: Response): string | null {
+  const disposition = response.headers.get("content-disposition");
+  const match = /filename="([^"]+)"/.exec(disposition ?? "");
+  return match?.[1] ?? null;
 }

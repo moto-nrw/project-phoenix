@@ -737,7 +737,7 @@ describe("MobileBottomNav", () => {
         mode: "operator",
         homeUrl: "/operator/suggestions",
 
-        profileUrl: null,
+        profileUrl: "/operator/settings",
       });
       mockUsePathname.mockReturnValue("/operator/suggestions");
     });
@@ -760,8 +760,7 @@ describe("MobileBottomNav", () => {
       // Issue #1282: the old operator bottom nav had no overflow because the
       // single /operator/provisioning page housed all Verwaltung tabs. After
       // the tabs were split into dedicated routes the overflow drawer must
-      // surface the remaining 4 sibling pages + Einstellungen so mobile users
-      // can reach them.
+      // surface the remaining sibling pages so mobile users can reach them.
       render(<MobileBottomNav />);
 
       const navButtons = screen.getAllByRole("button");
@@ -778,7 +777,7 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/operator/accounts");
       expect(hrefs).toContain("/operator/devices");
       expect(hrefs).toContain("/operator/persons");
-      expect(hrefs).toContain("/operator/settings");
+      expect(hrefs).not.toContain("/operator/settings");
     });
 
     it("shows active label for current operator route", () => {
