@@ -182,6 +182,9 @@ type Factory struct {
 
 	// Parent-submitted notes (tenant-scoped; read by parents + staff)
 	StudentParentNote userModels.StudentParentNoteRepository
+
+	// Parent Stammdaten direct-edit audit + change-request review
+	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -330,5 +333,8 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Parent-submitted notes (tenant-scoped; read by parents + staff)
 		StudentParentNote: users.NewStudentParentNoteRepository(db),
+
+		// Parent Stammdaten direct-edit audit + change-request review
+		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
 	}
 }

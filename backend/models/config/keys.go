@@ -126,6 +126,8 @@ const (
 	KeyParentSickNoteEnabled          = "operations.parent_sick_note_enabled"
 	KeyParentNotesEnabled             = "operations.parent_notes_enabled"
 	KeyParentPickupChangeEnabled      = "operations.parent_pickup_change_enabled"
+	KeyParentMasterDataEditEnabled    = "operations.parent_master_data_edit_enabled"
+	KeyParentMasterDataRequestEnabled = "operations.parent_master_data_request_enabled"
 	KeyTimeTrackingAccountStartDate   = "operations.time_tracking_account_start_date"
 )
 

@@ -540,4 +540,30 @@ func init() {
 		Category:        "elternportal",
 		SortOrder:       64,
 	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataEditEnabled,
+		Label:           "Stammdaten über Elternportal bearbeiten",
+		Description:     "Wenn aktiviert, können Eltern die von ihnen gepflegten Stammdaten ihres Kindes (Gesundheitsangaben, eigene Kontaktdaten) direkt über das Elternportal ändern. Die Änderungen werden sofort übernommen und protokolliert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataRequestEnabled,
+		Label:           "Stammdaten-Änderungen zur Freigabe einreichen",
+		Description:     "Wenn aktiviert, können Eltern für besonders sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) über das Elternportal Änderungen vorschlagen. Diese werden dem Team zur Prüfung und Freigabe vorgelegt und erst nach Bestätigung übernommen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       66,
+	})
 }
