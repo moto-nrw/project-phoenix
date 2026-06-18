@@ -138,6 +138,33 @@ const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   pickup: "Wird abgeholt",
 };
 
+/** Short labels for the departure modes, used in compact badges (editor pills
+ *  and the read-only Stammdaten matrix). */
+export const DEPARTURE_MODE_SHORT_LABELS: Record<DepartureMode, string> = {
+  alone: "Zu Fuß",
+  bus: "Bus",
+  pickup: "Abgeholt",
+};
+
+/**
+ * Brand-hex badge classes per departure mode — the single source of truth shared
+ * by the editor pills (BusStatusSection/DepartureSection) and the read-only
+ * Stammdaten matrix, so edit and view stay visually identical: pickup = brand
+ * green, bus = brand blue, alone = neutral gray.
+ */
+export const DEPARTURE_MODE_BADGE_CLASSES: Record<DepartureMode, string> = {
+  alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
+  bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
+  pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
+};
+
+/** Canonical render order for departure modes (stable badge ordering). */
+const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [
+  "alone",
+  "bus",
+  "pickup",
+];
+
 export function normalizeDepartureDays(
   value?: DepartureDays | null,
 ): DepartureDays {
@@ -249,6 +276,72 @@ export function formatAllowedDepartureModes(
     ];
   });
   return parts.length > 0 ? parts.join("; ") : "Geht immer alleine";
+}
+
+/**
+ * Compact day-only summary for the "Erlaubte Heimwege" badge. Lists just the
+ * weekdays that have any departure mode configured (e.g. "Mo, Di, Fr"), mirroring
+ * formatBusDays/formatPickupDays. Unlike formatAllowedDepartureModes it omits the
+ * per-day modes, so the badge stays single-line even when every weekday has bus
+ * and pickup — the full breakdown lives in the editor rows right below it.
+ */
+export function formatAllowedDepartureDays(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  const labels = DEPARTURE_WEEKDAYS.filter(
+    (day) => (normalized[day.key]?.length ?? 0) > 0,
+  ).map((day) => day.label.slice(0, 2));
+  return labels.length > 0 ? labels.join(", ") : "Geht immer alleine";
+}
+
+export interface DepartureMatrixRow {
+  readonly key: DepartureDayKey;
+  /** Full weekday label, e.g. "Montag". */
+  readonly label: string;
+  /** Two-letter weekday label, e.g. "Mo". */
+  readonly short: string;
+  /** Allowed modes for the day in canonical order; never empty — a day with no
+   *  configured arrangement folds to ["alone"] (the child leaves on its own). */
+  readonly modes: DepartureMode[];
+}
+
+/**
+ * Builds the per-weekday rows for the read-only "Erlaubte Heimwege" matrix
+ * (Mo–Fr). A weekday with no configured mode folds to ["alone"], mirroring
+ * formatAllowedDepartureModes' "goes alone" semantics. Modes are returned in the
+ * canonical DEPARTURE_MODE_ORDER so badges render in a stable order.
+ */
+export function departureMatrixRows(
+  value?: AllowedDepartureModes | null,
+): DepartureMatrixRow[] {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map((day) => {
+    const modes = normalized[day.key] ?? [];
+    const ordered = DEPARTURE_MODE_ORDER.filter((mode) => modes.includes(mode));
+    return {
+      key: day.key,
+      label: day.label,
+      short: day.label.slice(0, 2),
+      modes: ordered.length > 0 ? ordered : ["alone"],
+    };
+  });
+}
+
+/**
+ * True when at least one weekday has a bus or pickup arrangement, i.e. the child
+ * does not simply go home alone every day. Used to collapse the matrix to a
+ * single "Geht immer alleine" line when there is nothing meaningful to show.
+ */
+export function hasAnyDepartureArrangement(
+  value?: AllowedDepartureModes | null,
+): boolean {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.some((day) =>
+    (normalized[day.key] ?? []).some(
+      (mode) => mode === "bus" || mode === "pickup",
+    ),
+  );
 }
 
 /**
