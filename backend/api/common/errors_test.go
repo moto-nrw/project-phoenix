@@ -549,6 +549,11 @@ func TestIsTransientDatabaseError_DetectsBadConnection(t *testing.T) {
 	assert.True(t, common.IsTransientDatabaseError(err))
 }
 
+func TestIsTransientDatabaseError_IgnoresRequestContextCancellation(t *testing.T) {
+	assert.False(t, common.IsTransientDatabaseError(context.Canceled))
+	assert.False(t, common.IsTransientDatabaseError(context.DeadlineExceeded))
+}
+
 func TestIsTransientDatabaseError_IgnoresDomainValidation(t *testing.T) {
 	err := errors.New("invalid session data: check-in time must be before check-out time")
 

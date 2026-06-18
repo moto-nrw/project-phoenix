@@ -1594,9 +1594,18 @@ func (s *decisionService) materializeEnrollments(
 	if len(links) == 0 {
 		return nil
 	}
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phase.ID)
+	offeringIDs := make([]int64, 0, len(links))
+	seenOfferingIDs := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link.CareOfferingID <= 0 || seenOfferingIDs[link.CareOfferingID] {
+			continue
+		}
+		seenOfferingIDs[link.CareOfferingID] = true
+		offeringIDs = append(offeringIDs, link.CareOfferingID)
+	}
+	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDs)
 	if err != nil {
-		return fmt.Errorf("decision: list phase care offerings: %w", err)
+		return fmt.Errorf("decision: list linked care offerings: %w", err)
 	}
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {

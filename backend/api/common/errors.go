@@ -47,6 +47,8 @@ var (
 	ErrGone             = errors.New("resource no longer available")
 )
 
+const statusClientClosedRequest = 499
+
 // LogRenderError is the format string for logging render errors
 const LogRenderError = "Error rendering error response: %v"
 
@@ -261,6 +263,18 @@ func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
 }
 
+// ErrorRequestTimeout returns a 408 Request Timeout response for request
+// contexts whose deadline expired before the handler could complete.
+func ErrorRequestTimeout(err error) render.Renderer {
+	return newErrResponse(http.StatusRequestTimeout, err)
+}
+
+// ErrorClientClosed returns the de-facto 499 status for a client-canceled
+// request. Keeping this below 500 avoids Sentry noise for disconnects.
+func ErrorClientClosed(err error) render.Renderer {
+	return newErrResponse(statusClientClosedRequest, err)
+}
+
 // ErrorServiceUnavailable returns a 503 Service Unavailable response. Used
 // when a transient dependency (settings DB, MFA-credentials lookup, etc.)
 // makes a security decision impossible and the safe behaviour is to refuse
@@ -276,9 +290,10 @@ func IsTransientDatabaseError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, driver.ErrBadConn) ||
-		errors.Is(err, context.DeadlineExceeded) ||
-		errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, driver.ErrBadConn) {
 		return true
 	}
 

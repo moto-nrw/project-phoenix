@@ -966,6 +966,115 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	assert.Empty(t, rows[0].SelectedWeekdays)
 }
 
+func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Rollover-Linked")
+	group := &activitiesModels.Group{
+		Name:            "Decision Rollover Linked",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	defer func() {
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Rollover Source Linked",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"mon", "wed"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Rollover",
+		GuardianEmail:     "rollover-linked@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Rina",
+				LastName:         "Rollover",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	sourceOutcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sourceOutcome.Child.CreatedStudentID)
+	studentID := *sourceOutcome.Child.CreatedStudentID
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
+		validRolloverRequest(env.rolloverTestEnv, enrollmentModels.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+	require.NotNil(t, result.Phase)
+
+	rolledChildren, err := env.repos.RequestChild.ListByPhaseAndStatuses(ctx, result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, rolledChildren, 1)
+	rolled := rolledChildren[0]
+	require.NotNil(t, rolled.RolloverSourceChildID)
+	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
+
+	rolledLinks, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled.ID)
+	require.NoError(t, err)
+	require.Len(t, rolledLinks, 1)
+	assert.Equal(t, offering.ID, rolledLinks[0].CareOfferingID,
+		"rollover intentionally copies the source-phase offering id")
+
+	rolloverOutcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  rolled.RequestID,
+		ChildID:    rolled.ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rolloverOutcome.Child.CreatedStudentID)
+	assert.Equal(t, studentID, *rolloverOutcome.Child.CreatedStudentID)
+
+	count, err := env.db.NewSelect().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Where(`"student_enrollment".valid_from = ?`, result.Phase.ServiceStartDate).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count,
+		"rollover approval must materialize the copied source-phase offering for the target phase window")
+}
+
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

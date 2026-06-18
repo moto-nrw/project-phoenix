@@ -371,6 +371,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	var outcome *enrollmentService.DecideOutcome
 	for attempt := 0; attempt < 2; attempt++ {
 		outcome = nil
+		decisionBodySucceeded := false
 		err = rs.runInTenantTx(r, func(ctx context.Context) error {
 			out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
 				RequestID:  requestID,
@@ -379,10 +380,21 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 				Reason:     body.Reason,
 				ReviewedBy: reviewedBy,
 			})
+			if e != nil {
+				return e
+			}
 			outcome = out
-			return e
+			decisionBodySucceeded = true
+			return nil
 		})
-		if err == nil || !common.IsTransientDatabaseError(err) || attempt == 1 {
+		if err == nil {
+			break
+		}
+		if reqErr := r.Context().Err(); reqErr != nil {
+			err = reqErr
+			break
+		}
+		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
 			break
 		}
 		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
@@ -393,6 +405,10 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		switch {
+		case errors.Is(err, context.Canceled):
+			common.RenderError(w, r, common.ErrorClientClosed(err))
+		case errors.Is(err, context.DeadlineExceeded):
+			common.RenderError(w, r, common.ErrorRequestTimeout(err))
 		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
 			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFound(err))

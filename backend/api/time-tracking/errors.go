@@ -52,7 +52,8 @@ func classifyServiceError(err error) render.Renderer {
 		msg == "notes required when changing status",
 		msg == "break minutes cannot be negative",
 		msg == "break duration cannot be negative",
-		strings.HasPrefix(msg, "invalid session data:"),
+		msg == "invalid session data: check-in time must be before check-out time",
+		msg == "check_out_time must be after check_in_time",
 		strings.HasPrefix(msg, "planned_duration_minutes must be"),
 		strings.HasPrefix(msg, "break ") && strings.Contains(msg, "does not belong to this session"),
 		msg == "cannot edit duration of an active break":

@@ -697,6 +697,9 @@ const (
 // transaction so the service's repo calls hit the right RLS scope.
 // Tests use a nil DB and skip the transaction wrap.
 func (rs *Resource) runInTenantTx(r *http.Request, fn func(ctx context.Context) error) error {
+	if rs.runInTenantTxForTest != nil {
+		return rs.runInTenantTxForTest(r, fn)
+	}
 	ctx := r.Context()
 	if rs.db == nil {
 		return fn(ctx)
