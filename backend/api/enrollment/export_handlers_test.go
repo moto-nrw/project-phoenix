@@ -597,6 +597,46 @@ func TestBuildPhaseExportFile_RejectsUnsupportedFormat(t *testing.T) {
 	}
 }
 
+func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "docx",
+		"filters": {"phase_id": 42, "status": "all"}
+	}`))
+
+	format, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if format != listexport.FormatDOCX {
+		t.Fatalf("format = %q, want %q", format, listexport.FormatDOCX)
+	}
+	if filters.PhaseID != 42 {
+		t.Fatalf("phase_id = %d, want 42", filters.PhaseID)
+	}
+}
+
+func TestBuildCareUsageExportFile_DOCX(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals: enrollmentService.CareUsageTotals{
+			Children:   0,
+			ByDayCount: map[string]int{"1": 0, "2": 0, "3": 0, "4": 0, "5": 0},
+		},
+	}
+
+	file, err := buildCareUsageExportFile(listexport.NewService(), report, listexport.FormatDOCX)
+	if err != nil {
+		t.Fatalf("buildCareUsageExportFile: %v", err)
+	}
+	if !strings.HasSuffix(file.Filename, ".docx") {
+		t.Fatalf("filename = %q, want .docx suffix", file.Filename)
+	}
+	if len(file.Data) == 0 {
+		t.Fatal("expected non-empty docx data")
+	}
+}
+
 // --- Composite reserved field rendering --------------------------------
 //
 // These fields arrive as jsonb (map[string]any / []any) in custom_data.

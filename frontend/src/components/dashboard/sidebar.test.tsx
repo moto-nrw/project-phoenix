@@ -318,17 +318,16 @@ describe("Sidebar", () => {
       expect(dashboardLink).not.toHaveClass("bg-gray-100");
     });
 
-    it("highlights only Auswertung on enrollment reports", () => {
-      mockUsePathname.mockReturnValue("/admin/enrollments/reports");
+    it("does not render the removed enrollment reports subpage", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
       const overviewLink = screen.getByText("Überblick").closest("a");
-      const reportsLink = screen.getByText("Auswertung").closest("a");
-      expect(overviewLink).not.toHaveClass("bg-gray-100");
-      expect(reportsLink).toHaveClass("bg-gray-100");
+      expect(overviewLink).toHaveClass("bg-gray-100");
+      expect(screen.queryByText("Auswertung")).not.toBeInTheDocument();
     });
   });
 

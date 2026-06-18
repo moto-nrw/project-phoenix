@@ -56,3 +56,37 @@ func TestSortedDayCodesDedupesAndOrdersWeekdays(t *testing.T) {
 	got := sortedDayCodes([]string{"fri", "mon", "mon", "wed", "tue"})
 	assert.Equal(t, []string{"mon", "tue", "wed", "fri"}, got)
 }
+
+func TestCareUsageRowMatchesFilters(t *testing.T) {
+	grade := int16(2)
+	row := CareUsageRow{
+		ChildFirstName:   "Lina",
+		ChildLastName:    "Muster",
+		TargetGradeLevel: &grade,
+		Status:           enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed", "fri"}},
+		},
+		EffectiveDays:     []string{"mon", "wed", "fri"},
+		DayCount:          3,
+		GuardianFirstName: "Eva",
+		GuardianLastName:  "Muster",
+		GuardianEmail:     "eva@example.test",
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:         enrollmentModels.ChildStatusApproved,
+		CareOfferingID: 10,
+		DayCount:       3,
+		GradeLevel:     &grade,
+		Search:         "eva@example",
+	}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", CareOfferingID: 11}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: 4}))
+
+	otherGrade := int16(3)
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Search: "unbekannt"}))
+}

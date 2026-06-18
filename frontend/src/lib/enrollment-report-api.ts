@@ -5,7 +5,7 @@ import type { ChildStatus } from "~/lib/enrollment-admin-api";
 const logger = createLogger({ component: "EnrollmentReportAPI" });
 
 export type EnrollmentReportStatus = ChildStatus | "all";
-export type EnrollmentReportFormat = "pdf" | "xlsx";
+export type EnrollmentReportFormat = "pdf" | "docx" | "xlsx";
 
 export interface CareUsageFilters {
   phase_id: number;

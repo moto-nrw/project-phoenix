@@ -702,7 +702,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in fünf Unterseiten den Ablauf einrichten und auswerten - `Überblick`, `Auswertung`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
@@ -721,15 +721,22 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen prüfen",
         icon: LayoutDashboard,
         summary:
-          "Eingegangene Anmeldungen öffnen, Angaben prüfen und die passende Entscheidung setzen.",
+          "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
+          "Mit `Status`, `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
+        callout: {
+          title: "So zählt moto Betreuungstage",
+          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal.",
+          tone: "blue",
+        },
         screenshot:
-          "Anmeldungen-Überblick mit Eingangsliste und Entscheidungsoptionen.",
+          "Anmeldephase mit Eingangsliste, Filtern, Kennzahlen nach Tagesanzahl und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
       },
       {
@@ -744,6 +751,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
+          "Für eine Statistik nach Betreuungsangeboten oder Tagesanzahl nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -752,27 +760,6 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
         image: "/help/screens/anmeldungen-exportieren.webp",
-      },
-      {
-        id: "anmeldungen-auswerten",
-        title: "Anmeldungen auswerten",
-        icon: ClipboardList,
-        summary:
-          "Betreuungsangebote und Betreuungstage einer Anmeldephase prüfen, filtern und als PDF oder Excel-Datei exportieren.",
-        steps: [
-          "`Anmeldungen` -> `Auswertung` öffnen.",
-          "Die passende `Anmeldephase` wählen. Standardmäßig werden bestätigte Kinder ausgewertet; über `Status` kannst du alle Eingänge oder einzelne Status anzeigen.",
-          "Nach `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder Name/E-Mail filtern.",
-          "Die Kennzahlen zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
-          "`Excel` oder `PDF` exportiert genau die aktuelle Filterung.",
-        ],
-        callout: {
-          title: "So zählt moto Betreuungstage",
-          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal. In der Tabelle bleibt sichtbar, aus welchen Angeboten und Tagen sich die Zahl zusammensetzt.",
-          tone: "blue",
-        },
-        screenshot:
-          "Auswertung mit Phasenauswahl, Filtern, Kennzahlen nach Tagesanzahl und Kinderliste.",
       },
       {
         id: "anmeldephasen",

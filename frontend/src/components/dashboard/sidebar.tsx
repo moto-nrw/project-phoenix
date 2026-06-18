@@ -291,7 +291,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
-  { href: "/admin/enrollments/reports", label: "Auswertung" },
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },

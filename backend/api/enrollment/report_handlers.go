@@ -167,9 +167,9 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollment
 		format = listexport.FormatXLSX
 	}
 	switch format {
-	case listexport.FormatPDF, listexport.FormatXLSX:
+	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
 	default:
-		return "", enrollmentService.CareUsageFilters{}, fmt.Errorf("unsupported export format %q (use pdf or xlsx)", format)
+		return "", enrollmentService.CareUsageFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
 	}
 	if body.Filters.PhaseID <= 0 {
 		return "", enrollmentService.CareUsageFilters{}, errors.New("filters.phase_id is required")
@@ -183,6 +183,8 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 		filename = "Anmelde-Auswertung"
 	}
 	switch format {
+	case listexport.FormatDOCX:
+		return svc.RenderRecordsDOCX(buildCareUsageRecordDocument(report), filename)
 	case listexport.FormatPDF:
 		return svc.RenderRecords(buildCareUsageRecordDocument(report), filename)
 	case listexport.FormatXLSX:
